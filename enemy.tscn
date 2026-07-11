@@ -1,0 +1,67 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://enemy.gd" id="1_enemy"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(28, 40)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_damage"]
+size = Vector2(32, 44)
+
+[node name="Enemy" type="CharacterBody2D"]
+collision_layer = 4
+collision_mask = 1
+script = ExtResource("1_enemy")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_body")
+
+[node name="ColorRect" type="ColorRect" parent="."]
+offset_left = -14.0
+offset_top = -20.0
+offset_right = 14.0
+offset_bottom = 20.0
+color = Color(0.6236201, 0.18110216, 0.10793113, 1)
+
+[node name="WeaponIcon" type="ColorRect" parent="."]
+offset_left = -4.0
+offset_top = -14.0
+offset_right = 4.0
+offset_bottom = 14.0
+color = Color(0.75, 0.75, 0.8, 1)
+
+[node name="BowVisual" type="Node2D" parent="."]
+visible = false
+
+[node name="BowLimb" type="Line2D" parent="BowVisual"]
+points = PackedVector2Array(0, -12, 3, -9, 5, -4, 6, 0, 5, 4, 3, 9, 0, 12)
+width = 2.5
+default_color = Color(0.26, 0.18, 0.1, 1)
+
+[node name="BowString" type="Line2D" parent="BowVisual"]
+points = PackedVector2Array(0, -12, 0, 12)
+width = 1.0
+default_color = Color(0.55, 0.5, 0.45, 1)
+
+[node name="HealthBarBG" type="ColorRect" parent="."]
+offset_left = -20.0
+offset_top = -35.0
+offset_right = 20.0
+offset_bottom = -29.0
+color = Color(0.30612278, 0.08126382, 0.12685254, 1)
+
+[node name="HealthBarFill" type="ColorRect" parent="."]
+offset_left = -20.0
+offset_top = -35.0
+offset_right = 20.0
+offset_bottom = -29.0
+color = Color(0.10823276, 0.70979965, 0.30902806, 1)
+
+[node name="DamageArea" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 2
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="DamageArea"]
+shape = SubResource("RectangleShape2D_damage")
+
+[node name="SFXPlayer" type="AudioStreamPlayer2D" parent="."]
