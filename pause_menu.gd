@@ -4,7 +4,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	visible = false
 	$Panel/VBox/ResumeButton.pressed.connect(_on_resume)
-	$Panel/VBox/ExitSurvivalButton.pressed.connect(_on_exit_survival)
+	$Panel/VBox/ExitDungeonButton.pressed.connect(_on_exit_dungeon)
 	$Panel/VBox/SettingsButton.pressed.connect(_on_toggle_settings)
 	$Panel/VBox/QuitMenuButton.pressed.connect(_on_quit_to_menu)
 	$Panel/VBox/QuitGameButton.pressed.connect(_on_quit_game)
@@ -21,14 +21,14 @@ func toggle_pause() -> void:
 	visible = not visible
 	get_tree().paused = visible
 	if visible:
-		$Panel/VBox/ExitSurvivalButton.visible = $"../SurvivalManager".started
+		$Panel/VBox/ExitDungeonButton.visible = $"../DungeonManager".started
 		$Panel/SettingsPanel.visible = false
 
 func _on_resume() -> void:
 	toggle_pause()
 
-func _on_exit_survival() -> void:
-	$"../SurvivalManager".exit_survival()
+func _on_exit_dungeon() -> void:
+	$"../DungeonManager".exit_dungeon()
 	toggle_pause()
 
 func _on_toggle_settings() -> void:

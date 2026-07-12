@@ -3,6 +3,11 @@ extends VBoxContainer
 const DISPLAY_DURATION = 2.2
 const FADE_DURATION = 0.5
 
+func _ready() -> void:
+	# lets autoloads (GameState's level-up toast) find whichever scene's
+	# stack is live without a hardcoded scene path
+	add_to_group("notification_stack")
+
 func show_notification(text: String) -> void:
 	var label = Label.new()
 	label.text = text

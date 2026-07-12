@@ -33,11 +33,12 @@ const MOUNTAIN_ZONES = [
 	{"x": 3250.0, "width": 1080.0, "height": 720.0, "peaks": 3, "color": Color(0.4, 0.5, 0.42, 1)},
 	{"x": 800.0, "width": 480.0, "height": 310.0, "peaks": 2, "color": Color(0.48, 0.45, 0.61, 1)},
 	{"x": 4000.0, "width": 420.0, "height": 280.0, "peaks": 3, "color": Color(0.38, 0.48, 0.4, 1)},
+	{"x": 6200.0, "width": 1450.0, "height": 780.0, "peaks": 4, "color": Color(0.42, 0.44, 0.56, 1)},
 ]
 
 const CLOUD_COUNT = 40
 const CLOUD_SPAN_START = -900.0
-const CLOUD_SPAN_END = 5000.0
+const CLOUD_SPAN_END = 8100.0
 const CLOUD_Y_MIN = -720.0
 const CLOUD_Y_MAX = -470.0
 const CLOUD_MIN_SCALE = 0.6
@@ -74,6 +75,49 @@ const TRAP_PLATFORM_ZONES = [
 	{"x_min": 3145.0, "x_max": 3295.0, "y": -305.0, "count": 1},
 ]
 
+# The village sits past the end of the combat course -- 12 buildings
+# covering the roles named in the game's vision doc, spaced out along a
+# widened stretch of ground. Most start unstaffed (see building.gd); Farm
+# reflects Elin's rescue automatically since her role matches "Farm".
+const VILLAGE_START_X = 4900.0
+const VILLAGE_SPACING = 200.0
+const VILLAGE_Y = -39.0
+const BUILDING_SCRIPT = preload("res://building.gd")
+const VILLAGE_BUILDINGS = [
+	{"name": "Government", "role_key": "Government", "width": 130.0, "height": 100.0, "color": Color(0.55, 0.48, 0.38, 1)},
+	{"name": "School", "role_key": "School", "width": 100.0, "height": 80.0, "color": Color(0.45, 0.55, 0.65, 1)},
+	{"name": "Farm", "role_key": "Farm", "width": 110.0, "height": 75.0, "color": Color(0.5, 0.6, 0.3, 1)},
+	{"name": "Hospital", "role_key": "Hospital", "width": 105.0, "height": 85.0, "color": Color(0.75, 0.72, 0.7, 1)},
+	{"name": "Barracks", "role_key": "Barracks", "width": 115.0, "height": 80.0, "color": Color(0.4, 0.35, 0.32, 1)},
+	{"name": "Fishing Dock", "role_key": "Fishing Dock", "width": 120.0, "height": 70.0, "color": Color(0.35, 0.5, 0.55, 1)},
+	{"name": "Science Lab", "role_key": "Science Lab", "width": 105.0, "height": 85.0, "color": Color(0.4, 0.45, 0.6, 1)},
+	{"name": "Bank", "role_key": "Bank", "width": 100.0, "height": 90.0, "color": Color(0.6, 0.55, 0.35, 1)},
+	{"name": "Blacksmith", "role_key": "Blacksmith", "width": 95.0, "height": 75.0, "color": Color(0.45, 0.4, 0.4, 1)},
+	{"name": "Tavern", "role_key": "Tavern", "width": 110.0, "height": 80.0, "color": Color(0.55, 0.35, 0.25, 1)},
+	{"name": "Marketplace", "role_key": "Marketplace", "width": 130.0, "height": 65.0, "color": Color(0.6, 0.5, 0.35, 1)},
+	{"name": "Builderhouse", "role_key": "Builderhouse", "width": 120.0, "height": 90.0, "color": Color(0.42, 0.38, 0.3, 1)},
+]
+
+# Mating houses sit just past the 12 role buildings -- smaller cottages,
+# deliberately distinct in shape/palette from the institutional buildings
+# above. See house.gd for the pairing/child mechanic.
+const HOUSE_START_X = 7300.0
+const HOUSE_SPACING = 150.0
+const HOUSE_SCRIPT = preload("res://house.gd")
+const HOUSE_COLORS = [
+	{"body": Color(0.62, 0.48, 0.32, 1), "roof": Color(0.48, 0.24, 0.18, 1)},
+	{"body": Color(0.55, 0.42, 0.5, 1), "roof": Color(0.4, 0.22, 0.32, 1)},
+	{"body": Color(0.42, 0.5, 0.42, 1), "roof": Color(0.28, 0.36, 0.24, 1)},
+	{"body": Color(0.58, 0.5, 0.35, 1), "roof": Color(0.42, 0.3, 0.16, 1)},
+	{"body": Color(0.48, 0.45, 0.55, 1), "roof": Color(0.32, 0.28, 0.4, 1)},
+]
+const HOUSE_COUNT = 5
+
+const NPC_SCRIPT = preload("res://npc.gd")
+# Fallback avatar spot for a villager with no role_key assigned yet -- near
+# the village entrance rather than glued to any one building.
+const VILLAGE_FALLBACK_POS = Vector2(4900.0, -100.0)
+
 var music: AudioStreamWAV = preload("res://audio/ambient_music.wav")
 
 func _ready() -> void:
@@ -82,9 +126,72 @@ func _ready() -> void:
 	generate_traps()
 	generate_platform_traps()
 	generate_clouds()
+	generate_village()
+	generate_houses()
 	start_music()
 	if GameState.pending_load:
 		apply_save_data()
+	spawn_existing_villager_avatars()
+	if GameState.returning_from_dungeon:
+		GameState.returning_from_dungeon = false
+		$Player.global_position = GameState.pre_dungeon_position
+
+func generate_village() -> void:
+	for i in range(VILLAGE_BUILDINGS.size()):
+		var def = VILLAGE_BUILDINGS[i]
+		var building = BUILDING_SCRIPT.new()
+		building.building_name = def.name
+		building.role_key = def.role_key
+		building.width = def.width
+		building.height = def.height
+		building.body_color = def.color
+		building.position = Vector2(VILLAGE_START_X + i * VILLAGE_SPACING, VILLAGE_Y)
+		$Village.add_child(building)
+
+func generate_houses() -> void:
+	for i in range(HOUSE_COUNT):
+		var palette = HOUSE_COLORS[i % HOUSE_COLORS.size()]
+		var house = HOUSE_SCRIPT.new()
+		house.house_id = "house_%d" % i
+		house.house_name = "Cottage %d" % (i + 1)
+		house.body_color = palette.body
+		house.roof_color = palette.roof
+		house.position = Vector2(HOUSE_START_X + i * HOUSE_SPACING, VILLAGE_Y)
+		$Village.add_child(house)
+
+# NPC world avatars are runtime-only nodes -- nothing about them is written
+# to the save file, so a fresh scene boot (New Game OR Continue) starts with
+# zero of them in the tree. This reconstructs one for every entry already in
+# GameState.rescued_villagers (a no-op on New Game, where that list is empty)
+# so nobody who was previously rescued/born silently vanishes from the
+# village after a save/reload. Anyone currently mid-mating-cycle (still in
+# a cottage, or gestating) is skipped -- they don't have a wandering avatar
+# during that time even in a live, non-reloaded session (see house.gd).
+func spawn_existing_villager_avatars() -> void:
+	for villager in GameState.rescued_villagers:
+		var villager_id = villager.get("id", "")
+		if is_villager_busy_mating(villager_id):
+			continue
+		var npc = NPC_SCRIPT.new()
+		npc.villager_id = villager_id
+		npc.global_position = find_avatar_spawn_position(villager.get("role_key", ""))
+		$Village.add_child(npc)
+
+func is_villager_busy_mating(villager_id: String) -> bool:
+	for pairing in GameState.mating_houses.values():
+		if pairing.male_id == villager_id or pairing.female_id == villager_id:
+			return true
+	for pairing in GameState.pregnancies.values():
+		if pairing.male_id == villager_id or pairing.female_id == villager_id:
+			return true
+	return false
+
+func find_avatar_spawn_position(role_key: String) -> Vector2:
+	if role_key != "":
+		for child in $Village.get_children():
+			if child.has_method("get_roles") and child.role_key == role_key:
+				return child.global_position + Vector2(randf_range(-18.0, 18.0), -60.0)
+	return VILLAGE_FALLBACK_POS
 
 func _process(delta: float) -> void:
 	for cloud in $Clouds.get_children():
@@ -104,7 +211,13 @@ func apply_save_data() -> void:
 	if data.is_empty():
 		return
 	var player = $Player
-	player.currency = data.get("currency", player.currency)
+	var saved_inventory = data.get("inventory", null)
+	if saved_inventory is Array:
+		player.inventory.from_save_data(saved_inventory)
+	else:
+		# older save from before the inventory system existed -- fall back
+		# to the flat currency int it stored.
+		player.currency = data.get("currency", player.currency)
 	player.global_position = Vector2(data.get("position_x", player.global_position.x), data.get("position_y", player.global_position.y))
 	player.has_dash = data.get("has_dash", player.has_dash)
 	player.has_double_jump = data.get("has_double_jump", player.has_double_jump)

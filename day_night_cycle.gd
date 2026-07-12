@@ -114,6 +114,13 @@ var current_phase_index = 0
 var last_phase_name = ""
 var moon_craters: Array = []
 
+# Unlike time_of_day (which wraps every 24 hours), this counts up forever --
+# other systems that need to measure elapsed in-game time across day
+# boundaries (e.g. mating house pairings, see GameState) read this instead.
+# The debug time-skip keys adjust both together, so fast-forwarding OR
+# rewinding time correctly speeds up/reverses anything tracked this way too.
+var total_hours_elapsed = 0.0
+
 func _ready() -> void:
 	var sun = get_node_or_null("../SunIcon")
 	if sun:
@@ -356,7 +363,9 @@ func pick_new_moon_phase() -> void:
 
 func _process(delta: float) -> void:
 	handle_debug_time_input()
-	time_of_day += delta * HOURS_PER_SECOND
+	var hours_delta = delta * HOURS_PER_SECOND
+	time_of_day += hours_delta
+	total_hours_elapsed += hours_delta
 	if time_of_day >= 24.0:
 		time_of_day -= 24.0
 	var night_now = is_night()
@@ -368,10 +377,13 @@ func _process(delta: float) -> void:
 func handle_debug_time_input() -> void:
 	if Input.is_action_just_pressed("time_forward"):
 		time_of_day = fposmod(time_of_day + 1.0, 24.0)
+		total_hours_elapsed += 1.0
 	if Input.is_action_just_pressed("time_backward"):
 		time_of_day = fposmod(time_of_day - 1.0, 24.0)
+		total_hours_elapsed -= 1.0
 	if Input.is_action_just_pressed("time_skip_day"):
 		time_of_day = fposmod(time_of_day + 24.0, 24.0)
+		total_hours_elapsed += 24.0
 		pick_new_moon_phase()
 
 func get_darkness_factor() -> float:

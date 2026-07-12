@@ -260,6 +260,7 @@ func update_health_bar() -> void:
 	$HealthBarFill.size.x = 160 * percent
 
 func die() -> void:
+	GameState.add_xp(int(round(60 * damage_multiplier)))
 	is_dead = true
 	is_busy = true
 	$CollisionShape2D.set_deferred("disabled", true)

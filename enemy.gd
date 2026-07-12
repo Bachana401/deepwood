@@ -66,7 +66,7 @@ var jump_cooldown_remaining = 0.0
 var is_wall_blocked = false
 var wall_turn_timer = 0.0
 var wall_notice_timer = 0.0
-var frozen_for_survival = false
+var frozen_for_dungeon = false
 var speed_variance = 1.0
 var jump_chance_variance = 1.0
 var was_player_above = false
@@ -234,7 +234,7 @@ func try_jump(player_above: bool = false) -> void:
 
 func count_nearby_enemies() -> int:
 	var count = 1
-	for group_name in ["course_enemy", "wave_combatant"]:
+	for group_name in ["course_enemy", "dungeon_combatant"]:
 		for e in get_tree().get_nodes_in_group(group_name):
 			if e == self or not is_instance_valid(e):
 				continue
@@ -355,9 +355,10 @@ func update_health_bar() -> void:
 	$HealthBarFill.size.x = 40 * health_percent
 
 func die() -> void:
-	var reward = int(round(5 * damage_multiplier))
+	var reward = int(round(5 * damage_multiplier * (1.0 + GameState.get_skill_total("gold_gain"))))
 	if player.has_method("add_currency"):
 		player.add_currency(reward)
+	GameState.add_xp(int(round(8 * damage_multiplier)))
 	spawn_coin_popup(reward)
 	is_dead = true
 	is_attacking = false
@@ -371,7 +372,7 @@ func die() -> void:
 		queue_free()
 		return
 	await get_tree().create_timer(RESPAWN_DELAY).timeout
-	var mgr = get_tree().get_first_node_in_group("survival_manager")
+	var mgr = get_tree().get_first_node_in_group("dungeon_manager")
 	while mgr != null and mgr.started:
 		await get_tree().create_timer(1.0).timeout
 	respawn()

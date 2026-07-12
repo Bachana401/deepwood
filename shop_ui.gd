@@ -7,6 +7,7 @@ const BOW_COST = 35
 const WAND_COST = 1
 
 const SFX_PURCHASE = preload("res://audio/purchase.wav")
+const SFX_DENIED = preload("res://audio/purchase_denied.wav")
 
 var hovered_item: String = ""
 var player: Node2D = null
@@ -50,7 +51,7 @@ func _get_label(item: String) -> Label:
 func _on_option_gui_input(event: InputEvent, item: String) -> void:
 	if not (event is InputEventMouseButton):
 		return
-	if event.button_index == MOUSE_BUTTON_LEFT and event.pressed and event.double_click:
+	if event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		match item:
 			"dash":
 				try_buy_dash()
@@ -64,49 +65,83 @@ func _on_option_gui_input(event: InputEvent, item: String) -> void:
 				try_buy_wand()
 
 func try_buy_dash() -> void:
-	if player.currency >= DASH_COST and not player.has_dash:
-		player.currency -= DASH_COST
-		player.has_dash = true
-		player.update_currency_display()
-		show_notification("Dashing purchased succesfully ! (Double press A or D to use)")
-		print("Dash unlocked!")
+	if player.has_dash:
+		show_denied_notification("You already own Dash.")
+		return
+	if player.currency < DASH_COST:
+		show_denied_notification("Not enough currency for Dash (need " + str(DASH_COST) + "g, have " + str(player.currency) + "g).")
+		return
+	player.currency -= DASH_COST
+	player.has_dash = true
+	player.update_currency_display()
+	show_notification("Dashing purchased succesfully ! (Double press A or D to use)")
+	print("Dash unlocked!")
 
 func try_buy_double_jump() -> void:
-	if player.currency >= DOUBLE_JUMP_COST and not player.has_double_jump:
-		player.currency -= DOUBLE_JUMP_COST
-		player.has_double_jump = true
-		player.update_currency_display()
-		show_notification("Double Jump purchased successfully (so creative right ?!)")
-		print("Double jump unlocked!")
+	if player.has_double_jump:
+		show_denied_notification("You already own Double Jump.")
+		return
+	if player.currency < DOUBLE_JUMP_COST:
+		show_denied_notification("Not enough currency for Double Jump (need " + str(DOUBLE_JUMP_COST) + "g, have " + str(player.currency) + "g).")
+		return
+	player.currency -= DOUBLE_JUMP_COST
+	player.has_double_jump = true
+	player.update_currency_display()
+	show_notification("Double Jump purchased successfully (so creative right ?!)")
+	print("Double jump unlocked!")
 
 func try_buy_spear() -> void:
-	if player.currency >= SPEAR_COST and not player.owned_weapons.get("spear", false):
-		player.currency -= SPEAR_COST
-		player.owned_weapons["spear"] = true
-		player.equip_weapon("spear")
-		player.update_currency_display()
-		show_notification("Spear purchased successfully! (Press 2 to equip)")
-		print("Spear unlocked!")
+	if player.owned_weapons.get("spear", false):
+		show_denied_notification("You already own the Spear.")
+		return
+	if player.currency < SPEAR_COST:
+		show_denied_notification("Not enough currency for the Spear (need " + str(SPEAR_COST) + "g, have " + str(player.currency) + "g).")
+		return
+	player.currency -= SPEAR_COST
+	player.owned_weapons["spear"] = true
+	player.equip_weapon("spear")
+	player.update_currency_display()
+	show_notification("Spear purchased successfully! (Press 2 to equip)")
+	print("Spear unlocked!")
 
 func try_buy_bow() -> void:
-	if player.currency >= BOW_COST and not player.owned_weapons.get("bow", false):
-		player.currency -= BOW_COST
-		player.owned_weapons["bow"] = true
-		player.equip_weapon("bow")
-		player.update_currency_display()
-		show_notification("Bow purchased successfully! (Press 3 to equip)")
-		print("Bow unlocked!")
+	if player.owned_weapons.get("bow", false):
+		show_denied_notification("You already own the Bow.")
+		return
+	if player.currency < BOW_COST:
+		show_denied_notification("Not enough currency for the Bow (need " + str(BOW_COST) + "g, have " + str(player.currency) + "g).")
+		return
+	player.currency -= BOW_COST
+	player.owned_weapons["bow"] = true
+	player.equip_weapon("bow")
+	player.update_currency_display()
+	show_notification("Bow purchased successfully! (Press 3 to equip)")
+	print("Bow unlocked!")
 
 func try_buy_wand() -> void:
-	if player.currency >= WAND_COST and not player.owned_weapons.get("wand", false):
-		player.currency -= WAND_COST
-		player.owned_weapons["wand"] = true
-		player.equip_weapon("wand")
-		player.update_currency_display()
-		show_notification("Magic Wand purchased! (Press 4 to equip, kills all enemies)")
-		print("Magic Wand unlocked!")
+	if player.owned_weapons.get("wand", false):
+		show_denied_notification("You already own the Magic Wand.")
+		return
+	if player.currency < WAND_COST:
+		show_denied_notification("Not enough currency for the Magic Wand (need " + str(WAND_COST) + "g, have " + str(player.currency) + "g).")
+		return
+	player.currency -= WAND_COST
+	player.owned_weapons["wand"] = true
+	player.equip_weapon("wand")
+	player.update_currency_display()
+	show_notification("Magic Wand purchased! (Press 4 to equip, kills all enemies)")
+	print("Magic Wand unlocked!")
 
 func show_notification(text: String) -> void:
 	$SFXPlayer.stream = SFX_PURCHASE
+	$SFXPlayer.play()
+	$"../NotificationStack".show_notification(text)
+
+# Failed purchases (not enough money, or already owned) get their own
+# slightly negative two-note descending chime instead of the success jingle
+# -- the old behavior played the same "cha-ching" sound whether or not
+# anything was actually bought, which was misleading.
+func show_denied_notification(text: String) -> void:
+	$SFXPlayer.stream = SFX_DENIED
 	$SFXPlayer.play()
 	$"../NotificationStack".show_notification(text)

@@ -1,21 +1,28 @@
 [gd_scene format=3 uid="uid://ckjwmj303dryj"]
 
-[ext_resource type="Script" uid="uid://be4a2mskwfubw" path="res://player.gd" id="1_ig7tw"]
 [ext_resource type="Script" uid="uid://ccvav26dc4u3m" path="res://shop_zone.gd" id="3_h2yge"]
 [ext_resource type="Script" uid="uid://r3bty4ucvj0" path="res://shop_ui.gd" id="4_shopui"]
 [ext_resource type="PackedScene" path="res://enemy.tscn" id="5_enemy"]
 [ext_resource type="Script" uid="uid://dq1n72ijt8xss" path="res://main.gd" id="6_main"]
-[ext_resource type="Script" uid="uid://bpaaouqefmq8m" path="res://survival_zone.gd" id="7_survival_zone"]
-[ext_resource type="Script" uid="uid://dbgo8d4ripxqq" path="res://survival_manager.gd" id="8_survival_mgr"]
+[ext_resource type="Script" path="res://dungeon_zone.gd" id="7_dungeon_zone"]
+[ext_resource type="Script" path="res://dungeon_manager.gd" id="8_dungeon_mgr"]
 [ext_resource type="Script" uid="uid://flhmjcoh0fdp" path="res://shop_sign.gd" id="9_shop_sign"]
 [ext_resource type="Script" uid="uid://dxuwisx6jq5lw" path="res://pause_menu.gd" id="10_pause_menu"]
-[ext_resource type="Script" uid="uid://bmby7nqqydjtl" path="res://survival_sign.gd" id="11_survival_sign"]
+[ext_resource type="Script" path="res://dungeon_sign.gd" id="11_dungeon_sign"]
 [ext_resource type="Script" uid="uid://d4hrcir16cimt" path="res://notification_stack.gd" id="12_notification_stack"]
-[ext_resource type="Script" uid="uid://d32b1jp5j8dr4" path="res://camera_shake.gd" id="13_camera_shake"]
 [ext_resource type="Script" path="res://day_night_cycle.gd" id="14_day_night"]
+[ext_resource type="Script" path="res://death_screen.gd" id="15_death_screen"]
+[ext_resource type="PackedScene" path="res://villager.tscn" id="16_villager"]
+[ext_resource type="Script" path="res://inventory_ui.gd" id="17_inventory_ui"]
+[ext_resource type="PackedScene" path="res://chest.tscn" id="18_chest"]
+[ext_resource type="Script" path="res://chest_ui.gd" id="19_chest_ui"]
+[ext_resource type="Script" path="res://assign_ui.gd" id="20_assign_ui"]
+[ext_resource type="Script" path="res://level_select_ui.gd" id="21_level_select"]
+[ext_resource type="PackedScene" path="res://player.tscn" id="22_player"]
+[ext_resource type="PackedScene" path="res://skill_tree_ui.tscn" id="23_skill_tree"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_j7ovs"]
-size = Vector2(5200, 77)
+size = Vector2(8813, 77)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1bvp3"]
 size = Vector2(98, 77)
@@ -41,14 +48,6 @@ size = Vector2(160, 30)
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_jump_c"]
 size = Vector2(130, 30)
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_chigo"]
-size = Vector2(32, 48)
-
-[sub_resource type="CircleShape2D" id="CircleShape2D_speartip"]
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_wph2r"]
-size = Vector2(40, 40)
-
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ixm5k"]
 size = Vector2(80, 100)
 
@@ -64,7 +63,7 @@ script = ExtResource("6_main")
 [node name="CanvasModulate" type="CanvasModulate" parent="."]
 color = Color(1, 1, 1, 1)
 
-[node name="DayNightCycle" type="Node" parent="."]
+[node name="DayNightCycle" type="Node" parent="." groups=["day_night_cycle"]]
 script = ExtResource("14_day_night")
 
 [node name="SunIcon" type="Node2D" parent="."]
@@ -109,7 +108,7 @@ z_as_relative = false
 z_index = -100
 offset_left = -1000.0
 offset_top = -1200.0
-offset_right = 4500.0
+offset_right = 8100.0
 offset_bottom = -875.0
 color = Color(0.5, 0.7, 0.93, 1)
 
@@ -117,7 +116,7 @@ color = Color(0.5, 0.7, 0.93, 1)
 z_index = -100
 offset_left = -1000.0
 offset_top = -875.0
-offset_right = 4500.0
+offset_right = 8100.0
 offset_bottom = -550.0
 color = Color(0.58, 0.78, 0.95, 1)
 
@@ -125,7 +124,7 @@ color = Color(0.58, 0.78, 0.95, 1)
 z_index = -100
 offset_left = -1000.0
 offset_top = -550.0
-offset_right = 4500.0
+offset_right = 8100.0
 offset_bottom = -225.0
 color = Color(0.66, 0.84, 0.96, 1)
 
@@ -133,7 +132,7 @@ color = Color(0.66, 0.84, 0.96, 1)
 z_index = -100
 offset_left = -1000.0
 offset_top = -225.0
-offset_right = 4500.0
+offset_right = 8100.0
 offset_bottom = 100.0
 color = Color(0.76, 0.9, 0.94, 1)
 
@@ -146,13 +145,13 @@ polygon = PackedVector2Array(660, -950, 653, -910, 632, -876, 600, -854, 562, -8
 [node name="Ground" type="StaticBody2D" parent="." unique_id=1856301967]
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Ground" unique_id=1577726374]
-position = Vector2(1887, -0.5)
+position = Vector2(3693.5, -0.5)
 shape = SubResource("RectangleShape2D_j7ovs")
 
 [node name="ColorRect" type="ColorRect" parent="Ground" unique_id=37273744]
 offset_left = -713.0
 offset_top = -39.0
-offset_right = 4487.0
+offset_right = 8100.0
 offset_bottom = 38.0
 color = Color(0.36, 0.56, 0.22, 1)
 
@@ -337,80 +336,10 @@ volume_db = -10.0
 
 [node name="Traps" type="Node2D" parent="." unique_id=84467927]
 
-[node name="Player" type="CharacterBody2D" parent="." unique_id=538963322 groups=["player"]]
+[node name="Village" type="Node2D" parent="."]
+
+[node name="Player" parent="." unique_id=538963322 groups=["player"] instance=ExtResource("22_player")]
 position = Vector2(-300, -150)
-collision_layer = 2
-script = ExtResource("1_ig7tw")
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Player" unique_id=1819060305]
-shape = SubResource("RectangleShape2D_chigo")
-
-[node name="ColorRect" type="ColorRect" parent="Player" unique_id=1612209122]
-offset_left = -16.0
-offset_top = -24.0
-offset_right = 16.0
-offset_bottom = 24.0
-color = Color(0.23639527, 0.025251318, 0.8780776, 1)
-
-[node name="HealthBarBG" type="ColorRect" parent="Player" unique_id=1163697338]
-offset_left = -25.0
-offset_top = -46.0
-offset_right = 25.0
-offset_bottom = -40.0
-color = Color(0.2, 0.05, 0.05, 1)
-
-[node name="HealthBarFill" type="ColorRect" parent="Player" unique_id=1163697339]
-offset_left = -25.0
-offset_top = -46.0
-offset_right = 25.0
-offset_bottom = -40.0
-color = Color(0.15, 0.75, 0.25, 1)
-
-[node name="WeaponIcon" type="ColorRect" parent="Player" unique_id=1163697323]
-offset_left = -3.0
-offset_top = -13.0
-offset_right = 3.0
-offset_bottom = 13.0
-color = Color(0.75, 0.75, 0.8, 1)
-
-[node name="WeaponTip" type="Polygon2D" parent="Player" unique_id=1163697324]
-visible = false
-color = Color(0.8, 0.82, 0.85, 1)
-polygon = PackedVector2Array(14, 0, -6, -7, -6, 7)
-
-[node name="SpearTipArea" type="Area2D" parent="Player" unique_id=1163697325]
-collision_layer = 0
-collision_mask = 4
-monitoring = false
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Player/SpearTipArea" unique_id=1163697326]
-shape = SubResource("CircleShape2D_speartip")
-
-[node name="BowVisual" type="Node2D" parent="Player" unique_id=1163697327]
-visible = false
-
-[node name="BowLimb" type="Line2D" parent="Player/BowVisual" unique_id=1163697328]
-points = PackedVector2Array(0, -14, 4, -10, 6, -5, 7, 0, 6, 5, 4, 10, 0, 14)
-width = 3.0
-default_color = Color(0.45, 0.28, 0.1, 1)
-
-[node name="BowString" type="Line2D" parent="Player/BowVisual" unique_id=1163697329]
-points = PackedVector2Array(0, -14, 0, 14)
-width = 1.2
-default_color = Color(0.85, 0.85, 0.8, 1)
-
-[node name="SFXPlayer" type="AudioStreamPlayer2D" parent="Player" unique_id=1163697330]
-
-[node name="Camera2D" type="Camera2D" parent="Player" unique_id=2118737453]
-script = ExtResource("13_camera_shake")
-
-
-[node name="AttackArea" type="Area2D" parent="Player" unique_id=1374709459]
-collision_layer = 0
-collision_mask = 4
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Player/AttackArea" unique_id=1496702228]
-shape = SubResource("RectangleShape2D_wph2r")
 
 [node name="Enemy" parent="." unique_id=287284054 groups=["course_enemy"] instance=ExtResource("5_enemy")]
 position = Vector2(400, -100)
@@ -425,6 +354,28 @@ weapon_type = "bow"
 [node name="Enemy4" parent="." unique_id=886676605 groups=["course_enemy"] instance=ExtResource("5_enemy")]
 position = Vector2(1000, -80)
 weapon_type = "spear"
+
+[node name="Villager1" parent="." instance=ExtResource("16_villager")]
+position = Vector2(870, -59)
+villager_id = "elin_riverside"
+villager_name = "Elin"
+stat_name = "Farm"
+stat_value = 3
+role_key = "Farm"
+role_title = "Farmer"
+sex = "Female"
+backstory = "Elin ran the west fields before the raid. She's said almost nothing since -- just mutters about a harvest that never came in."
+
+[node name="Villager2" parent="." instance=ExtResource("16_villager")]
+position = Vector2(1550, -59)
+villager_id = "milo_docks"
+villager_name = "Milo"
+stat_name = "Fishing"
+stat_value = 4
+role_key = "Fishing Dock"
+role_title = "Fisherman"
+backstory = "Milo worked the fishing dock. He flinches at running water now, but something in his eyes says he still remembers how to cast a line."
+sex = "Male"
 
 [node name="Enemy5" parent="." unique_id=588091027 groups=["course_enemy"] instance=ExtResource("5_enemy")]
 position = Vector2(1200, -100)
@@ -471,6 +422,31 @@ theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 4
 text = "08:00"
 
+[node name="HealthBarBG" type="ColorRect" parent="CanvasLayer"]
+offset_left = 20.0
+offset_top = 78.0
+offset_right = 120.0
+offset_bottom = 90.0
+color = Color(0.2, 0.05, 0.05, 1)
+
+[node name="HealthBarFill" type="ColorRect" parent="CanvasLayer"]
+offset_left = 20.0
+offset_top = 78.0
+offset_right = 120.0
+offset_bottom = 90.0
+color = Color(0.15, 0.75, 0.25, 1)
+
+[node name="HealthLabel" type="Label" parent="CanvasLayer"]
+offset_left = 126.0
+offset_top = 74.0
+offset_right = 200.0
+offset_bottom = 94.0
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 14
+text = "100/100"
+
 [node name="NotificationStack" type="VBoxContainer" parent="CanvasLayer" unique_id=993646214]
 anchors_preset = 1
 anchor_left = 1.0
@@ -482,17 +458,30 @@ grow_horizontal = 0
 theme_override_constants/separation = 6
 script = ExtResource("12_notification_stack")
 
-[node name="WaveLabel" type="Label" parent="CanvasLayer" unique_id=1931067520]
+[node name="LevelLabel" type="Label" parent="CanvasLayer" unique_id=1931067520]
 visible = false
 anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -110.0
+offset_left = -150.0
 offset_top = 20.0
-offset_right = 110.0
+offset_right = 150.0
 offset_bottom = 50.0
-text = "Wave: 0"
+text = "Level: 0 / 100  (Unlocked: 1)"
 horizontal_alignment = 1
+
+[node name="ExitDungeonButton" type="Button" parent="CanvasLayer"]
+visible = false
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -150.0
+offset_top = -56.0
+offset_right = -20.0
+offset_bottom = -20.0
+text = "Exit Dungeon"
 
 [node name="CountdownLabel" type="Label" parent="CanvasLayer" unique_id=1738208208]
 visible = false
@@ -611,36 +600,36 @@ scale = Vector2(-1, 1)
 color = Color(1, 1, 0.6, 1)
 polygon = PackedVector2Array(5, -15, -3, 3, 2, 3, -5, 15, 6, -1, 1, -1, 5, -15)
 
-[node name="SurvivalManager" type="Node" parent="." unique_id=286968272 groups=["survival_manager"]]
-script = ExtResource("8_survival_mgr")
+[node name="DungeonManager" type="Node" parent="." unique_id=286968272 groups=["dungeon_manager"]]
+script = ExtResource("8_dungeon_mgr")
 
-[node name="SurvivalZone" type="Area2D" parent="." unique_id=666227640]
+[node name="DungeonZone" type="Area2D" parent="." unique_id=666227640]
 position = Vector2(-330, -90)
 collision_mask = 2
-script = ExtResource("7_survival_zone")
+script = ExtResource("7_dungeon_zone")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="SurvivalZone" unique_id=1105302269]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="DungeonZone" unique_id=1105302269]
 shape = SubResource("RectangleShape2D_survival_zone")
 
-[node name="ColorRect" type="ColorRect" parent="SurvivalZone" unique_id=688243737]
+[node name="ColorRect" type="ColorRect" parent="DungeonZone" unique_id=688243737]
 offset_left = -30.0
 offset_top = -50.0
 offset_right = 30.0
 offset_bottom = 50.0
 color = Color(0.55, 0.1, 0.1, 0.55)
 
-[node name="SurvivalSign" type="Node2D" parent="SurvivalZone" unique_id=1121051681]
+[node name="DungeonSign" type="Node2D" parent="DungeonZone" unique_id=1121051681]
 z_index = 5
-script = ExtResource("11_survival_sign")
+script = ExtResource("11_dungeon_sign")
 
-[node name="GlowRect" type="ColorRect" parent="SurvivalZone/SurvivalSign" unique_id=9774648]
+[node name="GlowRect" type="ColorRect" parent="DungeonZone/DungeonSign" unique_id=9774648]
 offset_left = -100.0
 offset_top = -164.0
 offset_right = 100.0
 offset_bottom = -121.0
 color = Color(0.65, 0.05, 0.05, 0.3)
 
-[node name="Label" type="Label" parent="SurvivalZone/SurvivalSign" unique_id=1249460980]
+[node name="Label" type="Label" parent="DungeonZone/DungeonSign" unique_id=1249460980]
 offset_left = -95.0
 offset_top = -160.0
 offset_right = 95.0
@@ -649,22 +638,22 @@ theme_override_colors/font_color = Color(0.75, 0.03, 0.03, 1)
 theme_override_colors/font_outline_color = Color(0.02, 0, 0, 1)
 theme_override_constants/outline_size = 7
 theme_override_font_sizes/font_size = 19
-text = "SURVIVAL WAVE MODE"
+text = "DUNGEON"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="SpikeLeft" type="Polygon2D" parent="SurvivalZone/SurvivalSign" unique_id=2083670342]
+[node name="SpikeLeft" type="Polygon2D" parent="DungeonZone/DungeonSign" unique_id=2083670342]
 position = Vector2(-112, -142)
 color = Color(0.15, 0, 0, 1)
 polygon = PackedVector2Array(4, -20, -2, 0, 3, 0, -5, 18, 8, -4, 3, -4, 4, -20)
 
-[node name="SpikeRight" type="Polygon2D" parent="SurvivalZone/SurvivalSign" unique_id=739002253]
+[node name="SpikeRight" type="Polygon2D" parent="DungeonZone/DungeonSign" unique_id=739002253]
 position = Vector2(112, -142)
 scale = Vector2(-1, 1)
 color = Color(0.15, 0, 0, 1)
 polygon = PackedVector2Array(4, -20, -2, 0, 3, 0, -5, 18, 8, -4, 3, -4, 4, -20)
 
-[node name="PromptLabel" type="Label" parent="SurvivalZone" unique_id=2019593131]
+[node name="PromptLabel" type="Label" parent="DungeonZone" unique_id=2019593131]
 visible = false
 z_index = 5
 offset_left = -90.0
@@ -675,8 +664,49 @@ theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 5
 theme_override_font_sizes/font_size = 18
-text = "Press F to start Wave Survival"
+text = "Press F to Enter Dungeon"
 horizontal_alignment = 1
+
+[node name="LevelSelectUI" type="CanvasLayer" parent="."]
+script = ExtResource("21_level_select")
+
+[node name="Panel" type="Panel" parent="LevelSelectUI"]
+offset_left = 260.0
+offset_top = 80.0
+offset_right = 700.0
+offset_bottom = 520.0
+
+[node name="TitleLabel" type="Label" parent="LevelSelectUI/Panel"]
+layout_mode = 0
+offset_left = 16.0
+offset_top = 10.0
+offset_right = 424.0
+offset_bottom = 38.0
+theme_override_font_sizes/font_size = 20
+horizontal_alignment = 1
+text = "Choose Dungeon Level"
+
+[node name="ScrollContainer" type="ScrollContainer" parent="LevelSelectUI/Panel"]
+layout_mode = 0
+offset_left = 16.0
+offset_top = 44.0
+offset_right = 424.0
+offset_bottom = 380.0
+
+[node name="GridContainer" type="GridContainer" parent="LevelSelectUI/Panel/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+columns = 10
+theme_override_constants/h_separation = 4
+theme_override_constants/v_separation = 4
+
+[node name="CloseButton" type="Button" parent="LevelSelectUI/Panel"]
+layout_mode = 0
+offset_left = 16.0
+offset_top = 388.0
+offset_right = 150.0
+offset_bottom = 420.0
+text = "Close"
 
 [node name="ArenaWallLeft" type="StaticBody2D" parent="." unique_id=379244145]
 position = Vector2(-700, -200)
@@ -719,11 +749,11 @@ custom_minimum_size = Vector2(0, 36)
 layout_mode = 2
 text = "Resume"
 
-[node name="ExitSurvivalButton" type="Button" parent="PauseMenu/Panel/VBox" unique_id=253149947]
+[node name="ExitDungeonButton" type="Button" parent="PauseMenu/Panel/VBox" unique_id=253149947]
 visible = false
 custom_minimum_size = Vector2(0, 36)
 layout_mode = 2
-text = "Exit Wave Survival"
+text = "Exit Dungeon"
 
 [node name="SettingsButton" type="Button" parent="PauseMenu/Panel/VBox" unique_id=553531273]
 custom_minimum_size = Vector2(0, 36)
@@ -765,3 +795,169 @@ offset_bottom = 42.0
 max_value = 1.0
 step = 0.05
 value = 1.0
+
+[node name="InventoryUI" type="CanvasLayer" parent="."]
+script = ExtResource("17_inventory_ui")
+
+[node name="Panel" type="Panel" parent="InventoryUI"]
+anchor_left = 0.0
+anchor_right = 0.0
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = 24.0
+offset_top = -115.0
+offset_right = 328.0
+offset_bottom = 115.0
+
+[node name="TitleLabel" type="Label" parent="InventoryUI/Panel"]
+offset_left = 16.0
+offset_top = 10.0
+offset_right = 200.0
+offset_bottom = 34.0
+theme_override_font_sizes/font_size = 18
+text = "Inventory"
+
+[node name="HintLabel" type="Label" parent="InventoryUI/Panel"]
+offset_left = 16.0
+offset_top = 208.0
+offset_right = 288.0
+offset_bottom = 226.0
+theme_override_font_sizes/font_size = 11
+theme_override_colors/font_color = Color(0.7, 0.7, 0.72, 1)
+text = "Press Tab to close"
+
+[node name="ChestUI" type="CanvasLayer" parent="."]
+script = ExtResource("19_chest_ui")
+
+[node name="Panel" type="Panel" parent="ChestUI"]
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = -326.0
+offset_top = -145.0
+offset_right = -24.0
+offset_bottom = 145.0
+
+[node name="TitleLabel" type="Label" parent="ChestUI/Panel"]
+offset_left = 16.0
+offset_top = 10.0
+offset_right = 280.0
+offset_bottom = 34.0
+theme_override_font_sizes/font_size = 18
+text = "Chest"
+
+[node name="TakeButton" type="Button" parent="ChestUI/Panel"]
+offset_left = 16.0
+offset_top = 246.0
+offset_right = 100.0
+offset_bottom = 278.0
+text = "Take All"
+
+[node name="DepositButton" type="Button" parent="ChestUI/Panel"]
+offset_left = 108.0
+offset_top = 246.0
+offset_right = 210.0
+offset_bottom = 278.0
+text = "Deposit All"
+
+[node name="CloseButton" type="Button" parent="ChestUI/Panel"]
+offset_left = 218.0
+offset_top = 246.0
+offset_right = 286.0
+offset_bottom = 278.0
+text = "Close"
+
+[node name="AssignUI" type="CanvasLayer" parent="."]
+script = ExtResource("20_assign_ui")
+
+[node name="Panel" type="Panel" parent="AssignUI"]
+anchor_left = 0.5
+anchor_right = 0.5
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = -210.0
+offset_top = -230.0
+offset_right = 210.0
+offset_bottom = 230.0
+
+[node name="TitleLabel" type="Label" parent="AssignUI/Panel"]
+offset_left = 14.0
+offset_top = 10.0
+offset_right = 406.0
+offset_bottom = 34.0
+theme_override_font_sizes/font_size = 16
+text = "Assign a villager"
+autowrap_mode = 3
+
+[node name="ScrollContainer" type="ScrollContainer" parent="AssignUI/Panel"]
+offset_left = 14.0
+offset_top = 44.0
+offset_right = 406.0
+offset_bottom = 414.0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="AssignUI/Panel/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="CloseButton" type="Button" parent="AssignUI/Panel"]
+offset_left = 14.0
+offset_top = 420.0
+offset_right = 100.0
+offset_bottom = 446.0
+text = "Close"
+
+[node name="Chest1" parent="." instance=ExtResource("18_chest")]
+position = Vector2(0, -55)
+chest_id = "chest_spawn"
+
+[node name="Chest2" parent="." instance=ExtResource("18_chest")]
+position = Vector2(7210, -55)
+chest_id = "chest_warehouse"
+
+[node name="SkillTreeUI" parent="." instance=ExtResource("23_skill_tree")]
+
+[node name="DeathScreen" type="CanvasLayer" parent="."]
+script = ExtResource("15_death_screen")
+
+[node name="Overlay" type="ColorRect" parent="DeathScreen"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.12, 0.02, 0.02, 0.55)
+
+[node name="YouDiedLabel" type="Label" parent="DeathScreen"]
+anchor_left = 0.5
+anchor_right = 0.5
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = -220.0
+offset_top = -110.0
+offset_right = 220.0
+offset_bottom = -40.0
+theme_override_colors/font_color = Color(0.85, 0.1, 0.1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 48
+horizontal_alignment = 1
+text = "YOU DIED"
+
+[node name="CountdownLabel" type="Label" parent="DeathScreen"]
+anchor_left = 0.5
+anchor_right = 0.5
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = -50.0
+offset_top = -20.0
+offset_right = 50.0
+offset_bottom = 40.0
+theme_override_colors/font_color = Color(1, 0.85, 0.2, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 40
+horizontal_alignment = 1
+pivot_offset = Vector2(50, 30)
+text = "7"

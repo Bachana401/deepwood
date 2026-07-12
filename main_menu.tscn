@@ -112,10 +112,14 @@ text = "Quit"
 
 [node name="HowToPlayPanel" type="Panel" parent="."]
 visible = false
-offset_left = 340.0
-offset_top = 90.0
-offset_right = 660.0
-offset_bottom = 470.0
+anchor_left = 0.5
+anchor_right = 0.5
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = -160.0
+offset_top = -190.0
+offset_right = 160.0
+offset_bottom = 190.0
 
 [node name="TitleLabel" type="Label" parent="HowToPlayPanel"]
 layout_mode = 0
@@ -152,3 +156,113 @@ offset_top = 340.0
 offset_right = 150.0
 offset_bottom = 372.0
 text = "Close"
+
+[node name="DifficultyPanel" type="Panel" parent="."]
+visible = false
+anchor_left = 0.5
+anchor_right = 0.5
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = -160.0
+offset_top = -145.0
+offset_right = 160.0
+offset_bottom = 145.0
+
+[node name="TitleLabel" type="Label" parent="DifficultyPanel"]
+layout_mode = 0
+offset_left = 16.0
+offset_top = 12.0
+offset_right = 304.0
+offset_bottom = 40.0
+theme_override_font_sizes/font_size = 22
+horizontal_alignment = 1
+text = "Choose Difficulty"
+
+[node name="EasyButton" type="Button" parent="DifficultyPanel"]
+layout_mode = 0
+offset_left = 16.0
+offset_top = 50.0
+offset_right = 106.0
+offset_bottom = 86.0
+text = "Easy"
+
+[node name="MediumButton" type="Button" parent="DifficultyPanel"]
+layout_mode = 0
+offset_left = 115.0
+offset_top = 50.0
+offset_right = 205.0
+offset_bottom = 86.0
+text = "Medium"
+
+[node name="HardButton" type="Button" parent="DifficultyPanel"]
+layout_mode = 0
+offset_left = 214.0
+offset_top = 50.0
+offset_right = 304.0
+offset_bottom = 86.0
+text = "Hard"
+
+[node name="DescriptionLabel" type="Label" parent="DifficultyPanel"]
+layout_mode = 0
+offset_left = 16.0
+offset_top = 100.0
+offset_right = 304.0
+offset_bottom = 234.0
+theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(0.85, 0.85, 0.85, 1)
+autowrap_mode = 3
+text = "Hover an option above to see what it means. This cannot be changed later."
+
+[node name="CancelButton" type="Button" parent="DifficultyPanel"]
+layout_mode = 0
+offset_left = 16.0
+offset_top = 246.0
+offset_right = 150.0
+offset_bottom = 278.0
+text = "Cancel"
+
+[node name="ProloguePanel" type="Panel" parent="."]
+visible = false
+anchor_left = 0.5
+anchor_right = 0.5
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = -190.0
+offset_top = -175.0
+offset_right = 190.0
+offset_bottom = 175.0
+
+[node name="TitleLabel" type="Label" parent="ProloguePanel"]
+layout_mode = 0
+offset_left = 16.0
+offset_top = 12.0
+offset_right = 364.0
+offset_bottom = 40.0
+theme_override_font_sizes/font_size = 22
+horizontal_alignment = 1
+text = "Deepwood"
+
+[node name="StoryLabel" type="Label" parent="ProloguePanel"]
+layout_mode = 0
+offset_left = 16.0
+offset_top = 48.0
+offset_right = 364.0
+offset_bottom = 300.0
+theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(0.88, 0.88, 0.88, 1)
+autowrap_mode = 3
+text = "You arrive at Deepwood -- once a thriving village, now nearly silent.
+
+The few survivors left are barely alive: trapped somewhere between living and dead by whatever took the rest. One of them begs you for help.
+
+You've fought this enemy before, but only ever in small numbers. As you push further, it becomes clear this was no isolated raid.
+
+Rescue who you can. Rebuild what's left. Find where this began -- and end it."
+
+[node name="BeginButton" type="Button" parent="ProloguePanel"]
+layout_mode = 0
+offset_left = 16.0
+offset_top = 308.0
+offset_right = 190.0
+offset_bottom = 342.0
+text = "Begin Your Journey"

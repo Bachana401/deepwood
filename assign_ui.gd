@@ -1,0 +1,128 @@
+extends CanvasLayer
+
+var current_building: Node = null
+
+func _ready() -> void:
+	visible = false
+	$Panel/CloseButton.pressed.connect(close)
+
+func open_for_building(building: Node) -> void:
+	current_building = building
+	visible = true
+	refresh()
+
+func close() -> void:
+	current_building = null
+	visible = false
+
+func refresh() -> void:
+	var list = $Panel/ScrollContainer/VBoxContainer
+	for child in list.get_children():
+		child.queue_free()
+
+	if not current_building:
+		return
+	$Panel/TitleLabel.text = current_building.building_name
+
+	for role_def in current_building.get_roles():
+		add_role_section(list, role_def)
+	if current_building.role_key == "Science Lab":
+		add_research_section(list)
+
+# The Science Lab doubles as the material-research bench: any skill-tree
+# material the player is carrying that hasn't been identified yet can be
+# researched here, which reveals its real name and lets skill nodes spend it.
+func add_research_section(list: VBoxContainer) -> void:
+	var header = Label.new()
+	header.add_theme_font_size_override("font_size", 14)
+	header.text = "Research"
+	list.add_child(header)
+	var player = get_tree().get_first_node_in_group("player")
+	if not player:
+		return
+	var found_any = false
+	for item_id in Inventory.ITEM_DEFS.keys():
+		if not Inventory.ITEM_DEFS[item_id].get("is_material", false):
+			continue
+		if GameState.researched_materials.has(item_id):
+			continue
+		if player.inventory.get_count(item_id) <= 0:
+			continue
+		found_any = true
+		var row = Button.new()
+		row.text = "  Research Unknown Substance (x%d held)" % player.inventory.get_count(item_id)
+		row.custom_minimum_size = Vector2(0, 28)
+		row.pressed.connect(_on_research.bind(item_id))
+		list.add_child(row)
+	if not found_any:
+		var none_label = Label.new()
+		none_label.add_theme_font_size_override("font_size", 11)
+		none_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6, 1))
+		none_label.text = "  (no unidentified materials in your inventory)"
+		list.add_child(none_label)
+
+func _on_research(item_id: String) -> void:
+	GameState.researched_materials.append(item_id)
+	var notif = get_tree().get_first_node_in_group("notification_stack")
+	if notif:
+		notif.show_notification("Research complete: it's " + Inventory.ITEM_DEFS[item_id].name + "! Usable in the skill tree now.")
+	refresh()
+
+func add_role_section(list: VBoxContainer, role_def: Dictionary) -> void:
+	var holders = current_building.get_role_holders(role_def.title)
+
+	var header = Label.new()
+	header.add_theme_font_size_override("font_size", 14)
+	var req_text = ""
+	if role_def.get("required_stat", "") != "":
+		req_text = " [needs %s]" % role_def.required_stat
+	elif role_def.get("is_enrollment", false):
+		req_text = " [24 in-game hrs to graduate]"
+	header.text = "%s (%d/%d)%s" % [role_def.title, holders.size(), role_def.slots, req_text]
+	list.add_child(header)
+
+	if not holders.is_empty():
+		var holder_names = []
+		for h in holders:
+			holder_names.append(str(h.get("name", "?")))
+		var holder_label = Label.new()
+		holder_label.add_theme_font_size_override("font_size", 11)
+		holder_label.add_theme_color_override("font_color", Color(0.75, 0.85, 0.75, 1))
+		holder_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+		holder_label.text = "  Currently: " + ", ".join(holder_names)
+		list.add_child(holder_label)
+
+	var eligible = current_building.get_eligible_villagers(role_def)
+	if eligible.is_empty():
+		var none_label = Label.new()
+		none_label.add_theme_font_size_override("font_size", 11)
+		none_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6, 1))
+		none_label.text = "  (full)" if current_building.is_role_full(role_def) else "  (no eligible villagers)"
+		list.add_child(none_label)
+	else:
+		for villager in eligible:
+			var row = Button.new()
+			var age_text = "Kid" if villager.get("is_kid", false) else "Adult"
+			var stat_text = villager.get("stat_name", "") if villager.get("stat_name", "") != "" else "no stat"
+			row.text = "  Assign %s (%s, %s, %s)" % [villager.get("name", "?"), villager.get("sex", "?"), age_text, stat_text]
+			row.custom_minimum_size = Vector2(0, 28)
+			row.pressed.connect(_on_assign.bind(villager.get("id", ""), role_def))
+			list.add_child(row)
+
+	var spacer = Control.new()
+	spacer.custom_minimum_size = Vector2(0, 10)
+	list.add_child(spacer)
+
+func _on_assign(villager_id: String, role_def: Dictionary) -> void:
+	if not current_building:
+		return
+	var notif = get_node_or_null("../CanvasLayer/NotificationStack")
+	if role_def.get("is_enrollment", false):
+		GameState.enroll_villager(villager_id, current_building.role_key, role_def.title, role_def.get("grants_stat", "random"))
+		if notif:
+			notif.show_notification("Enrolled as " + role_def.title + "! Check back in 24 in-game hours.")
+	else:
+		GameState.assign_villager_to_role(villager_id, current_building.role_key, role_def.title)
+		if notif:
+			notif.show_notification("Assigned as " + role_def.title + " at " + current_building.building_name + "!")
+	refresh()
