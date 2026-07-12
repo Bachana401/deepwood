@@ -261,6 +261,12 @@ func update_health_bar() -> void:
 
 func die() -> void:
 	GameState.add_xp(int(round(60 * damage_multiplier)))
+	# bosses always hand over a bundle of construction materials
+	var bplayer = get_tree().get_first_node_in_group("player")
+	GameState.grant_construction_bundle(bplayer, 3, 2, 1)
+	var bstack = get_tree().get_first_node_in_group("notification_stack")
+	if bstack:
+		bstack.show_notification("The boss dropped building materials! (3 Wood, 2 Stone, 1 Resin)")
 	is_dead = true
 	is_busy = true
 	$CollisionShape2D.set_deferred("disabled", true)

@@ -128,6 +128,7 @@ func start_music() -> void:
 	music.loop_begin = 0
 	music.loop_end = DUNGEON_MUSIC_LOOP_SAMPLES
 	$MusicPlayer.stream = music
+	$MusicPlayer.bus = "Music"   # controlled by the Music volume slider
 	$MusicPlayer.play()
 
 # --- layout selection ---

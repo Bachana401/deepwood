@@ -22,12 +22,110 @@ func refresh() -> void:
 
 	if not current_building:
 		return
-	$Panel/TitleLabel.text = current_building.building_name
+	$Panel/TitleLabel.text = "%s  (Lv %d)" % [current_building.building_name, current_building.building_level]
 
+	# A ruined building can't be used or upgraded -- only repaired. Show just the
+	# repair prompt until it's back on its feet.
+	if current_building.is_ruined():
+		add_repair_section(list)
+		return
+
+	add_upgrade_section(list)
 	for role_def in current_building.get_roles():
 		add_role_section(list, role_def)
 	if current_building.role_key == "Science Lab":
 		add_research_section(list)
+
+# Shown when the building lies in ruins: a short blurb + a Repair button that
+# spends gold to bring it fully back online.
+func add_repair_section(list: VBoxContainer) -> void:
+	var b = current_building
+	var header = Label.new()
+	header.add_theme_font_size_override("font_size", 15)
+	header.add_theme_color_override("font_color", Color(0.92, 0.55, 0.32, 1))
+	header.text = "In ruins"
+	list.add_child(header)
+
+	var info = Label.new()
+	info.add_theme_font_size_override("font_size", 11)
+	info.add_theme_color_override("font_color", Color(0.82, 0.8, 0.72, 1))
+	info.autowrap_mode = TextServer.AUTOWRAP_WORD
+	info.custom_minimum_size = Vector2(300, 0)
+	info.text = "  The %s was wrecked in the attack. Repair it (press F here, or the button below) to reopen its roles and resume output." % b.building_name
+	list.add_child(info)
+
+	var cost = Label.new()
+	cost.add_theme_font_size_override("font_size", 12)
+	cost.add_theme_color_override("font_color", Color(0.75, 0.85, 0.75, 1))
+	cost.text = "  Needs: " + b.repair_requirement_text()
+	list.add_child(cost)
+
+	var btn = Button.new()
+	btn.text = "  Repair"
+	btn.custom_minimum_size = Vector2(0, 32)
+	btn.pressed.connect(_on_repair)
+	list.add_child(btn)
+
+func _on_repair() -> void:
+	var player = get_tree().get_first_node_in_group("player")
+	var notif = get_tree().get_first_node_in_group("notification_stack")
+	if not current_building or not player:
+		return
+	var result = current_building.try_repair(player)
+	if result == "ok":
+		if notif:
+			notif.show_notification("%s repaired! Its roles are open now." % current_building.building_name)
+	elif result == "materials" and notif:
+		notif.show_notification("Not enough materials -- need: " + ", ".join(current_building.missing_repair_materials(player)))
+	refresh()
+
+# Level + upgrade control. Upgrading grows the building, adds worker slots, and
+# boosts its output. Flat 1 gold for now (test values).
+func add_upgrade_section(list: VBoxContainer) -> void:
+	var b = current_building
+	var header = Label.new()
+	header.add_theme_font_size_override("font_size", 14)
+	header.text = "Level %d / %d" % [b.building_level, b.MAX_LEVEL]
+	list.add_child(header)
+
+	var info = Label.new()
+	info.add_theme_font_size_override("font_size", 11)
+	info.add_theme_color_override("font_color", Color(0.72, 0.82, 0.72, 1))
+	var out_pct = int(round((GameState.building_output_multiplier(b.building_name) - 1.0) * 100.0))
+	info.text = "  +%d worker slots · +%d%% output at this level" % [(b.building_level - 1) * b.SLOTS_PER_LEVEL, out_pct]
+	list.add_child(info)
+
+	if b.building_level >= b.MAX_LEVEL:
+		var maxed = Label.new()
+		maxed.add_theme_font_size_override("font_size", 11)
+		maxed.add_theme_color_override("font_color", Color(0.85, 0.8, 0.5, 1))
+		maxed.text = "  Fully upgraded."
+		list.add_child(maxed)
+	else:
+		var btn = Button.new()
+		btn.text = "  Upgrade to Level %d  —  %d gold" % [b.building_level + 1, b.upgrade_cost()]
+		btn.custom_minimum_size = Vector2(0, 28)
+		btn.pressed.connect(_on_upgrade)
+		list.add_child(btn)
+
+	var spacer = Control.new()
+	spacer.custom_minimum_size = Vector2(0, 10)
+	list.add_child(spacer)
+
+func _on_upgrade() -> void:
+	var player = get_tree().get_first_node_in_group("player")
+	var notif = get_tree().get_first_node_in_group("notification_stack")
+	if not current_building or not player:
+		return
+	var result = current_building.try_upgrade(player)
+	if result == "ok":
+		if notif:
+			notif.show_notification("%s upgraded to Level %d!" % [current_building.building_name, current_building.building_level])
+	elif result == "gold" and notif:
+		notif.show_notification("Not enough gold to upgrade (need %d)." % current_building.upgrade_cost())
+	elif result == "ruined" and notif:
+		notif.show_notification("Rebuild this ruined building before upgrading it.")
+	refresh()
 
 # The Science Lab doubles as the material-research bench: any skill-tree
 # material the player is carrying that hasn't been identified yet can be
@@ -78,7 +176,7 @@ func add_role_section(list: VBoxContainer, role_def: Dictionary) -> void:
 		req_text = " [needs %s]" % role_def.required_stat
 	elif role_def.get("is_enrollment", false):
 		req_text = " [24 in-game hrs to graduate]"
-	header.text = "%s (%d/%d)%s" % [role_def.title, holders.size(), role_def.slots, req_text]
+	header.text = "%s (%d/%d)%s" % [role_def.title, holders.size(), current_building.effective_slots(role_def), req_text]
 	list.add_child(header)
 
 	if not holders.is_empty():

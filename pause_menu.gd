@@ -9,8 +9,11 @@ func _ready() -> void:
 	$Panel/VBox/QuitMenuButton.pressed.connect(_on_quit_to_menu)
 	$Panel/VBox/QuitGameButton.pressed.connect(_on_quit_game)
 	$Panel/SettingsPanel.visible = false
-	$Panel/SettingsPanel/VolumeSlider.value = db_to_linear(AudioServer.get_bus_volume_db(0))
+	$Panel/SettingsPanel/VolumeSlider.value = GameState.master_volume
 	$Panel/SettingsPanel/VolumeSlider.value_changed.connect(_on_volume_changed)
+	if $Panel/SettingsPanel.has_node("MusicSlider"):
+		$Panel/SettingsPanel/MusicSlider.value = GameState.music_volume
+		$Panel/SettingsPanel/MusicSlider.value_changed.connect(_on_music_changed)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
@@ -35,7 +38,10 @@ func _on_toggle_settings() -> void:
 	$Panel/SettingsPanel.visible = not $Panel/SettingsPanel.visible
 
 func _on_volume_changed(value: float) -> void:
-	AudioServer.set_bus_volume_db(0, linear_to_db(value))
+	GameState.set_master_volume(value)
+
+func _on_music_changed(value: float) -> void:
+	GameState.set_music_volume(value)
 
 func _on_quit_to_menu() -> void:
 	get_tree().paused = false

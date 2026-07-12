@@ -20,6 +20,12 @@
 [ext_resource type="Script" path="res://level_select_ui.gd" id="21_level_select"]
 [ext_resource type="PackedScene" path="res://player.tscn" id="22_player"]
 [ext_resource type="PackedScene" path="res://skill_tree_ui.tscn" id="23_skill_tree"]
+[ext_resource type="PackedScene" path="res://equipment_ui.tscn" id="24_equipment"]
+[ext_resource type="PackedScene" path="res://item_tooltip.tscn" id="25_tooltip"]
+[ext_resource type="PackedScene" path="res://wizard.tscn" id="26_wizard"]
+[ext_resource type="PackedScene" path="res://wall.tscn" id="27_wall"]
+[ext_resource type="Script" path="res://siege_manager.gd" id="28_siege_mgr"]
+[ext_resource type="PackedScene" path="res://hotbar_ui.tscn" id="29_hotbar"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_j7ovs"]
 size = Vector2(8813, 77)
@@ -376,6 +382,15 @@ role_key = "Fishing Dock"
 role_title = "Fisherman"
 backstory = "Milo worked the fishing dock. He flinches at running water now, but something in his eyes says he still remembers how to cast a line."
 sex = "Male"
+
+[node name="Wall" parent="." groups=["village_wall"] instance=ExtResource("27_wall")]
+position = Vector2(4700, -39)
+
+[node name="SiegeManager" type="Node" parent="." groups=["siege_manager"]]
+script = ExtResource("28_siege_mgr")
+
+[node name="Wizard" parent="." groups=["village_defender"] instance=ExtResource("26_wizard")]
+position = Vector2(4790, -100)
 
 [node name="Enemy5" parent="." unique_id=588091027 groups=["course_enemy"] instance=ExtResource("5_enemy")]
 position = Vector2(1200, -100)
@@ -776,7 +791,7 @@ layout_mode = 0
 offset_left = 20.0
 offset_top = 310.0
 offset_right = 260.0
-offset_bottom = 350.0
+offset_bottom = 402.0
 
 [node name="VolumeLabel" type="Label" parent="PauseMenu/Panel/SettingsPanel" unique_id=250019191]
 layout_mode = 0
@@ -792,6 +807,24 @@ offset_left = 8.0
 offset_top = 26.0
 offset_right = 232.0
 offset_bottom = 42.0
+max_value = 1.0
+step = 0.05
+value = 1.0
+
+[node name="MusicLabel" type="Label" parent="PauseMenu/Panel/SettingsPanel"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 48.0
+offset_right = 100.0
+offset_bottom = 68.0
+text = "Music"
+
+[node name="MusicSlider" type="HSlider" parent="PauseMenu/Panel/SettingsPanel"]
+layout_mode = 0
+offset_left = 8.0
+offset_top = 70.0
+offset_right = 232.0
+offset_bottom = 86.0
 max_value = 1.0
 step = 0.05
 value = 1.0
@@ -917,6 +950,12 @@ position = Vector2(7210, -55)
 chest_id = "chest_warehouse"
 
 [node name="SkillTreeUI" parent="." instance=ExtResource("23_skill_tree")]
+
+[node name="EquipmentUI" parent="." instance=ExtResource("24_equipment")]
+
+[node name="ItemTooltip" parent="." instance=ExtResource("25_tooltip")]
+
+[node name="HotbarUI" parent="." instance=ExtResource("29_hotbar")]
 
 [node name="DeathScreen" type="CanvasLayer" parent="."]
 script = ExtResource("15_death_screen")

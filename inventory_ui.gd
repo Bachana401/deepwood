@@ -16,9 +16,31 @@ var slot_counts: Array = []
 
 func _ready() -> void:
 	visible = false
+	add_to_group("inventory_ui")  # so the gear panel can trigger a redraw
 	player = get_tree().get_first_node_in_group("player")
 	build_slots()
+	build_close_button()
 	DragState.register_panel(self)
+
+# A visible ✕ in the panel corner so the inventory can always be dismissed by
+# click, not only with the Tab key.
+func build_close_button() -> void:
+	var close_btn = Button.new()
+	close_btn.position = Vector2(304 - 34, 8)
+	close_btn.size = Vector2(26, 22)
+	close_btn.add_theme_font_size_override("font_size", 14)
+	close_btn.text = "X"
+	close_btn.focus_mode = Control.FOCUS_NONE
+	close_btn.pressed.connect(close_panels)
+	$Panel.add_child(close_btn)
+
+# Inventory and gear panel open together on Tab, so closing one closes both --
+# otherwise the next Tab press would leave them out of sync (one open, one shut).
+func close_panels() -> void:
+	visible = false
+	var equip_ui = get_tree().get_first_node_in_group("equipment_ui")
+	if equip_ui and equip_ui.has_method("close"):
+		equip_ui.close()
 
 func build_slots() -> void:
 	var capacity = player.inventory.capacity if player else COLUMNS * ROWS
@@ -33,6 +55,8 @@ func build_slots() -> void:
 		bg.position = pos
 		bg.mouse_filter = Control.MOUSE_FILTER_STOP
 		bg.gui_input.connect(_on_slot_gui_input.bind(i))
+		bg.mouse_entered.connect(_on_slot_hover.bind(i))
+		bg.mouse_exited.connect(_on_slot_unhover)
 		$Panel.add_child(bg)
 		slot_bgs.append(bg)
 
@@ -56,6 +80,19 @@ func build_slots() -> void:
 		$Panel.add_child(count_label)
 		slot_counts.append(count_label)
 
+func _on_slot_hover(index: int) -> void:
+	if not player or index >= player.inventory.slots.size():
+		return
+	var slot = player.inventory.slots[index]
+	var tip = get_tree().get_first_node_in_group("item_tooltip")
+	if tip and slot != null:
+		tip.show_for(slot.item_id)
+
+func _on_slot_unhover() -> void:
+	var tip = get_tree().get_first_node_in_group("item_tooltip")
+	if tip:
+		tip.hide_tooltip()
+
 func _on_slot_gui_input(event: InputEvent, index: int) -> void:
 	if not (event is InputEventMouseButton) or not event.pressed:
 		return
@@ -65,7 +102,32 @@ func _on_slot_gui_input(event: InputEvent, index: int) -> void:
 		else:
 			DragState.start_drag(player.inventory, index)
 	elif event.button_index == MOUSE_BUTTON_RIGHT:
-		DragState.start_or_continue_split(player.inventory, index)
+		# right-click: weapons -> wield instantly; armor/relics -> equip; other
+		# stacks (coins/materials) keep the stack-split behavior.
+		var slot = player.inventory.slots[index]
+		if slot != null and Inventory.get_category(slot.item_id) == "weapon":
+			if player.wield_weapon(slot.item_id):
+				notify("Wielding " + Inventory.get_display_name(slot.item_id))
+		elif slot != null and Inventory.is_equippable(slot.item_id):
+			quick_equip(slot.item_id)
+		else:
+			DragState.start_or_continue_split(player.inventory, index)
+
+func quick_equip(item_id: String) -> void:
+	# equip_item already syncs player stats (on_equipment_changed)
+	if GameState.equip_item(item_id, player):
+		refresh()
+		var equip_ui = get_tree().get_first_node_in_group("equipment_ui")
+		if equip_ui:
+			equip_ui.refresh()
+		notify("Equipped " + Inventory.get_display_name(item_id))
+	else:
+		notify("Couldn't equip " + Inventory.get_display_name(item_id) + " (no free slot?)")
+
+func notify(text: String) -> void:
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if stack:
+		stack.show_notification(text)
 
 func get_slot_at_global(pos: Vector2) -> int:
 	for i in range(slot_bgs.size()):

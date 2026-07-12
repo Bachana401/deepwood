@@ -361,13 +361,12 @@ func pick_new_moon_phase() -> void:
 		generate_moon_craters(k)
 		update_moon_craters(moon, k)
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	handle_debug_time_input()
-	var hours_delta = delta * HOURS_PER_SECOND
-	time_of_day += hours_delta
-	total_hours_elapsed += hours_delta
-	if time_of_day >= 24.0:
-		time_of_day -= 24.0
+	# The clock now lives in GameState (so it advances in every scene). This
+	# node is purely the visual, mirroring the master clock each frame.
+	total_hours_elapsed = GameState.game_hours
+	time_of_day = fposmod(GameState.START_TIME_OF_DAY + GameState.game_hours, 24.0)
 	var night_now = is_night()
 	if night_now and not was_night:
 		pick_new_moon_phase()
@@ -375,15 +374,13 @@ func _process(delta: float) -> void:
 	update_visuals()
 
 func handle_debug_time_input() -> void:
+	# Debug keys nudge the master clock; time_of_day/total_hours_elapsed follow.
 	if Input.is_action_just_pressed("time_forward"):
-		time_of_day = fposmod(time_of_day + 1.0, 24.0)
-		total_hours_elapsed += 1.0
+		GameState.skip_hours(1.0)
 	if Input.is_action_just_pressed("time_backward"):
-		time_of_day = fposmod(time_of_day - 1.0, 24.0)
-		total_hours_elapsed -= 1.0
+		GameState.skip_hours(-1.0)
 	if Input.is_action_just_pressed("time_skip_day"):
-		time_of_day = fposmod(time_of_day + 24.0, 24.0)
-		total_hours_elapsed += 24.0
+		GameState.skip_hours(24.0)
 		pick_new_moon_phase()
 
 func get_darkness_factor() -> float:

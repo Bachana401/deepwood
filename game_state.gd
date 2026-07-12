@@ -48,11 +48,143 @@ var unlocked_skills: Array = []
 # here, the UI shows it as an unknown substance and skill nodes can't spend it.
 var researched_materials: Array = []
 
+# --- Equipment ---
+# Worn gear, each holding an item_id ("" = empty). helmet/chest/pants/weapon
+# are single slots; relics is a fixed 6-length array but only the first
+# relic_slot_count() are usable (4 at first, 5 at Lv10, 6 at Lv20). armor &
+# relic bonuses fold into get_bonus_total (alongside skill effects); the
+# "weapon" slot holds an Excellent weapon, whose special power lives on the
+# player (see player.gd) rather than as a stat total.
+const RELIC_MAX_SLOTS = 6
+var equipment = {"helmet": "", "chest": "", "pants": "", "weapon": "", "relics": ["", "", "", "", "", ""]}
+
+func relic_slot_count() -> int:
+	if player_level >= 20:
+		return 6
+	if player_level >= 10:
+		return 5
+	return 4
+
+func get_equipment_total(effect_key: String) -> float:
+	var total = 0.0
+	for slot in ["helmet", "chest", "pants"]:
+		total += item_equip_effect(equipment[slot], effect_key)
+	for i in range(relic_slot_count()):
+		total += item_equip_effect(equipment.relics[i], effect_key)
+	return total
+
+func item_equip_effect(item_id: String, effect_key: String) -> float:
+	if item_id == "":
+		return 0.0
+	return Inventory.get_item_def(item_id).get("equip_effect", {}).get(effect_key, 0.0)
+
+# Single source of truth for combat/economy bonuses: skill tree + worn gear
+# + completed set bonuses.
+func get_bonus_total(effect_key: String) -> float:
+	return get_skill_total(effect_key) + get_equipment_total(effect_key) + get_set_bonus_total(effect_key)
+
+func get_equipped_item_ids() -> Array:
+	var ids = []
+	for slot in ["helmet", "chest", "pants", "weapon"]:
+		if equipment[slot] != "":
+			ids.append(equipment[slot])
+	for i in range(relic_slot_count()):
+		if equipment.relics[i] != "":
+			ids.append(equipment.relics[i])
+	return ids
+
+func set_pieces_equipped(set_id: String) -> int:
+	var sd = Inventory.SET_DEFS.get(set_id, {})
+	var equipped = get_equipped_item_ids()
+	var count = 0
+	for piece in sd.get("pieces", []):
+		if piece in equipped:
+			count += 1
+	return count
+
+func is_set_complete(set_id: String) -> bool:
+	var sd = Inventory.SET_DEFS.get(set_id, {})
+	var pieces = sd.get("pieces", [])
+	return not pieces.is_empty() and set_pieces_equipped(set_id) >= pieces.size()
+
+func get_set_bonus_total(effect_key: String) -> float:
+	var total = 0.0
+	for set_id in Inventory.SET_DEFS.keys():
+		if is_set_complete(set_id):
+			total += Inventory.SET_DEFS[set_id].get("bonus", {}).get(effect_key, 0.0)
+	return total
+
+# Equip an item from the player's inventory into its matching slot. Any item
+# already in that slot goes back to the inventory (a swap). relic_index picks
+# which of the usable relic slots to fill (-1 = first empty, else that slot).
+func equip_item(item_id: String, player: Node, relic_index: int = -1) -> bool:
+	if not Inventory.is_equippable(item_id):
+		return false
+	if player.inventory.get_count(item_id) <= 0:
+		return false
+	var category = Inventory.get_category(item_id)
+	if category == "relic":
+		var idx = relic_index
+		if idx < 0:
+			idx = first_empty_relic_slot()
+		if idx < 0 or idx >= relic_slot_count():
+			return false
+		player.inventory.remove_item(item_id, 1)
+		if equipment.relics[idx] != "":
+			player.inventory.add_item(equipment.relics[idx], 1)
+		equipment.relics[idx] = item_id
+	else:
+		var slot = Inventory.get_equip_slot(item_id)  # helmet/chest/pants/weapon
+		if not equipment.has(slot):
+			return false
+		player.inventory.remove_item(item_id, 1)
+		if equipment[slot] != "":
+			player.inventory.add_item(equipment[slot], 1)
+		equipment[slot] = item_id
+	if player.has_method("on_equipment_changed"):
+		player.on_equipment_changed()
+	return true
+
+func unequip_slot(slot: String, player: Node, relic_index: int = -1) -> void:
+	var item_id = ""
+	if slot == "relic":
+		if relic_index < 0 or relic_index >= RELIC_MAX_SLOTS:
+			return
+		item_id = equipment.relics[relic_index]
+		equipment.relics[relic_index] = ""
+	else:
+		if not equipment.has(slot):
+			return
+		item_id = equipment[slot]
+		equipment[slot] = ""
+	if item_id != "":
+		player.inventory.add_item(item_id, 1)
+	if player.has_method("on_equipment_changed"):
+		player.on_equipment_changed()
+
+func first_empty_relic_slot() -> int:
+	for i in range(relic_slot_count()):
+		if equipment.relics[i] == "":
+			return i
+	return -1
+
+# Rebuild the equipment dict from saved (JSON-parsed) data, sanitizing shape
+# so a malformed/old save can't leave slots missing or the relic array short.
+func load_equipment(data: Dictionary) -> void:
+	for slot in ["helmet", "chest", "pants", "weapon"]:
+		equipment[slot] = str(data.get(slot, ""))
+	var relics: Array = ["", "", "", "", "", ""]
+	var saved_relics = data.get("relics", [])
+	if saved_relics is Array:
+		for i in range(min(saved_relics.size(), RELIC_MAX_SLOTS)):
+			relics[i] = str(saved_relics[i])
+	equipment.relics = relics
+
 func xp_to_next_level() -> int:
 	return 50 + (player_level - 1) * 30
 
 func add_xp(amount: int) -> void:
-	var boosted = int(round(amount * (1.0 + get_skill_total("xp_gain"))))
+	var boosted = int(round(amount * (1.0 + get_bonus_total("xp_gain"))))
 	player_xp += boosted
 	while player_xp >= xp_to_next_level():
 		player_xp -= xp_to_next_level()
@@ -109,8 +241,7 @@ var in_dungeon = false
 func capture_player_state(player: Node) -> Dictionary:
 	return {
 		"inventory": player.inventory.to_save_data(),
-		"owned_weapons": player.owned_weapons.duplicate(true),
-		"equipped_weapon": player.equipped_weapon,
+		"active_weapon_id": player.active_weapon_id,
 		"has_dash": player.has_dash,
 		"has_double_jump": player.has_double_jump,
 		"health": player.health,
@@ -175,6 +306,113 @@ const LEADER_BONUS_PER_HOLDER = 0.15
 # just rewound time), rather than how much real time passed. Shared by both
 # mating pairings and school/barracks enrollments so the debug time-skip
 # keys ([ / ] / \) speed up or rewind both exactly like they do day/night.
+# --- Master in-game clock ---
+# Owned here in the autoload (not in main.tscn's day_night node) so time keeps
+# passing in EVERY scene -- village AND dungeon. The day/night visual simply
+# mirrors game_hours; villager timers (mating/school/pregnancy) and the siege
+# schedule all read it, so nothing freezes when the player teleports away.
+const DAY_LENGTH_SECONDS = 600.0
+const HOURS_PER_SECOND = 24.0 / DAY_LENGTH_SECONDS
+const START_TIME_OF_DAY = 8.0
+var game_hours = 0.0
+
+# --- Village siege state (autoload-owned so assaults resolve while the player
+# is off in a dungeon) ---
+const SIEGE_FIRST_HOURS = 6.0
+const SIEGE_INTERVAL_HOURS = 12.0
+# Abstract defense model used when a siege resolves OFF-SCREEN (player away):
+# the wizard is a standing defense of SIEGE_DEF_WIZARD; each Barracks warrior
+# adds SIEGE_DEF_PER_WARRIOR. A siege of "threat" = its day tier is repelled
+# cleanly if defense >= threat, otherwise the overflow becomes villager deaths.
+const SIEGE_DEF_WIZARD = 4.0
+const SIEGE_DEF_PER_WARRIOR = 1.0
+var hours_until_next_siege = SIEGE_FIRST_HOURS
+var live_siege_active = false
+# Tally of what happened while the player was away, shown on their return.
+var away_report = {"sieges": 0, "repelled": 0, "villagers_lost": 0}
+
+# --- Village mage (Orin) downed/respawn state ---
+# When Orin falls he doesn't die for good -- he collapses into a small fireball
+# on the spot and reforms WIZARD_RESPAWN_HOURS in-game hours later, then keeps
+# fighting from the same place. The timer lives here (not on the wizard node)
+# so it keeps counting while the player is off in a dungeon and survives the
+# village scene reloading. -1 = he's up and fighting. See wizard.gd.
+const WIZARD_RESPAWN_HOURS = 12.0
+var wizard_respawn_at_hours := -1.0
+
+# --- Construction-material drops (the repair economy) ---
+# Rolled on any enemy death, anywhere. Deliberately low -- at most one material
+# per kill. Deeper/tougher fights pass a higher chance_mult. Returns the dropped
+# material id, or "" for nothing. Bosses use grant_construction_bundle instead.
+const CONSTRUCTION_DROP_TABLE = [["wood", 0.10], ["stone", 0.08], ["resin", 0.04]]
+
+func roll_construction_drop(player: Node, chance_mult: float = 1.0) -> String:
+	if player == null or not ("inventory" in player):
+		return ""
+	var r = randf()
+	var acc = 0.0
+	for entry in CONSTRUCTION_DROP_TABLE:
+		acc += float(entry[1]) * chance_mult
+		if r < acc:
+			player.inventory.add_item(entry[0], 1)
+			return entry[0]
+	return ""
+
+func grant_construction_bundle(player: Node, wood: int, stone: int, resin: int) -> void:
+	if player == null or not ("inventory" in player):
+		return
+	if wood > 0:
+		player.inventory.add_item("wood", wood)
+	if stone > 0:
+		player.inventory.add_item("stone", stone)
+	if resin > 0:
+		player.inventory.add_item("resin", resin)
+
+func wizard_is_down() -> bool:
+	return wizard_respawn_at_hours >= 0.0 and game_hours < wizard_respawn_at_hours
+
+func mark_wizard_down() -> void:
+	wizard_respawn_at_hours = game_hours + WIZARD_RESPAWN_HOURS
+
+func clear_wizard_down() -> void:
+	wizard_respawn_at_hours = -1.0
+
+# Per-building battle damage, keyed by building_name (== role_key). Persisted
+# so a smashed building stays smashed across dungeon trips and reloads. Absent
+# key = undamaged. 0 = destroyed (non-operative). See building.gd.
+var building_health: Dictionary = {}
+
+# Mirrors building.gd's MAX_HEALTH -- kept here so GameState can seed/restore
+# building_health without depending on building.gd. Keep the two in sync.
+const BUILDING_MAX_HEALTH = 400
+
+# The 12 village buildings (names == building_name == role_key). At New Game the
+# village lies in ruins -- every one of these starts DESTROYED (health 0) and
+# non-operational until the player repairs it (building.gd.try_repair). This is
+# the core "return from the dungeon and rebuild Deepwood" loop.
+const STARTING_BUILDINGS = [
+	"Government", "School", "Farm", "Hospital", "Barracks", "Fishing Dock",
+	"Science Lab", "Bank", "Blacksmith", "Tavern", "Marketplace", "Builderhouse",
+]
+
+# Admin/debug helper (M key): flag every known building as fully repaired.
+# Live building nodes still refresh their own visuals from this (see player.gd).
+func restore_all_buildings() -> void:
+	for bn in STARTING_BUILDINGS:
+		building_health[bn] = BUILDING_MAX_HEALTH
+
+# Per-building upgrade level (1..building.MAX_LEVEL), keyed by building_name.
+# Higher level = bigger building, more worker slots, and more output. Absent
+# key = level 1. See building.gd for size/slots and the multiplier below.
+var building_levels: Dictionary = {}
+const BUILDING_OUTPUT_PER_LEVEL = 0.25   # +25% output per level over level 1
+
+func building_level(name: String) -> int:
+	return int(building_levels.get(name, 1))
+
+func building_output_multiplier(name: String) -> float:
+	return 1.0 + (building_level(name) - 1) * BUILDING_OUTPUT_PER_LEVEL
+
 var village_last_hours_elapsed = 0.0
 
 # Two-phase mating timeline. Phase 1: the pair occupies the cottage (keyed
@@ -206,27 +444,151 @@ signal child_produced(child_id)
 
 func _ready() -> void:
 	load_deepest_level()
+	setup_audio()
+
+# --- Audio: a "Master" (Volume) bus and a dedicated "Music" bus routed into it,
+# so music can be turned down independently of everything else. Levels persist
+# across launches. ---
+const AUDIO_CFG_PATH = "user://audio_settings.cfg"
+var master_volume := 1.0
+var music_volume := 1.0
+
+func setup_audio() -> void:
+	# create the Music bus (sending into Master) if it isn't there yet
+	if AudioServer.get_bus_index("Music") == -1:
+		var idx = AudioServer.bus_count
+		AudioServer.add_bus(idx)
+		AudioServer.set_bus_name(idx, "Music")
+		AudioServer.set_bus_send(idx, "Master")
+	var cfg = ConfigFile.new()
+	if cfg.load(AUDIO_CFG_PATH) == OK:
+		master_volume = float(cfg.get_value("audio", "master", 1.0))
+		music_volume = float(cfg.get_value("audio", "music", 1.0))
+	apply_master_volume()
+	apply_music_volume()
+
+func apply_master_volume() -> void:
+	AudioServer.set_bus_volume_db(0, linear_to_db(max(master_volume, 0.0001)))
+	AudioServer.set_bus_mute(0, master_volume <= 0.0)
+
+func apply_music_volume() -> void:
+	var mi = AudioServer.get_bus_index("Music")
+	if mi < 0:
+		return
+	AudioServer.set_bus_volume_db(mi, linear_to_db(max(music_volume, 0.0001)))
+	AudioServer.set_bus_mute(mi, music_volume <= 0.0)
+
+func set_master_volume(v: float) -> void:
+	master_volume = clamp(v, 0.0, 1.0)
+	apply_master_volume()
+	save_audio_settings()
+
+func set_music_volume(v: float) -> void:
+	music_volume = clamp(v, 0.0, 1.0)
+	apply_music_volume()
+	save_audio_settings()
+
+func save_audio_settings() -> void:
+	var cfg = ConfigFile.new()
+	cfg.set_value("audio", "master", master_volume)
+	cfg.set_value("audio", "music", music_volume)
+	cfg.save(AUDIO_CFG_PATH)
 
 func _process(delta: float) -> void:
+	# Only simulate while an actual game scene is loaded (a player exists in it).
+	# This skips the main menu, where GameState is already alive but no run is
+	# in progress -- otherwise the clock and sieges would tick behind the menu.
+	if get_tree().get_first_node_in_group("player") == null:
+		return
+	game_hours += delta * HOURS_PER_SECOND
 	income_timer += delta
 	if income_timer >= INCOME_INTERVAL_SECONDS:
 		income_timer -= INCOME_INTERVAL_SECONDS
 		generate_passive_income()
 	tick_village_clock()
 
+# Debug time-skip keys (and anything else) nudge the master clock through here.
+func skip_hours(h: float) -> void:
+	game_hours = max(0.0, game_hours + h)
+
 func tick_village_clock() -> void:
-	var dnc = get_tree().get_first_node_in_group("day_night_cycle")
-	if not dnc:
-		return
-	var current_hours = dnc.total_hours_elapsed
-	var hours_passed = current_hours - village_last_hours_elapsed
-	village_last_hours_elapsed = current_hours
+	var hours_passed = game_hours - village_last_hours_elapsed
+	village_last_hours_elapsed = game_hours
 	# pregnancies first: a cottage stay completing this same tick (below)
 	# creates a fresh pregnancy that must start at the full duration, not get
 	# immediately clipped by this tick's hours_passed too.
 	update_pregnancies(hours_passed)
 	update_mating_houses(hours_passed)
 	update_school_enrollments(hours_passed)
+	if hours_passed > 0.0:
+		tick_sieges(hours_passed)
+
+# --- Siege scheduling + resolution (runs in every scene) ---
+
+func current_siege_tier() -> int:
+	return 1 + int(game_hours / 24.0)
+
+# Standing defense strength of the village right now (wizard + warriors).
+func village_defense_power() -> float:
+	var power = SIEGE_DEF_WIZARD
+	for v in rescued_villagers:
+		if v.get("stat_name", "") == "Warrior" or v.get("role_key", "") == "Barracks":
+			power += SIEGE_DEF_PER_WARRIOR
+	return power
+
+func tick_sieges(hours_passed: float) -> void:
+	# Leaving for a dungeon abandons any in-progress live battle -- from here on
+	# sieges resolve abstractly until the player is back in the village.
+	if in_dungeon:
+		live_siege_active = false
+	if live_siege_active:
+		return
+	hours_until_next_siege -= hours_passed
+	var guard = 0
+	while hours_until_next_siege <= 0.0 and guard < 100:
+		guard += 1
+		hours_until_next_siege += SIEGE_INTERVAL_HOURS
+		trigger_siege()
+		if live_siege_active:
+			break  # a live battle just started; stop scheduling until it ends
+
+func trigger_siege() -> void:
+	var tier = current_siege_tier()
+	if not in_dungeon:
+		var mgr = get_tree().get_first_node_in_group("siege_manager")
+		if mgr and mgr.has_method("start_live_siege"):
+			mgr.start_live_siege(tier)
+			live_siege_active = true
+			return
+	resolve_siege_offline(tier)
+
+# Abstract off-screen resolution used while the player is away.
+func resolve_siege_offline(tier: int) -> void:
+	away_report.sieges += 1
+	if village_defense_power() >= float(tier):
+		away_report.repelled += 1
+		return
+	var casualties = int(ceil(float(tier) - village_defense_power()))
+	for i in range(casualties):
+		if rescued_villagers.is_empty():
+			break
+		remove_random_villager()
+		away_report.villagers_lost += 1
+
+# Called by the live SiegeManager when a village battle is fully repelled.
+func on_live_siege_ended() -> void:
+	live_siege_active = false
+	hours_until_next_siege = SIEGE_INTERVAL_HOURS
+
+# Read + clear the away tally (main.gd shows it when the player returns).
+func consume_away_report() -> Dictionary:
+	var report = away_report.duplicate()
+	away_report = {"sieges": 0, "repelled": 0, "villagers_lost": 0}
+	return report
+
+# A building generates income / functions only while it still has HP.
+func is_building_operational(building_key: String) -> bool:
+	return int(building_health.get(building_key, 1)) > 0
 
 func generate_passive_income() -> void:
 	var total = 0.0
@@ -234,6 +596,9 @@ func generate_passive_income() -> void:
 	for villager in rescued_villagers:
 		var role_key = villager.get("role_key", "")
 		var role_title = villager.get("role_title", "")
+		# a destroyed building produces nothing until it's rebuilt
+		if role_key != "" and not is_building_operational(role_key):
+			continue
 		var value = 0.0
 		if INCOME_ROLES.get(role_key, "") == role_title:
 			value = float(villager.get("stat_value", 0))
@@ -241,6 +606,8 @@ func generate_passive_income() -> void:
 				value *= get_farm_income_multiplier()
 		elif role_key == "Government" and role_title == "Party":
 			value = PARTY_MEMBER_INCOME
+		# a higher-level building produces more from the same worker
+		value *= building_output_multiplier(role_key)
 		total += value * village_mult
 	if total <= 0:
 		return
@@ -409,12 +776,24 @@ func reset_for_new_game() -> void:
 	school_enrollments = {}
 	highest_unlocked_level = 1
 	village_last_hours_elapsed = 0.0
+	game_hours = 0.0
+	hours_until_next_siege = SIEGE_FIRST_HOURS
+	live_siege_active = false
+	away_report = {"sieges": 0, "repelled": 0, "villagers_lost": 0}
+	# The village starts in ruins -- every building begins destroyed (health 0)
+	# and must be repaired before its roles work.
+	building_health = {}
+	for bn in STARTING_BUILDINGS:
+		building_health[bn] = 0
+	building_levels = {}
+	wizard_respawn_at_hours = -1.0
 	player_xp = 0
 	player_level = 1
 	skill_points = 0
 	chosen_class = ""
 	unlocked_skills = []
 	researched_materials = []
+	equipment = {"helmet": "", "chest": "", "pants": "", "weapon": "", "relics": ["", "", "", "", "", ""]}
 
 func has_save() -> bool:
 	return FileAccess.file_exists(SAVE_PATH)
@@ -426,8 +805,7 @@ func save_game(player: Node) -> void:
 		"inventory": player.inventory.to_save_data(),
 		"position_x": save_pos.x,
 		"position_y": save_pos.y,
-		"owned_weapons": player.owned_weapons,
-		"equipped_weapon": player.equipped_weapon,
+		"active_weapon_id": player.active_weapon_id,
 		"has_dash": player.has_dash,
 		"has_double_jump": player.has_double_jump,
 		"health": player.health,
@@ -444,6 +822,13 @@ func save_game(player: Node) -> void:
 		"chosen_class": chosen_class,
 		"unlocked_skills": unlocked_skills,
 		"researched_materials": researched_materials,
+		"equipment": equipment,
+		"game_hours": game_hours,
+		"hours_until_next_siege": hours_until_next_siege,
+		"away_report": away_report,
+		"building_health": building_health,
+		"building_levels": building_levels,
+		"wizard_respawn_at_hours": wizard_respawn_at_hours,
 	}
 	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	file.store_string(JSON.stringify(data))
@@ -477,6 +862,30 @@ func load_game() -> Dictionary:
 		chosen_class = parsed.get("chosen_class", chosen_class)
 		unlocked_skills = parsed.get("unlocked_skills", unlocked_skills)
 		researched_materials = parsed.get("researched_materials", researched_materials)
+		if parsed.has("equipment"):
+			load_equipment(parsed["equipment"])
+		game_hours = float(parsed.get("game_hours", 0.0))
+		hours_until_next_siege = float(parsed.get("hours_until_next_siege", SIEGE_FIRST_HOURS))
+		live_siege_active = false
+		# start the village-clock baseline at the loaded time so the first
+		# tick after loading doesn't see a giant false "hours passed".
+		village_last_hours_elapsed = game_hours
+		if parsed.has("away_report") and parsed["away_report"] is Dictionary:
+			var ar = parsed["away_report"]
+			away_report = {
+				"sieges": int(ar.get("sieges", 0)),
+				"repelled": int(ar.get("repelled", 0)),
+				"villagers_lost": int(ar.get("villagers_lost", 0)),
+			}
+		if parsed.has("building_health") and parsed["building_health"] is Dictionary:
+			building_health = {}
+			for k in parsed["building_health"].keys():
+				building_health[k] = int(parsed["building_health"][k])
+		if parsed.has("building_levels") and parsed["building_levels"] is Dictionary:
+			building_levels = {}
+			for k in parsed["building_levels"].keys():
+				building_levels[k] = int(parsed["building_levels"][k])
+		wizard_respawn_at_hours = float(parsed.get("wizard_respawn_at_hours", -1.0))
 		return parsed
 	return {}
 

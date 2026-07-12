@@ -323,7 +323,8 @@ func animate_bow_attack(stats: Dictionary) -> void:
 	tween.tween_callback(finish_attack)
 	var arrow = ARROW_SCENE.instantiate()
 	arrow.position = global_position + aim_dir * 20.0
-	arrow.setup(aim_dir, int(stats.damage * damage_multiplier), stats.knockback_min, stats.knockback_max, 2, true, ENEMY_ARROW_RANGE)
+	# target mask 2 (player) | 8 (buildings) -- enemy arrows can smash buildings
+	arrow.setup(aim_dir, int(stats.damage * damage_multiplier), stats.knockback_min, stats.knockback_max, 2 | 8, true, ENEMY_ARROW_RANGE)
 	get_parent().add_child(arrow)
 
 func take_damage(amount: int) -> void:
@@ -355,11 +356,15 @@ func update_health_bar() -> void:
 	$HealthBarFill.size.x = 40 * health_percent
 
 func die() -> void:
-	var reward = int(round(5 * damage_multiplier * (1.0 + GameState.get_skill_total("gold_gain"))))
+	var reward = int(round(5 * damage_multiplier * (1.0 + GameState.get_bonus_total("gold_gain"))))
 	if player.has_method("add_currency"):
 		player.add_currency(reward)
 	GameState.add_xp(int(round(8 * damage_multiplier)))
 	spawn_coin_popup(reward)
+	# low-rate construction-material drop (tougher gens roll a little better)
+	var mat = GameState.roll_construction_drop(player, 1.0 + 0.15 * generation)
+	if mat != "":
+		spawn_material_popup(mat)
 	is_dead = true
 	is_attacking = false
 	$CollisionShape2D.set_deferred("disabled", true)
@@ -441,6 +446,32 @@ func spawn_coin_popup(amount: int) -> void:
 	var tween = popup.create_tween()
 	tween.tween_property(popup, "position:y", popup.position.y - 45, 0.8)
 	tween.parallel().tween_property(popup, "modulate:a", 0.0, 0.8)
+	tween.tween_callback(popup.queue_free)
+
+# Floating "+1 Wood" style popup when a construction material drops.
+func spawn_material_popup(mat_id: String) -> void:
+	var def = Inventory.get_item_def(mat_id)
+	var col = def.get("color", Color(1, 1, 1, 1))
+	var popup = Node2D.new()
+	popup.global_position = global_position + Vector2(0, -48)
+	get_parent().add_child(popup)
+
+	var chip = Polygon2D.new()
+	chip.color = col
+	chip.polygon = PackedVector2Array([Vector2(-5, -5), Vector2(5, -5), Vector2(5, 5), Vector2(-5, 5)])
+	popup.add_child(chip)
+
+	var label = Label.new()
+	label.text = "+1 " + Inventory.get_display_name(mat_id)
+	label.position = Vector2(9, -10)
+	label.add_theme_color_override("font_color", col)
+	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	label.add_theme_constant_override("outline_size", 3)
+	popup.add_child(label)
+
+	var tween = popup.create_tween()
+	tween.tween_property(popup, "position:y", popup.position.y - 42, 0.9)
+	tween.parallel().tween_property(popup, "modulate:a", 0.0, 0.9)
 	tween.tween_callback(popup.queue_free)
 
 func respawn() -> void:

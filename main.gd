@@ -135,6 +135,20 @@ func _ready() -> void:
 	if GameState.returning_from_dungeon:
 		GameState.returning_from_dungeon = false
 		$Player.global_position = GameState.pre_dungeon_position
+	show_away_report()
+
+# Summarises any sieges that resolved off-screen while the player was in a
+# dungeon (see GameState.resolve_siege_offline) and clears the tally.
+func show_away_report() -> void:
+	var report = GameState.consume_away_report()
+	if report.sieges <= 0:
+		return
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if not stack:
+		return
+	stack.show_notification("While you were away: %d siege%s -- %d repelled." % [report.sieges, "" if report.sieges == 1 else "s", report.repelled])
+	if report.villagers_lost > 0:
+		stack.show_notification("The raids claimed %d villager%s!" % [report.villagers_lost, "" if report.villagers_lost == 1 else "s"])
 
 func generate_village() -> void:
 	for i in range(VILLAGE_BUILDINGS.size()):
@@ -204,6 +218,7 @@ func start_music() -> void:
 	music.loop_begin = 0
 	music.loop_end = MUSIC_LOOP_SAMPLES
 	$MusicPlayer.stream = music
+	$MusicPlayer.bus = "Music"   # so the Music volume slider controls it
 	$MusicPlayer.play()
 
 func apply_save_data() -> void:
@@ -222,13 +237,11 @@ func apply_save_data() -> void:
 	player.has_dash = data.get("has_dash", player.has_dash)
 	player.has_double_jump = data.get("has_double_jump", player.has_double_jump)
 	player.health = data.get("health", player.health)
-	var saved_weapons = data.get("owned_weapons", null)
-	if saved_weapons is Dictionary:
-		for w in saved_weapons.keys():
-			player.owned_weapons[w] = saved_weapons[w]
-	var eq = data.get("equipped_weapon", null)
-	if eq != null and player.owned_weapons.get(eq, false):
-		player.equip_weapon(eq)
+	# weapons live in the inventory now (restored above); re-wield the one that
+	# was in hand.
+	var eq = str(data.get("active_weapon_id", "wpn_sword"))
+	if not player.wield_weapon(eq):
+		player.wield_weapon("wpn_sword")
 	player.update_currency_display()
 	player.update_health_display()
 

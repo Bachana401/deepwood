@@ -90,47 +90,28 @@ func try_buy_double_jump() -> void:
 	show_notification("Double Jump purchased successfully (so creative right ?!)")
 	print("Double jump unlocked!")
 
-func try_buy_spear() -> void:
-	if player.owned_weapons.get("spear", false):
-		show_denied_notification("You already own the Spear.")
+# Weapons are inventory items now -- buying one drops it in your bag; wield it
+# from the hotbar (its inventory slot's number key).
+func try_buy_weapon_item(item_id: String, cost: int, display: String) -> void:
+	if player.inventory.get_count(item_id) > 0:
+		show_denied_notification("You already own the " + display + ".")
 		return
-	if player.currency < SPEAR_COST:
-		show_denied_notification("Not enough currency for the Spear (need " + str(SPEAR_COST) + "g, have " + str(player.currency) + "g).")
+	if player.currency < cost:
+		show_denied_notification("Not enough currency for the " + display + " (need " + str(cost) + "g, have " + str(player.currency) + "g).")
 		return
-	player.currency -= SPEAR_COST
-	player.owned_weapons["spear"] = true
-	player.equip_weapon("spear")
+	player.currency -= cost
+	player.inventory.add_item(item_id, 1)
 	player.update_currency_display()
-	show_notification("Spear purchased successfully! (Press 2 to equip)")
-	print("Spear unlocked!")
+	show_notification(display + " added to your inventory! Press its hotbar number to wield it.")
+
+func try_buy_spear() -> void:
+	try_buy_weapon_item("wpn_spear", SPEAR_COST, "Spear")
 
 func try_buy_bow() -> void:
-	if player.owned_weapons.get("bow", false):
-		show_denied_notification("You already own the Bow.")
-		return
-	if player.currency < BOW_COST:
-		show_denied_notification("Not enough currency for the Bow (need " + str(BOW_COST) + "g, have " + str(player.currency) + "g).")
-		return
-	player.currency -= BOW_COST
-	player.owned_weapons["bow"] = true
-	player.equip_weapon("bow")
-	player.update_currency_display()
-	show_notification("Bow purchased successfully! (Press 3 to equip)")
-	print("Bow unlocked!")
+	try_buy_weapon_item("wpn_bow", BOW_COST, "Bow")
 
 func try_buy_wand() -> void:
-	if player.owned_weapons.get("wand", false):
-		show_denied_notification("You already own the Magic Wand.")
-		return
-	if player.currency < WAND_COST:
-		show_denied_notification("Not enough currency for the Magic Wand (need " + str(WAND_COST) + "g, have " + str(player.currency) + "g).")
-		return
-	player.currency -= WAND_COST
-	player.owned_weapons["wand"] = true
-	player.equip_weapon("wand")
-	player.update_currency_display()
-	show_notification("Magic Wand purchased! (Press 4 to equip, kills all enemies)")
-	print("Magic Wand unlocked!")
+	try_buy_weapon_item("wpn_wand", WAND_COST, "Magic Wand")
 
 func show_notification(text: String) -> void:
 	$SFXPlayer.stream = SFX_PURCHASE

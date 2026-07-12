@@ -36,6 +36,8 @@ func build_slots() -> void:
 		bg.position = pos
 		bg.mouse_filter = Control.MOUSE_FILTER_STOP
 		bg.gui_input.connect(_on_slot_gui_input.bind(i))
+		bg.mouse_entered.connect(_on_slot_hover.bind(i))
+		bg.mouse_exited.connect(_on_slot_unhover)
 		$Panel.add_child(bg)
 		slot_bgs.append(bg)
 
@@ -58,6 +60,19 @@ func build_slots() -> void:
 		count_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		$Panel.add_child(count_label)
 		slot_counts.append(count_label)
+
+func _on_slot_hover(index: int) -> void:
+	if not current_chest or index >= current_chest.inventory.slots.size():
+		return
+	var slot = current_chest.inventory.slots[index]
+	var tip = get_tree().get_first_node_in_group("item_tooltip")
+	if tip and slot != null:
+		tip.show_for(slot.item_id)
+
+func _on_slot_unhover() -> void:
+	var tip = get_tree().get_first_node_in_group("item_tooltip")
+	if tip:
+		tip.hide_tooltip()
 
 func _on_slot_gui_input(event: InputEvent, index: int) -> void:
 	if not current_chest:

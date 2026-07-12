@@ -57,26 +57,31 @@ var body_rect: ColorRect = null
 var collision_shape: CollisionShape2D = null
 var last_applied_is_kid = true
 
-# Health. The bar is completely hidden until HP drops to the threshold (30%),
-# then appears above the head; at 0 the villager dies for good (removed from
-# the roster + world -- see die()). Villagers sit on the enemy hittable layer
-# (collision_layer 4 in _ready) so the player's weapons connect; the same
-# take_damage() is what the future village-siege enemies will call too.
+# Health. The bar is normally hidden. On any hit it flashes into view for a
+# moment (HIT_REVEAL_SECONDS) so the player notices the villager is under
+# attack, then hides again. Once HP is at/below the danger threshold (30%) it
+# stays visible AND pulses red -- a "about to die" warning. At 0 the villager
+# dies for good (removed from roster + world, see die()). The player can't
+# deal this damage (collision_layer 0); it's reserved for future siege enemies.
 const MAX_HEALTH = 100
-const HEALTH_BAR_SHOW_THRESHOLD = 0.30
+const HEALTH_BAR_DANGER_THRESHOLD = 0.30
+const HEALTH_BAR_HIT_REVEAL_SECONDS = 1.6
 const HEALTH_BAR_WIDTH = 30.0
 const HEALTH_BAR_HEIGHT = 5.0
 const HEALTH_BAR_Y = -48.0
+const HEALTH_COLOR_OK = Color(0.15, 0.75, 0.25, 1.0)
+const HEALTH_COLOR_DANGER = Color(0.9, 0.15, 0.15, 1.0)
 var health = MAX_HEALTH
+var hp_reveal_timer = 0.0
 var health_bar_bg: ColorRect = null
 var health_bar_fill: ColorRect = null
 
 func _ready() -> void:
 	add_to_group("npc")
-	# layer 4 = the "hittable" layer the player's AttackArea / arrows scan
-	# (same as enemies). mask 1 = only physically collides with the ground,
-	# so being on the enemy layer does NOT make the player bump into them.
-	collision_layer = 4
+	# layer 0 = NOT on any hittable layer, so the player's weapons/arrows can
+	# never target villagers. Damage only ever arrives through the public
+	# take_damage() below -- reserved for the future village-siege enemies.
+	collision_layer = 0
 	collision_mask = 1
 	pick_new_state()
 	build_visual()
@@ -87,9 +92,7 @@ func _ready() -> void:
 	# child born hours into a playthrough) -- start the local clock baseline
 	# at the CURRENT reading, not 0, or the very first tick would see a huge
 	# false "hours_passed" and immediately roll/skip a full cycle.
-	var dnc = get_tree().get_first_node_in_group("day_night_cycle")
-	if dnc:
-		last_hours_elapsed = dnc.total_hours_elapsed
+	last_hours_elapsed = GameState.game_hours
 	roll_new_cycle()
 
 	collision_shape = CollisionShape2D.new()
@@ -180,8 +183,8 @@ func build_health_bar() -> void:
 	health_bar_fill.visible = false
 	add_child(health_bar_fill)
 
-# Public entry point for anything that hurts a villager (player weapons now,
-# village-siege enemies later). Villagers sheltered inside a building are safe.
+# Public entry point for anything that hurts a villager (reserved for the
+# future village-siege enemies). Villagers sheltered inside a building are safe.
 func take_damage(amount: int) -> void:
 	if is_in_building:
 		return
@@ -189,17 +192,37 @@ func take_damage(amount: int) -> void:
 	if health <= 0:
 		die()
 		return
-	update_health_bar()
+	# flash the bar into view briefly so the player sees they're taking hits
+	hp_reveal_timer = HEALTH_BAR_HIT_REVEAL_SECONDS
+	update_health_bar_fill()
 
-func update_health_bar() -> void:
-	# hidden entirely until HP reaches the low threshold, then shown + filled
-	var show_bar = float(health) <= MAX_HEALTH * HEALTH_BAR_SHOW_THRESHOLD
-	if health_bar_bg:
-		health_bar_bg.visible = show_bar
+func update_health_bar_fill() -> void:
 	if health_bar_fill:
-		health_bar_fill.visible = show_bar
-		if show_bar:
-			health_bar_fill.size.x = HEALTH_BAR_WIDTH * clamp(float(health) / MAX_HEALTH, 0.0, 1.0)
+		health_bar_fill.size.x = HEALTH_BAR_WIDTH * clamp(float(health) / MAX_HEALTH, 0.0, 1.0)
+
+# Called every frame. Bar is shown while a recent-hit reveal is counting down,
+# or permanently (pulsing red) once HP is in the danger zone.
+func update_health_bar_display(delta: float) -> void:
+	if not health_bar_bg or not health_bar_fill:
+		return
+	if hp_reveal_timer > 0.0:
+		hp_reveal_timer -= delta
+	var in_danger = health > 0 and float(health) <= MAX_HEALTH * HEALTH_BAR_DANGER_THRESHOLD
+	var show_bar = in_danger or hp_reveal_timer > 0.0
+	health_bar_bg.visible = show_bar
+	health_bar_fill.visible = show_bar
+	if not show_bar:
+		return
+	if in_danger:
+		health_bar_fill.color = HEALTH_COLOR_DANGER
+		# pulse the whole bar's opacity as a danger warning
+		var pulse = 0.35 + 0.65 * absf(sin(Time.get_ticks_msec() / 1000.0 * 7.0))
+		health_bar_bg.modulate.a = pulse
+		health_bar_fill.modulate.a = pulse
+	else:
+		health_bar_fill.color = HEALTH_COLOR_OK
+		health_bar_bg.modulate.a = 1.0
+		health_bar_fill.modulate.a = 1.0
 
 func die() -> void:
 	# permanent: gone from the roster (so no income/mating/etc. and doesn't
@@ -255,8 +278,9 @@ func _on_body_exited(body: Node) -> void:
 	if body.is_in_group("player"):
 		player_inside = false
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	refresh_size_if_needed()
+	update_health_bar_display(delta)
 	refresh_wander_bounds()
 	tick_building_visits()
 	if is_in_building:
@@ -292,10 +316,7 @@ func roll_new_cycle() -> void:
 	visit_times_this_cycle.sort()
 
 func tick_building_visits() -> void:
-	var dnc = get_tree().get_first_node_in_group("day_night_cycle")
-	if not dnc:
-		return
-	var current_hours = dnc.total_hours_elapsed
+	var current_hours = GameState.game_hours
 	var hours_passed = current_hours - last_hours_elapsed
 	last_hours_elapsed = current_hours
 
