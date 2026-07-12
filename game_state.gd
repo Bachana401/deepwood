@@ -500,24 +500,33 @@ func assign_villager_to_role(villager_id: String, role_key: String, role_title: 
 			villager["role_title"] = role_title
 			return
 
+# Fully removes one villager: from the roster, plus any mating/pregnancy/
+# school state they were tied to, plus their walking world avatar. Shared by
+# the death-penalty path (remove_random_villager) and villager death (an NPC
+# whose HP hit 0 -- see npc.gd's die()).
+func remove_villager_by_id(villager_id: String) -> void:
+	for entry in rescued_villagers:
+		if entry.get("id") == villager_id:
+			rescued_villagers.erase(entry)
+			break
+	for house_id in mating_houses.keys():
+		var pairing = mating_houses[house_id]
+		if pairing.male_id == villager_id or pairing.female_id == villager_id:
+			mating_houses.erase(house_id)
+	for pregnancy_id in pregnancies.keys():
+		var pairing = pregnancies[pregnancy_id]
+		if pairing.male_id == villager_id or pairing.female_id == villager_id:
+			pregnancies.erase(pregnancy_id)
+	if school_enrollments.has(villager_id):
+		school_enrollments.erase(villager_id)
+	remove_npc_avatar(villager_id)
+
 # Called by the death sequence (player.gd's die()) on Medium/Hard.
 func remove_random_villager() -> void:
 	if rescued_villagers.is_empty():
 		return
 	var removed = rescued_villagers[randi() % rescued_villagers.size()]
-	rescued_villagers.erase(removed)
-	var removed_id = removed.get("id")
-	for house_id in mating_houses.keys():
-		var pairing = mating_houses[house_id]
-		if pairing.male_id == removed_id or pairing.female_id == removed_id:
-			mating_houses.erase(house_id)
-	for pregnancy_id in pregnancies.keys():
-		var pairing = pregnancies[pregnancy_id]
-		if pairing.male_id == removed_id or pairing.female_id == removed_id:
-			pregnancies.erase(pregnancy_id)
-	if school_enrollments.has(removed_id):
-		school_enrollments.erase(removed_id)
-	remove_npc_avatar(removed_id)
+	remove_villager_by_id(removed.get("id"))
 
 # TODO: wire up once the skill material system exists
 func remove_one_skill_material() -> void:

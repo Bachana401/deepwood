@@ -57,13 +57,31 @@ var body_rect: ColorRect = null
 var collision_shape: CollisionShape2D = null
 var last_applied_is_kid = true
 
+# Health. The bar is completely hidden until HP drops to the threshold (30%),
+# then appears above the head; at 0 the villager dies for good (removed from
+# the roster + world -- see die()). Villagers sit on the enemy hittable layer
+# (collision_layer 4 in _ready) so the player's weapons connect; the same
+# take_damage() is what the future village-siege enemies will call too.
+const MAX_HEALTH = 100
+const HEALTH_BAR_SHOW_THRESHOLD = 0.30
+const HEALTH_BAR_WIDTH = 30.0
+const HEALTH_BAR_HEIGHT = 5.0
+const HEALTH_BAR_Y = -48.0
+var health = MAX_HEALTH
+var health_bar_bg: ColorRect = null
+var health_bar_fill: ColorRect = null
+
 func _ready() -> void:
 	add_to_group("npc")
-	collision_layer = 0
+	# layer 4 = the "hittable" layer the player's AttackArea / arrows scan
+	# (same as enemies). mask 1 = only physically collides with the ground,
+	# so being on the enemy layer does NOT make the player bump into them.
+	collision_layer = 4
 	collision_mask = 1
 	pick_new_state()
 	build_visual()
 	build_hover_panel()
+	build_health_bar()
 	refresh_wander_bounds()
 	# NPCs can spawn well after in-game time has already been ticking (e.g. a
 	# child born hours into a playthrough) -- start the local clock baseline
@@ -144,6 +162,52 @@ func build_hover_panel() -> void:
 	hover_label.add_theme_font_size_override("font_size", 11)
 	hover_label.add_theme_color_override("font_color", Color(1, 1, 1, 1))
 	hover_panel.add_child(hover_label)
+
+func build_health_bar() -> void:
+	health_bar_bg = ColorRect.new()
+	health_bar_bg.color = Color(0.2, 0.05, 0.05, 0.9)
+	health_bar_bg.size = Vector2(HEALTH_BAR_WIDTH, HEALTH_BAR_HEIGHT)
+	health_bar_bg.position = Vector2(-HEALTH_BAR_WIDTH / 2.0, HEALTH_BAR_Y)
+	health_bar_bg.z_index = 60
+	health_bar_bg.visible = false
+	add_child(health_bar_bg)
+
+	health_bar_fill = ColorRect.new()
+	health_bar_fill.color = Color(0.15, 0.75, 0.25, 1.0)
+	health_bar_fill.size = Vector2(HEALTH_BAR_WIDTH, HEALTH_BAR_HEIGHT)
+	health_bar_fill.position = Vector2(-HEALTH_BAR_WIDTH / 2.0, HEALTH_BAR_Y)
+	health_bar_fill.z_index = 61
+	health_bar_fill.visible = false
+	add_child(health_bar_fill)
+
+# Public entry point for anything that hurts a villager (player weapons now,
+# village-siege enemies later). Villagers sheltered inside a building are safe.
+func take_damage(amount: int) -> void:
+	if is_in_building:
+		return
+	health -= amount
+	if health <= 0:
+		die()
+		return
+	update_health_bar()
+
+func update_health_bar() -> void:
+	# hidden entirely until HP reaches the low threshold, then shown + filled
+	var show_bar = float(health) <= MAX_HEALTH * HEALTH_BAR_SHOW_THRESHOLD
+	if health_bar_bg:
+		health_bar_bg.visible = show_bar
+	if health_bar_fill:
+		health_bar_fill.visible = show_bar
+		if show_bar:
+			health_bar_fill.size.x = HEALTH_BAR_WIDTH * clamp(float(health) / MAX_HEALTH, 0.0, 1.0)
+
+func die() -> void:
+	# permanent: gone from the roster (so no income/mating/etc. and doesn't
+	# come back on reload) and gone from the world. remove_villager_by_id
+	# despawns this avatar via the "npc" group; the guard covers a missing id.
+	GameState.remove_villager_by_id(villager_id)
+	if not is_queued_for_deletion():
+		queue_free()
 
 func _physics_process(delta: float) -> void:
 	if is_in_building:
