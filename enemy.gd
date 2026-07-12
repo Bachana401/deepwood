@@ -41,6 +41,27 @@ const WEAPONS = {
 	"bow": {"damage": 8, "cooldown": 1.6, "range": 440.0, "knockback_min": 10.0, "knockback_max": 20.0, "size": Vector2(10, 10), "color": Color(0.45, 0.28, 0.1), "offset": 12.0},
 }
 
+# Dungeon enemy "rosters": one themed archetype per block of 5 dungeon levels.
+# dungeon_interior.gd calls apply_block_archetype(block) where block =
+# (level-1)/5, so levels 1-5 share roster 0, 6-10 share roster 1, and so on;
+# past the end of the list it simply cycles. Each entry re-skins the plain
+# enemy body (color/size), picks its weapon mix, and nudges the base stats so
+# the flavor is felt in combat, not just visually.
+const ENEMY_ROSTERS = [
+	# 0 -- Bandits (levels 1-5): the plain baseline, balanced weapon mix.
+	{"name": "Bandit", "color": Color(0.62, 0.18, 0.11), "scale": 1.0, "weapons": ["sword", "spear", "bow"], "hp_mult": 1.0, "dmg_mult": 1.0, "speed_mult": 1.0},
+	# 1 -- Frostkin (6-10): light, quick skirmishers, spear & bow.
+	{"name": "Frostkin", "color": Color(0.36, 0.6, 0.86), "scale": 0.92, "weapons": ["spear", "bow"], "hp_mult": 0.85, "dmg_mult": 1.0, "speed_mult": 1.22},
+	# 2 -- Emberlings (11-15): heavy bruisers, hit hard but slower.
+	{"name": "Emberling", "color": Color(0.85, 0.35, 0.12), "scale": 1.12, "weapons": ["sword", "spear"], "hp_mult": 1.3, "dmg_mult": 1.18, "speed_mult": 0.88},
+	# 3 -- Wraiths (16-20): fragile fast archers that swarm from range.
+	{"name": "Wraith", "color": Color(0.55, 0.3, 0.72), "scale": 0.9, "weapons": ["bow", "bow", "sword"], "hp_mult": 0.78, "dmg_mult": 1.0, "speed_mult": 1.32},
+	# 4 -- Stonekin (21-25): huge tanks, slow, pure melee.
+	{"name": "Stonekin", "color": Color(0.5, 0.5, 0.56), "scale": 1.28, "weapons": ["sword"], "hp_mult": 1.7, "dmg_mult": 1.22, "speed_mult": 0.78},
+	# 5 -- Venomlings (26-30): small, fast, poison-quick jabs.
+	{"name": "Venomling", "color": Color(0.3, 0.66, 0.26), "scale": 0.84, "weapons": ["spear", "spear", "bow"], "hp_mult": 0.85, "dmg_mult": 1.12, "speed_mult": 1.26},
+]
+
 @export var weapon_type: String = "sword"
 @export var base_color: Color = Color(0.6236201, 0.18110216, 0.10793113)
 @export var respawns: bool = true
@@ -97,6 +118,25 @@ func update_body_color() -> void:
 func play_sfx(stream: AudioStream) -> void:
 	$SFXPlayer.stream = stream
 	$SFXPlayer.play()
+
+# Re-skins this enemy into the roster archetype for the given 5-level block.
+# MUST be called before the node enters the tree (before _ready), because the
+# wave multipliers it stacks onto are baked into max_health in _ready. It also
+# chooses the weapon from the archetype's mix, so it overrides any weapon_type
+# set beforehand.
+func apply_block_archetype(block: int) -> void:
+	if ENEMY_ROSTERS.is_empty():
+		return
+	var data: Dictionary = ENEMY_ROSTERS[block % ENEMY_ROSTERS.size()]
+	base_color = data.get("color", base_color)
+	var s := float(data.get("scale", 1.0))
+	scale = Vector2(s, s)
+	var weapons: Array = data.get("weapons", [weapon_type])
+	if not weapons.is_empty():
+		weapon_type = weapons[randi() % weapons.size()]
+	wave_hp_multiplier *= float(data.get("hp_mult", 1.0))
+	wave_damage_multiplier *= float(data.get("dmg_mult", 1.0))
+	wave_speed_multiplier *= float(data.get("speed_mult", 1.0))
 
 func setup_weapon_visual() -> void:
 	var stats = WEAPONS.get(weapon_type, WEAPONS["sword"])

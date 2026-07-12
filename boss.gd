@@ -1,67 +1,211 @@
 extends CharacterBody2D
 
+# ---------------------------------------------------------------------------
+# Dungeon boss.
+#
+# Every 5th dungeon level (5, 10, 15, ...) spawns ONE boss. Rather than a
+# single hard-coded fight, each boss is a data entry in BOSSES below: its own
+# body/colors, base health, move speed, and -- most importantly -- its own
+# hand-picked set of abilities from the shared library further down. That is
+# what makes each boss feel individual.
+#
+# dungeon_interior.gd picks which boss id a level uses (see get_boss_id there),
+# sets boss_id + the level scaling multipliers, THEN adds the node to the tree
+# so _ready() can build itself from the matching definition.
+# ---------------------------------------------------------------------------
+
 const GRAVITY = 900.0
-const SPEED = 70.0
-const MAX_HEALTH = 600
 const ENRAGE_THRESHOLD = 0.5
 const BUMP_THRESHOLD = 110.0
 const WALL_TURN_DURATION = 0.8
 
-const SLAM_RADIUS = 170.0
-const SLAM_DAMAGE = 28
-const SLAM_KNOCKBACK = 220.0
+# --- shared ability tuning ---
+const SLAM_RADIUS = 185.0
+const SLAM_DAMAGE = 30
+const SLAM_KNOCKBACK = 240.0
 const SLAM_TELEGRAPH = 0.55
-const SLAM_COOLDOWN = 3.5
 
-const CHARGE_SPEED = 520.0
+const CHARGE_SPEED = 560.0
 const CHARGE_DURATION = 0.5
-const CHARGE_DAMAGE = 24
-const CHARGE_KNOCKBACK = 260.0
+const CHARGE_DAMAGE = 26
+const CHARGE_KNOCKBACK = 280.0
 const CHARGE_TELEGRAPH = 0.45
-const CHARGE_COOLDOWN = 4.5
-const CHARGE_HIT_RADIUS = 110.0
-const CHARGE_MIN_RANGE = 160.0
+const CHARGE_HIT_RADIUS = 115.0
 
 const BARRAGE_COUNT = 5
-const BARRAGE_SPREAD_DEG = 16.0
-const BARRAGE_DAMAGE = 10
+const BARRAGE_SPREAD_DEG = 15.0
+const BARRAGE_DAMAGE = 12
 const BARRAGE_TELEGRAPH = 0.35
-const BARRAGE_COOLDOWN = 3.0
-const BARRAGE_RANGE = 550.0
+const BARRAGE_RANGE = 600.0
+
+const RAIN_COUNT = 9
+const RAIN_DAMAGE = 12
+const RAIN_TELEGRAPH = 0.6
+const RAIN_HEIGHT = 470.0
+const RAIN_HALF_SPREAD = 270.0
+
+const NOVA_COUNT = 16
+const NOVA_DAMAGE = 11
+const NOVA_TELEGRAPH = 0.42
+const NOVA_RANGE = 620.0
+
+const TELEPORT_TELEGRAPH = 0.32
+const TELEPORT_SHOCK_DAMAGE = 22
+const TELEPORT_SHOCK_RADIUS = 95.0
+
+const SUMMON_COUNT = 2
+const MAX_MINIONS = 4
+const SUMMON_TELEGRAPH = 0.5
+
+const PILLAR_COUNT = 4
+const PILLAR_DAMAGE = 27
+const PILLAR_TELEGRAPH = 0.7
+const PILLAR_HALF_WIDTH = 46.0
+const PILLAR_KNOCKBACK = 130.0
+const PILLAR_HEIGHT = 320.0
+
+# Per-ability metadata: cooldown after use, and the player-distance window in
+# which the ability is a valid choice. choose_attack() filters on these.
+const ABILITY_META = {
+	"slam":     {"cd": 3.5, "min": 0.0,   "max": 210.0},
+	"charge":   {"cd": 4.5, "min": 160.0, "max": 100000.0},
+	"barrage":  {"cd": 3.2, "min": 0.0,   "max": 100000.0},
+	"rain":     {"cd": 5.5, "min": 0.0,   "max": 100000.0},
+	"nova":     {"cd": 4.6, "min": 0.0,   "max": 360.0},
+	"teleport": {"cd": 6.0, "min": 0.0,   "max": 100000.0},
+	"summon":   {"cd": 10.0, "min": 0.0,  "max": 100000.0},
+	"pillars":  {"cd": 6.5, "min": 0.0,   "max": 100000.0},
+}
+
+# The roster. Ids here must line up with BOSS_ARENAS / get_boss_id in
+# dungeon_interior.gd so each boss gets its matching arena.
+const BOSSES = {
+	"gravewarden": {
+		"name": "The Gravewarden",
+		"color": Color(0.30, 0.42, 0.28), "eye_color": Color(0.7, 1.0, 0.4),
+		"body": Vector2(172, 240), "hp": 900, "speed": 62.0,
+		"abilities": ["slam", "charge", "summon"],
+	},
+	"frost_monarch": {
+		"name": "The Frost Monarch",
+		"color": Color(0.40, 0.6, 0.85), "eye_color": Color(0.85, 0.97, 1.0),
+		"body": Vector2(142, 212), "hp": 820, "speed": 42.0,
+		"abilities": ["rain", "nova", "teleport"],
+	},
+	"cinder_colossus": {
+		"name": "The Cinder Colossus",
+		"color": Color(0.72, 0.25, 0.12), "eye_color": Color(1.0, 0.85, 0.2),
+		"body": Vector2(192, 252), "hp": 1050, "speed": 70.0,
+		"abilities": ["charge", "barrage", "pillars"],
+	},
+	"weaver": {
+		"name": "The Weaver",
+		"color": Color(0.45, 0.25, 0.6), "eye_color": Color(1.0, 0.4, 0.9),
+		"body": Vector2(150, 202), "hp": 800, "speed": 56.0,
+		"abilities": ["summon", "nova", "teleport"],
+	},
+	"stormcaller": {
+		"name": "The Stormcaller",
+		"color": Color(0.85, 0.8, 0.35), "eye_color": Color(1.0, 1.0, 0.75),
+		"body": Vector2(150, 216), "hp": 920, "speed": 66.0,
+		"abilities": ["nova", "pillars", "barrage"],
+	},
+	"void_sovereign": {
+		"name": "The Void Sovereign",
+		"color": Color(0.2, 0.12, 0.3), "eye_color": Color(0.9, 0.2, 1.0),
+		"body": Vector2(178, 246), "hp": 1220, "speed": 60.0,
+		"abilities": ["teleport", "rain", "nova", "summon"],
+	},
+}
 
 const ARROW_SCENE = preload("res://arrow.tscn")
+const MINION_SCENE = preload("res://enemy.tscn")
 const SFX_DEATH = preload("res://audio/enemy_death.wav")
 const SFX_HIT = preload("res://audio/hit.wav")
 
 signal died
 
+# Set by dungeon_interior.gd before the node enters the tree.
+var boss_id: String = "gravewarden"
+var level_hp_mult := 1.0
+var damage_multiplier := 1.0
+var speed_multiplier := 1.0
+
+var current_def: Dictionary = {}
+var abilities: Array = []
+var ability_cd: Dictionary = {}
+var base_move_speed := 62.0
+
 var player: Node2D = null
-var max_health = MAX_HEALTH
-var health = MAX_HEALTH
-var damage_multiplier = 1.0
-var speed_multiplier = 1.0
-var is_dead = false
-var is_enraged = false
-var facing_direction = 1
+var max_health := 900
+var health := 900
+var is_dead := false
+var is_enraged := false
+var facing_direction := 1
 var base_color: Color
 
-var slam_cooldown_remaining = 0.0
-var charge_cooldown_remaining = 0.0
-var barrage_cooldown_remaining = 0.0
+var is_busy := false
+var is_charging := false
+var charge_direction := 1
+var charge_timer := 0.0
+var charge_has_hit := false
+var is_wall_blocked := false
+var wall_turn_timer := 0.0
 
-var is_busy = false
-var is_charging = false
-var charge_direction = 1
-var charge_timer = 0.0
-var charge_has_hit = false
-var is_wall_blocked = false
-var wall_turn_timer = 0.0
+var minions: Array = []
 
 func _ready() -> void:
-	health = max_health
+	current_def = BOSSES.get(boss_id, BOSSES["gravewarden"])
+	configure_from_def(current_def)
 	player = get_tree().get_first_node_in_group("player")
-	base_color = $ColorRect.color
 	update_health_bar()
+
+func configure_from_def(def: Dictionary) -> void:
+	base_move_speed = float(def.get("speed", 62.0))
+	abilities = (def.get("abilities", ["slam"]) as Array).duplicate()
+	max_health = int(round(float(def.get("hp", 900)) * level_hp_mult))
+	health = max_health
+
+	# stagger initial cooldowns so the boss doesn't dump every ability at once
+	for a in abilities:
+		ability_cd[a] = randf_range(0.5, 1.7)
+
+	var body: Vector2 = def.get("body", Vector2(160, 220))
+	base_color = def.get("color", Color(0.32, 0.1, 0.38))
+
+	var shape := RectangleShape2D.new()
+	shape.size = body
+	$CollisionShape2D.shape = shape
+
+	$ColorRect.offset_left = -body.x / 2.0
+	$ColorRect.offset_right = body.x / 2.0
+	$ColorRect.offset_top = -body.y / 2.0
+	$ColorRect.offset_bottom = body.y / 2.0
+	$ColorRect.color = base_color
+
+	var eye_color: Color = def.get("eye_color", Color(0.95, 0.15, 0.15))
+	var ew := body.x * 0.14
+	var ex := body.x * 0.2
+	var ey := -body.y * 0.22
+	place_eye($EyeLeft, -ex, ey, ew, eye_color)
+	place_eye($EyeRight, ex, ey, ew, eye_color)
+
+	var bar_y := -body.y / 2.0 - 26.0
+	for bar in [$HealthBarBG, $HealthBarFill]:
+		bar.offset_left = -80.0
+		bar.offset_right = 80.0
+		bar.offset_top = bar_y
+		bar.offset_bottom = bar_y + 12.0
+
+func place_eye(eye: ColorRect, cx: float, cy: float, size: float, color: Color) -> void:
+	eye.offset_left = cx - size / 2.0
+	eye.offset_right = cx + size / 2.0
+	eye.offset_top = cy - size / 2.0
+	eye.offset_bottom = cy + size / 2.0
+	eye.color = color
+
+func get_display_name() -> String:
+	return current_def.get("name", "Boss")
 
 func _physics_process(delta: float) -> void:
 	if is_dead:
@@ -70,18 +214,15 @@ func _physics_process(delta: float) -> void:
 	if not is_on_floor():
 		velocity.y += GRAVITY * delta
 
-	if slam_cooldown_remaining > 0:
-		slam_cooldown_remaining -= delta
-	if charge_cooldown_remaining > 0:
-		charge_cooldown_remaining -= delta
-	if barrage_cooldown_remaining > 0:
-		barrage_cooldown_remaining -= delta
+	for a in ability_cd.keys():
+		if ability_cd[a] > 0.0:
+			ability_cd[a] -= delta
 	if wall_turn_timer > 0:
 		wall_turn_timer -= delta
 		if wall_turn_timer <= 0:
 			is_wall_blocked = false
 
-	if player != null:
+	if player != null and is_instance_valid(player):
 		if is_charging:
 			process_charge(delta)
 		elif not is_busy:
@@ -93,9 +234,9 @@ func _physics_process(delta: float) -> void:
 			if chosen != "":
 				start_attack(chosen)
 			elif wall_turn_timer > 0:
-				velocity.x = -facing_direction * SPEED * speed_multiplier
+				velocity.x = -facing_direction * base_move_speed * speed_multiplier
 			else:
-				velocity.x = facing_direction * SPEED * speed_multiplier
+				velocity.x = facing_direction * base_move_speed * speed_multiplier
 		check_bump()
 
 	move_and_slide()
@@ -109,12 +250,15 @@ func _physics_process(delta: float) -> void:
 
 func choose_attack(dist: float) -> String:
 	var candidates: Array = []
-	if slam_cooldown_remaining <= 0 and dist < SLAM_RADIUS * 1.1:
-		candidates.append("slam")
-	if charge_cooldown_remaining <= 0 and dist > CHARGE_MIN_RANGE:
-		candidates.append("charge")
-	if barrage_cooldown_remaining <= 0:
-		candidates.append("barrage")
+	for a in abilities:
+		var meta = ABILITY_META.get(a, null)
+		if meta == null:
+			continue
+		if ability_cd.get(a, 0.0) > 0.0:
+			continue
+		if dist < meta["min"] or dist > meta["max"]:
+			continue
+		candidates.append(a)
 	if candidates.is_empty():
 		return ""
 	return candidates[randi() % candidates.size()]
@@ -123,32 +267,37 @@ func start_attack(attack_name: String) -> void:
 	is_busy = true
 	velocity.x = 0
 	match attack_name:
-		"slam":
-			do_slam()
-		"charge":
-			do_charge()
-		"barrage":
-			do_barrage()
+		"slam": do_slam()
+		"charge": do_charge()
+		"barrage": do_barrage()
+		"rain": do_rain()
+		"nova": do_nova()
+		"teleport": do_teleport()
+		"summon": do_summon()
+		"pillars": do_pillars()
+		_:
+			is_busy = false
+
+func set_cd(ability_name: String) -> void:
+	ability_cd[ability_name] = ABILITY_META[ability_name]["cd"] * cooldown_mult()
 
 func cooldown_mult() -> float:
 	return 0.6 if is_enraged else 1.0
 
+# --- abilities ---
+
 func do_slam() -> void:
 	flash_telegraph(Color(1.0, 0.9, 0.2))
+	spawn_ring_telegraph(global_position, SLAM_RADIUS, Color(1.0, 0.85, 0.2), SLAM_TELEGRAPH)
 	await get_tree().create_timer(SLAM_TELEGRAPH).timeout
 	if is_dead:
 		return
-	if player != null and global_position.distance_to(player.global_position) < SLAM_RADIUS:
-		if player.has_method("take_damage"):
-			player.take_damage(int(round(SLAM_DAMAGE * damage_multiplier)))
-		if player.has_method("apply_knockback"):
-			var away = sign(player.global_position.x - global_position.x)
-			if away == 0:
-				away = facing_direction
-			player.apply_knockback(away, SLAM_KNOCKBACK)
-		if player.has_node("Camera2D"):
-			player.get_node("Camera2D").shake(10.0, 0.35)
-	slam_cooldown_remaining = SLAM_COOLDOWN * cooldown_mult()
+	if player != null and is_instance_valid(player) and global_position.distance_to(player.global_position) < SLAM_RADIUS:
+		deal_player_damage(SLAM_DAMAGE)
+		knockback_player_away(SLAM_KNOCKBACK)
+	shake_camera(10.0, 0.35)
+	spawn_shockwave(SLAM_RADIUS, Color(1.0, 0.8, 0.3))
+	set_cd("slam")
 	is_busy = false
 
 func do_charge() -> void:
@@ -164,14 +313,12 @@ func do_charge() -> void:
 func process_charge(delta: float) -> void:
 	velocity.x = charge_direction * CHARGE_SPEED * speed_multiplier
 	charge_timer -= delta
-	if not charge_has_hit and player != null and global_position.distance_to(player.global_position) < CHARGE_HIT_RADIUS:
+	if not charge_has_hit and player != null and is_instance_valid(player) and global_position.distance_to(player.global_position) < CHARGE_HIT_RADIUS:
 		charge_has_hit = true
-		if player.has_method("take_damage"):
-			player.take_damage(int(round(CHARGE_DAMAGE * damage_multiplier)))
+		deal_player_damage(CHARGE_DAMAGE)
 		if player.has_method("apply_knockback"):
 			player.apply_knockback(charge_direction, CHARGE_KNOCKBACK)
-		if player.has_node("Camera2D"):
-			player.get_node("Camera2D").shake(9.0, 0.3)
+		shake_camera(9.0, 0.3)
 	var hit_wall = false
 	for i in range(get_slide_collision_count()):
 		if absf(get_slide_collision(i).get_normal().x) > 0.5:
@@ -180,44 +327,229 @@ func process_charge(delta: float) -> void:
 	if charge_timer <= 0 or hit_wall:
 		is_charging = false
 		velocity.x = 0
-		charge_cooldown_remaining = CHARGE_COOLDOWN * cooldown_mult()
+		set_cd("charge")
 		is_busy = false
 
 func do_barrage() -> void:
 	flash_telegraph(Color(1.0, 0.6, 0.1))
 	await get_tree().create_timer(BARRAGE_TELEGRAPH).timeout
-	if is_dead:
+	if is_dead or player == null or not is_instance_valid(player):
+		is_busy = false
+		set_cd("barrage")
 		return
-	fire_barrage()
-	barrage_cooldown_remaining = BARRAGE_COOLDOWN * cooldown_mult()
-	is_busy = false
-
-func fire_barrage() -> void:
-	if player == null:
-		return
-	var base_dir = (player.global_position - global_position).normalized()
-	var base_angle = base_dir.angle()
+	var base_angle = (player.global_position - global_position).angle()
 	var half = BARRAGE_COUNT / 2
 	for i in range(BARRAGE_COUNT):
-		var offset_index = i - half
-		var angle = base_angle + deg_to_rad(BARRAGE_SPREAD_DEG) * offset_index
+		var angle = base_angle + deg_to_rad(BARRAGE_SPREAD_DEG) * (i - half)
 		var dir = Vector2.RIGHT.rotated(angle)
-		var arrow = ARROW_SCENE.instantiate()
-		arrow.position = global_position + dir * 40.0
-		arrow.setup(dir, int(round(BARRAGE_DAMAGE * damage_multiplier)), 20.0, 40.0, 2, true, BARRAGE_RANGE)
-		get_parent().add_child(arrow)
+		spawn_arrow(global_position + dir * 44.0, dir, BARRAGE_DAMAGE, BARRAGE_RANGE)
+	set_cd("barrage")
+	is_busy = false
+
+func do_nova() -> void:
+	flash_telegraph(Color(0.7, 0.9, 1.0))
+	await get_tree().create_timer(NOVA_TELEGRAPH).timeout
+	if is_dead:
+		return
+	var jitter = randf() * TAU
+	for i in range(NOVA_COUNT):
+		var angle = jitter + i * TAU / NOVA_COUNT
+		var dir = Vector2.RIGHT.rotated(angle)
+		spawn_arrow(global_position + dir * 40.0, dir, NOVA_DAMAGE, NOVA_RANGE)
+	shake_camera(5.0, 0.2)
+	set_cd("nova")
+	is_busy = false
+
+func do_rain() -> void:
+	flash_telegraph(Color(0.6, 0.8, 1.0))
+	if is_dead or player == null or not is_instance_valid(player):
+		is_busy = false
+		set_cd("rain")
+		return
+	var center_x = player.global_position.x
+	var ground_y = player.global_position.y
+	var xs: Array = []
+	for i in range(RAIN_COUNT):
+		xs.append(center_x + randf_range(-RAIN_HALF_SPREAD, RAIN_HALF_SPREAD))
+	for x in xs:
+		spawn_ground_marker(Vector2(x, ground_y), Color(0.5, 0.75, 1.0), RAIN_TELEGRAPH)
+	await get_tree().create_timer(RAIN_TELEGRAPH).timeout
+	if is_dead:
+		return
+	for x in xs:
+		var spawn_pos = Vector2(x, ground_y - RAIN_HEIGHT)
+		spawn_arrow(spawn_pos, Vector2.DOWN, RAIN_DAMAGE, RAIN_HEIGHT + 120.0)
+		await get_tree().create_timer(0.05).timeout
+		if is_dead:
+			return
+	set_cd("rain")
+	is_busy = false
+
+func do_teleport() -> void:
+	# blink out, reappear on a random side of the player, then a close shock.
+	var tween = create_tween()
+	tween.tween_property($ColorRect, "modulate:a", 0.15, TELEPORT_TELEGRAPH)
+	await tween.finished
+	if is_dead:
+		return
+	if player != null and is_instance_valid(player):
+		var side = 1 if randf() < 0.5 else -1
+		var target_x = player.global_position.x + side * randf_range(150.0, 240.0)
+		global_position = Vector2(target_x, player.global_position.y)
+		facing_direction = -side
+	var tween2 = create_tween()
+	tween2.tween_property($ColorRect, "modulate:a", 1.0, 0.15)
+	spawn_shockwave(TELEPORT_SHOCK_RADIUS, Color(0.8, 0.3, 1.0))
+	if player != null and is_instance_valid(player) and global_position.distance_to(player.global_position) < TELEPORT_SHOCK_RADIUS:
+		deal_player_damage(TELEPORT_SHOCK_DAMAGE)
+		knockback_player_away(160.0)
+	set_cd("teleport")
+	is_busy = false
+
+func do_summon() -> void:
+	flash_telegraph(Color(0.7, 0.3, 0.9))
+	await get_tree().create_timer(SUMMON_TELEGRAPH).timeout
+	if is_dead:
+		set_cd("summon")
+		return
+	minions = minions.filter(func(m): return is_instance_valid(m) and not (("is_dead" in m) and m.is_dead))
+	var room = MAX_MINIONS - minions.size()
+	for i in range(min(SUMMON_COUNT, room)):
+		var m = MINION_SCENE.instantiate()
+		m.respawns = false
+		m.instant_aggro = true
+		m.wave_hp_multiplier = 0.6 * level_hp_mult
+		m.wave_damage_multiplier = 0.7 * damage_multiplier
+		m.wave_speed_multiplier = speed_multiplier
+		m.position = global_position + Vector2(randf_range(-110.0, 110.0), -30.0)
+		m.add_to_group("dungeon_combatant")
+		get_parent().add_child(m)
+		minions.append(m)
+	set_cd("summon")
+	is_busy = false
+
+func do_pillars() -> void:
+	flash_telegraph(Color(1.0, 0.5, 0.15))
+	if player == null or not is_instance_valid(player):
+		is_busy = false
+		set_cd("pillars")
+		return
+	var ground_y = player.global_position.y
+	var xs: Array = [player.global_position.x]
+	for i in range(PILLAR_COUNT - 1):
+		xs.append(player.global_position.x + randf_range(-420.0, 420.0))
+	for x in xs:
+		spawn_ground_marker(Vector2(x, ground_y), Color(1.0, 0.5, 0.1), PILLAR_TELEGRAPH, PILLAR_HALF_WIDTH * 2.0)
+	await get_tree().create_timer(PILLAR_TELEGRAPH).timeout
+	if is_dead:
+		return
+	shake_camera(7.0, 0.3)
+	for x in xs:
+		erupt_pillar(Vector2(x, ground_y))
+		if player != null and is_instance_valid(player) and absf(player.global_position.x - x) < PILLAR_HALF_WIDTH:
+			deal_player_damage(PILLAR_DAMAGE)
+			var away = sign(player.global_position.x - x)
+			if away == 0:
+				away = 1
+			if player.has_method("apply_knockback"):
+				player.apply_knockback(away, PILLAR_KNOCKBACK)
+	set_cd("pillars")
+	is_busy = false
+
+# --- ability helpers ---
+
+func spawn_arrow(pos: Vector2, dir: Vector2, dmg: int, rng: float) -> void:
+	var arrow = ARROW_SCENE.instantiate()
+	arrow.position = pos
+	arrow.setup(dir.normalized(), int(round(dmg * damage_multiplier)), 15.0, 30.0, 2, true, rng)
+	get_parent().add_child(arrow)
+
+func deal_player_damage(amount: int) -> void:
+	if player != null and is_instance_valid(player) and player.has_method("take_damage"):
+		player.take_damage(int(round(amount * damage_multiplier)))
+
+func knockback_player_away(distance: float) -> void:
+	if player == null or not is_instance_valid(player) or not player.has_method("apply_knockback"):
+		return
+	var away = sign(player.global_position.x - global_position.x)
+	if away == 0:
+		away = facing_direction
+	player.apply_knockback(away, distance)
+
+func shake_camera(magnitude: float, duration: float) -> void:
+	if player != null and is_instance_valid(player) and player.has_node("Camera2D"):
+		player.get_node("Camera2D").shake(magnitude, duration)
+
+func spawn_ring_telegraph(center: Vector2, radius: float, color: Color, duration: float) -> void:
+	var ring = Polygon2D.new()
+	var pts = PackedVector2Array()
+	for i in range(28):
+		pts.append(Vector2(cos(i * TAU / 28), sin(i * TAU / 28)) * radius)
+	ring.polygon = pts
+	ring.color = Color(color.r, color.g, color.b, 0.18)
+	ring.global_position = center
+	ring.z_index = 5
+	get_parent().add_child(ring)
+	var t = ring.create_tween()
+	t.tween_property(ring, "modulate:a", 0.0, duration)
+	t.tween_callback(ring.queue_free)
+
+func spawn_shockwave(radius: float, color: Color) -> void:
+	var ring = Polygon2D.new()
+	var pts = PackedVector2Array()
+	for i in range(28):
+		pts.append(Vector2(cos(i * TAU / 28), sin(i * TAU / 28)) * radius)
+	ring.polygon = pts
+	ring.color = Color(color.r, color.g, color.b, 0.5)
+	ring.global_position = global_position
+	ring.z_index = 6
+	ring.scale = Vector2(0.2, 0.2)
+	get_parent().add_child(ring)
+	var t = ring.create_tween()
+	t.set_parallel(true)
+	t.tween_property(ring, "scale", Vector2(1.15, 1.15), 0.3)
+	t.tween_property(ring, "modulate:a", 0.0, 0.35)
+	t.chain().tween_callback(ring.queue_free)
+
+func spawn_ground_marker(pos: Vector2, color: Color, duration: float, width: float = 60.0) -> void:
+	var marker = ColorRect.new()
+	marker.size = Vector2(width, 10.0)
+	marker.position = pos - Vector2(width / 2.0, 5.0)
+	marker.color = Color(color.r, color.g, color.b, 0.55)
+	marker.z_index = 5
+	get_parent().add_child(marker)
+	var t = marker.create_tween()
+	t.set_loops(int(duration / 0.16) + 1)
+	t.tween_property(marker, "modulate:a", 0.2, 0.08)
+	t.tween_property(marker, "modulate:a", 0.8, 0.08)
+	get_tree().create_timer(duration).timeout.connect(marker.queue_free)
+
+func erupt_pillar(base: Vector2) -> void:
+	var pillar = ColorRect.new()
+	pillar.size = Vector2(PILLAR_HALF_WIDTH * 2.0, PILLAR_HEIGHT)
+	pillar.position = base - Vector2(PILLAR_HALF_WIDTH, PILLAR_HEIGHT)
+	pillar.color = Color(1.0, 0.45, 0.12, 0.9)
+	pillar.z_index = 6
+	pillar.scale.y = 0.05
+	get_parent().add_child(pillar)
+	var t = pillar.create_tween()
+	t.tween_property(pillar, "scale:y", 1.0, 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t.tween_interval(0.15)
+	t.tween_property(pillar, "modulate:a", 0.0, 0.25)
+	t.tween_callback(pillar.queue_free)
+
+# --- combat / lifecycle ---
 
 func check_bump() -> void:
-	if is_busy or is_charging or is_dead or player == null or player.is_knocked_back:
+	if is_busy or is_charging or is_dead or player == null or not is_instance_valid(player) or player.is_knocked_back:
 		return
 	if global_position.distance_to(player.global_position) > BUMP_THRESHOLD:
 		return
-	var bump_distance = randf_range(30.0, 45.0)
-	var away_from_boss = sign(player.global_position.x - global_position.x)
-	if away_from_boss == 0:
-		away_from_boss = 1
+	var away = sign(player.global_position.x - global_position.x)
+	if away == 0:
+		away = 1
 	if player.has_method("apply_knockback"):
-		player.apply_knockback(away_from_boss, bump_distance)
+		player.apply_knockback(away, randf_range(30.0, 45.0))
 
 func flash_telegraph(color: Color) -> void:
 	var tween = create_tween()
@@ -240,7 +572,7 @@ func take_damage(amount: int) -> void:
 
 func enrage() -> void:
 	is_enraged = true
-	base_color = base_color.lerp(Color(0.5, 0.0, 0.0), 0.4)
+	base_color = base_color.lerp(Color(0.6, 0.0, 0.0), 0.4)
 	$ColorRect.color = base_color
 
 func apply_knockback(_direction_sign: int, _distance: float) -> void:
@@ -261,16 +593,14 @@ func update_health_bar() -> void:
 
 func die() -> void:
 	GameState.add_xp(int(round(60 * damage_multiplier)))
-	# bosses always hand over a bundle of construction materials
-	var bplayer = get_tree().get_first_node_in_group("player")
-	GameState.grant_construction_bundle(bplayer, 3, 2, 1)
-	var bstack = get_tree().get_first_node_in_group("notification_stack")
-	if bstack:
-		bstack.show_notification("The boss dropped building materials! (3 Wood, 2 Stone, 1 Resin)")
 	is_dead = true
 	is_busy = true
 	$CollisionShape2D.set_deferred("disabled", true)
 	play_sfx(SFX_DEATH)
+	# clear any minions this boss summoned so they don't linger after the fight
+	for m in minions:
+		if is_instance_valid(m) and m.has_method("take_damage"):
+			m.take_damage(999999)
 	died.emit()
 	await play_death_animation()
 	visible = false

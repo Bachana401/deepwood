@@ -52,6 +52,95 @@ const BOSS_LAYOUT = [
 	{"x": 2100.0, "y": -220.0, "w": 320.0},
 ]
 
+# Which boss id each boss level uses, in order: level 5 -> index 0, level 10 ->
+# index 1, and so on, cycling once the roster is exhausted (deeper levels reuse
+# a design but hit much harder via level scaling). Ids MUST match boss.gd's
+# BOSSES and the BOSS_ARENAS keys below.
+const BOSS_ROSTER = ["gravewarden", "frost_monarch", "cinder_colossus", "weaver", "stormcaller", "void_sovereign"]
+
+# One bespoke arena per boss: its own platform layout, background gradient, and
+# torch/accent color, so each boss fight looks and plays differently.
+const BOSS_ARENAS = {
+	# Tomb of the Warden -- two big flanking ledges + a low central island;
+	# earthy green. Room to bait its slam/charge and dodge summoned adds.
+	"gravewarden": {
+		"platforms": [
+			{"x": 500.0, "y": -220.0, "w": 320.0},
+			{"x": 2100.0, "y": -220.0, "w": 320.0},
+			{"x": 1300.0, "y": -150.0, "w": 260.0},
+		],
+		"bg_top": Color(0.05, 0.08, 0.05, 1.0), "bg_bottom": Color(0.09, 0.15, 0.08, 1.0),
+		"accent": Color(0.6, 1.0, 0.45, 1.0),
+	},
+	# Frozen Cathedral -- many scattered high platforms; you must keep moving
+	# across them to dodge its icicle rain and frost novas. Cold blue.
+	"frost_monarch": {
+		"platforms": [
+			{"x": 360.0, "y": -160.0, "w": 150.0},
+			{"x": 720.0, "y": -260.0, "w": 130.0},
+			{"x": 1080.0, "y": -180.0, "w": 140.0},
+			{"x": 1300.0, "y": -330.0, "w": 180.0},
+			{"x": 1520.0, "y": -180.0, "w": 140.0},
+			{"x": 1880.0, "y": -260.0, "w": 130.0},
+			{"x": 2240.0, "y": -160.0, "w": 150.0},
+		],
+		"bg_top": Color(0.03, 0.06, 0.12, 1.0), "bg_bottom": Color(0.06, 0.12, 0.2, 1.0),
+		"accent": Color(0.6, 0.85, 1.0, 1.0),
+	},
+	# Molten Foundry -- narrow stepping stones over wide gaps; punishing for a
+	# charging, pillar-erupting bruiser. Fiery red/orange.
+	"cinder_colossus": {
+		"platforms": [
+			{"x": 420.0, "y": -150.0, "w": 120.0},
+			{"x": 760.0, "y": -150.0, "w": 120.0},
+			{"x": 1300.0, "y": -250.0, "w": 160.0},
+			{"x": 1840.0, "y": -150.0, "w": 120.0},
+			{"x": 2180.0, "y": -150.0, "w": 120.0},
+		],
+		"bg_top": Color(0.12, 0.02, 0.01, 1.0), "bg_bottom": Color(0.22, 0.05, 0.02, 1.0),
+		"accent": Color(1.0, 0.5, 0.15, 1.0),
+	},
+	# Silken Hollow -- stacked ledges on each side + a high central perch the
+	# summoner retreats to. Venomous purple.
+	"weaver": {
+		"platforms": [
+			{"x": 420.0, "y": -160.0, "w": 180.0},
+			{"x": 420.0, "y": -300.0, "w": 140.0},
+			{"x": 2180.0, "y": -160.0, "w": 180.0},
+			{"x": 2180.0, "y": -300.0, "w": 140.0},
+			{"x": 1300.0, "y": -360.0, "w": 220.0},
+		],
+		"bg_top": Color(0.08, 0.03, 0.12, 1.0), "bg_bottom": Color(0.14, 0.06, 0.2, 1.0),
+		"accent": Color(1.0, 0.4, 0.9, 1.0),
+	},
+	# Storm Spire -- a symmetric tiered arena; nowhere is safe from radial
+	# novas for long. Electric yellow.
+	"stormcaller": {
+		"platforms": [
+			{"x": 300.0, "y": -180.0, "w": 200.0},
+			{"x": 760.0, "y": -280.0, "w": 150.0},
+			{"x": 1300.0, "y": -200.0, "w": 240.0},
+			{"x": 1840.0, "y": -280.0, "w": 150.0},
+			{"x": 2300.0, "y": -180.0, "w": 200.0},
+		],
+		"bg_top": Color(0.1, 0.09, 0.02, 1.0), "bg_bottom": Color(0.18, 0.16, 0.05, 1.0),
+		"accent": Color(1.0, 1.0, 0.6, 1.0),
+	},
+	# The Void Throne -- sparse floating islands over the abyss; the hardest
+	# boss teleports between them. Near-black violet.
+	"void_sovereign": {
+		"platforms": [
+			{"x": 500.0, "y": -260.0, "w": 170.0},
+			{"x": 1000.0, "y": -180.0, "w": 150.0},
+			{"x": 1300.0, "y": -340.0, "w": 180.0},
+			{"x": 1600.0, "y": -180.0, "w": 150.0},
+			{"x": 2100.0, "y": -260.0, "w": 170.0},
+		],
+		"bg_top": Color(0.04, 0.02, 0.08, 1.0), "bg_bottom": Color(0.1, 0.04, 0.16, 1.0),
+		"accent": Color(0.8, 0.3, 1.0, 1.0),
+	},
+}
+
 const PLATFORM_HEIGHT = 20.0
 const PLATFORM_COLOR = Color(0.3, 0.26, 0.24, 1.0)
 
@@ -141,8 +230,18 @@ func is_boss_level(level: int) -> bool:
 
 func get_layout(level: int) -> Array:
 	if is_boss_level(level):
-		return BOSS_LAYOUT
+		return get_boss_arena(level).get("platforms", BOSS_LAYOUT)
 	return REGULAR_LAYOUTS[get_layout_slot(level)]
+
+# Boss levels are 5, 10, 15...; map them onto the roster in order and cycle.
+func get_boss_id(level: int) -> String:
+	var index = int(level / 5) - 1
+	if index < 0:
+		index = 0
+	return BOSS_ROSTER[index % BOSS_ROSTER.size()]
+
+func get_boss_arena(level: int) -> Dictionary:
+	return BOSS_ARENAS.get(get_boss_id(level), {})
 
 # --- level (re)building ---
 
@@ -150,12 +249,13 @@ func build_level_visuals(level: int) -> void:
 	for child in $LevelContainer.get_children():
 		child.queue_free()
 	var boss = is_boss_level(level)
-	build_background(boss)
+	var arena = get_boss_arena(level) if boss else {}
+	build_background(boss, arena)
 	build_ground_and_walls()
 	var layout = get_layout(level)
 	build_platforms(layout)
 	build_stalactites(boss)
-	build_torches(boss)
+	build_torches(boss, arena)
 	place_mines(boss, layout)
 	build_gates()
 
@@ -196,9 +296,9 @@ func go_to_level(level: int, enter_from_right: bool) -> void:
 	place_player_at_entry(enter_from_right)
 	spawn_level_combat()
 
-func build_background(boss: bool) -> void:
-	var top_color = BOSS_BG_TOP_COLOR if boss else BG_TOP_COLOR
-	var bottom_color = BOSS_BG_BOTTOM_COLOR if boss else BG_BOTTOM_COLOR
+func build_background(boss: bool, arena: Dictionary = {}) -> void:
+	var top_color = arena.get("bg_top", BOSS_BG_TOP_COLOR) if boss else BG_TOP_COLOR
+	var bottom_color = arena.get("bg_bottom", BOSS_BG_BOTTOM_COLOR) if boss else BG_BOTTOM_COLOR
 	var sky_top = ColorRect.new()
 	sky_top.color = top_color
 	sky_top.z_index = -100
@@ -322,13 +422,14 @@ func make_additive_material() -> CanvasItemMaterial:
 	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	return mat
 
-func build_torches(boss: bool) -> void:
+func build_torches(boss: bool, arena: Dictionary = {}) -> void:
+	var accent = arena.get("accent", TORCH_COLOR) if boss else TORCH_COLOR
 	var count = int(DUNGEON_WIDTH / TORCH_SPACING)
 	for i in range(count):
 		var x = 180.0 + i * TORCH_SPACING + randf_range(-40.0, 40.0)
-		build_torch(Vector2(clamp(x, 60.0, DUNGEON_WIDTH - 60.0), GROUND_Y))
+		build_torch(Vector2(clamp(x, 60.0, DUNGEON_WIDTH - 60.0), GROUND_Y), accent)
 
-func build_torch(pos: Vector2) -> void:
+func build_torch(pos: Vector2, color: Color = TORCH_COLOR) -> void:
 	var torch = Node2D.new()
 	torch.position = pos
 	$LevelContainer.add_child(torch)
@@ -345,14 +446,14 @@ func build_torch(pos: Vector2) -> void:
 		var angle = i * TAU / 16.0
 		glow_points.append(Vector2(cos(angle), sin(angle)) * 28.0)
 	glow.polygon = glow_points
-	glow.color = Color(TORCH_COLOR.r, TORCH_COLOR.g, TORCH_COLOR.b, 0.32)
+	glow.color = Color(color.r, color.g, color.b, 0.32)
 	glow.position = Vector2(0, -38.0)
 	glow.material = make_additive_material()
 	torch.add_child(glow)
 
 	var flame = Polygon2D.new()
 	flame.polygon = PackedVector2Array([Vector2(-5, 0), Vector2(5, 0), Vector2(0, -16)])
-	flame.color = TORCH_COLOR
+	flame.color = color
 	flame.position = Vector2(0, -38.0)
 	torch.add_child(flame)
 
@@ -428,8 +529,8 @@ func spawn_level_combat() -> void:
 	alive_count = 0
 	GameState.record_level_reached(current_level)
 	if is_boss_level(current_level):
-		spawn_boss()
-		show_notification("Level " + str(current_level) + " - BOSS INCOMING")
+		var b = spawn_boss()
+		show_notification("Level %d - %s awakens!" % [current_level, b.get_display_name()])
 	else:
 		var count = min(BASE_ENEMY_COUNT + current_level - 1, MAX_ENEMY_COUNT)
 		for i in range(count):
@@ -446,23 +547,28 @@ func spawn_enemy() -> void:
 	enemy.wave_hp_multiplier = scaling.hp
 	enemy.wave_damage_multiplier = scaling.dmg
 	enemy.wave_speed_multiplier = scaling.speed
+	# re-skin into this 5-level block's roster (levels 1-5 -> block 0, etc.)
+	enemy.apply_block_archetype(int((current_level - 1) / 5))
 	enemy.position = Vector2(randf_range(600.0, DUNGEON_WIDTH - 200.0), GROUND_Y - 60.0)
 	enemy.add_to_group("dungeon_combatant")
 	$LevelContainer.add_child(enemy)
 	enemy.died.connect(_on_combatant_died)
 	alive_count += 1
 
-func spawn_boss() -> void:
+func spawn_boss() -> Node:
 	var boss = BOSS_SCENE.instantiate()
 	var scaling = get_level_scaling()
-	boss.max_health = int(round(boss.MAX_HEALTH * scaling.hp))
+	boss.boss_id = get_boss_id(current_level)
+	boss.level_hp_mult = scaling.hp
 	boss.damage_multiplier = scaling.dmg
 	boss.speed_multiplier = scaling.speed
-	boss.position = Vector2(DUNGEON_WIDTH - 400.0, GROUND_Y - 60.0)
+	# spawn well above the floor so larger boss bodies settle onto the ground
+	boss.position = Vector2(DUNGEON_WIDTH - 400.0, GROUND_Y - 140.0)
 	boss.add_to_group("dungeon_combatant")
 	$LevelContainer.add_child(boss)
 	boss.died.connect(_on_combatant_died)
 	alive_count += 1
+	return boss
 
 # Which skill-tree material this dungeon depth drops -- deeper brackets
 # drop rarer materials (matching the escalating tier costs in skill_tree.gd).
