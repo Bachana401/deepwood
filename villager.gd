@@ -80,9 +80,12 @@ func rescue() -> void:
 		"paired": false,
 	})
 	spawn_world_avatar()
+	# the backstory is the villager SPEAKING -- floating text at their body,
+	# not a corner notification. The mechanical reward line stays a system
+	# notification. (SpeechText holds its spot after this node fades out.)
+	SpeechText.spawn(self, backstory)
 	var notif = get_node_or_null("../CanvasLayer/NotificationStack")
 	if notif:
-		notif.show_notification(backstory)
 		notif.show_notification("Rescued " + villager_name + "! (" + stat_name + " +" + str(stat_value) + ")")
 	monitoring = false
 	var tween = create_tween()

@@ -299,12 +299,9 @@ func show_info() -> void:
 	var fields = info_fields()
 	if fields.is_empty():
 		return
-	# NPCs are children of Main/Village, not Main directly -- CanvasLayer is
-	# a sibling of Village, so it takes two levels up to reach it.
-	var notif = get_node_or_null("../../CanvasLayer/NotificationStack")
-	if not notif:
-		return
-	notif.show_notification(" -- ".join(fields))
+	# the NPC introducing themselves is speech -- floating text above their
+	# head that follows them as they wander, not a corner notification
+	SpeechText.spawn(self, " -- ".join(fields))
 
 # Takes an explicit world position (rather than always reading the live
 # mouse cursor) so this can be exercised directly in headless tests, where
