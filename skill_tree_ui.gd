@@ -74,15 +74,15 @@ func build_panel() -> void:
 	panel.anchor_right = 0.5
 	panel.anchor_top = 0.5
 	panel.anchor_bottom = 0.5
-	panel.offset_left = -270.0
-	panel.offset_top = -240.0
-	panel.offset_right = 270.0
-	panel.offset_bottom = 240.0
+	panel.offset_left = -330.0
+	panel.offset_top = -250.0
+	panel.offset_right = 330.0
+	panel.offset_bottom = 250.0
 	add_child(panel)
 
 	title_label = Label.new()
 	title_label.position = Vector2(16, 8)
-	title_label.size = Vector2(508, 30)
+	title_label.size = Vector2(628, 30)
 	title_label.add_theme_font_size_override("font_size", 22)
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	panel.add_child(title_label)
@@ -95,30 +95,30 @@ func build_panel() -> void:
 	panel.add_child(points_label)
 
 	class_choice_box = VBoxContainer.new()
-	class_choice_box.position = Vector2(120, 90)
+	class_choice_box.position = Vector2(180, 90)
 	class_choice_box.size = Vector2(300, 340)
 	class_choice_box.add_theme_constant_override("separation", 12)
 	panel.add_child(class_choice_box)
 
 	var scroll = ScrollContainer.new()
 	scroll.position = Vector2(16, 68)
-	scroll.size = Vector2(508, 360)
+	scroll.size = Vector2(628, 380)
 	panel.add_child(scroll)
 	tree_box = VBoxContainer.new()
 	tree_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	tree_box.add_theme_constant_override("separation", 10)
+	tree_box.add_theme_constant_override("separation", 8)
 	scroll.add_child(tree_box)
 
 	var close = Button.new()
 	close.text = "Close (K)"
-	close.position = Vector2(16, 438)
+	close.position = Vector2(16, 458)
 	close.size = Vector2(110, 32)
 	close.pressed.connect(func(): panel.visible = false)
 	panel.add_child(close)
 
 	var reset = Button.new()
 	reset.text = "Drink Reset Potion (%dg)" % RESET_POTION_COST
-	reset.position = Vector2(330, 438)
+	reset.position = Vector2(450, 458)
 	reset.size = Vector2(194, 32)
 	reset.pressed.connect(_on_reset_potion)
 	panel.add_child(reset)
@@ -179,44 +179,76 @@ func _on_class_chosen(picked: String) -> void:
 	notify("Class chosen: " + picked + "!")
 	refresh()
 
-func deepest_unlocked_tier() -> int:
+# Per-branch reveal: within a branch you can only see 2 tiers past that
+# branch's own deepest unlock (a fresh branch shows tiers 1-2).
+func deepest_unlocked_tier_in_branch(branch: int) -> int:
 	var deepest = 0
 	for node in SkillTreeData.TREES.get(GameState.chosen_class, []):
-		if GameState.is_skill_unlocked(node.id):
+		if node.branch == branch and GameState.is_skill_unlocked(node.id):
 			deepest = max(deepest, node.tier)
 	return deepest
 
+# Drawn as an actual tree: the class's single root node sits centered at the
+# top (the trunk), and the 3 named branches expand downward from it as
+# side-by-side columns of ascending tiers.
 func rebuild_tree() -> void:
 	for child in tree_box.get_children():
 		child.queue_free()
 	var color = SkillTreeData.CLASS_COLORS.get(GameState.chosen_class, Color.WHITE)
-	var visible_limit = deepest_unlocked_tier() + 2
-	var nodes_by_tier = {}
-	for node in SkillTreeData.TREES.get(GameState.chosen_class, []):
-		if not nodes_by_tier.has(node.tier):
-			nodes_by_tier[node.tier] = []
-		nodes_by_tier[node.tier].append(node)
-	var tiers = nodes_by_tier.keys()
-	tiers.sort()
-	for tier in tiers:
+	var tree_nodes = SkillTreeData.TREES.get(GameState.chosen_class, [])
+	var branch_names = SkillTreeData.BRANCH_NAMES.get(GameState.chosen_class, ["", "", ""])
+
+	# trunk
+	var root_row = HBoxContainer.new()
+	root_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	tree_box.add_child(root_row)
+	for node in tree_nodes:
+		if node.branch == -1:
+			root_row.add_child(make_node_button(node, color))
+
+	var split_label = Label.new()
+	split_label.text = "|_______________|_______________|"
+	split_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	split_label.add_theme_color_override("font_color", color.darkened(0.2))
+	tree_box.add_child(split_label)
+
+	# 3 branch columns expanding below the trunk
+	var columns_row = HBoxContainer.new()
+	columns_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	columns_row.add_theme_constant_override("separation", 10)
+	tree_box.add_child(columns_row)
+	for branch in range(3):
+		var column = VBoxContainer.new()
+		column.add_theme_constant_override("separation", 6)
+		columns_row.add_child(column)
 		var header = Label.new()
-		header.add_theme_font_size_override("font_size", 13)
+		header.text = branch_names[branch]
+		header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		header.add_theme_font_size_override("font_size", 14)
 		header.add_theme_color_override("font_color", color.lightened(0.3))
-		if tier > visible_limit:
-			header.text = "Tier %d -- ???" % tier
-			tree_box.add_child(header)
-			continue
-		header.text = "Tier %d" % tier
-		tree_box.add_child(header)
-		var row = HBoxContainer.new()
-		row.add_theme_constant_override("separation", 8)
-		tree_box.add_child(row)
-		for node in nodes_by_tier[tier]:
-			row.add_child(make_node_button(node, color))
+		column.add_child(header)
+		var visible_limit = deepest_unlocked_tier_in_branch(branch) + 2
+		var branch_nodes = []
+		for node in tree_nodes:
+			if node.branch == branch:
+				branch_nodes.append(node)
+		branch_nodes.sort_custom(func(a, b): return a.tier < b.tier)
+		for node in branch_nodes:
+			if node.tier > visible_limit:
+				var hidden = Label.new()
+				hidden.text = "Tier %d -- ???" % node.tier
+				hidden.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+				hidden.add_theme_font_size_override("font_size", 11)
+				hidden.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5, 1))
+				column.add_child(hidden)
+			else:
+				column.add_child(make_node_button(node, color))
 
 func make_node_button(node: Dictionary, color: Color) -> Button:
 	var button = Button.new()
-	button.custom_minimum_size = Vector2(240, 64)
+	button.custom_minimum_size = Vector2(196, 66)
+	button.add_theme_font_size_override("font_size", 11)
+	button.clip_text = true
 	var unlocked = GameState.is_skill_unlocked(node.id)
 	var cost_line = "%d pt" % node.cost
 	for mat_id in node.materials.keys():
