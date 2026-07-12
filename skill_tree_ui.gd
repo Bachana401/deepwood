@@ -12,11 +12,25 @@ const RESET_POTION_COST = 150
 
 var panel: Panel
 var class_choice_box: VBoxContainer
-var tree_box: VBoxContainer
+var tree_scroll: ScrollContainer
+var tree_canvas: Control
 var title_label: Label
 var points_label: Label
 var xp_fill: ColorRect
 var xp_label: Label
+
+# Tree layout geometry (canvas-local pixels). One root card centered at top,
+# 3 branch columns fanning out below it, tiers descending within each column,
+# Line2D connectors drawn between parent->child so it reads as a real tree.
+const CANVAS_W = 620.0
+const CARD_W = 190.0
+const CARD_H = 54.0
+const ROOT_TOP = 8.0
+const HEADER_Y = 66.0
+const TIER1_Y = 100.0
+const TIER_SPACING = 66.0
+const BRANCH_CENTERS = [105.0, 310.0, 515.0]
+const ROOT_CENTER_X = 310.0
 
 func _ready() -> void:
 	layer = 50
@@ -100,14 +114,13 @@ func build_panel() -> void:
 	class_choice_box.add_theme_constant_override("separation", 12)
 	panel.add_child(class_choice_box)
 
-	var scroll = ScrollContainer.new()
-	scroll.position = Vector2(16, 68)
-	scroll.size = Vector2(628, 380)
-	panel.add_child(scroll)
-	tree_box = VBoxContainer.new()
-	tree_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	tree_box.add_theme_constant_override("separation", 8)
-	scroll.add_child(tree_box)
+	tree_scroll = ScrollContainer.new()
+	tree_scroll.position = Vector2(16, 68)
+	tree_scroll.size = Vector2(628, 380)
+	panel.add_child(tree_scroll)
+	tree_canvas = Control.new()
+	tree_canvas.custom_minimum_size = Vector2(CANVAS_W, 440)
+	tree_scroll.add_child(tree_canvas)
 
 	var close = Button.new()
 	close.text = "Close (K)"
@@ -137,7 +150,7 @@ func _on_reset_potion() -> void:
 func refresh() -> void:
 	var choosing = GameState.chosen_class == ""
 	class_choice_box.visible = choosing
-	tree_box.get_parent().visible = not choosing
+	tree_scroll.visible = not choosing
 	if choosing:
 		title_label.text = "Choose Your Class"
 		points_label.text = "This defines your skill tree. A Reset Potion can undo it later."
@@ -188,45 +201,47 @@ func deepest_unlocked_tier_in_branch(branch: int) -> int:
 			deepest = max(deepest, node.tier)
 	return deepest
 
-# Drawn as an actual tree: the class's single root node sits centered at the
-# top (the trunk), and the 3 named branches expand downward from it as
-# side-by-side columns of ascending tiers.
+# Drawn as an actual tree: one root card centered at the top, connector lines
+# fanning out to 3 branch columns, and each branch a descending chain of tier
+# cards with lines linking each tier to the next. Cards are absolutely
+# positioned on tree_canvas; Line2D connectors go on first (z=-1) so cards
+# render over them.
+func tier_top_y(tier: int) -> float:
+	return TIER1_Y + (tier - 1) * TIER_SPACING
+
 func rebuild_tree() -> void:
-	for child in tree_box.get_children():
+	for child in tree_canvas.get_children():
 		child.queue_free()
 	var color = SkillTreeData.CLASS_COLORS.get(GameState.chosen_class, Color.WHITE)
 	var tree_nodes = SkillTreeData.TREES.get(GameState.chosen_class, [])
 	var branch_names = SkillTreeData.BRANCH_NAMES.get(GameState.chosen_class, ["", "", ""])
 
-	# trunk
-	var root_row = HBoxContainer.new()
-	root_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	tree_box.add_child(root_row)
+	var root_bottom = Vector2(ROOT_CENTER_X, ROOT_TOP + CARD_H)
+
+	# connectors first (root -> each branch tier1, then tier -> tier within a branch)
+	for branch in range(3):
+		var cx = BRANCH_CENTERS[branch]
+		add_connector(root_bottom, Vector2(cx, tier_top_y(1)), color)
+		for tier in range(1, 5):
+			add_connector(Vector2(cx, tier_top_y(tier) + CARD_H), Vector2(cx, tier_top_y(tier + 1)), color)
+
+	# root card
 	for node in tree_nodes:
 		if node.branch == -1:
-			root_row.add_child(make_node_button(node, color))
+			add_card(node, color, Vector2(ROOT_CENTER_X - CARD_W / 2.0, ROOT_TOP))
 
-	var split_label = Label.new()
-	split_label.text = "|_______________|_______________|"
-	split_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	split_label.add_theme_color_override("font_color", color.darkened(0.2))
-	tree_box.add_child(split_label)
-
-	# 3 branch columns expanding below the trunk
-	var columns_row = HBoxContainer.new()
-	columns_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	columns_row.add_theme_constant_override("separation", 10)
-	tree_box.add_child(columns_row)
+	# branch headers + tier cards / hidden placeholders
 	for branch in range(3):
-		var column = VBoxContainer.new()
-		column.add_theme_constant_override("separation", 6)
-		columns_row.add_child(column)
+		var cx = BRANCH_CENTERS[branch]
 		var header = Label.new()
 		header.text = branch_names[branch]
+		header.position = Vector2(cx - CARD_W / 2.0, HEADER_Y)
+		header.size = Vector2(CARD_W, 22)
 		header.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		header.add_theme_font_size_override("font_size", 14)
 		header.add_theme_color_override("font_color", color.lightened(0.3))
-		column.add_child(header)
+		tree_canvas.add_child(header)
+
 		var visible_limit = deepest_unlocked_tier_in_branch(branch) + 2
 		var branch_nodes = []
 		for node in tree_nodes:
@@ -234,38 +249,70 @@ func rebuild_tree() -> void:
 				branch_nodes.append(node)
 		branch_nodes.sort_custom(func(a, b): return a.tier < b.tier)
 		for node in branch_nodes:
+			var pos = Vector2(cx - CARD_W / 2.0, tier_top_y(node.tier))
 			if node.tier > visible_limit:
-				var hidden = Label.new()
-				hidden.text = "Tier %d -- ???" % node.tier
-				hidden.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-				hidden.add_theme_font_size_override("font_size", 11)
-				hidden.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5, 1))
-				column.add_child(hidden)
+				add_hidden_slot(node.tier, color, pos)
 			else:
-				column.add_child(make_node_button(node, color))
+				add_card(node, color, pos)
+
+func add_connector(from_pt: Vector2, to_pt: Vector2, color: Color) -> void:
+	var line = Line2D.new()
+	line.points = PackedVector2Array([from_pt, to_pt])
+	line.width = 3.0
+	line.default_color = Color(color.r, color.g, color.b, 0.65)
+	line.z_index = -1
+	tree_canvas.add_child(line)
+
+func add_hidden_slot(tier: int, color: Color, pos: Vector2) -> void:
+	var slot = Panel.new()
+	slot.position = pos
+	slot.size = Vector2(CARD_W, CARD_H)
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.1, 0.1, 0.12, 1.0)
+	style.border_color = color.darkened(0.55)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(4)
+	slot.add_theme_stylebox_override("panel", style)
+	tree_canvas.add_child(slot)
+	var label = Label.new()
+	label.text = "Tier %d\n???" % tier
+	label.position = Vector2(0, 8)
+	label.size = Vector2(CARD_W, CARD_H)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", 12)
+	label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5, 1))
+	slot.add_child(label)
+
+func add_card(node: Dictionary, color: Color, pos: Vector2) -> void:
+	var button = make_node_button(node, color)
+	button.position = pos
+	button.size = Vector2(CARD_W, CARD_H)
+	tree_canvas.add_child(button)
 
 func make_node_button(node: Dictionary, color: Color) -> Button:
 	var button = Button.new()
-	button.custom_minimum_size = Vector2(196, 66)
+	button.custom_minimum_size = Vector2(CARD_W, CARD_H)
 	button.add_theme_font_size_override("font_size", 11)
 	button.clip_text = true
+	button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var unlocked = GameState.is_skill_unlocked(node.id)
 	var cost_line = "%d pt" % node.cost
 	for mat_id in node.materials.keys():
 		cost_line += " + %dx %s" % [node.materials[mat_id], Inventory.get_display_name(mat_id)]
 	if unlocked:
-		button.text = "[UNLOCKED]  " + node.name + "\n" + node.desc
+		button.text = "✔ " + node.name + "\n" + node.desc
 		button.disabled = true
 	else:
 		button.text = node.name + "\n" + node.desc + "\n" + cost_line
 		button.pressed.connect(_on_node_pressed.bind(node))
 	var style = StyleBoxFlat.new()
-	style.bg_color = color.darkened(0.25) if unlocked else Color(0.13, 0.13, 0.16, 1.0)
-	style.border_color = color if unlocked else color.darkened(0.4)
+	style.bg_color = color.darkened(0.2) if unlocked else Color(0.14, 0.14, 0.17, 1.0)
+	style.border_color = color if unlocked else color.darkened(0.35)
 	style.set_border_width_all(2)
 	style.set_corner_radius_all(4)
 	button.add_theme_stylebox_override("normal", style)
 	button.add_theme_stylebox_override("disabled", style)
+	button.add_theme_stylebox_override("hover", style)
 	button.add_theme_color_override("font_color", Color(1, 1, 1, 1))
 	button.add_theme_color_override("font_disabled_color", Color(0.95, 0.95, 0.95, 1))
 	return button
