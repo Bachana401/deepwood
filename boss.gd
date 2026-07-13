@@ -312,6 +312,11 @@ var has_aura := false
 var has_blink_on_hit := false
 var aura_particles: CPUParticles2D = null
 var aura_timer := 0.0
+# the aura rides a trailing anchor that chases the boss with a slight delay,
+# so blinks and darts leave a smooth red sweep instead of a rigid attachment
+var aura_anchor: Node2D = null
+var aura_orbit: Node2D = null
+var aura_spin := 0.9
 var hover_time := 0.0
 var is_diving := false
 var dive_phase := 0
@@ -369,9 +374,17 @@ func configure_from_def(def: Dictionary) -> void:
 	if has_aura:
 		build_aura()
 
-# The crumbling red pixel aura: a constant rain of small red squares breaking
-# off around the body. It is also a weapon -- see process_passives.
+# The crumbling red pixel aura: a constant rain of small red squares plus an
+# orbiting ring of flickering ember blocks. Everything hangs off aura_anchor,
+# a top-level node that LAGS behind the boss (see process_passives), so fast
+# movement and teleports leave a smooth trailing sweep. Also a weapon.
 func build_aura() -> void:
+	aura_anchor = Node2D.new()
+	aura_anchor.top_level = true          # ignores the boss transform; we steer it
+	aura_anchor.z_index = 3
+	add_child(aura_anchor)
+	aura_anchor.global_position = global_position
+
 	aura_particles = CPUParticles2D.new()
 	aura_particles.amount = 46
 	aura_particles.lifetime = 1.1
@@ -388,14 +401,27 @@ func build_aura() -> void:
 	ramp.offsets = PackedFloat32Array([0.0, 0.45, 1.0])
 	ramp.colors = PackedColorArray([Color(0.4, 0.03, 0.02, 0.9), Color(1.0, 0.25, 0.1, 0.95), Color(0.03, 0.0, 0.0, 0.0)])
 	aura_particles.color_ramp = ramp
-	aura_particles.z_index = 3
-	add_child(aura_particles)
+	aura_anchor.add_child(aura_particles)
 	aura_particles.emitting = true
+
+	# the slow-orbiting ember ring around his body
+	aura_orbit = Node2D.new()
+	aura_anchor.add_child(aura_orbit)
+	for i in range(10):
+		var ang = i * TAU / 10.0 + randf_range(-0.2, 0.2)
+		var r = randf_range(62.0, 95.0)
+		_ember_block(Vector2(cos(ang), sin(ang)) * r, randf_range(2.5, 4.5), false, aura_orbit)
 
 # Passive effects that run regardless of what the boss is doing.
 func process_passives(delta: float) -> void:
 	if is_dead or not has_aura:
 		return
+	# the aura chases the boss with a soft lag -- teleports become red sweeps
+	if aura_anchor != null and is_instance_valid(aura_anchor):
+		var chase = 1.0 - exp(-7.0 * delta)
+		aura_anchor.global_position = aura_anchor.global_position.lerp(global_position, chase)
+		if aura_orbit != null and is_instance_valid(aura_orbit):
+			aura_orbit.rotation += delta * aura_spin
 	aura_timer -= delta
 	if aura_timer <= 0.0:
 		aura_timer = AURA_TICK
@@ -648,22 +674,23 @@ func rig_wizard(hw: float, hh: float, eye: Color) -> void:
 	_rc(Vector2(hw + 21.0, -hh * 0.98), 9.0, magic_color, 2)
 	# clawed shadow of a hand -- nothing human left
 	_rc(Vector2(-hw * 0.55, hh * 0.02), 5.0, Color(0.12, 0.03, 0.03), 2)
-	for orbit in [Vector2(-hw - 20.0, -hh * 0.3), Vector2(-hw - 30.0, hh * 0.15), Vector2(hw + 32.0, hh * 0.1)]:
-		_ember_block(orbit, 3.5, false)
 
-# The Fallen Wizard's face: a black hollow filled with ember-pixels, each
-# flickering through red tones (dark -> flare -> gutter to black) on its own
-# rhythm, so the whole face crawls and shifts.
+# The Fallen Wizard's face: a black hollow with two burning eye-blocks. All
+# other embers live on the trailing aura ring so nothing is stuck to the face.
 func _wizard_void_face(center: Vector2, r: float) -> void:
 	_rc(center, r, Color(0.03, 0.01, 0.02), 3)
-	for sx in [-0.45, 0.45]:   # two burning eye-blocks, brighter than the rest
-		_ember_block(center + Vector2(r * sx, -r * 0.15), r * 0.3, true)
-	for i in range(9):         # scattered face embers
-		var p = center + Vector2(randf_range(-r * 0.75, r * 0.75), randf_range(-r * 0.65, r * 0.85))
-		_ember_block(p, randf_range(2.0, 3.6), false)
+	for sx in [-0.45, 0.45]:
+		_ember_block(center + Vector2(r * sx, -r * 0.15), r * 0.3, true, rig)
 
-func _ember_block(pos: Vector2, half: float, bright: bool) -> void:
-	var b := _rc(pos, half, Color(0.5, 0.05, 0.03), 4)
+# A flickering ember pixel: cycles through red tones (dark -> flare -> gutter
+# to near-black) on its own rhythm.
+func _ember_block(pos: Vector2, half: float, bright: bool, parent: Node2D) -> void:
+	var b := Polygon2D.new()
+	b.polygon = PackedVector2Array([Vector2(-half, -half), Vector2(half, -half), Vector2(half, half), Vector2(-half, half)])
+	b.position = pos
+	b.color = Color(0.5, 0.05, 0.03)
+	b.z_index = 4
+	parent.add_child(b)
 	var t := b.create_tween()
 	t.set_loops()
 	var tones := EMBER_TONES.duplicate()
@@ -1364,6 +1391,7 @@ func frenzy() -> void:
 		aura_particles.amount = 84
 		aura_particles.emission_sphere_radius = AURA_RADIUS * 0.95
 		aura_particles.scale_amount_max = 8.0
+	aura_spin = 1.9   # the ember ring whirls in frenzy
 
 func apply_knockback(_direction_sign: int, _distance: float) -> void:
 	pass
