@@ -52,11 +52,20 @@ const BOSS_LAYOUT = [
 	{"x": 2100.0, "y": -220.0, "w": 320.0},
 ]
 
-# Which boss id each boss level uses, in order: level 5 -> index 0, level 10 ->
-# index 1, and so on, cycling once the roster is exhausted (deeper levels reuse
-# a design but hit much harder via level scaling). Ids MUST match boss.gd's
-# BOSSES and the BOSS_ARENAS keys below.
-const BOSS_ROSTER = ["gravewarden", "frost_monarch", "cinder_colossus", "weaver", "stormcaller", "void_sovereign", "seraph", "leviathan", "eclipse"]
+# Boss identity per level. The six standard bosses CYCLE through the regular
+# boss levels; the three apex bosses are reserved as the game's UNIQUE finale
+# and appear ONLY on the last three boss levels (90 / 95 / 100), never earlier.
+# Ids MUST match boss.gd's BOSSES and the BOSS_ARENAS keys below.
+const CYCLING_BOSSES = ["gravewarden", "frost_monarch", "cinder_colossus", "weaver", "stormcaller", "void_sovereign"]
+const FINAL_BOSSES = ["seraph", "leviathan", "eclipse"]
+
+# The deepest N boss levels have NO weapon counter (mastery of every weapon is
+# required); only the shallower boss levels get a countering weapon assigned.
+const COUNTER_IMMUNE_TAIL = 12
+# Fixed-order counter assignment for the counterable boss levels, built once in
+# _ready(). Deterministic (seeded) so a given level always has the same
+# matchup, and constrained so the same weapon never counters 4 bosses in a row.
+var boss_counter_seq: Array = []
 
 # One bespoke arena per boss: its own platform layout, background gradient, and
 # torch/accent color, so each boss fight looks and plays differently.
@@ -189,6 +198,7 @@ const GATE_SCRIPT = preload("res://dungeon_gate.gd")
 
 func _ready() -> void:
 	GameState.in_dungeon = true
+	boss_counter_seq = build_counter_sequence()
 	current_level = GameState.active_dungeon_level
 	build_level_visuals(current_level)
 	place_player_at_entry(false)
@@ -230,12 +240,39 @@ func get_layout(level: int) -> Array:
 		return generate_boss_platforms(get_boss_id(level), arena.get("width", DUNGEON_WIDTH), arena.get("height", CEILING_Y))
 	return REGULAR_LAYOUTS[get_layout_slot(level)]
 
-# Boss levels are 5, 10, 15...; map them onto the roster in order and cycle.
+func total_boss_levels() -> int:
+	return int(MAX_LEVEL / 5)
+
+# Boss levels are 5, 10, 15...; the last three are the unique apex finale, the
+# rest cycle the six standard bosses.
 func get_boss_id(level: int) -> String:
-	var index = int(level / 5) - 1
-	if index < 0:
-		index = 0
-	return BOSS_ROSTER[index % BOSS_ROSTER.size()]
+	var n = int(level / 5)                       # 1..20
+	var from_end = total_boss_levels() - n       # 0 = final level, 1 = next, ...
+	if from_end >= 0 and from_end < FINAL_BOSSES.size():
+		return FINAL_BOSSES[FINAL_BOSSES.size() - 1 - from_end]
+	return CYCLING_BOSSES[max(0, n - 1) % CYCLING_BOSSES.size()]
+
+# Which weapon (if any) counters the boss on this level. "" for the deep,
+# counter-immune levels. Sequence is precomputed in build_counter_sequence().
+func get_boss_counter(level: int) -> String:
+	var n = int(level / 5)
+	if n >= 1 and n <= boss_counter_seq.size():
+		return boss_counter_seq[n - 1]
+	return ""
+
+func build_counter_sequence() -> Array:
+	var count = max(0, total_boss_levels() - COUNTER_IMMUNE_TAIL)
+	var rng = RandomNumberGenerator.new()
+	rng.seed = 0x5EED           # fixed: matchup order is stable across runs
+	var roles = ["sword", "archer", "mage"]
+	var seq: Array = []
+	for i in range(count):
+		var choices = roles.duplicate()
+		# never let the same weapon counter a 4th boss in a row
+		if seq.size() >= 3 and seq[-1] == seq[-2] and seq[-2] == seq[-3]:
+			choices.erase(seq[-1])
+		seq.append(choices[rng.randi() % choices.size()])
+	return seq
 
 func get_boss_arena(level: int) -> Dictionary:
 	return BOSS_ARENAS.get(get_boss_id(level), {})
@@ -795,7 +832,11 @@ func spawn_level_combat() -> void:
 	GameState.record_level_reached(current_level)
 	if is_boss_level(current_level):
 		var b = spawn_boss()
-		show_notification("Level %d - %s awakens!" % [current_level, b.get_display_name()])
+		var intro = "Level %d - %s awakens!" % [current_level, b.get_display_name()]
+		var counter = get_boss_counter(current_level)
+		if counter != "":
+			intro += "  (weak to %s)" % counter
+		show_notification(intro)
 	else:
 		var count = min(BASE_ENEMY_COUNT + current_level - 1, MAX_ENEMY_COUNT)
 		for i in range(count):
@@ -824,6 +865,7 @@ func spawn_boss() -> Node:
 	var boss = BOSS_SCENE.instantiate()
 	var scaling = get_level_scaling()
 	boss.boss_id = get_boss_id(current_level)
+	boss.counter_role = get_boss_counter(current_level)
 	boss.level_hp_mult = scaling.hp
 	boss.damage_multiplier = scaling.dmg
 	boss.speed_multiplier = scaling.speed

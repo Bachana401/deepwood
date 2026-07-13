@@ -99,6 +99,20 @@ const BEAM_HALF_HEIGHT = 55.0
 const BEAM_DAMAGE = 38
 const BEAM_KNOCKBACK = 200.0
 
+# --- weapon counter (set per boss level by dungeon_interior.gd) ---
+# Only the first 8 boss levels (5-40) are countered; deeper bosses set
+# counter_role = "" and take every weapon at face value. When a counter IS
+# set, the matching weapon gets +30% damage AND a distinct mechanical edge;
+# every other weapon is partly "guarded" (75%). See trigger_counter_mechanic.
+const COUNTER_DMG_BONUS = 1.3
+const GUARD_MULT = 0.75
+const EXPOSE_DURATION = 3.5    # archer: an arrow strips the guard for everyone
+const HEX_DURATION = 4.0       # mage: a wand hit slows the boss
+const HEX_SPEED_MULT = 0.55
+const HEX_CD_PENALTY = 1.4
+const STAGGER_MAX = 4          # sword: this many melee hits -> a stun
+const STUN_DURATION = 1.3
+
 # Per-ability metadata: cooldown after use, and the player-distance window in
 # which the ability is a valid choice. choose_attack() filters on these.
 const ABILITY_META = {
@@ -219,6 +233,13 @@ var charge_has_hit := false
 var is_wall_blocked := false
 var wall_turn_timer := 0.0
 
+# weapon-counter state
+var counter_role := ""        # "sword" | "archer" | "mage"; "" = counter-immune
+var exposed_timer := 0.0
+var hex_timer := 0.0
+var stagger := 0
+var stun_timer := 0.0
+
 # apex state
 var flying := false
 var is_apex := false
@@ -301,12 +322,21 @@ func _physics_process(delta: float) -> void:
 		wall_turn_timer -= delta
 		if wall_turn_timer <= 0:
 			is_wall_blocked = false
+	if exposed_timer > 0.0:
+		exposed_timer -= delta
+	if hex_timer > 0.0:
+		hex_timer -= delta
+	if stun_timer > 0.0:
+		stun_timer -= delta
 
 	if player != null and is_instance_valid(player):
 		if is_charging:
 			process_charge(delta)
 		elif is_diving:
 			process_dive(delta)
+		elif stun_timer > 0.0:
+			# staggered by a sword-counter: rooted and unable to start attacks
+			velocity = Vector2.ZERO if flying else Vector2(0, velocity.y)
 		elif not is_busy:
 			var dx = player.global_position.x - global_position.x
 			if absf(dx) > 4.0:
@@ -318,9 +348,9 @@ func _physics_process(delta: float) -> void:
 			elif flying:
 				process_hover(delta)
 			elif wall_turn_timer > 0:
-				velocity.x = -facing_direction * base_move_speed * speed_multiplier
+				velocity.x = -facing_direction * effective_speed()
 			else:
-				velocity.x = facing_direction * base_move_speed * speed_multiplier
+				velocity.x = facing_direction * effective_speed()
 		check_bump()
 
 	move_and_slide()
@@ -338,10 +368,17 @@ func process_hover(delta: float) -> void:
 	var target = player.global_position + Vector2(0, -HOVER_ALTITUDE)
 	var to_target = target - global_position
 	if to_target.length() > 40.0:
-		velocity = to_target.normalized() * base_move_speed * speed_multiplier
+		velocity = to_target.normalized() * effective_speed()
 	else:
 		velocity = to_target * 2.0
 	velocity.y += sin(hover_time * 3.0) * 28.0
+
+# Movement speed after the mage-counter's hex slow (and level scaling).
+func effective_speed() -> float:
+	var s = base_move_speed * speed_multiplier
+	if hex_timer > 0.0:
+		s *= HEX_SPEED_MULT
+	return s
 
 func choose_attack(dist: float) -> String:
 	var candidates: Array = []
@@ -382,11 +419,42 @@ func set_cd(ability_name: String) -> void:
 	ability_cd[ability_name] = ABILITY_META[ability_name]["cd"] * cooldown_mult()
 
 func cooldown_mult() -> float:
+	var m := 1.0
 	if is_frenzied:
-		return 0.35
-	if is_enraged:
-		return 0.5 if is_apex else 0.6
-	return 1.0
+		m = 0.35
+	elif is_enraged:
+		m = 0.5 if is_apex else 0.6
+	if hex_timer > 0.0:
+		m *= HEX_CD_PENALTY   # mage-counter: hexed bosses attack slower
+	return m
+
+# Maps the player's currently-held weapon to one of the three counter roles.
+# Read live when the boss is hit, so it reflects whatever dealt the blow.
+func current_player_role() -> String:
+	if player != null and is_instance_valid(player) and "active_weapon_type" in player:
+		match player.active_weapon_type:
+			"bow": return "archer"
+			"wand": return "mage"
+			_: return "sword"   # "melee", "spear", or unset
+	return "sword"
+
+# The distinct mechanical edge each countering weapon gets. Called only on a
+# hit from this boss's countering weapon.
+func trigger_counter_mechanic(role: String) -> void:
+	match role:
+		"sword":
+			# build stagger; a full bar roots the boss briefly (an opening)
+			stagger += 1
+			if stagger >= STAGGER_MAX and stun_timer <= 0.0:
+				stagger = 0
+				stun_timer = STUN_DURATION
+				spawn_shockwave(150.0, Color(1.0, 0.95, 0.55))
+		"archer":
+			# strip the guard for a few seconds -- everyone hits full during it
+			exposed_timer = EXPOSE_DURATION
+		"mage":
+			# hex: slows movement and lengthens cooldowns
+			hex_timer = HEX_DURATION
 
 # --- abilities ---
 
@@ -811,7 +879,17 @@ func flash_telegraph(color: Color) -> void:
 func take_damage(amount: int) -> void:
 	if is_dead:
 		return
-	health -= amount
+	var dmg := amount
+	# weapon counter: countering weapon hits harder AND fires its mechanic;
+	# every other weapon is guarded (unless an archer has just exposed the boss)
+	if counter_role != "":
+		var role := current_player_role()
+		if role == counter_role:
+			dmg = int(round(dmg * COUNTER_DMG_BONUS))
+			trigger_counter_mechanic(role)
+		elif exposed_timer <= 0.0:
+			dmg = int(round(dmg * GUARD_MULT))
+	health -= dmg
 	update_health_bar()
 	if health <= 0:
 		die()
