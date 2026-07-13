@@ -1,10 +1,10 @@
 extends CanvasLayer
 
-# Equipment panel, bottom-left, toggled with TAB alongside the inventory.
-# Shows the worn gear slots: weapon (Excellent), helmet / armor / pants, and
-# the relic row (4 slots now, 5 at Lv10, 6 at Lv20 -- locked ones greyed).
-# Click a filled slot to unequip it back to the inventory; click an empty
-# slot to open a small picker of eligible items from the inventory.
+# Equipment panel, pinned to the RIGHT side of the screen (kept clear of the
+# left-side inventory), toggled with TAB alongside it. Big, clearly-labelled
+# armour slots stacked head-to-toe -- Helmet, Armour, Pants -- with the relic
+# slots in a grid below. Click a filled slot to unequip it back to the bag;
+# click an empty slot to pick an eligible item.
 #
 # Built procedurally so one .tscn instances identically into main.tscn and
 # dungeon_interior.tscn.
@@ -13,15 +13,16 @@ var player: Node2D
 var panel: Panel
 var picker: Panel
 var title_label: Label
-var slot_buttons = {}  # "weapon"/"helmet"/"chest"/"pants" -> Button
+var slot_buttons = {}  # "helmet"/"chest"/"pants" -> Button
 var relic_buttons: Array = []  # index 0..5 -> Button
 
-const PANEL_W = 300.0
+const PANEL_W = 250.0
+const PANEL_H = 500.0
 # Weapons moved to the hotbar (see player.gd) -- the gear panel is armor only.
 const GEAR_SLOTS = [
-	{"key": "helmet", "label": "Helmet", "y": 30.0},
-	{"key": "chest", "label": "Armor", "y": 60.0},
-	{"key": "pants", "label": "Pants", "y": 90.0},
+	{"key": "helmet", "label": "Helmet"},
+	{"key": "chest", "label": "Armor"},
+	{"key": "pants", "label": "Pants"},
 ]
 const RELIC_UNLOCK_LEVEL = [0, 0, 0, 0, 10, 20]  # per relic slot index
 
@@ -41,82 +42,120 @@ func _unhandled_input(event: InputEvent) -> void:
 		if panel.visible:
 			refresh()
 
+# A boxed slot with a border so empty slots read as slots.
+func _slot_style(hover: bool, locked := false) -> StyleBoxFlat:
+	var s = StyleBoxFlat.new()
+	if locked:
+		s.bg_color = Color(0.09, 0.09, 0.11, 1)
+		s.border_color = Color(0.3, 0.3, 0.35, 1)
+	else:
+		s.bg_color = Color(0.19, 0.19, 0.24, 1) if hover else Color(0.13, 0.13, 0.17, 1)
+		s.border_color = Color(0.55, 0.55, 0.62, 1)
+	s.set_border_width_all(2)
+	s.set_corner_radius_all(5)
+	s.content_margin_left = 3
+	s.content_margin_right = 3
+	return s
+
+func _slot_button(x: float, y: float, w: float, h: float) -> Button:
+	var b = Button.new()
+	b.position = Vector2(x, y)
+	b.size = Vector2(w, h)
+	b.add_theme_font_size_override("font_size", 11)
+	b.clip_text = true
+	# FOCUS_NONE keeps TAB free to toggle the panel instead of moving focus.
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_stylebox_override("normal", _slot_style(false))
+	b.add_theme_stylebox_override("hover", _slot_style(true))
+	b.add_theme_stylebox_override("pressed", _slot_style(true))
+	b.add_theme_stylebox_override("disabled", _slot_style(false, true))
+	panel.add_child(b)
+	return b
+
 func build_panel() -> void:
 	panel = Panel.new()
-	panel.anchor_left = 0.0
-	panel.anchor_right = 0.0
-	panel.anchor_top = 1.0
-	panel.anchor_bottom = 1.0
-	panel.offset_left = 20.0
-	panel.offset_right = 20.0 + PANEL_W
-	panel.offset_top = -236.0
-	panel.offset_bottom = -18.0
+	panel.anchor_left = 1.0
+	panel.anchor_right = 1.0
+	panel.anchor_top = 0.5
+	panel.anchor_bottom = 0.5
+	panel.offset_left = -(PANEL_W + 20.0)
+	panel.offset_right = -20.0
+	panel.offset_top = -PANEL_H / 2.0
+	panel.offset_bottom = PANEL_H / 2.0
 	add_child(panel)
 
 	title_label = Label.new()
-	title_label.position = Vector2(10, 6)
-	title_label.size = Vector2(PANEL_W - 20, 20)
-	title_label.add_theme_font_size_override("font_size", 15)
+	title_label.position = Vector2(12, 8)
+	title_label.add_theme_font_size_override("font_size", 16)
 	title_label.text = "Equipment"
 	panel.add_child(title_label)
 
-	# A real close button (✕) in the panel corner -- TAB still toggles too, but
-	# a visible control means you never depend on the key alone.
 	var close_btn = Button.new()
-	close_btn.position = Vector2(PANEL_W - 34, 4)
-	close_btn.size = Vector2(26, 22)
+	close_btn.position = Vector2(PANEL_W - 32, 6)
+	close_btn.size = Vector2(24, 22)
 	close_btn.add_theme_font_size_override("font_size", 14)
 	close_btn.text = "X"
 	close_btn.focus_mode = Control.FOCUS_NONE
 	close_btn.pressed.connect(close)
 	panel.add_child(close_btn)
 
+	# three armour slots, head-to-toe, each a labelled box centred in the panel
+	var cx = PANEL_W / 2.0
+	var box = 64.0
+	var start_y = 40.0
+	var step = 88.0
+	var i = 0
 	for def in GEAR_SLOTS:
-		var button = Button.new()
-		button.position = Vector2(10, def.y)
-		button.size = Vector2(PANEL_W - 20, 26)
-		button.add_theme_font_size_override("font_size", 12)
-		button.clip_text = true
-		# Buttons default to grabbing keyboard focus, and TAB is Godot's
-		# "focus next control" key -- a focused button would swallow every TAB
-		# so the panel could never be closed with it. FOCUS_NONE keeps TAB free.
-		button.focus_mode = Control.FOCUS_NONE
+		var ly = start_y + i * step
+		var name_lbl = Label.new()
+		name_lbl.position = Vector2(cx - box / 2.0, ly)
+		name_lbl.add_theme_font_size_override("font_size", 12)
+		name_lbl.add_theme_color_override("font_color", Color(0.82, 0.84, 0.92, 1))
+		name_lbl.text = def.label
+		panel.add_child(name_lbl)
+		var button = _slot_button(cx - box / 2.0, ly + 18.0, box, box)
 		button.pressed.connect(_on_gear_slot_pressed.bind(def.key))
 		button.mouse_entered.connect(_on_gear_slot_hover.bind(def.key))
 		button.mouse_exited.connect(_hide_tip)
-		panel.add_child(button)
 		slot_buttons[def.key] = button
+		i += 1
 
+	# relics below, in a grid (3 per row)
+	var relic_y = start_y + 3 * step + 8.0
 	var relic_header = Label.new()
-	relic_header.position = Vector2(10, 152)
-	relic_header.size = Vector2(PANEL_W - 20, 18)
-	relic_header.add_theme_font_size_override("font_size", 12)
+	relic_header.position = Vector2(12, relic_y)
+	relic_header.add_theme_font_size_override("font_size", 13)
 	relic_header.add_theme_color_override("font_color", Color(0.85, 0.8, 0.5, 1))
 	relic_header.text = "Relics"
 	panel.add_child(relic_header)
 
-	for i in range(GameState.RELIC_MAX_SLOTS):
-		var rb = Button.new()
-		rb.position = Vector2(10 + i * 46, 174)
-		rb.size = Vector2(42, 34)
+	var per_row = 3
+	var rbox = 56.0
+	var rgap = 8.0
+	var row_w = per_row * rbox + (per_row - 1) * rgap
+	var rx0 = (PANEL_W - row_w) / 2.0
+	var ry0 = relic_y + 22.0
+	for j in range(GameState.RELIC_MAX_SLOTS):
+		var col = j % per_row
+		var row = j / per_row
+		var rb = _slot_button(rx0 + col * (rbox + rgap), ry0 + row * (rbox + 16.0), rbox, rbox)
 		rb.add_theme_font_size_override("font_size", 10)
-		rb.clip_text = true
-		rb.focus_mode = Control.FOCUS_NONE
-		rb.pressed.connect(_on_relic_slot_pressed.bind(i))
-		rb.mouse_entered.connect(_on_relic_slot_hover.bind(i))
+		rb.pressed.connect(_on_relic_slot_pressed.bind(j))
+		rb.mouse_entered.connect(_on_relic_slot_hover.bind(j))
 		rb.mouse_exited.connect(_hide_tip)
-		panel.add_child(rb)
 		relic_buttons.append(rb)
 
 func build_picker() -> void:
+	# the picker opens just to the LEFT of the right-side panel
 	picker = Panel.new()
-	picker.anchor_left = 0.0
-	picker.anchor_top = 1.0
-	picker.anchor_bottom = 1.0
-	picker.offset_left = 330.0
-	picker.offset_right = 610.0
-	picker.offset_top = -280.0
-	picker.offset_bottom = -18.0
+	picker.anchor_left = 1.0
+	picker.anchor_right = 1.0
+	picker.anchor_top = 0.5
+	picker.anchor_bottom = 0.5
+	picker.offset_left = -(PANEL_W + 20.0 + 290.0)
+	picker.offset_right = -(PANEL_W + 20.0 + 10.0)
+	picker.offset_top = -150.0
+	picker.offset_bottom = 150.0
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.1, 0.1, 0.13, 0.97)
 	style.border_color = Color(0.6, 0.6, 0.66, 1)
@@ -170,13 +209,11 @@ func refresh() -> void:
 	ensure_player()
 	if not player:
 		return
+	# the slot name lives in the Label above each box, so the box shows just the
+	# item (or "(empty)") -- exactly an "empty helmet place", "empty armor place"...
 	for key in slot_buttons.keys():
 		var equipped_id = GameState.equipment.get(key, "")
-		var label = _slot_label(key)
-		if equipped_id == "":
-			slot_buttons[key].text = label + ": (empty)"
-		else:
-			slot_buttons[key].text = label + ": " + Inventory.get_display_name(equipped_id) + "  [x]"
+		slot_buttons[key].text = "(empty)" if equipped_id == "" else _short(Inventory.get_display_name(equipped_id))
 	var count = GameState.relic_slot_count()
 	for i in range(GameState.RELIC_MAX_SLOTS):
 		var rb = relic_buttons[i]
@@ -195,7 +232,7 @@ func _slot_label(key: String) -> String:
 	return key
 
 func _short(name: String) -> String:
-	return name.substr(0, 6)
+	return name.substr(0, 9)
 
 func _on_gear_slot_pressed(key: String) -> void:
 	ensure_player()
@@ -295,7 +332,9 @@ func _effect_summary(item_id: String) -> String:
 	var parts = []
 	for key in def.get("equip_effect", {}).keys():
 		var val = def.equip_effect[key]
-		if key == "max_health":
+		if Inventory.FLAG_EFFECT_TEXT.has(key):
+			parts.append(Inventory.FLAG_EFFECT_TEXT[key])
+		elif key == "max_health":
 			parts.append("+%d HP" % int(val))
 		elif key == "max_mana":
 			parts.append("+%d Mana" % int(val))

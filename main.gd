@@ -311,6 +311,10 @@ func apply_save_data() -> void:
 	var eq = str(data.get("active_weapon_id", "wpn_sword"))
 	if not player.wield_weapon(eq):
 		player.wield_weapon("wpn_sword")
+	# the load above replaced the whole inventory, wiping anything player._ready
+	# granted -- re-apply the guaranteed test items now that the save is in.
+	if player.has_method("ensure_test_items"):
+		player.ensure_test_items()
 	player.update_currency_display()
 	player.update_health_display()
 

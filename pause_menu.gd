@@ -36,18 +36,36 @@ func close_open_windows() -> bool:
 			closed = true
 	return closed
 
+# The "dungeon manager" node differs by scene: in the village (main.tscn) it's
+# a sibling child literally named "DungeonManager"; inside a dungeon run
+# (dungeon_interior.tscn) the SCENE ROOT itself is the manager and PauseMenu is
+# its child, so "../DungeonManager" resolves to nothing. Resolve both here
+# instead of hard-coding a path -- the old "../DungeonManager" was null in the
+# dungeon, so opening the pause menu there hit a null and never worked.
+func dungeon_manager() -> Node:
+	var m = get_node_or_null("../DungeonManager")
+	if m:
+		return m
+	var parent = get_parent()   # dungeon interior: the root IS the manager
+	if parent and parent.has_method("exit_dungeon"):
+		return parent
+	return null
+
 func toggle_pause() -> void:
 	visible = not visible
 	get_tree().paused = visible
 	if visible:
-		$Panel/VBox/ExitDungeonButton.visible = $"../DungeonManager".started
+		var dm = dungeon_manager()
+		$Panel/VBox/ExitDungeonButton.visible = dm != null and dm.started
 		$Panel/SettingsPanel.visible = false
 
 func _on_resume() -> void:
 	toggle_pause()
 
 func _on_exit_dungeon() -> void:
-	$"../DungeonManager".exit_dungeon()
+	var dm = dungeon_manager()
+	if dm:
+		dm.exit_dungeon()
 	toggle_pause()
 
 func _on_toggle_settings() -> void:

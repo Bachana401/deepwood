@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://dungeon_interior.gd" id="1_interior"]
 [ext_resource type="PackedScene" path="res://player.tscn" id="2_player"]
@@ -9,6 +9,7 @@
 [ext_resource type="PackedScene" path="res://equipment_ui.tscn" id="7_equipment"]
 [ext_resource type="PackedScene" path="res://item_tooltip.tscn" id="8_tooltip"]
 [ext_resource type="PackedScene" path="res://hotbar_ui.tscn" id="9_hotbar"]
+[ext_resource type="Script" path="res://inventory_ui.gd" id="10_inventory_ui"]
 
 [node name="DungeonManager" type="Node2D"]
 script = ExtResource("1_interior")
@@ -121,6 +122,36 @@ text = "Exit Dungeon"
 [node name="ItemTooltip" parent="." instance=ExtResource("8_tooltip")]
 
 [node name="HotbarUI" parent="." instance=ExtResource("9_hotbar")]
+
+[node name="InventoryUI" type="CanvasLayer" parent="."]
+script = ExtResource("10_inventory_ui")
+
+[node name="Panel" type="Panel" parent="InventoryUI"]
+anchor_left = 0.0
+anchor_right = 0.0
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = 24.0
+offset_top = -115.0
+offset_right = 328.0
+offset_bottom = 115.0
+
+[node name="TitleLabel" type="Label" parent="InventoryUI/Panel"]
+offset_left = 16.0
+offset_top = 10.0
+offset_right = 200.0
+offset_bottom = 34.0
+theme_override_font_sizes/font_size = 18
+text = "Inventory"
+
+[node name="HintLabel" type="Label" parent="InventoryUI/Panel"]
+offset_left = 16.0
+offset_top = 208.0
+offset_right = 288.0
+offset_bottom = 226.0
+theme_override_font_sizes/font_size = 11
+theme_override_colors/font_color = Color(0.7, 0.7, 0.72, 1)
+text = "Press Tab to close"
 
 [node name="DeathScreen" type="CanvasLayer" parent="."]
 script = ExtResource("3_death_screen")

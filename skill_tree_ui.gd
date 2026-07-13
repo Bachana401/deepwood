@@ -143,6 +143,24 @@ func build_panel() -> void:
 	reset.pressed.connect(_on_reset_potion)
 	panel.add_child(reset)
 
+	# --- testing sandbox (GameState.TEST_SKILL_SANDBOX): every node is free to
+	# unlock (0 skill points, 0 materials -- see try_unlock_skill). You still
+	# click each upgrade yourself; nothing is auto-unlocked. A free class switch
+	# lets you go test another tree without the reset-potion cost. ---
+	if GameState.TEST_SKILL_SANDBOX:
+		var switch = Button.new()
+		switch.text = "⇄ Switch Class"
+		switch.position = Vector2(140, 458)
+		switch.size = Vector2(150, 32)
+		switch.pressed.connect(_on_switch_class)
+		panel.add_child(switch)
+
+# Free class switch that KEEPS what you've unlocked (unlike the reset potion),
+# so you can go upgrade another tree while testing.
+func _on_switch_class() -> void:
+	GameState.chosen_class = ""
+	refresh()
+
 func _on_reset_potion() -> void:
 	var player = get_tree().get_first_node_in_group("player")
 	if not player or player.currency < RESET_POTION_COST:
@@ -166,7 +184,13 @@ func refresh() -> void:
 		var color = SkillTreeData.CLASS_COLORS.get(GameState.chosen_class, Color.WHITE)
 		title_label.text = GameState.chosen_class.to_upper() + " SKILL TREE"
 		title_label.add_theme_color_override("font_color", color)
-		points_label.text = "Skill points: %d" % GameState.skill_points
+		if GameState.TEST_SKILL_SANDBOX:
+			# free-pass testing: names show real (no "Unknown Substance") and
+			# every node costs nothing -- just click to upgrade.
+			GameState.research_all_materials()
+			points_label.text = "Sandbox: upgrades are FREE — 0 points, 0 materials"
+		else:
+			points_label.text = "Skill points: %d" % GameState.skill_points
 		rebuild_tree()
 
 func rebuild_class_choice() -> void:
@@ -176,11 +200,13 @@ func rebuild_class_choice() -> void:
 		var button = Button.new()
 		var color = SkillTreeData.CLASS_COLORS[class_name_key]
 		button.custom_minimum_size = Vector2(0, 48)
-		if class_name_key == "Necromancer":
+		if class_name_key == "Necromancer" and not GameState.TEST_SKILL_SANDBOX:
 			button.text = "Necromancer  [LOCKED -- finish the game]"
 			button.disabled = true
 		else:
 			button.text = class_name_key
+			if class_name_key == "Necromancer":
+				button.text = "Necromancer  [sandbox preview]"
 			button.pressed.connect(_on_class_chosen.bind(class_name_key))
 		var style = StyleBoxFlat.new()
 		style.bg_color = color.darkened(0.45)
@@ -346,16 +372,21 @@ func _on_node_pressed(node: Dictionary) -> void:
 	if node.prereq != "" and not GameState.is_skill_unlocked(node.prereq):
 		notify("Requires '" + SkillTreeData.get_node_by_id(node.prereq).name + "' first.")
 		return
-	if GameState.skill_points < node.cost:
-		notify("Not enough skill points (%d needed)." % node.cost)
-		return
-	for mat_id in node.materials.keys():
-		if not GameState.researched_materials.has(mat_id):
-			notify("Requires an unresearched material -- take your finds to the Science Lab.")
+	# In the testing sandbox every node is free: skip the point + material
+	# gates here too (this UI handler used to block the click before the free
+	# unlock in try_unlock_skill could ever run -- that's why deep nodes still
+	# asked for materials). Prereq order above still applies.
+	if not GameState.TEST_SKILL_SANDBOX:
+		if GameState.skill_points < node.cost:
+			notify("Not enough skill points (%d needed)." % node.cost)
 			return
-		if player.inventory.get_count(mat_id) < node.materials[mat_id]:
-			notify("Missing materials: needs %dx %s." % [node.materials[mat_id], Inventory.get_display_name(mat_id)])
-			return
+		for mat_id in node.materials.keys():
+			if not GameState.researched_materials.has(mat_id):
+				notify("Requires an unresearched material -- take your finds to the Science Lab.")
+				return
+			if player.inventory.get_count(mat_id) < node.materials[mat_id]:
+				notify("Missing materials: needs %dx %s." % [node.materials[mat_id], Inventory.get_display_name(mat_id)])
+				return
 	if GameState.try_unlock_skill(node, player):
 		notify("Unlocked: " + node.name + "!")
 		player.update_health_display()

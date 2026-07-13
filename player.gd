@@ -25,13 +25,43 @@ const SFX_DEATH = preload("res://audio/player_death.wav")
 const SFX_JUMP = preload("res://audio/jump.wav")
 const SFX_DASH = preload("res://audio/dash.wav")
 
-const MAX_HEALTH = 100
+# Base pool. 100 was fine for the early course but left the player a one-shot
+# at the deep dungeon levels; 160 gives a real buffer that skill-tree HP nodes
+# and armour/relics then build on for the L100 boss (whose eased curve now
+# hits for ~200, survivable once you've progressed).
+const MAX_HEALTH = 160
+# --- Fall damage ---
+# You take damage for landing after a fall taller than FALL_SAFE_DISTANCE.
+# The safe distance sits comfortably above a double-jump's height so ordinary
+# jumping never hurts; only real drops (high platforms, cliffs) do. Any
+# equipped relic carrying "fall_immunity" (Aetherwing, Featherfall Charm)
+# cancels it entirely. Tracked by fall APEX (position), since velocity.y is
+# zeroed the instant you touch ground.
+const FALL_SAFE_DISTANCE = 300.0
+const FALL_DAMAGE_PER_PIXEL = 0.15
+var fall_apex_y := 0.0
+var was_grounded_fall := true
+var has_touched_ground := false
+
+# --- Flight (Aetherwing relic) ---
+# Hold Space in the air to soar upward; a 10-second budget drains while flying
+# and refills whenever you're on the ground. Releasing Space (or running the
+# budget dry) lets you fall at NORMAL speed -- the wings just cancel the fall
+# damage (via fall_immunity), they don't slow the drop.
+const FLIGHT_MAX_SECONDS = 10.0
+const FLIGHT_RISE_SPEED = -300.0   # brisk ascent while holding Space
+var flight_time_left := FLIGHT_MAX_SECONDS
+var flight_depleted_notified := false
+var wings_left: Polygon2D = null
+var wings_right: Polygon2D = null
+var wing_flap_phase := 0.0
+
 # --- Mana ---
 # One shared pool under the HP bar. Today only wands spend it (their screen
 # nuke finally has a real cost) and Soulthirst refills it on hit; future class
 # abilities draw from the same pool. Gear can raise the cap (max_mana, flat)
 # and speed the refill (mana_regen, fraction: 0.5 = +50%).
-const BASE_MAX_MANA = 50.0
+const BASE_MAX_MANA = 90.0    # up from 50 -- enough to actually cast through a boss fight
 const BASE_MANA_REGEN = 4.0   # points per second
 const DEFAULT_WAND_MANA_COST = 30
 var mana: float = BASE_MAX_MANA
@@ -92,12 +122,23 @@ var is_attacking = false
 # levitate_range: the weapon then follows the mouse up to that far from his
 # body and attacks there -- remote telekinetic strikes.
 const LEVITATE_AURA_COLOR = Color(0.62, 0.42, 0.95, 0.28)
+# On every left-click attack the hand flares with telekinetic energy for this
+# long, so it reads as "he levitates/hurls the weapon" each time he strikes.
+const LEVITATE_FLASH_TIME = 0.32
+# How long the aim/levitation pose lingers after the last mouse move before he
+# settles back to idle. Moving the cursor keeps refreshing it.
+const MOUSE_AIM_HOLD = 0.35
 # Innate free-float radius everyone has (the basic "Levitate" skill): even a
 # Sword-class player's weapon drifts around him and can be tugged this far
 # toward the cursor. The Mage tree's Levitate nodes add levitate_bonus_range()
 # on top for true long-range telekinetic strikes.
 const BASE_LEVITATE_RANGE = 26.0
 var levitate_time := 0.0
+var levitate_flash := 0.0       # counts down after each attack; drives the hand flare
+var mouse_aim_timer := 0.0      # >0 briefly after the mouse moves -> play the aim/levitation frames
+var aim_retract_timer := 0.0    # after the mouse stops, play the aim frames in REVERSE (hand retracts)
+var aim_was_forward := false    # was he aiming last frame? (edge-detects the "mouse stopped" moment)
+var aim_reversed := false       # currently playing the aim animation backwards?
 var levitate_glow: Polygon2D = null
 var hand_glow: Polygon2D = null
 var levitate_sparkles: CPUParticles2D = null
@@ -138,6 +179,8 @@ var invincible = false
 # window ends at -- lets a repeated T press extend the window without an
 # earlier, still-pending "turn it off" call cutting it short.
 var admin_invincible_until = 0.0
+var god_mode := false   # toggled from the admin panel (P) -- ignores all damage
+var knockback_immune_until := 0.0   # no re-knockback until this time (post-hit window)
 var is_dead = false
 
 # currency is now a real inventory item ("coin_gold") instead of a bare int
@@ -196,14 +239,14 @@ const HURT_SHAKE_TIME = 0.28
 # player_death_1.png ...). Anything you haven't drawn yet falls back to the idle
 # frame + procedural motion, so states light up one at a time as you add art.
 const ANIM_DEFS = [
-	{"name": "idle", "fps": 4.0, "loop": true},
+	{"name": "idle", "fps": 2.5, "loop": true},   # slow breathing loop across the idle frames
 	{"name": "walk", "fps": 9.0, "loop": true},
 	{"name": "jump", "fps": 8.0, "loop": false},
 	{"name": "fall", "fps": 8.0, "loop": false},
 	{"name": "land", "fps": 14.0, "loop": false},
 	{"name": "dash", "fps": 12.0, "loop": false},
 	{"name": "hurt", "fps": 12.0, "loop": false},
-	{"name": "attack", "fps": 12.0, "loop": false},
+	{"name": "aim", "fps": 7.0, "loop": false},   # mouse-move levitation: hand reaches, then holds the orb up while aiming
 	{"name": "death", "fps": 8.0, "loop": false},
 ]
 var body_anim: AnimatedSprite2D = null
@@ -226,6 +269,7 @@ func _ready() -> void:
 	build_armor_visuals()
 	build_weapon_guard()
 	build_levitate_aura()
+	build_wings_visual()
 	build_mana_bar()
 	# keep the held weapon drawn in front of the body armor
 	$WeaponIcon.z_index = 3
@@ -246,6 +290,15 @@ func _ready() -> void:
 		inventory.add_item("coin_bronze", STARTING_BRONZE)
 		grant_starter_gear()
 		wield_weapon("wpn_sword")
+	# admin Ruin Wand + flight relics are guaranteed present. On a NEW game
+	# this call sticks; on CONTINUE, main.gd's apply_save_data() reloads the
+	# saved inventory AFTER this _ready() and would wipe them, so main.gd calls
+	# ensure_test_items() again once the save is loaded (same for dungeon
+	# returns via apply_pending_player_state above).
+	ensure_test_items()
+	# fall-damage tracking baseline (don't count the spawn drop as a fall)
+	fall_apex_y = global_position.y
+	was_grounded_fall = is_on_floor()
 	# armor/relic bonuses + HP sync (survives dungeon scene swaps)
 	on_equipment_changed()
 	update_currency_display()
@@ -259,6 +312,49 @@ func _ready() -> void:
 func grant_starter_weapons() -> void:
 	for item_id in ["wpn_sword", "wpn_spear", "wpn_bow", "wpn_wand", "exc_vampiric", "exc_thunder", "wpn_admin_ruin", "tool_axe", "tool_pickaxe"]:
 		inventory.add_item(item_id, 1)
+
+# All the guaranteed-for-testing items in one call, safe to run repeatedly.
+# MUST run after any inventory load (new-game grant, Continue's save load, or
+# dungeon-return snapshot) or the load overwrites what it added.
+func ensure_test_items() -> void:
+	ensure_admin_wand()
+	ensure_flight_relics_for_test()
+	# test scaffolding: the two showpiece weapons on hand immediately so they
+	# can be tried without farming dungeon drops. Remove once done testing.
+	for wid in ["exc_ragnarok", "exc_wizardsbane"]:
+		if inventory.get_count(wid) == 0 and active_weapon_id != wid:
+			inventory.add_item(wid, 1)
+	# a load happened -> the UI panels may be showing a stale bag; refresh them
+	var inv_ui = get_tree().get_first_node_in_group("inventory_ui")
+	if inv_ui and inv_ui.has_method("refresh"):
+		inv_ui.refresh()
+
+# The admin Ruin Wand should always be on hand for testing, even on saves
+# made before it existed. If it's already somewhere (bag or wielded) do
+# nothing; otherwise drop it into hotbar slot 7 (index 6) when that slot is
+# free, else the first open slot.
+func ensure_admin_wand() -> void:
+	if inventory.get_count("wpn_admin_ruin") > 0 or active_weapon_id == "wpn_admin_ruin":
+		return
+	if inventory.slots.size() > 6 and inventory.slots[6] == null:
+		inventory.slots[6] = {"item_id": "wpn_admin_ruin", "count": 1}
+	else:
+		inventory.add_item("wpn_admin_ruin", 1)
+
+# Test scaffolding: make sure the flight relics exist so wings can be tried
+# right away, even on a save from before they existed, and auto-equip the
+# Aetherwing into a free relic slot so flight works without opening the gear
+# panel first. (They also drop legitimately from dungeon bosses -- see
+# dungeon_interior.gd GEAR_RELIC_IDS. Remove this once flight is dialed in.)
+func ensure_flight_relics_for_test() -> void:
+	var equipped = GameState.get_equipped_item_ids()
+	for rid in ["relic_wings", "relic_feather"]:
+		if inventory.get_count(rid) == 0 and not (rid in equipped):
+			inventory.add_item(rid, 1)
+	if not ("relic_wings" in equipped) and inventory.get_count("relic_wings") > 0:
+		var slot = GameState.first_empty_relic_slot()
+		if slot >= 0:
+			GameState.equip_item("relic_wings", self, slot)
 
 # Temporary: sample armor + relics so the equipment panel is usable. Weapons
 # are granted separately (grant_starter_weapons). Replaced by loot later.
@@ -367,6 +463,41 @@ func build_levitate_aura() -> void:
 	levitate_sparkles.emitting = false
 	add_child(levitate_sparkles)
 
+# Two feathered wings on the character's back, hidden until the Aetherwing
+# relic is equipped. They sit behind the body (z -1) and flap -- fast while
+# actively flying, a slow idle sway otherwise.
+func build_wings_visual() -> void:
+	wings_left = _make_wing(-1)
+	wings_right = _make_wing(1)
+	wings_left.visible = false
+	wings_right.visible = false
+	add_child(wings_left)
+	add_child(wings_right)
+
+func _make_wing(dir: int) -> Polygon2D:
+	var wing = Polygon2D.new()
+	wing.polygon = PackedVector2Array([
+		Vector2(0, -4), Vector2(dir * -22, -20), Vector2(dir * -30, -6),
+		Vector2(dir * -24, 2), Vector2(dir * -30, 10), Vector2(dir * -18, 12), Vector2(0, 8)])
+	wing.color = Color(0.92, 0.95, 1.0, 0.92)
+	wing.position = Vector2(dir * 5, -4)
+	wing.z_index = -1
+	return wing
+
+func update_wings(flying: bool) -> void:
+	if not wings_left:
+		return
+	var winged = has_flight()
+	wings_left.visible = winged
+	wings_right.visible = winged
+	if not winged:
+		return
+	wing_flap_phase += get_physics_process_delta_time() * (22.0 if flying else 4.0)
+	var amp = 0.6 if flying else 0.16
+	var flap = sin(wing_flap_phase) * amp
+	wings_left.rotation = flap
+	wings_right.rotation = -flap
+
 func _levitate_circle(radius: float, sides: int) -> PackedVector2Array:
 	var pts = PackedVector2Array()
 	for i in range(sides):
@@ -377,6 +508,22 @@ func _levitate_circle(radius: float, sides: int) -> PackedVector2Array:
 # Follows the floating weapon every frame: glow + sparkles wrap the weapon's
 # visual centre, the hand glow sits at his side toward it, and the aura gently
 # pulses. Hidden when unarmed.
+# Duration of one play-through of the aim animation (used to time the retract).
+func _aim_length() -> float:
+	if body_anim and body_anim.sprite_frames.has_animation("aim"):
+		var n = body_anim.sprite_frames.get_frame_count("aim")
+		var fps = body_anim.sprite_frames.get_animation_speed("aim")
+		if fps > 0.0:
+			return float(n) / fps
+	return 0.3
+
+# Left-click "cast": the hand orb flares and a fresh puff of telekinetic
+# sparkles bursts, so every strike reads as him hurling the levitated weapon.
+func trigger_levitate_flash() -> void:
+	levitate_flash = LEVITATE_FLASH_TIME
+	if levitate_sparkles and has_weapon():
+		levitate_sparkles.restart()
+
 func update_levitate_aura(aim_dir: Vector2, hover: float, free_float: Vector2 = Vector2.ZERO) -> void:
 	if not levitate_glow:
 		return
@@ -388,12 +535,16 @@ func update_levitate_aura(aim_dir: Vector2, hover: float, free_float: Vector2 = 
 		return
 	var reach = active_stats.icon_size.x if active_weapon_type != "bow" else 0.0
 	var center = aim_dir * (hover + reach * 0.5) + free_float
-	var pulse = 1.0 + 0.12 * sin(levitate_time * 3.2)
+	# flash: 1.0 right after a click, decaying to 0 -- the telekinetic "cast" pop
+	var flash = levitate_flash / LEVITATE_FLASH_TIME
+	var pulse = 1.0 + 0.12 * sin(levitate_time * 3.2) + flash * 0.5
 	levitate_glow.position = center
 	levitate_glow.scale = Vector2.ONE * pulse * max(1.0, max(active_stats.icon_size.x, active_stats.icon_size.y) / 22.0)
 	levitate_sparkles.position = center
-	hand_glow.position = aim_dir * 10.0 + Vector2(0, -2)
-	hand_glow.scale = Vector2.ONE * (1.0 + 0.2 * sin(levitate_time * 5.1))
+	# hand orb sits at the leading hand and swells + brightens as he hurls it
+	hand_glow.position = aim_dir * 10.0 + Vector2(0, -6)
+	hand_glow.scale = Vector2.ONE * (1.0 + 0.2 * sin(levitate_time * 5.1) + flash * 1.7)
+	hand_glow.modulate = Color(1, 1, 1, 1.0 + flash * 1.6)
 
 # Swaps the placeholder box for the pixel-art sprite when the art exists.
 # Scaled by height and feet-aligned to the bottom of the collision body so it
@@ -531,6 +682,12 @@ func _add_anim(sf: SpriteFrames, anim: String, textures: Array, fps: float, loop
 # move direction. When a state has no real frames of its own, a small bob keeps
 # the single idle frame from sliding around lifelessly.
 # Which action the player is doing right now, mapped to an animation name.
+# Moving the mouse means the player is telekinetically aiming the levitated
+# object, so refresh the aim-pose timer (consumed in current_anim_state).
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseMotion:
+		mouse_aim_timer = MOUSE_AIM_HOLD
+
 func current_anim_state() -> String:
 	if is_dead:
 		return "death"
@@ -540,10 +697,14 @@ func current_anim_state() -> String:
 		return "dash"
 	if not is_on_floor():
 		return "jump" if velocity.y < 0.0 else "fall"
+	# Moving the mouse while holding a levitatable item plays the aim/levitation
+	# pose (hand reaches out and holds the object up). When the mouse stops it
+	# stays in "aim" a little longer to play the frames in reverse -- the hand
+	# retracts back -- before finally settling to idle.
+	if has_weapon() and (mouse_aim_timer > 0.0 or aim_retract_timer > 0.0):
+		return "aim"
 	if land_timer > 0.0:
 		return "land"
-	if is_attacking:
-		return "attack"
 	if absf(velocity.x) > 12.0:
 		return "walk"
 	return "idle"
@@ -570,10 +731,31 @@ func update_body_anim(delta: float) -> void:
 		land_timer -= delta
 	if hurt_timer > 0.0:
 		hurt_timer -= delta
+	# aim plays FORWARD (reach->orb) while the mouse moves; the moment it stops,
+	# run the same frames BACKWARDS (orb->reach) so the hand visibly retracts,
+	# then settle to idle.
+	var aiming = has_weapon() and mouse_aim_timer > 0.0
+	if mouse_aim_timer > 0.0:
+		mouse_aim_timer -= delta
+	if aim_retract_timer > 0.0:
+		aim_retract_timer -= delta
+	if aim_was_forward and not aiming:
+		aim_retract_timer = _aim_length()   # mouse just stopped -> begin the retract
+	aim_was_forward = aiming
 
 	var state = current_anim_state()
-	if body_anim.animation != state:
-		body_anim.play(state)
+	if state == "aim":
+		if aiming:
+			if body_anim.animation != "aim" or aim_reversed:
+				body_anim.play("aim")            # (re)extend forward
+				aim_reversed = false
+		elif not aim_reversed:
+			body_anim.play_backwards("aim")      # retract: run it in reverse
+			aim_reversed = true
+	else:
+		if body_anim.animation != state:
+			body_anim.play(state)
+		aim_reversed = false
 	body_anim.flip_h = facing_direction < 0
 
 	# If this state has its OWN drawn frames, let them do the work -- no
@@ -613,8 +795,6 @@ func update_body_anim(delta: float) -> void:
 		"walk":
 			target_y = feet_anchor_y() - absf(sin(now * WALK_BOB_SPEED)) * WALK_BOB_AMP
 			target_rot = deg_to_rad(RUN_LEAN_DEG * facing_direction)
-		"attack":
-			target_rot = deg_to_rad(6.0 * facing_direction)
 		"hurt":
 			pass  # shake handled below
 		_:
@@ -733,6 +913,7 @@ func try_place_torch() -> void:
 const BAR_MORALE_BONUS = 0.10
 const BAR_MORALE_HOURS = 3.0
 var bar_morale_until := -1.0e9
+var morale_hp_accum := 0.0   # banks fractional high-morale HP regen (HP is an int)
 
 func bar_morale_active() -> bool:
 	return GameState.game_hours < bar_morale_until
@@ -747,7 +928,8 @@ func grant_bar_morale() -> void:
 
 func skill_move_speed_mult() -> float:
 	var morale = BAR_MORALE_BONUS if bar_morale_active() else 0.0
-	return 1.0 + GameState.get_bonus_total("move_speed") + morale
+	# a joyful village gives every step a spring (up to +12% at 10/10 morale)
+	return 1.0 + GameState.get_bonus_total("move_speed") + morale + GameState.morale_speed_bonus()
 
 # Called by GameState whenever a piece of gear (armor/relic) is equipped or
 # unequipped, and on every hotbar wield -- both can change set bonuses, so
@@ -831,6 +1013,13 @@ func update_mana_display() -> void:
 func apply_knockback(direction_sign: int, distance: float) -> void:
 	if is_dead:
 		return
+	# Knockback shares the post-hit invincibility window: the first bounce lands
+	# and opens an immunity window of the same length as the damage i-frames, so
+	# the player can't be chain-knocked 2-3 times in a row by clustered hits.
+	var now = Time.get_ticks_msec() / 1000.0
+	if now < knockback_immune_until:
+		return
+	knockback_immune_until = now + INVINCIBILITY_DURATION
 	is_knocked_back = true
 	velocity.x = direction_sign * (distance / BOUNCE_DURATION)
 	await get_tree().create_timer(BOUNCE_DURATION).timeout
@@ -964,7 +1153,7 @@ func add_currency(amount: int) -> void:
 	print("Currency: ", currency)
 
 func take_damage(amount: int) -> void:
-	if invincible or is_dead:
+	if invincible or is_dead or god_mode:
 		return
 	health -= amount
 	update_health_display()
@@ -1104,10 +1293,20 @@ func _physics_process(delta: float) -> void:
 	if is_dead:
 		return
 
+	# fall-damage apex: remember the highest point of the current airtime so we
+	# can measure the drop on landing (only once we've touched ground at least
+	# once, so spawning slightly above the floor never counts as a fall).
+	if is_on_floor():
+		fall_apex_y = global_position.y
+	elif has_touched_ground:
+		fall_apex_y = min(fall_apex_y, global_position.y)
+
 	if not is_on_floor():
 		velocity.y += GRAVITY * delta
 	else:
 		jumps_used = 0
+
+	update_flight(delta)
 
 	if attack_cooldown_remaining > 0:
 		attack_cooldown_remaining -= delta
@@ -1117,31 +1316,28 @@ func _physics_process(delta: float) -> void:
 		mana = min(get_max_mana(), mana + get_mana_regen() * delta)
 		update_mana_display()
 
+	# a thriving village slowly mends its hero's wounds (up to +2 HP/s at 10/10).
+	# HP is an int, so bank the fractional healing until it totals a whole point.
+	var morale_regen = GameState.morale_regen_per_sec()
+	if morale_regen > 0.0 and health > 0 and health < get_max_health():
+		morale_hp_accum += morale_regen * delta
+		if morale_hp_accum >= 1.0:
+			var whole = int(morale_hp_accum)
+			morale_hp_accum -= whole
+			health = min(get_max_health(), health + whole)
+			update_health_display()
+
 	# hotbar: keys 1-9 and 0 pick inventory slots 0-9; wield the weapon there
 	for i in range(HOTBAR_SIZE):
 		if Input.is_action_just_pressed("hotbar_%d" % (i + 1)):
 			select_hotbar_slot(i)
 
+	# admin_dash (T) stays a movement key; kill/restore-all moved to the admin panel (P)
 	if Input.is_action_just_pressed("admin_dash"):
 		perform_admin_dash()
 
-	if Input.is_action_just_pressed("admin_kill"):
-		# bypasses invincible/take_damage entirely -- an instant dev/admin
-		# kill for testing the death sequence, not a real damage source.
-		die()
-
 	if Input.is_action_just_pressed("place_torch"):
 		try_place_torch()
-
-	if Input.is_action_just_pressed("admin_restore"):
-		# admin/dev: instantly repair every building in the village to full.
-		GameState.restore_all_buildings()
-		for b in get_tree().get_nodes_in_group("building"):
-			if b.has_method("restore_full"):
-				b.restore_full()
-		var restore_notif = get_tree().get_first_node_in_group("notification_stack")
-		if restore_notif:
-			restore_notif.show_notification("Admin: all buildings restored.")
 
 	if Input.is_action_just_pressed("move_left"):
 		var now = Time.get_ticks_msec() / 1000.0
@@ -1169,22 +1365,80 @@ func _physics_process(delta: float) -> void:
 	if direction:
 		facing_direction = sign(direction)
 	levitate_time += get_physics_process_delta_time()
+	if levitate_flash > 0.0:
+		levitate_flash = max(0.0, levitate_flash - get_physics_process_delta_time())
 	if has_weapon() and not is_attacking:
 		update_weapon_visual(active_stats.icon_offset)
 
 	if not is_dashing and not is_knocked_back:
 		velocity.x = direction * SPEED * skill_move_speed_mult()
 
-	if Input.is_action_just_pressed("attack"):
+	# Hold left-click to keep attacking: the weapon auto-fires on cooldown and the
+	# hand flares each shot. (The dedicated attack body pose -- the future
+	# two-hands-up frame -- isn't wired yet; these frames are now the aim pose.)
+	if Input.is_action_pressed("attack"):
+		var was_ready = attack_cooldown_remaining <= 0.0 and has_weapon()
 		perform_attack()
+		if was_ready and attack_cooldown_remaining > 0.0:
+			trigger_levitate_flash()   # per-shot telekinetic pop
 
 	# right-click = the admin Ruin Wand's no-aim percent burst (see below)
 	if Input.is_action_just_pressed("secondary_attack"):
 		perform_secondary_attack()
 
 	move_and_slide()
+	handle_fall_landing()
 	# drive the sprite animation after movement (needs final velocity/floor state)
 	update_body_anim(delta)
+
+# --- Flight (Aetherwing) ---
+func has_flight() -> bool:
+	return GameState.get_bonus_total("flight") > 0.0
+
+func has_fall_immunity() -> bool:
+	return GameState.get_bonus_total("fall_immunity") > 0.0
+
+# Runs every frame after gravity. With wings equipped: on the ground it refills
+# the flight budget; in the air, holding Space soars (draining the budget) and
+# otherwise you glide down gently. Without wings this is a no-op.
+func update_flight(delta: float) -> void:
+	var flying = false
+	if has_flight():
+		if is_on_floor():
+			flight_time_left = FLIGHT_MAX_SECONDS
+			flight_depleted_notified = false
+		elif Input.is_action_pressed("jump") and flight_time_left > 0.0:
+			flying = true
+			flight_time_left = max(0.0, flight_time_left - delta)
+			velocity.y = FLIGHT_RISE_SPEED
+			if flight_time_left == 0.0 and not flight_depleted_notified:
+				flight_depleted_notified = true
+				var stack = get_tree().get_first_node_in_group("notification_stack")
+				if stack:
+					stack.show_notification("Wings spent -- touch ground to recharge.")
+		# else: not holding Space (or budget spent) -> plain gravity fall. The
+		# wings don't slow it; fall_immunity just spares you the landing damage.
+	update_wings(flying)
+
+# --- Fall damage ---
+# Fires once on each ground landing. A drop past the safe distance hurts,
+# scaled by how far past it fell -- unless a fall_immunity relic is worn.
+func handle_fall_landing() -> void:
+	var grounded = is_on_floor()
+	if grounded and not was_grounded_fall:
+		if has_touched_ground:
+			apply_fall_damage(global_position.y - fall_apex_y)
+		has_touched_ground = true
+	was_grounded_fall = grounded
+
+func apply_fall_damage(fall_distance: float) -> void:
+	if fall_distance <= FALL_SAFE_DISTANCE:
+		return
+	if has_fall_immunity():
+		return   # wings / featherfall absorb the impact
+	var dmg = int(round((fall_distance - FALL_SAFE_DISTANCE) * FALL_DAMAGE_PER_PIXEL))
+	if dmg > 0:
+		take_damage(dmg)
 
 # Right-click. Only the admin Ruin Wand does anything on it right now: a
 # no-aim burst that shears a flat % of MAX HP off every enemy nearby. Kept as
@@ -1384,6 +1638,8 @@ func cast_wand_projectile(special: Dictionary) -> void:
 
 # Echo Rift: counts strikes so every 3rd one repeats its damage.
 var echo_hit_counter: int = 0
+# Ragnarok Blade: counts strikes so every Nth one erupts.
+var ragnarok_charge: int = 0
 
 # The unique effect of the active Excellent weapon, fired on each melee hit.
 func apply_excellent_effect(target: Node2D, damage_dealt: int) -> void:
@@ -1416,6 +1672,24 @@ func apply_excellent_effect(target: Node2D, damage_dealt: int) -> void:
 		if randf() < float(active_def.get("unique_value", 0.25)):
 			attack_cooldown_remaining = 0.0
 			spawn_chrono_flash()
+		return
+	if effect == "bossbane":
+		# Wizardsbane -- mana sustain on every hit, huge bonus vs bosses
+		gain_mana(float(active_def.get("mana_on_hit", 0)))
+		if is_instance_valid(target) and "boss_id" in target and target.has_method("take_damage"):
+			var extra = int(round(damage_dealt * active_def.get("unique_value", 1.5)))
+			if extra > 0:
+				target.take_damage(extra)
+				spawn_bane_flash(target.global_position)
+		return
+	if effect == "ragnarok":
+		# Ragnarok Blade -- every hit throws a slash and stokes the storm;
+		# the Nth hit erupts into a screen-clearing ultimate.
+		launch_projectile({"type": "flying_slash", "speed": 560.0, "range": 470.0}, get_aim_direction(), 14)
+		ragnarok_charge += 1
+		if ragnarok_charge >= int(active_def.get("unique_value", 8)):
+			ragnarok_charge = 0
+			unleash_ragnarok()
 		return
 	if effect == "lifesteal":
 		var heal = int(round(damage_dealt * active_def.get("unique_value", 0.0)))
@@ -1550,6 +1824,66 @@ func spawn_gold_sparks(from_pos: Vector2, gold: int) -> void:
 	tt.tween_property(tag, "global_position:y", tag.global_position.y - 26.0, 0.5)
 	tt.parallel().tween_property(tag, "modulate:a", 0.0, 0.5)
 	tt.tween_callback(tag.queue_free)
+
+# Ragnarok Blade eruption: a 12-way slash nova + a meteor barrage raining
+# around the player + a big shockwave ring. The showpiece ultimate.
+func unleash_ragnarok() -> void:
+	play_sfx(SFX_SWORD)
+	if has_node("Camera2D"):
+		$Camera2D.shake(11.0, 0.5)
+	# 12 flying slashes in a full ring
+	for i in range(12):
+		var dir = Vector2.RIGHT.rotated(TAU * float(i) / 12.0)
+		launch_projectile({"type": "flying_slash", "speed": 520.0, "range": 520.0}, dir, 20)
+	# a barrage of meteors (AoE fireballs) plunging down around the player
+	for i in range(6):
+		var mp = WEAPON_PROJECTILE_SCRIPT.new()
+		mp.kind = "fireball"
+		mp.direction = Vector2.DOWN
+		mp.speed = 720.0
+		mp.damage = 30
+		mp.max_distance = 620.0
+		mp.aoe_radius = 120.0
+		mp.source = self
+		mp.position = Vector2(global_position.x + randf_range(-340.0, 340.0), global_position.y - 560.0)
+		get_parent().add_child(mp)
+	spawn_ragnarok_ring()
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if stack:
+		stack.show_notification("RAGNAROK!")
+
+# The expanding fire shockwave that marks the eruption.
+func spawn_ragnarok_ring() -> void:
+	var ring = Line2D.new()
+	var pts = _circle_points(40.0, 48)
+	pts.append(pts[0])
+	ring.points = pts
+	ring.width = 6.0
+	ring.default_color = Color(1.0, 0.6, 0.15, 0.9)
+	ring.z_index = 46
+	get_parent().add_child(ring)
+	ring.global_position = global_position
+	ring.scale = Vector2(0.3, 0.3)
+	var t = ring.create_tween()
+	t.tween_property(ring, "scale", Vector2(7.0, 7.0), 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	t.parallel().tween_property(ring, "modulate:a", 0.0, 0.4)
+	t.tween_callback(ring.queue_free)
+
+# Wizardsbane: a pale rune-burst on the boss where the bane damage lands.
+func spawn_bane_flash(at_pos: Vector2) -> void:
+	for i in range(6):
+		var shard = Polygon2D.new()
+		shard.polygon = PackedVector2Array([Vector2(0, -9), Vector2(2.5, 0), Vector2(0, 9), Vector2(-2.5, 0)])
+		shard.color = Color(0.7, 1.0, 0.85, 0.95)
+		shard.rotation = TAU * float(i) / 6.0
+		shard.z_index = 49
+		get_parent().add_child(shard)
+		shard.global_position = at_pos
+		var dir = Vector2(cos(shard.rotation - PI / 2.0), sin(shard.rotation - PI / 2.0))
+		var t = shard.create_tween()
+		t.tween_property(shard, "global_position", at_pos + dir * 40.0, 0.24).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		t.parallel().tween_property(shard, "modulate:a", 0.0, 0.24)
+		t.tween_callback(shard.queue_free)
 
 # Chrono Edge: a golden clock-ring blinks around the player as time rewinds.
 func spawn_chrono_flash() -> void:

@@ -166,6 +166,14 @@ const HP_SCALE_PER_LEVEL = 0.15
 const DMG_SCALE_PER_LEVEL = 0.10
 const SPEED_SCALE_PER_LEVEL = 0.075
 const SPEED_SCALE_CAP_LEVEL = 25
+# Past a soft-cap level the HP and DAMAGE curves flatten to a gentler slope.
+# The old straight lines meant L100 dealt ~11x damage (a beam one-shot any
+# player) and bosses had ~16x HP (60k+ sponges); these keep the deepest
+# levels tense and winnable instead. At L100: HP ~5.5x, DMG ~5.3x.
+const HP_SOFTCAP_LEVEL = 20
+const HP_SCALE_AFTER = 0.02
+const DMG_SOFTCAP_LEVEL = 30
+const DMG_SCALE_AFTER = 0.02
 const LEVEL_CLEAR_DELAY = 2.5
 const MAX_LEVEL = 100
 
@@ -825,9 +833,16 @@ func place_player_at_entry(enter_from_right: bool) -> void:
 
 # --- combat flow (mirrors the old overworld dungeon_manager.gd) ---
 
+# A per-level multiplier that grows at `per`/level until `softcap`, then at the
+# gentler `after`/level beyond it.
+func _softcapped_mult(level: int, per: float, softcap: int, after: float) -> float:
+	if level <= softcap:
+		return 1.0 + (level - 1) * per
+	return 1.0 + (softcap - 1) * per + (level - softcap) * after
+
 func get_level_scaling() -> Dictionary:
-	var hp_mult = 1.0 + (current_level - 1) * HP_SCALE_PER_LEVEL
-	var dmg_mult = 1.0 + (current_level - 1) * DMG_SCALE_PER_LEVEL
+	var hp_mult = _softcapped_mult(current_level, HP_SCALE_PER_LEVEL, HP_SOFTCAP_LEVEL, HP_SCALE_AFTER)
+	var dmg_mult = _softcapped_mult(current_level, DMG_SCALE_PER_LEVEL, DMG_SOFTCAP_LEVEL, DMG_SCALE_AFTER)
 	var speed_level = min(current_level, SPEED_SCALE_CAP_LEVEL)
 	var speed_mult = 1.0 + (speed_level - 1) * SPEED_SCALE_PER_LEVEL
 	return {"hp": hp_mult, "dmg": dmg_mult, "speed": speed_mult}
@@ -1010,7 +1025,8 @@ func roll_material_drop(guaranteed: bool = false) -> void:
 # instead. (Sylvan Charm / Heart of the Mountain never drop here -- those are
 # gathering-exclusive, see harvest_node.gd.)
 const GEAR_RELIC_IDS = ["relic_vigor", "relic_swiftness", "relic_greed", "relic_wisdom",
-	"relic_berserker", "relic_hawk", "relic_archon", "relic_wellspring"]
+	"relic_berserker", "relic_hawk", "relic_archon", "relic_wellspring",
+	"relic_wings", "relic_feather"]
 const GEAR_ARMOR_IDS = ["helm_bulwark", "armor_bulwark", "pants_bulwark",
 	"helm_windstalker", "armor_windstalker", "pants_windstalker",
 	"helm_runeweave", "armor_runeweave", "pants_runeweave"]
@@ -1019,7 +1035,7 @@ const GEAR_SET_WEAPON_IDS = ["wpn_claymore", "wpn_recurve", "wpn_scepter"]
 # homing arrows, fireball, frost shard, cleave) -- see inventory.gd "special"
 const GEAR_CLASS_WEAPON_IDS = ["wpn_windcutter", "wpn_sunderer", "wpn_stormlance",
 	"wpn_stormvolley", "wpn_seeker", "wpn_emberstaff", "wpn_iciclewand"]
-const GEAR_EXCELLENT_IDS = ["exc_midas", "exc_echo", "exc_soul", "exc_hook", "exc_boomerang", "exc_chrono"]
+const GEAR_EXCELLENT_IDS = ["exc_midas", "exc_echo", "exc_soul", "exc_hook", "exc_boomerang", "exc_chrono", "exc_wizardsbane", "exc_ragnarok"]
 const EXCELLENT_MIN_LEVEL = 25
 const EXCELLENT_DROP_CHANCE = 0.15
 

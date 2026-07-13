@@ -44,7 +44,7 @@ func _ready() -> void:
 	style_difficulty_button($DifficultyPanel/HardButton, "Hard")
 	build_hard_button_fire()
 	update_buttons()
-	update_best_wave_label()
+	update_deepest_level_label()
 
 const HARD_FIRE_COUNT = 14
 const HARD_FIRE_COLORS = [
@@ -121,10 +121,10 @@ func update_buttons() -> void:
 	$VBox/ContinueButton.visible = has_save
 	$VBox/NewGameButton.visible = has_save
 
-func update_best_wave_label() -> void:
+func update_deepest_level_label() -> void:
 	if GameState.deepest_level_reached > 0:
-		$BestWaveLabel.text = "Deepest Level Reached: " + str(GameState.deepest_level_reached)
-		$BestWaveLabel.visible = true
+		$DeepestLevelLabel.text = "Deepest Level Reached: " + str(GameState.deepest_level_reached)
+		$DeepestLevelLabel.visible = true
 
 func _on_how_to_play() -> void:
 	$HowToPlayPanel.visible = true

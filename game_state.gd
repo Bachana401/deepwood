@@ -24,6 +24,13 @@ const TEST_UNLOCK_ALL_LEVELS = true
 # restore the real death sequence. Read in player.gd die().
 const TEST_INSTANT_RESPAWN = true
 
+# TESTING: skill-tree sandbox. While true, unlocking a node ignores its point
+# cost AND material requirements (try_unlock_skill), the skill-tree UI shows an
+# "Unlock ALL Trees" button + a free "Switch Class" button (keeps what you've
+# unlocked so you can stack every tree), and Necromancer is selectable to view.
+# Flip to false to restore real, gated progression.
+const TEST_SKILL_SANDBOX = true
+
 # TESTING: while true, a near-empty roster is auto-filled with villagers so
 # every building runs at ~55% staff (plus a few unemployed wanderers) -- purely
 # to SEE the workers/avatars systems populated. Flip to false to stop.
@@ -286,9 +293,14 @@ func is_skill_unlocked(node_id: String) -> bool:
 func try_unlock_skill(node: Dictionary, player: Node) -> bool:
 	if is_skill_unlocked(node.id):
 		return false
-	if skill_points < node.cost:
-		return false
 	if node.prereq != "" and not is_skill_unlocked(node.prereq):
+		return false
+	# sandbox: prereq order still applies (so the tree reads sensibly) but the
+	# node is free -- no points, no materials. Checked BEFORE the point cost.
+	if TEST_SKILL_SANDBOX:
+		unlocked_skills.append(node.id)
+		return true
+	if skill_points < node.cost:
 		return false
 	for mat_id in node.materials.keys():
 		if not researched_materials.has(mat_id):
@@ -300,6 +312,14 @@ func try_unlock_skill(node: Dictionary, player: Node) -> bool:
 	skill_points -= node.cost
 	unlocked_skills.append(node.id)
 	return true
+
+# Testing (TEST_SKILL_SANDBOX): mark every skill-tree material as researched so
+# names show real and no node is blocked on identification. Unlocking itself is
+# already free in that mode (see try_unlock_skill) -- you still click each node.
+func research_all_materials() -> void:
+	for item_id in Inventory.ITEM_DEFS.keys():
+		if Inventory.ITEM_DEFS[item_id].get("is_material", false) and not researched_materials.has(item_id):
+			researched_materials.append(item_id)
 
 # The reset potion: refunds every spent point AND clears the class choice,
 # putting the player back on the class-select screen. Spent materials are
@@ -633,6 +653,7 @@ func _process(delta: float) -> void:
 		income_timer -= INCOME_INTERVAL_SECONDS
 		generate_passive_income()
 	tick_village_clock()
+	update_morale_meter_unlock()
 
 # Debug time-skip keys (and anything else) nudge the master clock through here.
 func skip_hours(h: float) -> void:
@@ -648,6 +669,10 @@ func tick_village_clock() -> void:
 	update_mating_houses(hours_passed)
 	update_school_enrollments(hours_passed)
 	if hours_passed > 0.0:
+		# grief heals with time -- the forgiving half of the death-shock system
+		morale_death_shock = maxf(0.0, morale_death_shock - hours_passed * DEATH_SHOCK_DECAY_PER_HOUR)
+		tick_morale_effects(hours_passed)
+		tick_village_tribute(hours_passed)
 		tick_sieges(hours_passed)
 
 # --- Siege scheduling + resolution (runs in every scene) ---
@@ -661,7 +686,8 @@ func village_defense_power() -> float:
 	for v in rescued_villagers:
 		if v.get("stat_name", "") == "Warrior" or v.get("role_key", "") == "Barracks":
 			power += SIEGE_DEF_PER_WARRIOR
-	return power
+	# morale rides the whole village's fighting spirit up or down
+	return power * morale_defense_multiplier()
 
 func tick_sieges(hours_passed: float) -> void:
 	# Leaving for a dungeon abandons any in-progress live battle -- from here on
@@ -763,17 +789,217 @@ func villager_morale(v: Dictionary) -> int:
 	m += 8 if n.love else -8
 	return clampi(m, 0, 100)
 
-func village_morale() -> int:
-	if rescued_villagers.is_empty():
-		return 50
-	var s = 0
+# --- Village-wide morale (0-100 internally, shown to the player as X/10) ---
+# Morale exists for the WHOLE game, but the on-screen METER only unlocks once
+# every building has been rebuilt (morale_meter_unlocked), after which it stays
+# on screen forever. Morale is driven by how well the village lives:
+#   employment, food (Farm), armor (Blacksmith), companionship (mating), a
+#   social life (Bar) and sheer numbers alive -- minus a decaying "death shock"
+#   from villagers lost to siege waves. 10/10 is a hard, late-game-only state:
+#   it needs the town employed, armed, paired, well-fed and populous with no
+#   recent losses. A brutal wave that kills 20 knocks morale down (a maxed 10/10
+#   town falls to ~6/10) but it is FORGIVING -- the shock fades over time and is
+#   repaid as you spawn/mate replacements back into the population.
+const MORALE_POP_TARGET := 30.0          # headcount at which "numbers alive" maxes out
+const DEATH_SHOCK_PER_KILL := 2.0        # morale points lost per villager killed (0-100)
+const DEATH_SHOCK_MAX := 60.0            # one catastrophe can't zero morale outright
+const DEATH_SHOCK_DECAY_PER_HOUR := 1.0  # the town grieves, then heals over time
+const REPLACE_RELIEF := 2.5              # each new villager (birth/troop) repays some shock
+
+var morale_death_shock := 0.0
+var morale_meter_unlocked := false
+
+func count_adults() -> int:
+	var n = 0
 	for v in rescued_villagers:
-		s += villager_morale(v)
-	return s / rescued_villagers.size()
+		if not v.get("is_kid", false):
+			n += 1
+	return n
+
+func village_morale() -> int:
+	var pop = rescued_villagers.size()
+	if pop == 0:
+		return 0
+	var adults = maxi(1, count_adults())
+	var employed = 0
+	var paired = 0
+	for v in rescued_villagers:
+		if v.get("is_kid", false):
+			continue
+		if v.get("role_key", "") != "":
+			employed += 1
+		if is_villager_paired(v.get("id", "")):
+			paired += 1
+	var score := 0.0
+	score += 26.0 * float(employed) / float(adults)                  # employment
+	score += 20.0 if is_building_operational("Farm") else 0.0        # food
+	score += 16.0 if is_building_operational("Blacksmith") else 0.0  # armor
+	score += 18.0 * float(paired) / float(adults)                    # mating / good sex
+	score += 10.0 if is_building_operational("Bar") else 0.0         # social life
+	score += 10.0 * clampf(float(pop) / MORALE_POP_TARGET, 0.0, 1.0) # numbers alive
+	score -= morale_death_shock                                      # grief from losses
+	# morale_admin_offset is a dev-panel nudge (0 in normal play)
+	return clampi(int(round(score)) + morale_admin_offset, 0, 100)
+
+# Dev/admin panel nudge to morale, in tenths (+1 == +1.0 on the 0-10 meter).
+func admin_nudge_morale(tenths: int) -> void:
+	morale_admin_offset = clampi(morale_admin_offset + tenths * 10, -100, 100)
+
+# The player-facing 0-10 reading.
+func village_morale_10() -> float:
+	return float(village_morale()) / 10.0
+
+# Villagers killed (siege waves, the death penalty) pile onto the death shock;
+# new villagers (births, spawned troops) repay it. Both are clamped so a wipe
+# can't bottom morale out instantly and over-healing can't push shock negative.
+func register_villager_deaths(n: int) -> void:
+	if n <= 0:
+		return
+	morale_death_shock = minf(morale_death_shock + float(n) * DEATH_SHOCK_PER_KILL, DEATH_SHOCK_MAX)
+
+func register_villagers_added(n: int) -> void:
+	if n <= 0:
+		return
+	morale_death_shock = maxf(0.0, morale_death_shock - float(n) * REPLACE_RELIEF)
+
+# The meter appears the moment the last building is finished, and never leaves.
+func all_buildings_operational() -> bool:
+	for bn in STARTING_BUILDINGS:
+		if not is_building_operational(bn):
+			return false
+	return true
+
+func update_morale_meter_unlock() -> void:
+	if not morale_meter_unlocked and all_buildings_operational():
+		morale_meter_unlocked = true
 
 # Happy village, richer village: 0.75x income at 0 morale, 1.0x at 50, 1.25x at 100.
 func village_morale_multiplier() -> float:
 	return 0.75 + 0.5 * float(village_morale()) / 100.0
+
+# --- Morale consequences (rewards & punishments) ---
+# A miserable village literally withers: once morale sits below 2/10 for a long
+# grace period, villagers begin STARVING -- losing HP every hour and, staggered
+# so they fall one by one, dying -- until the player turns things around. Misery
+# also SAPS the town's defense (demoralized fighters die more easily to sieges)
+# and HALTS new births. A THRIVING village is rewarded in kind: stronger defense,
+# faster births, and (see generate_passive_income) up to 1.25x gold.
+const DESPAIR_MORALE := 20               # below 2/10 == the village is in crisis
+const DESPAIR_GRACE_HOURS := 18.0        # crisis must persist this long before deaths begin
+const DESPAIR_HP_DRAIN_PER_HOUR := 6.0   # then hunger eats HP...
+const DESPAIR_HP_REGEN_PER_HOUR := 12.0  # ...but a recovered village heals up again
+const VILLAGER_MAX_HP := 100.0
+
+var low_morale_hours := 0.0
+var villager_hp: Dictionary = {}         # id -> current hp (0..100); absent == full health
+var morale_admin_offset := 0             # dev-panel morale nudge (0 in normal play)
+
+func get_villager_hp(id: String) -> float:
+	return float(villager_hp.get(id, VILLAGER_MAX_HP))
+
+func village_in_despair() -> bool:
+	return low_morale_hours >= DESPAIR_GRACE_HOURS
+
+# 0..1 -- how deep into the crisis we are, for the starving visuals on avatars.
+func village_despair_depth() -> float:
+	if not village_in_despair():
+		return 0.0
+	return clampf((low_morale_hours - DESPAIR_GRACE_HOURS) / 24.0, 0.0, 1.0)
+
+# Deterministic per-villager drain multiplier (0.5..1.5) so the starving deaths
+# stagger out over time instead of the whole town dropping dead the same hour.
+func _despair_rate(id: String) -> float:
+	var rng = RandomNumberGenerator.new()
+	rng.seed = hash(id)
+	return 0.5 + rng.randf()
+
+func tick_morale_effects(hours_passed: float) -> void:
+	if hours_passed <= 0.0:
+		return
+	var in_crisis = village_morale() < DESPAIR_MORALE
+	if in_crisis:
+		low_morale_hours += hours_passed
+	else:
+		# recovers roughly twice as fast as it built -- forgiving once fixed
+		low_morale_hours = maxf(0.0, low_morale_hours - hours_passed * 2.0)
+	# only actually starve while morale is STILL low now AND has been low long
+	# enough -- the moment the player fixes morale, the dying stops and HP heals
+	var starving = in_crisis and low_morale_hours >= DESPAIR_GRACE_HOURS
+	var dead: Array = []
+	for v in rescued_villagers:
+		var id = v.get("id", "")
+		var hp = get_villager_hp(id)
+		if starving:
+			hp -= hours_passed * DESPAIR_HP_DRAIN_PER_HOUR * _despair_rate(id)
+			if hp <= 0.0:
+				dead.append(id)
+			else:
+				villager_hp[id] = hp
+		elif hp < VILLAGER_MAX_HP:
+			villager_hp[id] = minf(VILLAGER_MAX_HP, hp + hours_passed * DESPAIR_HP_REGEN_PER_HOUR)
+	for id in dead:
+		villager_hp.erase(id)
+		remove_villager_by_id(id)   # starved to death (also grieves the town)
+
+# Morale swings the village's fighting strength: 0.5x at rock bottom, 1.0x at
+# 5/10, 1.5x when thriving. Demoralized towns bleed in sieges; happy ones hold.
+func morale_defense_multiplier() -> float:
+	return 0.5 + float(village_morale()) / 100.0
+
+# New births stop entirely in despair, run slow when unhappy, and speed up when
+# the town is thriving (0.6x .. 1.2x). Folded into the gestation clock.
+func morale_birth_multiplier() -> float:
+	if village_in_despair():
+		return 0.0
+	return 0.6 + 0.6 * float(village_morale()) / 100.0
+
+# --- High-morale rewards (the carrot) ---
+# Above 8/10 the thriving town starts actively blessing its hero. This factor
+# ramps 0 -> 1 across 8/10..10/10, so only a genuinely happy village pays out,
+# and it pays MOST at a perfect 10.
+func morale_high_factor() -> float:
+	return clampf((float(village_morale()) - 80.0) / 20.0, 0.0, 1.0)
+
+# A hero walking through a joyful town moves quicker and slowly heals -- the
+# village's good cheer literally buoys you (village only, not in the dungeon).
+func morale_speed_bonus() -> float:
+	if in_dungeon:
+		return 0.0
+	return 0.12 * morale_high_factor()
+
+func morale_regen_per_sec() -> float:
+	if in_dungeon:
+		return 0.0
+	return 2.0 * morale_high_factor()
+
+# At a perfect 10/10 (the meter reads a full 10.0) the whole village erupts in
+# celebration -- fireworks, confetti, cheering. See village_life.gd.
+func village_is_celebrating() -> bool:
+	return not in_dungeon and village_morale() >= 100
+
+# A grateful town periodically brings its hero a gift of gold. The richer the
+# mood and the bigger the town, the fatter the purse.
+const TRIBUTE_INTERVAL_HOURS := 24.0
+const TRIBUTE_MORALE_MIN := 90
+var tribute_timer := 0.0
+
+func tick_village_tribute(hours_passed: float) -> void:
+	if in_dungeon or village_morale() < TRIBUTE_MORALE_MIN:
+		tribute_timer = 0.0
+		return
+	tribute_timer += hours_passed
+	if tribute_timer >= TRIBUTE_INTERVAL_HOURS:
+		tribute_timer -= TRIBUTE_INTERVAL_HOURS
+		grant_village_tribute()
+
+func grant_village_tribute() -> void:
+	var gift = 15 + rescued_villagers.size() * 2
+	var player = get_tree().get_first_node_in_group("player")
+	if player and player.has_method("add_currency"):
+		player.add_currency(gift)
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if stack and stack.has_method("show_notification"):
+		stack.show_notification("The grateful village brings you a gift of %d gold!" % gift)
 
 func generate_passive_income() -> void:
 	var total = 0.0
@@ -816,7 +1042,8 @@ func get_farm_income_multiplier() -> float:
 	return 1.0 + count_leader_holders("Farm", "Leader") * LEADER_BONUS_PER_HOLDER
 
 func get_gestation_speed_multiplier() -> float:
-	return 1.0 + count_leader_holders("Hospital", "Leader") * LEADER_BONUS_PER_HOLDER
+	# a happy town makes babies faster; a despairing one makes none at all
+	return (1.0 + count_leader_holders("Hospital", "Leader") * LEADER_BONUS_PER_HOLDER) * morale_birth_multiplier()
 
 func get_school_graduation_speed_multiplier() -> float:
 	return 1.0 + count_leader_holders("School", "Principal") * LEADER_BONUS_PER_HOLDER
@@ -890,6 +1117,7 @@ func produce_child(pregnancy_id: String) -> void:
 		"id": child_id, "name": child_name, "sex": child_sex, "is_kid": true,
 		"stat_name": "", "stat_value": 0, "role_key": "", "role_title": "", "paired": false,
 	})
+	register_villagers_added(1)   # a new life eases the town's grief
 	child_produced.emit(child_id)
 
 # Finds a villager's current wander-AI world avatar (if any) via the shared
@@ -977,6 +1205,11 @@ func reset_for_new_game() -> void:
 	building_levels = {}
 	wizard_respawn_at_hours = -1.0
 	placed_torches = []
+	morale_death_shock = 0.0
+	morale_meter_unlocked = false
+	low_morale_hours = 0.0
+	villager_hp = {}
+	morale_admin_offset = 0
 	if TEST_POPULATE_VILLAGE:
 		test_populate_village()
 	wizard_power_tier = 0
@@ -1026,6 +1259,11 @@ func save_game(player: Node) -> void:
 		"placed_torches": placed_torches,
 		"wizard_respawn_at_hours": wizard_respawn_at_hours,
 		"wizard_power_tier": wizard_power_tier,
+		"morale_death_shock": morale_death_shock,
+		"morale_meter_unlocked": morale_meter_unlocked,
+		"low_morale_hours": low_morale_hours,
+		"villager_hp": villager_hp,
+		"morale_admin_offset": morale_admin_offset,
 	}
 	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	file.store_string(JSON.stringify(data))
@@ -1094,6 +1332,14 @@ func load_game() -> Dictionary:
 				placed_torches.append({"x": float(e.get("x", 0.0)), "y": float(e.get("y", 0.0))})
 		wizard_respawn_at_hours = float(parsed.get("wizard_respawn_at_hours", -1.0))
 		wizard_power_tier = int(parsed.get("wizard_power_tier", 0))
+		morale_death_shock = float(parsed.get("morale_death_shock", 0.0))
+		morale_meter_unlocked = bool(parsed.get("morale_meter_unlocked", false))
+		low_morale_hours = float(parsed.get("low_morale_hours", 0.0))
+		morale_admin_offset = int(parsed.get("morale_admin_offset", 0))
+		villager_hp = {}
+		if parsed.has("villager_hp") and parsed["villager_hp"] is Dictionary:
+			for k in parsed["villager_hp"].keys():
+				villager_hp[k] = float(parsed["villager_hp"][k])
 		if TEST_POPULATE_VILLAGE:
 			test_populate_village()
 		return parsed
@@ -1127,6 +1373,7 @@ func remove_villager_by_id(villager_id: String) -> void:
 	for entry in rescued_villagers:
 		if entry.get("id") == villager_id:
 			rescued_villagers.erase(entry)
+			register_villager_deaths(1)   # every villager lost grieves the town
 			break
 	for house_id in mating_houses.keys():
 		var pairing = mating_houses[house_id]

@@ -124,8 +124,11 @@ const MAX_CLONES = 6
 const CLONES_PER_CAST = 2
 const CLONE_HP_FRAC = 0.12
 const CLONE_DMG_FRAC = 0.35
-const CLONE_CD_PENALTY = 1.5
-const CLONE_KIT = ["volley", "curse"]
+# echoes used to cast SLOWER than the original (1.5) and only had two ranged
+# skills, so they were easy to out-fly. Now they cast a touch FASTER than base
+# and can teleport onto you -- a genuinely harassing swarm you can't just kite.
+const CLONE_CD_PENALTY = 0.85
+const CLONE_KIT = ["volley", "curse", "teleport"]
 
 # Soul Ward: the Wizard's defence is his undivided soul. With NO echoes out he
 # only takes half damage -- bursting him early is a wall. Every living echo
@@ -173,6 +176,22 @@ const ABILITY_META = {
 	"doomring": {"cd": 6.0, "min": 0.0,   "max": 100000.0},
 	"clone":    {"cd": 12.0, "min": 0.0,  "max": 100000.0},
 }
+
+# --- The Fallen Wizard's combo book (level 100 only) ---
+# Instead of the generic "one attack, wait out the cooldown, repeat" loop, the
+# real wizard chains several DIFFERENT skills back-to-back into a combo -- the
+# player has to dodge a sustained flurry, then gets a recovery window where the
+# boss hovers exposed (see drive_wizard). Each combo is teleport-heavy and uses
+# a distinct mix of skills; he never runs the same one twice in a row. Steps
+# map 1:1 to the do_* abilities (plus "teleport"). Clones do NOT use these --
+# they keep the simple two-skill AI so the swarm stays readable.
+const WIZARD_COMBOS = [
+	["teleport", "volley", "teleport", "curse", "volley"],       # Blink Hunt
+	["doomring", "teleport", "meteors", "doomring"],             # Doom Cascade
+	["meteors", "teleport", "beam", "teleport", "volley"],       # Skyfall
+	["clone", "teleport", "curse", "volley", "curse"],           # Mirror Hunt
+	["teleport", "beam", "teleport", "doomring", "teleport", "volley"],  # Phantom Barrage
+]
 
 # The roster. Ids here must line up with BOSS_ARENAS / get_boss_id in
 # dungeon_interior.gd so each boss gets its matching arena.
@@ -364,6 +383,12 @@ var dive_timer := 0.0
 
 var minions: Array = []
 
+# --- wizard combo state (real wizard only; see WIZARD_COMBOS / drive_wizard) ---
+var in_combo := false
+# starts >0 so the fight opens with a brief breather instead of an instant combo
+var combo_recovery_timer := 1.5
+var last_combo_index := -1
+
 func _ready() -> void:
 	current_def = BOSSES.get(boss_id, BOSSES["gravewarden"])
 	configure_from_def(current_def)
@@ -474,7 +499,7 @@ func build_aura() -> void:
 	aura_anchor.global_position = global_position
 
 	aura_particles = CPUParticles2D.new()
-	aura_particles.amount = 46
+	aura_particles.amount = 69          # 1.5x denser red crumble
 	aura_particles.lifetime = 1.1
 	aura_particles.preprocess = 1.0
 	aura_particles.emission_shape = CPUParticles2D.EMISSION_SHAPE_SPHERE
@@ -495,8 +520,8 @@ func build_aura() -> void:
 	# the slow-orbiting ember ring around his body
 	aura_orbit = Node2D.new()
 	aura_anchor.add_child(aura_orbit)
-	for i in range(10):
-		var ang = i * TAU / 10.0 + randf_range(-0.2, 0.2)
+	for i in range(15):                  # 1.5x the ember ring blocks
+		var ang = i * TAU / 15.0 + randf_range(-0.2, 0.2)
 		var r = randf_range(62.0, 95.0)
 		_ember_block(Vector2(cos(ang), sin(ang)) * r, randf_range(2.5, 4.5), false, aura_orbit)
 
@@ -509,7 +534,7 @@ func build_aura() -> void:
 	aura_anchor2.global_position = global_position
 
 	aura_particles2 = CPUParticles2D.new()
-	aura_particles2.amount = 32          # ~0.7x the red layer's 46
+	aura_particles2.amount = 48          # ~0.7x the red layer's 69 (1.5x denser)
 	aura_particles2.lifetime = 1.1
 	aura_particles2.preprocess = 1.0
 	aura_particles2.emission_shape = CPUParticles2D.EMISSION_SHAPE_SPHERE
@@ -528,8 +553,8 @@ func build_aura() -> void:
 
 	aura_orbit2 = Node2D.new()
 	aura_anchor2.add_child(aura_orbit2)
-	for i in range(7):                   # ~0.7x the red ring's 10 blocks
-		var ang2 = i * TAU / 7.0 + randf_range(-0.2, 0.2)
+	for i in range(11):                  # ~0.7x the red ring's 15 blocks (1.5x)
+		var ang2 = i * TAU / 11.0 + randf_range(-0.2, 0.2)
 		var r2 = randf_range(62.0, 95.0)
 		_ember_block(Vector2(cos(ang2), sin(ang2)) * r2, randf_range(2.5, 4.5), false, aura_orbit2, EMBER_TONES_PURPLE)
 
@@ -556,8 +581,8 @@ func process_passives(delta: float) -> void:
 		var n = living_clones()
 		if n != aura_last_n:
 			aura_last_n = n
-			var red_total = 84 if is_frenzied else 46
-			var pur_total = 59 if is_frenzied else 32
+			var red_total = 126 if is_frenzied else 69   # 1.5x aura density
+			var pur_total = 89 if is_frenzied else 48
 			if aura_particles != null and is_instance_valid(aura_particles):
 				aura_particles.amount = max(5, red_total - n * CLONE_SHARD_RED)
 			if aura_particles2 != null and is_instance_valid(aura_particles2):
@@ -889,15 +914,25 @@ func _physics_process(delta: float) -> void:
 			if absf(dx) > 4.0:
 				facing_direction = sign(dx)
 			var dist = global_position.distance_to(player.global_position)
-			var chosen = choose_attack(dist)
-			if chosen != "":
-				start_attack(chosen)
-			elif flying:
-				process_hover(delta)
-			elif wall_turn_timer > 0:
-				velocity.x = -facing_direction * effective_speed()
+			if in_combo:
+				# the combo coroutine owns the boss -- just float above the
+				# player between casts so he keeps repositioning
+				if flying:
+					process_hover(delta)
+				else:
+					velocity.x = 0
+			elif is_wizard_boss():
+				drive_wizard(delta)
 			else:
-				velocity.x = facing_direction * effective_speed()
+				var chosen = choose_attack(dist)
+				if chosen != "":
+					start_attack(chosen)
+				elif flying:
+					process_hover(delta)
+				elif wall_turn_timer > 0:
+					velocity.x = -facing_direction * effective_speed()
+				else:
+					velocity.x = facing_direction * effective_speed()
 		check_bump()
 
 	# creature rigs face the way the boss moves/aims
@@ -961,6 +996,82 @@ func choose_attack(dist: float) -> String:
 		return ""
 	return candidates[randi() % candidates.size()]
 
+# --- The Fallen Wizard's active combo brain (level 100 only) ---
+# Only the REAL wizard runs combos; echoes keep the simple AI.
+func is_wizard_boss() -> bool:
+	return boss_id == "wizard" and not is_clone
+
+# Called each idle frame for the wizard: either burn down the recovery window
+# (a real opening for the player -- he hovers exposed and won't blink away) or
+# kick off the next combo.
+func drive_wizard(delta: float) -> void:
+	if combo_recovery_timer > 0.0:
+		combo_recovery_timer -= delta
+		if flying:
+			process_hover(delta)
+		else:
+			velocity.x = 0
+		return
+	run_combo()
+
+# Gaps between combo steps and the length of the punish window both tighten as
+# he enrages (60% HP) and then frenzies (25% HP) -- the fight escalates.
+func combo_step_gap() -> float:
+	if is_frenzied:
+		return 0.2
+	if is_enraged:
+		return 0.32
+	return 0.45
+
+func combo_recovery_time() -> float:
+	if is_frenzied:
+		return 1.5
+	if is_enraged:
+		return 2.0
+	return 2.5
+
+# Pick a combo, never the same one twice running so the skills keep changing.
+func pick_combo_index() -> int:
+	var n = WIZARD_COMBOS.size()
+	if n <= 1:
+		return 0
+	var idx = randi() % n
+	if idx == last_combo_index:
+		idx = (idx + 1) % n
+	return idx
+
+# Runs one full combo, then opens the recovery window. in_combo keeps
+# _physics_process from starting anything else while this coroutine drives.
+func run_combo() -> void:
+	in_combo = true
+	shake_camera(4.0, 0.2)   # a small "here it comes" cue
+	last_combo_index = pick_combo_index()
+	var steps: Array = WIZARD_COMBOS[last_combo_index]
+	var gap = combo_step_gap()
+	for step in steps:
+		if is_dead or player == null or not is_instance_valid(player):
+			break
+		await run_ability(step)
+		if is_dead:
+			break
+		await get_tree().create_timer(gap).timeout
+	in_combo = false
+	if not is_dead:
+		combo_recovery_timer = combo_recovery_time()
+
+# Fires one ability by name and waits for it to finish. Called straight (not via
+# start_attack) so combos ignore per-ability cooldowns and just flow.
+func run_ability(ability_name: String) -> void:
+	match ability_name:
+		"teleport": await do_teleport()
+		"volley": await do_volley()
+		"curse": await do_curse()
+		"meteors": await do_meteors()
+		"beam": await do_beam()
+		"doomring": await do_doomring()
+		"clone": await do_clone()
+		_: pass
+
 func start_attack(attack_name: String) -> void:
 	is_busy = true
 	velocity.x = 0
@@ -996,7 +1107,7 @@ func cooldown_mult() -> float:
 	if hex_timer > 0.0:
 		m *= HEX_CD_PENALTY   # mage-counter: hexed bosses attack slower
 	if is_clone:
-		m *= CLONE_CD_PENALTY # echoes cast noticeably slower than the original
+		m *= CLONE_CD_PENALTY # echoes now cast a bit FASTER -> constant harassment
 	return m
 
 # Maps the player's currently-held weapon to one of the three counter roles.
@@ -1565,8 +1676,10 @@ func take_damage(amount: int) -> void:
 			enrage()
 		if is_apex and not is_frenzied and health <= max_health * 0.25:
 			frenzy()
-		# the Wizard's reflex: struck, he may flicker a short step away
-		if has_blink_on_hit and not is_busy and not is_charging and not is_diving and randf() < BLINK_ON_HIT_CHANCE:
+		# the Wizard's reflex: struck, he may flicker a short step away -- but
+		# NOT during a combo recovery window, which is the player's guaranteed
+		# opening to land free hits (he hovers exposed there).
+		if has_blink_on_hit and not is_busy and not is_charging and not is_diving and combo_recovery_timer <= 0.0 and randf() < BLINK_ON_HIT_CHANCE:
 			blink_short()
 
 func enrage() -> void:
@@ -1586,11 +1699,11 @@ func frenzy() -> void:
 	spawn_shockwave(240.0, Color(1.0, 0.15, 0.1))
 	# the crumbling aura rages with him
 	if aura_particles != null and is_instance_valid(aura_particles):
-		aura_particles.amount = 84
+		aura_particles.amount = 126   # 1.5x denser
 		aura_particles.emission_sphere_radius = AURA_RADIUS * 0.95
 		aura_particles.scale_amount_max = 8.0
 	if aura_particles2 != null and is_instance_valid(aura_particles2):
-		aura_particles2.amount = 59   # keeps its ~0.7x ratio in frenzy
+		aura_particles2.amount = 89   # keeps its ~0.7x ratio in frenzy (1.5x)
 		aura_particles2.emission_sphere_radius = AURA_RADIUS * 0.95
 		aura_particles2.scale_amount_max = 8.0
 	aura_spin = 1.9   # the ember rings whirl in frenzy

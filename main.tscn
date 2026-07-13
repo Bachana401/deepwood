@@ -26,6 +26,9 @@
 [ext_resource type="PackedScene" path="res://wall.tscn" id="27_wall"]
 [ext_resource type="Script" path="res://siege_manager.gd" id="28_siege_mgr"]
 [ext_resource type="PackedScene" path="res://hotbar_ui.tscn" id="29_hotbar"]
+[ext_resource type="Script" path="res://morale_meter.gd" id="30_morale"]
+[ext_resource type="Script" path="res://village_life.gd" id="31_villagelife"]
+[ext_resource type="Script" path="res://admin_panel.gd" id="32_adminpanel"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_j7ovs"]
 size = Vector2(19713, 77)
@@ -342,6 +345,12 @@ volume_db = -10.0
 
 [node name="Traps" type="Node2D" parent="." unique_id=84467927]
 
+[node name="VillageLife" type="Node2D" parent="."]
+script = ExtResource("31_villagelife")
+
+[node name="AdminPanel" type="CanvasLayer" parent="."]
+script = ExtResource("32_adminpanel")
+
 [node name="Village" type="Node2D" parent="."]
 
 [node name="Player" parent="." unique_id=538963322 groups=["player"] instance=ExtResource("22_player")]
@@ -461,6 +470,13 @@ theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 4
 theme_override_font_sizes/font_size = 14
 text = "100/100"
+
+[node name="MoraleMeter" type="Control" parent="CanvasLayer"]
+anchors_preset = 0
+offset_right = 320.0
+offset_bottom = 200.0
+mouse_filter = 2
+script = ExtResource("30_morale")
 
 [node name="NotificationStack" type="VBoxContainer" parent="CanvasLayer" unique_id=993646214]
 anchors_preset = 1

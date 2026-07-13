@@ -128,6 +128,11 @@ var r_leg: ColorRect = null
 var l_arm: ColorRect = null
 var r_arm: ColorRect = null
 var walk_anim_t := 0.0
+var cheer_timer := 0.0        # >0 while celebrating a 10/10 morale
+var cheer_bubble_cd := 0.0
+var cheer_style := 0          # each villager's signature celebration move (0..4)
+var cheer_phase := 0.0        # per-villager time offset so nobody is in sync
+var cheer_cooldown := 0.0     # after a burst, back to normal life for a while
 
 func build_visual() -> void:
 	body_gfx = Node2D.new()
@@ -250,6 +255,26 @@ func update_health_bar_fill() -> void:
 	if health_bar_fill:
 		health_bar_fill.size.x = HEALTH_BAR_WIDTH * clamp(float(health) / MAX_HEALTH, 0.0, 1.0)
 
+# When the whole village is starving (morale below 2/10 for too long) every
+# villager visibly wastes away: their HP bar drains toward the town-wide
+# starvation HP and the body takes on a sickly grey pallor. GameState is the
+# authority that actually kills them at 0 HP; this only mirrors it on screen.
+func apply_despair_visual() -> void:
+	if health_bar_fill == null or health_bar_bg == null:
+		return
+	if GameState.village_in_despair():
+		var frac = clampf(GameState.get_villager_hp(villager_id) / 100.0, 0.0, 1.0)
+		health_bar_bg.visible = true
+		health_bar_fill.visible = true
+		health_bar_fill.size.x = HEALTH_BAR_WIDTH * frac
+		health_bar_fill.color = Color(0.72, 0.5, 0.15)   # sickly amber
+		health_bar_bg.modulate.a = 1.0
+		health_bar_fill.modulate.a = 1.0
+		if body_gfx:
+			body_gfx.modulate = Color(0.72, 0.76, 0.8)   # grey, wasting away
+	elif body_gfx and body_gfx.modulate != Color(1, 1, 1):
+		body_gfx.modulate = Color(1, 1, 1)               # colour returns once fed
+
 # Called every frame. Bar is shown while a recent-hit reveal is counting down,
 # or permanently (pulsing red) once HP is in the danger zone.
 func update_health_bar_display(delta: float) -> void:
@@ -318,7 +343,76 @@ func _physics_process(delta: float) -> void:
 			l_arm.rotation = lerpf(l_arm.rotation, 0.0, 0.2)
 			r_arm.rotation = lerpf(r_arm.rotation, 0.0, 0.2)
 
+	# celebration overrides everything: each villager does their own festive move,
+	# but only in BURSTS -- when a burst ends they go on cooldown and resume
+	# whatever they were doing (walking/idle) until the next one.
+	if cheer_cooldown > 0.0:
+		cheer_cooldown -= delta
+	if cheer_timer > 0.0:
+		cheer_timer -= delta
+		if cheer_timer <= 0.0:
+			cheer_cooldown = randf_range(6.0, 16.0)   # rejoin normal village life
+		_apply_cheer(delta)
+	elif body_gfx:
+		body_gfx.position.y = 18.0 * body_scale_factor   # feet back on the ground
+		body_gfx.rotation = 0.0
+
 	move_and_slide()
+
+# Called by village_life.gd while the town is celebrating a 10/10 morale. Each
+# villager gets a signature move (stable per person) and a random time offset,
+# so the crowd looks like a real crowd -- one claps, one jumps, one waves, one
+# dances, one fist-pumps -- all slightly out of sync rather than a Mexican wave.
+func cheer(seconds: float) -> void:
+	if cheer_cooldown > 0.0:
+		return   # just celebrated -- taking a break, back to normal for now
+	if cheer_timer <= 0.0:
+		cheer_style = abs(hash(villager_id)) % 5
+		cheer_phase = randf() * 10.0
+	cheer_timer = maxf(cheer_timer, seconds)
+
+func _apply_cheer(delta: float) -> void:
+	velocity.x = 0.0
+	var t = Time.get_ticks_msec() / 1000.0 + cheer_phase
+	var base_y = 18.0 * body_scale_factor
+	var hop = 0.0
+	if l_leg:
+		l_leg.rotation = 0.0
+		r_leg.rotation = 0.0
+	match cheer_style:
+		0:  # clap overhead
+			hop = absf(sin(t * 3.0)) * 2.0 * body_scale_factor
+			var c = sin(t * 11.0) * 0.35
+			if l_arm: l_arm.rotation = -2.3 + c
+			if r_arm: r_arm.rotation = 2.3 - c
+		1:  # big rhythmic jumps, arms up
+			hop = absf(sin(t * 5.0)) * 7.0 * body_scale_factor
+			if l_arm: l_arm.rotation = -2.0
+			if r_arm: r_arm.rotation = 2.0
+		2:  # wave one arm overhead
+			if l_arm: l_arm.rotation = 0.25
+			if r_arm: r_arm.rotation = 2.4 + sin(t * 6.0) * 0.5
+		3:  # dance: sway + arms swinging
+			var s = sin(t * 4.0)
+			if l_arm: l_arm.rotation = -1.2 + s * 0.5
+			if r_arm: r_arm.rotation = 1.2 - s * 0.5
+			hop = absf(sin(t * 4.0)) * 1.5 * body_scale_factor
+			if body_gfx: body_gfx.rotation = sin(t * 3.5) * 0.13
+		4:  # fist pump
+			var p = sin(t * 7.0) * 0.5 + 0.5
+			if r_arm: r_arm.rotation = lerpf(0.7, 2.4, p)
+			if l_arm: l_arm.rotation = -0.3
+			hop = absf(sin(t * 3.5)) * 2.5 * body_scale_factor
+	if body_gfx:
+		body_gfx.position.y = base_y - hop
+		if cheer_style != 3:
+			body_gfx.rotation = 0.0
+	cheer_bubble_cd -= delta
+	if cheer_bubble_cd <= 0.0:
+		cheer_bubble_cd = randf_range(1.6, 3.4)
+		if randf() < 0.55:
+			var lines = ["Hooray!", "Woo!", "For the hero!", "Long live Deepwood!", "Best day ever!"]
+			SpeechText.spawn(self, lines[randi() % lines.size()])
 
 func pick_new_state() -> void:
 	if is_walking:
@@ -346,6 +440,7 @@ func _on_body_exited(body: Node) -> void:
 func _process(delta: float) -> void:
 	refresh_size_if_needed()
 	update_health_bar_display(delta)
+	apply_despair_visual()
 	refresh_wander_bounds()
 	tick_building_visits()
 	if is_in_building:
@@ -364,7 +459,7 @@ func _process(delta: float) -> void:
 # no food (Farm in ruins), nowhere to drink (no Bar), no partner -- or, when
 # life is good, genuinely happy lines. Morale also scales village income.
 const TALK_RANGE = 100.0
-const TALK_CHANCE = 0.15
+const TALK_CHANCE = 0.45
 var talk_cooldown := 0.0
 
 func tick_mood_talk(delta: float) -> void:

@@ -66,6 +66,12 @@ const ITEM_DEFS = {
 	# mining rocks (Mountain) or felling trees (Sylvan). See harvest_node.gd.
 	"relic_mountain": {"name": "Heart of the Mountain", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.55, 0.5, 0.6, 1.0), "equip_effect": {"max_health": 30.0, "gold_gain": 0.10}},
 	"relic_sylvan": {"name": "Sylvan Charm", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.4, 0.75, 0.4, 1.0), "equip_effect": {"move_speed": 0.08, "xp_gain": 0.10}},
+	# Movement/utility relics with boolean-flag effects (flight, fall_immunity):
+	# the value is just a 1.0 marker read via GameState.get_bonus_total > 0 in
+	# player.gd. Aetherwing grants FLIGHT (hold Space -- 10s budget) and also
+	# negates fall damage; the Featherfall Charm only negates fall damage.
+	"relic_wings": {"name": "Aetherwing", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.85, 0.9, 1.0, 1.0), "equip_effect": {"flight": 1.0, "fall_immunity": 1.0, "move_speed": 0.05}},
+	"relic_feather": {"name": "Featherfall Charm", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.9, 0.95, 0.85, 1.0), "equip_effect": {"fall_immunity": 1.0, "max_health": 10.0}},
 	# --- Weapons. Every weapon is an inventory item now; you wield one by
 	# selecting its inventory slot with the hotbar keys (1-9, 0). "weapon_type"
 	# tells the player how it attacks: melee / spear / bow / wand. The Excellent
@@ -221,6 +227,25 @@ const ITEM_DEFS = {
 		"unique_effect": "chrono", "unique_value": 0.25,
 		"unique_desc": "Each hit has a 25% chance to rewind time, instantly resetting your attack cooldown.",
 	},
+	# The boss-killer: a rune-etched greatblade forged to end the Fallen Wizard.
+	# Deals +150% damage to BOSSES (and their echoes) -- which also punches
+	# through the Wizard's Soul Ward -- and drinks 8 Mana on every hit so you can
+	# keep flying and casting through the long fight. Rare deep-dungeon drop.
+	"exc_wizardsbane": {
+		"name": "Wizardsbane", "category": "weapon", "weapon_type": "melee", "excellent": true, "max_stack": 1, "color": Color(0.85, 0.9, 0.75, 1.0),
+		"weapon_stats": {"damage": 22, "cooldown": 0.45, "range_offset": 52, "area_size": Vector2(70, 40), "knockback_min": 40.0, "knockback_max": 75.0, "icon_size": Vector2(64, 14), "icon_color": Color(0.88, 0.92, 0.72), "icon_offset": 20.0},
+		"unique_effect": "bossbane", "unique_value": 1.5, "mana_on_hit": 8,
+		"unique_desc": "Forged to slay the undying: +150% damage to bosses (cuts their wards), and drinks 8 Mana on every hit.",
+	},
+	# The showpiece: a builder-into-ultimate greatblade. Every hit throws a
+	# flying slash AND charges the storm; the 8th hit ERUPTS -- a 12-way slash
+	# nova, a meteor barrage, and a shockwave. A screen-clearing spectacle.
+	"exc_ragnarok": {
+		"name": "Ragnarok Blade", "category": "weapon", "weapon_type": "melee", "excellent": true, "max_stack": 1, "color": Color(1.0, 0.55, 0.15, 1.0),
+		"weapon_stats": {"damage": 16, "cooldown": 0.4, "range_offset": 50, "area_size": Vector2(66, 40), "knockback_min": 35.0, "knockback_max": 70.0, "icon_size": Vector2(60, 13), "icon_color": Color(1.0, 0.6, 0.2), "icon_offset": 20.0},
+		"unique_effect": "ragnarok", "unique_value": 8,
+		"unique_desc": "Every strike hurls a slash and stokes the storm; every 8th strike erupts into a 12-way slash nova, a meteor barrage, and a shockwave.",
+	},
 }
 
 # Materials masquerade as "Unknown Substance" until the Science Lab has
@@ -285,6 +310,11 @@ const EFFECT_LABELS = {
 }
 # Cooldown effects REDUCE the cooldown, so their lines read "-12% Bow CD".
 const COOLDOWN_EFFECT_KEYS = ["melee_cooldown", "bow_cooldown", "wand_cooldown"]
+# Boolean-flag effects: shown as a plain phrase, not a "+N%" stat line.
+const FLAG_EFFECT_TEXT = {
+	"flight": "Flight: hold Space to soar (10s)",
+	"fall_immunity": "Negates fall damage",
+}
 
 static func get_set(item_id: String) -> String:
 	return get_item_def(item_id).get("set", "")
@@ -345,6 +375,8 @@ static func _slot_word(slot: String) -> String:
 	return slot.capitalize()
 
 static func _effect_line(key: String, val) -> String:
+	if FLAG_EFFECT_TEXT.has(key):
+		return FLAG_EFFECT_TEXT[key]
 	var label = EFFECT_LABELS.get(key, key.replace("_", " ").capitalize())
 	if key == "max_health" or key == "max_mana":
 		return "+%d %s" % [int(val), label]
@@ -401,6 +433,9 @@ static func paint_icon(target: ColorRect, item_id: String) -> void:
 		"tool_pickaxe": _icon_pickaxe(target, w, h)
 		"exc_hook": _icon_hook(target, w, h)
 		"exc_boomerang": _icon_boomerang(target, w, h)
+		"exc_wizardsbane": _icon_runeblade(target, w, h)
+		"exc_ragnarok": _icon_ragnarok(target, w, h)
+		"relic_wings", "relic_feather": _icon_wing(target, w, h, get_item_def(item_id).get("color", Color.WHITE))
 		"coin_gold", "coin_silver", "coin_bronze": _icon_coin(target, w, h, col)
 		"wood": _icon_wood(target, w, h)
 		"stone": _icon_stone(target, w, h)
@@ -505,6 +540,19 @@ static func _icon_pickaxe(t: Control, w: float, h: float) -> void:
 		Vector2(w * 0.84, h * 0.3), Vector2(w * 0.78, h * 0.36),
 		Vector2(w * 0.5, h * 0.24), Vector2(w * 0.22, h * 0.36)]), Color(0.72, 0.74, 0.8))
 
+static func _icon_ragnarok(t: Control, w: float, h: float) -> void:
+	# a fiery blade ringed by little flame-sparks (the storm it carries)
+	_icon_blade(t, w, h, Color(1.0, 0.62, 0.22), Color(0.85, 0.35, 0.1))
+	for i in range(5):
+		var a = TAU * float(i) / 5.0 - 0.4
+		_icircle(t, Vector2(w * 0.5, h * 0.4) + Vector2(cos(a), sin(a)) * w * 0.3, w * 0.035, Color(1.0, 0.75, 0.3, 0.9))
+
+static func _icon_runeblade(t: Control, w: float, h: float) -> void:
+	# a pale greatblade with a glowing rune notch -- the Wizardsbane
+	_icon_blade(t, w, h, Color(0.9, 0.94, 0.8), Color(0.7, 0.66, 0.4))
+	_icircle(t, Vector2(w * 0.5, h * 0.34), w * 0.055, Color(0.6, 1.0, 0.85, 0.9))  # rune glow
+	_iline(t, PackedVector2Array([Vector2(w * 0.5, h * 0.2), Vector2(w * 0.5, h * 0.5)]), max(1.0, w * 0.02), Color(0.85, 1.0, 0.9, 0.7))
+
 static func _icon_hook(t: Control, w: float, h: float) -> void:
 	_iline(t, PackedVector2Array([Vector2(w * 0.5, h * 0.12), Vector2(w * 0.5, h * 0.55)]), max(1.5, w * 0.05), Color(0.55, 0.45, 0.32))  # rope
 	var pts = PackedVector2Array()   # J-curve hook
@@ -512,6 +560,16 @@ static func _icon_hook(t: Control, w: float, h: float) -> void:
 		var a = lerp(-PI * 0.1, PI * 1.05, i / 7.0)
 		pts.append(Vector2(w * 0.5, h * 0.62) + Vector2(cos(a), sin(a)) * w * 0.2)
 	_iline(t, pts, max(1.8, w * 0.07), Color(0.72, 0.76, 0.82))
+
+static func _icon_wing(t: Control, w: float, h: float, col: Color) -> void:
+	# a single feathered wing, tinted to the relic colour
+	_ipoly(t, PackedVector2Array([
+		Vector2(w * 0.28, h * 0.34), Vector2(w * 0.74, h * 0.28),
+		Vector2(w * 0.7, h * 0.44), Vector2(w * 0.78, h * 0.46),
+		Vector2(w * 0.66, h * 0.58), Vector2(w * 0.74, h * 0.6),
+		Vector2(w * 0.56, h * 0.72), Vector2(w * 0.34, h * 0.56)]), col)
+	_iline(t, PackedVector2Array([Vector2(w * 0.32, h * 0.4), Vector2(w * 0.66, h * 0.4)]), max(1.0, w * 0.02), col.darkened(0.25))
+	_iline(t, PackedVector2Array([Vector2(w * 0.36, h * 0.5), Vector2(w * 0.62, h * 0.5)]), max(1.0, w * 0.02), col.darkened(0.25))
 
 static func _icon_boomerang(t: Control, w: float, h: float) -> void:
 	var teal = Color(0.35, 0.8, 0.75)
