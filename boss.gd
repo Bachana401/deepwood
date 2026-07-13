@@ -114,10 +114,12 @@ const DOOMRING_WAVES = 2
 const DOOMRING_RANGE = 900.0
 const DOOMRING_DAMAGE = 13
 
-# Mirror Legion: the Wizard copies himself, up to 6 echoes at once. Echoes are
-# deliberately weak fakes -- a sliver of HP, reduced damage, only volleys and
-# curses, slower cooldowns, and NO aura/reflex-blink (the real one is the one
-# wreathed in crumbling red).
+# Mirror Legion: the Wizard copies himself, up to 6 echoes at once -- but the
+# legion grows SLOWLY: at full HP no echoes are allowed at all, and the cap
+# rises with his missing health (see allowed_clones), only reaching 6 near
+# death. Echoes are deliberately weak fakes -- a sliver of HP, reduced damage,
+# only volleys and curses, slower cooldowns, and NO aura/reflex-blink (the
+# real one is the one wreathed in crumbling red).
 const MAX_CLONES = 6
 const CLONES_PER_CAST = 2
 const CLONE_HP_FRAC = 0.12
@@ -376,6 +378,10 @@ func configure_from_def(def: Dictionary) -> void:
 	# stagger initial cooldowns so the boss doesn't dump every ability at once
 	for a in abilities:
 		ability_cd[a] = randf_range(0.5, 1.7)
+	# ...but the Mirror Legion never opens the fight -- long first delay, and
+	# allowed_clones() keeps the count at zero while he's near full health
+	if ability_cd.has("clone"):
+		ability_cd["clone"] = randf_range(7.0, 10.0)
 
 	var body: Vector2 = def.get("body", Vector2(160, 220))
 	base_color = def.get("color", Color(0.32, 0.1, 0.38))
@@ -881,6 +887,9 @@ func choose_attack(dist: float) -> String:
 			continue
 		if dist < meta["min"] or dist > meta["max"]:
 			continue
+		# cloning is only on the menu when his health deficit permits more
+		if a == "clone" and living_clones() >= allowed_clones():
+			continue
 		candidates.append(a)
 	if candidates.is_empty():
 		return ""
@@ -1321,6 +1330,16 @@ func do_doomring() -> void:
 # Mirror Legion (the Wizard): split into weak echoes of himself, up to 6 at
 # once. Echoes look like him but are translucent, lack the red aura, and only
 # volley/curse -- kill them or find and burn the real one.
+# How many echoes his current wounds permit: none at full health, one more
+# per ~12% HP lost, the full six only when he's nearly destroyed.
+func allowed_clones() -> int:
+	var missing = 1.0 - float(health) / float(max_health)
+	return clampi(int(floor(missing * (MAX_CLONES + 2.0))), 0, MAX_CLONES)
+
+func living_clones() -> int:
+	clones = clones.filter(func(c): return is_instance_valid(c) and not (("is_dead" in c) and c.is_dead))
+	return clones.size()
+
 func do_clone() -> void:
 	flash_telegraph(magic_color)
 	await get_tree().create_timer(0.45).timeout
@@ -1328,8 +1347,7 @@ func do_clone() -> void:
 		set_cd("clone")
 		is_busy = false
 		return
-	clones = clones.filter(func(c): return is_instance_valid(c) and not (("is_dead" in c) and c.is_dead))
-	var room = MAX_CLONES - clones.size()
+	var room = allowed_clones() - living_clones()
 	for i in range(min(CLONES_PER_CAST, room)):
 		var c = load("res://boss.tscn").instantiate()
 		c.boss_id = "wizard"
