@@ -170,7 +170,7 @@ Only a maxed, perfect village opens the final floor. (The gate is *why* the harv
 - **Population estimate:** ~55% staffing ≈ 84 villagers in test, so full staffing ≈ **~150**, and with extra unemployed + children you bred, realistically **~150–200+**. Exact count computed from building role-slots at build time.
 - **Performance 🔒:** never spawn 150+ actors at once — **stream them as waves**. You *feel* the whole town turning; the engine stays smooth.
 
-**The Wizard as a Devourer 🔒** — he starts **weak** (nerfed personal attacks); his power is **earned by eating the horde**:
+**The Wizard as a Devourer 🔒** — his fully-fed final form is named the **Monarch of Despair**. He starts **weak** (nerfed personal attacks); his power is **earned by eating the horde**:
 - Every **5% of the population he consumes = +1 power tier** (bigger size, more HP, more damage). ~20 tiers possible; uncapped in feel → a slow fight makes him a titan.
 - **It's a race with agency:** every transformed villager **you** kill is one he **can't** eat — so clearing the mob fast both saves you *and* **starves his growth**. Turtle → he balloons; rush → you deny fuel but leave the horde on your back.
 - **Fuel model 🔒:** he devours the *living* transformed over time — **your kills deny him fuel**, so killing fast keeps him weak (pure player agency). *(Alt considered and rejected: kills also feed him.)*
@@ -180,6 +180,18 @@ Only a maxed, perfect village opens the final floor. (The gate is *why* the harv
 **Foreshadowing 🟡** — plant seeds so it feels planned: suspiciously generous tribute/rewards, cryptic dungeon notes, a taunt that the Wizard *wants* you to grow.
 
 **Endgame — New Game+ 🔒** — on victory the player finds **time-reversal loot**. **The player and their loot are immune to the rewind** — the world resets but you keep yourself and all your gear. You replay, now able to choose the **Necromancer** (the hidden "???" class already in `skill_tree.gd`). Clean prestige loop; power carries over. *(Finer aftergame detail — e.g. a "true ending" that breaks the cycle — TBD later.)*
+
+### 8a. Signature item — Soul Split Wand 🔒 (a joke that turns clutch)
+
+A quest-reward novelty weapon that is *deliberately useless* almost everywhere, then becomes the answer to the one fight it was made for.
+
+- **Effect:** fires a bolt; whatever it hits **splits into 7 mini-clones** (~0.38× scale — "proportional to full size"), scattered with a spin, that **snap back together after 4 seconds.** Single-target on hit (not a crowd splash — avoids 7×N clones lagging the game).
+- **Visual method 🔒:** `duplicate()` the target's procedural node tree ×7, scale + scatter + spin, tween back, restore the original. Works uniformly because every enemy/boss is a plain `ColorRect`/`Polygon2D` tree (no baked textures/rigs). *(Not jigsaw shards — mini-clones read fine on blocky mobs and are far cheaper.)*
+- **Targets:** regular **enemies & mobs** — and, where cheap, *anything* splittable (props/loot for fun); no-op on things that can't. **Not** normal bosses.
+- **Damage rule 🔒:** while split, the target is **invulnerable — never damageable.** On every normal mob the wand is **purely visual**: they disco-split and reassemble unharmed. Useless on purpose.
+- **The sole exception — the Monarch of Despair (final boss):** its 7 fragments **are** damageable, so the split opens a **4-second burst window.** This is the *only* time the wand matters in combat — the "joke item" you hoarded becomes clutch when the boss is too big to handle head-on.
+- **Cost:** 20-second cooldown, ~15 mana (novelty-cheap).
+- **Status:** design locked; not yet built. Not in the current build order — slot it whenever (it's self-contained and touches only the weapon/`special` system + a split VFX helper).
 
 ---
 
