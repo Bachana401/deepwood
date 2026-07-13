@@ -20,34 +20,36 @@ const BUMP_THRESHOLD = 110.0
 const WALL_TURN_DURATION = 0.8
 
 # --- shared ability tuning ---
-const SLAM_RADIUS = 185.0
+# Ranges are deliberately long: boss arenas are 3-5x the regular width, so a
+# boss must be able to threaten across a big gap or it just gets kited.
+const SLAM_RADIUS = 220.0
 const SLAM_DAMAGE = 30
-const SLAM_KNOCKBACK = 240.0
+const SLAM_KNOCKBACK = 260.0
 const SLAM_TELEGRAPH = 0.55
 
-const CHARGE_SPEED = 560.0
-const CHARGE_DURATION = 0.5
+const CHARGE_SPEED = 720.0
+const CHARGE_DURATION = 0.85
 const CHARGE_DAMAGE = 26
-const CHARGE_KNOCKBACK = 280.0
+const CHARGE_KNOCKBACK = 300.0
 const CHARGE_TELEGRAPH = 0.45
-const CHARGE_HIT_RADIUS = 115.0
+const CHARGE_HIT_RADIUS = 135.0
 
-const BARRAGE_COUNT = 5
-const BARRAGE_SPREAD_DEG = 15.0
+const BARRAGE_COUNT = 7
+const BARRAGE_SPREAD_DEG = 13.0
 const BARRAGE_DAMAGE = 12
 const BARRAGE_TELEGRAPH = 0.35
-const BARRAGE_RANGE = 600.0
+const BARRAGE_RANGE = 1300.0
 
-const RAIN_COUNT = 9
+const RAIN_COUNT = 13
 const RAIN_DAMAGE = 12
 const RAIN_TELEGRAPH = 0.6
 const RAIN_HEIGHT = 470.0
-const RAIN_HALF_SPREAD = 270.0
+const RAIN_HALF_SPREAD = 480.0
 
-const NOVA_COUNT = 16
+const NOVA_COUNT = 22
 const NOVA_DAMAGE = 11
 const NOVA_TELEGRAPH = 0.42
-const NOVA_RANGE = 620.0
+const NOVA_RANGE = 1300.0
 
 const TELEPORT_TELEGRAPH = 0.32
 const TELEPORT_SHOCK_DAMAGE = 22
@@ -57,12 +59,13 @@ const SUMMON_COUNT = 2
 const MAX_MINIONS = 4
 const SUMMON_TELEGRAPH = 0.5
 
-const PILLAR_COUNT = 4
+const PILLAR_COUNT = 6
 const PILLAR_DAMAGE = 27
 const PILLAR_TELEGRAPH = 0.7
 const PILLAR_HALF_WIDTH = 46.0
 const PILLAR_KNOCKBACK = 130.0
 const PILLAR_HEIGHT = 320.0
+const PILLAR_SPREAD = 720.0
 
 # Per-ability metadata: cooldown after use, and the player-distance window in
 # which the ability is a valid choice. choose_attack() filters on these.
@@ -71,7 +74,7 @@ const ABILITY_META = {
 	"charge":   {"cd": 4.5, "min": 160.0, "max": 100000.0},
 	"barrage":  {"cd": 3.2, "min": 0.0,   "max": 100000.0},
 	"rain":     {"cd": 5.5, "min": 0.0,   "max": 100000.0},
-	"nova":     {"cd": 4.6, "min": 0.0,   "max": 360.0},
+	"nova":     {"cd": 4.6, "min": 0.0,   "max": 480.0},
 	"teleport": {"cd": 6.0, "min": 0.0,   "max": 100000.0},
 	"summon":   {"cd": 10.0, "min": 0.0,  "max": 100000.0},
 	"pillars":  {"cd": 6.5, "min": 0.0,   "max": 100000.0},
@@ -83,37 +86,37 @@ const BOSSES = {
 	"gravewarden": {
 		"name": "The Gravewarden",
 		"color": Color(0.30, 0.42, 0.28), "eye_color": Color(0.7, 1.0, 0.4),
-		"body": Vector2(172, 240), "hp": 900, "speed": 62.0,
+		"body": Vector2(172, 240), "hp": 900, "speed": 80.0,
 		"abilities": ["slam", "charge", "summon"],
 	},
 	"frost_monarch": {
 		"name": "The Frost Monarch",
 		"color": Color(0.40, 0.6, 0.85), "eye_color": Color(0.85, 0.97, 1.0),
-		"body": Vector2(142, 212), "hp": 820, "speed": 42.0,
+		"body": Vector2(142, 212), "hp": 820, "speed": 54.0,
 		"abilities": ["rain", "nova", "teleport"],
 	},
 	"cinder_colossus": {
 		"name": "The Cinder Colossus",
 		"color": Color(0.72, 0.25, 0.12), "eye_color": Color(1.0, 0.85, 0.2),
-		"body": Vector2(192, 252), "hp": 1050, "speed": 70.0,
+		"body": Vector2(192, 252), "hp": 1050, "speed": 90.0,
 		"abilities": ["charge", "barrage", "pillars"],
 	},
 	"weaver": {
 		"name": "The Weaver",
 		"color": Color(0.45, 0.25, 0.6), "eye_color": Color(1.0, 0.4, 0.9),
-		"body": Vector2(150, 202), "hp": 800, "speed": 56.0,
+		"body": Vector2(150, 202), "hp": 800, "speed": 72.0,
 		"abilities": ["summon", "nova", "teleport"],
 	},
 	"stormcaller": {
 		"name": "The Stormcaller",
 		"color": Color(0.85, 0.8, 0.35), "eye_color": Color(1.0, 1.0, 0.75),
-		"body": Vector2(150, 216), "hp": 920, "speed": 66.0,
+		"body": Vector2(150, 216), "hp": 920, "speed": 84.0,
 		"abilities": ["nova", "pillars", "barrage"],
 	},
 	"void_sovereign": {
 		"name": "The Void Sovereign",
 		"color": Color(0.2, 0.12, 0.3), "eye_color": Color(0.9, 0.2, 1.0),
-		"body": Vector2(178, 246), "hp": 1220, "speed": 60.0,
+		"body": Vector2(178, 246), "hp": 1220, "speed": 76.0,
 		"abilities": ["teleport", "rain", "nova", "summon"],
 	},
 }
@@ -437,7 +440,7 @@ func do_pillars() -> void:
 	var ground_y = player.global_position.y
 	var xs: Array = [player.global_position.x]
 	for i in range(PILLAR_COUNT - 1):
-		xs.append(player.global_position.x + randf_range(-420.0, 420.0))
+		xs.append(player.global_position.x + randf_range(-PILLAR_SPREAD, PILLAR_SPREAD))
 	for x in xs:
 		spawn_ground_marker(Vector2(x, ground_y), Color(1.0, 0.5, 0.1), PILLAR_TELEGRAPH, PILLAR_HALF_WIDTH * 2.0)
 	await get_tree().create_timer(PILLAR_TELEGRAPH).timeout

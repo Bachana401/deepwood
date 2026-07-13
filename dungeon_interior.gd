@@ -64,78 +64,42 @@ const BOSS_ARENAS = {
 	# Tomb of the Warden -- two big flanking ledges + a low central island;
 	# earthy green. Room to bait its slam/charge and dodge summoned adds.
 	"gravewarden": {
-		"platforms": [
-			{"x": 500.0, "y": -220.0, "w": 320.0},
-			{"x": 2100.0, "y": -220.0, "w": 320.0},
-			{"x": 1300.0, "y": -150.0, "w": 260.0},
-		],
+		"width": 7800.0,
 		"bg_top": Color(0.05, 0.08, 0.05, 1.0), "bg_bottom": Color(0.09, 0.15, 0.08, 1.0),
 		"accent": Color(0.6, 1.0, 0.45, 1.0),
 	},
 	# Frozen Cathedral -- many scattered high platforms; you must keep moving
 	# across them to dodge its icicle rain and frost novas. Cold blue.
 	"frost_monarch": {
-		"platforms": [
-			{"x": 360.0, "y": -160.0, "w": 150.0},
-			{"x": 720.0, "y": -260.0, "w": 130.0},
-			{"x": 1080.0, "y": -180.0, "w": 140.0},
-			{"x": 1300.0, "y": -330.0, "w": 180.0},
-			{"x": 1520.0, "y": -180.0, "w": 140.0},
-			{"x": 1880.0, "y": -260.0, "w": 130.0},
-			{"x": 2240.0, "y": -160.0, "w": 150.0},
-		],
+		"width": 10400.0,
 		"bg_top": Color(0.03, 0.06, 0.12, 1.0), "bg_bottom": Color(0.06, 0.12, 0.2, 1.0),
 		"accent": Color(0.6, 0.85, 1.0, 1.0),
 	},
 	# Molten Foundry -- narrow stepping stones over wide gaps; punishing for a
 	# charging, pillar-erupting bruiser. Fiery red/orange.
 	"cinder_colossus": {
-		"platforms": [
-			{"x": 420.0, "y": -150.0, "w": 120.0},
-			{"x": 760.0, "y": -150.0, "w": 120.0},
-			{"x": 1300.0, "y": -250.0, "w": 160.0},
-			{"x": 1840.0, "y": -150.0, "w": 120.0},
-			{"x": 2180.0, "y": -150.0, "w": 120.0},
-		],
+		"width": 7800.0,
 		"bg_top": Color(0.12, 0.02, 0.01, 1.0), "bg_bottom": Color(0.22, 0.05, 0.02, 1.0),
 		"accent": Color(1.0, 0.5, 0.15, 1.0),
 	},
 	# Silken Hollow -- stacked ledges on each side + a high central perch the
 	# summoner retreats to. Venomous purple.
 	"weaver": {
-		"platforms": [
-			{"x": 420.0, "y": -160.0, "w": 180.0},
-			{"x": 420.0, "y": -300.0, "w": 140.0},
-			{"x": 2180.0, "y": -160.0, "w": 180.0},
-			{"x": 2180.0, "y": -300.0, "w": 140.0},
-			{"x": 1300.0, "y": -360.0, "w": 220.0},
-		],
+		"width": 10400.0,
 		"bg_top": Color(0.08, 0.03, 0.12, 1.0), "bg_bottom": Color(0.14, 0.06, 0.2, 1.0),
 		"accent": Color(1.0, 0.4, 0.9, 1.0),
 	},
 	# Storm Spire -- a symmetric tiered arena; nowhere is safe from radial
 	# novas for long. Electric yellow.
 	"stormcaller": {
-		"platforms": [
-			{"x": 300.0, "y": -180.0, "w": 200.0},
-			{"x": 760.0, "y": -280.0, "w": 150.0},
-			{"x": 1300.0, "y": -200.0, "w": 240.0},
-			{"x": 1840.0, "y": -280.0, "w": 150.0},
-			{"x": 2300.0, "y": -180.0, "w": 200.0},
-		],
+		"width": 10400.0,
 		"bg_top": Color(0.1, 0.09, 0.02, 1.0), "bg_bottom": Color(0.18, 0.16, 0.05, 1.0),
 		"accent": Color(1.0, 1.0, 0.6, 1.0),
 	},
 	# The Void Throne -- sparse floating islands over the abyss; the hardest
 	# boss teleports between them. Near-black violet.
 	"void_sovereign": {
-		"platforms": [
-			{"x": 500.0, "y": -260.0, "w": 170.0},
-			{"x": 1000.0, "y": -180.0, "w": 150.0},
-			{"x": 1300.0, "y": -340.0, "w": 180.0},
-			{"x": 1600.0, "y": -180.0, "w": 150.0},
-			{"x": 2100.0, "y": -260.0, "w": 170.0},
-		],
+		"width": 13000.0,
 		"bg_top": Color(0.04, 0.02, 0.08, 1.0), "bg_bottom": Color(0.1, 0.04, 0.16, 1.0),
 		"accent": Color(0.8, 0.3, 1.0, 1.0),
 	},
@@ -188,6 +152,11 @@ var level_in_progress = false
 # set once the current level's combat is fully cleared -- this is what arms
 # the forward gate (advancing is a manual walk through it now, never automatic)
 var level_cleared = false
+# The playfield width of the CURRENT level. Regular levels use DUNGEON_WIDTH;
+# boss levels are much wider (see each arena's "width"), so the whole build
+# pipeline (ground, walls, torches, mines, gates, spawns) reads this instead
+# of the constant. Set at the top of build_level_visuals().
+var current_width := DUNGEON_WIDTH
 
 const GATE_SCRIPT = preload("res://dungeon_gate.gd")
 
@@ -230,7 +199,8 @@ func is_boss_level(level: int) -> bool:
 
 func get_layout(level: int) -> Array:
 	if is_boss_level(level):
-		return get_boss_arena(level).get("platforms", BOSS_LAYOUT)
+		var arena = get_boss_arena(level)
+		return generate_boss_platforms(get_boss_id(level), arena.get("width", DUNGEON_WIDTH))
 	return REGULAR_LAYOUTS[get_layout_slot(level)]
 
 # Boss levels are 5, 10, 15...; map them onto the roster in order and cycle.
@@ -243,6 +213,132 @@ func get_boss_id(level: int) -> String:
 func get_boss_arena(level: int) -> Dictionary:
 	return BOSS_ARENAS.get(get_boss_id(level), {})
 
+func get_level_width(level: int) -> float:
+	if is_boss_level(level):
+		return get_boss_arena(level).get("width", DUNGEON_WIDTH)
+	return DUNGEON_WIDTH
+
+# --- boss arena platform generators ---
+#
+# Each boss gets a hand-designed platform pattern that plays into its kit,
+# scaled across its (much larger) arena width. The ground is always continuous
+# so the fight is winnable on foot; the platforms are an advantage the player
+# earns with mobility (and mobility gear), never a requirement. Heights are
+# tiered in ~80px steps so lower rows are reachable without a double jump.
+
+func generate_boss_platforms(boss_id: String, w: float) -> Array:
+	match boss_id:
+		"gravewarden": return gen_gravewarden(w)
+		"frost_monarch": return gen_frost(w)
+		"cinder_colossus": return gen_cinder(w)
+		"weaver": return gen_weaver(w)
+		"stormcaller": return gen_stormcaller(w)
+		"void_sovereign": return gen_void(w)
+		_: return gen_gravewarden(w)
+
+# Gravewarden -- a melee bruiser (slam/charge/summon). Long open ground for its
+# charge lanes, broken by a steady run of low ledges you hop onto to escape the
+# slam radius and shoot down at it, plus one big central island to make a stand.
+func gen_gravewarden(w: float) -> Array:
+	var plats: Array = []
+	var i := 0
+	var x := 560.0
+	while x < w - 560.0:
+		if i % 2 == 0:
+			plats.append({"x": x, "y": -120.0, "w": 210.0})
+		else:
+			plats.append({"x": x, "y": -205.0, "w": 150.0})
+		x += 470.0
+		i += 1
+	plats.append({"x": w / 2.0, "y": -175.0, "w": 380.0})
+	return plats
+
+# Frost Monarch -- a ranged caster (icicle rain/nova/teleport). A dense field of
+# scattered platforms at many heights: you must keep hopping to stay out of nova
+# range and off the marked rain columns, with height to close on the caster.
+func gen_frost(w: float) -> Array:
+	var plats: Array = []
+	var ys := [-140.0, -230.0, -320.0, -235.0, -300.0, -175.0]
+	var i := 0
+	var x := 480.0
+	while x < w - 480.0:
+		plats.append({"x": x, "y": ys[i % ys.size()], "w": 130.0})
+		x += 430.0
+		i += 1
+	return plats
+
+# Cinder Colossus -- charge/fan/pillars. Narrow stepping stones over wide gaps:
+# great for the player to break its charges on, but every few steps a bigger
+# island tempts you to stand still right where its pillars erupt.
+func gen_cinder(w: float) -> Array:
+	var plats: Array = []
+	var i := 0
+	var x := 600.0
+	while x < w - 600.0:
+		if i % 5 == 2:
+			plats.append({"x": x, "y": -255.0, "w": 190.0})
+		elif i % 2 == 0:
+			plats.append({"x": x, "y": -140.0, "w": 115.0})
+		else:
+			plats.append({"x": x, "y": -230.0, "w": 115.0})
+		x += 545.0
+		i += 1
+	return plats
+
+# Weaver -- a summoner (summon/nova/teleport) that wants a high perch. A tall
+# central platform it retreats to, symmetric climbing ledges so you CAN chase it
+# up, side stacks by both doors, and low stepping stones so the wide floor where
+# its adds funnel is still crossable.
+func gen_weaver(w: float) -> Array:
+	var plats: Array = []
+	var c := w / 2.0
+	plats.append({"x": c, "y": -375.0, "w": 240.0})
+	for pair in [[520.0, -290.0, 150.0], [1040.0, -210.0, 160.0], [1560.0, -125.0, 180.0]]:
+		plats.append({"x": c - pair[0], "y": pair[1], "w": pair[2]})
+		plats.append({"x": c + pair[0], "y": pair[1], "w": pair[2]})
+	for sx in [660.0, w - 660.0]:
+		plats.append({"x": sx, "y": -160.0, "w": 200.0})
+		plats.append({"x": sx, "y": -300.0, "w": 150.0})
+	var x := 900.0
+	while x < w - 900.0:
+		if absf(x - c) > 320.0:
+			plats.append({"x": x, "y": -120.0, "w": 150.0})
+		x += 720.0
+	return plats
+
+# Stormcaller -- radial novas/pillars/fan. A symmetric tiered arena mirrored
+# about the center: pockets of safety exist between the rings, but there is no
+# lasting cover from a 360 burst, so you are always rotating outward.
+func gen_stormcaller(w: float) -> Array:
+	var plats: Array = []
+	var c := w / 2.0
+	plats.append({"x": c, "y": -200.0, "w": 260.0})
+	for r in [[720.0, -285.0, 160.0], [1440.0, -175.0, 200.0], [2160.0, -300.0, 160.0], [2880.0, -190.0, 200.0], [3600.0, -140.0, 180.0]]:
+		if c - r[0] > 320.0:
+			plats.append({"x": c - r[0], "y": r[1], "w": r[2]})
+			plats.append({"x": c + r[0], "y": r[1], "w": r[2]})
+	var x := 700.0
+	while x < w - 700.0:
+		if absf(x - c) > 400.0:
+			plats.append({"x": x, "y": -120.0, "w": 140.0})
+		x += 760.0
+	return plats
+
+# Void Sovereign -- the hardest, a teleporter (teleport/rain/nova/summon). Sparse
+# islands strung far apart over the abyss at wildly varying heights; it blinks
+# between them freely while you make long, committed jumps to follow.
+func gen_void(w: float) -> Array:
+	var plats: Array = []
+	var ys := [-170.0, -320.0, -250.0, -365.0, -220.0, -300.0]
+	var i := 0
+	var x := 620.0
+	while x < w - 620.0:
+		plats.append({"x": x, "y": ys[i % ys.size()], "w": 150.0})
+		x += 760.0
+		i += 1
+	plats.append({"x": w / 2.0, "y": -360.0, "w": 200.0})
+	return plats
+
 # --- level (re)building ---
 
 func build_level_visuals(level: int) -> void:
@@ -250,6 +346,7 @@ func build_level_visuals(level: int) -> void:
 		child.queue_free()
 	var boss = is_boss_level(level)
 	var arena = get_boss_arena(level) if boss else {}
+	current_width = get_level_width(level)
 	build_background(boss, arena)
 	build_ground_and_walls()
 	var layout = get_layout(level)
@@ -268,7 +365,7 @@ func build_gates() -> void:
 	var forward_gate = GATE_SCRIPT.new()
 	forward_gate.direction = "forward"
 	forward_gate.manager = self
-	forward_gate.position = Vector2(DUNGEON_WIDTH - 46.0, GROUND_Y)
+	forward_gate.position = Vector2(current_width - 46.0, GROUND_Y)
 	$LevelContainer.add_child(forward_gate)
 
 # Both gates funnel through here. Back: level 1 leaves the dungeon, deeper
@@ -303,13 +400,13 @@ func build_background(boss: bool, arena: Dictionary = {}) -> void:
 	sky_top.color = top_color
 	sky_top.z_index = -100
 	sky_top.position = Vector2(-150, -900)
-	sky_top.size = Vector2(DUNGEON_WIDTH + 300, 500)
+	sky_top.size = Vector2(current_width + 300, 500)
 	$LevelContainer.add_child(sky_top)
 	var sky_bottom = ColorRect.new()
 	sky_bottom.color = bottom_color
 	sky_bottom.z_index = -100
 	sky_bottom.position = Vector2(-150, -400)
-	sky_bottom.size = Vector2(DUNGEON_WIDTH + 300, 400)
+	sky_bottom.size = Vector2(current_width + 300, 400)
 	$LevelContainer.add_child(sky_bottom)
 	build_wall_layer(-90.0, 240.0, 5, WALL_COLOR_FAR, -95)
 	build_wall_layer(-55.0, 170.0, 6, WALL_COLOR_NEAR, -90)
@@ -329,15 +426,15 @@ func build_wall_layer(y_offset: float, height: float, peak_count: int, color: Co
 	points.append(Vector2(0, y_offset))
 	for i in range(1, segments):
 		var t = float(i) / float(segments)
-		var x = t * DUNGEON_WIDTH
+		var x = t * current_width
 		var influence = 0.0
 		for p in range(peak_count):
 			var dist = absf(t - peak_positions[p])
 			influence = max(influence, max(0.0, 1.0 - dist * 3.2) * peak_heights[p])
 		var jitter = 1.0 + randf_range(-0.08, 0.08)
 		points.append(Vector2(x, y_offset + height * (0.3 + 0.7 * influence) * jitter))
-	points.append(Vector2(DUNGEON_WIDTH, y_offset))
-	points.append(Vector2(DUNGEON_WIDTH, CEILING_Y - 40.0))
+	points.append(Vector2(current_width, y_offset))
+	points.append(Vector2(current_width, CEILING_Y - 40.0))
 	points.append(Vector2(0, CEILING_Y - 40.0))
 	var wall = Polygon2D.new()
 	wall.polygon = points
@@ -347,26 +444,26 @@ func build_wall_layer(y_offset: float, height: float, peak_count: int, color: Co
 
 func build_ground_and_walls() -> void:
 	var ground = StaticBody2D.new()
-	ground.position = Vector2(DUNGEON_WIDTH / 2.0, GROUND_Y + 40.0)
+	ground.position = Vector2(current_width / 2.0, GROUND_Y + 40.0)
 	var gshape = CollisionShape2D.new()
 	var grect = RectangleShape2D.new()
-	grect.size = Vector2(DUNGEON_WIDTH + 200.0, 80.0)
+	grect.size = Vector2(current_width + 200.0, 80.0)
 	gshape.shape = grect
 	ground.add_child(gshape)
 	var ground_visual = ColorRect.new()
-	ground_visual.size = Vector2(DUNGEON_WIDTH + 200.0, 80.0)
-	ground_visual.position = Vector2(-(DUNGEON_WIDTH + 200.0) / 2.0, -40.0)
+	ground_visual.size = Vector2(current_width + 200.0, 80.0)
+	ground_visual.position = Vector2(-(current_width + 200.0) / 2.0, -40.0)
 	ground_visual.color = Color(0.2, 0.17, 0.15, 1.0)
 	ground.add_child(ground_visual)
 	var ground_top_edge = ColorRect.new()
-	ground_top_edge.size = Vector2(DUNGEON_WIDTH + 200.0, 6.0)
-	ground_top_edge.position = Vector2(-(DUNGEON_WIDTH + 200.0) / 2.0, -40.0)
+	ground_top_edge.size = Vector2(current_width + 200.0, 6.0)
+	ground_top_edge.position = Vector2(-(current_width + 200.0) / 2.0, -40.0)
 	ground_top_edge.color = Color(0.26, 0.22, 0.19, 1.0)
 	ground.add_child(ground_top_edge)
 	$LevelContainer.add_child(ground)
 
 	build_wall(-40.0)
-	build_wall(DUNGEON_WIDTH + 40.0)
+	build_wall(current_width + 40.0)
 
 func build_wall(x: float) -> void:
 	var wall = StaticBody2D.new()
@@ -406,9 +503,9 @@ func build_platforms(layout: Array) -> void:
 		$LevelContainer.add_child(body)
 
 func build_stalactites(boss: bool) -> void:
-	var count = 14 if boss else 10
+	var count = int((14 if boss else 10) * (current_width / DUNGEON_WIDTH))
 	for i in range(count):
-		var x = randf_range(40.0, DUNGEON_WIDTH - 40.0)
+		var x = randf_range(40.0, current_width - 40.0)
 		var h = randf_range(30.0, 75.0)
 		var w = randf_range(10.0, 22.0)
 		var stalactite = Polygon2D.new()
@@ -424,10 +521,10 @@ func make_additive_material() -> CanvasItemMaterial:
 
 func build_torches(boss: bool, arena: Dictionary = {}) -> void:
 	var accent = arena.get("accent", TORCH_COLOR) if boss else TORCH_COLOR
-	var count = int(DUNGEON_WIDTH / TORCH_SPACING)
+	var count = int(current_width / TORCH_SPACING)
 	for i in range(count):
 		var x = 180.0 + i * TORCH_SPACING + randf_range(-40.0, 40.0)
-		build_torch(Vector2(clamp(x, 60.0, DUNGEON_WIDTH - 60.0), GROUND_Y), accent)
+		build_torch(Vector2(clamp(x, 60.0, current_width - 60.0), GROUND_Y), accent)
 
 func build_torch(pos: Vector2, color: Color = TORCH_COLOR) -> void:
 	var torch = Node2D.new()
@@ -464,11 +561,12 @@ func build_torch(pos: Vector2, color: Color = TORCH_COLOR) -> void:
 	flicker.tween_property(flame, "scale", Vector2.ONE, randf_range(0.15, 0.25))
 
 func place_mines(boss: bool, layout: Array) -> void:
-	var ground_count = randi_range(BOSS_MIN_MINES, BOSS_MAX_MINES) if boss else randi_range(MIN_MINES, MAX_MINES)
+	var base_count = randi_range(BOSS_MIN_MINES, BOSS_MAX_MINES) if boss else randi_range(MIN_MINES, MAX_MINES)
+	var ground_count = int(base_count * (current_width / DUNGEON_WIDTH))
 	for i in range(ground_count):
-		var x = randf_range(60.0, DUNGEON_WIDTH - 60.0)
+		var x = randf_range(60.0, current_width - 60.0)
 		# keep both doorway areas mine-free so entering/leaving is never a trap
-		if absf(x - ENTRY_X) < MINE_SAFE_ZONE or absf(x - (DUNGEON_WIDTH - 46.0)) < 150.0:
+		if absf(x - ENTRY_X) < MINE_SAFE_ZONE or absf(x - (current_width - 46.0)) < 150.0:
 			continue
 		place_mine(Vector2(x, GROUND_Y))
 	for plat in layout:
@@ -484,7 +582,7 @@ func place_mine(pos: Vector2) -> void:
 func place_player_at_entry(enter_from_right: bool) -> void:
 	var player = get_tree().get_first_node_in_group("player")
 	if player:
-		var x = (DUNGEON_WIDTH - ENTRY_X) if enter_from_right else ENTRY_X
+		var x = (current_width - ENTRY_X) if enter_from_right else ENTRY_X
 		player.global_position = Vector2(x, GROUND_Y - 100.0)
 		player.velocity = Vector2.ZERO
 
@@ -549,7 +647,7 @@ func spawn_enemy() -> void:
 	enemy.wave_speed_multiplier = scaling.speed
 	# re-skin into this 5-level block's roster (levels 1-5 -> block 0, etc.)
 	enemy.apply_block_archetype(int((current_level - 1) / 5))
-	enemy.position = Vector2(randf_range(600.0, DUNGEON_WIDTH - 200.0), GROUND_Y - 60.0)
+	enemy.position = Vector2(randf_range(600.0, current_width - 200.0), GROUND_Y - 60.0)
 	enemy.add_to_group("dungeon_combatant")
 	$LevelContainer.add_child(enemy)
 	enemy.died.connect(_on_combatant_died)
@@ -562,8 +660,18 @@ func spawn_boss() -> Node:
 	boss.level_hp_mult = scaling.hp
 	boss.damage_multiplier = scaling.dmg
 	boss.speed_multiplier = scaling.speed
-	# spawn well above the floor so larger boss bodies settle onto the ground
-	boss.position = Vector2(DUNGEON_WIDTH - 400.0, GROUND_Y - 140.0)
+	# Spawn a fixed distance from wherever the player entered, biased toward the
+	# arena interior. In these very wide arenas spawning at the far edge would
+	# leave a melee boss trudging across for a minute; this starts the fight
+	# quickly and lets it roam across the big space from there. Spawn well above
+	# the floor so the larger boss bodies settle onto the ground.
+	var px := ENTRY_X
+	var p := get_tree().get_first_node_in_group("player")
+	if p:
+		px = p.global_position.x
+	var toward_center := 1.0 if px < current_width / 2.0 else -1.0
+	var boss_x: float = clamp(px + toward_center * 1500.0, 400.0, current_width - 400.0)
+	boss.position = Vector2(boss_x, GROUND_Y - 140.0)
 	boss.add_to_group("dungeon_combatant")
 	$LevelContainer.add_child(boss)
 	boss.died.connect(_on_combatant_died)
