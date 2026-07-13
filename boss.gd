@@ -114,6 +114,17 @@ const DOOMRING_WAVES = 2
 const DOOMRING_RANGE = 900.0
 const DOOMRING_DAMAGE = 13
 
+# Mirror Legion: the Wizard copies himself, up to 6 echoes at once. Echoes are
+# deliberately weak fakes -- a sliver of HP, reduced damage, only volleys and
+# curses, slower cooldowns, and NO aura/reflex-blink (the real one is the one
+# wreathed in crumbling red).
+const MAX_CLONES = 6
+const CLONES_PER_CAST = 2
+const CLONE_HP_FRAC = 0.12
+const CLONE_DMG_FRAC = 0.35
+const CLONE_CD_PENALTY = 1.5
+const CLONE_KIT = ["volley", "curse"]
+
 # --- weapon counter (set per boss level by dungeon_interior.gd) ---
 # Only the first 8 boss levels (5-40) are countered; deeper bosses set
 # counter_role = "" and take every weapon at face value. When a counter IS
@@ -147,6 +158,7 @@ const ABILITY_META = {
 	"beam":     {"cd": 7.0, "min": 0.0,   "max": 100000.0},
 	"curse":    {"cd": 5.5, "min": 0.0,   "max": 100000.0},
 	"doomring": {"cd": 6.0, "min": 0.0,   "max": 100000.0},
+	"clone":    {"cd": 12.0, "min": 0.0,  "max": 100000.0},
 }
 
 # The roster. Ids here must line up with BOSS_ARENAS / get_boss_id in
@@ -241,18 +253,19 @@ const BOSSES = {
 		"apex": true,
 		"abilities": ["beam", "pillars", "meteors", "teleport", "summon"],
 	},
-	# The level-100 finale: deliberately MAN-SIZED -- his power is his magic,
-	# not his bulk. Pitch-black robes wreathed in a crumbling red pixel aura
-	# that burns anyone inside it; he blinks reflexively when struck, and his
-	# kit spans every school plus the doomring. Nothing counters him.
+	# The level-100 finale: barely taller than the adventurer -- his power is
+	# his magic, not his bulk. Pitch-black robes wreathed in a crumbling red
+	# aura (with a lagging purple echo) that burns anyone inside it; he blinks
+	# reflexively when struck, and he mirrors himself into a legion of up to 6
+	# echoes. Nothing counters him.
 	"wizard": {
 		"name": "The Fallen Wizard",
 		"color": Color(0.09, 0.05, 0.07), "eye_color": Color(1.0, 0.12, 0.08),
 		"magic": Color(1.0, 0.22, 0.12),
-		"body": Vector2(130, 225), "hp": 4000, "speed": 120.0, "shape": "wizard",
+		"body": Vector2(34, 52), "hp": 4000, "speed": 120.0, "shape": "wizard",
 		"flying": true, "apex": true,
 		"passives": ["crumbling_aura", "blink_on_hit"],
-		"abilities": ["curse", "beam", "meteors", "teleport", "volley", "doomring"],
+		"abilities": ["curse", "beam", "meteors", "teleport", "volley", "doomring", "clone"],
 	},
 }
 
@@ -317,6 +330,14 @@ var aura_timer := 0.0
 var aura_anchor: Node2D = null
 var aura_orbit: Node2D = null
 var aura_spin := 0.9
+# the purple echo: a second layer with double the lag and ~0.7x the pixels
+var aura_anchor2: Node2D = null
+var aura_orbit2: Node2D = null
+var aura_particles2: CPUParticles2D = null
+# Mirror Legion state
+var is_clone := false        # set by the real wizard before spawning an echo
+var clones: Array = []
+var health_bar_w := 160.0
 var hover_time := 0.0
 var is_diving := false
 var dive_phase := 0
@@ -342,6 +363,16 @@ func configure_from_def(def: Dictionary) -> void:
 	max_health = int(round(float(def.get("hp", 900)) * level_hp_mult))
 	health = max_health
 
+	# echoes are weak fakes: sliver HP, restricted kit, no passives, and a
+	# faint translucence -- the real one is the one wreathed in red
+	if is_clone:
+		abilities = CLONE_KIT.duplicate()
+		max_health = max(1, int(round(max_health * CLONE_HP_FRAC)))
+		health = max_health
+		has_aura = false
+		has_blink_on_hit = false
+		modulate = Color(1.0, 0.85, 1.0, 0.75)
+
 	# stagger initial cooldowns so the boss doesn't dump every ability at once
 	for a in abilities:
 		ability_cd[a] = randf_range(0.5, 1.7)
@@ -364,10 +395,13 @@ func configure_from_def(def: Dictionary) -> void:
 	$EyeRight.visible = false
 	build_rig(def.get("shape", ""), body, eye_color)
 
+	# health bar width follows the body so small bosses don't wear giant bars
+	var bar_half := clampf(body.x / 2.0 + 30.0, 40.0, 80.0)
+	health_bar_w = bar_half * 2.0
 	var bar_y := -body.y / 2.0 - 34.0
 	for bar in [$HealthBarBG, $HealthBarFill]:
-		bar.offset_left = -80.0
-		bar.offset_right = 80.0
+		bar.offset_left = -bar_half
+		bar.offset_right = bar_half
 		bar.offset_top = bar_y
 		bar.offset_bottom = bar_y + 12.0
 
@@ -412,6 +446,39 @@ func build_aura() -> void:
 		var r = randf_range(62.0, 95.0)
 		_ember_block(Vector2(cos(ang), sin(ang)) * r, randf_range(2.5, 4.5), false, aura_orbit)
 
+	# --- the purple echo: a second shadow of the aura, ~0.7x the pixels,
+	# trailing with DOUBLE the delay, tones violet -> lighter -> near-black ---
+	aura_anchor2 = Node2D.new()
+	aura_anchor2.top_level = true
+	aura_anchor2.z_index = 2   # behind the red layer
+	add_child(aura_anchor2)
+	aura_anchor2.global_position = global_position
+
+	aura_particles2 = CPUParticles2D.new()
+	aura_particles2.amount = 32          # ~0.7x the red layer's 46
+	aura_particles2.lifetime = 1.1
+	aura_particles2.preprocess = 1.0
+	aura_particles2.emission_shape = CPUParticles2D.EMISSION_SHAPE_SPHERE
+	aura_particles2.emission_sphere_radius = AURA_RADIUS * 0.75
+	aura_particles2.gravity = Vector2(0, 90)
+	aura_particles2.initial_velocity_min = 8.0
+	aura_particles2.initial_velocity_max = 30.0
+	aura_particles2.scale_amount_min = 3.0
+	aura_particles2.scale_amount_max = 7.0
+	var ramp2 := Gradient.new()
+	ramp2.offsets = PackedFloat32Array([0.0, 0.45, 1.0])
+	ramp2.colors = PackedColorArray([Color(0.28, 0.05, 0.4, 0.85), Color(0.72, 0.3, 0.95, 0.9), Color(0.02, 0.0, 0.04, 0.0)])
+	aura_particles2.color_ramp = ramp2
+	aura_anchor2.add_child(aura_particles2)
+	aura_particles2.emitting = true
+
+	aura_orbit2 = Node2D.new()
+	aura_anchor2.add_child(aura_orbit2)
+	for i in range(7):                   # ~0.7x the red ring's 10 blocks
+		var ang2 = i * TAU / 7.0 + randf_range(-0.2, 0.2)
+		var r2 = randf_range(62.0, 95.0)
+		_ember_block(Vector2(cos(ang2), sin(ang2)) * r2, randf_range(2.5, 4.5), false, aura_orbit2, EMBER_TONES_PURPLE)
+
 # Passive effects that run regardless of what the boss is doing.
 func process_passives(delta: float) -> void:
 	if is_dead or not has_aura:
@@ -422,6 +489,12 @@ func process_passives(delta: float) -> void:
 		aura_anchor.global_position = aura_anchor.global_position.lerp(global_position, chase)
 		if aura_orbit != null and is_instance_valid(aura_orbit):
 			aura_orbit.rotation += delta * aura_spin
+	# the purple echo trails with double the delay, counter-rotating
+	if aura_anchor2 != null and is_instance_valid(aura_anchor2):
+		var chase2 = 1.0 - exp(-3.5 * delta)
+		aura_anchor2.global_position = aura_anchor2.global_position.lerp(global_position, chase2)
+		if aura_orbit2 != null and is_instance_valid(aura_orbit2):
+			aura_orbit2.rotation -= delta * aura_spin * 0.8
 	aura_timer -= delta
 	if aura_timer <= 0.0:
 		aura_timer = AURA_TICK
@@ -450,6 +523,8 @@ const BONE_COL := Color(0.8, 0.77, 0.68)
 # The Fallen Wizard's ember palette: his face and aura pixels wander through
 # these tones -- deep red, flaring bright, guttering to near-black.
 const EMBER_TONES = [Color(0.32, 0.02, 0.02), Color(0.65, 0.08, 0.04), Color(1.0, 0.25, 0.1), Color(0.1, 0.01, 0.01)]
+# The purple echo layer's tones: dark violet, lighter, sometimes near-black.
+const EMBER_TONES_PURPLE = [Color(0.2, 0.03, 0.28), Color(0.5, 0.12, 0.62), Color(0.8, 0.35, 1.0), Color(0.05, 0.0, 0.08)]
 
 func build_rig(shape: String, body: Vector2, eye: Color) -> void:
 	if rig != null and is_instance_valid(rig):
@@ -656,24 +731,27 @@ func rig_eclipse(hw: float, hh: float, eye: Color) -> void:
 	for sx in [-0.1, 0.1]:
 		_rc(Vector2(hw * sx, head_y), 5.0, eye, 6)
 
-# The Fallen Wizard -- an undead archmage; power, not bulk.
+# The Fallen Wizard -- an undead archmage barely taller than the adventurer;
+# power, not bulk. All geometry is proportional so it reads at small size.
 func rig_wizard(hw: float, hh: float, eye: Color) -> void:
 	var robe := base_color
 	_rp(PackedVector2Array([Vector2(-hw * 0.9, hh), Vector2(-hw * 0.5, hh * 0.8), Vector2(-hw * 0.1, hh), Vector2(hw * 0.35, hh * 0.82), Vector2(hw * 0.8, hh), Vector2(hw * 0.7, -hh * 0.35), Vector2(-hw * 0.7, -hh * 0.35)]), robe, 1)
-	_rl(PackedVector2Array([Vector2(-hw * 0.55, hh * 0.05), Vector2(hw * 0.55, hh * 0.05)]), 3.0, Color(0.45, 0.38, 0.2), 2)
-	_rp(PackedVector2Array([Vector2(-hw * 0.5, -hh * 0.3), Vector2(hw * 0.5, -hh * 0.3), Vector2(hw * 0.35, -hh * 0.72), Vector2(-hw * 0.35, -hh * 0.72)]), robe.darkened(0.25), 2)
+	_rl(PackedVector2Array([Vector2(-hw * 0.55, hh * 0.05), Vector2(hw * 0.55, hh * 0.05)]), 2.0, Color(0.45, 0.38, 0.2), 2)
+	_rp(PackedVector2Array([Vector2(-hw * 0.55, -hh * 0.28), Vector2(hw * 0.55, -hh * 0.28), Vector2(hw * 0.4, -hh * 0.72), Vector2(-hw * 0.4, -hh * 0.72)]), robe.darkened(0.25), 2)
 	# no face at all -- a hollow of shifting red ember-pixels under the hood
-	_wizard_void_face(Vector2(0, -hh * 0.52), hw * 0.3)
-	_rp(PackedVector2Array([Vector2(-hw * 0.85, -hh * 0.66), Vector2(hw * 0.85, -hh * 0.7), Vector2(hw * 0.25, -hh * 0.82)]), robe.darkened(0.35), 3)
-	_rp(PackedVector2Array([Vector2(-hw * 0.4, -hh * 0.74), Vector2(hw * 0.42, -hh * 0.78), Vector2(hw * 0.05, -hh - 52.0)]), robe.darkened(0.35), 3)
+	_wizard_void_face(Vector2(0, -hh * 0.5), hw * 0.5)
+	# crooked hat
+	_rp(PackedVector2Array([Vector2(-hw * 0.95, -hh * 0.62), Vector2(hw * 0.95, -hh * 0.68), Vector2(hw * 0.25, -hh * 0.82)]), robe.darkened(0.35), 3)
+	_rp(PackedVector2Array([Vector2(-hw * 0.45, -hh * 0.72), Vector2(hw * 0.48, -hh * 0.76), Vector2(hw * 0.06, -hh * 1.9)]), robe.darkened(0.35), 3)
 	# blood-red hat band and torn red hem
-	_rl(PackedVector2Array([Vector2(-hw * 0.8, -hh * 0.67), Vector2(hw * 0.8, -hh * 0.71)]), 4.0, magic_color, 4)
+	_rl(PackedVector2Array([Vector2(-hw * 0.8, -hh * 0.64), Vector2(hw * 0.8, -hh * 0.7)]), 2.5, magic_color, 4)
 	for hx in [-0.6, -0.15, 0.3, 0.65]:
-		_rp(PackedVector2Array([Vector2(hw * hx - 6.0, hh * 0.92), Vector2(hw * hx + 6.0, hh * 0.92), Vector2(hw * hx, hh + 16.0)]), magic_color.darkened(0.25), 2)
-	_rl(PackedVector2Array([Vector2(hw + 14.0, hh * 0.6), Vector2(hw + 20.0, -hh * 0.9)]), 3.5, Color(0.28, 0.2, 0.12), 1)
-	_rc(Vector2(hw + 21.0, -hh * 0.98), 9.0, magic_color, 2)
+		_rp(PackedVector2Array([Vector2(hw * hx - hw * 0.12, hh * 0.92), Vector2(hw * hx + hw * 0.12, hh * 0.92), Vector2(hw * hx, hh * 1.3)]), magic_color.darkened(0.25), 2)
+	# levitating staff with a burning witchlight
+	_rl(PackedVector2Array([Vector2(hw * 1.5, hh * 0.6), Vector2(hw * 1.7, -hh * 0.9)]), 2.5, Color(0.28, 0.2, 0.12), 1)
+	_rc(Vector2(hw * 1.72, -hh * 1.0), hw * 0.35, magic_color, 2)
 	# clawed shadow of a hand -- nothing human left
-	_rc(Vector2(-hw * 0.55, hh * 0.02), 5.0, Color(0.12, 0.03, 0.03), 2)
+	_rc(Vector2(-hw * 0.55, hh * 0.02), hw * 0.2, Color(0.12, 0.03, 0.03), 2)
 
 # The Fallen Wizard's face: a black hollow with two burning eye-blocks. All
 # other embers live on the trailing aura ring so nothing is stuck to the face.
@@ -682,18 +760,18 @@ func _wizard_void_face(center: Vector2, r: float) -> void:
 	for sx in [-0.45, 0.45]:
 		_ember_block(center + Vector2(r * sx, -r * 0.15), r * 0.3, true, rig)
 
-# A flickering ember pixel: cycles through red tones (dark -> flare -> gutter
-# to near-black) on its own rhythm.
-func _ember_block(pos: Vector2, half: float, bright: bool, parent: Node2D) -> void:
+# A flickering ember pixel: cycles through its palette's tones (dark -> flare
+# -> gutter to near-black) on its own rhythm.
+func _ember_block(pos: Vector2, half: float, bright: bool, parent: Node2D, palette: Array = EMBER_TONES) -> void:
 	var b := Polygon2D.new()
 	b.polygon = PackedVector2Array([Vector2(-half, -half), Vector2(half, -half), Vector2(half, half), Vector2(-half, half)])
 	b.position = pos
-	b.color = Color(0.5, 0.05, 0.03)
+	b.color = palette[0]
 	b.z_index = 4
 	parent.add_child(b)
 	var t := b.create_tween()
 	t.set_loops()
-	var tones := EMBER_TONES.duplicate()
+	var tones := palette.duplicate()
 	tones.shuffle()
 	for tone in tones:
 		var c: Color = tone
@@ -827,6 +905,7 @@ func start_attack(attack_name: String) -> void:
 		"beam": do_beam()
 		"curse": do_curse()
 		"doomring": do_doomring()
+		"clone": do_clone()
 		_:
 			is_busy = false
 
@@ -841,6 +920,8 @@ func cooldown_mult() -> float:
 		m = 0.5 if is_apex else 0.6
 	if hex_timer > 0.0:
 		m *= HEX_CD_PENALTY   # mage-counter: hexed bosses attack slower
+	if is_clone:
+		m *= CLONE_CD_PENALTY # echoes cast noticeably slower than the original
 	return m
 
 # Maps the player's currently-held weapon to one of the three counter roles.
@@ -1237,6 +1318,34 @@ func do_doomring() -> void:
 	set_cd("doomring")
 	is_busy = false
 
+# Mirror Legion (the Wizard): split into weak echoes of himself, up to 6 at
+# once. Echoes look like him but are translucent, lack the red aura, and only
+# volley/curse -- kill them or find and burn the real one.
+func do_clone() -> void:
+	flash_telegraph(magic_color)
+	await get_tree().create_timer(0.45).timeout
+	if is_dead:
+		set_cd("clone")
+		is_busy = false
+		return
+	clones = clones.filter(func(c): return is_instance_valid(c) and not (("is_dead" in c) and c.is_dead))
+	var room = MAX_CLONES - clones.size()
+	for i in range(min(CLONES_PER_CAST, room)):
+		var c = load("res://boss.tscn").instantiate()
+		c.boss_id = "wizard"
+		c.is_clone = true
+		c.level_hp_mult = level_hp_mult
+		c.damage_multiplier = damage_multiplier * CLONE_DMG_FRAC
+		c.speed_multiplier = speed_multiplier
+		c.position = global_position + Vector2(randf_range(-420.0, 420.0), randf_range(-140.0, 0.0))
+		c.add_to_group("dungeon_combatant")
+		get_parent().add_child(c)
+		clones.append(c)
+		minions.append(c)   # swept away when the real wizard dies
+		spawn_shockwave(70.0, magic_color)
+	set_cd("clone")
+	is_busy = false
+
 # --- ability helpers ---
 
 func spawn_arrow(pos: Vector2, dir: Vector2, dmg: int, rng: float) -> void:
@@ -1391,7 +1500,11 @@ func frenzy() -> void:
 		aura_particles.amount = 84
 		aura_particles.emission_sphere_radius = AURA_RADIUS * 0.95
 		aura_particles.scale_amount_max = 8.0
-	aura_spin = 1.9   # the ember ring whirls in frenzy
+	if aura_particles2 != null and is_instance_valid(aura_particles2):
+		aura_particles2.amount = 59   # keeps its ~0.7x ratio in frenzy
+		aura_particles2.emission_sphere_radius = AURA_RADIUS * 0.95
+		aura_particles2.scale_amount_max = 8.0
+	aura_spin = 1.9   # the ember rings whirl in frenzy
 
 func apply_knockback(_direction_sign: int, _distance: float) -> void:
 	pass
@@ -1409,10 +1522,11 @@ func play_sfx(stream: AudioStream) -> void:
 
 func update_health_bar() -> void:
 	var percent = clamp(float(health) / max_health, 0.0, 1.0)
-	$HealthBarFill.size.x = 160 * percent
+	$HealthBarFill.size.x = health_bar_w * percent
 
 func die() -> void:
-	GameState.add_xp(int(round(60 * damage_multiplier)))
+	# echoes are worth a token amount, not a boss bounty
+	GameState.add_xp(15 if is_clone else int(round(60 * damage_multiplier)))
 	is_dead = true
 	is_busy = true
 	$CollisionShape2D.set_deferred("disabled", true)
