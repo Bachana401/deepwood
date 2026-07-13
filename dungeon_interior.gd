@@ -153,8 +153,6 @@ const ENEMY_SCENE = preload("res://enemy.tscn")
 const BOSS_SCENE = preload("res://boss.tscn")
 const SPECIAL_MOB_SCRIPT = preload("res://special_mob.gd")
 const WEAPON_TYPES = ["sword", "spear", "bow"]
-const BASE_ENEMY_COUNT = 2
-const MAX_ENEMY_COUNT = 8
 const HP_SCALE_PER_LEVEL = 0.15
 const DMG_SCALE_PER_LEVEL = 0.10
 const SPEED_SCALE_PER_LEVEL = 0.075
@@ -839,41 +837,84 @@ func spawn_level_combat() -> void:
 			intro += "  (weak to %s)" % counter
 		show_notification(intro)
 	else:
-		var count = min(BASE_ENEMY_COUNT + current_level - 1, MAX_ENEMY_COUNT)
-		for i in range(count):
-			spawn_enemy()
-		spawn_normal_extras()
+		spawn_level_mobs()
 		show_notification("Level " + str(current_level))
 	update_level_label()
 
-# Non-boss levels get the humanoid grunts (spawn_enemy) PLUS a spread of the
-# special monsters from special_mob.gd: a few slow flyers everywhere, and -- a
-# little way into the dungeon -- assorted ground specials (bomber/charger/
-# spitter). All are distributed across the level width and count toward clear.
-func spawn_normal_extras() -> void:
-	var flyer_count = clampi(1 + int(current_level / 7), 1, 3)
-	for i in range(flyer_count):
-		var fx = (float(i) + 0.5) / float(flyer_count) * current_width + randf_range(-160.0, 160.0)
-		var fy = GROUND_Y - randf_range(180.0, 320.0)
-		spawn_special_mob("flyer", Vector2(clampf(fx, 300.0, current_width - 300.0), fy))
-	if current_level < 3:
+# --- normal-level mob composition ---
+#
+# Each 5-level block is a crescendo. The variety of mob TYPES ramps with the
+# position inside the block (pos 1 -> 2-3 distinct types ... pos 4 -> 5-6),
+# and the share of "OP" mobs (teleporters, mages, chargers, bombers) rises
+# from ~45% just after a boss to ~75% right before the next one -- averaging
+# the intended 60/40 OP-to-annoying split. The very first block is capped
+# gentler (~35% OP) while the player learns. Grunts, flyers and spitters make
+# up the annoying-but-not-weak 40%.
+const OP_KINDS_BASE = ["bomber", "charger"]
+const OP_KINDS_MID = ["stalker", "hexer"]                        # from level 5
+const OP_KINDS_LATE = ["blink_archer", "runecaster", "warlock"]  # from level 8
+const ANNOYING_KINDS = ["grunt", "flyer", "spitter"]
+const ELITE_CHANCE = 0.125
+const FIRST_BLOCK_OP_CAP = 0.35
+
+func block_position(level: int) -> int:
+	return (level - 1) % 5 + 1     # 1..4 = normal levels, 5 = boss
+
+func op_pool_for_level(level: int) -> Array:
+	var pool = OP_KINDS_BASE.duplicate()
+	if level >= 5:
+		pool.append_array(OP_KINDS_MID)
+	if level >= 8:
+		pool.append_array(OP_KINDS_LATE)
+	return pool
+
+func op_fraction(level: int) -> float:
+	var p = block_position(level)
+	var frac = lerpf(0.45, 0.75, float(p - 1) / 3.0)
+	if level <= 4:
+		frac = minf(frac, FIRST_BLOCK_OP_CAP)
+	return frac
+
+func spawn_level_mobs() -> void:
+	var p = block_position(current_level)
+	var type_target = randi_range(p + 1, p + 2)   # pos 1 -> 2-3 ... pos 4 -> 5-6
+	var op_frac = op_fraction(current_level)
+	var op_pool = op_pool_for_level(current_level)
+	# split the type menu between the classes, always at least one of each
+	var op_types_n = clampi(int(round(type_target * op_frac)), 1, op_pool.size())
+	var annoy_types_n = clampi(type_target - op_types_n, 1, ANNOYING_KINDS.size())
+	var op_types = pick_random_subset(op_pool, op_types_n)
+	var annoy_types = pick_random_subset(ANNOYING_KINDS, annoy_types_n)
+	# total headcount also swells toward the block's end and with depth
+	var total = clampi(4 + p + int(current_level / 12), 5, 13)
+	for i in range(total):
+		if randf() < op_frac:
+			spawn_kind(op_types[randi() % op_types.size()])
+		else:
+			spawn_kind(annoy_types[randi() % annoy_types.size()])
+
+func pick_random_subset(pool: Array, n: int) -> Array:
+	var copy = pool.duplicate()
+	copy.shuffle()
+	return copy.slice(0, n)
+
+func spawn_kind(kind: String) -> void:
+	if kind == "grunt":
+		spawn_enemy()
 		return
-	# the special-mob pool widens -- and the nastier teleporters/mages appear --
-	# the deeper the player goes; count ramps up too.
-	var pool = ["bomber", "charger", "spitter"]
-	if current_level >= 5:
-		pool.append_array(["stalker", "hexer"])
-	if current_level >= 8:
-		pool.append_array(["blink_archer", "runecaster", "warlock"])
-	var special_count = clampi(1 + int((current_level - 2) / 4), 1, 4)
-	for i in range(special_count):
-		var k = pool[randi() % pool.size()]
-		var sx = randf_range(700.0, current_width - 300.0)
-		spawn_special_mob(k, Vector2(sx, GROUND_Y - 60.0))
+	var pos: Vector2
+	if kind == "flyer":
+		pos = Vector2(randf_range(300.0, current_width - 300.0), GROUND_Y - randf_range(180.0, 320.0))
+	else:
+		pos = Vector2(randf_range(700.0, current_width - 300.0), GROUND_Y - 60.0)
+	spawn_special_mob(kind, pos)
 
 func spawn_special_mob(kind: String, pos: Vector2) -> void:
 	var mob = SPECIAL_MOB_SCRIPT.new()
 	mob.kind = kind
+	# roughly 1-in-8 OP mobs spawns as an ELITE: bigger, tougher, double reward
+	if not (kind in ANNOYING_KINDS) and randf() < ELITE_CHANCE:
+		mob.elite = true
 	var scaling = get_level_scaling()
 	mob.wave_hp_multiplier = scaling.hp
 	mob.wave_damage_multiplier = scaling.dmg

@@ -79,6 +79,7 @@ const KINDS = {
 
 # injected before _ready
 var kind := "flyer"
+var elite := false            # bigger, tougher, glowing, double reward
 var wave_hp_multiplier := 1.0
 var wave_damage_multiplier := 1.0
 var wave_speed_multiplier := 1.0
@@ -178,11 +179,20 @@ func _ready() -> void:
 	reward = data["reward"]
 	xp_reward = data["xp"]
 	move_speed = data["speed"] * wave_speed_multiplier
+	if elite:
+		max_health = int(round(max_health * 1.6))
+		health = max_health
+		attack_damage = int(round(attack_damage * 1.25))
+		reward *= 2
+		xp_reward *= 2
+		scale = Vector2(1.35, 1.35)
 	hover_offset = Vector2(randf_range(-70.0, 70.0), -randf_range(150.0, 240.0))
 	player = get_tree().get_first_node_in_group("player")
 	build_collision()
 	build_visual()
 	build_health_bar()
+	if elite:
+		build_elite_glow()
 
 func build_collision() -> void:
 	var shape = CollisionShape2D.new()
@@ -793,6 +803,21 @@ func build_warlock_visual() -> void:
 
 func _robe(color: Color) -> void:
 	add_part(poly(PackedVector2Array([Vector2(-14, 0), Vector2(14, 0), Vector2(10, -30), Vector2(-10, -30)])), color)
+
+# A pulsing additive halo that marks an elite at a glance.
+func build_elite_glow() -> void:
+	var glow = poly(circle_points(26.0, 20))
+	glow.color = Color(accent_color.r, accent_color.g, accent_color.b, 0.22)
+	var mat = CanvasItemMaterial.new()
+	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	glow.material = mat
+	glow.position = Vector2(0, -18)
+	glow.z_index = -2
+	add_child(glow)
+	var t = glow.create_tween()
+	t.set_loops()
+	t.tween_property(glow, "scale", Vector2(1.2, 1.2), 0.5)
+	t.tween_property(glow, "scale", Vector2(0.9, 0.9), 0.5)
 
 func build_health_bar() -> void:
 	var bg = ColorRect.new()
