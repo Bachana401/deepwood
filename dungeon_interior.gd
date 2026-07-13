@@ -56,7 +56,7 @@ const BOSS_LAYOUT = [
 # index 1, and so on, cycling once the roster is exhausted (deeper levels reuse
 # a design but hit much harder via level scaling). Ids MUST match boss.gd's
 # BOSSES and the BOSS_ARENAS keys below.
-const BOSS_ROSTER = ["gravewarden", "frost_monarch", "cinder_colossus", "weaver", "stormcaller", "void_sovereign"]
+const BOSS_ROSTER = ["gravewarden", "frost_monarch", "cinder_colossus", "weaver", "stormcaller", "void_sovereign", "seraph", "leviathan", "eclipse"]
 
 # One bespoke arena per boss: its own platform layout, background gradient, and
 # torch/accent color, so each boss fight looks and plays differently.
@@ -64,44 +64,69 @@ const BOSS_ARENAS = {
 	# Tomb of the Warden -- two big flanking ledges + a low central island;
 	# earthy green. Room to bait its slam/charge and dodge summoned adds.
 	"gravewarden": {
-		"width": 7800.0,
+		"width": 7800.0, "height": -780.0,
 		"bg_top": Color(0.05, 0.08, 0.05, 1.0), "bg_bottom": Color(0.09, 0.15, 0.08, 1.0),
 		"accent": Color(0.6, 1.0, 0.45, 1.0),
 	},
 	# Frozen Cathedral -- many scattered high platforms; you must keep moving
 	# across them to dodge its icicle rain and frost novas. Cold blue.
 	"frost_monarch": {
-		"width": 10400.0,
+		"width": 10400.0, "height": -900.0,
 		"bg_top": Color(0.03, 0.06, 0.12, 1.0), "bg_bottom": Color(0.06, 0.12, 0.2, 1.0),
 		"accent": Color(0.6, 0.85, 1.0, 1.0),
 	},
 	# Molten Foundry -- narrow stepping stones over wide gaps; punishing for a
 	# charging, pillar-erupting bruiser. Fiery red/orange.
 	"cinder_colossus": {
-		"width": 7800.0,
+		"width": 7800.0, "height": -820.0,
 		"bg_top": Color(0.12, 0.02, 0.01, 1.0), "bg_bottom": Color(0.22, 0.05, 0.02, 1.0),
 		"accent": Color(1.0, 0.5, 0.15, 1.0),
 	},
 	# Silken Hollow -- stacked ledges on each side + a high central perch the
 	# summoner retreats to. Venomous purple.
 	"weaver": {
-		"width": 10400.0,
+		"width": 10400.0, "height": -940.0,
 		"bg_top": Color(0.08, 0.03, 0.12, 1.0), "bg_bottom": Color(0.14, 0.06, 0.2, 1.0),
 		"accent": Color(1.0, 0.4, 0.9, 1.0),
 	},
 	# Storm Spire -- a symmetric tiered arena; nowhere is safe from radial
 	# novas for long. Electric yellow.
 	"stormcaller": {
-		"width": 10400.0,
+		"width": 10400.0, "height": -900.0,
 		"bg_top": Color(0.1, 0.09, 0.02, 1.0), "bg_bottom": Color(0.18, 0.16, 0.05, 1.0),
 		"accent": Color(1.0, 1.0, 0.6, 1.0),
 	},
 	# The Void Throne -- sparse floating islands over the abyss; the hardest
 	# boss teleports between them. Near-black violet.
 	"void_sovereign": {
-		"width": 13000.0,
+		"width": 13000.0, "height": -1000.0,
 		"bg_top": Color(0.04, 0.02, 0.08, 1.0), "bg_bottom": Color(0.1, 0.04, 0.16, 1.0),
 		"accent": Color(0.8, 0.3, 1.0, 1.0),
+	},
+	# ----- APEX TIER (levels 35 / 40 / 45) -----
+	# Endgame monsters designed for a player with flight / grapple relics.
+	# The tallest, widest arenas in the game, and the bosses fly or fill them.
+	# Shattered Sanctum -- a ruined sky-cathedral for the flying Seraph:
+	# columned stacks to climb and high floating isles to fight around.
+	"seraph": {
+		"width": 10400.0, "height": -1200.0,
+		"bg_top": Color(0.14, 0.12, 0.06, 1.0), "bg_bottom": Color(0.22, 0.18, 0.1, 1.0),
+		"accent": Color(1.0, 0.95, 0.6, 1.0),
+	},
+	# Drowned Abyss -- a vast flooded cavern for the sky-serpent: three thin
+	# altitude bands of perches over nothing; its vortex drags you off them.
+	"leviathan": {
+		"width": 13000.0, "height": -1100.0,
+		"bg_top": Color(0.01, 0.06, 0.08, 1.0), "bg_bottom": Color(0.03, 0.12, 0.14, 1.0),
+		"accent": Color(0.3, 0.95, 0.85, 1.0),
+	},
+	# Black Sun Crater -- a colossal impact bowl for the Eclipse Titan: platform
+	# rows rise in tiers toward both rims; its arena-wide eclipse beam forces
+	# constant altitude changes. Ash black and dying red.
+	"eclipse": {
+		"width": 13000.0, "height": -1300.0,
+		"bg_top": Color(0.05, 0.01, 0.02, 1.0), "bg_bottom": Color(0.12, 0.03, 0.04, 1.0),
+		"accent": Color(1.0, 0.25, 0.15, 1.0),
 	},
 }
 
@@ -152,11 +177,13 @@ var level_in_progress = false
 # set once the current level's combat is fully cleared -- this is what arms
 # the forward gate (advancing is a manual walk through it now, never automatic)
 var level_cleared = false
-# The playfield width of the CURRENT level. Regular levels use DUNGEON_WIDTH;
-# boss levels are much wider (see each arena's "width"), so the whole build
-# pipeline (ground, walls, torches, mines, gates, spawns) reads this instead
-# of the constant. Set at the top of build_level_visuals().
+# The playfield width/ceiling of the CURRENT level. Regular levels use
+# DUNGEON_WIDTH / CEILING_Y; boss levels are much wider AND taller (see each
+# arena's "width"/"height"), so the whole build pipeline (ground, walls,
+# torches, mines, gates, spawns) reads these instead of the constants. Both
+# are set at the top of build_level_visuals().
 var current_width := DUNGEON_WIDTH
+var current_ceiling := CEILING_Y
 
 const GATE_SCRIPT = preload("res://dungeon_gate.gd")
 
@@ -200,7 +227,7 @@ func is_boss_level(level: int) -> bool:
 func get_layout(level: int) -> Array:
 	if is_boss_level(level):
 		var arena = get_boss_arena(level)
-		return generate_boss_platforms(get_boss_id(level), arena.get("width", DUNGEON_WIDTH))
+		return generate_boss_platforms(get_boss_id(level), arena.get("width", DUNGEON_WIDTH), arena.get("height", CEILING_Y))
 	return REGULAR_LAYOUTS[get_layout_slot(level)]
 
 # Boss levels are 5, 10, 15...; map them onto the roster in order and cycle.
@@ -218,28 +245,53 @@ func get_level_width(level: int) -> float:
 		return get_boss_arena(level).get("width", DUNGEON_WIDTH)
 	return DUNGEON_WIDTH
 
+func get_level_ceiling(level: int) -> float:
+	if is_boss_level(level):
+		return get_boss_arena(level).get("height", CEILING_Y)
+	return CEILING_Y
+
 # --- boss arena platform generators ---
 #
 # Each boss gets a hand-designed platform pattern that plays into its kit,
-# scaled across its (much larger) arena width. The ground is always continuous
-# so the fight is winnable on foot; the platforms are an advantage the player
-# earns with mobility (and mobility gear), never a requirement. Heights are
-# tiered in ~80px steps so lower rows are reachable without a double jump.
+# scaled across its (much larger) arena width AND height. The ground is always
+# continuous so the fight is winnable on foot; the platforms are an advantage
+# the player earns with mobility (and mobility gear), never a requirement.
+# Low rows are tiered in ~80px steps so they're reachable without a double
+# jump; the upper tiers (add_sky_tier and the apex arenas) assume late-game
+# flight/grapple relics and give airborne players terrain to fight around.
 
-func generate_boss_platforms(boss_id: String, w: float) -> Array:
+func generate_boss_platforms(boss_id: String, w: float, h: float) -> Array:
 	match boss_id:
-		"gravewarden": return gen_gravewarden(w)
-		"frost_monarch": return gen_frost(w)
-		"cinder_colossus": return gen_cinder(w)
-		"weaver": return gen_weaver(w)
-		"stormcaller": return gen_stormcaller(w)
-		"void_sovereign": return gen_void(w)
-		_: return gen_gravewarden(w)
+		"gravewarden": return gen_gravewarden(w, h)
+		"frost_monarch": return gen_frost(w, h)
+		"cinder_colossus": return gen_cinder(w, h)
+		"weaver": return gen_weaver(w, h)
+		"stormcaller": return gen_stormcaller(w, h)
+		"void_sovereign": return gen_void(w, h)
+		"seraph": return gen_seraph(w, h)
+		"leviathan": return gen_leviathan(w, h)
+		"eclipse": return gen_eclipse(w, h)
+		_: return gen_gravewarden(w, h)
+
+# A sparse band of high platforms between mid-air and the arena ceiling --
+# stitched onto every boss arena so the vertical space is usable terrain, not
+# empty air. Staggered heights, wide gaps: flight/grapple territory.
+func add_sky_tier(plats: Array, w: float, h: float, spacing: float = 900.0) -> Array:
+	var top = h + 160.0            # just under the ceiling
+	var mid = h * 0.55             # roughly halfway up the arena
+	var i := 0
+	var x := 700.0
+	while x < w - 700.0:
+		var y = mid if i % 2 == 0 else top
+		plats.append({"x": x, "y": y, "w": 170.0})
+		x += spacing
+		i += 1
+	return plats
 
 # Gravewarden -- a melee bruiser (slam/charge/summon). Long open ground for its
 # charge lanes, broken by a steady run of low ledges you hop onto to escape the
 # slam radius and shoot down at it, plus one big central island to make a stand.
-func gen_gravewarden(w: float) -> Array:
+func gen_gravewarden(w: float, h: float) -> Array:
 	var plats: Array = []
 	var i := 0
 	var x := 560.0
@@ -251,12 +303,17 @@ func gen_gravewarden(w: float) -> Array:
 		x += 470.0
 		i += 1
 	plats.append({"x": w / 2.0, "y": -175.0, "w": 380.0})
-	return plats
+	# a third climbing row so the taller tomb isn't empty above the ledges
+	x = 800.0
+	while x < w - 800.0:
+		plats.append({"x": x, "y": -330.0, "w": 140.0})
+		x += 940.0
+	return add_sky_tier(plats, w, h)
 
 # Frost Monarch -- a ranged caster (icicle rain/nova/teleport). A dense field of
 # scattered platforms at many heights: you must keep hopping to stay out of nova
 # range and off the marked rain columns, with height to close on the caster.
-func gen_frost(w: float) -> Array:
+func gen_frost(w: float, h: float) -> Array:
 	var plats: Array = []
 	var ys := [-140.0, -230.0, -320.0, -235.0, -300.0, -175.0]
 	var i := 0
@@ -265,12 +322,20 @@ func gen_frost(w: float) -> Array:
 		plats.append({"x": x, "y": ys[i % ys.size()], "w": 130.0})
 		x += 430.0
 		i += 1
-	return plats
+	# a second scattered field higher up -- the cathedral's broken galleries
+	var ys_hi := [-430.0, -520.0, -470.0, -560.0]
+	i = 0
+	x = 650.0
+	while x < w - 650.0:
+		plats.append({"x": x, "y": ys_hi[i % ys_hi.size()], "w": 120.0})
+		x += 640.0
+		i += 1
+	return add_sky_tier(plats, w, h, 1050.0)
 
 # Cinder Colossus -- charge/fan/pillars. Narrow stepping stones over wide gaps:
 # great for the player to break its charges on, but every few steps a bigger
 # island tempts you to stand still right where its pillars erupt.
-func gen_cinder(w: float) -> Array:
+func gen_cinder(w: float, h: float) -> Array:
 	var plats: Array = []
 	var i := 0
 	var x := 600.0
@@ -283,13 +348,18 @@ func gen_cinder(w: float) -> Array:
 			plats.append({"x": x, "y": -230.0, "w": 115.0})
 		x += 545.0
 		i += 1
-	return plats
+	# foundry gantries: a high sparse walkway row above the stepping stones
+	x = 950.0
+	while x < w - 950.0:
+		plats.append({"x": x, "y": -400.0, "w": 210.0})
+		x += 1150.0
+	return add_sky_tier(plats, w, h)
 
 # Weaver -- a summoner (summon/nova/teleport) that wants a high perch. A tall
 # central platform it retreats to, symmetric climbing ledges so you CAN chase it
 # up, side stacks by both doors, and low stepping stones so the wide floor where
 # its adds funnel is still crossable.
-func gen_weaver(w: float) -> Array:
+func gen_weaver(w: float, h: float) -> Array:
 	var plats: Array = []
 	var c := w / 2.0
 	plats.append({"x": c, "y": -375.0, "w": 240.0})
@@ -304,12 +374,16 @@ func gen_weaver(w: float) -> Array:
 		if absf(x - c) > 320.0:
 			plats.append({"x": x, "y": -120.0, "w": 150.0})
 		x += 720.0
-	return plats
+	# the web above: a second perch layer strung over the central one
+	plats.append({"x": c, "y": -560.0, "w": 190.0})
+	plats.append({"x": c - 800.0, "y": -480.0, "w": 150.0})
+	plats.append({"x": c + 800.0, "y": -480.0, "w": 150.0})
+	return add_sky_tier(plats, w, h, 1000.0)
 
 # Stormcaller -- radial novas/pillars/fan. A symmetric tiered arena mirrored
 # about the center: pockets of safety exist between the rings, but there is no
 # lasting cover from a 360 burst, so you are always rotating outward.
-func gen_stormcaller(w: float) -> Array:
+func gen_stormcaller(w: float, h: float) -> Array:
 	var plats: Array = []
 	var c := w / 2.0
 	plats.append({"x": c, "y": -200.0, "w": 260.0})
@@ -322,12 +396,17 @@ func gen_stormcaller(w: float) -> Array:
 		if absf(x - c) > 400.0:
 			plats.append({"x": x, "y": -120.0, "w": 140.0})
 		x += 760.0
-	return plats
+	# high mirrored storm-rings continuing the pattern upward
+	for r in [[1080.0, -430.0, 150.0], [2520.0, -470.0, 150.0]]:
+		if c - r[0] > 320.0:
+			plats.append({"x": c - r[0], "y": r[1], "w": r[2]})
+			plats.append({"x": c + r[0], "y": r[1], "w": r[2]})
+	return add_sky_tier(plats, w, h)
 
 # Void Sovereign -- the hardest, a teleporter (teleport/rain/nova/summon). Sparse
 # islands strung far apart over the abyss at wildly varying heights; it blinks
 # between them freely while you make long, committed jumps to follow.
-func gen_void(w: float) -> Array:
+func gen_void(w: float, h: float) -> Array:
 	var plats: Array = []
 	var ys := [-170.0, -320.0, -250.0, -365.0, -220.0, -300.0]
 	var i := 0
@@ -337,6 +416,86 @@ func gen_void(w: float) -> Array:
 		x += 760.0
 		i += 1
 	plats.append({"x": w / 2.0, "y": -360.0, "w": 200.0})
+	# drifting shards higher in the void, offset from the lower islands
+	var ys_hi := [-520.0, -610.0, -560.0]
+	i = 0
+	x = 1000.0
+	while x < w - 1000.0:
+		plats.append({"x": x, "y": ys_hi[i % ys_hi.size()], "w": 130.0})
+		x += 980.0
+		i += 1
+	return add_sky_tier(plats, w, h, 1100.0)
+
+# ----- apex arena generators -----
+
+# Seraph -- Shattered Sanctum. A flying boss that dives and rains light: the
+# arena is a ruined cathedral of columned stacks (three-step towers you can
+# climb even without relics) with floating isles between their tops, giving an
+# airborne player cover rings at every altitude.
+func gen_seraph(w: float, h: float) -> Array:
+	var plats: Array = []
+	var x := 700.0
+	var i := 0
+	while x < w - 700.0:
+		# column: a climbable three-step tower
+		plats.append({"x": x, "y": -150.0, "w": 190.0})
+		plats.append({"x": x + 60.0, "y": -300.0, "w": 150.0})
+		plats.append({"x": x - 60.0, "y": -450.0, "w": 150.0})
+		# isles drifting between the column tops, alternating heights
+		if i % 2 == 0:
+			plats.append({"x": x + 560.0, "y": -620.0, "w": 130.0})
+		else:
+			plats.append({"x": x + 560.0, "y": -760.0, "w": 130.0})
+		x += 1120.0
+		i += 1
+	# the broken nave roof: a thin ridge just under the ceiling
+	plats.append({"x": w / 2.0, "y": h + 200.0, "w": 300.0})
+	plats.append({"x": w / 2.0 - 1400.0, "y": h + 260.0, "w": 170.0})
+	plats.append({"x": w / 2.0 + 1400.0, "y": h + 260.0, "w": 170.0})
+	return plats
+
+# Leviathan -- Drowned Abyss. A sky-serpent that sweeps and pulls: three thin
+# altitude bands of small perches with big empty water between them. Its
+# vortex drags you off a perch; the bands mean there's always another one
+# below to catch yourself on -- if you're quick.
+func gen_leviathan(w: float, h: float) -> Array:
+	var plats: Array = []
+	var bands := [-170.0, -480.0, -790.0]
+	for b in range(bands.size()):
+		var x := 600.0 + b * 380.0   # stagger each band so falls are diagonal
+		while x < w - 600.0:
+			plats.append({"x": x, "y": bands[b], "w": 140.0})
+			x += 1150.0
+	# a lone high refuge at the center, just under the serpent's cruising line
+	plats.append({"x": w / 2.0, "y": h + 220.0, "w": 220.0})
+	return plats
+
+# Eclipse Titan -- Black Sun Crater. A colossus whose arena-wide beam forces
+# altitude changes: platform rows rise in tiers from the low center toward
+# both rims, so wherever the beam locks on there is a row above and below to
+# move to. The rims themselves are high ledges for ranged play.
+func gen_eclipse(w: float, h: float) -> Array:
+	var plats: Array = []
+	var c := w / 2.0
+	# tiered crater rows, mirrored: farther from center = higher
+	var tiers := [[600.0, -150.0], [1400.0, -270.0], [2200.0, -390.0], [3000.0, -510.0], [3800.0, -630.0], [4600.0, -750.0]]
+	for t in tiers:
+		if c - t[0] > 400.0:
+			plats.append({"x": c - t[0], "y": t[1], "w": 200.0})
+			plats.append({"x": c + t[0], "y": t[1], "w": 200.0})
+	# the crater floor's central slab -- bait for its pillars
+	plats.append({"x": c, "y": -140.0, "w": 300.0})
+	# rim overlooks near both walls, high above the fight
+	plats.append({"x": 800.0, "y": h + 280.0, "w": 240.0})
+	plats.append({"x": w - 800.0, "y": h + 280.0, "w": 240.0})
+	# scattered ash shards floating over the bowl for airborne cover
+	var x := 1600.0
+	var i := 0
+	while x < w - 1600.0:
+		if absf(x - c) > 500.0:
+			plats.append({"x": x, "y": (-880.0 if i % 2 == 0 else -1000.0), "w": 140.0})
+		x += 1250.0
+		i += 1
 	return plats
 
 # --- level (re)building ---
@@ -347,6 +506,7 @@ func build_level_visuals(level: int) -> void:
 	var boss = is_boss_level(level)
 	var arena = get_boss_arena(level) if boss else {}
 	current_width = get_level_width(level)
+	current_ceiling = get_level_ceiling(level)
 	build_background(boss, arena)
 	build_ground_and_walls()
 	var layout = get_layout(level)
@@ -396,11 +556,14 @@ func go_to_level(level: int, enter_from_right: bool) -> void:
 func build_background(boss: bool, arena: Dictionary = {}) -> void:
 	var top_color = arena.get("bg_top", BOSS_BG_TOP_COLOR) if boss else BG_TOP_COLOR
 	var bottom_color = arena.get("bg_bottom", BOSS_BG_BOTTOM_COLOR) if boss else BG_BOTTOM_COLOR
+	# the upper gradient band stretches from well above the ceiling down to
+	# -400 where the lower band takes over, whatever the arena's height
+	var sky_top_y = current_ceiling - 500.0
 	var sky_top = ColorRect.new()
 	sky_top.color = top_color
 	sky_top.z_index = -100
-	sky_top.position = Vector2(-150, -900)
-	sky_top.size = Vector2(current_width + 300, 500)
+	sky_top.position = Vector2(-150, sky_top_y)
+	sky_top.size = Vector2(current_width + 300, -400.0 - sky_top_y)
 	$LevelContainer.add_child(sky_top)
 	var sky_bottom = ColorRect.new()
 	sky_bottom.color = bottom_color
@@ -434,8 +597,8 @@ func build_wall_layer(y_offset: float, height: float, peak_count: int, color: Co
 		var jitter = 1.0 + randf_range(-0.08, 0.08)
 		points.append(Vector2(x, y_offset + height * (0.3 + 0.7 * influence) * jitter))
 	points.append(Vector2(current_width, y_offset))
-	points.append(Vector2(current_width, CEILING_Y - 40.0))
-	points.append(Vector2(0, CEILING_Y - 40.0))
+	points.append(Vector2(current_width, current_ceiling - 40.0))
+	points.append(Vector2(0, current_ceiling - 40.0))
 	var wall = Polygon2D.new()
 	wall.polygon = points
 	wall.color = color
@@ -466,16 +629,20 @@ func build_ground_and_walls() -> void:
 	build_wall(current_width + 40.0)
 
 func build_wall(x: float) -> void:
+	# side walls always run from below the floor up past the arena's ceiling,
+	# so a flying player can never slip around the edge of a tall boss arena
+	var wall_h = (GROUND_Y + 60.0) - (current_ceiling - 120.0)
+	var center_y = (GROUND_Y + 60.0 + current_ceiling - 120.0) / 2.0
 	var wall = StaticBody2D.new()
-	wall.position = Vector2(x, GROUND_Y - 200.0)
+	wall.position = Vector2(x, center_y)
 	var shape = CollisionShape2D.new()
 	var rect = RectangleShape2D.new()
-	rect.size = Vector2(20.0, 500.0)
+	rect.size = Vector2(20.0, wall_h)
 	shape.shape = rect
 	wall.add_child(shape)
 	var visual = ColorRect.new()
-	visual.size = Vector2(20.0, 500.0)
-	visual.position = Vector2(-10.0, -250.0)
+	visual.size = Vector2(20.0, wall_h)
+	visual.position = Vector2(-10.0, -wall_h / 2.0)
 	visual.color = Color(0.13, 0.1, 0.12, 1.0)
 	wall.add_child(visual)
 	$LevelContainer.add_child(wall)
@@ -511,7 +678,7 @@ func build_stalactites(boss: bool) -> void:
 		var stalactite = Polygon2D.new()
 		stalactite.polygon = PackedVector2Array([Vector2(-w / 2.0, 0), Vector2(w / 2.0, 0), Vector2(0, h)])
 		stalactite.color = STALACTITE_COLOR.darkened(randf_range(0.0, 0.15))
-		stalactite.position = Vector2(x, CEILING_Y)
+		stalactite.position = Vector2(x, current_ceiling)
 		$LevelContainer.add_child(stalactite)
 
 func make_additive_material() -> CanvasItemMaterial:

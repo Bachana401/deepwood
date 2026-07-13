@@ -67,6 +67,38 @@ const PILLAR_KNOCKBACK = 130.0
 const PILLAR_HEIGHT = 320.0
 const PILLAR_SPREAD = 720.0
 
+# --- apex ability tuning (the level 35+ monsters) ---
+const HOVER_ALTITUDE = 270.0        # how high a flying boss cruises above the player
+
+const DIVE_DAMAGE = 34
+const DIVE_RADIUS = 160.0
+const DIVE_KNOCKBACK = 260.0
+const DIVE_RISE_SPEED = 460.0
+const DIVE_PLUNGE_SPEED = 980.0
+
+const VOLLEY_COUNT = 6
+const VOLLEY_DAMAGE = 10
+const VOLLEY_INTERVAL = 0.16
+const VOLLEY_RANGE = 1500.0
+
+const METEOR_COUNT = 10
+const METEOR_DAMAGE = 20
+const METEOR_TELEGRAPH = 0.8
+const METEOR_SPREAD = 850.0
+const METEOR_HEIGHT = 800.0
+
+const VORTEX_DURATION = 1.6
+const VORTEX_TICK = 0.12
+const VORTEX_PULL = 34.0
+const VORTEX_RANGE = 900.0
+const VORTEX_DAMAGE = 16
+const VORTEX_CLOSE = 150.0
+
+const BEAM_TELEGRAPH = 0.9
+const BEAM_HALF_HEIGHT = 55.0
+const BEAM_DAMAGE = 38
+const BEAM_KNOCKBACK = 200.0
+
 # Per-ability metadata: cooldown after use, and the player-distance window in
 # which the ability is a valid choice. choose_attack() filters on these.
 const ABILITY_META = {
@@ -78,6 +110,12 @@ const ABILITY_META = {
 	"teleport": {"cd": 6.0, "min": 0.0,   "max": 100000.0},
 	"summon":   {"cd": 10.0, "min": 0.0,  "max": 100000.0},
 	"pillars":  {"cd": 6.5, "min": 0.0,   "max": 100000.0},
+	# apex abilities
+	"dive":     {"cd": 5.0, "min": 0.0,   "max": 100000.0},
+	"volley":   {"cd": 3.6, "min": 0.0,   "max": 100000.0},
+	"meteors":  {"cd": 6.5, "min": 0.0,   "max": 100000.0},
+	"vortex":   {"cd": 8.0, "min": 0.0,   "max": 100000.0},
+	"beam":     {"cd": 7.0, "min": 0.0,   "max": 100000.0},
 }
 
 # The roster. Ids here must line up with BOSS_ARENAS / get_boss_id in
@@ -119,6 +157,31 @@ const BOSSES = {
 		"body": Vector2(178, 246), "hp": 1220, "speed": 76.0,
 		"abilities": ["teleport", "rain", "nova", "summon"],
 	},
+	# ----- APEX TIER (levels 35/40/45) -----
+	# Built to be nearly unbeatable without endgame gear: apex bosses enrage
+	# earlier, FRENZY at low health (cooldowns nearly vanish), and two of the
+	# three fly. Their HP dwarfs the standard roster on top of level scaling.
+	"seraph": {
+		"name": "Seraphiel, the Last Light",
+		"color": Color(0.92, 0.88, 0.68), "eye_color": Color(1.0, 0.55, 0.1),
+		"body": Vector2(150, 240), "hp": 2400, "speed": 130.0,
+		"flying": true, "apex": true,
+		"abilities": ["dive", "volley", "rain", "nova"],
+	},
+	"leviathan": {
+		"name": "The Abyssal Leviathan",
+		"color": Color(0.1, 0.35, 0.4), "eye_color": Color(0.4, 1.0, 0.9),
+		"body": Vector2(300, 150), "hp": 2800, "speed": 150.0,
+		"flying": true, "apex": true,
+		"abilities": ["charge", "vortex", "meteors", "summon"],
+	},
+	"eclipse": {
+		"name": "The Eclipse Titan",
+		"color": Color(0.1, 0.06, 0.08), "eye_color": Color(1.0, 0.2, 0.1),
+		"body": Vector2(250, 330), "hp": 3300, "speed": 95.0,
+		"apex": true,
+		"abilities": ["beam", "pillars", "meteors", "teleport", "summon"],
+	},
 }
 
 const ARROW_SCENE = preload("res://arrow.tscn")
@@ -150,10 +213,21 @@ var base_color: Color
 var is_busy := false
 var is_charging := false
 var charge_direction := 1
+var charge_dir_2d := Vector2.RIGHT   # flying bosses charge in a full 2D line
 var charge_timer := 0.0
 var charge_has_hit := false
 var is_wall_blocked := false
 var wall_turn_timer := 0.0
+
+# apex state
+var flying := false
+var is_apex := false
+var is_frenzied := false
+var hover_time := 0.0
+var is_diving := false
+var dive_phase := 0
+var dive_target := Vector2.ZERO
+var dive_timer := 0.0
 
 var minions: Array = []
 
@@ -165,6 +239,8 @@ func _ready() -> void:
 
 func configure_from_def(def: Dictionary) -> void:
 	base_move_speed = float(def.get("speed", 62.0))
+	flying = bool(def.get("flying", false))
+	is_apex = bool(def.get("apex", false))
 	abilities = (def.get("abilities", ["slam"]) as Array).duplicate()
 	max_health = int(round(float(def.get("hp", 900)) * level_hp_mult))
 	health = max_health
@@ -214,7 +290,8 @@ func _physics_process(delta: float) -> void:
 	if is_dead:
 		return
 
-	if not is_on_floor():
+	# flying bosses ignore gravity entirely; they steer in full 2D
+	if not flying and not is_on_floor():
 		velocity.y += GRAVITY * delta
 
 	for a in ability_cd.keys():
@@ -228,6 +305,8 @@ func _physics_process(delta: float) -> void:
 	if player != null and is_instance_valid(player):
 		if is_charging:
 			process_charge(delta)
+		elif is_diving:
+			process_dive(delta)
 		elif not is_busy:
 			var dx = player.global_position.x - global_position.x
 			if absf(dx) > 4.0:
@@ -236,6 +315,8 @@ func _physics_process(delta: float) -> void:
 			var chosen = choose_attack(dist)
 			if chosen != "":
 				start_attack(chosen)
+			elif flying:
+				process_hover(delta)
 			elif wall_turn_timer > 0:
 				velocity.x = -facing_direction * base_move_speed * speed_multiplier
 			else:
@@ -244,12 +325,23 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
-	if not is_wall_blocked and not is_charging:
+	if not flying and not is_wall_blocked and not is_charging:
 		for i in range(get_slide_collision_count()):
 			if absf(get_slide_collision(i).get_normal().x) > 0.5:
 				is_wall_blocked = true
 				wall_turn_timer = WALL_TURN_DURATION
 				break
+
+# Cruise toward a point hovering above the player, with a slow wing-beat bob.
+func process_hover(delta: float) -> void:
+	hover_time += delta
+	var target = player.global_position + Vector2(0, -HOVER_ALTITUDE)
+	var to_target = target - global_position
+	if to_target.length() > 40.0:
+		velocity = to_target.normalized() * base_move_speed * speed_multiplier
+	else:
+		velocity = to_target * 2.0
+	velocity.y += sin(hover_time * 3.0) * 28.0
 
 func choose_attack(dist: float) -> String:
 	var candidates: Array = []
@@ -278,6 +370,11 @@ func start_attack(attack_name: String) -> void:
 		"teleport": do_teleport()
 		"summon": do_summon()
 		"pillars": do_pillars()
+		"dive": do_dive()
+		"volley": do_volley()
+		"meteors": do_meteors()
+		"vortex": do_vortex()
+		"beam": do_beam()
 		_:
 			is_busy = false
 
@@ -285,7 +382,11 @@ func set_cd(ability_name: String) -> void:
 	ability_cd[ability_name] = ABILITY_META[ability_name]["cd"] * cooldown_mult()
 
 func cooldown_mult() -> float:
-	return 0.6 if is_enraged else 1.0
+	if is_frenzied:
+		return 0.35
+	if is_enraged:
+		return 0.5 if is_apex else 0.6
+	return 1.0
 
 # --- abilities ---
 
@@ -309,12 +410,18 @@ func do_charge() -> void:
 	if is_dead:
 		return
 	charge_direction = facing_direction
+	# a flying boss locks a full 2D line onto the player and sweeps along it
+	if flying and player != null and is_instance_valid(player):
+		charge_dir_2d = (player.global_position - global_position).normalized()
 	is_charging = true
 	charge_timer = CHARGE_DURATION
 	charge_has_hit = false
 
 func process_charge(delta: float) -> void:
-	velocity.x = charge_direction * CHARGE_SPEED * speed_multiplier
+	if flying:
+		velocity = charge_dir_2d * CHARGE_SPEED * speed_multiplier
+	else:
+		velocity.x = charge_direction * CHARGE_SPEED * speed_multiplier
 	charge_timer -= delta
 	if not charge_has_hit and player != null and is_instance_valid(player) and global_position.distance_to(player.global_position) < CHARGE_HIT_RADIUS:
 		charge_has_hit = true
@@ -324,12 +431,13 @@ func process_charge(delta: float) -> void:
 		shake_camera(9.0, 0.3)
 	var hit_wall = false
 	for i in range(get_slide_collision_count()):
-		if absf(get_slide_collision(i).get_normal().x) > 0.5:
+		# an aerial sweep ends on ANY surface; a ground charge only on walls
+		if flying or absf(get_slide_collision(i).get_normal().x) > 0.5:
 			hit_wall = true
 			break
 	if charge_timer <= 0 or hit_wall:
 		is_charging = false
-		velocity.x = 0
+		velocity = Vector2.ZERO if flying else Vector2(0, velocity.y)
 		set_cd("charge")
 		is_busy = false
 
@@ -459,6 +567,146 @@ func do_pillars() -> void:
 	set_cd("pillars")
 	is_busy = false
 
+# --- apex abilities ---
+
+# Dive bomb (flying): climb to a point high above the player, lock their
+# position, then plummet through it and detonate on impact.
+func do_dive() -> void:
+	flash_telegraph(Color(1.0, 0.8, 0.3))
+	is_diving = true
+	dive_phase = 0
+	dive_timer = 1.4
+
+func process_dive(delta: float) -> void:
+	dive_timer -= delta
+	if dive_phase == 0:
+		var target = player.global_position + Vector2(0, -380.0)
+		var to_target = target - global_position
+		velocity = to_target.normalized() * DIVE_RISE_SPEED
+		if to_target.length() < 50.0 or dive_timer <= 0:
+			dive_phase = 1
+			dive_timer = 1.2
+			dive_target = player.global_position
+			spawn_ground_marker(dive_target, Color(1.0, 0.8, 0.2), 0.3, DIVE_RADIUS)
+	else:
+		velocity = (dive_target - global_position).normalized() * DIVE_PLUNGE_SPEED
+		var hit_surface = get_slide_collision_count() > 0
+		if global_position.distance_to(dive_target) < 60.0 or hit_surface or dive_timer <= 0:
+			shake_camera(11.0, 0.4)
+			spawn_shockwave(DIVE_RADIUS, Color(1.0, 0.85, 0.3))
+			if player != null and is_instance_valid(player) and global_position.distance_to(player.global_position) < DIVE_RADIUS:
+				deal_player_damage(DIVE_DAMAGE)
+				knockback_player_away(DIVE_KNOCKBACK)
+			is_diving = false
+			velocity = Vector2.ZERO
+			set_cd("dive")
+			is_busy = false
+
+# Rapid volley: a burst of shots, each re-aimed at the player mid-burst.
+func do_volley() -> void:
+	flash_telegraph(Color(1.0, 0.9, 0.5))
+	await get_tree().create_timer(0.3).timeout
+	for i in range(VOLLEY_COUNT):
+		if is_dead or player == null or not is_instance_valid(player):
+			break
+		var dir = (player.global_position - global_position).normalized()
+		spawn_arrow(global_position + dir * 46.0, dir, VOLLEY_DAMAGE, VOLLEY_RANGE)
+		await get_tree().create_timer(VOLLEY_INTERVAL).timeout
+	set_cd("volley")
+	is_busy = false
+
+# Meteor storm: like rain but heavier, wider, and falling from far higher.
+func do_meteors() -> void:
+	flash_telegraph(Color(1.0, 0.4, 0.1))
+	if is_dead or player == null or not is_instance_valid(player):
+		is_busy = false
+		set_cd("meteors")
+		return
+	var ground_y = player.global_position.y
+	var xs: Array = [player.global_position.x]
+	for i in range(METEOR_COUNT - 1):
+		xs.append(player.global_position.x + randf_range(-METEOR_SPREAD, METEOR_SPREAD))
+	for x in xs:
+		spawn_ground_marker(Vector2(x, ground_y), Color(1.0, 0.45, 0.1), METEOR_TELEGRAPH, 90.0)
+	await get_tree().create_timer(METEOR_TELEGRAPH).timeout
+	if is_dead:
+		return
+	shake_camera(6.0, 0.5)
+	for x in xs:
+		spawn_arrow(Vector2(x, ground_y - METEOR_HEIGHT), Vector2.DOWN, METEOR_DAMAGE, METEOR_HEIGHT + 150.0)
+		await get_tree().create_timer(0.06).timeout
+		if is_dead:
+			return
+	set_cd("meteors")
+	is_busy = false
+
+# Vortex: drags the player toward the boss for a sustained pull, then bites
+# if they end up in its jaws. Fighting the pull means dashing/flying away.
+func do_vortex() -> void:
+	flash_telegraph(Color(0.3, 0.95, 0.85))
+	spawn_ring_telegraph(global_position, VORTEX_RANGE * 0.4, Color(0.3, 0.95, 0.85), 0.45)
+	await get_tree().create_timer(0.45).timeout
+	var ticks = int(VORTEX_DURATION / VORTEX_TICK)
+	for i in range(ticks):
+		if is_dead or player == null or not is_instance_valid(player):
+			break
+		var dist = global_position.distance_to(player.global_position)
+		if dist < VORTEX_RANGE and player.has_method("apply_knockback"):
+			var toward = sign(global_position.x - player.global_position.x)
+			if toward != 0:
+				player.apply_knockback(toward, VORTEX_PULL)
+		if i % 3 == 0:
+			spawn_shockwave(90.0 + i * 14.0, Color(0.3, 0.95, 0.85))
+		await get_tree().create_timer(VORTEX_TICK).timeout
+	if not is_dead and player != null and is_instance_valid(player) and global_position.distance_to(player.global_position) < VORTEX_CLOSE:
+		deal_player_damage(VORTEX_DAMAGE)
+		knockback_player_away(180.0)
+	set_cd("vortex")
+	is_busy = false
+
+# Eclipse beam: locks a horizontal band at the player's altitude across the
+# WHOLE arena, then fires. The only escape is changing height -- which is
+# exactly what the tiered crater (and late-game flight) is for.
+func do_beam() -> void:
+	if player == null or not is_instance_valid(player):
+		is_busy = false
+		set_cd("beam")
+		return
+	var band_y = player.global_position.y - 20.0
+	var scene = get_tree().current_scene
+	var arena_w: float = scene.current_width if (scene != null and "current_width" in scene) else 15000.0
+	flash_telegraph(Color(1.0, 0.25, 0.15))
+	var band = ColorRect.new()
+	band.position = Vector2(-100.0, band_y - BEAM_HALF_HEIGHT)
+	band.size = Vector2(arena_w + 200.0, BEAM_HALF_HEIGHT * 2.0)
+	band.color = Color(1.0, 0.2, 0.1, 0.14)
+	band.z_index = 5
+	get_parent().add_child(band)
+	var warn = band.create_tween()
+	warn.set_loops(4)
+	warn.tween_property(band, "modulate:a", 0.4, BEAM_TELEGRAPH / 8.0)
+	warn.tween_property(band, "modulate:a", 1.0, BEAM_TELEGRAPH / 8.0)
+	await get_tree().create_timer(BEAM_TELEGRAPH).timeout
+	if is_dead:
+		if is_instance_valid(band):
+			band.queue_free()
+		return
+	# fire: two damage ticks 0.2s apart so hopping through the band still hurts
+	band.color = Color(1.0, 0.3, 0.12, 0.75)
+	shake_camera(8.0, 0.3)
+	for tick in range(2):
+		if player != null and is_instance_valid(player) and absf(player.global_position.y - band_y) < BEAM_HALF_HEIGHT:
+			deal_player_damage(BEAM_DAMAGE / (tick + 1))
+			if player.has_method("apply_knockback"):
+				player.apply_knockback(facing_direction, BEAM_KNOCKBACK / (tick + 1))
+		await get_tree().create_timer(0.2).timeout
+	if is_instance_valid(band):
+		var fade = band.create_tween()
+		fade.tween_property(band, "modulate:a", 0.0, 0.25)
+		fade.tween_callback(band.queue_free)
+	set_cd("beam")
+	is_busy = false
+
 # --- ability helpers ---
 
 func spawn_arrow(pos: Vector2, dir: Vector2, dmg: int, rng: float) -> void:
@@ -570,13 +818,26 @@ func take_damage(amount: int) -> void:
 	else:
 		flash_hit()
 		play_sfx(SFX_HIT)
-		if not is_enraged and health <= max_health * ENRAGE_THRESHOLD:
+		# apex bosses enrage earlier AND hit a second gear near death
+		var enrage_at = 0.6 if is_apex else ENRAGE_THRESHOLD
+		if not is_enraged and health <= max_health * enrage_at:
 			enrage()
+		if is_apex and not is_frenzied and health <= max_health * 0.25:
+			frenzy()
 
 func enrage() -> void:
 	is_enraged = true
 	base_color = base_color.lerp(Color(0.6, 0.0, 0.0), 0.4)
 	$ColorRect.color = base_color
+
+# Apex second wind: cooldowns nearly vanish and it moves a quarter faster.
+func frenzy() -> void:
+	is_frenzied = true
+	base_color = base_color.lerp(Color(1.0, 0.1, 0.05), 0.5)
+	$ColorRect.color = base_color
+	base_move_speed *= 1.25
+	shake_camera(9.0, 0.5)
+	spawn_shockwave(240.0, Color(1.0, 0.15, 0.1))
 
 func apply_knockback(_direction_sign: int, _distance: float) -> void:
 	pass
