@@ -151,6 +151,7 @@ const TRAP_SCENE = preload("res://trap.tscn")
 
 const ENEMY_SCENE = preload("res://enemy.tscn")
 const BOSS_SCENE = preload("res://boss.tscn")
+const SPECIAL_MOB_SCRIPT = preload("res://special_mob.gd")
 const WEAPON_TYPES = ["sword", "spear", "bow"]
 const BASE_ENEMY_COUNT = 2
 const MAX_ENEMY_COUNT = 8
@@ -841,8 +842,39 @@ func spawn_level_combat() -> void:
 		var count = min(BASE_ENEMY_COUNT + current_level - 1, MAX_ENEMY_COUNT)
 		for i in range(count):
 			spawn_enemy()
+		spawn_normal_extras()
 		show_notification("Level " + str(current_level))
 	update_level_label()
+
+# Non-boss levels get the humanoid grunts (spawn_enemy) PLUS a spread of the
+# special monsters from special_mob.gd: a few slow flyers everywhere, and -- a
+# little way into the dungeon -- assorted ground specials (bomber/charger/
+# spitter). All are distributed across the level width and count toward clear.
+func spawn_normal_extras() -> void:
+	var flyer_count = clampi(1 + int(current_level / 6), 1, 4)
+	for i in range(flyer_count):
+		var fx = (float(i) + 0.5) / float(flyer_count) * current_width + randf_range(-160.0, 160.0)
+		var fy = GROUND_Y - randf_range(180.0, 320.0)
+		spawn_special_mob("flyer", Vector2(clampf(fx, 300.0, current_width - 300.0), fy))
+	if current_level >= 3:
+		var ground_kinds = ["bomber", "charger", "spitter"]
+		var special_count = clampi(int((current_level - 1) / 4), 1, 3)
+		for i in range(special_count):
+			var k = ground_kinds[randi() % ground_kinds.size()]
+			var sx = randf_range(700.0, current_width - 300.0)
+			spawn_special_mob(k, Vector2(sx, GROUND_Y - 60.0))
+
+func spawn_special_mob(kind: String, pos: Vector2) -> void:
+	var mob = SPECIAL_MOB_SCRIPT.new()
+	mob.kind = kind
+	var scaling = get_level_scaling()
+	mob.wave_hp_multiplier = scaling.hp
+	mob.wave_damage_multiplier = scaling.dmg
+	mob.wave_speed_multiplier = scaling.speed
+	mob.position = pos
+	$LevelContainer.add_child(mob)
+	mob.died.connect(_on_combatant_died)
+	alive_count += 1
 
 func spawn_enemy() -> void:
 	var enemy = ENEMY_SCENE.instantiate()
