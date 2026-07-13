@@ -247,6 +247,9 @@ func _physics_process(delta: float) -> void:
 		visual.scale.x = facing
 	bob_time += delta
 	move_and_slide()
+	# hard containment: no mob (flyer, teleporter, or otherwise) ever ends a
+	# frame outside the level walls
+	global_position.x = clampf(global_position.x, 50.0, arena_width() - 50.0)
 
 # --- per-kind behaviour ---
 

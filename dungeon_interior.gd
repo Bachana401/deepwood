@@ -166,7 +166,6 @@ const HP_SCALE_PER_LEVEL = 0.15
 const DMG_SCALE_PER_LEVEL = 0.10
 const SPEED_SCALE_PER_LEVEL = 0.075
 const SPEED_SCALE_CAP_LEVEL = 25
-const START_COUNTDOWN_SECONDS = 3
 const LEVEL_CLEAR_DELAY = 2.5
 const MAX_LEVEL = 100
 
@@ -213,7 +212,8 @@ func _ready() -> void:
 	update_level_label()
 	setup_exit_button()
 	start_music()
-	run_start_countdown()
+	# no countdown -- combat begins the moment the level loads
+	spawn_level_combat()
 
 func setup_exit_button() -> void:
 	var exit_button = get_node_or_null("CanvasLayer/ExitDungeonButton")
@@ -824,32 +824,6 @@ func place_player_at_entry(enter_from_right: bool) -> void:
 		player.velocity = Vector2.ZERO
 
 # --- combat flow (mirrors the old overworld dungeon_manager.gd) ---
-
-func run_start_countdown() -> void:
-	starting = true
-	var label = get_node_or_null("CanvasLayer/CountdownLabel")
-	for i in range(START_COUNTDOWN_SECONDS, 0, -1):
-		if not starting:
-			return
-		if label:
-			label.text = str(i)
-			label.visible = true
-			label.scale = Vector2(1.35, 1.35)
-			var tween = label.create_tween()
-			tween.tween_property(label, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		await get_tree().create_timer(1.0).timeout
-	if not starting:
-		return
-	if label:
-		label.text = "FIGHT!"
-		label.scale = Vector2(1.35, 1.35)
-		var tween2 = label.create_tween()
-		tween2.tween_property(label, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	await get_tree().create_timer(0.5).timeout
-	if label:
-		label.visible = false
-	starting = false
-	spawn_level_combat()
 
 func get_level_scaling() -> Dictionary:
 	var hp_mult = 1.0 + (current_level - 1) * HP_SCALE_PER_LEVEL

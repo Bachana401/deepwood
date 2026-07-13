@@ -104,6 +104,16 @@ const CURSE_DAMAGE = 14
 const CURSE_ORB_SPEED = 150.0
 const CURSE_TELEGRAPH = 0.4
 
+# --- the Fallen Wizard's passives & doomring ---
+const AURA_RADIUS = 150.0     # crumbling red aura: stand inside and burn
+const AURA_TICK = 0.5
+const AURA_DAMAGE = 5         # scaled by sqrt of level dmg mult, not the full mult
+const BLINK_ON_HIT_CHANCE = 0.18
+const DOOMRING_BOLTS = 16
+const DOOMRING_WAVES = 2
+const DOOMRING_RANGE = 900.0
+const DOOMRING_DAMAGE = 13
+
 # --- weapon counter (set per boss level by dungeon_interior.gd) ---
 # Only the first 8 boss levels (5-40) are countered; deeper bosses set
 # counter_role = "" and take every weapon at face value. When a counter IS
@@ -136,6 +146,7 @@ const ABILITY_META = {
 	"vortex":   {"cd": 8.0, "min": 0.0,   "max": 100000.0},
 	"beam":     {"cd": 7.0, "min": 0.0,   "max": 100000.0},
 	"curse":    {"cd": 5.5, "min": 0.0,   "max": 100000.0},
+	"doomring": {"cd": 6.0, "min": 0.0,   "max": 100000.0},
 }
 
 # The roster. Ids here must line up with BOSS_ARENAS / get_boss_id in
@@ -231,15 +242,17 @@ const BOSSES = {
 		"abilities": ["beam", "pillars", "meteors", "teleport", "summon"],
 	},
 	# The level-100 finale: deliberately MAN-SIZED -- his power is his magic,
-	# not his bulk. Homing curses, the eclipse beam, meteor storms, blinks,
-	# re-aimed volleys. Nothing counters him.
+	# not his bulk. Pitch-black robes wreathed in a crumbling red pixel aura
+	# that burns anyone inside it; he blinks reflexively when struck, and his
+	# kit spans every school plus the doomring. Nothing counters him.
 	"wizard": {
 		"name": "The Fallen Wizard",
-		"color": Color(0.18, 0.12, 0.28), "eye_color": Color(0.6, 1.0, 0.5),
-		"magic": Color(0.55, 1.0, 0.45),
+		"color": Color(0.09, 0.05, 0.07), "eye_color": Color(1.0, 0.12, 0.08),
+		"magic": Color(1.0, 0.22, 0.12),
 		"body": Vector2(130, 225), "hp": 4000, "speed": 120.0, "shape": "wizard",
 		"flying": true, "apex": true,
-		"abilities": ["curse", "beam", "meteors", "teleport", "volley"],
+		"passives": ["crumbling_aura", "blink_on_hit"],
+		"abilities": ["curse", "beam", "meteors", "teleport", "volley", "doomring"],
 	},
 }
 
@@ -294,6 +307,11 @@ var stun_timer := 0.0
 var flying := false
 var is_apex := false
 var is_frenzied := false
+# passives (the Fallen Wizard)
+var has_aura := false
+var has_blink_on_hit := false
+var aura_particles: CPUParticles2D = null
+var aura_timer := 0.0
 var hover_time := 0.0
 var is_diving := false
 var dive_phase := 0
@@ -312,6 +330,9 @@ func configure_from_def(def: Dictionary) -> void:
 	base_move_speed = float(def.get("speed", 62.0))
 	flying = bool(def.get("flying", false))
 	is_apex = bool(def.get("apex", false))
+	var passives: Array = def.get("passives", [])
+	has_aura = "crumbling_aura" in passives
+	has_blink_on_hit = "blink_on_hit" in passives
 	abilities = (def.get("abilities", ["slam"]) as Array).duplicate()
 	max_health = int(round(float(def.get("hp", 900)) * level_hp_mult))
 	health = max_health
@@ -344,6 +365,50 @@ func configure_from_def(def: Dictionary) -> void:
 		bar.offset_right = 80.0
 		bar.offset_top = bar_y
 		bar.offset_bottom = bar_y + 12.0
+
+	if has_aura:
+		build_aura()
+
+# The crumbling red pixel aura: a constant rain of small red squares breaking
+# off around the body. It is also a weapon -- see process_passives.
+func build_aura() -> void:
+	aura_particles = CPUParticles2D.new()
+	aura_particles.amount = 46
+	aura_particles.lifetime = 1.1
+	aura_particles.preprocess = 1.0
+	aura_particles.emission_shape = CPUParticles2D.EMISSION_SHAPE_SPHERE
+	aura_particles.emission_sphere_radius = AURA_RADIUS * 0.75
+	aura_particles.gravity = Vector2(0, 90)          # the pixels crumble downward
+	aura_particles.initial_velocity_min = 8.0
+	aura_particles.initial_velocity_max = 30.0
+	aura_particles.scale_amount_min = 3.0
+	aura_particles.scale_amount_max = 6.0
+	aura_particles.color = Color(1.0, 0.15, 0.08, 0.85)
+	aura_particles.z_index = 3
+	add_child(aura_particles)
+	aura_particles.emitting = true
+
+# Passive effects that run regardless of what the boss is doing.
+func process_passives(delta: float) -> void:
+	if is_dead or not has_aura:
+		return
+	aura_timer -= delta
+	if aura_timer <= 0.0:
+		aura_timer = AURA_TICK
+		if player != null and is_instance_valid(player) and global_position.distance_to(player.global_position) < AURA_RADIUS:
+			# gentler scaling than abilities (sqrt) so the aura punishes
+			# lingering without instantly deleting the player at level 100
+			if player.has_method("take_damage"):
+				player.take_damage(int(round(AURA_DAMAGE * sqrt(damage_multiplier))))
+
+# Blink-on-hit passive: struck mid-fight, he flickers a short step away.
+func blink_short() -> void:
+	var side = 1 if randf() < 0.5 else -1
+	var tx = global_position.x + side * randf_range(160.0, 260.0)
+	tx = clampf(tx, 100.0, arena_width() - 100.0)
+	spawn_shockwave(60.0, magic_color)
+	global_position.x = tx
+	spawn_shockwave(60.0, magic_color)
 
 # --- procedural creature rigs ---
 # Each boss body is assembled from polygons and lines under a "Rig" node:
@@ -567,6 +632,10 @@ func rig_wizard(hw: float, hh: float, eye: Color) -> void:
 	_rskull(Vector2(0, -hh * 0.52), hw * 0.28, eye)
 	_rp(PackedVector2Array([Vector2(-hw * 0.85, -hh * 0.66), Vector2(hw * 0.85, -hh * 0.7), Vector2(hw * 0.25, -hh * 0.82)]), robe.darkened(0.35), 3)
 	_rp(PackedVector2Array([Vector2(-hw * 0.4, -hh * 0.74), Vector2(hw * 0.42, -hh * 0.78), Vector2(hw * 0.05, -hh - 52.0)]), robe.darkened(0.35), 3)
+	# blood-red hat band and torn red hem
+	_rl(PackedVector2Array([Vector2(-hw * 0.8, -hh * 0.67), Vector2(hw * 0.8, -hh * 0.71)]), 4.0, magic_color, 4)
+	for hx in [-0.6, -0.15, 0.3, 0.65]:
+		_rp(PackedVector2Array([Vector2(hw * hx - 6.0, hh * 0.92), Vector2(hw * hx + 6.0, hh * 0.92), Vector2(hw * hx, hh + 16.0)]), magic_color.darkened(0.25), 2)
 	_rl(PackedVector2Array([Vector2(hw + 14.0, hh * 0.6), Vector2(hw + 20.0, -hh * 0.9)]), 3.5, Color(0.28, 0.2, 0.12), 1)
 	_rc(Vector2(hw + 21.0, -hh * 0.98), 9.0, magic_color, 2)
 	_rc(Vector2(-hw * 0.55, hh * 0.02), 5.0, BONE_COL, 2)
@@ -628,6 +697,12 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
+	# hard containment: no boss ever ends a frame outside the arena walls
+	var bw = arena_width()
+	global_position.x = clampf(global_position.x, 70.0, bw - 70.0)
+
+	process_passives(delta)
+
 	if not flying and not is_wall_blocked and not is_charging:
 		for i in range(get_slide_collision_count()):
 			if absf(get_slide_collision(i).get_normal().x) > 0.5:
@@ -645,6 +720,12 @@ func process_hover(delta: float) -> void:
 	else:
 		velocity = to_target * 2.0
 	velocity.y += sin(hover_time * 3.0) * 28.0
+
+func arena_width() -> float:
+	var s = get_tree().current_scene
+	if s != null and "current_width" in s:
+		return s.current_width
+	return 15000.0
 
 # Movement speed after the mage-counter's hex slow (and level scaling).
 func effective_speed() -> float:
@@ -686,6 +767,7 @@ func start_attack(attack_name: String) -> void:
 		"vortex": do_vortex()
 		"beam": do_beam()
 		"curse": do_curse()
+		"doomring": do_doomring()
 		_:
 			is_busy = false
 
@@ -852,6 +934,8 @@ func do_teleport() -> void:
 	if player != null and is_instance_valid(player):
 		var side = 1 if randf() < 0.5 else -1
 		var target_x = player.global_position.x + side * randf_range(150.0, 240.0)
+		# never blink outside the arena walls
+		target_x = clampf(target_x, 100.0, arena_width() - 100.0)
 		global_position = Vector2(target_x, player.global_position.y)
 		facing_direction = -side
 	if rig != null:
@@ -1021,8 +1105,7 @@ func do_beam() -> void:
 		set_cd("beam")
 		return
 	var band_y = player.global_position.y - 20.0
-	var scene = get_tree().current_scene
-	var arena_w: float = scene.current_width if (scene != null and "current_width" in scene) else 15000.0
+	var arena_w := arena_width()
 	flash_telegraph(Color(1.0, 0.25, 0.15))
 	var band = ColorRect.new()
 	band.position = Vector2(-100.0, band_y - BEAM_HALF_HEIGHT)
@@ -1072,6 +1155,27 @@ func do_curse() -> void:
 		orb.position = position + dir * 34.0
 		get_parent().add_child(orb)
 	set_cd("curse")
+	is_busy = false
+
+# Doomring (the Wizard): two full rings of bolts in quick succession, each at
+# a different rotation -- weave between the spokes or take both waves.
+func do_doomring() -> void:
+	flash_telegraph(magic_color)
+	await get_tree().create_timer(0.5).timeout
+	if is_dead:
+		set_cd("doomring")
+		is_busy = false
+		return
+	for wave in range(DOOMRING_WAVES):
+		var offset = randf() * TAU
+		for i in range(DOOMRING_BOLTS):
+			var dir = Vector2.RIGHT.rotated(offset + i * TAU / DOOMRING_BOLTS)
+			spawn_arrow(global_position + dir * 40.0, dir, DOOMRING_DAMAGE, DOOMRING_RANGE)
+		shake_camera(5.0, 0.2)
+		await get_tree().create_timer(0.35).timeout
+		if is_dead:
+			return
+	set_cd("doomring")
 	is_busy = false
 
 # --- ability helpers ---
@@ -1204,6 +1308,9 @@ func take_damage(amount: int) -> void:
 			enrage()
 		if is_apex and not is_frenzied and health <= max_health * 0.25:
 			frenzy()
+		# the Wizard's reflex: struck, he may flicker a short step away
+		if has_blink_on_hit and not is_busy and not is_charging and not is_diving and randf() < BLINK_ON_HIT_CHANCE:
+			blink_short()
 
 func enrage() -> void:
 	is_enraged = true
@@ -1220,6 +1327,11 @@ func frenzy() -> void:
 	base_move_speed *= 1.25
 	shake_camera(9.0, 0.5)
 	spawn_shockwave(240.0, Color(1.0, 0.15, 0.1))
+	# the crumbling aura rages with him
+	if aura_particles != null and is_instance_valid(aura_particles):
+		aura_particles.amount = 84
+		aura_particles.emission_sphere_radius = AURA_RADIUS * 0.95
+		aura_particles.scale_amount_max = 8.0
 
 func apply_knockback(_direction_sign: int, _distance: float) -> void:
 	pass
