@@ -99,6 +99,11 @@ const BEAM_HALF_HEIGHT = 55.0
 const BEAM_DAMAGE = 38
 const BEAM_KNOCKBACK = 200.0
 
+const CURSE_ORBS = 4          # the Wizard's homing curse volley
+const CURSE_DAMAGE = 14
+const CURSE_ORB_SPEED = 150.0
+const CURSE_TELEGRAPH = 0.4
+
 # --- weapon counter (set per boss level by dungeon_interior.gd) ---
 # Only the first 8 boss levels (5-40) are countered; deeper bosses set
 # counter_role = "" and take every weapon at face value. When a counter IS
@@ -130,6 +135,7 @@ const ABILITY_META = {
 	"meteors":  {"cd": 6.5, "min": 0.0,   "max": 100000.0},
 	"vortex":   {"cd": 8.0, "min": 0.0,   "max": 100000.0},
 	"beam":     {"cd": 7.0, "min": 0.0,   "max": 100000.0},
+	"curse":    {"cd": 5.5, "min": 0.0,   "max": 100000.0},
 }
 
 # The roster. Ids here must line up with BOSS_ARENAS / get_boss_id in
@@ -196,10 +202,21 @@ const BOSSES = {
 		"apex": true,
 		"abilities": ["beam", "pillars", "meteors", "teleport", "summon"],
 	},
+	# The level-100 finale: a levitating archmage with the game's biggest HP
+	# pool and a kit drawn from every school -- homing curse orbs, the eclipse
+	# beam, meteor storms, blinks, and re-aimed volleys. Nothing counters him.
+	"wizard": {
+		"name": "The Fallen Wizard",
+		"color": Color(0.16, 0.1, 0.26), "eye_color": Color(0.6, 1.0, 0.5),
+		"body": Vector2(140, 232), "hp": 4000, "speed": 120.0, "shape": "wizard",
+		"flying": true, "apex": true,
+		"abilities": ["curse", "beam", "meteors", "teleport", "volley"],
+	},
 }
 
 const ARROW_SCENE = preload("res://arrow.tscn")
 const MINION_SCENE = preload("res://enemy.tscn")
+const MAGIC_ORB = preload("res://magic_orb.gd")
 const SFX_DEATH = preload("res://audio/enemy_death.wav")
 const SFX_HIT = preload("res://audio/hit.wav")
 
@@ -356,6 +373,15 @@ func build_boss_features(shape: String, body: Vector2, accent: Color) -> void:
 			_bfeat(f, PackedVector2Array([Vector2(hw - 20, -hh), Vector2(hw + 30, -hh - 70), Vector2(hw - 55, -hh - 10)]), accent)
 			for k in [-0.4, 0.0, 0.4]:
 				_bfeat(f, PackedVector2Array([Vector2(k * hw - 12, -hh), Vector2(k * hw + 12, -hh), Vector2(k * hw, -hh - 44)]), dark)
+		"wizard":
+			# great crooked hat
+			_bfeat(f, PackedVector2Array([Vector2(-hw - 14, -hh + 4), Vector2(hw + 14, -hh + 4), Vector2(hw * 0.35, -hh - 26)]), dark)
+			_bfeat(f, PackedVector2Array([Vector2(-hw * 0.55, -hh - 16), Vector2(hw * 0.6, -hh - 20), Vector2(hw * 0.1, -hh - 96)]), dark)
+			# levitating staff at his side with a burning witchlight tip
+			_bleg(f, Vector2(hw + 26, hh * 0.55), Vector2(hw + 34, -hh - 30), Color(0.24, 0.16, 0.1))
+			_bdot(f, Vector2(hw + 36, -hh - 40), 11.0, accent)
+			# ragged hem trailing below the robe
+			_bfeat(f, PackedVector2Array([Vector2(-hw, hh), Vector2(-hw * 0.5, hh + 34), Vector2(0, hh), Vector2(hw * 0.5, hh + 34), Vector2(hw, hh)]), dark)
 		_:
 			pass
 
@@ -499,6 +525,7 @@ func start_attack(attack_name: String) -> void:
 		"meteors": do_meteors()
 		"vortex": do_vortex()
 		"beam": do_beam()
+		"curse": do_curse()
 		_:
 			is_busy = false
 
@@ -860,6 +887,25 @@ func do_beam() -> void:
 		fade.tween_property(band, "modulate:a", 0.0, 0.25)
 		fade.tween_callback(band.queue_free)
 	set_cd("beam")
+	is_busy = false
+
+# Curse volley (the Wizard): a fan of slow homing orbs that chase the player
+# and must be juked around terrain -- they cannot be shot down.
+func do_curse() -> void:
+	flash_telegraph(Color(0.55, 0.3, 1.0))
+	await get_tree().create_timer(CURSE_TELEGRAPH).timeout
+	if is_dead or player == null or not is_instance_valid(player):
+		set_cd("curse")
+		is_busy = false
+		return
+	var base = (player.global_position - global_position).normalized()
+	for i in range(CURSE_ORBS):
+		var dir = base.rotated(deg_to_rad(-27.0 + 18.0 * i))
+		var orb = MAGIC_ORB.new()
+		orb.setup(dir, int(round(CURSE_DAMAGE * damage_multiplier)), Color(0.62, 0.35, 1.0), CURSE_ORB_SPEED)
+		orb.position = position + dir * 34.0
+		get_parent().add_child(orb)
+	set_cd("curse")
 	is_busy = false
 
 # --- ability helpers ---

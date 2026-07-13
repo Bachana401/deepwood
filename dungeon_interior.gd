@@ -53,11 +53,12 @@ const BOSS_LAYOUT = [
 ]
 
 # Boss identity per level. The six standard bosses CYCLE through the regular
-# boss levels; the three apex bosses are reserved as the game's UNIQUE finale
-# and appear ONLY on the last three boss levels (90 / 95 / 100), never earlier.
-# Ids MUST match boss.gd's BOSSES and the BOSS_ARENAS keys below.
+# boss levels (5..90); the apex bosses are the game's UNIQUE finale gauntlet --
+# Seraphiel at 95, then three back-to-back boss levels 98 / 99 / 100 that
+# escalate to The Fallen Wizard, the hardest fight in the game. Ids MUST match
+# boss.gd's BOSSES and the BOSS_ARENAS keys below.
 const CYCLING_BOSSES = ["gravewarden", "frost_monarch", "cinder_colossus", "weaver", "stormcaller", "void_sovereign"]
-const FINAL_BOSSES = ["seraph", "leviathan", "eclipse"]
+const FINALE_BOSSES = {95: "seraph", 98: "leviathan", 99: "eclipse", 100: "wizard"}
 
 # The deepest N boss levels have NO weapon counter (mastery of every weapon is
 # required); only the shallower boss levels get a countering weapon assigned.
@@ -136,6 +137,14 @@ const BOSS_ARENAS = {
 		"width": 13000.0, "height": -1300.0,
 		"bg_top": Color(0.05, 0.01, 0.02, 1.0), "bg_bottom": Color(0.12, 0.03, 0.04, 1.0),
 		"accent": Color(1.0, 0.25, 0.15, 1.0),
+	},
+	# Sanctum of the Fallen -- level 100, The Fallen Wizard's spell-hall: the
+	# largest arena in the game. Ascending "spell circle" platforms spiral to
+	# both sides of a grand central dais; sickly green witchlight.
+	"wizard": {
+		"width": 13000.0, "height": -1400.0,
+		"bg_top": Color(0.03, 0.02, 0.07, 1.0), "bg_bottom": Color(0.08, 0.05, 0.14, 1.0),
+		"accent": Color(0.55, 1.0, 0.5, 1.0),
 	},
 }
 
@@ -231,7 +240,8 @@ func get_layout_slot(level: int) -> int:
 	return (level - 1) % 5
 
 func is_boss_level(level: int) -> bool:
-	return get_layout_slot(level) == 4
+	# every 5th level, plus the back-to-back finale gauntlet at 98 and 99
+	return get_layout_slot(level) == 4 or level >= MAX_LEVEL - 2
 
 func get_layout(level: int) -> Array:
 	if is_boss_level(level):
@@ -242,13 +252,12 @@ func get_layout(level: int) -> Array:
 func total_boss_levels() -> int:
 	return int(MAX_LEVEL / 5)
 
-# Boss levels are 5, 10, 15...; the last three are the unique apex finale, the
-# rest cycle the six standard bosses.
+# Finale levels (95/98/99/100) use their reserved unique boss; every other
+# boss level cycles the six standard bosses.
 func get_boss_id(level: int) -> String:
-	var n = int(level / 5)                       # 1..20
-	var from_end = total_boss_levels() - n       # 0 = final level, 1 = next, ...
-	if from_end >= 0 and from_end < FINAL_BOSSES.size():
-		return FINAL_BOSSES[FINAL_BOSSES.size() - 1 - from_end]
+	if FINALE_BOSSES.has(level):
+		return FINALE_BOSSES[level]
+	var n = int(level / 5)
 	return CYCLING_BOSSES[max(0, n - 1) % CYCLING_BOSSES.size()]
 
 # Which weapon (if any) counters the boss on this level. "" for the deep,
@@ -307,6 +316,7 @@ func generate_boss_platforms(boss_id: String, w: float, h: float) -> Array:
 		"seraph": return gen_seraph(w, h)
 		"leviathan": return gen_leviathan(w, h)
 		"eclipse": return gen_eclipse(w, h)
+		"wizard": return gen_wizard(w, h)
 		_: return gen_gravewarden(w, h)
 
 # A sparse band of high platforms between mid-air and the arena ceiling --
@@ -532,6 +542,29 @@ func gen_eclipse(w: float, h: float) -> Array:
 			plats.append({"x": x, "y": (-880.0 if i % 2 == 0 else -1000.0), "w": 140.0})
 		x += 1250.0
 		i += 1
+	return plats
+
+# The Fallen Wizard -- Sanctum of the Fallen (level 100). A teleporting,
+# orb-slinging archmage: ascending spell-circle platforms stair-step outward
+# and UP from a grand central dais, so chasing him means climbing while his
+# curses chase you. Low stepping stones keep the floor route alive, and one
+# refuge hangs just under the ceiling for the endgame's flying players.
+func gen_wizard(w: float, h: float) -> Array:
+	var plats: Array = []
+	var c := w / 2.0
+	plats.append({"x": c, "y": -180.0, "w": 420.0})   # the grand dais
+	# mirrored spell-circles spiraling upward toward both walls
+	for ring in [[900.0, -320.0, 170.0], [1800.0, -480.0, 150.0], [2700.0, -640.0, 150.0], [3600.0, -800.0, 150.0], [4500.0, -960.0, 150.0]]:
+		if c - ring[0] > 400.0:
+			plats.append({"x": c - ring[0], "y": ring[1], "w": ring[2]})
+			plats.append({"x": c + ring[0], "y": ring[1], "w": ring[2]})
+	# low stepping stones so the ground fight can cross the huge hall
+	var x := 800.0
+	while x < w - 800.0:
+		if absf(x - c) > 500.0:
+			plats.append({"x": x, "y": -140.0, "w": 150.0})
+		x += 900.0
+	plats.append({"x": c, "y": h + 220.0, "w": 260.0})   # ceiling refuge
 	return plats
 
 # --- level (re)building ---
