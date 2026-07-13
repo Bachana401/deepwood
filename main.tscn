@@ -29,6 +29,7 @@
 [ext_resource type="Script" path="res://morale_meter.gd" id="30_morale"]
 [ext_resource type="Script" path="res://village_life.gd" id="31_villagelife"]
 [ext_resource type="Script" path="res://admin_panel.gd" id="32_adminpanel"]
+[ext_resource type="Script" path="res://food_readout.gd" id="33_foodreadout"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_j7ovs"]
 size = Vector2(19713, 77)
@@ -477,6 +478,13 @@ offset_right = 320.0
 offset_bottom = 200.0
 mouse_filter = 2
 script = ExtResource("30_morale")
+
+[node name="FoodReadout" type="Control" parent="CanvasLayer"]
+anchors_preset = 0
+offset_right = 320.0
+offset_bottom = 200.0
+mouse_filter = 2
+script = ExtResource("33_foodreadout")
 
 [node name="NotificationStack" type="VBoxContainer" parent="CanvasLayer" unique_id=993646214]
 anchors_preset = 1

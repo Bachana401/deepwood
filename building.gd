@@ -412,6 +412,8 @@ func update_prompt() -> void:
 		prompt_label.text = "Building..."
 	elif is_ruined():
 		prompt_label.text = "Press F to Build (%s)  —  stage %d/%d" % [repair_requirement_text(), build_stage, GameState.TOTAL_BUILD_STAGES]
+	elif building_name == "Farm":
+		prompt_label.text = "E: manage   •   Hold H: tend crops"
 	else:
 		prompt_label.text = "Press E"
 
@@ -608,6 +610,13 @@ var worker_timer := 0.0
 var last_employed := -1
 var last_operational_state := false
 
+# Farm-only: the crop field is redrawn to reflect the village larder (see
+# GameState.village_food) -- lush when stocked, withered when empty. The player
+# hand-tends it by holding the harvest key, filling the larder in +food chunks.
+const FARM_HARVEST_INTERVAL := 0.4    # seconds between +food chunks while tending
+var farm_crop_layer: Node2D = null
+var harvest_cooldown := 0.0
+
 func employed_count() -> int:
 	var n = 0
 	for v in GameState.rescued_villagers:
@@ -706,6 +715,75 @@ func _a_line(pts: PackedVector2Array, wdt: float, col: Color) -> void:
 	l.default_color = col
 	area_layer.add_child(l)
 
+# --- Farm crops (dynamic) ---
+# Redraw the crop field to reflect how full the village larder is (0..1). A full
+# larder = tall, lush, golden-topped stalks; a draining one shortens and pales;
+# an empty larder leaves bare brown stubs -- an at-a-glance "the town is starving"
+# cue that matches the HUD food gauge. Cheap: a handful of primitives per call.
+func _update_farm_crops() -> void:
+	if farm_crop_layer == null or not is_instance_valid(farm_crop_layer):
+		return
+	for c in farm_crop_layer.get_children():
+		c.queue_free()
+	var cap = GameState.food_capacity()
+	var f = clampf(GameState.village_food / cap, 0.0, 1.0) if cap > 0.0 else 0.0
+	for r in range(3):
+		var rx = -58.0 + r * 34.0
+		for s in range(3):
+			_draw_crop(rx + 4.0 + s * 9.0, -3.0, f)
+
+func _draw_crop(cx: float, base_y: float, f: float) -> void:
+	if f <= 0.03:
+		# barren: a small withered brown nub
+		var nub = Polygon2D.new()
+		nub.polygon = circle_poly(1.3, 5)
+		nub.position = Vector2(cx, base_y - 1.0)
+		nub.color = Color(0.5, 0.36, 0.2)
+		farm_crop_layer.add_child(nub)
+		return
+	var height = lerpf(3.0, 11.0, f)
+	# stalk pales when the larder is low, deepens to a healthy green when stocked
+	var stalk_col = Color(0.55, 0.55, 0.24).lerp(Color(0.28, 0.62, 0.26), f)
+	var stalk = Line2D.new()
+	stalk.points = PackedVector2Array([Vector2(cx, base_y), Vector2(cx, base_y - height)])
+	stalk.width = 1.6
+	stalk.default_color = stalk_col
+	farm_crop_layer.add_child(stalk)
+	# grain head: green when growing, golden-ripe when the larder is near full
+	var head = Polygon2D.new()
+	head.polygon = circle_poly(lerpf(1.1, 2.3, f), 6)
+	head.position = Vector2(cx, base_y - height)
+	head.color = stalk_col.lightened(0.1) if f < 0.8 else Color(0.87, 0.75, 0.33)
+	farm_crop_layer.add_child(head)
+
+# A quick dirt puff at the field while the player tends it.
+func _spawn_harvest_puff() -> void:
+	if area_layer == null:
+		return
+	for i in range(4):
+		var d = Polygon2D.new()
+		d.polygon = circle_poly(randf_range(1.2, 2.4), 6)
+		d.color = Color(0.5, 0.38, 0.24, 0.85)
+		d.position = Vector2(randf_range(-58.0, -6.0), -3.0)
+		area_layer.add_child(d)
+		var tw = d.create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(d, "position", d.position + Vector2(randf_range(-6, 6), randf_range(-10, -4)), 0.4)
+		tw.tween_property(d, "modulate:a", 0.0, 0.4)
+		tw.chain().tween_callback(d.queue_free)
+
+# A small "+N" that floats up over the building when food is gained by hand.
+func _spawn_harvest_float(text: String) -> void:
+	var lbl = _make_label(text, 14)
+	lbl.add_theme_color_override("font_color", Color(0.7, 0.95, 0.4))
+	lbl.position = Vector2(-14.0, -base_height - 24.0)
+	add_child(lbl)
+	var tw = lbl.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(lbl, "position:y", lbl.position.y - 22.0, 0.7)
+	tw.tween_property(lbl, "modulate:a", 0.0, 0.7)
+	tw.chain().tween_callback(lbl.queue_free)
+
 # The themed side-yard beside each building (local origin = yard centre, ground
 # y = 0). Built once; shown only while the building is operational.
 func build_work_area() -> void:
@@ -742,13 +820,17 @@ func build_work_area() -> void:
 			_a_rect(Vector2(30, -7), Vector2(3, 7), TIMBER)
 			_a_disc(Vector2(-22, -4), 4.5, Color(0.82, 0.3, 0.25))
 		"Farm":
-			# tilled rows with sprouts + a scarecrow + a stone well: hands hoe
-			# the rows and haul produce crates between them
+			# tilled rows + a scarecrow + a stone well: hands hoe the rows and
+			# haul produce crates between them. The CROPS themselves live in a
+			# separate layer that's redrawn to track the village larder, so the
+			# field visibly flourishes or withers with the town's food.
 			for r in range(3):
 				var rx = -58.0 + r * 34.0
 				_a_rect(Vector2(rx, -2), Vector2(26, 4), Color(0.32, 0.24, 0.16))
-				for s in range(3):
-					_a_disc(Vector2(rx + 4 + s * 9, -4), 2.0, DEEP_GREEN.lightened(0.15), 6)
+			farm_crop_layer = Node2D.new()
+			farm_crop_layer.name = "Crops"
+			area_layer.add_child(farm_crop_layer)
+			_update_farm_crops()
 			_a_rect(Vector2(50, -30), Vector2(3, 30), TIMBER)
 			_a_rect(Vector2(41, -24), Vector2(21, 3), TIMBER)
 			_a_disc(Vector2(51.5, -33), 4.0, Color(0.85, 0.72, 0.4))
@@ -1768,6 +1850,9 @@ func _process(delta: float) -> void:
 			update_bar_music()
 		if area_layer:
 			area_layer.visible = oper   # the yard exists only once it's built
+		# the crop field tracks the larder draining/refilling over time
+		if building_name == "Farm":
+			_update_farm_crops()
 	if not player_inside:
 		return
 	# Ruined/half-built -> F builds the next stage (locked mid-construction);
@@ -1775,8 +1860,21 @@ func _process(delta: float) -> void:
 	if is_ruined():
 		if not constructing and Input.is_action_just_pressed("enter_dungeon"):
 			attempt_field_build()
-	elif Input.is_action_just_pressed("interact"):
-		open_assign_ui()
+	else:
+		if Input.is_action_just_pressed("interact"):
+			open_assign_ui()
+		# Farm: hold the harvest key to hand-tend the field, filling the village
+		# larder in +food chunks -- the early-game manual chore you later automate
+		# by staffing the farm with farmers.
+		if building_name == "Farm" and is_operational():
+			harvest_cooldown -= delta
+			if Input.is_action_pressed("harvest") and harvest_cooldown <= 0.0:
+				var added = GameState.manual_harvest_food()
+				if added > 0.0:
+					harvest_cooldown = FARM_HARVEST_INTERVAL
+					_spawn_harvest_float("+%d" % int(round(added)))
+					_spawn_harvest_puff()
+					_update_farm_crops()
 
 func get_roles() -> Array:
 	return BuildingRoles.get_roles(role_key)
