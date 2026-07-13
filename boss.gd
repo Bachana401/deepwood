@@ -138,37 +138,37 @@ const BOSSES = {
 	"gravewarden": {
 		"name": "The Gravewarden",
 		"color": Color(0.30, 0.42, 0.28), "eye_color": Color(0.7, 1.0, 0.4),
-		"body": Vector2(172, 240), "hp": 900, "speed": 80.0,
+		"body": Vector2(178, 244), "hp": 900, "speed": 80.0, "shape": "brute",
 		"abilities": ["slam", "charge", "summon"],
 	},
 	"frost_monarch": {
 		"name": "The Frost Monarch",
 		"color": Color(0.40, 0.6, 0.85), "eye_color": Color(0.85, 0.97, 1.0),
-		"body": Vector2(142, 212), "hp": 820, "speed": 54.0,
+		"body": Vector2(126, 224), "hp": 820, "speed": 54.0, "shape": "crown",
 		"abilities": ["rain", "nova", "teleport"],
 	},
 	"cinder_colossus": {
 		"name": "The Cinder Colossus",
 		"color": Color(0.72, 0.25, 0.12), "eye_color": Color(1.0, 0.85, 0.2),
-		"body": Vector2(192, 252), "hp": 1050, "speed": 90.0,
+		"body": Vector2(198, 258), "hp": 1050, "speed": 90.0, "shape": "colossus",
 		"abilities": ["charge", "barrage", "pillars"],
 	},
 	"weaver": {
 		"name": "The Weaver",
 		"color": Color(0.45, 0.25, 0.6), "eye_color": Color(1.0, 0.4, 0.9),
-		"body": Vector2(150, 202), "hp": 800, "speed": 72.0,
+		"body": Vector2(132, 150), "hp": 800, "speed": 72.0, "shape": "spider",
 		"abilities": ["summon", "nova", "teleport"],
 	},
 	"stormcaller": {
 		"name": "The Stormcaller",
 		"color": Color(0.85, 0.8, 0.35), "eye_color": Color(1.0, 1.0, 0.75),
-		"body": Vector2(150, 216), "hp": 920, "speed": 84.0,
+		"body": Vector2(138, 204), "hp": 920, "speed": 84.0, "shape": "caster",
 		"abilities": ["nova", "pillars", "barrage"],
 	},
 	"void_sovereign": {
 		"name": "The Void Sovereign",
 		"color": Color(0.2, 0.12, 0.3), "eye_color": Color(0.9, 0.2, 1.0),
-		"body": Vector2(178, 246), "hp": 1220, "speed": 76.0,
+		"body": Vector2(178, 246), "hp": 1220, "speed": 76.0, "shape": "void",
 		"abilities": ["teleport", "rain", "nova", "summon"],
 	},
 	# ----- APEX TIER (levels 35/40/45) -----
@@ -178,21 +178,21 @@ const BOSSES = {
 	"seraph": {
 		"name": "Seraphiel, the Last Light",
 		"color": Color(0.92, 0.88, 0.68), "eye_color": Color(1.0, 0.55, 0.1),
-		"body": Vector2(150, 240), "hp": 2400, "speed": 130.0,
+		"body": Vector2(150, 236), "hp": 2400, "speed": 130.0, "shape": "angel",
 		"flying": true, "apex": true,
 		"abilities": ["dive", "volley", "rain", "nova"],
 	},
 	"leviathan": {
 		"name": "The Abyssal Leviathan",
 		"color": Color(0.1, 0.35, 0.4), "eye_color": Color(0.4, 1.0, 0.9),
-		"body": Vector2(300, 150), "hp": 2800, "speed": 150.0,
+		"body": Vector2(300, 150), "hp": 2800, "speed": 150.0, "shape": "serpent",
 		"flying": true, "apex": true,
 		"abilities": ["charge", "vortex", "meteors", "summon"],
 	},
 	"eclipse": {
 		"name": "The Eclipse Titan",
 		"color": Color(0.1, 0.06, 0.08), "eye_color": Color(1.0, 0.2, 0.1),
-		"body": Vector2(250, 330), "hp": 3300, "speed": 95.0,
+		"body": Vector2(250, 330), "hp": 3300, "speed": 95.0, "shape": "titan",
 		"apex": true,
 		"abilities": ["beam", "pillars", "meteors", "teleport", "summon"],
 	},
@@ -296,6 +296,93 @@ func configure_from_def(def: Dictionary) -> void:
 		bar.offset_right = 80.0
 		bar.offset_top = bar_y
 		bar.offset_bottom = bar_y + 12.0
+
+	build_boss_features(def.get("shape", ""), body, eye_color)
+
+# Adds a silhouette (horns, crown, wings, legs...) around the boss body so each
+# one reads as a distinct creature. Sized relative to the body so it scales
+# with every boss. Parts live under "Features" and fade out on death.
+func build_boss_features(shape: String, body: Vector2, accent: Color) -> void:
+	if has_node("Features"):
+		$Features.queue_free()
+	var f := Node2D.new()
+	f.name = "Features"
+	add_child(f)
+	var hw := body.x / 2.0
+	var hh := body.y / 2.0
+	var dark := base_color.darkened(0.2)
+	match shape:
+		"brute":
+			_bfeat(f, PackedVector2Array([Vector2(-hw, -hh), Vector2(-hw - 34, -hh - 46), Vector2(-hw + 18, -hh - 6)]), accent)
+			_bfeat(f, PackedVector2Array([Vector2(hw, -hh), Vector2(hw + 34, -hh - 46), Vector2(hw - 18, -hh - 6)]), accent)
+		"crown":
+			for k in [-1.0, -0.5, 0.0, 0.5, 1.0]:
+				var cx = k * hw * 0.8
+				_bfeat(f, PackedVector2Array([Vector2(cx - 10, -hh), Vector2(cx + 10, -hh), Vector2(cx, -hh - 60)]), accent)
+		"colossus":
+			_bfeat(f, PackedVector2Array([Vector2(-hw, -hh + 10), Vector2(-hw - 40, -hh - 20), Vector2(-hw, -hh + 60)]), dark)
+			_bfeat(f, PackedVector2Array([Vector2(hw, -hh + 10), Vector2(hw + 40, -hh - 20), Vector2(hw, -hh + 60)]), dark)
+			_bfeat(f, PackedVector2Array([Vector2(-30, -hh), Vector2(-46, -hh - 40), Vector2(-14, -hh)]), accent)
+			_bfeat(f, PackedVector2Array([Vector2(30, -hh), Vector2(46, -hh - 40), Vector2(14, -hh)]), accent)
+		"spider":
+			# eight thin legs splaying from the body
+			for i in range(4):
+				var yy = -hh * 0.4 + i * (hh * 0.5)
+				var span = hw + 40 + i * 6
+				_bleg(f, Vector2(-hw * 0.6, yy), Vector2(-span, yy - 18), dark)
+				_bleg(f, Vector2(hw * 0.6, yy), Vector2(span, yy - 18), dark)
+		"caster":
+			# floating antler-shards above the head
+			_bfeat(f, PackedVector2Array([Vector2(-hw, -hh - 6), Vector2(-hw - 26, -hh - 54), Vector2(-hw + 12, -hh - 20)]), accent)
+			_bfeat(f, PackedVector2Array([Vector2(hw, -hh - 6), Vector2(hw + 26, -hh - 54), Vector2(hw - 12, -hh - 20)]), accent)
+			_bdot(f, Vector2(0, -hh - 34), 8.0, accent)
+		"void":
+			for k in [-1.0, -0.45, 0.45, 1.0]:
+				var cx2 = k * hw * 0.9
+				_bfeat(f, PackedVector2Array([Vector2(cx2 - 12, -hh + 6), Vector2(cx2 + 12, -hh + 6), Vector2(cx2, -hh - 66)]), accent)
+		"angel":
+			# broad feathered wings for the flying seraph
+			_bfeat(f, PackedVector2Array([Vector2(-hw + 10, -hh + 40), Vector2(-hw - 130, -hh - 20), Vector2(-hw - 90, hh * 0.2), Vector2(-hw + 6, hh * 0.1)]), accent)
+			_bfeat(f, PackedVector2Array([Vector2(hw - 10, -hh + 40), Vector2(hw + 130, -hh - 20), Vector2(hw + 90, hh * 0.2), Vector2(hw - 6, hh * 0.1)]), accent)
+			_bdot(f, Vector2(0, -hh - 20), 14.0, accent)   # halo
+		"serpent":
+			# long finned body: a dorsal ridge + tail fin
+			for i in range(5):
+				var sx = -hw + 20 + i * (body.x / 5.0)
+				_bfeat(f, PackedVector2Array([Vector2(sx - 14, -hh), Vector2(sx + 14, -hh), Vector2(sx, -hh - 30)]), accent)
+			_bfeat(f, PackedVector2Array([Vector2(hw, -20), Vector2(hw + 70, -60), Vector2(hw + 70, 30)]), accent)
+		"titan":
+			_bfeat(f, PackedVector2Array([Vector2(-hw + 20, -hh), Vector2(-hw - 30, -hh - 70), Vector2(-hw + 55, -hh - 10)]), accent)
+			_bfeat(f, PackedVector2Array([Vector2(hw - 20, -hh), Vector2(hw + 30, -hh - 70), Vector2(hw - 55, -hh - 10)]), accent)
+			for k in [-0.4, 0.0, 0.4]:
+				_bfeat(f, PackedVector2Array([Vector2(k * hw - 12, -hh), Vector2(k * hw + 12, -hh), Vector2(k * hw, -hh - 44)]), dark)
+		_:
+			pass
+
+func _bfeat(parent: Node2D, points: PackedVector2Array, color: Color) -> void:
+	var p := Polygon2D.new()
+	p.polygon = points
+	p.color = color
+	p.z_index = -1   # sit behind the body block
+	parent.add_child(p)
+
+func _bleg(parent: Node2D, a: Vector2, b: Vector2, color: Color) -> void:
+	var line := Line2D.new()
+	line.points = PackedVector2Array([a, Vector2((a.x + b.x) / 2.0, a.y - 24), b])
+	line.width = 5.0
+	line.default_color = color
+	line.z_index = -1
+	parent.add_child(line)
+
+func _bdot(parent: Node2D, pos: Vector2, r: float, color: Color) -> void:
+	var pts := PackedVector2Array()
+	for i in range(16):
+		pts.append(Vector2(cos(i * TAU / 16), sin(i * TAU / 16)) * r)
+	var p := Polygon2D.new()
+	p.polygon = pts
+	p.position = pos
+	p.color = color
+	parent.add_child(p)
 
 func place_eye(eye: ColorRect, cx: float, cy: float, size: float, color: Color) -> void:
 	eye.offset_left = cx - size / 2.0
@@ -957,6 +1044,8 @@ func play_death_animation() -> void:
 	tween.tween_property($ColorRect, "modulate:a", 0.0, 0.65).set_delay(0.15)
 	tween.tween_property($EyeLeft, "modulate:a", 0.0, 0.5)
 	tween.tween_property($EyeRight, "modulate:a", 0.0, 0.5)
+	if has_node("Features"):
+		tween.tween_property($Features, "modulate:a", 0.0, 0.5)
 	tween.tween_property(self, "scale", Vector2(0.1, 0.1), 0.65).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tween.tween_property(self, "position:y", position.y - 30.0, 0.65).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	await tween.finished

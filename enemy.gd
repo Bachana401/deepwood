@@ -49,17 +49,17 @@ const WEAPONS = {
 # the flavor is felt in combat, not just visually.
 const ENEMY_ROSTERS = [
 	# 0 -- Bandits (levels 1-5): the plain baseline, balanced weapon mix.
-	{"name": "Bandit", "color": Color(0.62, 0.18, 0.11), "scale": 1.0, "weapons": ["sword", "spear", "bow"], "hp_mult": 1.0, "dmg_mult": 1.0, "speed_mult": 1.0},
+	{"name": "Bandit", "color": Color(0.62, 0.18, 0.11), "accent": Color(0.85, 0.42, 0.3), "scale": 1.0, "shape": "grunt", "weapons": ["sword", "spear", "bow"], "hp_mult": 1.0, "dmg_mult": 1.0, "speed_mult": 1.0},
 	# 1 -- Frostkin (6-10): light, quick skirmishers, spear & bow.
-	{"name": "Frostkin", "color": Color(0.36, 0.6, 0.86), "scale": 0.92, "weapons": ["spear", "bow"], "hp_mult": 0.85, "dmg_mult": 1.0, "speed_mult": 1.22},
+	{"name": "Frostkin", "color": Color(0.36, 0.6, 0.86), "accent": Color(0.75, 0.95, 1.0), "scale": 0.92, "shape": "frost", "weapons": ["spear", "bow"], "hp_mult": 0.85, "dmg_mult": 1.0, "speed_mult": 1.22},
 	# 2 -- Emberlings (11-15): heavy bruisers, hit hard but slower.
-	{"name": "Emberling", "color": Color(0.85, 0.35, 0.12), "scale": 1.12, "weapons": ["sword", "spear"], "hp_mult": 1.3, "dmg_mult": 1.18, "speed_mult": 0.88},
+	{"name": "Emberling", "color": Color(0.85, 0.35, 0.12), "accent": Color(1.0, 0.72, 0.2), "scale": 1.12, "shape": "ember", "weapons": ["sword", "spear"], "hp_mult": 1.3, "dmg_mult": 1.18, "speed_mult": 0.88},
 	# 3 -- Wraiths (16-20): fragile fast archers that swarm from range.
-	{"name": "Wraith", "color": Color(0.55, 0.3, 0.72), "scale": 0.9, "weapons": ["bow", "bow", "sword"], "hp_mult": 0.78, "dmg_mult": 1.0, "speed_mult": 1.32},
+	{"name": "Wraith", "color": Color(0.55, 0.3, 0.72), "accent": Color(0.85, 0.5, 1.0), "scale": 0.9, "shape": "wraith", "weapons": ["bow", "bow", "sword"], "hp_mult": 0.78, "dmg_mult": 1.0, "speed_mult": 1.32},
 	# 4 -- Stonekin (21-25): huge tanks, slow, pure melee.
-	{"name": "Stonekin", "color": Color(0.5, 0.5, 0.56), "scale": 1.28, "weapons": ["sword"], "hp_mult": 1.7, "dmg_mult": 1.22, "speed_mult": 0.78},
+	{"name": "Stonekin", "color": Color(0.5, 0.5, 0.56), "accent": Color(0.72, 0.72, 0.78), "scale": 1.28, "shape": "stone", "weapons": ["sword"], "hp_mult": 1.7, "dmg_mult": 1.22, "speed_mult": 0.78},
 	# 5 -- Venomlings (26-30): small, fast, poison-quick jabs.
-	{"name": "Venomling", "color": Color(0.3, 0.66, 0.26), "scale": 0.84, "weapons": ["spear", "spear", "bow"], "hp_mult": 0.85, "dmg_mult": 1.12, "speed_mult": 1.26},
+	{"name": "Venomling", "color": Color(0.3, 0.66, 0.26), "accent": Color(0.7, 1.0, 0.4), "scale": 0.84, "shape": "venom", "weapons": ["spear", "spear", "bow"], "hp_mult": 0.85, "dmg_mult": 1.12, "speed_mult": 1.26},
 ]
 
 @export var weapon_type: String = "sword"
@@ -97,6 +97,8 @@ var hesitate_remaining = 0.0
 var wave_hp_multiplier = 1.0
 var wave_damage_multiplier = 1.0
 var wave_speed_multiplier = 1.0
+var character_shape := "grunt"
+var accent_color := Color(0.85, 0.42, 0.3)
 
 func _ready() -> void:
 	start_x = global_position.x
@@ -111,6 +113,7 @@ func _ready() -> void:
 	damage_multiplier *= wave_damage_multiplier
 	setup_weapon_visual()
 	update_body_color()
+	build_character()
 
 func update_body_color() -> void:
 	$ColorRect.color = base_color.darkened(clamp(generation * 0.15, 0.0, 0.6))
@@ -134,9 +137,89 @@ func apply_block_archetype(block: int) -> void:
 	var weapons: Array = data.get("weapons", [weapon_type])
 	if not weapons.is_empty():
 		weapon_type = weapons[randi() % weapons.size()]
+	character_shape = data.get("shape", "grunt")
+	accent_color = data.get("accent", accent_color)
 	wave_hp_multiplier *= float(data.get("hp_mult", 1.0))
 	wave_damage_multiplier *= float(data.get("dmg_mult", 1.0))
 	wave_speed_multiplier *= float(data.get("speed_mult", 1.0))
+
+# Builds a distinct silhouette (head + a signature feature) on top of the plain
+# torso ColorRect, so each roster archetype reads as its own creature rather
+# than a colored box. Parts live under a "Features" node; flash_hit and the
+# death animation brighten/fade it alongside the torso.
+func build_character() -> void:
+	if has_node("Features"):
+		$Features.queue_free()
+	var f := Node2D.new()
+	f.name = "Features"
+	add_child(f)
+	var head_col := base_color.lightened(0.14)
+	match character_shape:
+		"frost":
+			_add_head(f, head_col, 7.0, -26.0)
+			# ice crown: three pale spikes
+			for sx in [-7.0, 0.0, 7.0]:
+				_add_poly(f, PackedVector2Array([Vector2(sx - 3, -30), Vector2(sx + 3, -30), Vector2(sx, -44)]), accent_color)
+		"ember":
+			_add_shoulders(f, base_color.darkened(0.1))
+			_add_head(f, head_col, 8.0, -27.0)
+			# two curved horns
+			_add_poly(f, PackedVector2Array([Vector2(-8, -32), Vector2(-15, -46), Vector2(-4, -34)]), accent_color)
+			_add_poly(f, PackedVector2Array([Vector2(8, -32), Vector2(15, -46), Vector2(4, -34)]), accent_color)
+		"wraith":
+			# no round head -- a tattered hood with glowing eyes
+			_add_poly(f, PackedVector2Array([Vector2(-11, -20), Vector2(11, -20), Vector2(7, -40), Vector2(-7, -40)]), base_color.darkened(0.25))
+			for sx in [-4.0, 4.0]:
+				_add_dot(f, Vector2(sx, -28), 2.0, accent_color)
+		"stone":
+			_add_shoulders(f, base_color.darkened(0.12))
+			# blocky head
+			var head := ColorRect.new()
+			head.size = Vector2(18, 16)
+			head.position = Vector2(-9, -38)
+			head.color = head_col
+			f.add_child(head)
+			# a crack line
+			_add_dot(f, Vector2(0, -30), 1.5, base_color.darkened(0.4))
+		"venom":
+			_add_head(f, head_col, 6.0, -24.0)
+			# antennae
+			for sx in [-5.0, 5.0]:
+				var line := Line2D.new()
+				line.points = PackedVector2Array([Vector2(sx, -28), Vector2(sx * 2.2, -40)])
+				line.width = 1.5
+				line.default_color = accent_color
+				f.add_child(line)
+				_add_dot(f, Vector2(sx * 2.2, -40), 2.0, accent_color)
+		_:  # grunt / default humanoid
+			_add_head(f, head_col, 7.0, -26.0)
+			_add_dot(f, Vector2(0, -32), 3.0, accent_color)   # small cap/tuft
+
+func _add_head(parent: Node2D, color: Color, r: float, y: float) -> void:
+	_add_dot(parent, Vector2(0, y), r, color)
+
+func _add_shoulders(parent: Node2D, color: Color) -> void:
+	var s := ColorRect.new()
+	s.size = Vector2(34, 10)
+	s.position = Vector2(-17, -22)
+	s.color = color
+	parent.add_child(s)
+
+func _add_poly(parent: Node2D, points: PackedVector2Array, color: Color) -> void:
+	var p := Polygon2D.new()
+	p.polygon = points
+	p.color = color
+	parent.add_child(p)
+
+func _add_dot(parent: Node2D, pos: Vector2, r: float, color: Color) -> void:
+	var pts := PackedVector2Array()
+	for i in range(12):
+		pts.append(Vector2(cos(i * TAU / 12), sin(i * TAU / 12)) * r)
+	var p := Polygon2D.new()
+	p.polygon = pts
+	p.position = pos
+	p.color = color
+	parent.add_child(p)
 
 func setup_weapon_visual() -> void:
 	var stats = WEAPONS.get(weapon_type, WEAPONS["sword"])
@@ -390,6 +473,9 @@ func flash_hit() -> void:
 	$ColorRect.color = Color(1, 1, 1)
 	var tween = create_tween()
 	tween.tween_property($ColorRect, "color", base_color.darkened(clamp(generation * 0.15, 0.0, 0.6)), 0.15)
+	if has_node("Features"):
+		$Features.modulate = Color(2.2, 2.2, 2.2)
+		create_tween().tween_property($Features, "modulate", Color(1, 1, 1), 0.15)
 
 func update_health_bar() -> void:
 	var health_percent = float(health) / max_health
@@ -428,6 +514,8 @@ func play_death_animation() -> void:
 	tween.set_parallel(true)
 	tween.tween_property($ColorRect, "color", Color(1.0, 0.35, 0.05, 1), 0.15)
 	tween.tween_property($ColorRect, "modulate:a", 0.0, 0.45).set_delay(0.1)
+	if has_node("Features"):
+		tween.tween_property($Features, "modulate:a", 0.0, 0.45).set_delay(0.1)
 	tween.tween_property(self, "scale", Vector2(0.15, 0.15), 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tween.tween_property(self, "position:y", position.y - 18.0, 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	await tween.finished
