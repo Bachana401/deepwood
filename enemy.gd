@@ -221,11 +221,9 @@ func _add_poly(parent: Node2D, points: PackedVector2Array, color: Color) -> void
 	parent.add_child(p)
 
 func _add_dot(parent: Node2D, pos: Vector2, r: float, color: Color) -> void:
-	var pts := PackedVector2Array()
-	for i in range(12):
-		pts.append(Vector2(cos(i * TAU / 12), sin(i * TAU / 12)) * r)
+	# squarish pixel-art style: dots are blocks
 	var p := Polygon2D.new()
-	p.polygon = pts
+	p.polygon = PackedVector2Array([Vector2(-r, -r), Vector2(r, -r), Vector2(r, r), Vector2(-r, r)])
 	p.position = pos
 	p.color = color
 	parent.add_child(p)
@@ -555,12 +553,13 @@ func spawn_coin_popup(amount: int) -> void:
 	popup.global_position = global_position + Vector2(0, -30)
 	get_parent().add_child(popup)
 
+	# chunky octagonal coin -- fits the squarish pixel-art theme
 	var coin = Polygon2D.new()
 	coin.color = Color(1.0, 0.85, 0.2, 1)
 	var points = PackedVector2Array()
 	var radius = 7.0
-	for i in range(12):
-		var angle = i * TAU / 12
+	for i in range(8):
+		var angle = (i + 0.5) * TAU / 8
 		points.append(Vector2(cos(angle), sin(angle)) * radius)
 	coin.polygon = points
 	popup.add_child(coin)
@@ -568,8 +567,8 @@ func spawn_coin_popup(amount: int) -> void:
 	var ring = Polygon2D.new()
 	ring.color = Color(0.75, 0.55, 0.05, 1)
 	var ring_points = PackedVector2Array()
-	for i in range(12):
-		var angle = i * TAU / 12
+	for i in range(8):
+		var angle = (i + 0.5) * TAU / 8
 		ring_points.append(Vector2(cos(angle), sin(angle)) * (radius - 2.0))
 	ring.polygon = ring_points
 	popup.add_child(ring)

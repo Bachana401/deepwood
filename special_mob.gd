@@ -644,10 +644,11 @@ func poly(points: PackedVector2Array) -> Polygon2D:
 	p.polygon = points
 	return p
 
-func circle_points(r: float, segs: int = 16) -> PackedVector2Array:
+func circle_points(r: float, _segs: int = 8) -> PackedVector2Array:
+	# chunky octagon (flats up/down) -- squarish pixel-art theme
 	var pts = PackedVector2Array()
-	for i in range(segs):
-		pts.append(Vector2(cos(i * TAU / segs), sin(i * TAU / segs)) * r)
+	for i in range(8):
+		pts.append(Vector2(cos((i + 0.5) * TAU / 8), sin((i + 0.5) * TAU / 8)) * r)
 	return pts
 
 const BONE := Color(0.8, 0.78, 0.7)

@@ -774,9 +774,10 @@ func build_torch(pos: Vector2, color: Color = TORCH_COLOR) -> void:
 	torch.add_child(pole)
 
 	var glow = Polygon2D.new()
+	# chunky octagon glow -- squarish pixel-art theme
 	var glow_points = PackedVector2Array()
-	for i in range(16):
-		var angle = i * TAU / 16.0
+	for i in range(8):
+		var angle = (i + 0.5) * TAU / 8.0
 		glow_points.append(Vector2(cos(angle), sin(angle)) * 28.0)
 	glow.polygon = glow_points
 	glow.color = Color(color.r, color.g, color.b, 0.32)

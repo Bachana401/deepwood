@@ -43,11 +43,9 @@ func build_visual() -> void:
 	add_child(eye)
 
 func _disc(r: float, c: Color) -> Polygon2D:
-	var pts = PackedVector2Array()
-	for i in range(18):
-		pts.append(Vector2(cos(i * TAU / 18), sin(i * TAU / 18)) * r)
+	# squarish pixel-art style: the orb is a block with a diamond glow
 	var p = Polygon2D.new()
-	p.polygon = pts
+	p.polygon = PackedVector2Array([Vector2(-r, -r), Vector2(r, -r), Vector2(r, r), Vector2(-r, r)])
 	p.color = c
 	return p
 
