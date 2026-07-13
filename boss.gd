@@ -161,7 +161,7 @@ const BOSSES = {
 	},
 	"stormcaller": {
 		"name": "The Stormcaller",
-		"color": Color(0.85, 0.8, 0.35), "eye_color": Color(1.0, 1.0, 0.75),
+		"color": Color(0.46, 0.48, 0.28), "eye_color": Color(0.85, 1.0, 0.4),
 		"body": Vector2(138, 204), "hp": 920, "speed": 84.0, "shape": "caster",
 		"abilities": ["nova", "pillars", "barrage"],
 	},

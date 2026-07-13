@@ -48,18 +48,18 @@ const WEAPONS = {
 # enemy body (color/size), picks its weapon mix, and nudges the base stats so
 # the flavor is felt in combat, not just visually.
 const ENEMY_ROSTERS = [
-	# 0 -- Bandits (levels 1-5): the plain baseline, balanced weapon mix.
-	{"name": "Bandit", "color": Color(0.62, 0.18, 0.11), "accent": Color(0.85, 0.42, 0.3), "scale": 1.0, "shape": "grunt", "weapons": ["sword", "spear", "bow"], "hp_mult": 1.0, "dmg_mult": 1.0, "speed_mult": 1.0},
-	# 1 -- Frostkin (6-10): light, quick skirmishers, spear & bow.
-	{"name": "Frostkin", "color": Color(0.36, 0.6, 0.86), "accent": Color(0.75, 0.95, 1.0), "scale": 0.92, "shape": "frost", "weapons": ["spear", "bow"], "hp_mult": 0.85, "dmg_mult": 1.0, "speed_mult": 1.22},
-	# 2 -- Emberlings (11-15): heavy bruisers, hit hard but slower.
-	{"name": "Emberling", "color": Color(0.85, 0.35, 0.12), "accent": Color(1.0, 0.72, 0.2), "scale": 1.12, "shape": "ember", "weapons": ["sword", "spear"], "hp_mult": 1.3, "dmg_mult": 1.18, "speed_mult": 0.88},
-	# 3 -- Wraiths (16-20): fragile fast archers that swarm from range.
-	{"name": "Wraith", "color": Color(0.55, 0.3, 0.72), "accent": Color(0.85, 0.5, 1.0), "scale": 0.9, "shape": "wraith", "weapons": ["bow", "bow", "sword"], "hp_mult": 0.78, "dmg_mult": 1.0, "speed_mult": 1.32},
-	# 4 -- Stonekin (21-25): huge tanks, slow, pure melee.
-	{"name": "Stonekin", "color": Color(0.5, 0.5, 0.56), "accent": Color(0.72, 0.72, 0.78), "scale": 1.28, "shape": "stone", "weapons": ["sword"], "hp_mult": 1.7, "dmg_mult": 1.22, "speed_mult": 0.78},
-	# 5 -- Venomlings (26-30): small, fast, poison-quick jabs.
-	{"name": "Venomling", "color": Color(0.3, 0.66, 0.26), "accent": Color(0.7, 1.0, 0.4), "scale": 0.84, "shape": "venom", "weapons": ["spear", "spear", "bow"], "hp_mult": 0.85, "dmg_mult": 1.12, "speed_mult": 1.26},
+	# 0 -- Ghouls (levels 1-5): shambling rotten dead, balanced weapon mix.
+	{"name": "Ghoul", "color": Color(0.33, 0.4, 0.29), "accent": Color(0.7, 1.0, 0.45), "scale": 1.0, "shape": "grunt", "weapons": ["sword", "spear", "bow"], "hp_mult": 1.0, "dmg_mult": 1.0, "speed_mult": 1.0},
+	# 1 -- Frost Wights (6-10): frozen undead skirmishers, spear & bow.
+	{"name": "Frost Wight", "color": Color(0.4, 0.5, 0.6), "accent": Color(0.7, 0.92, 1.0), "scale": 0.92, "shape": "frost", "weapons": ["spear", "bow"], "hp_mult": 0.85, "dmg_mult": 1.0, "speed_mult": 1.22},
+	# 2 -- Charred Revenants (11-15): burnt corpses, hit hard but slow.
+	{"name": "Charred Revenant", "color": Color(0.2, 0.15, 0.15), "accent": Color(1.0, 0.5, 0.12), "scale": 1.12, "shape": "ember", "weapons": ["sword", "spear"], "hp_mult": 1.3, "dmg_mult": 1.18, "speed_mult": 0.88},
+	# 3 -- Wraiths (16-20): spectral fast archers that swarm from range.
+	{"name": "Wraith", "color": Color(0.32, 0.22, 0.42), "accent": Color(0.7, 0.4, 1.0), "scale": 0.9, "shape": "wraith", "weapons": ["bow", "bow", "sword"], "hp_mult": 0.78, "dmg_mult": 1.0, "speed_mult": 1.32},
+	# 4 -- Bone Golems (21-25): huge tomb-bone tanks, slow, pure melee.
+	{"name": "Bone Golem", "color": Color(0.52, 0.5, 0.44), "accent": Color(0.86, 0.84, 0.72), "scale": 1.28, "shape": "stone", "weapons": ["sword"], "hp_mult": 1.7, "dmg_mult": 1.22, "speed_mult": 0.78},
+	# 5 -- Rotfiends (26-30): small, fast, diseased jabbers.
+	{"name": "Rotfiend", "color": Color(0.28, 0.4, 0.2), "accent": Color(0.7, 1.0, 0.3), "scale": 0.84, "shape": "venom", "weapons": ["spear", "spear", "bow"], "hp_mult": 0.85, "dmg_mult": 1.12, "speed_mult": 1.26},
 ]
 
 @export var weapon_type: String = "sword"
@@ -143,60 +143,69 @@ func apply_block_archetype(block: int) -> void:
 	wave_damage_multiplier *= float(data.get("dmg_mult", 1.0))
 	wave_speed_multiplier *= float(data.get("speed_mult", 1.0))
 
-# Builds a distinct silhouette (head + a signature feature) on top of the plain
-# torso ColorRect, so each roster archetype reads as its own creature rather
-# than a colored box. Parts live under a "Features" node; flash_hit and the
-# death animation brighten/fade it alongside the torso.
+# Builds a distinct UNDEAD silhouette (skull/hood + bony features) on top of
+# the torso ColorRect, so each roster archetype reads as its own monster. Parts
+# live under a "Features" node; flash_hit/death brighten/fade it with the torso.
+const BONE := Color(0.82, 0.8, 0.72)
+
 func build_character() -> void:
 	if has_node("Features"):
 		$Features.queue_free()
 	var f := Node2D.new()
 	f.name = "Features"
 	add_child(f)
-	var head_col := base_color.lightened(0.14)
 	match character_shape:
 		"frost":
-			_add_head(f, head_col, 7.0, -26.0)
-			# ice crown: three pale spikes
-			for sx in [-7.0, 0.0, 7.0]:
-				_add_poly(f, PackedVector2Array([Vector2(sx - 3, -30), Vector2(sx + 3, -30), Vector2(sx, -44)]), accent_color)
+			_add_skull(f, -27.0, 7.0, BONE.lerp(base_color, 0.35))
+			for sx in [-8.0, 0.0, 8.0]:   # jagged frozen-bone crown
+				_add_poly(f, PackedVector2Array([Vector2(sx - 3, -32), Vector2(sx + 3, -32), Vector2(sx, -48)]), BONE)
 		"ember":
-			_add_shoulders(f, base_color.darkened(0.1))
-			_add_head(f, head_col, 8.0, -27.0)
-			# two curved horns
-			_add_poly(f, PackedVector2Array([Vector2(-8, -32), Vector2(-15, -46), Vector2(-4, -34)]), accent_color)
-			_add_poly(f, PackedVector2Array([Vector2(8, -32), Vector2(15, -46), Vector2(4, -34)]), accent_color)
-		"wraith":
-			# no round head -- a tattered hood with glowing eyes
-			_add_poly(f, PackedVector2Array([Vector2(-11, -20), Vector2(11, -20), Vector2(7, -40), Vector2(-7, -40)]), base_color.darkened(0.25))
-			for sx in [-4.0, 4.0]:
-				_add_dot(f, Vector2(sx, -28), 2.0, accent_color)
-		"stone":
 			_add_shoulders(f, base_color.darkened(0.12))
-			# blocky head
-			var head := ColorRect.new()
-			head.size = Vector2(18, 16)
-			head.position = Vector2(-9, -38)
-			head.color = head_col
+			_add_skull(f, -28.0, 8.0, Color(0.24, 0.19, 0.18))   # charred skull
+			_add_poly(f, PackedVector2Array([Vector2(-9, -33), Vector2(-17, -49), Vector2(-4, -35)]), accent_color)   # horns
+			_add_poly(f, PackedVector2Array([Vector2(9, -33), Vector2(17, -49), Vector2(4, -35)]), accent_color)
+			_add_dot(f, Vector2(-6, -6), 2.5, accent_color)      # glowing ember cracks
+			_add_dot(f, Vector2(5, 2), 2.0, accent_color)
+		"wraith":
+			# hollow hood, no face -- just two burning eyes in the dark
+			_add_poly(f, PackedVector2Array([Vector2(-12, -18), Vector2(12, -18), Vector2(8, -42), Vector2(-8, -42)]), base_color.darkened(0.3))
+			for sx in [-4.0, 4.0]:
+				_add_dot(f, Vector2(sx, -29), 2.2, accent_color)
+			# ragged spectral tatters trailing below
+			_add_poly(f, PackedVector2Array([Vector2(-12, 16), Vector2(-6, 28), Vector2(0, 16), Vector2(6, 28), Vector2(12, 16)]), base_color.darkened(0.18))
+		"stone":
+			_add_shoulders(f, base_color.darkened(0.15))
+			var head := ColorRect.new()   # heavy blocky bone skull
+			head.size = Vector2(20, 18)
+			head.position = Vector2(-10, -40)
+			head.color = BONE.darkened(0.08)
 			f.add_child(head)
-			# a crack line
-			_add_dot(f, Vector2(0, -30), 1.5, base_color.darkened(0.4))
+			_add_socket(f, Vector2(-5, -32))
+			_add_socket(f, Vector2(5, -32))
+			_add_dot(f, Vector2(-5, -32), 1.4, accent_color)
+			_add_dot(f, Vector2(5, -32), 1.4, accent_color)
+			_add_poly(f, PackedVector2Array([Vector2(-2, -24), Vector2(2, -24), Vector2(0, -14)]), Color(0.1, 0.1, 0.1))   # crack
 		"venom":
-			_add_head(f, head_col, 6.0, -24.0)
-			# antennae
-			for sx in [-5.0, 5.0]:
-				var line := Line2D.new()
-				line.points = PackedVector2Array([Vector2(sx, -28), Vector2(sx * 2.2, -40)])
-				line.width = 1.5
-				line.default_color = accent_color
-				f.add_child(line)
-				_add_dot(f, Vector2(sx * 2.2, -40), 2.0, accent_color)
-		_:  # grunt / default humanoid
-			_add_head(f, head_col, 7.0, -26.0)
-			_add_dot(f, Vector2(0, -32), 3.0, accent_color)   # small cap/tuft
+			_add_skull(f, -25.0, 6.5, BONE.lerp(base_color, 0.4))
+			for p in [Vector2(-7, -2), Vector2(6, 4), Vector2(-2, 9)]:   # festering boils
+				_add_dot(f, p, 2.5, accent_color)
+		_:  # grunt / Ghoul
+			_add_skull(f, -26.0, 7.0, BONE.lerp(base_color, 0.4))
+			# hunched ragged shoulders
+			_add_poly(f, PackedVector2Array([Vector2(-15, -20), Vector2(15, -20), Vector2(10, -11), Vector2(-10, -11)]), base_color.darkened(0.22))
 
-func _add_head(parent: Node2D, color: Color, r: float, y: float) -> void:
+# A skull: pale cranium, two dark sockets with glowing pupils, and jaw fangs.
+func _add_skull(parent: Node2D, y: float, r: float, color: Color) -> void:
 	_add_dot(parent, Vector2(0, y), r, color)
+	_add_socket(parent, Vector2(-r * 0.45, y - 1.0))
+	_add_socket(parent, Vector2(r * 0.45, y - 1.0))
+	_add_dot(parent, Vector2(-r * 0.45, y - 1.0), 1.5, accent_color)
+	_add_dot(parent, Vector2(r * 0.45, y - 1.0), 1.5, accent_color)
+	_add_poly(parent, PackedVector2Array([Vector2(-r * 0.5, y + r * 0.6), Vector2(-r * 0.2, y + r * 1.3), Vector2(0, y + r * 0.6)]), color)
+	_add_poly(parent, PackedVector2Array([Vector2(r * 0.5, y + r * 0.6), Vector2(r * 0.2, y + r * 1.3), Vector2(0, y + r * 0.6)]), color)
+
+func _add_socket(parent: Node2D, pos: Vector2) -> void:
+	_add_dot(parent, pos, 2.6, Color(0.05, 0.045, 0.06))
 
 func _add_shoulders(parent: Node2D, color: Color) -> void:
 	var s := ColorRect.new()

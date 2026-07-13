@@ -27,22 +27,27 @@ const SFX_DEATH = preload("res://audio/enemy_death.wav")
 const SFX_EXPLOSION = preload("res://audio/explosion.wav")
 
 # Base statline per kind (before level scaling multipliers).
+# Undead/evil monsters. "main" = body, "accent" = glow (eyes/pustules/etc).
 const KINDS = {
+	# Gloomeye -- a floating skull-wisp shrouded in tattered darkness.
 	"flyer": {
 		"hp": 34, "dmg": 7, "speed": 66.0, "reward": 6, "xp": 6,
-		"main": Color(0.5, 0.3, 0.72), "accent": Color(0.85, 0.4, 1.0),
+		"main": Color(0.24, 0.22, 0.3), "accent": Color(0.7, 0.25, 0.95),
 	},
+	# Festerling -- a bloated rotting corpse that ruptures on approach.
 	"bomber": {
 		"hp": 40, "dmg": 24, "speed": 132.0, "reward": 8, "xp": 8,
-		"main": Color(0.2, 0.18, 0.2), "accent": Color(1.0, 0.55, 0.1),
+		"main": Color(0.26, 0.3, 0.2), "accent": Color(0.8, 1.0, 0.3),
 	},
+	# Gravehound -- a skeletal beast that charges the living.
 	"charger": {
 		"hp": 78, "dmg": 16, "speed": 78.0, "reward": 9, "xp": 10,
-		"main": Color(0.42, 0.3, 0.18), "accent": Color(0.85, 0.78, 0.6),
+		"main": Color(0.4, 0.38, 0.34), "accent": Color(0.9, 0.85, 0.66),
 	},
+	# Bilespitter -- a diseased, fanged toad-corpse that vomits bile.
 	"spitter": {
 		"hp": 50, "dmg": 9, "speed": 34.0, "reward": 8, "xp": 8,
-		"main": Color(0.28, 0.5, 0.22), "accent": Color(0.7, 1.0, 0.4),
+		"main": Color(0.26, 0.36, 0.18), "accent": Color(0.7, 1.0, 0.35),
 	},
 }
 
@@ -341,62 +346,80 @@ func circle_points(r: float, segs: int = 16) -> PackedVector2Array:
 		pts.append(Vector2(cos(i * TAU / segs), sin(i * TAU / segs)) * r)
 	return pts
 
-# A floating one-eyed gazer with little bat wings.
+const BONE := Color(0.8, 0.78, 0.7)
+
+# Gloomeye -- a hovering skull shrouded in tattered darkness, one burning eye.
 func build_flyer_visual() -> void:
-	var wing_l = poly(PackedVector2Array([Vector2(-12, -20), Vector2(-30, -30), Vector2(-26, -14), Vector2(-32, -6)]))
-	add_part(wing_l, accent_color.darkened(0.2))
-	var wing_r = poly(PackedVector2Array([Vector2(12, -20), Vector2(30, -30), Vector2(26, -14), Vector2(32, -6)]))
-	add_part(wing_r, accent_color.darkened(0.2))
-	var orb = poly(circle_points(15.0))
-	orb.position = Vector2(0, -16)
-	add_part(orb, main_color)
-	var eye = poly(circle_points(7.0))
-	eye.position = Vector2(0, -16)
-	add_part(eye, Color(1, 1, 1))
-	var pupil = poly(circle_points(3.5))
-	pupil.position = Vector2(0, -16)
-	add_part(pupil, Color(0.1, 0.05, 0.15))
+	# ragged dark wings
+	add_part(poly(PackedVector2Array([Vector2(-11, -20), Vector2(-33, -30), Vector2(-25, -16), Vector2(-35, -8), Vector2(-20, -11)])), main_color.darkened(0.3))
+	add_part(poly(PackedVector2Array([Vector2(11, -20), Vector2(33, -30), Vector2(25, -16), Vector2(35, -8), Vector2(20, -11)])), main_color.darkened(0.3))
+	# jagged shroud / skull body
+	var body = poly(PackedVector2Array([Vector2(-13, -4), Vector2(-11, -23), Vector2(0, -31), Vector2(11, -23), Vector2(13, -4), Vector2(5, -9), Vector2(0, -1), Vector2(-5, -9)]))
+	body.position = Vector2(0, 0)
+	add_part(body, main_color)
+	# hollow socket with a single glowing pupil
+	var socket = poly(circle_points(6.0))
+	socket.position = Vector2(0, -17)
+	add_part(socket, Color(0.04, 0.03, 0.06))
+	var pupil = poly(circle_points(3.0))
+	pupil.position = Vector2(0, -17)
+	add_part(pupil, accent_color)
+	# bony brow ridge
+	add_part(poly(PackedVector2Array([Vector2(-8, -23), Vector2(8, -23), Vector2(0, -19)])), BONE)
 
-# A round bomb with a lit fuse.
+# Festerling -- a bloated rotting corpse studded with glowing pustules.
 func build_bomber_visual() -> void:
-	var bomb = poly(circle_points(15.0))
-	bomb.position = Vector2(0, -16)
-	add_part(bomb, main_color)
-	var band = ColorRect.new()
-	band.size = Vector2(30, 5)
-	band.position = Vector2(-15, -18)
-	add_part(band, main_color.lightened(0.25))
-	var cap = ColorRect.new()
-	cap.size = Vector2(10, 7)
-	cap.position = Vector2(-5, -34)
-	add_part(cap, Color(0.3, 0.25, 0.2))
-	var spark = poly(circle_points(4.0))
-	spark.position = Vector2(0, -40)
-	add_part(spark, accent_color)
+	var body = poly(PackedVector2Array([Vector2(-16, 0), Vector2(-14, -20), Vector2(-3, -30), Vector2(11, -27), Vector2(16, -12), Vector2(11, 0)]))
+	add_part(body, main_color)
+	# glowing rupture-line down the middle (about to burst)
+	add_part(poly(PackedVector2Array([Vector2(-2, -26), Vector2(2, -26), Vector2(1, -3), Vector2(-1, -3)])), accent_color.darkened(0.05))
+	# pustules
+	for p in [Vector2(-7, -16), Vector2(6, -9), Vector2(-2, -23), Vector2(9, -20)]:
+		var b = poly(circle_points(3.0))
+		b.position = p
+		add_part(b, accent_color)
+	# sunken dark eye sockets
+	for sx in [-5, 6]:
+		var s = poly(circle_points(2.4))
+		s.position = Vector2(sx, -14)
+		add_part(s, Color(0.04, 0.05, 0.03))
 
-# A low, horned rammer beetle.
+# Gravehound -- a low skeletal beast, horned, with bared ribs.
 func build_charger_visual() -> void:
-	var body = poly(PackedVector2Array([Vector2(-22, -8), Vector2(16, -10), Vector2(22, -22), Vector2(-16, -26), Vector2(-24, -18)]))
+	var body = poly(PackedVector2Array([Vector2(-24, -6), Vector2(14, -8), Vector2(22, -21), Vector2(-14, -25), Vector2(-26, -16)]))
 	add_part(body, main_color)
-	var horn = poly(PackedVector2Array([Vector2(20, -18), Vector2(40, -14), Vector2(20, -10)]))
-	add_part(horn, accent_color)
-	var eye = ColorRect.new()
-	eye.size = Vector2(4, 4)
-	eye.position = Vector2(10, -22)
-	add_part(eye, Color(1.0, 0.3, 0.2))
+	# forward horn
+	add_part(poly(PackedVector2Array([Vector2(20, -18), Vector2(42, -15), Vector2(20, -9)])), BONE)
+	# bared ribs
+	for rx in [-16, -9, -2]:
+		var rib = Line2D.new()
+		rib.points = PackedVector2Array([Vector2(rx, -7), Vector2(rx, -20)])
+		rib.width = 1.5
+		rib.default_color = BONE.darkened(0.15)
+		visual.add_child(rib)
+	# burning eye
+	var eye = poly(circle_points(3.0))
+	eye.position = Vector2(11, -20)
+	add_part(eye, Color(1.0, 0.28, 0.15))
 
-# A squat wide-mouthed turret toad.
+# Bilespitter -- a squat diseased corpse-toad with a fanged maw.
 func build_spitter_visual() -> void:
-	var body = poly(PackedVector2Array([Vector2(-20, 0), Vector2(20, 0), Vector2(16, -26), Vector2(-16, -26)]))
+	var body = poly(PackedVector2Array([Vector2(-20, 0), Vector2(20, 0), Vector2(16, -25), Vector2(-16, -25)]))
 	add_part(body, main_color)
-	var mouth = ColorRect.new()
-	mouth.size = Vector2(22, 7)
-	mouth.position = Vector2(-11, -14)
-	add_part(mouth, Color(0.1, 0.15, 0.08))
-	for sx in [-9, 9]:
-		var eye = poly(circle_points(4.5))
-		eye.position = Vector2(sx, -22)
+	# gaping dark maw
+	add_part(poly(PackedVector2Array([Vector2(-13, -11), Vector2(13, -11), Vector2(10, -2), Vector2(-10, -2)])), Color(0.07, 0.11, 0.05))
+	# fangs
+	add_part(poly(PackedVector2Array([Vector2(-10, -11), Vector2(-7, -4), Vector2(-4, -11)])), BONE)
+	add_part(poly(PackedVector2Array([Vector2(10, -11), Vector2(7, -4), Vector2(4, -11)])), BONE)
+	# glowing eyes + boils
+	for sx in [-8, 8]:
+		var eye = poly(circle_points(3.2))
+		eye.position = Vector2(sx, -19)
 		add_part(eye, accent_color)
+	for p in [Vector2(-14, -6), Vector2(14, -8)]:
+		var boil = poly(circle_points(2.6))
+		boil.position = p
+		add_part(boil, accent_color.darkened(0.1))
 
 func build_health_bar() -> void:
 	var bg = ColorRect.new()
