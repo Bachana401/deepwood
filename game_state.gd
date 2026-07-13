@@ -767,6 +767,11 @@ const FOOD_STARVE_HP_DRAIN_PER_HOUR := 5.0   # then hunger eats HP (x _despair_r
 var village_food := 0.0                      # current stockpile (villager-days)
 var food_empty_hours := 0.0                  # how long the stockpile has sat empty
 
+# Edge-latches so danger toasts fire ONCE on crossing into trouble, not every
+# tick. Each re-arms when the situation clears (with hysteresis for morale).
+var _warned_no_food := false
+var _warned_low_morale := false
+
 # How much food the town can hold -- scales with population so a bigger village
 # needs a bigger buffer (and more farmers to keep it full).
 func food_capacity() -> float:
@@ -812,6 +817,13 @@ func manual_harvest_food() -> float:
 	village_food = minf(food_capacity(), village_food + FOOD_MANUAL_HARVEST_YIELD)
 	return village_food - before
 
+# Push a toast to whichever scene's notification stack is live (village or
+# dungeon). No-ops if none is present.
+func notify(text: String) -> void:
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if stack and stack.has_method("show_notification"):
+		stack.show_notification(text)
+
 # Advance the food stockpile: staffed farms add, the population eats, and the
 # empty-larder timer tracks how long the town has gone without. Called from
 # tick_village_clock BEFORE tick_morale_effects so the hunger HP-drain sees
@@ -826,6 +838,13 @@ func tick_food(hours_passed: float) -> void:
 	else:
 		# recovers twice as fast as it built -- a brief gap won't snowball into death
 		food_empty_hours = maxf(0.0, food_empty_hours - hours_passed * 2.0)
+	# warn ONCE when a populated village first runs dry (re-arms when refilled)
+	if village_food <= 0.0 and not rescued_villagers.is_empty():
+		if not _warned_no_food:
+			_warned_no_food = true
+			notify("The village has run out of food! Villagers will start to starve.")
+	else:
+		_warned_no_food = false
 
 # --- Villager needs & morale ---
 # Each villager's mood is computed LIVE from what the village gives them: a
@@ -999,12 +1018,21 @@ func _despair_rate(id: String) -> float:
 func tick_morale_effects(hours_passed: float) -> void:
 	if hours_passed <= 0.0:
 		return
-	var in_crisis = village_morale() < DESPAIR_MORALE
+	var m = village_morale()
+	var in_crisis = m < DESPAIR_MORALE
 	if in_crisis:
 		low_morale_hours += hours_passed
 	else:
 		# recovers roughly twice as fast as it built -- forgiving once fixed
 		low_morale_hours = maxf(0.0, low_morale_hours - hours_passed * 2.0)
+	# warn ONCE when morale hits rock bottom (re-arms only after it recovers past
+	# 3/10, so a village hovering at the threshold doesn't spam the toast)
+	if m < DESPAIR_MORALE:
+		if not _warned_low_morale:
+			_warned_low_morale = true
+			notify("Your villagers are miserable — morale is critically low!")
+	elif m >= 30:
+		_warned_low_morale = false
 	# Villagers lose HP from TWO causes that share this one drain path (so there
 	# is never a second, parallel death system): rock-bottom morale that has
 	# persisted past its grace, and an empty larder that has persisted past its
@@ -1033,6 +1061,13 @@ func tick_morale_effects(hours_passed: float) -> void:
 	for id in dead:
 		villager_hp.erase(id)
 		remove_villager_by_id(id)   # starved to death (also grieves the town)
+	# toast the loss, attributing the cause (hunger takes priority when both apply)
+	if dead.size() > 0:
+		var cause = "starved to death" if village_is_starving() else "died of despair"
+		if dead.size() == 1:
+			notify("A villager has " + cause + ".")
+		else:
+			notify("%d villagers have %s." % [dead.size(), cause])
 
 # Morale swings the village's fighting strength: 0.5x at rock bottom, 1.0x at
 # 5/10, 1.5x when thriving. Demoralized towns bleed in sieges; happy ones hold.
