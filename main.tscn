@@ -28,7 +28,7 @@
 [ext_resource type="PackedScene" path="res://hotbar_ui.tscn" id="29_hotbar"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_j7ovs"]
-size = Vector2(8813, 77)
+size = Vector2(19713, 77)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1bvp3"]
 size = Vector2(98, 77)
@@ -114,7 +114,7 @@ z_as_relative = false
 z_index = -100
 offset_left = -1000.0
 offset_top = -1200.0
-offset_right = 8100.0
+offset_right = 19000.0
 offset_bottom = -875.0
 color = Color(0.5, 0.7, 0.93, 1)
 
@@ -122,7 +122,7 @@ color = Color(0.5, 0.7, 0.93, 1)
 z_index = -100
 offset_left = -1000.0
 offset_top = -875.0
-offset_right = 8100.0
+offset_right = 19000.0
 offset_bottom = -550.0
 color = Color(0.58, 0.78, 0.95, 1)
 
@@ -130,7 +130,7 @@ color = Color(0.58, 0.78, 0.95, 1)
 z_index = -100
 offset_left = -1000.0
 offset_top = -550.0
-offset_right = 8100.0
+offset_right = 19000.0
 offset_bottom = -225.0
 color = Color(0.66, 0.84, 0.96, 1)
 
@@ -138,7 +138,7 @@ color = Color(0.66, 0.84, 0.96, 1)
 z_index = -100
 offset_left = -1000.0
 offset_top = -225.0
-offset_right = 8100.0
+offset_right = 19000.0
 offset_bottom = 100.0
 color = Color(0.76, 0.9, 0.94, 1)
 
@@ -151,13 +151,13 @@ polygon = PackedVector2Array(660, -950, 653, -910, 632, -876, 600, -854, 562, -8
 [node name="Ground" type="StaticBody2D" parent="." unique_id=1856301967]
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Ground" unique_id=1577726374]
-position = Vector2(3693.5, -0.5)
+position = Vector2(9143.5, -0.5)
 shape = SubResource("RectangleShape2D_j7ovs")
 
 [node name="ColorRect" type="ColorRect" parent="Ground" unique_id=37273744]
 offset_left = -713.0
 offset_top = -39.0
-offset_right = 8100.0
+offset_right = 19000.0
 offset_bottom = 38.0
 color = Color(0.36, 0.56, 0.22, 1)
 
@@ -946,7 +946,7 @@ position = Vector2(0, -55)
 chest_id = "chest_spawn"
 
 [node name="Chest2" parent="." instance=ExtResource("18_chest")]
-position = Vector2(7210, -55)
+position = Vector2(18700, -55)
 chest_id = "chest_warehouse"
 
 [node name="SkillTreeUI" parent="." instance=ExtResource("23_skill_tree")]

@@ -53,7 +53,6 @@ var hover_label: Label = null
 # Kids are drawn/collide smaller than adults (see apply_size) -- graduating
 # school/barracks flips is_kid to false well after spawn, so this tracks the
 # last-applied value and re-sizes on change rather than only sizing once.
-var body_rect: ColorRect = null
 var collision_shape: CollisionShape2D = null
 var last_applied_is_kid = true
 
@@ -112,10 +111,37 @@ func _ready() -> void:
 	area.body_exited.connect(_on_body_exited)
 	add_child(area)
 
+# Villager avatars are little HUMANS now (legs, tunic, arms, head, hood), not
+# flat squares. Looks are deterministic per villager_id so the same person
+# always wears the same outfit; sexes lean toward different tunic palettes.
+const NPC_SKINS = [Color(0.87, 0.72, 0.56), Color(0.78, 0.6, 0.45), Color(0.92, 0.78, 0.64)]
+const NPC_TUNICS_M = [Color(0.36, 0.46, 0.58), Color(0.4, 0.52, 0.4), Color(0.44, 0.4, 0.6), Color(0.5, 0.42, 0.3)]
+const NPC_TUNICS_F = [Color(0.62, 0.44, 0.52), Color(0.6, 0.5, 0.34), Color(0.5, 0.42, 0.62), Color(0.56, 0.36, 0.34)]
+const NPC_PANTS = [Color(0.3, 0.28, 0.34), Color(0.36, 0.3, 0.22), Color(0.28, 0.34, 0.3)]
+const NPC_HOODS = [Color(0.24, 0.4, 0.26), Color(0.42, 0.3, 0.2), Color(0.45, 0.26, 0.28)]
+
+var body_gfx: Node2D = null
+var body_scale_factor := 1.0
+# limb references for the walk animation (arms/legs swing in opposition)
+var l_leg: ColorRect = null
+var r_leg: ColorRect = null
+var l_arm: ColorRect = null
+var r_arm: ColorRect = null
+var walk_anim_t := 0.0
+
 func build_visual() -> void:
-	body_rect = ColorRect.new()
-	body_rect.name = "Body"
-	add_child(body_rect)
+	body_gfx = Node2D.new()
+	body_gfx.name = "Body"
+	add_child(body_gfx)
+
+func _body_px(x: float, y: float, w: float, h: float, col: Color) -> ColorRect:
+	var r = ColorRect.new()
+	r.position = Vector2(x, y)
+	r.size = Vector2(w, h)
+	r.color = col
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	body_gfx.add_child(r)
+	return r
 
 # Applies both the sprite size and the physical collision box for the
 # villager's CURRENT is_kid/sex, and remembers is_kid so refresh_size_if_needed
@@ -126,14 +152,38 @@ func apply_size() -> void:
 	var sex = data.get("sex", "Female")
 	last_applied_is_kid = is_kid
 	var scale_factor = 0.65 if is_kid else 1.0
-	var base_color = Color(0.55, 0.62, 0.72, 1) if sex == "Male" else Color(0.68, 0.58, 0.62, 1)
+	body_scale_factor = scale_factor
 
-	var w = 20.0 * scale_factor
-	var h = 32.0 * scale_factor
-	if body_rect:
-		body_rect.size = Vector2(w, h)
-		body_rect.position = Vector2(-w / 2.0, -h)
-		body_rect.color = base_color
+	if body_gfx:
+		for c in body_gfx.get_children():
+			body_gfx.remove_child(c)
+			c.queue_free()
+		# deterministic look per villager
+		var rng = RandomNumberGenerator.new()
+		rng.seed = hash(villager_id)
+		var skin = NPC_SKINS[rng.randi() % NPC_SKINS.size()]
+		var tunics = NPC_TUNICS_M if sex == "Male" else NPC_TUNICS_F
+		var tunic = tunics[rng.randi() % tunics.size()]
+		var pants = NPC_PANTS[rng.randi() % NPC_PANTS.size()]
+		var hood = NPC_HOODS[rng.randi() % NPC_HOODS.size()]
+		# ~34px human, feet at local (0,0); limbs pivot at hip/shoulder so the
+		# walk cycle can swing them (arm forward, opposite leg back)
+		l_leg = _body_px(-5.5, -10.0, 4.4, 10.0, pants)
+		r_leg = _body_px(1.1, -10.0, 4.4, 10.0, pants)
+		l_leg.pivot_offset = Vector2(2.2, 0.0)
+		r_leg.pivot_offset = Vector2(2.2, 0.0)
+		_body_px(-6.5, -23.5, 13.0, 13.5, tunic)               # tunic
+		l_arm = _body_px(-9.2, -22.5, 3.0, 10.0, tunic.darkened(0.12))
+		r_arm = _body_px(6.2, -22.5, 3.0, 10.0, tunic.darkened(0.12))
+		l_arm.pivot_offset = Vector2(1.5, 0.0)
+		r_arm.pivot_offset = Vector2(1.5, 0.0)
+		_body_px(-6.5, -12.5, 13.0, 2.4, tunic.darkened(0.35)) # belt
+		_body_px(-4.2, -32.0, 8.4, 8.5, skin)                  # head
+		_body_px(-4.8, -34.4, 9.6, 3.6, hood)                  # hood
+		body_gfx.scale = Vector2(scale_factor, scale_factor)
+		# the collision box is centred on the node, so its underside sits
+		# 18*scale below origin -- anchor the feet THERE, on the actual ground
+		body_gfx.position = Vector2(0.0, 18.0 * scale_factor)
 	if collision_shape and collision_shape.shape:
 		collision_shape.shape.size = Vector2(20.0 * scale_factor, 36.0 * scale_factor)
 
@@ -250,8 +300,23 @@ func _physics_process(delta: float) -> void:
 		elif global_position.x >= wander_max_x:
 			direction = -1
 		velocity.x = direction * SPEED
+		if body_gfx and direction != 0:
+			body_gfx.scale.x = direction * body_scale_factor
+		# simple walk cycle: arm swings forward while the opposite leg swings back
+		walk_anim_t += delta * 9.0
+		var swing = sin(walk_anim_t)
+		if l_leg:
+			l_leg.rotation = swing * 0.5
+			r_leg.rotation = -swing * 0.5
+			l_arm.rotation = -swing * 0.42
+			r_arm.rotation = swing * 0.42
 	else:
 		velocity.x = 0
+		if l_leg:   # settle limbs when standing
+			l_leg.rotation = lerpf(l_leg.rotation, 0.0, 0.2)
+			r_leg.rotation = lerpf(r_leg.rotation, 0.0, 0.2)
+			l_arm.rotation = lerpf(l_arm.rotation, 0.0, 0.2)
+			r_arm.rotation = lerpf(r_arm.rotation, 0.0, 0.2)
 
 	move_and_slide()
 
@@ -289,7 +354,61 @@ func _process(delta: float) -> void:
 		return
 	if player_inside and Input.is_action_just_pressed("interact"):
 		show_info()
+	tick_mood_talk(delta)
 	update_hover_panel(get_global_mouse_position())
+
+# --- mood talk ---
+# While the player stands near, every few seconds there's a 15% chance the
+# villager speaks their mind. What they say comes from their live needs
+# (GameState.villager_needs/morale): no job, the wrong job for their training,
+# no food (Farm in ruins), nowhere to drink (no Bar), no partner -- or, when
+# life is good, genuinely happy lines. Morale also scales village income.
+const TALK_RANGE = 100.0
+const TALK_CHANCE = 0.15
+var talk_cooldown := 0.0
+
+func tick_mood_talk(delta: float) -> void:
+	talk_cooldown -= delta
+	if talk_cooldown > 0.0:
+		return
+	talk_cooldown = randf_range(2.5, 4.0)
+	var pl = get_tree().get_first_node_in_group("player")
+	if pl == null or global_position.distance_to(pl.global_position) > TALK_RANGE:
+		return
+	if randf() < TALK_CHANCE:
+		say_mood_line()
+
+func say_mood_line() -> void:
+	var lines = mood_lines()
+	if lines.is_empty():
+		return
+	SpeechText.spawn(self, lines[randi() % lines.size()])
+
+func mood_lines() -> Array:
+	var data = find_villager_data()
+	if data.is_empty():
+		return []
+	var n = GameState.villager_needs(data)
+	var morale = GameState.villager_morale(data)
+	var complaints: Array = []
+	if not n.work:
+		complaints += ["I need work. Anything at all...", "Idle hands, empty pockets.", "Nobody has a job for me?"]
+	if not n.right_job:
+		var stat = data.get("stat_name", "")
+		var role = data.get("role_title", "work")
+		complaints += ["I trained as a %s, yet here I am doing %s..." % [stat, role], "This isn't the work I was made for."]
+	if not n.food:
+		complaints += ["My stomach growls... the Farm is still rubble.", "We're going hungry. Rebuild the Farm!"]
+	if not n.social:
+		complaints += ["A mug and a song would fix everything... if we had a Bar.", "No Bar in this town? Grim times."]
+	if not n.love:
+		complaints += ["Everyone has someone... except me.", "A cottage of my own, someone to share it with..."]
+	if morale >= 75 or complaints.is_empty():
+		return ["Deepwood breathes again, thanks to you!", "Fine day, friend.", "Good to see you, hero!",
+			"The village grows stronger every day.", "I haven't felt this hopeful in years."]
+	if morale < 35:
+		complaints += ["I can't take much more of this...", "This village is falling apart around us."]
+	return complaints
 
 # Unassigned NPCs roam the whole village; once given a role_key, they're
 # confined to a small neighborhood around that specific building instead
@@ -315,17 +434,17 @@ func roll_new_cycle() -> void:
 		visit_times_this_cycle.append(randf_range(0.0, CYCLE_LENGTH_HOURS))
 	visit_times_this_cycle.sort()
 
+# Chance that a scheduled outing goes to the Bar instead of the workplace --
+# EVERY villager (employed or not) drops by the Bar now and then, it's the
+# village's social heart.
+const BAR_VISIT_CHANCE = 0.3
+
 func tick_building_visits() -> void:
 	var current_hours = GameState.game_hours
 	var hours_passed = current_hours - last_hours_elapsed
 	last_hours_elapsed = current_hours
 
-	var role_key = find_villager_data().get("role_key", "")
-	if role_key == "":
-		if is_in_building:
-			exit_building()
-		return
-
+	# countdown first so bar visits work for the unemployed too
 	if is_in_building:
 		hours_until_exit -= hours_passed
 		if hours_until_exit <= 0:
@@ -345,12 +464,28 @@ func tick_building_visits() -> void:
 		visit_times_this_cycle.pop_front()
 		visit_due = true
 	if visit_due:
-		enter_building(role_key)
+		var target = pick_visit_building()
+		if target:
+			enter_building_node(target)
 
-func enter_building(role_key: String) -> void:
-	var building = get_building_for_role(role_key)
-	if not building:
-		return
+# Workplace most of the time, the Bar sometimes; the jobless only go to the
+# Bar. Only OPERATIONAL (fully built) buildings accept visitors.
+func pick_visit_building() -> Node:
+	var bar = get_tree().get_first_node_in_group("building_role_Bar")
+	var bar_ok = bar != null and bar.is_operational()
+	var role_key = find_villager_data().get("role_key", "")
+	if role_key == "":
+		return bar if bar_ok else null
+	var work = get_building_for_role(role_key)
+	var work_ok = work != null and work.is_operational()
+	if bar_ok and (not work_ok or randf() < BAR_VISIT_CHANCE):
+		return bar
+	return work if work_ok else null
+
+var current_visit_building: Node = null
+
+func enter_building_node(building: Node) -> void:
+	current_visit_building = building
 	is_in_building = true
 	hours_until_exit = randf_range(VISIT_MIN_HOURS, VISIT_MAX_HOURS)
 	visible = false
@@ -360,9 +495,12 @@ func enter_building(role_key: String) -> void:
 func exit_building() -> void:
 	is_in_building = false
 	visible = true
-	var role_key = find_villager_data().get("role_key", "")
-	var building = get_building_for_role(role_key) if role_key != "" else null
-	if building:
+	var building = current_visit_building
+	current_visit_building = null
+	if building == null or not is_instance_valid(building):
+		var role_key = find_villager_data().get("role_key", "")
+		building = get_building_for_role(role_key) if role_key != "" else null
+	if building and is_instance_valid(building):
 		global_position = building.global_position + Vector2(randf_range(-15.0, 15.0), -60.0)
 	pick_new_state()
 

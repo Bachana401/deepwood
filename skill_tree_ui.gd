@@ -34,8 +34,15 @@ const ROOT_CENTER_X = 310.0
 
 func _ready() -> void:
 	layer = 50
+	add_to_group("esc_window")
 	build_xp_bar()
 	build_panel()
+	panel.visible = false
+
+func esc_is_open() -> bool:
+	return panel.visible
+
+func esc_close() -> void:
 	panel.visible = false
 
 func _process(_delta: float) -> void:
@@ -218,17 +225,32 @@ func rebuild_tree() -> void:
 
 	var root_bottom = Vector2(ROOT_CENTER_X, ROOT_TOP + CARD_H)
 
+	# Branches can be different depths (Mage Spellcraft runs to tier 7 with the
+	# Levitate line), so size connectors and the scrollable canvas from the
+	# actual deepest tier per branch instead of assuming 5.
+	var branch_max_tier = [1, 1, 1]
+	var overall_max_tier = 1
+	for node in tree_nodes:
+		if node.branch >= 0:
+			branch_max_tier[node.branch] = max(branch_max_tier[node.branch], node.tier)
+			overall_max_tier = max(overall_max_tier, node.tier)
+	tree_canvas.custom_minimum_size.y = max(440.0, tier_top_y(overall_max_tier) + CARD_H + 24.0)
+
 	# connectors first (root -> each branch tier1, then tier -> tier within a branch)
 	for branch in range(3):
 		var cx = BRANCH_CENTERS[branch]
 		add_connector(root_bottom, Vector2(cx, tier_top_y(1)), color)
-		for tier in range(1, 5):
+		for tier in range(1, branch_max_tier[branch]):
 			add_connector(Vector2(cx, tier_top_y(tier) + CARD_H), Vector2(cx, tier_top_y(tier + 1)), color)
 
-	# root card
+	# root card (the "_root" trunk at centre); any other branch=-1 node -- the
+	# innate always-unlocked Levitate -- sits in the top-left corner, standalone.
 	for node in tree_nodes:
 		if node.branch == -1:
-			add_card(node, color, Vector2(ROOT_CENTER_X - CARD_W / 2.0, ROOT_TOP))
+			if node.get("default_unlocked", false):
+				add_card(node, color, Vector2(8.0, ROOT_TOP))
+			else:
+				add_card(node, color, Vector2(ROOT_CENTER_X - CARD_W / 2.0, ROOT_TOP))
 
 	# branch headers + tier cards / hidden placeholders
 	for branch in range(3):

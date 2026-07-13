@@ -1000,9 +1000,76 @@ func roll_material_drop(guaranteed: bool = false) -> void:
 	player.inventory.add_item(mat_id, 1)
 	show_notification("Found: " + Inventory.get_display_name(mat_id))
 
+# --- Gear loot ---
+# Every boss also drops one piece of real gear, drawn from level-gated pools
+# and always something the player doesn't own yet -- so working deeper into
+# the dungeon steadily assembles the class sets (armor first, the set weapon
+# that completes a set's full tier only past L15). The three newest Excellent
+# weapons are a separate rare roll so they stay a jackpot moment. Once the
+# player owns everything a bracket offers, bosses pay an extra material
+# instead. (Sylvan Charm / Heart of the Mountain never drop here -- those are
+# gathering-exclusive, see harvest_node.gd.)
+const GEAR_RELIC_IDS = ["relic_vigor", "relic_swiftness", "relic_greed", "relic_wisdom",
+	"relic_berserker", "relic_hawk", "relic_archon", "relic_wellspring"]
+const GEAR_ARMOR_IDS = ["helm_bulwark", "armor_bulwark", "pants_bulwark",
+	"helm_windstalker", "armor_windstalker", "pants_windstalker",
+	"helm_runeweave", "armor_runeweave", "pants_runeweave"]
+const GEAR_SET_WEAPON_IDS = ["wpn_claymore", "wpn_recurve", "wpn_scepter"]
+# special-attack class weapons (flying slash, javelin volley, multi-shot,
+# homing arrows, fireball, frost shard, cleave) -- see inventory.gd "special"
+const GEAR_CLASS_WEAPON_IDS = ["wpn_windcutter", "wpn_sunderer", "wpn_stormlance",
+	"wpn_stormvolley", "wpn_seeker", "wpn_emberstaff", "wpn_iciclewand"]
+const GEAR_EXCELLENT_IDS = ["exc_midas", "exc_echo", "exc_soul", "exc_hook", "exc_boomerang", "exc_chrono"]
+const EXCELLENT_MIN_LEVEL = 25
+const EXCELLENT_DROP_CHANCE = 0.15
+
+func roll_gear_drop() -> void:
+	var player = get_tree().get_first_node_in_group("player")
+	if not player:
+		return
+	if current_level >= EXCELLENT_MIN_LEVEL and randf() < EXCELLENT_DROP_CHANCE:
+		var excellents = _gear_unowned(GEAR_EXCELLENT_IDS, player)
+		if not excellents.is_empty():
+			_give_gear(player, excellents.pick_random(), true)
+			return
+	var pool = []
+	if current_level >= 3:
+		pool += _gear_unowned(GEAR_RELIC_IDS, player)
+	if current_level >= 6:
+		pool += _gear_unowned(GEAR_ARMOR_IDS, player)
+	if current_level >= 10:
+		pool += _gear_unowned(GEAR_CLASS_WEAPON_IDS, player)
+	if current_level >= 15:
+		pool += _gear_unowned(GEAR_SET_WEAPON_IDS, player)
+	if pool.is_empty():
+		roll_material_drop(true)   # owns it all -- pay an extra material instead
+		return
+	_give_gear(player, pool.pick_random(), false)
+
+# Owned = in the bag, worn, or currently wielded.
+func _gear_unowned(ids: Array, player: Node) -> Array:
+	var out = []
+	var equipped = GameState.get_equipped_item_ids()
+	for id in ids:
+		if player.inventory.get_count(id) > 0 or id in equipped or id == player.active_weapon_id:
+			continue
+		out.append(id)
+	return out
+
+func _give_gear(player: Node, item_id: String, excellent: bool) -> void:
+	if player.inventory.add_item(item_id, 1) > 0:
+		show_notification("Your bag is full -- the %s was left behind!" % Inventory.get_display_name(item_id))
+		return
+	if excellent:
+		show_notification("EXCELLENT find: %s!" % Inventory.get_display_name(item_id))
+	else:
+		show_notification("Gear drop: %s!" % Inventory.get_display_name(item_id))
+
 func _on_combatant_died() -> void:
 	# bosses always drop a material; regular enemies drop rarely
 	roll_material_drop(is_boss_level(current_level))
+	if is_boss_level(current_level):
+		roll_gear_drop()
 	alive_count -= 1
 	if alive_count <= 0 and level_in_progress:
 		level_in_progress = false

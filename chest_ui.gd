@@ -17,6 +17,7 @@ var slot_counts: Array = []
 
 func _ready() -> void:
 	visible = false
+	add_to_group("esc_window")
 	player = get_tree().get_first_node_in_group("player")
 	build_slots()
 	$Panel/TakeButton.pressed.connect(_on_take_coins)
@@ -110,6 +111,12 @@ func close() -> void:
 	current_chest = null
 	visible = false
 
+func esc_is_open() -> bool:
+	return current_chest != null
+
+func esc_close() -> void:
+	close()
+
 func refresh() -> void:
 	if not current_chest:
 		return
@@ -124,9 +131,8 @@ func refresh() -> void:
 			slot_icons[i].visible = false
 			slot_counts[i].text = ""
 		else:
-			var def = Inventory.get_item_def(slot.item_id)
 			slot_icons[i].visible = true
-			slot_icons[i].color = def.get("color", Color.WHITE)
+			Inventory.paint_icon(slot_icons[i], slot.item_id)
 			slot_counts[i].text = str(slot.count) if slot.count > 1 else ""
 	$Panel/TitleLabel.text = "Chest (" + str(inv.get_count("coin_gold")) + "g coins)"
 

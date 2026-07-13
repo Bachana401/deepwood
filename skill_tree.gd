@@ -5,7 +5,8 @@ extends RefCounted
 # named branches, each branch a 5-tier chain that keeps expanding. Node fields:
 #   id: unique across ALL trees
 #   branch: -1 for the root, else 0/1/2 (index into BRANCH_NAMES[class])
-#   tier: 0 for the root, 1-5 within a branch. Progressive reveal is
+#   tier: 0 for the root, 1+ within a branch (most run 1-5; Mage Spellcraft
+#         extends to 7 with the Levitate line). Progressive reveal is
 #         per-branch: only 2 tiers past that branch's deepest unlock show.
 #   cost: skill points to unlock
 #   prereq: node id required first (branch tier-1 nodes all require the root)
@@ -15,8 +16,12 @@ extends RefCounted
 #              Relic (L21+). Materials must be RESEARCHED at the Science Lab.
 #   effect: {effect_key: value} summed by GameState.get_skill_total().
 # Effect keys: melee_damage/melee_cooldown (Sword covers sword+spear),
-# bow_damage/bow_cooldown, wand_cooldown, max_health (flat HP), move_speed,
-# gold_gain, xp_gain -- fractions unless noted (0.1 = +10%).
+# bow_damage/bow_cooldown, wand_cooldown/wand_damage (wand_damage scales the
+# projectile wands like Emberstaff -- the classic nuke wand ignores it),
+# max_health (flat HP), max_mana (flat), mana_regen (fraction of base regen),
+# move_speed, gold_gain, xp_gain -- fractions unless noted (0.1 = +10%).
+# levitate_range: flat PIXELS added to how far from his body the player can
+# telekinetically control his floating weapon (see player.gd levitation).
 const BRANCH_NAMES = {
 	"Sword": ["Might", "Endurance", "Frenzy"],
 	"Archer": ["Precision", "Agility", "Plunder"],
@@ -27,6 +32,7 @@ const BRANCH_NAMES = {
 const TREES = {
 	"Sword": [
 		{"id": "sw_root", "branch": -1, "name": "Way of the Blade", "desc": "+5% melee damage", "tier": 0, "cost": 1, "prereq": "", "materials": {}, "effect": {"melee_damage": 0.05}},
+		{"id": "sw_levitate", "branch": -1, "name": "Levitate", "desc": "Innate: you levitate any equippable weapon, floating it freely around you by telekinesis.", "tier": 0, "cost": 0, "prereq": "", "materials": {}, "effect": {}, "default_unlocked": true},
 		# Might -- raw melee damage
 		{"id": "sw_m1", "branch": 0, "name": "Sharpened Edge", "desc": "+10% melee damage", "tier": 1, "cost": 1, "prereq": "sw_root", "materials": {}, "effect": {"melee_damage": 0.10}},
 		{"id": "sw_m2", "branch": 0, "name": "Heavy Strikes", "desc": "+15% melee damage", "tier": 2, "cost": 1, "prereq": "sw_m1", "materials": {}, "effect": {"melee_damage": 0.15}},
@@ -48,6 +54,7 @@ const TREES = {
 	],
 	"Archer": [
 		{"id": "ar_root", "branch": -1, "name": "Way of the Hunt", "desc": "+5% bow damage", "tier": 0, "cost": 1, "prereq": "", "materials": {}, "effect": {"bow_damage": 0.05}},
+		{"id": "ar_levitate", "branch": -1, "name": "Levitate", "desc": "Innate: you levitate any equippable weapon, floating it freely around you by telekinesis.", "tier": 0, "cost": 0, "prereq": "", "materials": {}, "effect": {}, "default_unlocked": true},
 		# Precision -- bow damage
 		{"id": "ar_p1", "branch": 0, "name": "Barbed Arrows", "desc": "+10% bow damage", "tier": 1, "cost": 1, "prereq": "ar_root", "materials": {}, "effect": {"bow_damage": 0.10}},
 		{"id": "ar_p2", "branch": 0, "name": "Steady Aim", "desc": "+15% bow damage", "tier": 2, "cost": 1, "prereq": "ar_p1", "materials": {}, "effect": {"bow_damage": 0.15}},
@@ -69,29 +76,36 @@ const TREES = {
 	],
 	"Mage": [
 		{"id": "mg_root", "branch": -1, "name": "Way of the Arcane", "desc": "-5% wand cooldown", "tier": 0, "cost": 1, "prereq": "", "materials": {}, "effect": {"wand_cooldown": 0.05}},
+		{"id": "mg_levitate", "branch": -1, "name": "Levitate", "desc": "Innate: you levitate any equippable weapon, floating it freely around you. This branch's Levitate nodes extend its reach far beyond your body.", "tier": 0, "cost": 0, "prereq": "", "materials": {}, "effect": {}, "default_unlocked": true},
 		# Spellcraft -- wand power
 		{"id": "mg_s1", "branch": 0, "name": "Focused Mind", "desc": "-10% wand cooldown", "tier": 1, "cost": 1, "prereq": "mg_root", "materials": {}, "effect": {"wand_cooldown": 0.10}},
 		{"id": "mg_s2", "branch": 0, "name": "Channeling", "desc": "-12% wand cooldown", "tier": 2, "cost": 1, "prereq": "mg_s1", "materials": {}, "effect": {"wand_cooldown": 0.12}},
-		{"id": "mg_s3", "branch": 0, "name": "Overcharge", "desc": "-15% wand cooldown", "tier": 3, "cost": 2, "prereq": "mg_s2", "materials": {"slime": 3}, "effect": {"wand_cooldown": 0.15}},
-		{"id": "mg_s4", "branch": 0, "name": "Arcane Surge", "desc": "-20% wand cooldown", "tier": 4, "cost": 3, "prereq": "mg_s3", "materials": {"iron_shard": 3}, "effect": {"wand_cooldown": 0.20}},
-		{"id": "mg_s5", "branch": 0, "name": "Archmage", "desc": "-30% wand cooldown, +20 max health", "tier": 5, "cost": 5, "prereq": "mg_s4", "materials": {"void_essence": 2, "ancient_relic": 1}, "effect": {"wand_cooldown": 0.30, "max_health": 20.0}},
+		{"id": "mg_s3", "branch": 0, "name": "Overcharge", "desc": "-15% wand cooldown, +10% wand damage", "tier": 3, "cost": 2, "prereq": "mg_s2", "materials": {"slime": 3}, "effect": {"wand_cooldown": 0.15, "wand_damage": 0.10}},
+		{"id": "mg_s4", "branch": 0, "name": "Arcane Surge", "desc": "-20% wand cooldown, +10% wand damage", "tier": 4, "cost": 3, "prereq": "mg_s3", "materials": {"iron_shard": 3}, "effect": {"wand_cooldown": 0.20, "wand_damage": 0.10}},
+		{"id": "mg_s5", "branch": 0, "name": "Archmage", "desc": "-30% wand cooldown, +25% wand damage", "tier": 5, "cost": 5, "prereq": "mg_s4", "materials": {"void_essence": 2, "ancient_relic": 1}, "effect": {"wand_cooldown": 0.30, "wand_damage": 0.25}},
+		# Levitate line -- the player already levitates his weapons (it's his
+		# innate magic, see player.gd); these extend how FAR he can control them.
+		{"id": "mg_s6", "branch": 0, "name": "Levitate: Extended Reach", "desc": "Control your floating weapon up to 90px farther from your body", "tier": 6, "cost": 4, "prereq": "mg_s5", "materials": {"ember_crystal": 2}, "effect": {"levitate_range": 90.0}},
+		{"id": "mg_s7", "branch": 0, "name": "Levitate: Distant Hand", "desc": "+160px more levitation reach -- strike from true distance", "tier": 7, "cost": 6, "prereq": "mg_s6", "materials": {"void_essence": 2, "ancient_relic": 1}, "effect": {"levitate_range": 160.0}},
 		# Knowledge -- XP and learning
 		{"id": "mg_k1", "branch": 1, "name": "Scholar", "desc": "+10% XP from kills", "tier": 1, "cost": 1, "prereq": "mg_root", "materials": {}, "effect": {"xp_gain": 0.10}},
 		{"id": "mg_k2", "branch": 1, "name": "Studious", "desc": "+15% XP from kills", "tier": 2, "cost": 1, "prereq": "mg_k1", "materials": {}, "effect": {"xp_gain": 0.15}},
 		{"id": "mg_k3", "branch": 1, "name": "Researcher", "desc": "+20% XP from kills", "tier": 3, "cost": 2, "prereq": "mg_k2", "materials": {"slime": 2}, "effect": {"xp_gain": 0.20}},
 		{"id": "mg_k4", "branch": 1, "name": "Sage", "desc": "+25% XP from kills", "tier": 4, "cost": 3, "prereq": "mg_k3", "materials": {"iron_shard": 2, "ember_crystal": 1}, "effect": {"xp_gain": 0.25}},
 		{"id": "mg_k5", "branch": 1, "name": "Omniscient", "desc": "+35% XP, +15% gold", "tier": 5, "cost": 5, "prereq": "mg_k4", "materials": {"void_essence": 2, "ancient_relic": 1}, "effect": {"xp_gain": 0.35, "gold_gain": 0.15}},
-		# Vitality -- survival and mobility
+		# Vitality -- survival + the mana pool (mana arrived with the gear
+		# update; Mana Shield finally does what its name always promised)
 		{"id": "mg_v1", "branch": 2, "name": "Arcane Ward", "desc": "+10 max health", "tier": 1, "cost": 1, "prereq": "mg_root", "materials": {}, "effect": {"max_health": 10.0}},
-		{"id": "mg_v2", "branch": 2, "name": "Mana Shield", "desc": "+15 max health", "tier": 2, "cost": 1, "prereq": "mg_v1", "materials": {}, "effect": {"max_health": 15.0}},
+		{"id": "mg_v2", "branch": 2, "name": "Mana Shield", "desc": "+20 max mana", "tier": 2, "cost": 1, "prereq": "mg_v1", "materials": {}, "effect": {"max_mana": 20.0}},
 		{"id": "mg_v3", "branch": 2, "name": "Blink Step", "desc": "+10% move speed", "tier": 3, "cost": 2, "prereq": "mg_v2", "materials": {"slime": 2}, "effect": {"move_speed": 0.10}},
-		{"id": "mg_v4", "branch": 2, "name": "Fortified Mind", "desc": "+25 max health", "tier": 4, "cost": 3, "prereq": "mg_v3", "materials": {"iron_shard": 3}, "effect": {"max_health": 25.0}},
-		{"id": "mg_v5", "branch": 2, "name": "Ascendant", "desc": "+30 max health, +10% move speed", "tier": 5, "cost": 5, "prereq": "mg_v4", "materials": {"void_essence": 2, "ancient_relic": 1}, "effect": {"max_health": 30.0, "move_speed": 0.10}},
+		{"id": "mg_v4", "branch": 2, "name": "Fortified Mind", "desc": "+20 max health, +25% mana regen", "tier": 4, "cost": 3, "prereq": "mg_v3", "materials": {"iron_shard": 3}, "effect": {"max_health": 20.0, "mana_regen": 0.25}},
+		{"id": "mg_v5", "branch": 2, "name": "Ascendant", "desc": "+25 max health, +30 max mana, +50% mana regen", "tier": 5, "cost": 5, "prereq": "mg_v4", "materials": {"void_essence": 2, "ancient_relic": 1}, "effect": {"max_health": 25.0, "max_mana": 30.0, "mana_regen": 0.5}},
 	],
 	# Unlockable only after finishing the game (no ending exists yet) -- shown
 	# as a locked teaser: one shadowy root and three unknown branches.
 	"Necromancer": [
 		{"id": "nc_root", "branch": -1, "name": "Death's Pact", "desc": "???", "tier": 0, "cost": 1, "prereq": "", "materials": {}, "effect": {}},
+		{"id": "nc_levitate", "branch": -1, "name": "Levitate", "desc": "Innate: you levitate any equippable weapon, floating it freely around you by telekinesis.", "tier": 0, "cost": 0, "prereq": "", "materials": {}, "effect": {}, "default_unlocked": true},
 		{"id": "nc_b1", "branch": 0, "name": "???", "desc": "???", "tier": 1, "cost": 1, "prereq": "nc_root", "materials": {}, "effect": {}},
 		{"id": "nc_b2", "branch": 1, "name": "???", "desc": "???", "tier": 1, "cost": 1, "prereq": "nc_root", "materials": {}, "effect": {}},
 		{"id": "nc_b3", "branch": 2, "name": "???", "desc": "???", "tier": 1, "cost": 1, "prereq": "nc_root", "materials": {}, "effect": {}},

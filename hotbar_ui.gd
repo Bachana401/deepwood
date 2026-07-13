@@ -72,6 +72,6 @@ func _process(_delta: float) -> void:
 			slot_icons[i].visible = false
 		else:
 			slot_icons[i].visible = true
-			slot_icons[i].color = Inventory.get_item_def(slot.item_id).get("color", Color.WHITE)
+			Inventory.paint_icon(slot_icons[i], slot.item_id)
 		var is_active = slot != null and slot.item_id == player.active_weapon_id
 		slot_bgs[i].color = BG_ACTIVE if is_active else BG_IDLE

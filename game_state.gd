@@ -14,6 +14,66 @@ var deepest_level_reached = 0
 # part of the save file, not just a per-run counter (see DungeonManager).
 var highest_unlocked_level = 1
 
+# TESTING: while true, every dungeon level is unlocked (both New Game and
+# Continue) so all 100 can be checked. Flip to false to restore real
+# progression. Applied in reset_for_new_game() and load_game().
+const TEST_UNLOCK_ALL_LEVELS = true
+
+# TESTING: while true, death skips the 7-second countdown entirely -- the
+# player respawns instantly (drops/penalties still apply). Flip to false to
+# restore the real death sequence. Read in player.gd die().
+const TEST_INSTANT_RESPAWN = true
+
+# TESTING: while true, a near-empty roster is auto-filled with villagers so
+# every building runs at ~55% staff (plus a few unemployed wanderers) -- purely
+# to SEE the workers/avatars systems populated. Flip to false to stop.
+const TEST_POPULATE_VILLAGE = true
+const POPULATE_STAFF_FRACTION = 0.55
+
+# Standing torches the player has placed with G (see player.try_place_torch):
+# array of {x, y}. Respawned by main.gd on scene load; saved with the game.
+var placed_torches: Array = []
+
+const POPULATE_NAMES = ["Ash", "Bram", "Cora", "Dain", "Edda", "Finn", "Gwen",
+	"Hale", "Iris", "Jory", "Kira", "Lorn", "Mira", "Nash", "Orla", "Pike",
+	"Quinn", "Rook", "Sage", "Tess", "Ulf", "Vera", "Wren", "Yara", "Zed",
+	"Bryn", "Cade", "Dara", "Eryn", "Flint"]
+
+# Fill every building's non-enrollment roles to ~POPULATE_STAFF_FRACTION and
+# add a handful of unemployed wanderers. Leaders (1-slot roles) are filled for
+# every other building so roughly half have one.
+func test_populate_village() -> void:
+	if rescued_villagers.size() >= 10:
+		return   # a real roster exists; don't pollute it
+	var idx := 0
+	var building_i := 0
+	for bn in STARTING_BUILDINGS:
+		building_i += 1
+		for role_def in BuildingRoles.get_roles(bn):
+			if role_def.get("is_enrollment", false):
+				continue
+			var slots = int(role_def.slots)
+			var fill = int(floor(slots * POPULATE_STAFF_FRACTION))
+			if slots == 1:
+				fill = building_i % 2   # every other building gets its Leader
+			for i in range(fill):
+				var nm = POPULATE_NAMES[idx % POPULATE_NAMES.size()]
+				if idx >= POPULATE_NAMES.size():
+					nm += " %d" % (idx / POPULATE_NAMES.size() + 1)
+				rescued_villagers.append({
+					"id": "pop_%d" % idx, "name": nm,
+					"sex": ["Male", "Female"][idx % 2], "is_kid": false,
+					"stat_name": role_def.get("required_stat", ""),
+					"role_key": bn, "role_title": role_def.title,
+				})
+				idx += 1
+	for i in range(8):
+		rescued_villagers.append({
+			"id": "pop_u%d" % i, "name": POPULATE_NAMES[(idx + i) % POPULATE_NAMES.size()] + " the Idle",
+			"sex": ["Male", "Female"][i % 2], "is_kid": false,
+			"stat_name": "", "role_key": "", "role_title": "",
+		})
+
 # Dungeon entry is a REAL scene transition (main.tscn -> dungeon_interior.tscn
 # and back), not an in-place arena spawn -- so a few things need to survive
 # the round trip without touching the actual save file on disk:
@@ -107,11 +167,25 @@ func is_set_complete(set_id: String) -> bool:
 	var pieces = sd.get("pieces", [])
 	return not pieces.is_empty() and set_pieces_equipped(set_id) >= pieces.size()
 
+# The weapon currently wielded from the hotbar (player.gd) -- counts toward
+# a set's full (armor + weapon) tier even though it isn't a gear slot.
+func wielded_weapon_id() -> String:
+	var p = get_tree().get_first_node_in_group("player")
+	if p and "active_weapon_id" in p:
+		return p.active_weapon_id
+	return ""
+
+# Two set tiers stack: completing the armor pieces pays "bonus"; ALSO wielding
+# the set's weapon (if the set names one) pays "full_bonus" on top.
 func get_set_bonus_total(effect_key: String) -> float:
 	var total = 0.0
+	var wielded = wielded_weapon_id()
 	for set_id in Inventory.SET_DEFS.keys():
 		if is_set_complete(set_id):
-			total += Inventory.SET_DEFS[set_id].get("bonus", {}).get(effect_key, 0.0)
+			var sd = Inventory.SET_DEFS[set_id]
+			total += sd.get("bonus", {}).get(effect_key, 0.0)
+			if sd.get("weapon", "") != "" and sd.get("weapon", "") == wielded:
+				total += sd.get("full_bonus", {}).get(effect_key, 0.0)
 	return total
 
 # Equip an item from the player's inventory into its matching slot. Any item
@@ -203,7 +277,10 @@ func get_skill_total(effect_key: String) -> float:
 	return total
 
 func is_skill_unlocked(node_id: String) -> bool:
-	return unlocked_skills.has(node_id)
+	if unlocked_skills.has(node_id):
+		return true
+	# some nodes (e.g. the innate Levitate) start already unlocked for free
+	return SkillTreeData.get_node_by_id(node_id).get("default_unlocked", false)
 
 # Points + prereq + (researched) materials, all checked and spent atomically.
 func try_unlock_skill(node: Dictionary, player: Node) -> bool:
@@ -245,6 +322,7 @@ func capture_player_state(player: Node) -> Dictionary:
 		"has_dash": player.has_dash,
 		"has_double_jump": player.has_double_jump,
 		"health": player.health,
+		"mana": player.mana,
 	}
 
 # Set once on the New Game / difficulty-picker screen, saved with the game,
@@ -316,6 +394,26 @@ const HOURS_PER_SECOND = 24.0 / DAY_LENGTH_SECONDS
 const START_TIME_OF_DAY = 8.0
 var game_hours = 0.0
 
+# Self-contained day/night read (mirrors day_night_cycle.gd's dawn 5-7 / dusk
+# 18-20 model) so anything -- e.g. building torches -- can ask "is it dark?"
+# without depending on the day-night node. 0 = full day, 1 = full night.
+func time_of_day() -> float:
+	return fposmod(START_TIME_OF_DAY + game_hours, 24.0)
+
+func village_darkness() -> float:
+	var t = time_of_day()
+	if t >= 7.0 and t <= 18.0:
+		return 0.0
+	if t >= 20.0 or t < 5.0:
+		return 1.0
+	if t >= 18.0:
+		return (t - 18.0) / 2.0
+	return 1.0 - (t - 5.0) / 2.0
+
+# Torches light at dusk and go out after dawn.
+func torches_lit() -> bool:
+	return village_darkness() > 0.4
+
 # --- Village siege state (autoload-owned so assaults resolve while the player
 # is off in a dungeon) ---
 const SIEGE_FIRST_HOURS = 6.0
@@ -340,14 +438,24 @@ var away_report = {"sieges": 0, "repelled": 0, "villagers_lost": 0}
 const WIZARD_RESPAWN_HOURS = 12.0
 var wizard_respawn_at_hours := -1.0
 
-# --- Construction-material drops (the repair economy) ---
-# Rolled on any enemy death, anywhere. Deliberately low -- at most one material
-# per kill. Deeper/tougher fights pass a higher chance_mult. Returns the dropped
-# material id, or "" for nothing. Bosses use grant_construction_bundle instead.
-const CONSTRUCTION_DROP_TABLE = [["wood", 0.10], ["stone", 0.08], ["resin", 0.04]]
+# Orin is undying and grows stronger every single time he falls (1.3x HP/damage,
+# faster casts, a new unlocked skill), forever. This counter -- how many times
+# he has died -- drives all of that (see wizard.gd apply_power_tier). It is the
+# seed of the endgame: he is secretly the final boss. Persisted across saves.
+var wizard_power_tier := 0
 
-func roll_construction_drop(player: Node, chance_mult: float = 1.0) -> String:
-	if player == null or not ("inventory" in player):
+# --- Construction-material drops (the repair economy) ---
+# Rolled on any enemy death, anywhere. Generous on purpose so the repair economy
+# actually flows (buildings now take 3 builds x a material bundle). At most one
+# material per kill; tougher fights pass a higher chance_mult. Returns the
+# dropped material id, or "" for nothing. Bosses use grant_construction_bundle.
+const CONSTRUCTION_DROP_TABLE = [["wood", 0.35], ["stone", 0.25], ["resin", 0.15]]
+
+func _has_inventory(player) -> bool:
+	return is_instance_valid(player) and player.get("inventory") != null
+
+func roll_construction_drop(player, chance_mult: float = 1.0) -> String:
+	if not _has_inventory(player):
 		return ""
 	var r = randf()
 	var acc = 0.0
@@ -358,8 +466,8 @@ func roll_construction_drop(player: Node, chance_mult: float = 1.0) -> String:
 			return entry[0]
 	return ""
 
-func grant_construction_bundle(player: Node, wood: int, stone: int, resin: int) -> void:
-	if player == null or not ("inventory" in player):
+func grant_construction_bundle(player, wood: int, stone: int, resin: int) -> void:
+	if not _has_inventory(player):
 		return
 	if wood > 0:
 		player.inventory.add_item("wood", wood)
@@ -370,6 +478,14 @@ func grant_construction_bundle(player: Node, wood: int, stone: int, resin: int) 
 
 func wizard_is_down() -> bool:
 	return wizard_respawn_at_hours >= 0.0 and game_hours < wizard_respawn_at_hours
+
+# 0.0 right after he falls -> 1.0 at the instant he reforms. Drives the ember
+# that starts tiny and swells brighter/hotter as revival nears (see wizard.gd).
+func wizard_down_progress() -> float:
+	if wizard_respawn_at_hours < 0.0:
+		return 0.0
+	var start = wizard_respawn_at_hours - WIZARD_RESPAWN_HOURS
+	return clamp((game_hours - start) / WIZARD_RESPAWN_HOURS, 0.0, 1.0)
 
 func mark_wizard_down() -> void:
 	wizard_respawn_at_hours = game_hours + WIZARD_RESPAWN_HOURS
@@ -386,13 +502,23 @@ var building_health: Dictionary = {}
 # building_health without depending on building.gd. Keep the two in sync.
 const BUILDING_MAX_HEALTH = 400
 
+# Construction progress per building, 0..TOTAL_BUILD_STAGES. 0 = ruins; each F
+# repair advances it one stage (frame -> walls -> finished); only at the final
+# stage is the building operational and its combat HP meaningful. Persisted so
+# a half-built building stays half-built across reloads. See building.gd.
+const TOTAL_BUILD_STAGES = 3
+var building_stage: Dictionary = {}
+
+func building_build_stage(name: String) -> int:
+	return int(building_stage.get(name, 0))
+
 # The 12 village buildings (names == building_name == role_key). At New Game the
 # village lies in ruins -- every one of these starts DESTROYED (health 0) and
 # non-operational until the player repairs it (building.gd.try_repair). This is
 # the core "return from the dungeon and rebuild Deepwood" loop.
 const STARTING_BUILDINGS = [
 	"Government", "School", "Farm", "Hospital", "Barracks", "Fishing Dock",
-	"Science Lab", "Bank", "Blacksmith", "Tavern", "Marketplace", "Builderhouse",
+	"Science Lab", "Bank", "Blacksmith", "Tavern", "Bar", "Marketplace", "Builderhouse",
 ]
 
 # Admin/debug helper (M key): flag every known building as fully repaired.
@@ -400,6 +526,7 @@ const STARTING_BUILDINGS = [
 func restore_all_buildings() -> void:
 	for bn in STARTING_BUILDINGS:
 		building_health[bn] = BUILDING_MAX_HEALTH
+		building_stage[bn] = TOTAL_BUILD_STAGES
 
 # Per-building upgrade level (1..building.MAX_LEVEL), keyed by building_name.
 # Higher level = bigger building, more worker slots, and more output. Absent
@@ -586,9 +713,67 @@ func consume_away_report() -> Dictionary:
 	away_report = {"sieges": 0, "repelled": 0, "villagers_lost": 0}
 	return report
 
-# A building generates income / functions only while it still has HP.
+# A building generates income / functions only once it is FULLY built (all 3
+# construction stages done). A ruined or half-built building does nothing.
 func is_building_operational(building_key: String) -> bool:
-	return int(building_health.get(building_key, 1)) > 0
+	return int(building_stage.get(building_key, 0)) >= TOTAL_BUILD_STAGES
+
+# --- Villager needs & morale ---
+# Each villager's mood is computed LIVE from what the village gives them: a
+# job (and the RIGHT job for their training), food (a working Farm), a social
+# life (a working Bar), and companionship (a mating pairing). Morale is 0-100.
+# The village average feeds back into passive income (happy workers produce
+# more) and drives the mood lines villagers say near the player (npc.gd).
+func is_villager_paired(vid: String) -> bool:
+	for h in mating_houses.values():
+		if h.get("male_id", "") == vid or h.get("female_id", "") == vid:
+			return true
+	for p in pregnancies.values():
+		if p.get("male_id", "") == vid or p.get("female_id", "") == vid:
+			return true
+	return false
+
+func villager_needs(v: Dictionary) -> Dictionary:
+	var role = v.get("role_key", "")
+	var stat = v.get("stat_name", "")
+	var right_job = true
+	if role != "" and stat != "":
+		var req = ""
+		for rd in BuildingRoles.get_roles(role):
+			if rd.get("title", "") == v.get("role_title", ""):
+				req = rd.get("required_stat", "")
+		# a trained specialist stuck in a slot that doesn't use their training
+		# (generic slot, or a different requirement) = wrong employment
+		right_job = (req == stat)
+	return {
+		"work": role != "",
+		"right_job": right_job,
+		"food": is_building_operational("Farm"),
+		"social": is_building_operational("Bar"),
+		"love": v.get("is_kid", false) or is_villager_paired(v.get("id", "")),
+	}
+
+func villager_morale(v: Dictionary) -> int:
+	var n = villager_needs(v)
+	var m = 50
+	m += 18 if n.work else -18
+	m += 8 if n.right_job else -12
+	m += 12 if n.food else -16
+	m += 8 if n.social else -6
+	m += 8 if n.love else -8
+	return clampi(m, 0, 100)
+
+func village_morale() -> int:
+	if rescued_villagers.is_empty():
+		return 50
+	var s = 0
+	for v in rescued_villagers:
+		s += villager_morale(v)
+	return s / rescued_villagers.size()
+
+# Happy village, richer village: 0.75x income at 0 morale, 1.0x at 50, 1.25x at 100.
+func village_morale_multiplier() -> float:
+	return 0.75 + 0.5 * float(village_morale()) / 100.0
 
 func generate_passive_income() -> void:
 	var total = 0.0
@@ -611,6 +796,8 @@ func generate_passive_income() -> void:
 		total += value * village_mult
 	if total <= 0:
 		return
+	# happy workers produce more, miserable ones less (0.75x .. 1.25x)
+	total *= village_morale_multiplier()
 	var player = get_tree().get_first_node_in_group("player")
 	if player and player.has_method("add_currency"):
 		player.add_currency(int(round(total)))
@@ -774,7 +961,7 @@ func reset_for_new_game() -> void:
 	mating_houses = {}
 	pregnancies = {}
 	school_enrollments = {}
-	highest_unlocked_level = 1
+	highest_unlocked_level = 999 if TEST_UNLOCK_ALL_LEVELS else 1
 	village_last_hours_elapsed = 0.0
 	game_hours = 0.0
 	hours_until_next_siege = SIEGE_FIRST_HOURS
@@ -783,10 +970,16 @@ func reset_for_new_game() -> void:
 	# The village starts in ruins -- every building begins destroyed (health 0)
 	# and must be repaired before its roles work.
 	building_health = {}
+	building_stage = {}
 	for bn in STARTING_BUILDINGS:
 		building_health[bn] = 0
+		building_stage[bn] = 0
 	building_levels = {}
 	wizard_respawn_at_hours = -1.0
+	placed_torches = []
+	if TEST_POPULATE_VILLAGE:
+		test_populate_village()
+	wizard_power_tier = 0
 	player_xp = 0
 	player_level = 1
 	skill_points = 0
@@ -809,6 +1002,7 @@ func save_game(player: Node) -> void:
 		"has_dash": player.has_dash,
 		"has_double_jump": player.has_double_jump,
 		"health": player.health,
+		"mana": player.mana,
 		"difficulty": difficulty,
 		"rescued_villagers": rescued_villagers,
 		"chest_contents": chest_contents,
@@ -827,8 +1021,11 @@ func save_game(player: Node) -> void:
 		"hours_until_next_siege": hours_until_next_siege,
 		"away_report": away_report,
 		"building_health": building_health,
+		"building_stage": building_stage,
 		"building_levels": building_levels,
+		"placed_torches": placed_torches,
 		"wizard_respawn_at_hours": wizard_respawn_at_hours,
+		"wizard_power_tier": wizard_power_tier,
 	}
 	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	file.store_string(JSON.stringify(data))
@@ -856,6 +1053,8 @@ func load_game() -> Dictionary:
 			school_enrollments = parsed["school_enrollments"]
 		if parsed.has("highest_unlocked_level"):
 			highest_unlocked_level = parsed["highest_unlocked_level"]
+		if TEST_UNLOCK_ALL_LEVELS:
+			highest_unlocked_level = max(highest_unlocked_level, 999)
 		player_xp = parsed.get("player_xp", player_xp)
 		player_level = parsed.get("player_level", player_level)
 		skill_points = parsed.get("skill_points", skill_points)
@@ -885,7 +1084,18 @@ func load_game() -> Dictionary:
 			building_levels = {}
 			for k in parsed["building_levels"].keys():
 				building_levels[k] = int(parsed["building_levels"][k])
+		if parsed.has("building_stage") and parsed["building_stage"] is Dictionary:
+			building_stage = {}
+			for k in parsed["building_stage"].keys():
+				building_stage[k] = int(parsed["building_stage"][k])
+		placed_torches = []
+		for e in parsed.get("placed_torches", []):
+			if e is Dictionary:
+				placed_torches.append({"x": float(e.get("x", 0.0)), "y": float(e.get("y", 0.0))})
 		wizard_respawn_at_hours = float(parsed.get("wizard_respawn_at_hours", -1.0))
+		wizard_power_tier = int(parsed.get("wizard_power_tier", 0))
+		if TEST_POPULATE_VILLAGE:
+			test_populate_village()
 		return parsed
 	return {}
 

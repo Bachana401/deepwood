@@ -68,6 +68,13 @@ const ROLE_DEFS = {
 		{"title": "Leader", "slots": 1, "required_stat": "Leader"},
 		{"title": "Barman", "slots": 10, "required_stat": "Tavern"},
 	],
+	# The Bar is the village's social heart: every NPC drops by now and then
+	# (see npc.gd), fun music plays from it, and visiting lifts the player's
+	# morale (see player.gd bar morale). Bartender is open to any adult.
+	"Bar": [
+		{"title": "Leader", "slots": 1, "required_stat": "Leader"},
+		{"title": "Bartender", "slots": 6, "required_stat": ""},
+	],
 	"Marketplace": [
 		{"title": "Leader", "slots": 1, "required_stat": "Leader"},
 		{"title": "Trader", "slots": 10, "required_stat": "Marketplace"},

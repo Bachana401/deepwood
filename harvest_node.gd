@@ -1,0 +1,178 @@
+extends Area2D
+
+# A harvestable world node: a TREE (chop with the Woodsman's Axe) or a ROCK
+# (mine with the Miner's Pickaxe). Built procedurally and spawned by main.gd's
+# generate_harvestables(). An Area2D on purpose -- it never blocks the player
+# walking past; the player's melee swing finds it via AttackArea overlap and
+# calls take_tool_hit() when a matching tool is wielded (see player.gd).
+#
+# Wrong tool (or bare weapon with a tool wielded elsewhere) does nothing --
+# the node only reacts to tool swings, and tells you which tool it wants.
+# Depleting it pays out materials straight into the player's inventory, with
+# a tiny chance of a gathering-exclusive relic (Sylvan Charm from trees,
+# Heart of the Mountain from rocks -- never dungeon loot). It then withers
+# away and regrows on the spot a couple of minutes later.
+
+const HITS_TO_HARVEST = 4
+const REGROW_SECONDS = 150.0
+const RELIC_FIND_CHANCE = 0.02
+
+var node_type := "tree"   # "tree" | "rock"
+var hits_left := HITS_TO_HARVEST
+var depleted := false
+var visual_root: Node2D = null
+var shake_tween: Tween = null
+
+func _ready() -> void:
+	add_to_group("harvestable")
+	monitorable = true
+	var shape = CollisionShape2D.new()
+	var rect = RectangleShape2D.new()
+	rect.size = Vector2(56, 110) if node_type == "tree" else Vector2(70, 52)
+	shape.shape = rect
+	shape.position = Vector2(0, -rect.size.y / 2.0)
+	add_child(shape)
+	visual_root = Node2D.new()
+	add_child(visual_root)
+	if node_type == "tree":
+		build_tree_visual()
+	else:
+		build_rock_visual()
+
+# --- visuals (origin sits on the ground line; everything drawn upward) ---
+
+func build_tree_visual() -> void:
+	var trunk = Polygon2D.new()
+	var trunk_col = Color(0.42, 0.28, 0.15).lerp(Color(0.5, 0.34, 0.18), randf())
+	trunk.polygon = PackedVector2Array([
+		Vector2(-7, 0), Vector2(-5, -58), Vector2(5, -58), Vector2(7, 0)])
+	trunk.color = trunk_col
+	visual_root.add_child(trunk)
+	var canopy_col = Color(0.2, 0.5, 0.22).lerp(Color(0.3, 0.62, 0.26), randf())
+	for blob in [
+		{"c": Vector2(0, -86), "r": 30.0},
+		{"c": Vector2(-20, -70), "r": 22.0},
+		{"c": Vector2(20, -70), "r": 22.0},
+		{"c": Vector2(0, -64), "r": 20.0},
+	]:
+		var leaf = Polygon2D.new()
+		leaf.polygon = _circle(blob.r * randf_range(0.9, 1.1), 12)
+		leaf.position = blob.c
+		leaf.color = canopy_col.lightened(randf_range(0.0, 0.12))
+		visual_root.add_child(leaf)
+
+func build_rock_visual() -> void:
+	var body = Polygon2D.new()
+	var grey = Color(0.5, 0.5, 0.54).lerp(Color(0.62, 0.62, 0.66), randf())
+	body.polygon = PackedVector2Array([
+		Vector2(-32, 0), Vector2(-26, -26), Vector2(-8, -40), Vector2(14, -36),
+		Vector2(30, -18), Vector2(33, 0)])
+	body.color = grey
+	visual_root.add_child(body)
+	var facet = Polygon2D.new()
+	facet.polygon = PackedVector2Array([
+		Vector2(-26, -26), Vector2(-8, -40), Vector2(0, -26), Vector2(-14, -18)])
+	facet.color = grey.lightened(0.15)
+	visual_root.add_child(facet)
+	# mineral glints hint that this is an ore rock, not scenery
+	for i in range(3):
+		var glint = Polygon2D.new()
+		glint.polygon = _circle(2.5, 6)
+		glint.position = Vector2(randf_range(-18, 18), randf_range(-28, -8))
+		glint.color = [Color(0.6, 0.62, 0.68), Color(0.95, 0.45, 0.15), Color(0.85, 0.75, 0.4)][i]
+		visual_root.add_child(glint)
+
+func _circle(radius: float, sides: int) -> PackedVector2Array:
+	var pts = PackedVector2Array()
+	for i in range(sides):
+		var ang = TAU * float(i) / sides
+		pts.append(Vector2(cos(ang), sin(ang)) * radius)
+	return pts
+
+# --- harvesting ---
+
+# Called by the player's melee swing when a gathering tool is wielded.
+func take_tool_hit(tool_type: String, player: Node) -> void:
+	if depleted:
+		return
+	var wanted = "axe" if node_type == "tree" else "pickaxe"
+	if tool_type != wanted:
+		_notify("This %s needs a %s." % [node_type, "Woodsman's Axe" if wanted == "axe" else "Miner's Pickaxe"])
+		return
+	hits_left -= 1
+	_shake()
+	_spawn_chips()
+	if hits_left <= 0:
+		_harvest(player)
+
+func _shake() -> void:
+	if shake_tween:
+		shake_tween.kill()
+	visual_root.position = Vector2.ZERO
+	shake_tween = create_tween()
+	shake_tween.tween_property(visual_root, "position:x", 4.0, 0.04)
+	shake_tween.tween_property(visual_root, "position:x", -3.0, 0.05)
+	shake_tween.tween_property(visual_root, "position:x", 0.0, 0.05)
+
+# Little debris flecks fly off each hit -- green leaves for trees, grey chips
+# for rocks.
+func _spawn_chips() -> void:
+	var col = Color(0.3, 0.55, 0.25) if node_type == "tree" else Color(0.55, 0.55, 0.6)
+	for i in range(4):
+		var chip = Polygon2D.new()
+		chip.polygon = _circle(randf_range(1.6, 3.0), 6)
+		chip.color = col
+		chip.z_index = 30
+		get_parent().add_child(chip)
+		chip.global_position = global_position + Vector2(randf_range(-14, 14), randf_range(-70, -20))
+		var t = chip.create_tween()
+		t.tween_property(chip, "global_position", chip.global_position + Vector2(randf_range(-22, 22), randf_range(14, 34)), 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		t.parallel().tween_property(chip, "modulate:a", 0.0, 0.4)
+		t.tween_callback(chip.queue_free)
+
+func _harvest(player: Node) -> void:
+	depleted = true
+	var got := []
+	if node_type == "tree":
+		var wood = randi_range(2, 4)
+		player.inventory.add_item("wood", wood)
+		got.append("%d Wood" % wood)
+		if randf() < 0.35:
+			player.inventory.add_item("resin", 1)
+			got.append("1 Resin")
+		if randf() < RELIC_FIND_CHANCE and player.inventory.get_count("relic_sylvan") == 0:
+			player.inventory.add_item("relic_sylvan", 1)
+			_notify("Hidden in the roots... the Sylvan Charm!")
+	else:
+		var stone = randi_range(2, 4)
+		player.inventory.add_item("stone", stone)
+		got.append("%d Stone" % stone)
+		# deeper minerals surface rarely -- the same substances the skill tree
+		# spends, so mining feeds progression alongside dungeon drops
+		if randf() < 0.20:
+			player.inventory.add_item("iron_shard", 1)
+			got.append("1 " + Inventory.get_display_name("iron_shard"))
+		elif randf() < 0.10:
+			player.inventory.add_item("ember_crystal", 1)
+			got.append("1 " + Inventory.get_display_name("ember_crystal"))
+		if randf() < RELIC_FIND_CHANCE and player.inventory.get_count("relic_mountain") == 0:
+			player.inventory.add_item("relic_mountain", 1)
+			_notify("Deep in the stone... the Heart of the Mountain!")
+	_notify(("Chopped: " if node_type == "tree" else "Mined: ") + ", ".join(got))
+	# wither, wait, regrow in place
+	var fade = create_tween()
+	fade.tween_property(visual_root, "modulate:a", 0.12, 0.4)
+	get_tree().create_timer(REGROW_SECONDS).timeout.connect(_regrow)
+
+func _regrow() -> void:
+	if not is_instance_valid(self):
+		return
+	depleted = false
+	hits_left = HITS_TO_HARVEST
+	var grow = create_tween()
+	grow.tween_property(visual_root, "modulate:a", 1.0, 0.6)
+
+func _notify(text: String) -> void:
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if stack:
+		stack.show_notification(text)

@@ -26,14 +26,33 @@ const SFX_JUMP = preload("res://audio/jump.wav")
 const SFX_DASH = preload("res://audio/dash.wav")
 
 const MAX_HEALTH = 100
+# --- Mana ---
+# One shared pool under the HP bar. Today only wands spend it (their screen
+# nuke finally has a real cost) and Soulthirst refills it on hit; future class
+# abilities draw from the same pool. Gear can raise the cap (max_mana, flat)
+# and speed the refill (mana_regen, fraction: 0.5 = +50%).
+const BASE_MAX_MANA = 50.0
+const BASE_MANA_REGEN = 4.0   # points per second
+const DEFAULT_WAND_MANA_COST = 30
+var mana: float = BASE_MAX_MANA
+var mana_bar_fill: ColorRect = null
+var mana_label: Label = null
 const BOUNCE_DURATION = 0.1
 const INVINCIBILITY_DURATION = 1.0
 const DEATH_COUNTDOWN_SECONDS = 7.0
 const CURRENCY_DROP_FRACTION = 0.77
 
 const CURRENCY_PICKUP_SCRIPT = preload("res://currency_pickup.gd")
+# Special-attack projectiles (flying slashes, javelins, fireballs, the hook,
+# the boomerang...) -- launched by perform_attack from a weapon's "special".
+const WEAPON_PROJECTILE_SCRIPT = preload("res://weapon_projectile.gd")
 
-const INVENTORY_CAPACITY = 15
+# 25 slots (5 rows of 5). 15 stopped fitting once the gathering tools joined
+# the starter kit (8 weapons/tools + 3 coin stacks + 5 sample gear = 16 stacks
+# on a brand-new save); the weapon arsenal has since grown past 20 collectible
+# weapons, so a hoarder needs the extra row. The inventory panel sizes itself
+# from this (see inventory_ui.build_slots).
+const INVENTORY_CAPACITY = 25
 # 9999 starting gold was a debug leftover from before real inventory slots
 # existed -- at 999/stack that alone would fill 10 of 15 slots on a brand
 # new save. Dropped to a sane starting amount now that currency is a real
@@ -64,6 +83,48 @@ var attack_cooldown_remaining = 0.0
 var weapon_anim_tween: Tween = null
 var spear_hit_bodies: Array = []
 var is_attacking = false
+
+# --- Levitation ---
+# The character never physically holds weapons: he's a telekinetic -- his
+# weapons FLOAT beside him wrapped in an arcane aura, moved by magic (that is
+# why the body needs no per-weapon swing frames; the weapon itself moves).
+# The Mage skill tree's "Levitate: Extended Reach/Distant Hand" nodes add
+# levitate_range: the weapon then follows the mouse up to that far from his
+# body and attacks there -- remote telekinetic strikes.
+const LEVITATE_AURA_COLOR = Color(0.62, 0.42, 0.95, 0.28)
+# Innate free-float radius everyone has (the basic "Levitate" skill): even a
+# Sword-class player's weapon drifts around him and can be tugged this far
+# toward the cursor. The Mage tree's Levitate nodes add levitate_bonus_range()
+# on top for true long-range telekinetic strikes.
+const BASE_LEVITATE_RANGE = 26.0
+var levitate_time := 0.0
+var levitate_glow: Polygon2D = null
+var hand_glow: Polygon2D = null
+var levitate_sparkles: CPUParticles2D = null
+
+func levitate_bonus_range() -> float:
+	return GameState.get_skill_total("levitate_range")
+
+# How far the weapon may float from the body: the innate short range plus any
+# Mage Levitate skill bonus.
+func levitate_max_range() -> float:
+	return BASE_LEVITATE_RANGE + levitate_bonus_range()
+
+# Hover rule (testable): the weapon follows the mouse but is bounded to
+# [base_offset, base_offset + max_range] -- it never clips into the body and
+# never floats past his telekinetic reach.
+func clamped_hover(dist_to_mouse: float, base_offset: float) -> float:
+	return clamp(dist_to_mouse, base_offset, base_offset + levitate_max_range())
+
+func hover_for_mouse(base_offset: float) -> float:
+	return clamped_hover((get_global_mouse_position() - global_position).length(), base_offset)
+
+# A gentle, organic wander so the weapon reads as magically suspended -- it
+# hovers and drifts a few px around its anchor rather than sitting rigidly.
+func levitate_float_offset() -> Vector2:
+	return Vector2(
+		sin(levitate_time * 2.1) * 4.0 + sin(levitate_time * 0.9 + 0.7) * 2.2,
+		cos(levitate_time * 1.7) * 3.6 + sin(levitate_time * 2.9 + 1.3) * 2.0)
 
 func get_weapon_stats() -> Dictionary:
 	return active_stats
@@ -122,7 +183,7 @@ var weapon_guard: ColorRect = null
 # fallback is a single frame, a gentle procedural walk-bob keeps it alive. No
 # art at all -> the placeholder box. All hit-flash/death tint drives body_visual.
 const IDLE_SINGLE_PATHS = ["res://art/player_idle.png", "res://art/player.png"]
-const SPRITE_TARGET_HEIGHT = 66.0
+const SPRITE_TARGET_HEIGHT = 56.1   # 66 - 15% (character shrunk to suit the bigger village)
 const WALK_BOB_AMP = 2.5
 const WALK_BOB_SPEED = 12.0
 # procedural "juice" tuning (all applied on top of the single idle sprite)
@@ -164,6 +225,8 @@ func _ready() -> void:
 	# equip call so equip_weapon/on_equipment_changed can drive them.
 	build_armor_visuals()
 	build_weapon_guard()
+	build_levitate_aura()
+	build_mana_bar()
 	# keep the held weapon drawn in front of the body armor
 	$WeaponIcon.z_index = 3
 	$BowVisual.z_index = 3
@@ -187,11 +250,14 @@ func _ready() -> void:
 	on_equipment_changed()
 	update_currency_display()
 	update_health_display()
+	update_mana_display()
 
-# TEST: hands the player every weapon at the start so the whole hotbar is
-# usable immediately. Will be replaced by real dungeon loot drops later.
+# TEST: hands the player every basic weapon at the start so the whole hotbar
+# is usable immediately (1=sword ... 6=Thundercaller, 7=ADMIN Ruin Wand,
+# 8=axe, 9=pickaxe). Set gear and the newer Excellent weapons are NOT granted
+# -- they drop from dungeon bosses (see dungeon_interior.gd roll_gear_drop).
 func grant_starter_weapons() -> void:
-	for item_id in ["wpn_sword", "wpn_spear", "wpn_bow", "wpn_wand", "exc_vampiric", "exc_thunder"]:
+	for item_id in ["wpn_sword", "wpn_spear", "wpn_bow", "wpn_wand", "exc_vampiric", "exc_thunder", "wpn_admin_ruin", "tool_axe", "tool_pickaxe"]:
 		inventory.add_item(item_id, 1)
 
 # Temporary: sample armor + relics so the equipment panel is usable. Weapons
@@ -262,6 +328,72 @@ func build_weapon_guard() -> void:
 	weapon_guard.visible = false
 	weapon_guard.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	$WeaponIcon.add_child(weapon_guard)
+
+# The telekinesis dressing: a soft violet aura that hangs around the floating
+# weapon, faint sparkles drifting off it, and a small glow at the character's
+# hand -- together they read as "he is holding the weapon with magic".
+func build_levitate_aura() -> void:
+	var add_mat = CanvasItemMaterial.new()
+	add_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+
+	levitate_glow = Polygon2D.new()
+	levitate_glow.polygon = _levitate_circle(16.0, 18)
+	levitate_glow.color = LEVITATE_AURA_COLOR
+	levitate_glow.material = add_mat
+	levitate_glow.z_index = 2   # just under the weapon (z 3)
+	levitate_glow.visible = false
+	add_child(levitate_glow)
+
+	hand_glow = Polygon2D.new()
+	hand_glow.polygon = _levitate_circle(5.0, 12)
+	hand_glow.color = Color(0.7, 0.5, 1.0, 0.5)
+	hand_glow.material = add_mat
+	hand_glow.z_index = 4   # over the body, near his hand
+	hand_glow.visible = false
+	add_child(hand_glow)
+
+	levitate_sparkles = CPUParticles2D.new()
+	levitate_sparkles.amount = 8
+	levitate_sparkles.lifetime = 0.7
+	levitate_sparkles.direction = Vector2(0, -1)
+	levitate_sparkles.spread = 180.0
+	levitate_sparkles.gravity = Vector2(0, -26)
+	levitate_sparkles.initial_velocity_min = 4.0
+	levitate_sparkles.initial_velocity_max = 14.0
+	levitate_sparkles.scale_amount_min = 0.8
+	levitate_sparkles.scale_amount_max = 1.8
+	levitate_sparkles.color = Color(0.75, 0.55, 1.0, 0.8)
+	levitate_sparkles.z_index = 2
+	levitate_sparkles.emitting = false
+	add_child(levitate_sparkles)
+
+func _levitate_circle(radius: float, sides: int) -> PackedVector2Array:
+	var pts = PackedVector2Array()
+	for i in range(sides):
+		var ang = TAU * float(i) / sides
+		pts.append(Vector2(cos(ang), sin(ang)) * radius)
+	return pts
+
+# Follows the floating weapon every frame: glow + sparkles wrap the weapon's
+# visual centre, the hand glow sits at his side toward it, and the aura gently
+# pulses. Hidden when unarmed.
+func update_levitate_aura(aim_dir: Vector2, hover: float, free_float: Vector2 = Vector2.ZERO) -> void:
+	if not levitate_glow:
+		return
+	var armed = has_weapon()
+	levitate_glow.visible = armed
+	hand_glow.visible = armed
+	levitate_sparkles.emitting = armed
+	if not armed:
+		return
+	var reach = active_stats.icon_size.x if active_weapon_type != "bow" else 0.0
+	var center = aim_dir * (hover + reach * 0.5) + free_float
+	var pulse = 1.0 + 0.12 * sin(levitate_time * 3.2)
+	levitate_glow.position = center
+	levitate_glow.scale = Vector2.ONE * pulse * max(1.0, max(active_stats.icon_size.x, active_stats.icon_size.y) / 22.0)
+	levitate_sparkles.position = center
+	hand_glow.position = aim_dir * 10.0 + Vector2(0, -2)
+	hand_glow.scale = Vector2.ONE * (1.0 + 0.2 * sin(levitate_time * 5.1))
 
 # Swaps the placeholder box for the pixel-art sprite when the art exists.
 # Scaled by height and feet-aligned to the bottom of the collision body so it
@@ -525,6 +657,8 @@ func apply_pending_player_state() -> void:
 		has_double_jump = data["has_double_jump"]
 	if data.has("health"):
 		health = data["health"]
+	if data.has("mana"):
+		mana = float(data["mana"])
 	# re-wield whatever weapon was in hand (weapons live in the inventory now)
 	var eq = str(data.get("active_weapon_id", "wpn_sword"))
 	if not wield_weapon(eq):
@@ -546,6 +680,10 @@ func skill_damage_mult(weapon: String) -> float:
 		return 1.0 + GameState.get_bonus_total("melee_damage")
 	if weapon == "bow":
 		return 1.0 + GameState.get_bonus_total("bow_damage")
+	if weapon == "wand":
+		# scales the Mage's PROJECTILE wands (Emberstaff etc.); the classic
+		# nuke wand doesn't deal numeric damage so it ignores this.
+		return 1.0 + GameState.get_bonus_total("wand_damage")
 	return 1.0
 
 func skill_cooldown_mult(weapon: String) -> float:
@@ -558,20 +696,137 @@ func skill_cooldown_mult(weapon: String) -> float:
 		reduction = GameState.get_bonus_total("wand_cooldown")
 	return max(0.3, 1.0 - reduction)
 
+# --- Standing torches (G) ---
+# Plants a big brazier torch at the player's feet: a much larger, richer light
+# pool than the wall torches. Costs materials; persists via GameState.
+const STANDING_TORCH_SCRIPT = preload("res://standing_torch.gd")
+const STANDING_TORCH_COST = {"wood": 2, "resin": 1}
+
+func try_place_torch() -> void:
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if GameState.in_dungeon:
+		if stack:
+			stack.show_notification("Standing torches can only be placed in the overworld.")
+		return
+	var missing = []
+	for mat in STANDING_TORCH_COST:
+		if inventory.get_count(mat) < STANDING_TORCH_COST[mat]:
+			missing.append("%s %d/%d" % [Inventory.get_display_name(mat), inventory.get_count(mat), STANDING_TORCH_COST[mat]])
+	if not missing.is_empty():
+		if stack:
+			stack.show_notification("A standing torch needs: " + ", ".join(missing))
+		return
+	for mat in STANDING_TORCH_COST:
+		inventory.remove_item(mat, int(STANDING_TORCH_COST[mat]))
+	var spot = Vector2(global_position.x, global_position.y + 24.0)   # at the feet
+	var torch = STANDING_TORCH_SCRIPT.new()
+	torch.position = spot   # parent is the scene root, so this is world-space
+	get_parent().add_child(torch)
+	GameState.placed_torches.append({"x": spot.x, "y": spot.y})
+	if stack:
+		stack.show_notification("Standing torch planted (2 Wood, 1 Resin). It lights at dusk.")
+
+# --- Bar morale ---
+# Stepping into the (built) Bar lifts the player's spirits: +10% move speed for
+# a few in-game hours. Granted by building.gd's Bar on entry; re-entering after
+# it lapses refreshes it.
+const BAR_MORALE_BONUS = 0.10
+const BAR_MORALE_HOURS = 3.0
+var bar_morale_until := -1.0e9
+
+func bar_morale_active() -> bool:
+	return GameState.game_hours < bar_morale_until
+
+func grant_bar_morale() -> void:
+	if bar_morale_active():
+		return
+	bar_morale_until = GameState.game_hours + BAR_MORALE_HOURS
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if stack:
+		stack.show_notification("The Bar lifts your spirits! +%d%% move speed for %d hours." % [int(BAR_MORALE_BONUS * 100), int(BAR_MORALE_HOURS)])
+
 func skill_move_speed_mult() -> float:
-	return 1.0 + GameState.get_bonus_total("move_speed")
+	var morale = BAR_MORALE_BONUS if bar_morale_active() else 0.0
+	return 1.0 + GameState.get_bonus_total("move_speed") + morale
 
 # Called by GameState whenever a piece of gear (armor/relic) is equipped or
-# unequipped -- refresh armor visuals and clamp HP to the new max.
+# unequipped, and on every hotbar wield -- both can change set bonuses, so
+# refresh armor visuals and clamp HP/mana to their (possibly new) maxima.
 func on_equipment_changed() -> void:
 	update_armor_visuals()
 	health = min(health, get_max_health())
+	mana = min(mana, get_max_mana())
 	update_health_display()
+	update_mana_display()
 
 func update_health_display() -> void:
 	var percent = clamp(float(health) / get_max_health(), 0.0, 1.0)
 	$"../CanvasLayer/HealthBarFill".size.x = 100 * percent
 	$"../CanvasLayer/HealthLabel".text = str(max(health, 0)) + "/" + str(get_max_health())
+
+# --- Mana pool ---
+
+func get_max_mana() -> float:
+	return BASE_MAX_MANA + GameState.get_bonus_total("max_mana")
+
+func get_mana_regen() -> float:
+	return BASE_MANA_REGEN * (1.0 + GameState.get_bonus_total("mana_regen"))
+
+func spend_mana(amount: float) -> bool:
+	if mana < amount:
+		return false
+	mana -= amount
+	update_mana_display()
+	return true
+
+func gain_mana(amount: float) -> void:
+	mana = min(get_max_mana(), mana + amount)
+	update_mana_display()
+
+# The HP bar lives in each scene's .tscn; the mana bar is built here in code
+# so it appears identically under the HP bar in BOTH main.tscn and
+# dungeon_interior.tscn without touching either scene file.
+func build_mana_bar() -> void:
+	var layer = get_node_or_null("../CanvasLayer")
+	if not layer:
+		return
+	var bg = ColorRect.new()
+	bg.name = "ManaBarBG"
+	bg.offset_left = 20.0
+	bg.offset_top = 96.0
+	bg.offset_right = 120.0
+	bg.offset_bottom = 108.0
+	bg.color = Color(0.05, 0.08, 0.2, 1)
+	layer.add_child(bg)
+	mana_bar_fill = ColorRect.new()
+	mana_bar_fill.name = "ManaBarFill"
+	mana_bar_fill.offset_left = 20.0
+	mana_bar_fill.offset_top = 96.0
+	mana_bar_fill.offset_right = 120.0
+	mana_bar_fill.offset_bottom = 108.0
+	mana_bar_fill.color = Color(0.25, 0.5, 0.95, 1)
+	layer.add_child(mana_bar_fill)
+	mana_label = Label.new()
+	mana_label.name = "ManaLabel"
+	mana_label.offset_left = 126.0
+	mana_label.offset_top = 92.0
+	mana_label.offset_right = 200.0
+	mana_label.offset_bottom = 112.0
+	mana_label.add_theme_color_override("font_color", Color(1, 1, 1, 1))
+	mana_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	mana_label.add_theme_constant_override("outline_size", 4)
+	mana_label.add_theme_font_size_override("font_size", 14)
+	layer.add_child(mana_label)
+	update_mana_display()
+
+func update_mana_display() -> void:
+	if not mana_bar_fill:
+		return
+	var max_mana = get_max_mana()
+	var percent = clamp(mana / max(max_mana, 1.0), 0.0, 1.0)
+	mana_bar_fill.size.x = 100 * percent
+	if mana_label:
+		mana_label.text = str(int(mana)) + "/" + str(int(max_mana))
 
 func apply_knockback(direction_sign: int, distance: float) -> void:
 	if is_dead:
@@ -622,6 +877,9 @@ func wield_weapon(item_id: String) -> bool:
 	$WeaponIcon.pivot_offset = Vector2(0.0, stats.icon_size.y / 2.0)
 	update_weapon_guard()
 	update_weapon_visual(stats.icon_offset)
+	# wielding can complete (or break) a class set's full weapon tier, which
+	# can change max HP/mana -- re-sync exactly like an equip would.
+	on_equipment_changed()
 	return true
 
 # Hotbar select: index 0-9 = inventory slots 1-10. Wields the weapon in that
@@ -665,30 +923,40 @@ func update_weapon_visual(offset: float) -> void:
 		$WeaponIcon.visible = false
 		$BowVisual.visible = false
 		$WeaponTip.visible = false
+		update_levitate_aura(Vector2.RIGHT, 0.0)
 		return
 	var stats = active_stats
 	var aim_dir = get_aim_direction()
+	# Levitation: the weapon floats toward the mouse, bounded to his reach, and
+	# drifts organically (free_float) + tilts (wobble) so it reads as suspended
+	# by magic rather than rigidly leashed. Visual-only -- hitboxes stay on the
+	# aim line (extended by hover_extra so far-flung strikes land correctly).
+	var hover = hover_for_mouse(offset)
+	var hover_extra = hover - offset
+	var free_float = levitate_float_offset()
+	var wobble = sin(levitate_time * 2.4) * 0.10
 	$WeaponTip.visible = false
 	$BowVisual.visible = false
 	if active_weapon_type == "bow":
 		$WeaponIcon.visible = false
 		$BowVisual.visible = true
-		$BowVisual.position = aim_dir * offset
-		$BowVisual.rotation = aim_dir.angle()
+		$BowVisual.position = aim_dir * hover + free_float
+		$BowVisual.rotation = aim_dir.angle() + wobble
 		$BowVisual.scale = Vector2.ONE
 	else:
 		$WeaponIcon.visible = true
-		$WeaponIcon.position = aim_dir * offset - $WeaponIcon.pivot_offset
-		$WeaponIcon.rotation = aim_dir.angle()
-		$AttackArea.position = aim_dir * stats.range_offset
+		$WeaponIcon.position = aim_dir * hover + free_float - $WeaponIcon.pivot_offset
+		$WeaponIcon.rotation = aim_dir.angle() + wobble
+		$AttackArea.position = aim_dir * (stats.range_offset + hover_extra)
 		$AttackArea.rotation = aim_dir.angle()
 		if active_weapon_type == "spear":
 			$WeaponTip.visible = true
-			var tip_pos = aim_dir * (offset + stats.icon_size.x)
-			$WeaponTip.position = tip_pos
-			$WeaponTip.rotation = aim_dir.angle()
+			var tip_pos = aim_dir * (hover + stats.icon_size.x)
+			$WeaponTip.position = tip_pos + free_float
+			$WeaponTip.rotation = aim_dir.angle() + wobble
 			$WeaponTip.scale = Vector2.ONE
 			$SpearTipArea.position = tip_pos
+	update_levitate_aura(aim_dir, hover, free_float)
 
 func add_currency(amount: int) -> void:
 	currency += amount
@@ -746,7 +1014,11 @@ func die() -> void:
 	apply_difficulty_death_penalty()
 
 	var death_screen = get_node_or_null("../DeathScreen")
-	if death_screen:
+	if GameState.TEST_INSTANT_RESPAWN:
+		# testing: no countdown -- just step out of the physics callback that
+		# may have killed us, then respawn immediately.
+		await get_tree().process_frame
+	elif death_screen:
 		await death_screen.run_death_sequence(DEATH_COUNTDOWN_SECONDS)
 	else:
 		await get_tree().create_timer(DEATH_COUNTDOWN_SECONDS).timeout
@@ -840,6 +1112,11 @@ func _physics_process(delta: float) -> void:
 	if attack_cooldown_remaining > 0:
 		attack_cooldown_remaining -= delta
 
+	# mana trickles back constantly; gear/set bonuses speed it up
+	if mana < get_max_mana():
+		mana = min(get_max_mana(), mana + get_mana_regen() * delta)
+		update_mana_display()
+
 	# hotbar: keys 1-9 and 0 pick inventory slots 0-9; wield the weapon there
 	for i in range(HOTBAR_SIZE):
 		if Input.is_action_just_pressed("hotbar_%d" % (i + 1)):
@@ -852,6 +1129,9 @@ func _physics_process(delta: float) -> void:
 		# bypasses invincible/take_damage entirely -- an instant dev/admin
 		# kill for testing the death sequence, not a real damage source.
 		die()
+
+	if Input.is_action_just_pressed("place_torch"):
+		try_place_torch()
 
 	if Input.is_action_just_pressed("admin_restore"):
 		# admin/dev: instantly repair every building in the village to full.
@@ -888,6 +1168,7 @@ func _physics_process(delta: float) -> void:
 	var direction = Input.get_axis("move_left", "move_right")
 	if direction:
 		facing_direction = sign(direction)
+	levitate_time += get_physics_process_delta_time()
 	if has_weapon() and not is_attacking:
 		update_weapon_visual(active_stats.icon_offset)
 
@@ -897,47 +1178,245 @@ func _physics_process(delta: float) -> void:
 	if Input.is_action_just_pressed("attack"):
 		perform_attack()
 
+	# right-click = the admin Ruin Wand's no-aim percent burst (see below)
+	if Input.is_action_just_pressed("secondary_attack"):
+		perform_secondary_attack()
+
 	move_and_slide()
 	# drive the sprite animation after movement (needs final velocity/floor state)
 	update_body_anim(delta)
+
+# Right-click. Only the admin Ruin Wand does anything on it right now: a
+# no-aim burst that shears a flat % of MAX HP off every enemy nearby. Kept as
+# its own path (not perform_attack) so left-click stays the normal attack and
+# the two never fight over the cooldown.
+func perform_secondary_attack() -> void:
+	if not has_weapon():
+		return
+	var special = active_def.get("special", {})
+	if str(special.get("type", "")) == "percent_burst":
+		cast_percent_burst(special)
+
+# Sears `percent` of each nearby enemy's MAX HP -- ignores every damage
+# modifier and armor, so it's a predictable share of the health bar. At 5%
+# that's ~20 casts to fell anything, boss included, which is exactly enough to
+# walk a final boss through all of its phases for testing.
+func cast_percent_burst(special: Dictionary) -> void:
+	if attack_cooldown_remaining > 0:
+		return
+	attack_cooldown_remaining = active_stats.cooldown * skill_cooldown_mult("wand")
+	play_sfx(SFX_BOW)
+	var icon = $WeaponIcon
+	if weapon_anim_tween:
+		weapon_anim_tween.kill()
+	weapon_anim_tween = create_tween()
+	weapon_anim_tween.tween_property(icon, "scale", Vector2(1.4, 1.4), 0.08)
+	weapon_anim_tween.tween_property(icon, "scale", Vector2.ONE, 0.15)
+	var radius = float(special.get("radius", 280.0))
+	var percent = float(special.get("percent", 0.05))
+	spawn_ruin_burst(radius)
+	var hit_any = false
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if global_position.distance_to(e.global_position) > radius:
+				continue
+			# 5% of MAX HP, min 1 so tiny-HP foes still take a chip
+			var pool = int(e.max_health) if "max_health" in e else int(e.health)
+			e.take_damage(max(1, int(round(pool * percent))))
+			hit_any = true
+	if not hit_any:
+		var stack = get_tree().get_first_node_in_group("notification_stack")
+		if stack:
+			stack.show_notification("Ruin Wand: no enemy in range.")
+
+# A red shockwave ring showing the Ruin Wand's reach on each cast.
+func spawn_ruin_burst(radius: float) -> void:
+	var ring = Line2D.new()
+	var pts = _circle_points(radius, 40)
+	pts.append(pts[0])
+	ring.points = pts
+	ring.width = 4.0
+	ring.default_color = Color(0.95, 0.2, 0.25, 0.85)
+	ring.z_index = 45
+	get_parent().add_child(ring)
+	ring.global_position = global_position
+	ring.scale = Vector2(0.2, 0.2)
+	var t = ring.create_tween()
+	t.tween_property(ring, "scale", Vector2.ONE, 0.28).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	t.parallel().tween_property(ring, "modulate:a", 0.0, 0.28)
+	t.tween_callback(ring.queue_free)
 
 func perform_attack() -> void:
 	if attack_cooldown_remaining > 0 or not has_weapon():
 		return
 	var stats = active_stats
+	var special = active_def.get("special", {})
+	var special_type = str(special.get("type", ""))
+	# the Ruin Wand is a no-aim burst -- left-click casts the same thing as
+	# right-click so it never fires a stray projectile
+	if special_type == "percent_burst":
+		cast_percent_burst(special)
+		return
+	if active_weapon_type == "wand":
+		# wands draw on the mana pool -- refusing the cast costs no cooldown
+		var cost = int(active_def.get("mana_cost", DEFAULT_WAND_MANA_COST))
+		if not spend_mana(cost):
+			var stack = get_tree().get_first_node_in_group("notification_stack")
+			if stack:
+				stack.show_notification("Not enough mana (%d/%d)." % [int(mana), cost])
+			return
+		attack_cooldown_remaining = stats.cooldown * skill_cooldown_mult(active_weapon_type)
+		if special.is_empty():
+			cast_wand()   # the classic screen-nuke wand
+		else:
+			cast_wand_projectile(special)   # Emberstaff / Icicle Wand ...
+		return
 	attack_cooldown_remaining = stats.cooldown * skill_cooldown_mult(active_weapon_type)
 	if active_weapon_type == "bow":
 		animate_bow(stats)
 		return
 	if active_weapon_type == "spear":
-		animate_spear(stats)
+		if special_type == "javelin_volley":
+			throw_javelin_volley(special)
+		else:
+			animate_spear(stats)
 		return
-	if active_weapon_type == "wand":
-		cast_wand()
+	# thrown "melee" weapons: the whole attack IS the projectile
+	if special_type == "hook" or special_type == "boomerang":
+		play_sfx(SFX_SWORD)
+		animate_sword()
+		launch_projectile(special, get_aim_direction(), int(special.get("damage", stats.damage)))
 		return
-	# melee swing (also the swing for an Excellent weapon)
+	# melee swing (also the swing for an Excellent weapon) -- the strike lands
+	# wherever the levitating blade currently hovers (telekinetic range attack)
 	var is_excellent = active_def.has("unique_effect")
 	var aim_dir = get_aim_direction()
-	$AttackArea.position = aim_dir * stats.range_offset
+	var hover_extra = hover_for_mouse(stats.icon_offset) - stats.icon_offset
+	$AttackArea.position = aim_dir * (stats.range_offset + hover_extra)
 	$AttackArea.rotation = aim_dir.angle()
+	# a wielded gathering tool works the harvest nodes inside the swing area
+	# (trees want the axe, rocks the pickaxe -- see harvest_node.gd)
+	var tool_type = str(active_def.get("tool_type", ""))
+	if tool_type != "":
+		for area in $AttackArea.get_overlapping_areas():
+			if area.is_in_group("harvestable") and area.has_method("take_tool_hit"):
+				area.take_tool_hit(tool_type, self)
 	var bodies = $AttackArea.get_overlapping_bodies()
-	var target = closest_body(bodies)
-	if target:
-		# Excellent weapons are classless -- no skill-tree damage scaling.
-		var mult = 1.0 if is_excellent else skill_damage_mult("melee")
-		var dealt = int(round(stats.damage * mult))
-		if target.has_method("take_damage"):
-			target.take_damage(dealt)
-		if target.has_method("apply_knockback"):
-			var knockback_distance = randf_range(stats.knockback_min, stats.knockback_max)
-			target.apply_knockback(knockback_sign_toward(target), knockback_distance)
-		if is_excellent:
-			apply_excellent_effect(target, dealt)
+	if special_type == "cleave":
+		# the Sunderer carves through EVERY body in the arc, not just one
+		for body in bodies:
+			var cleave_dealt = int(round(stats.damage * skill_damage_mult("melee")))
+			if body.has_method("take_damage"):
+				body.take_damage(cleave_dealt)
+			if body.has_method("apply_knockback"):
+				body.apply_knockback(knockback_sign_toward(body), randf_range(stats.knockback_min, stats.knockback_max))
+	else:
+		var target = closest_body(bodies)
+		if target:
+			# Excellent weapons are classless -- no skill-tree damage scaling.
+			var mult = 1.0 if is_excellent else skill_damage_mult("melee")
+			var dealt = int(round(stats.damage * mult))
+			if target.has_method("take_damage"):
+				target.take_damage(dealt)
+			if target.has_method("apply_knockback"):
+				var knockback_distance = randf_range(stats.knockback_min, stats.knockback_max)
+				target.apply_knockback(knockback_sign_toward(target), knockback_distance)
+			if is_excellent:
+				apply_excellent_effect(target, dealt)
+	# the Windcutter's signature: the swing releases a slash that flies onward
+	if special_type == "flying_slash":
+		launch_projectile(special, aim_dir, int(round(special.get("damage", 10) * skill_damage_mult("melee"))))
 	animate_sword()
+
+# Spawns a weapon_projectile.gd configured from a weapon's "special" dict.
+# The special's type maps onto the projectile's kind ("flying_slash" flies as
+# a "slash", each javelin of a volley as a "javelin").
+func launch_projectile(cfg: Dictionary, dir: Vector2, dmg: int) -> void:
+	var p = WEAPON_PROJECTILE_SCRIPT.new()
+	var kind = str(cfg.get("type", "slash"))
+	match kind:
+		"flying_slash": kind = "slash"
+		"javelin_volley": kind = "javelin"
+	p.kind = kind
+	p.direction = dir.normalized()
+	p.speed = float(cfg.get("speed", 500.0))
+	p.damage = dmg
+	p.max_distance = float(cfg.get("range", 450.0))
+	p.pierce = bool(cfg.get("pierce", kind in ["slash", "javelin"]))
+	p.aoe_radius = float(cfg.get("aoe", 0.0))
+	p.source = self
+	p.position = global_position + dir * 34.0
+	get_parent().add_child(p)
+
+# Stormlance: no thrust -- conjure a fan of spectral javelins and let fly.
+func throw_javelin_volley(special: Dictionary) -> void:
+	play_sfx(SFX_SPEAR)
+	var icon = $WeaponIcon
+	if weapon_anim_tween:
+		weapon_anim_tween.kill()
+	weapon_anim_tween = create_tween()
+	weapon_anim_tween.tween_property(icon, "scale", Vector2(1.25, 1.25), 0.07)
+	weapon_anim_tween.tween_property(icon, "scale", Vector2.ONE, 0.12)
+	var count = int(special.get("count", 3))
+	var spread = deg_to_rad(float(special.get("spread_deg", 10.0)))
+	var aim = get_aim_direction()
+	var dmg = int(round(special.get("damage", 10) * skill_damage_mult("spear")))
+	for i in range(count):
+		var frac = 0.5 if count <= 1 else float(i) / float(count - 1)
+		launch_projectile(special, aim.rotated(lerp(-spread, spread, frac)), dmg)
+
+# Emberstaff / Icicle Wand: a cast that launches a real projectile instead of
+# the classic wand's screen nuke. Scales with the Mage tree's wand_damage.
+func cast_wand_projectile(special: Dictionary) -> void:
+	play_sfx(SFX_BOW)
+	var icon = $WeaponIcon
+	if weapon_anim_tween:
+		weapon_anim_tween.kill()
+	weapon_anim_tween = create_tween()
+	weapon_anim_tween.tween_property(icon, "scale", Vector2(1.4, 1.4), 0.08)
+	weapon_anim_tween.tween_property(icon, "scale", Vector2.ONE, 0.15)
+	var dmg = int(round(special.get("damage", 10) * skill_damage_mult("wand")))
+	launch_projectile(special, get_aim_direction(), dmg)
+
+# Echo Rift: counts strikes so every 3rd one repeats its damage.
+var echo_hit_counter: int = 0
 
 # The unique effect of the active Excellent weapon, fired on each melee hit.
 func apply_excellent_effect(target: Node2D, damage_dealt: int) -> void:
 	var effect = active_def.get("unique_effect", "")
+	if effect == "gold_touch":
+		# Midas Edge -- pain into profit
+		var gold = int(round(damage_dealt * active_def.get("unique_value", 0.0)))
+		if gold > 0:
+			add_currency(gold)
+			if is_instance_valid(target):
+				spawn_gold_sparks(target.global_position, gold)
+		return
+	if effect == "echo":
+		# Echo Rift -- every 3rd strike repeats the full blow
+		echo_hit_counter += 1
+		if echo_hit_counter % 3 == 0 and is_instance_valid(target):
+			var extra = int(round(damage_dealt * active_def.get("unique_value", 1.0)))
+			if target.has_method("take_damage"):
+				target.take_damage(extra)
+			spawn_echo_ring(target.global_position)
+		return
+	if effect == "manasteal":
+		# Soulthirst -- drink the foe's spirit
+		gain_mana(float(active_def.get("unique_value", 0)))
+		if is_instance_valid(target):
+			spawn_soul_wisps(target.global_position)
+		return
+	if effect == "chrono":
+		# Chrono Edge -- a chance to rewind the swing entirely
+		if randf() < float(active_def.get("unique_value", 0.25)):
+			attack_cooldown_remaining = 0.0
+			spawn_chrono_flash()
+		return
 	if effect == "lifesteal":
 		var heal = int(round(damage_dealt * active_def.get("unique_value", 0.0)))
 		health = min(get_max_health(), health + heal)
@@ -1046,6 +1525,97 @@ func _circle_points(radius: float, sides: int) -> PackedVector2Array:
 		pts.append(Vector2(cos(ang), sin(ang)) * radius)
 	return pts
 
+# Midas Edge: gold coins burst up from the struck enemy and a "+N" drifts off.
+func spawn_gold_sparks(from_pos: Vector2, gold: int) -> void:
+	for i in range(5):
+		var coin = Polygon2D.new()
+		coin.polygon = _circle_points(randf_range(2.0, 3.5), 8)
+		coin.color = Color(1.0, 0.84, 0.2, 0.95)
+		coin.z_index = 48
+		get_parent().add_child(coin)
+		coin.global_position = from_pos + Vector2(randf_range(-10, 10), randf_range(-8, 4))
+		var t = coin.create_tween()
+		t.tween_property(coin, "global_position", coin.global_position + Vector2(randf_range(-16, 16), randf_range(-34, -18)), 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		t.parallel().tween_property(coin, "modulate:a", 0.0, 0.4)
+		t.tween_callback(coin.queue_free)
+	var tag = Label.new()
+	tag.text = "+%d" % gold
+	tag.add_theme_color_override("font_color", Color(1.0, 0.85, 0.25, 1))
+	tag.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	tag.add_theme_constant_override("outline_size", 3)
+	tag.z_index = 49
+	get_parent().add_child(tag)
+	tag.global_position = from_pos + Vector2(-8, -30)
+	var tt = tag.create_tween()
+	tt.tween_property(tag, "global_position:y", tag.global_position.y - 26.0, 0.5)
+	tt.parallel().tween_property(tag, "modulate:a", 0.0, 0.5)
+	tt.tween_callback(tag.queue_free)
+
+# Chrono Edge: a golden clock-ring blinks around the player as time rewinds.
+func spawn_chrono_flash() -> void:
+	var ring = Line2D.new()
+	var pts = _circle_points(18.0, 24)
+	pts.append(pts[0])
+	ring.points = pts
+	ring.width = 3.0
+	ring.default_color = Color(1.0, 0.9, 0.4, 0.95)
+	ring.z_index = 49
+	get_parent().add_child(ring)
+	ring.global_position = global_position
+	# a single "clock hand" sweeping backwards sells the rewind
+	var hand = Line2D.new()
+	hand.points = PackedVector2Array([Vector2.ZERO, Vector2(0, -14)])
+	hand.width = 3.0
+	hand.default_color = Color(1.0, 0.95, 0.6, 1.0)
+	hand.z_index = 50
+	get_parent().add_child(hand)
+	hand.global_position = global_position
+	var t = ring.create_tween()
+	t.tween_property(ring, "scale", Vector2(2.2, 2.2), 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	t.parallel().tween_property(ring, "modulate:a", 0.0, 0.3)
+	t.tween_callback(ring.queue_free)
+	var h = hand.create_tween()
+	h.tween_property(hand, "rotation", -TAU * 0.75, 0.3).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	h.parallel().tween_property(hand, "modulate:a", 0.0, 0.3)
+	h.tween_callback(hand.queue_free)
+
+# Echo Rift: a cyan shock-ring snaps open where the echoed blow lands.
+func spawn_echo_ring(at_pos: Vector2) -> void:
+	var ring = Line2D.new()
+	var pts = _circle_points(10.0, 20)
+	pts.append(pts[0])   # close the loop
+	ring.points = pts
+	ring.width = 3.0
+	ring.default_color = Color(0.5, 0.9, 0.95, 0.9)
+	ring.z_index = 49
+	get_parent().add_child(ring)
+	ring.global_position = at_pos
+	var t = ring.create_tween()
+	t.tween_property(ring, "scale", Vector2(3.2, 3.2), 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	t.parallel().tween_property(ring, "modulate:a", 0.0, 0.22)
+	t.tween_callback(ring.queue_free)
+
+# Soulthirst: violet wisps stream from the struck enemy into the player,
+# selling the mana drain (same choreography as the Fang's blood drops).
+func spawn_soul_wisps(from_pos: Vector2) -> void:
+	var to_pos = global_position
+	for i in range(6):
+		var wisp = Polygon2D.new()
+		wisp.polygon = _circle_points(randf_range(2.0, 4.0), 8)
+		wisp.color = Color(0.6, 0.4, 1.0, 0.9)
+		wisp.z_index = 48
+		get_parent().add_child(wisp)
+		wisp.global_position = from_pos + Vector2(randf_range(-11, 11), randf_range(-16, 6))
+		var mid = wisp.global_position.lerp(to_pos, 0.5) + Vector2(randf_range(-18, 18), randf_range(-28, -6))
+		var dur = randf_range(0.26, 0.46)
+		var move = wisp.create_tween()
+		move.tween_property(wisp, "global_position", mid, dur * 0.5).set_trans(Tween.TRANS_SINE)
+		move.tween_property(wisp, "global_position", to_pos, dur * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+		var fade = wisp.create_tween()
+		fade.tween_interval(dur * 0.55)
+		fade.tween_property(wisp, "modulate:a", 0.0, dur * 0.45)
+		fade.tween_callback(wisp.queue_free)
+
 func closest_body(bodies: Array) -> Node2D:
 	var nearest: Node2D = null
 	var nearest_dist = INF
@@ -1095,10 +1665,24 @@ func animate_bow(stats: Dictionary) -> void:
 	spawn_arrow(stats, get_aim_direction())
 
 func spawn_arrow(stats: Dictionary, aim_dir: Vector2) -> void:
-	var arrow = ARROW_SCENE.instantiate()
-	arrow.position = global_position + aim_dir * 20.0
-	arrow.setup(aim_dir, int(round(stats.damage * skill_damage_mult("bow"))), stats.knockback_min, stats.knockback_max, 4)
-	get_parent().add_child(arrow)
+	# a bow's "special" can fan the shot out (multi_shot) or make every arrow
+	# hunt on its own (homing) -- plain bows fire the single straight arrow
+	var special = active_def.get("special", {})
+	var special_type = str(special.get("type", ""))
+	var count = int(special.get("count", 1)) if special_type == "multi_shot" else 1
+	var spread = deg_to_rad(float(special.get("spread_deg", 0.0)))
+	var hover = hover_for_mouse(stats.icon_offset)
+	for i in range(count):
+		var dir = aim_dir
+		if count > 1:
+			dir = aim_dir.rotated(lerp(-spread, spread, float(i) / float(count - 1)))
+		var arrow = ARROW_SCENE.instantiate()
+		# loose from wherever the levitating bow hovers (may be far out with
+		# the Levitate skills), not from the character's body
+		arrow.position = global_position + dir * (hover + 8.0)
+		arrow.setup(dir, int(round(stats.damage * skill_damage_mult("bow"))), stats.knockback_min, stats.knockback_max, 4)
+		arrow.homing = special_type == "homing"
+		get_parent().add_child(arrow)
 
 func cast_wand() -> void:
 	play_sfx(SFX_BOW)

@@ -4,6 +4,7 @@ var current_building: Node = null
 
 func _ready() -> void:
 	visible = false
+	add_to_group("esc_window")
 	$Panel/CloseButton.pressed.connect(close)
 
 func open_for_building(building: Node) -> void:
@@ -14,6 +15,12 @@ func open_for_building(building: Node) -> void:
 func close() -> void:
 	current_building = null
 	visible = false
+
+func esc_is_open() -> bool:
+	return visible
+
+func esc_close() -> void:
+	close()
 
 func refresh() -> void:
 	var list = $Panel/ScrollContainer/VBoxContainer
@@ -36,14 +43,15 @@ func refresh() -> void:
 	if current_building.role_key == "Science Lab":
 		add_research_section(list)
 
-# Shown when the building lies in ruins: a short blurb + a Repair button that
-# spends gold to bring it fully back online.
+# Shown while a building is being raised: it takes several construction stages,
+# each costing one material bundle and playing a build animation.
 func add_repair_section(list: VBoxContainer) -> void:
 	var b = current_building
+	var total = GameState.TOTAL_BUILD_STAGES
 	var header = Label.new()
 	header.add_theme_font_size_override("font_size", 15)
 	header.add_theme_color_override("font_color", Color(0.92, 0.55, 0.32, 1))
-	header.text = "In ruins"
+	header.text = "Under construction — stage %d / %d" % [b.build_stage, total]
 	list.add_child(header)
 
 	var info = Label.new()
@@ -51,18 +59,21 @@ func add_repair_section(list: VBoxContainer) -> void:
 	info.add_theme_color_override("font_color", Color(0.82, 0.8, 0.72, 1))
 	info.autowrap_mode = TextServer.AUTOWRAP_WORD
 	info.custom_minimum_size = Vector2(300, 0)
-	info.text = "  The %s was wrecked in the attack. Repair it (press F here, or the button below) to reopen its roles and resume output." % b.building_name
+	info.text = "  The %s is being rebuilt in %d stages. Press F here (or the button below) to raise the next stage; it opens for work only when fully built." % [b.building_name, total]
 	list.add_child(info)
 
 	var cost = Label.new()
 	cost.add_theme_font_size_override("font_size", 12)
 	cost.add_theme_color_override("font_color", Color(0.75, 0.85, 0.75, 1))
-	cost.text = "  Needs: " + b.repair_requirement_text()
+	cost.text = "  Each stage needs: " + b.repair_requirement_text()
 	list.add_child(cost)
 
 	var btn = Button.new()
-	btn.text = "  Repair"
+	btn.text = "  Build stage %d / %d" % [b.build_stage + 1, total]
 	btn.custom_minimum_size = Vector2(0, 32)
+	if b.constructing:
+		btn.text = "  Building..."
+		btn.disabled = true
 	btn.pressed.connect(_on_repair)
 	list.add_child(btn)
 
@@ -71,10 +82,12 @@ func _on_repair() -> void:
 	var notif = get_tree().get_first_node_in_group("notification_stack")
 	if not current_building or not player:
 		return
-	var result = current_building.try_repair(player)
-	if result == "ok":
-		if notif:
-			notif.show_notification("%s repaired! Its roles are open now." % current_building.building_name)
+	var result = current_building.try_build(player)
+	if result == "ok" and notif:
+		if current_building.build_stage >= GameState.TOTAL_BUILD_STAGES:
+			notif.show_notification("%s fully built! Its roles are open now." % current_building.building_name)
+		else:
+			notif.show_notification("%s -- building... (stage %d/%d)" % [current_building.building_name, current_building.build_stage, GameState.TOTAL_BUILD_STAGES])
 	elif result == "materials" and notif:
 		notif.show_notification("Not enough materials -- need: " + ", ".join(current_building.missing_repair_materials(player)))
 	refresh()

@@ -79,30 +79,46 @@ const TRAP_PLATFORM_ZONES = [
 # covering the roles named in the game's vision doc, spaced out along a
 # widened stretch of ground. Most start unstaffed (see building.gd); Farm
 # reflects Elin's rescue automatically since her role matches "Farm".
-const VILLAGE_START_X = 4900.0
-const VILLAGE_SPACING = 200.0
+const VILLAGE_START_X = 4900.0   # LEFT edge of the first building
+const VILLAGE_GAP = 360.0        # roomy gap: holds the extended work-yards even with buildings fully upgraded
+const VILLAGE_WIDTH_BOOST = 1.35 # buildings drawn wider than tall for a townier look
+# Mirrors building.gd (1 + (MAX_LEVEL-1) * WIDTH_PER_LEVEL) = 1 + 5*0.08. Each
+# building's slot reserves its FULLY-UPGRADED width so upgrades never overlap.
+const MAX_UPGRADE_FACTOR = 1.4
 const VILLAGE_Y = -39.0
 const BUILDING_SCRIPT = preload("res://building.gd")
+const FARM_PEN_SCRIPT = preload("res://farm_pen.gd")
+const FARM_PEN_WIDTH = 420.0     # fenced pasture placed right after the Farm
+const DOCK_BRIDGE_SCRIPT = preload("res://dock_bridge.gd")
+const STANDING_TORCH_SCRIPT = preload("res://standing_torch.gd")
+# Each building carries a "scale" -- its base size is multiplied by it so the
+# village reads big on a full-screen display. Grandest civic buildings are
+# largest; utility buildings x2. Buildings are then placed edge-to-edge (see
+# generate_village) so no two overlap regardless of their scaled widths.
 const VILLAGE_BUILDINGS = [
-	{"name": "Government", "role_key": "Government", "width": 130.0, "height": 100.0, "color": Color(0.55, 0.48, 0.38, 1)},
-	{"name": "School", "role_key": "School", "width": 100.0, "height": 80.0, "color": Color(0.45, 0.55, 0.65, 1)},
-	{"name": "Farm", "role_key": "Farm", "width": 110.0, "height": 75.0, "color": Color(0.5, 0.6, 0.3, 1)},
-	{"name": "Hospital", "role_key": "Hospital", "width": 105.0, "height": 85.0, "color": Color(0.75, 0.72, 0.7, 1)},
-	{"name": "Barracks", "role_key": "Barracks", "width": 115.0, "height": 80.0, "color": Color(0.4, 0.35, 0.32, 1)},
-	{"name": "Fishing Dock", "role_key": "Fishing Dock", "width": 120.0, "height": 70.0, "color": Color(0.35, 0.5, 0.55, 1)},
-	{"name": "Science Lab", "role_key": "Science Lab", "width": 105.0, "height": 85.0, "color": Color(0.4, 0.45, 0.6, 1)},
-	{"name": "Bank", "role_key": "Bank", "width": 100.0, "height": 90.0, "color": Color(0.6, 0.55, 0.35, 1)},
-	{"name": "Blacksmith", "role_key": "Blacksmith", "width": 95.0, "height": 75.0, "color": Color(0.45, 0.4, 0.4, 1)},
-	{"name": "Tavern", "role_key": "Tavern", "width": 110.0, "height": 80.0, "color": Color(0.55, 0.35, 0.25, 1)},
-	{"name": "Marketplace", "role_key": "Marketplace", "width": 130.0, "height": 65.0, "color": Color(0.6, 0.5, 0.35, 1)},
-	{"name": "Builderhouse", "role_key": "Builderhouse", "width": 120.0, "height": 90.0, "color": Color(0.42, 0.38, 0.3, 1)},
+	{"name": "Government", "role_key": "Government", "width": 130.0, "height": 100.0, "scale": 3.0, "color": Color(0.55, 0.48, 0.38, 1)},
+	{"name": "School", "role_key": "School", "width": 100.0, "height": 80.0, "scale": 2.0, "color": Color(0.45, 0.55, 0.65, 1)},
+	{"name": "Farm", "role_key": "Farm", "width": 110.0, "height": 75.0, "scale": 2.8, "color": Color(0.5, 0.6, 0.3, 1)},
+	{"name": "Hospital", "role_key": "Hospital", "width": 105.0, "height": 85.0, "scale": 2.5, "color": Color(0.75, 0.72, 0.7, 1)},
+	{"name": "Barracks", "role_key": "Barracks", "width": 115.0, "height": 80.0, "scale": 2.5, "color": Color(0.4, 0.35, 0.32, 1)},
+	{"name": "Fishing Dock", "role_key": "Fishing Dock", "width": 120.0, "height": 70.0, "scale": 2.6, "color": Color(0.35, 0.5, 0.55, 1)},
+	{"name": "Science Lab", "role_key": "Science Lab", "width": 105.0, "height": 85.0, "scale": 2.0, "color": Color(0.4, 0.45, 0.6, 1)},
+	{"name": "Bank", "role_key": "Bank", "width": 100.0, "height": 90.0, "scale": 2.0, "color": Color(0.6, 0.55, 0.35, 1)},
+	{"name": "Blacksmith", "role_key": "Blacksmith", "width": 95.0, "height": 75.0, "scale": 2.0, "color": Color(0.45, 0.4, 0.4, 1)},
+	{"name": "Tavern", "role_key": "Tavern", "width": 110.0, "height": 80.0, "scale": 2.0, "color": Color(0.55, 0.35, 0.25, 1)},
+	{"name": "Bar", "role_key": "Bar", "width": 100.0, "height": 78.0, "scale": 2.2, "color": Color(0.3, 0.24, 0.22, 1)},
+	{"name": "Marketplace", "role_key": "Marketplace", "width": 130.0, "height": 65.0, "scale": 2.5, "color": Color(0.6, 0.5, 0.35, 1)},
+	{"name": "Builderhouse", "role_key": "Builderhouse", "width": 120.0, "height": 90.0, "scale": 2.5, "color": Color(0.42, 0.38, 0.3, 1)},
 ]
+# Right edge of the last building, set by generate_village -- the houses start
+# past it so the enlarged village never overruns the cottages.
+var village_right_edge := VILLAGE_START_X
 
 # Mating houses sit just past the 12 role buildings -- smaller cottages,
 # deliberately distinct in shape/palette from the institutional buildings
 # above. See house.gd for the pairing/child mechanic.
-const HOUSE_START_X = 7300.0
-const HOUSE_SPACING = 150.0
+const HOUSE_MARGIN = 240.0   # gap from the last building to the first cottage
+const HOUSE_SPACING = 160.0
 const HOUSE_SCRIPT = preload("res://house.gd")
 const HOUSE_COLORS = [
 	{"body": Color(0.62, 0.48, 0.32, 1), "roof": Color(0.48, 0.24, 0.18, 1)},
@@ -112,6 +128,16 @@ const HOUSE_COLORS = [
 	{"body": Color(0.48, 0.45, 0.55, 1), "roof": Color(0.32, 0.28, 0.4, 1)},
 ]
 const HOUSE_COUNT = 5
+
+# Harvestable trees (axe) and mineral rocks (pickaxe) -- see harvest_node.gd.
+# Spread along the combat course, plus a grove/outcrop in the gap between the
+# course's end and the village gate (ground is guaranteed there).
+const HARVEST_NODE_SCRIPT = preload("res://harvest_node.gd")
+const TREE_COUNT = 12
+const ROCK_COUNT = 9
+const HARVEST_SPAN_START = -350.0
+const HARVEST_SPAN_END = 4300.0
+const GROVE_START_X = 4420.0
 
 const NPC_SCRIPT = preload("res://npc.gd")
 # Fallback avatar spot for a villager with no role_key assigned yet -- near
@@ -128,6 +154,8 @@ func _ready() -> void:
 	generate_clouds()
 	generate_village()
 	generate_houses()
+	generate_harvestables()
+	spawn_placed_torches()
 	start_music()
 	if GameState.pending_load:
 		apply_save_data()
@@ -151,18 +179,58 @@ func show_away_report() -> void:
 		stack.show_notification("The raids claimed %d villager%s!" % [report.villagers_lost, "" if report.villagers_lost == 1 else "s"])
 
 func generate_village() -> void:
+	# Place buildings left-to-right. Each reserves its FULLY-UPGRADED width plus a
+	# gap so even maxed-out buildings never overlap. The building is centred in
+	# its reserved slot (it starts at level-1 width and grows toward the edges).
+	var cursor = VILLAGE_START_X
 	for i in range(VILLAGE_BUILDINGS.size()):
 		var def = VILLAGE_BUILDINGS[i]
+		var sc = float(def.get("scale", 2.0))
+		var w = def.width * sc * VILLAGE_WIDTH_BOOST
+		var h = def.height * sc
+		# Every building (Marketplace included) reserves its FULLY-UPGRADED width;
+		# the Fishing Dock reserves its full water span (wider than any upgrade).
+		var reserve = w * MAX_UPGRADE_FACTOR
+		if def.name == "Fishing Dock":
+			# reserve the water at its MAX-upgraded sideways spread
+			var water_max = 1.0 + (BUILDING_SCRIPT.MAX_LEVEL - 1) * BUILDING_SCRIPT.DOCK_WATER_PER_LEVEL
+			reserve = max(reserve, w * 2.0 * BUILDING_SCRIPT.DOCK_WATER_HALF * water_max)
 		var building = BUILDING_SCRIPT.new()
 		building.building_name = def.name
 		building.role_key = def.role_key
-		building.width = def.width
-		building.height = def.height
+		building.width = w
+		building.height = h
 		building.body_color = def.color
-		building.position = Vector2(VILLAGE_START_X + i * VILLAGE_SPACING, VILLAGE_Y)
+		building.position = Vector2(cursor + reserve / 2.0, VILLAGE_Y)
 		$Village.add_child(building)
+		# walkable stairs->bridge->stairs crossing over the dock's water
+		if def.name == "Fishing Dock":
+			var bridge = DOCK_BRIDGE_SCRIPT.new()
+			bridge.span = reserve + 110.0   # stairs land on dry ground each side
+			bridge.position = Vector2(cursor + reserve / 2.0, VILLAGE_Y)
+			$Village.add_child(bridge)
+		cursor += reserve + VILLAGE_GAP
+		# the Farm gets a fenced pasture with animals right beside it
+		if def.name == "Farm":
+			var pen = FARM_PEN_SCRIPT.new()
+			pen.pen_width = FARM_PEN_WIDTH
+			pen.position = Vector2(cursor + FARM_PEN_WIDTH / 2.0, VILLAGE_Y)
+			$Village.add_child(pen)
+			cursor += FARM_PEN_WIDTH + VILLAGE_GAP
+	village_right_edge = cursor
+
+# Re-plant every standing torch the player has placed (G key) -- they persist
+# in GameState.placed_torches across dungeon trips and save/load.
+func spawn_placed_torches() -> void:
+	for e in GameState.placed_torches:
+		var t = STANDING_TORCH_SCRIPT.new()
+		t.position = Vector2(float(e.get("x", 0.0)), float(e.get("y", 0.0)))
+		add_child(t)
 
 func generate_houses() -> void:
+	# Cottages sit just past the (now larger) village, computed from where the
+	# buildings actually ended so they never overlap.
+	var start_x = village_right_edge + HOUSE_MARGIN
 	for i in range(HOUSE_COUNT):
 		var palette = HOUSE_COLORS[i % HOUSE_COLORS.size()]
 		var house = HOUSE_SCRIPT.new()
@@ -170,7 +238,7 @@ func generate_houses() -> void:
 		house.house_name = "Cottage %d" % (i + 1)
 		house.body_color = palette.body
 		house.roof_color = palette.roof
-		house.position = Vector2(HOUSE_START_X + i * HOUSE_SPACING, VILLAGE_Y)
+		house.position = Vector2(start_x + i * HOUSE_SPACING, VILLAGE_Y)
 		$Village.add_child(house)
 
 # NPC world avatars are runtime-only nodes -- nothing about them is written
@@ -237,6 +305,7 @@ func apply_save_data() -> void:
 	player.has_dash = data.get("has_dash", player.has_dash)
 	player.has_double_jump = data.get("has_double_jump", player.has_double_jump)
 	player.health = data.get("health", player.health)
+	player.mana = float(data.get("mana", player.mana))
 	# weapons live in the inventory now (restored above); re-wield the one that
 	# was in hand.
 	var eq = str(data.get("active_weapon_id", "wpn_sword"))
@@ -244,6 +313,30 @@ func apply_save_data() -> void:
 		player.wield_weapon("wpn_sword")
 	player.update_currency_display()
 	player.update_health_display()
+
+func generate_harvestables() -> void:
+	# trees spread along the whole combat course...
+	var spacing = (HARVEST_SPAN_END - HARVEST_SPAN_START) / float(TREE_COUNT)
+	for i in range(TREE_COUNT):
+		var x = HARVEST_SPAN_START + (i + 0.5) * spacing + randf_range(-spacing * 0.3, spacing * 0.3)
+		spawn_harvest_node("tree", x)
+	# ...with rocks interleaved between them on their own rhythm
+	var rock_spacing = (HARVEST_SPAN_END - HARVEST_SPAN_START) / float(ROCK_COUNT)
+	for i in range(ROCK_COUNT):
+		var x = HARVEST_SPAN_START + (i + 0.15) * rock_spacing + randf_range(-rock_spacing * 0.25, rock_spacing * 0.25)
+		spawn_harvest_node("rock", x)
+	# a small grove and outcrop just before the village gate
+	for i in range(3):
+		spawn_harvest_node("tree", GROVE_START_X + i * 120.0 + randf_range(-25.0, 25.0))
+	for i in range(2):
+		spawn_harvest_node("rock", GROVE_START_X + 60.0 + i * 200.0 + randf_range(-25.0, 25.0))
+
+func spawn_harvest_node(kind: String, x: float) -> void:
+	var node = HARVEST_NODE_SCRIPT.new()
+	node.node_type = kind
+	node.position = Vector2(x, GROUND_Y)
+	node.z_index = -4   # behind the player and combat, in front of the mountains
+	$Decorations.add_child(node)
 
 func generate_grass() -> void:
 	var spacing = (GROUND_SPAN_END - GROUND_SPAN_START) / float(TUFT_COUNT)

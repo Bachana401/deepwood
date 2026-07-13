@@ -32,10 +32,50 @@ const GRAVITY = 900.0
 # The evil he targets. He never touches villagers, children, or the player.
 const HOSTILE_GROUPS = ["course_enemy", "dungeon_combatant", "siege_enemy"]
 
+# --- Undying escalation ---
+# Every death makes Orin 1.3x stronger (HP, damage, regen), faster to cast, and
+# unlocks a new named skill (more meteors / bigger blasts), FOREVER. The tier
+# lives in GameState.wizard_power_tier so it persists and keeps climbing across
+# the whole game -- he is secretly the unkillable final boss. These consts are
+# the tier-0 baselines; apply_power_tier() scales the runtime vars below.
+const POWER_MULT = 1.3
+const SKILL_NAMES = [
+	"Twin Meteors", "Cinderfall", "Meteor Storm", "Molten Fury",
+	"Starfall", "Apocalypse Rain", "Infernal Cataclysm",
+]
+
+var power_tier := 0
+var max_health := MAX_HEALTH
+var meteor_damage := METEOR_DAMAGE
+var cast_cooldown := CAST_COOLDOWN
+var meteor_count := 1
+var splash_radius := METEOR_SPLASH_RADIUS
+var regen_amount := REGEN_AMOUNT
+
 var health = MAX_HEALTH
 var cast_cooldown_remaining = 0.0
 var regen_timer = 0.0
 var facing := 1
+
+# Recompute every scaled stat from the current death count.
+func apply_power_tier() -> void:
+	power_tier = GameState.wizard_power_tier
+	var m = pow(POWER_MULT, power_tier)
+	max_health = int(round(MAX_HEALTH * m))
+	meteor_damage = int(round(METEOR_DAMAGE * m))
+	regen_amount = int(round(REGEN_AMOUNT * m))
+	cast_cooldown = max(0.35, CAST_COOLDOWN * pow(0.88, power_tier))   # attack speed up
+	meteor_count = min(1 + (power_tier + 1) / 2, 6)                    # T1=2, T3=3, T5=4...
+	splash_radius = METEOR_SPLASH_RADIUS * (1.0 + 0.08 * power_tier)
+
+# The skill unlocked at the current tier (unique + escalating, forever).
+func current_skill_name() -> String:
+	if power_tier <= 0:
+		return ""
+	var idx = power_tier - 1
+	if idx < SKILL_NAMES.size():
+		return SKILL_NAMES[idx]
+	return "Power Surge %d" % (idx - SKILL_NAMES.size() + 2)
 
 # --- Downed / respawn ---
 # On death Orin doesn't vanish: he collapses into a small fireball on his exact
@@ -43,10 +83,11 @@ var facing := 1
 # lives in GameState so it counts down even while the player is off in a
 # dungeon and the village scene is unloaded). While down he neither deals nor
 # takes damage.
-const FIREBALL_Y = -14.0        # fireball sits at torso height, where he stood
+const FIREBALL_Y = 22.0         # at his feet -- the ember rests ON the ground
 var is_down := false
 var fireball: Node2D = null
 var fireball_tween: Tween = null
+var body_shape: CollisionShape2D = null
 
 # visuals
 var gfx: Node2D = null
@@ -88,12 +129,14 @@ func _ready() -> void:
 	collision_layer = 0
 	collision_mask = 1
 
-	var shape = CollisionShape2D.new()
+	body_shape = CollisionShape2D.new()
 	var rect = RectangleShape2D.new()
 	rect.size = Vector2(24.0, 44.0)
-	shape.shape = rect
-	add_child(shape)
+	body_shape.shape = rect
+	add_child(body_shape)
 
+	apply_power_tier()
+	health = max_health
 	build_visual()
 	build_health_bar()
 	build_hover_panel()
@@ -107,6 +150,10 @@ func _ready() -> void:
 		enter_downed_state(false)
 
 func _physics_process(delta: float) -> void:
+	# Gravity + rest-on-floor ALWAYS run (even while down) so the ember settles
+	# on the ground where he fell. He never blocks anyone: collision_layer = 0
+	# means nothing collides with him, and while down he also leaves the
+	# village_defender group so raiders don't path to the ember.
 	if not is_on_floor():
 		velocity.y += GRAVITY * delta
 	velocity.x = 0.0
@@ -126,6 +173,8 @@ func _process(delta: float) -> void:
 		# whether time advanced normally or via the debug time-skip keys.
 		if not GameState.wizard_is_down():
 			respawn()
+		else:
+			update_ember_growth()
 		return
 
 	tick_regen(delta)
@@ -137,12 +186,12 @@ func _process(delta: float) -> void:
 # Slow, steady self-heal. Only tops up the number + bar fill -- it never forces
 # the bar visible (that stays reserved for the on-hit reveal / danger pulse).
 func tick_regen(delta: float) -> void:
-	if health >= MAX_HEALTH:
+	if health >= max_health:
 		return
 	regen_timer += delta
 	if regen_timer >= REGEN_INTERVAL:
 		regen_timer -= REGEN_INTERVAL
-		health = min(MAX_HEALTH, health + REGEN_AMOUNT)
+		health = min(max_health, health + regen_amount)
 		update_health_bar_fill()
 
 # ------------------------------------------------------------------ combat ---
@@ -151,10 +200,13 @@ func try_cast() -> void:
 	var target = find_target()
 	if target == null:
 		return
-	cast_cooldown_remaining = CAST_COOLDOWN
+	cast_cooldown_remaining = cast_cooldown
 	face_toward(target.global_position)
 	animate_cast()
-	cast_meteor_at(target.global_position)
+	# higher tiers rain several meteors per cast (his unlocked skills)
+	for i in range(meteor_count):
+		var off = Vector2.ZERO if i == 0 else Vector2(randf_range(-42.0, 42.0), randf_range(-8.0, 8.0))
+		cast_meteor_at(target.global_position + off)
 
 # Nearest living hostile within DEFENSE_RANGE, or null.
 func find_target() -> Node2D:
@@ -231,12 +283,12 @@ func apply_meteor_impact(impact_pos: Vector2) -> void:
 				continue
 			if "is_dead" in e and e.is_dead:
 				continue
-			if impact_pos.distance_to(e.global_position) <= METEOR_SPLASH_RADIUS and e.has_method("take_damage"):
-				e.take_damage(METEOR_DAMAGE)
+			if impact_pos.distance_to(e.global_position) <= splash_radius and e.has_method("take_damage"):
+				e.take_damage(meteor_damage)
 
 func spawn_impact_fx(impact_pos: Vector2) -> void:
 	var ring = Polygon2D.new()
-	ring.polygon = _circle_points(METEOR_SPLASH_RADIUS * 0.5, 20)
+	ring.polygon = _circle_points(splash_radius * 0.5, 20)
 	ring.color = Color(1.0, 0.6, 0.2, 0.55)
 	ring.z_index = 39
 	ring.global_position = impact_pos
@@ -284,10 +336,11 @@ func take_damage(amount: int) -> void:
 func die() -> void:
 	if is_down:
 		return
+	GameState.wizard_power_tier += 1   # he returns stronger every single time
 	GameState.mark_wizard_down()
 	var notif = get_tree().get_first_node_in_group("notification_stack")
 	if notif:
-		notif.show_notification("Orin has fallen -- his magic collapses to an ember. He'll reform in %d hours." % int(GameState.WIZARD_RESPAWN_HOURS))
+		notif.show_notification("Orin has fallen -- his magic collapses to an ember. He'll reform in %d hours... stronger." % int(GameState.WIZARD_RESPAWN_HOURS))
 	enter_downed_state(true)
 
 # ------------------------------------------------------------ downed / reform ---
@@ -300,42 +353,97 @@ func build_fireball() -> void:
 	fireball.z_index = 5
 	add_child(fireball)
 
-	var glow = Polygon2D.new()
-	glow.polygon = _circle_points(13.0, 16)
-	glow.color = Color(1.0, 0.5, 0.12, 0.4)
-	glow.material = _additive_material()
-	fireball.add_child(glow)
+	# soft glowing pool where the flame meets the ground
+	var pool = Polygon2D.new()
+	pool.polygon = _ellipse_points(17.0, 5.5, 18)
+	pool.color = Color(1.0, 0.5, 0.14, 0.4)
+	pool.material = _additive_material()
+	fireball.add_child(pool)
 
-	var core = Polygon2D.new()
-	core.polygon = _circle_points(7.0, 14)
-	core.color = Color(1.0, 0.6, 0.18, 1.0)
-	fireball.add_child(core)
+	# outer glow halo (additive) lighting the ground around it
+	var halo = Polygon2D.new()
+	halo.polygon = _flame_points(20.0, 40.0)
+	halo.color = Color(1.0, 0.4, 0.1, 0.22)
+	halo.material = _additive_material()
+	fireball.add_child(halo)
 
-	var hot = Polygon2D.new()
-	hot.polygon = _circle_points(3.4, 12)
-	hot.color = Color(1.0, 0.92, 0.6, 1.0)
-	fireball.add_child(hot)
+	# three nested flame tongues, base on the ground, licking upward
+	var outer = Polygon2D.new()
+	outer.polygon = _flame_points(15.0, 34.0)
+	outer.color = Color(0.86, 0.22, 0.05, 0.96)
+	fireball.add_child(outer)
 
-	var flames = CPUParticles2D.new()
-	flames.name = "Flames"
-	flames.amount = 16
-	flames.lifetime = 0.5
-	flames.direction = Vector2(0, -1)
-	flames.spread = 24.0
-	flames.gravity = Vector2(0, -90)
-	flames.initial_velocity_min = 18.0
-	flames.initial_velocity_max = 40.0
-	flames.scale_amount_min = 2.0
-	flames.scale_amount_max = 3.6
-	flames.color = Color(1.0, 0.5, 0.12, 1.0)
-	flames.emitting = false
-	fireball.add_child(flames)
+	var mid = Polygon2D.new()
+	mid.polygon = _flame_points(10.0, 26.0)
+	mid.color = Color(1.0, 0.5, 0.12, 1.0)
+	fireball.add_child(mid)
+
+	var inner = Polygon2D.new()
+	inner.polygon = _flame_points(5.5, 16.0)
+	inner.color = Color(1.0, 0.92, 0.55, 1.0)
+	fireball.add_child(inner)
+
+	# MAIN FIRE: a dense column of particles whose colour ramps yellow-white ->
+	# orange -> red -> smoke over their short life. This colour-over-lifetime is
+	# what makes it read as real fire rather than a glowing blob.
+	var fire = CPUParticles2D.new()
+	fire.name = "Flames"
+	fire.position = Vector2(0, -3.0)
+	fire.amount = 46
+	fire.lifetime = 0.55
+	fire.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+	fire.emission_rect_extents = Vector2(7.0, 2.0)
+	fire.direction = Vector2(0, -1)
+	fire.spread = 10.0
+	fire.gravity = Vector2(0, -160)
+	fire.initial_velocity_min = 34.0
+	fire.initial_velocity_max = 66.0
+	fire.damping_min = 12.0
+	fire.damping_max = 24.0
+	fire.scale_amount_min = 3.2
+	fire.scale_amount_max = 5.2
+	var fire_scale := Curve.new()
+	fire_scale.add_point(Vector2(0.0, 1.0))
+	fire_scale.add_point(Vector2(1.0, 0.15))   # shrink as they rise -> tapered flame
+	fire.scale_amount_curve = fire_scale
+	var grad := Gradient.new()
+	grad.offsets = PackedFloat32Array([0.0, 0.3, 0.65, 1.0])
+	grad.colors = PackedColorArray([
+		Color(1.0, 0.96, 0.65, 1.0),   # hot yellow-white core
+		Color(1.0, 0.62, 0.16, 1.0),   # orange
+		Color(0.86, 0.22, 0.05, 0.85), # deep red
+		Color(0.25, 0.06, 0.03, 0.0),  # fades to dark smoke
+	])
+	fire.color_ramp = grad
+	fire.emitting = false
+	fireball.add_child(fire)
+
+	# SPARKS: a few bright embers popping upward for life on top of the fire.
+	var sparks = CPUParticles2D.new()
+	sparks.name = "Sparks"
+	sparks.position = Vector2(0, -10.0)
+	sparks.amount = 12
+	sparks.lifetime = 0.8
+	sparks.direction = Vector2(0, -1)
+	sparks.spread = 22.0
+	sparks.gravity = Vector2(0, -60)
+	sparks.initial_velocity_min = 40.0
+	sparks.initial_velocity_max = 95.0
+	sparks.scale_amount_min = 1.0
+	sparks.scale_amount_max = 2.0
+	sparks.color = Color(1.0, 0.85, 0.4, 1.0)
+	sparks.emitting = false
+	fireball.add_child(sparks)
 
 # Hide the mage, show the ember. `animated` = the death collapse (burst + shrink);
 # false = he was already down when the scene loaded, so just show the ember.
 func enter_downed_state(animated: bool) -> void:
 	is_down = true
-	cast_cooldown_remaining = CAST_COOLDOWN
+	cast_cooldown_remaining = cast_cooldown
+	# drop out of the defender group so raiders don't path to the ember (he still
+	# rests on the ground via physics; collision_layer 0 means he blocks nobody).
+	if is_in_group("village_defender"):
+		remove_from_group("village_defender")
 	if health_bar_bg:
 		health_bar_bg.visible = false
 	if health_bar_fill:
@@ -343,15 +451,14 @@ func enter_downed_state(animated: bool) -> void:
 
 	if fireball:
 		fireball.visible = true
-		fireball.modulate.a = 1.0
-		fireball.scale = Vector2.ONE
 		_set_fireball_flames(true)
 		if fireball_tween and fireball_tween.is_valid():
 			fireball_tween.kill()
-		fireball_tween = fireball.create_tween()
-		fireball_tween.set_loops()
-		fireball_tween.tween_property(fireball, "scale", Vector2(1.2, 1.2), 0.5).set_trans(Tween.TRANS_SINE)
-		fireball_tween.tween_property(fireball, "scale", Vector2(0.85, 0.85), 0.5).set_trans(Tween.TRANS_SINE)
+		# starts as a tiny dull ember; update_ember_growth() (called each frame
+		# while down) swells + brightens it as the revival time nears.
+		fireball.modulate = Color(0.5, 0.38, 0.38, 0.85)
+		fireball.scale = Vector2.ONE * 0.22
+		update_ember_growth()
 
 	if animated:
 		spawn_puff(18, Color(1.0, 0.5, 0.12, 1.0))
@@ -371,25 +478,33 @@ func _hide_gfx() -> void:
 func respawn() -> void:
 	is_down = false
 	GameState.clear_wizard_down()
-	health = MAX_HEALTH
+	apply_power_tier()          # he comes back 1.3x stronger + a new skill
+	health = max_health         # ALWAYS full HP after reforming
 	regen_timer = 0.0
+	update_health_bar_fill()
 	cast_cooldown_remaining = 0.5   # a beat to finish the pop-in before casting
+	# back to being a targetable wall-defender
+	if not is_in_group("village_defender"):
+		add_to_group("village_defender")
 
+	# the ember erupts into a big fiery flash, then he's standing there again
 	if fireball:
 		if fireball_tween and fireball_tween.is_valid():
 			fireball_tween.kill()
+		fireball.modulate = Color(1.6, 1.4, 1.0, 1.0)
 		var ft = fireball.create_tween()
-		ft.tween_property(fireball, "scale", Vector2(1.9, 1.9), 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		ft.parallel().tween_property(fireball, "modulate:a", 0.0, 0.22)
+		ft.tween_property(fireball, "scale", Vector2(3.2, 3.4), 0.16).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		ft.parallel().tween_property(fireball, "modulate:a", 0.0, 0.24)
 		ft.tween_callback(func():
 			if not fireball:
 				return
 			fireball.visible = false
-			fireball.modulate.a = 1.0
+			fireball.modulate = Color(1, 1, 1, 1)
 			fireball.scale = Vector2.ONE
 			_set_fireball_flames(false))
 
-	spawn_puff(20, Color(1.0, 0.75, 0.3, 1.0))
+	spawn_revive_flash()
+	spawn_puff(28, Color(1.0, 0.8, 0.4, 1.0))
 	if gfx:
 		gfx.visible = true
 		gfx.scale = Vector2(0.001 * facing, 0.001)
@@ -398,7 +513,11 @@ func respawn() -> void:
 
 	var notif = get_tree().get_first_node_in_group("notification_stack")
 	if notif:
-		notif.show_notification("Orin reforms and returns to the walls!")
+		var skill = current_skill_name()
+		if skill != "":
+			notif.show_notification("Orin reforms STRONGER (Power %d) -- unlocked %s! HP %d, %d/meteor." % [power_tier, skill, max_health, meteor_damage])
+		else:
+			notif.show_notification("Orin reforms and returns to the walls!")
 
 func _set_fireball_flames(on: bool) -> void:
 	if not fireball:
@@ -406,6 +525,32 @@ func _set_fireball_flames(on: bool) -> void:
 	for c in fireball.get_children():
 		if c is CPUParticles2D:
 			c.emitting = on
+
+# Called every frame while he's an ember: it starts tiny and dull right after
+# death and swells larger, brighter and hotter as the revive time approaches.
+func update_ember_growth() -> void:
+	if not fireball or not fireball.visible:
+		return
+	var p = GameState.wizard_down_progress()   # 0 just fell -> 1 about to revive
+	var grow = lerp(0.22, 1.5, p)
+	var flicker = 1.0 + 0.14 * sin(Time.get_ticks_msec() / 1000.0 * 9.0)
+	fireball.scale = Vector2.ONE * grow * flicker
+	# dull dark ember -> bright hot yellow-white fire near revival
+	fireball.modulate = Color(0.5, 0.38, 0.38, 0.85).lerp(Color(1.45, 1.2, 0.9, 1.0), p)
+
+# A bright expanding flash ring at his feet the instant he reforms.
+func spawn_revive_flash() -> void:
+	var flash = Polygon2D.new()
+	flash.polygon = _circle_points(20.0, 20)
+	flash.position = Vector2(0, FIREBALL_Y - 12.0)
+	flash.color = Color(1.0, 0.85, 0.55, 0.9)
+	flash.material = _additive_material()
+	flash.z_index = 42
+	add_child(flash)
+	var t = flash.create_tween()
+	t.tween_property(flash, "scale", Vector2(4.5, 4.5), 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	t.parallel().tween_property(flash, "modulate:a", 0.0, 0.3)
+	t.tween_callback(flash.queue_free)
 
 func spawn_puff(amount: int, color: Color) -> void:
 	var burst = CPUParticles2D.new()
@@ -553,14 +698,14 @@ func build_health_bar() -> void:
 
 func update_health_bar_fill() -> void:
 	if health_bar_fill:
-		health_bar_fill.size.x = HEALTH_BAR_WIDTH * clamp(float(health) / MAX_HEALTH, 0.0, 1.0)
+		health_bar_fill.size.x = HEALTH_BAR_WIDTH * clamp(float(health) / max_health, 0.0, 1.0)
 
 func update_health_bar_display(delta: float) -> void:
 	if not health_bar_bg or not health_bar_fill:
 		return
 	if hp_reveal_timer > 0.0:
 		hp_reveal_timer -= delta
-	var in_danger = health > 0 and float(health) <= MAX_HEALTH * HEALTH_BAR_DANGER_THRESHOLD
+	var in_danger = health > 0 and float(health) <= max_health * HEALTH_BAR_DANGER_THRESHOLD
 	var show_bar = in_danger or hp_reveal_timer > 0.0
 	health_bar_bg.visible = show_bar
 	health_bar_fill.visible = show_bar
@@ -639,6 +784,31 @@ func _circle_points(radius: float, sides: int) -> PackedVector2Array:
 		var ang = TAU * float(i) / sides
 		pts.append(Vector2(cos(ang), sin(ang)) * radius)
 	return pts
+
+# A flattened ellipse (for the flame's ground pool).
+func _ellipse_points(rx: float, ry: float, sides: int) -> PackedVector2Array:
+	var pts = PackedVector2Array()
+	for i in range(sides):
+		var ang = TAU * float(i) / sides
+		pts.append(Vector2(cos(ang) * rx, sin(ang) * ry))
+	return pts
+
+# A flame-tongue silhouette: base on the ground (local y = 0, width `w`),
+# tapering to a curled tip at the top (local y = -h). Slight asymmetry gives it
+# a lively lick rather than a symmetric teardrop.
+func _flame_points(w: float, h: float) -> PackedVector2Array:
+	return PackedVector2Array([
+		Vector2(-w * 0.5, 0.0),
+		Vector2(-w * 0.5, -h * 0.34),
+		Vector2(-w * 0.22, -h * 0.62),
+		Vector2(-w * 0.30, -h * 0.82),
+		Vector2(-w * 0.08, -h * 0.95),
+		Vector2(w * 0.06, -h),          # curled tip
+		Vector2(w * 0.26, -h * 0.86),
+		Vector2(w * 0.20, -h * 0.64),
+		Vector2(w * 0.5, -h * 0.34),
+		Vector2(w * 0.5, 0.0),
+	])
 
 func _rock_points(radius: float) -> PackedVector2Array:
 	var pts = PackedVector2Array()

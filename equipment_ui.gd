@@ -28,6 +28,7 @@ const RELIC_UNLOCK_LEVEL = [0, 0, 0, 0, 10, 20]  # per relic slot index
 func _ready() -> void:
 	layer = 40
 	add_to_group("equipment_ui")
+	add_to_group("esc_window")
 	build_panel()
 	build_picker()
 	panel.visible = false
@@ -135,6 +136,12 @@ func close() -> void:
 	var inv_ui = get_tree().get_first_node_in_group("inventory_ui")
 	if inv_ui and inv_ui.visible:
 		inv_ui.visible = false
+
+func esc_is_open() -> bool:
+	return panel.visible
+
+func esc_close() -> void:
+	close()
 
 # Equip/unequip changes the player's bag too, so the inventory panel has to be
 # redrawn or its items look like they vanished (they didn't -- the panel was
@@ -290,6 +297,10 @@ func _effect_summary(item_id: String) -> String:
 		var val = def.equip_effect[key]
 		if key == "max_health":
 			parts.append("+%d HP" % int(val))
+		elif key == "max_mana":
+			parts.append("+%d Mana" % int(val))
+		elif key in Inventory.COOLDOWN_EFFECT_KEYS:
+			parts.append("-%d%% %s" % [int(val * 100), key.replace("_", " ")])
 		else:
 			parts.append("+%d%% %s" % [int(val * 100), key.replace("_", " ")])
 	return "  (" + ", ".join(parts) + ")" if not parts.is_empty() else ""

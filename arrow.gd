@@ -14,6 +14,14 @@ var has_hit := false
 var max_range := DEFAULT_MAX_RANGE
 var pierces_terrain := false
 
+# Seeker Bow: the arrow bends mid-flight toward the nearest living enemy
+# (capped turn rate, so point-blank dodges still work). Enabled by the
+# player's spawn_arrow when the wielded bow's special is "homing".
+var homing := false
+const HOMING_TURN_RATE = 5.0     # radians/sec of steering authority
+const HOMING_RANGE = 460.0
+const HOMING_GROUPS = ["course_enemy", "dungeon_combatant", "siege_enemy"]
+
 func _ready() -> void:
 	start_position = global_position
 	rotation = direction.angle()
@@ -36,6 +44,8 @@ func _physics_process(_delta: float) -> void:
 	if has_hit:
 		return
 
+	if homing:
+		steer_toward_prey(_delta)
 	velocity = direction * SPEED
 	move_and_slide()
 
@@ -45,6 +55,27 @@ func _physics_process(_delta: float) -> void:
 
 	if not pierces_terrain and get_slide_collision_count() > 0:
 		break_arrow()
+
+func steer_toward_prey(delta: float) -> void:
+	var prey: Node2D = null
+	var prey_dist = HOMING_RANGE
+	for group_name in HOMING_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not is_instance_valid(e) or not e is Node2D:
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			var d = global_position.distance_to(e.global_position)
+			if d < prey_dist:
+				prey_dist = d
+				prey = e
+	if prey == null:
+		return
+	var desired = (prey.global_position - global_position).normalized()
+	var max_turn = HOMING_TURN_RATE * delta
+	var angle_diff = direction.angle_to(desired)
+	direction = direction.rotated(clamp(angle_diff, -max_turn, max_turn)).normalized()
+	rotation = direction.angle()
 
 func despawn() -> void:
 	if has_hit:

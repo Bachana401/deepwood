@@ -13,12 +13,19 @@ var hovered_item: String = ""
 var player: Node2D = null
 
 func _ready() -> void:
+	add_to_group("esc_window")
 	player = get_tree().get_first_node_in_group("player")
 	_connect_option($DashOption, "dash")
 	_connect_option($DoubleJumpOption, "double_jump")
 	_connect_option($SpearOption, "spear")
 	_connect_option($BowOption, "bow")
 	_connect_option($MagicWandOption, "wand")
+
+func esc_is_open() -> bool:
+	return visible
+
+func esc_close() -> void:
+	visible = false
 
 func _connect_option(label: Label, item: String) -> void:
 	label.mouse_entered.connect(_on_hover_start.bind(item))

@@ -17,8 +17,24 @@ func _ready() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
+		# ESC first dismisses any open game window (inventory, gear, chest, skill
+		# tree, a building panel, the shop). Only when nothing is open -- or the
+		# pause menu itself is up -- does it toggle pause.
+		if not visible and close_open_windows():
+			get_viewport().set_input_as_handled()
+			return
 		toggle_pause()
 		get_viewport().set_input_as_handled()
+
+# Closes every window that reports itself open (see the esc_window group). Any
+# window can opt in by joining that group and exposing esc_is_open/esc_close.
+func close_open_windows() -> bool:
+	var closed := false
+	for w in get_tree().get_nodes_in_group("esc_window"):
+		if w.has_method("esc_is_open") and w.esc_is_open():
+			w.esc_close()
+			closed = true
+	return closed
 
 func toggle_pause() -> void:
 	visible = not visible

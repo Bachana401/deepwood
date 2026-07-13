@@ -17,6 +17,7 @@ var slot_counts: Array = []
 func _ready() -> void:
 	visible = false
 	add_to_group("inventory_ui")  # so the gear panel can trigger a redraw
+	add_to_group("esc_window")    # ESC closes it (see pause_menu)
 	player = get_tree().get_first_node_in_group("player")
 	build_slots()
 	build_close_button()
@@ -42,8 +43,20 @@ func close_panels() -> void:
 	if equip_ui and equip_ui.has_method("close"):
 		equip_ui.close()
 
+func esc_is_open() -> bool:
+	return visible
+
+func esc_close() -> void:
+	close_panels()
+
 func build_slots() -> void:
 	var capacity = player.inventory.capacity if player else COLUMNS * ROWS
+	# the .tscn panel is sized for 3 rows -- grow it to fit however many rows
+	# the player's actual capacity needs (kept centered on screen)
+	var rows = int(ceil(float(capacity) / COLUMNS))
+	var half_h = (GRID_ORIGIN.y + rows * (SLOT_SIZE + SLOT_GAP) + 8.0) / 2.0
+	$Panel.offset_top = -half_h
+	$Panel.offset_bottom = half_h
 	for i in range(capacity):
 		var col = i % COLUMNS
 		var row = i / COLUMNS
@@ -159,5 +172,5 @@ func refresh() -> void:
 		else:
 			var def = Inventory.get_item_def(slot.item_id)
 			slot_icons[i].visible = true
-			slot_icons[i].color = def.get("color", Color.WHITE)
+			Inventory.paint_icon(slot_icons[i], slot.item_id)
 			slot_counts[i].text = str(slot.count) if slot.count > 1 else ""
