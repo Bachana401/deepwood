@@ -382,8 +382,12 @@ func build_aura() -> void:
 	aura_particles.initial_velocity_min = 8.0
 	aura_particles.initial_velocity_max = 30.0
 	aura_particles.scale_amount_min = 3.0
-	aura_particles.scale_amount_max = 6.0
-	aura_particles.color = Color(1.0, 0.15, 0.08, 0.85)
+	aura_particles.scale_amount_max = 7.0
+	# each pixel is born deep red, flares bright, and gutters out to black
+	var ramp := Gradient.new()
+	ramp.offsets = PackedFloat32Array([0.0, 0.45, 1.0])
+	ramp.colors = PackedColorArray([Color(0.4, 0.03, 0.02, 0.9), Color(1.0, 0.25, 0.1, 0.95), Color(0.03, 0.0, 0.0, 0.0)])
+	aura_particles.color_ramp = ramp
 	aura_particles.z_index = 3
 	add_child(aura_particles)
 	aura_particles.emitting = true
@@ -417,6 +421,9 @@ func blink_short() -> void:
 # rig scales with its boss's size. The rig flips horizontally with facing.
 
 const BONE_COL := Color(0.8, 0.77, 0.68)
+# The Fallen Wizard's ember palette: his face and aura pixels wander through
+# these tones -- deep red, flaring bright, guttering to near-black.
+const EMBER_TONES = [Color(0.32, 0.02, 0.02), Color(0.65, 0.08, 0.04), Color(1.0, 0.25, 0.1), Color(0.1, 0.01, 0.01)]
 
 func build_rig(shape: String, body: Vector2, eye: Color) -> void:
 	if rig != null and is_instance_valid(rig):
@@ -629,7 +636,8 @@ func rig_wizard(hw: float, hh: float, eye: Color) -> void:
 	_rp(PackedVector2Array([Vector2(-hw * 0.9, hh), Vector2(-hw * 0.5, hh * 0.8), Vector2(-hw * 0.1, hh), Vector2(hw * 0.35, hh * 0.82), Vector2(hw * 0.8, hh), Vector2(hw * 0.7, -hh * 0.35), Vector2(-hw * 0.7, -hh * 0.35)]), robe, 1)
 	_rl(PackedVector2Array([Vector2(-hw * 0.55, hh * 0.05), Vector2(hw * 0.55, hh * 0.05)]), 3.0, Color(0.45, 0.38, 0.2), 2)
 	_rp(PackedVector2Array([Vector2(-hw * 0.5, -hh * 0.3), Vector2(hw * 0.5, -hh * 0.3), Vector2(hw * 0.35, -hh * 0.72), Vector2(-hw * 0.35, -hh * 0.72)]), robe.darkened(0.25), 2)
-	_rskull(Vector2(0, -hh * 0.52), hw * 0.28, eye)
+	# no face at all -- a hollow of shifting red ember-pixels under the hood
+	_wizard_void_face(Vector2(0, -hh * 0.52), hw * 0.3)
 	_rp(PackedVector2Array([Vector2(-hw * 0.85, -hh * 0.66), Vector2(hw * 0.85, -hh * 0.7), Vector2(hw * 0.25, -hh * 0.82)]), robe.darkened(0.35), 3)
 	_rp(PackedVector2Array([Vector2(-hw * 0.4, -hh * 0.74), Vector2(hw * 0.42, -hh * 0.78), Vector2(hw * 0.05, -hh - 52.0)]), robe.darkened(0.35), 3)
 	# blood-red hat band and torn red hem
@@ -638,9 +646,33 @@ func rig_wizard(hw: float, hh: float, eye: Color) -> void:
 		_rp(PackedVector2Array([Vector2(hw * hx - 6.0, hh * 0.92), Vector2(hw * hx + 6.0, hh * 0.92), Vector2(hw * hx, hh + 16.0)]), magic_color.darkened(0.25), 2)
 	_rl(PackedVector2Array([Vector2(hw + 14.0, hh * 0.6), Vector2(hw + 20.0, -hh * 0.9)]), 3.5, Color(0.28, 0.2, 0.12), 1)
 	_rc(Vector2(hw + 21.0, -hh * 0.98), 9.0, magic_color, 2)
-	_rc(Vector2(-hw * 0.55, hh * 0.02), 5.0, BONE_COL, 2)
+	# clawed shadow of a hand -- nothing human left
+	_rc(Vector2(-hw * 0.55, hh * 0.02), 5.0, Color(0.12, 0.03, 0.03), 2)
 	for orbit in [Vector2(-hw - 20.0, -hh * 0.3), Vector2(-hw - 30.0, hh * 0.15), Vector2(hw + 32.0, hh * 0.1)]:
-		_rc(orbit, 3.5, magic_color, 1)
+		_ember_block(orbit, 3.5, false)
+
+# The Fallen Wizard's face: a black hollow filled with ember-pixels, each
+# flickering through red tones (dark -> flare -> gutter to black) on its own
+# rhythm, so the whole face crawls and shifts.
+func _wizard_void_face(center: Vector2, r: float) -> void:
+	_rc(center, r, Color(0.03, 0.01, 0.02), 3)
+	for sx in [-0.45, 0.45]:   # two burning eye-blocks, brighter than the rest
+		_ember_block(center + Vector2(r * sx, -r * 0.15), r * 0.3, true)
+	for i in range(9):         # scattered face embers
+		var p = center + Vector2(randf_range(-r * 0.75, r * 0.75), randf_range(-r * 0.65, r * 0.85))
+		_ember_block(p, randf_range(2.0, 3.6), false)
+
+func _ember_block(pos: Vector2, half: float, bright: bool) -> void:
+	var b := _rc(pos, half, Color(0.5, 0.05, 0.03), 4)
+	var t := b.create_tween()
+	t.set_loops()
+	var tones := EMBER_TONES.duplicate()
+	tones.shuffle()
+	for tone in tones:
+		var c: Color = tone
+		if bright:
+			c = c.lightened(0.25)
+		t.tween_property(b, "color", c, randf_range(0.18, 0.5))
 
 func get_display_name() -> String:
 	return current_def.get("name", "Boss")
