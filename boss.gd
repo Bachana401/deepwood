@@ -127,6 +127,17 @@ const CLONE_DMG_FRAC = 0.35
 const CLONE_CD_PENALTY = 1.5
 const CLONE_KIT = ["volley", "curse"]
 
+# Soul Ward: the Wizard's defence is his undivided soul. With NO echoes out he
+# only takes half damage -- bursting him early is a wall. Every living echo
+# carries a shard of his soul (and a visible shard of his aura), cracking the
+# ward: +25% damage taken per echo, up to 2x at the full legion of 6. The kill
+# logic: let the legion grow, survive it, and burst him while he is split.
+const SOUL_WARD_BASE = 0.5
+const SOUL_WARD_PER_CLONE = 0.25
+# how much of each aura layer every echo carries away (particle counts)
+const CLONE_SHARD_RED = 7
+const CLONE_SHARD_PURPLE = 5
+
 # --- weapon counter (set per boss level by dungeon_interior.gd) ---
 # Only the first 8 boss levels (5-40) are countered; deeper bosses set
 # counter_role = "" and take every weapon at face value. When a counter IS
@@ -266,7 +277,7 @@ const BOSSES = {
 		"magic": Color(1.0, 0.22, 0.12),
 		"body": Vector2(34, 52), "hp": 4000, "speed": 120.0, "shape": "wizard",
 		"flying": true, "apex": true,
-		"passives": ["crumbling_aura", "blink_on_hit"],
+		"passives": ["crumbling_aura", "blink_on_hit", "soul_split"],
 		"abilities": ["curse", "beam", "meteors", "teleport", "volley", "doomring", "clone"],
 	},
 }
@@ -340,6 +351,11 @@ var aura_particles2: CPUParticles2D = null
 var is_clone := false        # set by the real wizard before spawning an echo
 var clones: Array = []
 var health_bar_w := 160.0
+# Soul Ward / aura distribution
+var has_soul_split := false
+var aura_last_n := -1        # last clone count the aura amounts were set for
+var shard_red: CPUParticles2D = null     # an echo's little piece of the aura
+var shard_purple: CPUParticles2D = null
 var hover_time := 0.0
 var is_diving := false
 var dive_phase := 0
@@ -361,18 +377,21 @@ func configure_from_def(def: Dictionary) -> void:
 	var passives: Array = def.get("passives", [])
 	has_aura = "crumbling_aura" in passives
 	has_blink_on_hit = "blink_on_hit" in passives
+	has_soul_split = "soul_split" in passives
 	abilities = (def.get("abilities", ["slam"]) as Array).duplicate()
 	max_health = int(round(float(def.get("hp", 900)) * level_hp_mult))
 	health = max_health
 
-	# echoes are weak fakes: sliver HP, restricted kit, no passives, and a
-	# faint translucence -- the real one is the one wreathed in red
+	# echoes are weak fakes: sliver HP, restricted kit, no passives -- but each
+	# carries a visible SHARD of his soul (see build_shard_aura), and that is
+	# exactly what cracks his Soul Ward while they live
 	if is_clone:
 		abilities = CLONE_KIT.duplicate()
 		max_health = max(1, int(round(max_health * CLONE_HP_FRAC)))
 		health = max_health
 		has_aura = false
 		has_blink_on_hit = false
+		has_soul_split = false
 		modulate = Color(1.0, 0.85, 1.0, 0.75)
 
 	# stagger initial cooldowns so the boss doesn't dump every ability at once
@@ -413,6 +432,35 @@ func configure_from_def(def: Dictionary) -> void:
 
 	if has_aura:
 		build_aura()
+	if is_clone:
+		build_shard_aura()
+
+# An echo's shard of the master's aura: small red and purple crumbles riding
+# the clone. Particles emit in world space, so fast echoes leave faint trails.
+func build_shard_aura() -> void:
+	shard_red = _make_shard(CLONE_SHARD_RED, Color(0.4, 0.03, 0.02, 0.85), Color(1.0, 0.25, 0.1, 0.9))
+	shard_purple = _make_shard(CLONE_SHARD_PURPLE, Color(0.28, 0.05, 0.4, 0.8), Color(0.72, 0.3, 0.95, 0.85))
+
+func _make_shard(count: int, born: Color, flare: Color) -> CPUParticles2D:
+	var p := CPUParticles2D.new()
+	p.amount = count
+	p.lifetime = 1.0
+	p.preprocess = 0.8
+	p.emission_shape = CPUParticles2D.EMISSION_SHAPE_SPHERE
+	p.emission_sphere_radius = 52.0
+	p.gravity = Vector2(0, 80)
+	p.initial_velocity_min = 6.0
+	p.initial_velocity_max = 24.0
+	p.scale_amount_min = 2.5
+	p.scale_amount_max = 5.0
+	var ramp := Gradient.new()
+	ramp.offsets = PackedFloat32Array([0.0, 0.45, 1.0])
+	ramp.colors = PackedColorArray([born, flare, Color(0.02, 0.0, 0.02, 0.0)])
+	p.color_ramp = ramp
+	p.z_index = 3
+	add_child(p)
+	p.emitting = true
+	return p
 
 # The crumbling red pixel aura: a constant rain of small red squares plus an
 # orbiting ring of flickering ember blocks. Everything hangs off aura_anchor,
@@ -501,6 +549,24 @@ func process_passives(delta: float) -> void:
 		aura_anchor2.global_position = aura_anchor2.global_position.lerp(global_position, chase2)
 		if aura_orbit2 != null and is_instance_valid(aura_orbit2):
 			aura_orbit2.rotation -= delta * aura_spin * 0.8
+	# soul distribution: every living echo carries a shard away, thinning HIS
+	# aura (amounts only touched when the count changes -- setting amount
+	# restarts a particle system)
+	if has_soul_split:
+		var n = living_clones()
+		if n != aura_last_n:
+			aura_last_n = n
+			var red_total = 84 if is_frenzied else 46
+			var pur_total = 59 if is_frenzied else 32
+			if aura_particles != null and is_instance_valid(aura_particles):
+				aura_particles.amount = max(5, red_total - n * CLONE_SHARD_RED)
+			if aura_particles2 != null and is_instance_valid(aura_particles2):
+				aura_particles2.amount = max(4, pur_total - n * CLONE_SHARD_PURPLE)
+			var ring_fade = clampf(1.0 - 0.12 * n, 0.3, 1.0)
+			if aura_orbit != null and is_instance_valid(aura_orbit):
+				aura_orbit.modulate.a = ring_fade
+			if aura_orbit2 != null and is_instance_valid(aura_orbit2):
+				aura_orbit2.modulate.a = ring_fade
 	aura_timer -= delta
 	if aura_timer <= 0.0:
 		aura_timer = AURA_TICK
@@ -1328,8 +1394,9 @@ func do_doomring() -> void:
 	is_busy = false
 
 # Mirror Legion (the Wizard): split into weak echoes of himself, up to 6 at
-# once. Echoes look like him but are translucent, lack the red aura, and only
-# volley/curse -- kill them or find and burn the real one.
+# once. Each echo carries a visible shard of his red/purple aura -- and while
+# it lives, a piece of his Soul Ward: the more echoes are out, the harder HE
+# can be hurt. Slaying echoes re-hardens him, so the player must choose.
 # How many echoes his current wounds permit: none at full health, one more
 # per ~12% HP lost, the full six only when he's nearly destroyed.
 func allowed_clones() -> int:
@@ -1481,6 +1548,10 @@ func take_damage(amount: int) -> void:
 			trigger_counter_mechanic(role)
 		elif exposed_timer <= 0.0:
 			dmg = int(round(dmg * GUARD_MULT))
+	# Soul Ward: undivided he shrugs off half of everything; each living echo
+	# carries a shard of his soul away and cracks the ward wider open
+	if has_soul_split:
+		dmg = max(1, int(round(dmg * (SOUL_WARD_BASE + SOUL_WARD_PER_CLONE * living_clones()))))
 	health -= dmg
 	update_health_bar()
 	if health <= 0:
@@ -1523,6 +1594,7 @@ func frenzy() -> void:
 		aura_particles2.emission_sphere_radius = AURA_RADIUS * 0.95
 		aura_particles2.scale_amount_max = 8.0
 	aura_spin = 1.9   # the ember rings whirl in frenzy
+	aura_last_n = -1  # force the soul-split distribution to recompute
 
 func apply_knockback(_direction_sign: int, _distance: float) -> void:
 	pass
