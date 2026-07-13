@@ -27,7 +27,7 @@ const TEST_INSTANT_RESPAWN = true
 # TESTING: skill-tree sandbox. While true, unlocking a node ignores its point
 # cost AND material requirements (try_unlock_skill), the skill-tree UI shows an
 # "Unlock ALL Trees" button + a free "Switch Class" button (keeps what you've
-# unlocked so you can stack every tree), and Necromancer is selectable to view.
+# unlocked so you can stack every tree), and Shadow Monarch is selectable to view.
 # Flip to false to restore real, gated progression.
 const TEST_SKILL_SANDBOX = true
 
@@ -671,6 +671,7 @@ func tick_village_clock() -> void:
 	if hours_passed > 0.0:
 		# grief heals with time -- the forgiving half of the death-shock system
 		morale_death_shock = maxf(0.0, morale_death_shock - hours_passed * DEATH_SHOCK_DECAY_PER_HOUR)
+		tick_food(hours_passed)          # eat/produce first, so hunger drain sees fresh state
 		tick_morale_effects(hours_passed)
 		tick_village_tribute(hours_passed)
 		tick_sieges(hours_passed)
@@ -744,6 +745,88 @@ func consume_away_report() -> Dictionary:
 func is_building_operational(building_key: String) -> bool:
 	return int(building_stage.get(building_key, 0)) >= TOTAL_BUILD_STAGES
 
+# --- Food & hunger (Step 1: the hunger loop) ---
+# Food is a real, depleting village stockpile measured in "villager-days" --
+# roughly, how many villager-days of meals are in store. Everyone (adults AND
+# kids) eats FOOD_PER_VILLAGER_PER_DAY each day. A STAFFED Farm produces food
+# passively (building-level automation); an unstaffed-but-built Farm produces
+# nothing, so early game the player must HAND-HARVEST at the farm to keep the
+# larder full -- the manual chore you later automate by hiring farmers. If the
+# stockpile sits EMPTY past a grace period, villagers begin to starve, draining
+# the SAME villager_hp the despair system uses (no second death path); death
+# lands ~2-3 in-game days after the food runs out. The stockpile also feeds the
+# morale "food" input via has_food(), replacing the old binary "is the Farm
+# built?" check.
+const FOOD_PER_VILLAGER_PER_DAY := 1.0       # everyone eats this much per in-game day
+const FOOD_PER_FARMER_PER_DAY := 6.0         # each farm worker feeds this many villagers
+const FOOD_DAYS_CAP := 4.0                   # the larder holds at most this many days of food
+const FOOD_MANUAL_HARVEST_YIELD := 4.0       # food produced by one hand-harvest action
+const FOOD_STARVE_GRACE_HOURS := 30.0        # empty larder must persist this long before HP drains
+const FOOD_STARVE_HP_DRAIN_PER_HOUR := 5.0   # then hunger eats HP (x _despair_rate, staggered)
+
+var village_food := 0.0                      # current stockpile (villager-days)
+var food_empty_hours := 0.0                  # how long the stockpile has sat empty
+
+# How much food the town can hold -- scales with population so a bigger village
+# needs a bigger buffer (and more farmers to keep it full).
+func food_capacity() -> float:
+	return FOOD_DAYS_CAP * maxf(float(rescued_villagers.size()), 6.0)
+
+# The town is "fed" as long as there is any food in store.
+func has_food() -> bool:
+	return village_food > 0.0
+
+# Everyone eats: total food burned per in-game hour by the whole population.
+func food_consumption_per_hour() -> float:
+	return float(rescued_villagers.size()) * FOOD_PER_VILLAGER_PER_DAY / 24.0
+
+# Villagers employed at the Farm (Leader + Farmers) work the fields.
+func farm_worker_count() -> int:
+	if not is_building_operational("Farm"):
+		return 0
+	var n := 0
+	for v in rescued_villagers:
+		if v.get("role_key", "") == "Farm":
+			n += 1
+	return n
+
+# Passive food produced per in-game hour by a staffed farm (0 if unstaffed).
+func food_production_per_hour() -> float:
+	return float(farm_worker_count()) * FOOD_PER_FARMER_PER_DAY / 24.0
+
+# Days of food left at the current population's burn rate (for the HUD readout).
+func food_days_remaining() -> float:
+	var burn = food_consumption_per_hour()
+	if burn <= 0.0:
+		return FOOD_DAYS_CAP
+	return (village_food / burn) / 24.0
+
+# True once the empty larder has persisted long enough that hunger kills.
+func village_is_starving() -> bool:
+	return food_empty_hours >= FOOD_STARVE_GRACE_HOURS
+
+# Player hand-harvest at the farm (manual production for the early game).
+# Returns the amount actually added (0 if the larder is already full).
+func manual_harvest_food() -> float:
+	var before = village_food
+	village_food = minf(food_capacity(), village_food + FOOD_MANUAL_HARVEST_YIELD)
+	return village_food - before
+
+# Advance the food stockpile: staffed farms add, the population eats, and the
+# empty-larder timer tracks how long the town has gone without. Called from
+# tick_village_clock BEFORE tick_morale_effects so the hunger HP-drain sees
+# fresh state on the same tick.
+func tick_food(hours_passed: float) -> void:
+	if hours_passed <= 0.0:
+		return
+	var net = (food_production_per_hour() - food_consumption_per_hour()) * hours_passed
+	village_food = clampf(village_food + net, 0.0, food_capacity())
+	if village_food <= 0.0:
+		food_empty_hours += hours_passed
+	else:
+		# recovers twice as fast as it built -- a brief gap won't snowball into death
+		food_empty_hours = maxf(0.0, food_empty_hours - hours_passed * 2.0)
+
 # --- Villager needs & morale ---
 # Each villager's mood is computed LIVE from what the village gives them: a
 # job (and the RIGHT job for their training), food (a working Farm), a social
@@ -774,7 +857,7 @@ func villager_needs(v: Dictionary) -> Dictionary:
 	return {
 		"work": role != "",
 		"right_job": right_job,
-		"food": is_building_operational("Farm"),
+		"food": has_food(),
 		"social": is_building_operational("Bar"),
 		"love": v.get("is_kid", false) or is_villager_paired(v.get("id", "")),
 	}
@@ -832,7 +915,7 @@ func village_morale() -> int:
 			paired += 1
 	var score := 0.0
 	score += 26.0 * float(employed) / float(adults)                  # employment
-	score += 20.0 if is_building_operational("Farm") else 0.0        # food
+	score += 20.0 if has_food() else 0.0                             # food (see tick_food)
 	score += 16.0 if is_building_operational("Blacksmith") else 0.0  # armor
 	score += 18.0 * float(paired) / float(adults)                    # mating / good sex
 	score += 10.0 if is_building_operational("Bar") else 0.0         # social life
@@ -922,15 +1005,25 @@ func tick_morale_effects(hours_passed: float) -> void:
 	else:
 		# recovers roughly twice as fast as it built -- forgiving once fixed
 		low_morale_hours = maxf(0.0, low_morale_hours - hours_passed * 2.0)
-	# only actually starve while morale is STILL low now AND has been low long
-	# enough -- the moment the player fixes morale, the dying stops and HP heals
-	var starving = in_crisis and low_morale_hours >= DESPAIR_GRACE_HOURS
+	# Villagers lose HP from TWO causes that share this one drain path (so there
+	# is never a second, parallel death system): rock-bottom morale that has
+	# persisted past its grace, and an empty larder that has persisted past its
+	# grace (hunger, tracked in tick_food). Whichever cause is worse sets the
+	# drain rate; the moment the player fixes EITHER, the dying stops and -- while
+	# the no-regen rule isn't in yet (Step 3) -- HP heals back.
+	var morale_starving = in_crisis and low_morale_hours >= DESPAIR_GRACE_HOURS
+	var drain_rate := 0.0
+	if morale_starving:
+		drain_rate = DESPAIR_HP_DRAIN_PER_HOUR
+	if village_is_starving():
+		drain_rate = maxf(drain_rate, FOOD_STARVE_HP_DRAIN_PER_HOUR)
+	var starving = drain_rate > 0.0
 	var dead: Array = []
 	for v in rescued_villagers:
 		var id = v.get("id", "")
 		var hp = get_villager_hp(id)
 		if starving:
-			hp -= hours_passed * DESPAIR_HP_DRAIN_PER_HOUR * _despair_rate(id)
+			hp -= hours_passed * drain_rate * _despair_rate(id)
 			if hp <= 0.0:
 				dead.append(id)
 			else:
@@ -1220,6 +1313,11 @@ func reset_for_new_game() -> void:
 	unlocked_skills = []
 	researched_materials = []
 	equipment = {"helmet": "", "chest": "", "pants": "", "weapon": "", "relics": ["", "", "", "", "", ""]}
+	# A fresh village opens with a full larder (computed after any test-populate,
+	# so the starting food matches the starting headcount) -- the player has a
+	# comfortable runway to rebuild the Farm before hunger bites.
+	food_empty_hours = 0.0
+	village_food = food_capacity()
 
 func has_save() -> bool:
 	return FileAccess.file_exists(SAVE_PATH)
@@ -1264,6 +1362,8 @@ func save_game(player: Node) -> void:
 		"low_morale_hours": low_morale_hours,
 		"villager_hp": villager_hp,
 		"morale_admin_offset": morale_admin_offset,
+		"village_food": village_food,
+		"food_empty_hours": food_empty_hours,
 	}
 	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	file.store_string(JSON.stringify(data))
@@ -1336,6 +1436,9 @@ func load_game() -> Dictionary:
 		morale_meter_unlocked = bool(parsed.get("morale_meter_unlocked", false))
 		low_morale_hours = float(parsed.get("low_morale_hours", 0.0))
 		morale_admin_offset = int(parsed.get("morale_admin_offset", 0))
+		# Older saves have no larder key -> default to a full one for the loaded pop.
+		food_empty_hours = float(parsed.get("food_empty_hours", 0.0))
+		village_food = float(parsed.get("village_food", food_capacity()))
 		villager_hp = {}
 		if parsed.has("villager_hp") and parsed["villager_hp"] is Dictionary:
 			for k in parsed["villager_hp"].keys():
