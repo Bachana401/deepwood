@@ -851,18 +851,25 @@ func spawn_level_combat() -> void:
 # little way into the dungeon -- assorted ground specials (bomber/charger/
 # spitter). All are distributed across the level width and count toward clear.
 func spawn_normal_extras() -> void:
-	var flyer_count = clampi(1 + int(current_level / 6), 1, 4)
+	var flyer_count = clampi(1 + int(current_level / 7), 1, 3)
 	for i in range(flyer_count):
 		var fx = (float(i) + 0.5) / float(flyer_count) * current_width + randf_range(-160.0, 160.0)
 		var fy = GROUND_Y - randf_range(180.0, 320.0)
 		spawn_special_mob("flyer", Vector2(clampf(fx, 300.0, current_width - 300.0), fy))
-	if current_level >= 3:
-		var ground_kinds = ["bomber", "charger", "spitter"]
-		var special_count = clampi(int((current_level - 1) / 4), 1, 3)
-		for i in range(special_count):
-			var k = ground_kinds[randi() % ground_kinds.size()]
-			var sx = randf_range(700.0, current_width - 300.0)
-			spawn_special_mob(k, Vector2(sx, GROUND_Y - 60.0))
+	if current_level < 3:
+		return
+	# the special-mob pool widens -- and the nastier teleporters/mages appear --
+	# the deeper the player goes; count ramps up too.
+	var pool = ["bomber", "charger", "spitter"]
+	if current_level >= 5:
+		pool.append_array(["stalker", "hexer"])
+	if current_level >= 8:
+		pool.append_array(["blink_archer", "runecaster", "warlock"])
+	var special_count = clampi(1 + int((current_level - 2) / 4), 1, 4)
+	for i in range(special_count):
+		var k = pool[randi() % pool.size()]
+		var sx = randf_range(700.0, current_width - 300.0)
+		spawn_special_mob(k, Vector2(sx, GROUND_Y - 60.0))
 
 func spawn_special_mob(kind: String, pos: Vector2) -> void:
 	var mob = SPECIAL_MOB_SCRIPT.new()

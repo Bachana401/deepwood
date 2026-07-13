@@ -25,6 +25,7 @@ const ARROW_SCENE = preload("res://arrow.tscn")
 const SFX_HIT = preload("res://audio/hit.wav")
 const SFX_DEATH = preload("res://audio/enemy_death.wav")
 const SFX_EXPLOSION = preload("res://audio/explosion.wav")
+const MAGIC_ORB = preload("res://magic_orb.gd")
 
 # Base statline per kind (before level scaling multipliers).
 # Undead/evil monsters. "main" = body, "accent" = glow (eyes/pustules/etc).
@@ -48,6 +49,31 @@ const KINDS = {
 	"spitter": {
 		"hp": 50, "dmg": 9, "speed": 34.0, "reward": 8, "xp": 8,
 		"main": Color(0.26, 0.36, 0.18), "accent": Color(0.7, 1.0, 0.35),
+	},
+	# Blink Stalker -- teleports behind you (never on top of you), then lunges.
+	"stalker": {
+		"hp": 60, "dmg": 18, "speed": 96.0, "reward": 10, "xp": 11,
+		"main": Color(0.17, 0.15, 0.24), "accent": Color(0.6, 0.2, 0.95),
+	},
+	# Revenant Archer -- kites; blinks to a flank to fire, blinks away when close.
+	"blink_archer": {
+		"hp": 46, "dmg": 12, "speed": 72.0, "reward": 10, "xp": 11,
+		"main": Color(0.19, 0.24, 0.26), "accent": Color(0.4, 0.95, 0.85),
+	},
+	# Hexer -- exhales an expanding ring of bolts with ONE gap to slip through.
+	"hexer": {
+		"hp": 52, "dmg": 11, "speed": 42.0, "reward": 11, "xp": 12,
+		"main": Color(0.3, 0.15, 0.34), "accent": Color(0.9, 0.35, 1.0),
+	},
+	# Runecaster -- brands the ground with delayed sigils that erupt under you.
+	"runecaster": {
+		"hp": 54, "dmg": 22, "speed": 34.0, "reward": 11, "xp": 12,
+		"main": Color(0.32, 0.22, 0.12), "accent": Color(1.0, 0.55, 0.2),
+	},
+	# Warlock -- conjures slow cursed orbs that home in and must be juked.
+	"warlock": {
+		"hp": 48, "dmg": 13, "speed": 40.0, "reward": 12, "xp": 13,
+		"main": Color(0.15, 0.19, 0.32), "accent": Color(0.5, 0.5, 1.0),
 	},
 }
 
@@ -82,6 +108,14 @@ var is_priming := false
 var charge_state := "seek"   # seek -> windup -> dash -> recover
 var charge_timer := 0.0
 var charge_dir := 1
+# casters / teleporters
+var cast_timer := 0.0
+var tp_timer := 0.0
+var state := "seek"          # generic small state machine (stalker)
+var state_timer := 0.0
+var lunge_dir := 1
+var is_casting := false
+var pending_tp := Vector2.ZERO
 
 var visual: Node2D = null
 var visual_parts: Array = []   # [[node, base_color], ...] for hit-flash restore
@@ -101,6 +135,35 @@ const CHARGER_HIT_RANGE = 46.0
 const SPITTER_SHOOT_RANGE = 620.0
 const SPITTER_COOLDOWN = 2.0
 const SPITTER_SPREAD_DEG = 14.0
+
+const STALKER_TP_INTERVAL = 3.4
+const STALKER_MARK_TIME = 0.45      # destination is telegraphed this long first
+const STALKER_LUNGE_TIME = 0.7
+const STALKER_LUNGE_SPEED = 430.0
+const STALKER_TP_DIST = 260.0       # appears this far behind you -- never on top
+const STALKER_HIT_RANGE = 46.0
+
+const BLINK_MIN_RANGE = 200.0       # if you get closer than this it blinks away
+const BLINK_TP_INTERVAL = 3.6
+const BLINK_SHOOT_RANGE = 640.0
+const BLINK_SHOOT_CD = 1.6
+const BLINK_FLANK_DIST = 430.0
+
+const HEX_CAST_CD = 3.0
+const HEX_BOLTS = 15
+const HEX_GAP = 4                   # consecutive bolts skipped -> a dodge gap
+const HEX_TELEGRAPH = 0.45
+const HEX_BOLT_RANGE = 540.0
+
+const RUNE_CAST_CD = 3.6
+const RUNE_COUNT = 4
+const RUNE_TELEGRAPH = 0.9
+const RUNE_RADIUS = 56.0
+const RUNE_SPREAD = 230.0
+
+const WARLOCK_CAST_CD = 3.2
+const WARLOCK_ORBS = 2
+const WARLOCK_KEEP_RANGE = 320.0
 
 func _ready() -> void:
 	add_to_group("dungeon_combatant")
@@ -129,6 +192,9 @@ func build_collision() -> void:
 		"bomber": rect.size = Vector2(30, 28)
 		"charger": rect.size = Vector2(46, 30)
 		"spitter": rect.size = Vector2(40, 30)
+		"stalker": rect.size = Vector2(30, 42)
+		"blink_archer": rect.size = Vector2(28, 42)
+		"hexer", "runecaster", "warlock": rect.size = Vector2(32, 44)
 		_: rect.size = Vector2(30, 30)
 	shape.shape = rect
 	shape.position = Vector2(0, -rect.size.y / 2.0)
@@ -141,6 +207,12 @@ func _physics_process(delta: float) -> void:
 		velocity.y += GRAVITY * delta
 	if attack_cooldown > 0.0:
 		attack_cooldown -= delta
+	if cast_timer > 0.0:
+		cast_timer -= delta
+	if tp_timer > 0.0:
+		tp_timer -= delta
+	if state_timer > 0.0:
+		state_timer -= delta
 	if is_knocked_back:
 		move_and_slide()
 		return
@@ -151,6 +223,11 @@ func _physics_process(delta: float) -> void:
 			"bomber": act_bomber(delta)
 			"charger": act_charger(delta)
 			"spitter": act_spitter(delta)
+			"stalker": act_stalker(delta)
+			"blink_archer": act_blink_archer(delta)
+			"hexer": act_hexer(delta)
+			"runecaster": act_runecaster(delta)
+			"warlock": act_warlock(delta)
 
 	if velocity.x > 1.0:
 		facing = 1
@@ -265,6 +342,218 @@ func act_spitter(delta: float) -> void:
 			fire_projectile(dir, attack_damage)
 		attack_cooldown = SPITTER_COOLDOWN
 
+# Blink Stalker -- seek, then telegraph a spot BEHIND the player, blink there,
+# and lunge in. Never teleports on top of you (STALKER_TP_DIST away).
+func act_stalker(delta: float) -> void:
+	var dist = global_position.distance_to(player.global_position)
+	match state:
+		"seek":
+			var dx = player.global_position.x - global_position.x
+			velocity.x = sign(dx) * move_speed if absf(dx) > 6.0 else 0.0
+			if dist < STALKER_HIT_RANGE and attack_cooldown <= 0.0:
+				deal_contact_damage()
+				attack_cooldown = 0.9
+			if tp_timer <= 0.0 and dist > 150.0:
+				var side = -sign(player.global_position.x - global_position.x)
+				if side == 0:
+					side = 1
+				pending_tp = Vector2(player.global_position.x + side * STALKER_TP_DIST, player.global_position.y)
+				spawn_sigil(pending_tp, 26.0, STALKER_MARK_TIME, accent_color)
+				state = "mark"
+				state_timer = STALKER_MARK_TIME
+		"mark":
+			velocity.x = 0.0
+			if state_timer <= 0.0:
+				teleport_to(pending_tp)
+				lunge_dir = sign(player.global_position.x - global_position.x)
+				if lunge_dir == 0:
+					lunge_dir = 1
+				state = "lunge"
+				state_timer = STALKER_LUNGE_TIME
+		"lunge":
+			velocity.x = lunge_dir * STALKER_LUNGE_SPEED
+			if dist < STALKER_HIT_RANGE and attack_cooldown <= 0.0:
+				deal_contact_damage()
+				if player.has_method("apply_knockback"):
+					player.apply_knockback(lunge_dir, 160.0)
+				attack_cooldown = 0.7
+			var hit_wall = false
+			for i in range(get_slide_collision_count()):
+				if absf(get_slide_collision(i).get_normal().x) > 0.5:
+					hit_wall = true
+			if state_timer <= 0.0 or hit_wall:
+				state = "seek"
+				tp_timer = STALKER_TP_INTERVAL
+	face_player()
+
+# Revenant Archer -- fires from range, blinks to a flank on a timer AND
+# immediately if the player closes the distance.
+func act_blink_archer(delta: float) -> void:
+	velocity.x = 0.0
+	face_player()
+	var dist = global_position.distance_to(player.global_position)
+	if dist < BLINK_MIN_RANGE or tp_timer <= 0.0:
+		blink_to_flank()
+		tp_timer = BLINK_TP_INTERVAL
+	if dist < BLINK_SHOOT_RANGE and attack_cooldown <= 0.0:
+		var base = (player.global_position - global_position).angle()
+		for k in [-1, 0, 1]:
+			fire_projectile(Vector2.RIGHT.rotated(base + deg_to_rad(9.0) * k), attack_damage)
+		attack_cooldown = BLINK_SHOOT_CD
+
+# Hexer -- keeps mid-range, then breathes an expanding ring of bolts with one
+# gap left open. Slip through the gap or eat the whole ring.
+func act_hexer(delta: float) -> void:
+	face_player()
+	var dist = global_position.distance_to(player.global_position)
+	var dx = player.global_position.x - global_position.x
+	if dist < 220.0:
+		velocity.x = -sign(dx) * move_speed
+	elif dist > 430.0:
+		velocity.x = sign(dx) * move_speed
+	else:
+		velocity.x = 0.0
+	if cast_timer <= 0.0 and not is_casting:
+		cast_timer = HEX_CAST_CD
+		cast_hex_ring()
+
+func cast_hex_ring() -> void:
+	is_casting = true
+	set_flash(accent_color)
+	await get_tree().create_timer(HEX_TELEGRAPH).timeout
+	clear_flash()
+	if is_dead:
+		is_casting = false
+		return
+	var gap_start = randi() % HEX_BOLTS
+	for i in range(HEX_BOLTS):
+		if i >= gap_start and i < gap_start + HEX_GAP:
+			continue
+		var dir = Vector2.RIGHT.rotated(i * TAU / HEX_BOLTS)
+		var arrow = ARROW_SCENE.instantiate()
+		arrow.position = global_position + Vector2(0, -18) + dir * 20.0
+		arrow.setup(dir, attack_damage, 8.0, 16.0, 2, true, HEX_BOLT_RANGE)
+		get_parent().add_child(arrow)
+	is_casting = false
+
+# Runecaster -- brands the ground with delayed sigils around the player that
+# erupt after a telegraph. Keep moving or get caught in one.
+func act_runecaster(delta: float) -> void:
+	velocity.x = 0.0
+	face_player()
+	if cast_timer <= 0.0 and not is_casting:
+		cast_timer = RUNE_CAST_CD
+		cast_runes()
+
+func cast_runes() -> void:
+	is_casting = true
+	set_flash(accent_color)
+	var gy = player.global_position.y
+	var xs: Array = []
+	for i in range(RUNE_COUNT):
+		xs.append(player.global_position.x + randf_range(-RUNE_SPREAD, RUNE_SPREAD))
+	for x in xs:
+		spawn_sigil(Vector2(x, gy), RUNE_RADIUS, RUNE_TELEGRAPH, accent_color)
+	await get_tree().create_timer(RUNE_TELEGRAPH).timeout
+	clear_flash()
+	if is_dead:
+		is_casting = false
+		return
+	for x in xs:
+		erupt_rune(Vector2(x, gy))
+		if player != null and is_instance_valid(player) and player.global_position.distance_to(Vector2(x, gy)) < RUNE_RADIUS:
+			if player.has_method("take_damage"):
+				player.take_damage(attack_damage)
+			if player.has_method("apply_knockback"):
+				var away = sign(player.global_position.x - x)
+				player.apply_knockback(away if away != 0 else 1, 150.0)
+	is_casting = false
+
+# Warlock -- conjures slow cursed orbs that home toward the player.
+func act_warlock(delta: float) -> void:
+	face_player()
+	var dist = global_position.distance_to(player.global_position)
+	var dx = player.global_position.x - global_position.x
+	velocity.x = -sign(dx) * move_speed if dist < WARLOCK_KEEP_RANGE else 0.0
+	if cast_timer <= 0.0:
+		cast_timer = WARLOCK_CAST_CD
+		for i in range(WARLOCK_ORBS):
+			var base = (player.global_position - global_position).normalized()
+			var dir = base.rotated(deg_to_rad(randf_range(-18.0, 18.0)))
+			var orb = MAGIC_ORB.new()
+			orb.setup(dir, attack_damage, accent_color, 130.0)
+			orb.position = position + Vector2(0, -18)
+			get_parent().add_child(orb)
+
+# --- caster/teleport helpers ---
+
+func face_player() -> void:
+	if player != null and is_instance_valid(player):
+		var dx = player.global_position.x - global_position.x
+		if absf(dx) > 4.0:
+			facing = 1 if dx > 0 else -1
+
+func arena_width() -> float:
+	var s = get_tree().current_scene
+	if s != null and "current_width" in s:
+		return s.current_width
+	return 2600.0
+
+func teleport_to(target: Vector2) -> void:
+	spawn_teleport_puff(global_position)
+	var w = arena_width()
+	global_position = Vector2(clampf(target.x, 70.0, w - 70.0), target.y)
+	spawn_teleport_puff(global_position)
+	modulate.a = 0.25
+	create_tween().tween_property(self, "modulate:a", 1.0, 0.2)
+
+func blink_to_flank() -> void:
+	var side = 1.0 if randf() < 0.5 else -1.0
+	teleport_to(Vector2(player.global_position.x + side * BLINK_FLANK_DIST, player.global_position.y))
+
+func spawn_teleport_puff(p: Vector2) -> void:
+	var particles = CPUParticles2D.new()
+	particles.global_position = p + Vector2(0, -18)
+	particles.z_index = 9
+	particles.one_shot = true
+	particles.emitting = true
+	particles.amount = 10
+	particles.lifetime = 0.35
+	particles.explosiveness = 1.0
+	particles.spread = 180.0
+	particles.initial_velocity_min = 30.0
+	particles.initial_velocity_max = 70.0
+	particles.scale_amount_min = 2.0
+	particles.scale_amount_max = 3.0
+	particles.color = accent_color
+	get_parent().add_child(particles)
+	particles.finished.connect(particles.queue_free)
+
+func spawn_sigil(pos: Vector2, radius: float, duration: float, color: Color) -> void:
+	var ring = poly(circle_points(radius, 24))
+	ring.color = Color(color.r, color.g, color.b, 0.25)
+	ring.global_position = pos
+	ring.z_index = 4
+	get_parent().add_child(ring)
+	var t = ring.create_tween()
+	t.set_loops(int(duration / 0.16) + 1)
+	t.tween_property(ring, "modulate:a", 0.15, 0.08)
+	t.tween_property(ring, "modulate:a", 0.7, 0.08)
+	get_tree().create_timer(duration).timeout.connect(ring.queue_free)
+
+func erupt_rune(pos: Vector2) -> void:
+	var burst = poly(circle_points(RUNE_RADIUS, 24))
+	burst.color = Color(accent_color.r, accent_color.g, accent_color.b, 0.55)
+	burst.global_position = pos
+	burst.z_index = 6
+	burst.scale = Vector2(0.2, 0.2)
+	get_parent().add_child(burst)
+	var t = burst.create_tween()
+	t.set_parallel(true)
+	t.tween_property(burst, "scale", Vector2.ONE, 0.2)
+	t.tween_property(burst, "modulate:a", 0.0, 0.28)
+	t.chain().tween_callback(burst.queue_free)
+
 # --- shared combat ---
 
 func deal_contact_damage() -> void:
@@ -334,6 +623,11 @@ func build_visual() -> void:
 		"bomber": build_bomber_visual()
 		"charger": build_charger_visual()
 		"spitter": build_spitter_visual()
+		"stalker": build_stalker_visual()
+		"blink_archer": build_blink_archer_visual()
+		"hexer": build_hexer_visual()
+		"runecaster": build_runecaster_visual()
+		"warlock": build_warlock_visual()
 
 func poly(points: PackedVector2Array) -> Polygon2D:
 	var p = Polygon2D.new()
@@ -420,6 +714,85 @@ func build_spitter_visual() -> void:
 		var boil = poly(circle_points(2.6))
 		boil.position = p
 		add_part(boil, accent_color.darkened(0.1))
+
+# Blink Stalker -- a hooded cloaked assassin with a bared dagger.
+func build_stalker_visual() -> void:
+	add_part(poly(PackedVector2Array([Vector2(-13, 0), Vector2(13, 0), Vector2(9, -30), Vector2(-9, -30)])), main_color)
+	add_part(poly(PackedVector2Array([Vector2(-9, -26), Vector2(9, -26), Vector2(6, -44), Vector2(-6, -44)])), main_color.darkened(0.25))
+	for sx in [-3, 3]:
+		var e = poly(circle_points(1.8))
+		e.position = Vector2(sx, -35)
+		add_part(e, accent_color)
+	add_part(poly(PackedVector2Array([Vector2(12, -16), Vector2(22, -20), Vector2(13, -11)])), Color(0.72, 0.72, 0.78))
+
+# Revenant Archer -- a bony archer: ribbed torso, skull, and a bow.
+func build_blink_archer_visual() -> void:
+	add_part(poly(PackedVector2Array([Vector2(-9, 0), Vector2(9, 0), Vector2(7, -26), Vector2(-7, -26)])), main_color)
+	for ry in [-6, -12, -18]:
+		var rib = Line2D.new()
+		rib.points = PackedVector2Array([Vector2(-7, ry), Vector2(7, ry)])
+		rib.width = 1.2
+		rib.default_color = BONE.darkened(0.1)
+		visual.add_child(rib)
+	var skull = poly(circle_points(7.0))
+	skull.position = Vector2(0, -33)
+	add_part(skull, BONE)
+	for sx in [-2.6, 2.6]:
+		var s = poly(circle_points(1.8))
+		s.position = Vector2(sx, -33)
+		add_part(s, accent_color)
+	var bow = Line2D.new()
+	bow.points = PackedVector2Array([Vector2(14, -30), Vector2(20, -16), Vector2(14, -2)])
+	bow.width = 2.0
+	bow.default_color = Color(0.35, 0.24, 0.16)
+	visual.add_child(bow)
+
+# Hexer -- a hunched robed mage cradling a glowing hex-orb.
+func build_hexer_visual() -> void:
+	_robe(main_color)
+	add_part(poly(PackedVector2Array([Vector2(-10, -26), Vector2(10, -26), Vector2(7, -44), Vector2(-7, -44)])), main_color.darkened(0.2))
+	for sx in [-3, 3]:
+		var e = poly(circle_points(1.8))
+		e.position = Vector2(sx, -36)
+		add_part(e, accent_color)
+	var orb = poly(circle_points(6.0))
+	orb.position = Vector2(13, -10)
+	add_part(orb, accent_color)
+
+# Runecaster -- a tall pointed-hat mage with a rune staff.
+func build_runecaster_visual() -> void:
+	_robe(main_color)
+	# tall witch hat
+	add_part(poly(PackedVector2Array([Vector2(-11, -26), Vector2(11, -26), Vector2(2, -52)])), main_color.darkened(0.15))
+	var e = poly(circle_points(2.2))
+	e.position = Vector2(0, -30)
+	add_part(e, accent_color)
+	var staff = Line2D.new()
+	staff.points = PackedVector2Array([Vector2(-14, 2), Vector2(-14, -34)])
+	staff.width = 2.5
+	staff.default_color = Color(0.3, 0.2, 0.12)
+	visual.add_child(staff)
+	var tip = poly(circle_points(4.5))
+	tip.position = Vector2(-14, -36)
+	add_part(tip, accent_color)
+
+# Warlock -- a horned-hood mage with a cursed orb orbiting overhead.
+func build_warlock_visual() -> void:
+	_robe(main_color)
+	add_part(poly(PackedVector2Array([Vector2(-10, -26), Vector2(10, -26), Vector2(7, -42), Vector2(-7, -42)])), main_color.darkened(0.2))
+	# horns
+	add_part(poly(PackedVector2Array([Vector2(-7, -40), Vector2(-13, -54), Vector2(-3, -42)])), accent_color)
+	add_part(poly(PackedVector2Array([Vector2(7, -40), Vector2(13, -54), Vector2(3, -42)])), accent_color)
+	for sx in [-3, 3]:
+		var e = poly(circle_points(1.8))
+		e.position = Vector2(sx, -34)
+		add_part(e, accent_color)
+	var orb = poly(circle_points(5.0))
+	orb.position = Vector2(0, -58)
+	add_part(orb, accent_color)
+
+func _robe(color: Color) -> void:
+	add_part(poly(PackedVector2Array([Vector2(-14, 0), Vector2(14, 0), Vector2(10, -30), Vector2(-10, -30)])), color)
 
 func build_health_bar() -> void:
 	var bg = ColorRect.new()
