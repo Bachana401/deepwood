@@ -17,6 +17,34 @@ const ANIMS := {
 }
 
 static var _cache := {}
+static var _feet_cache := {}
+
+# Lowest visible pixel of the first idle frame, relative to the frame CENTRE
+# (positive = below centre). Measured from the actual pixels, so bodies can
+# plant the character's feet exactly on their ground line no matter how much
+# empty padding a pack leaves in the frame -- no more hand-guessed offsets.
+static func feet_px(skin: String) -> float:
+	if _feet_cache.has(skin):
+		return _feet_cache[skin]
+	var feet := 25.0   # sane fallback if the image can't be read
+	var tex: Texture2D = load("res://art/enemies/%s/idle.png" % skin)
+	if tex != null:
+		var img := tex.get_image()
+		if img != null:
+			if img.is_compressed():
+				img.decompress()
+			var bottom := -1
+			for y in range(FRAME_SIZE - 1, -1, -1):
+				for x in range(FRAME_SIZE):
+					if img.get_pixel(x, y).a > 0.1:
+						bottom = y
+						break
+				if bottom >= 0:
+					break
+			if bottom >= 0:
+				feet = float(bottom) - FRAME_SIZE / 2.0
+	_feet_cache[skin] = feet
+	return feet
 
 static func frames_for(skin: String) -> SpriteFrames:
 	if _cache.has(skin):

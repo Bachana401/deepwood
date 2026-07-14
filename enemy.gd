@@ -105,7 +105,7 @@ var accent_color := Color(0.85, 0.42, 0.3)
 # art/enemies/). When an archetype sets "sprite", the plain procedural body is
 # hidden and this AnimatedSprite2D drives idle/walk/attack/hurt/death instead.
 const SPRITE_SCALE := 3.0          # x5 from the first pass (0.6) -- developer sizing call
-const SPRITE_Y_OFFSET := -20.0     # lifts the in-frame character so feet meet the floor at this scale
+const SPRITE_GROUND_Y := 20.0      # this body's ground line (collision bottom)
 var sprite_skin := ""
 var use_sprite := false
 var enemy_sprite: AnimatedSprite2D = null
@@ -258,7 +258,9 @@ func _build_sprite_visual() -> void:
 	spr.sprite_frames = EnemySkins.frames_for(sprite_skin)
 	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST   # keep pixel art crisp
 	spr.scale = Vector2(SPRITE_SCALE, SPRITE_SCALE)
-	spr.offset = Vector2(0, SPRITE_Y_OFFSET)
+	# plant the character's MEASURED feet (from the idle frame's pixels) exactly
+	# on this body's ground line: (feet_px + offset) * scale == SPRITE_GROUND_Y
+	spr.offset = Vector2(0, SPRITE_GROUND_Y / SPRITE_SCALE - EnemySkins.feet_px(sprite_skin))
 	spr.animation = "idle"
 	spr.play("idle")
 	add_child(spr)

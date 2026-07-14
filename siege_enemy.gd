@@ -246,11 +246,6 @@ func _finish_death() -> void:
 
 # --- Sprite skin (shared with dungeon enemies via EnemySkins) ---
 const SKIN_SCALE := 3.1    # x5 from the first pass (0.62) -- developer sizing call
-# This body's ORIGIN IS AT THE FEET (collision spans -40..0), while the 100px
-# frames are drawn centered -- so the character in the frame (feet ~25px below
-# the frame centre) must be lifted by that much or it renders half-sunk. (This
-# offset is in pre-scale frame pixels, so it holds at any SKIN_SCALE.)
-const SKIN_Y_OFFSET := -25.0
 
 func build_skin_visual() -> void:
 	body = Node2D.new()
@@ -259,7 +254,9 @@ func build_skin_visual() -> void:
 	skin_sprite.sprite_frames = EnemySkins.frames_for(skin)
 	skin_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	skin_sprite.scale = Vector2(SKIN_SCALE, SKIN_SCALE)
-	skin_sprite.offset = Vector2(0, SKIN_Y_OFFSET)
+	# this body's ORIGIN IS AT THE FEET (collision spans -40..0): lift the frame
+	# by the character's MEASURED feet position so they land exactly at y = 0
+	skin_sprite.offset = Vector2(0, -EnemySkins.feet_px(skin))
 	skin_sprite.animation = "idle"
 	skin_sprite.play("idle")
 	body.add_child(skin_sprite)
