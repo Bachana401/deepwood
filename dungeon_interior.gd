@@ -877,6 +877,10 @@ const OP_KINDS_BASE = ["bomber", "charger"]
 const OP_KINDS_MID = ["stalker", "hexer"]                        # from level 5
 const OP_KINDS_LATE = ["blink_archer", "runecaster", "warlock"]  # from level 8
 const ANNOYING_KINDS = ["grunt", "flyer", "spitter"]
+# Levels whose grunt is a downloaded sprite-skin (Orc/Blood Fiend/Demon blocks);
+# on these, about half of spawns are grunts so the skinned mob is prominent.
+const GRUNT_SKIN_MAX_LEVEL = 15
+const GRUNT_SPAWN_BIAS = 0.5
 const ELITE_CHANCE = 0.125
 const FIRST_BLOCK_OP_CAP = 0.35
 
@@ -910,8 +914,13 @@ func spawn_level_mobs() -> void:
 	var annoy_types = pick_random_subset(ANNOYING_KINDS, annoy_types_n)
 	# total headcount also swells toward the block's end and with depth
 	var total = clampi(4 + p + int(current_level / 12), 5, 13)
+	# On the sprite-skinned blocks (levels 1-15: Orc/Blood Fiend/Demon) the grunt
+	# IS the skinned character, so bias spawns toward it -- your downloaded mob is
+	# the backbone you fight, with the distinct special mobs mixed in as variety.
 	for i in range(total):
-		if randf() < op_frac:
+		if current_level <= GRUNT_SKIN_MAX_LEVEL and randf() < GRUNT_SPAWN_BIAS:
+			spawn_kind("grunt")
+		elif randf() < op_frac:
 			spawn_kind(op_types[randi() % op_types.size()])
 		else:
 			spawn_kind(annoy_types[randi() % annoy_types.size()])
