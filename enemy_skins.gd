@@ -1,50 +1,59 @@
 class_name EnemySkins
 extends RefCounted
 
-# Shared builder for downloaded-spritesheet skins (CraftPix Tiny RPG packs in
-# art/enemies/<skin>/). Each strip is one row of 100x100 frames; frame counts
-# are read from the texture width so nothing is hardcoded per character. Used by
-# both dungeon enemies (enemy.gd) and village Barracks soldiers (siege_enemy.gd,
-# faction "village"). SpriteFrames are built once per skin and shared.
+# Shared skin builder for dungeon enemies (enemy.gd), village soldiers/raiders and
+# corruption demons (siege_enemy.gd). A skin lives in art/enemies/<skin>/ and may
+# be EITHER format:
+#   - CraftPix STRIP:  <anim>.png  = one horizontal row of FRAME_SIZE(100) frames
+#   - PixelLab FRAMES: <anim>_1.png, <anim>_2.png, ...  = one PNG per frame
+# frames_for() auto-detects. Heights differ between packs, so content_height()/
+# feet_px() measure the actual character pixels from the idle frame -- bodies use
+# those to normalise every skin to a consistent on-screen size and plant its feet.
+# SpriteFrames + measurements are cached per skin.
 
-const FRAME_SIZE := 100
+const FRAME_SIZE := 100    # CraftPix strip slice width
 const ANIMS := {
-	"idle":   {"file": "idle.png",   "fps": 8.0,  "loop": true},
-	"walk":   {"file": "walk.png",   "fps": 12.0, "loop": true},
-	"attack": {"file": "attack.png", "fps": 12.0, "loop": false},
-	"hurt":   {"file": "hurt.png",   "fps": 14.0, "loop": false},
-	"death":  {"file": "death.png",  "fps": 10.0, "loop": false},
+	"idle":   {"fps": 8.0,  "loop": true},
+	"walk":   {"fps": 12.0, "loop": true},
+	"attack": {"fps": 12.0, "loop": false},
+	"hurt":   {"fps": 14.0, "loop": false},
+	"death":  {"fps": 10.0, "loop": false},
 }
 
 static var _cache := {}
-static var _feet_cache := {}
+static var _bounds_cache := {}
 
-# Lowest visible pixel of the first idle frame, relative to the frame CENTRE
-# (positive = below centre). Measured from the actual pixels, so bodies can
-# plant the character's feet exactly on their ground line no matter how much
-# empty padding a pack leaves in the frame -- no more hand-guessed offsets.
-static func feet_px(skin: String) -> float:
-	if _feet_cache.has(skin):
-		return _feet_cache[skin]
-	var feet := 25.0   # sane fallback if the image can't be read
-	var tex: Texture2D = load("res://art/enemies/%s/idle.png" % skin)
-	if tex != null:
-		var img := tex.get_image()
-		if img != null:
-			if img.is_compressed():
-				img.decompress()
-			var bottom := -1
-			for y in range(FRAME_SIZE - 1, -1, -1):
-				for x in range(FRAME_SIZE):
-					if img.get_pixel(x, y).a > 0.1:
-						bottom = y
-						break
-				if bottom >= 0:
-					break
-			if bottom >= 0:
-				feet = float(bottom) - FRAME_SIZE / 2.0
-	_feet_cache[skin] = feet
-	return feet
+# The frame textures for one animation, in order. Per-frame PixelLab folders win;
+# otherwise a CraftPix strip is sliced into FRAME_SIZE-wide regions.
+static func _anim_frames(skin: String, anim: String) -> Array:
+	var out: Array = []
+	var i := 1
+	while true:
+		var p := "res://art/enemies/%s/%s_%d.png" % [skin, anim, i]
+		if not ResourceLoader.exists(p):
+			break
+		var t: Texture2D = load(p)
+		if t == null:
+			break
+		out.append(t)
+		i += 1
+	if not out.is_empty():
+		return out
+	# strip fallback
+	var sp := "res://art/enemies/%s/%s.png" % [skin, anim]
+	if not ResourceLoader.exists(sp):
+		return out
+	var tex: Texture2D = load(sp)
+	if tex == null:
+		return out
+	var count: int = maxi(1, int(tex.get_width() / FRAME_SIZE))
+	var h: int = tex.get_height()
+	for k in range(count):
+		var at := AtlasTexture.new()
+		at.atlas = tex
+		at.region = Rect2(k * FRAME_SIZE, 0, FRAME_SIZE, h)
+		out.append(at)
+	return out
 
 static func frames_for(skin: String) -> SpriteFrames:
 	if _cache.has(skin):
@@ -53,19 +62,55 @@ static func frames_for(skin: String) -> SpriteFrames:
 	if sf.has_animation("default"):
 		sf.remove_animation("default")
 	for anim in ANIMS:
+		var frames := _anim_frames(skin, anim)
+		if frames.is_empty():
+			continue
 		var info: Dictionary = ANIMS[anim]
 		sf.add_animation(anim)
 		sf.set_animation_loop(anim, info["loop"])
 		sf.set_animation_speed(anim, info["fps"])
-		var tex: Texture2D = load("res://art/enemies/%s/%s" % [skin, info["file"]])
-		if tex == null:
-			continue
-		var count: int = maxi(1, int(tex.get_width() / FRAME_SIZE))
-		var h: int = tex.get_height()
-		for i in range(count):
-			var at := AtlasTexture.new()
-			at.atlas = tex
-			at.region = Rect2(i * FRAME_SIZE, 0, FRAME_SIZE, h)
-			sf.add_frame(anim, at)
+		for t in frames:
+			sf.add_frame(anim, t)
 	_cache[skin] = sf
 	return sf
+
+# Content bounding box of the first idle frame, measured from the pixels:
+# {frame_h, top, bottom, height}. Rows are 0..frame_h-1; height = visible pixels.
+static func idle_bounds(skin: String) -> Dictionary:
+	if _bounds_cache.has(skin):
+		return _bounds_cache[skin]
+	var res := {"frame_h": float(FRAME_SIZE), "top": 0.0, "bottom": float(FRAME_SIZE - 1), "height": float(FRAME_SIZE)}
+	var frames := _anim_frames(skin, "idle")
+	if not frames.is_empty():
+		var img: Image = frames[0].get_image()
+		if img != null:
+			if img.is_compressed():
+				img.decompress()
+			var w := img.get_width()
+			var h := img.get_height()
+			var top := -1
+			var bot := -1
+			for y in range(h):
+				var hit := false
+				for x in range(w):
+					if img.get_pixel(x, y).a > 0.15:
+						hit = true
+						break
+				if hit:
+					if top < 0:
+						top = y
+					bot = y
+			if top >= 0:
+				res = {"frame_h": float(h), "top": float(top), "bottom": float(bot), "height": float(bot - top + 1)}
+	_bounds_cache[skin] = res
+	return res
+
+# Lowest visible pixel of the idle frame, relative to the frame CENTRE (positive =
+# below centre) -- used to plant feet exactly on a body's ground line.
+static func feet_px(skin: String) -> float:
+	var b := idle_bounds(skin)
+	return b["bottom"] - b["frame_h"] / 2.0
+
+# Visible character height in pixels (for normalising every skin to one size).
+static func content_height(skin: String) -> float:
+	return maxf(1.0, idle_bounds(skin)["height"])

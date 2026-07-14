@@ -257,16 +257,22 @@ func _build_sprite_visual() -> void:
 	spr.name = "Skin"
 	spr.sprite_frames = EnemySkins.frames_for(sprite_skin)
 	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST   # keep pixel art crisp
-	spr.scale = Vector2(SPRITE_SCALE, SPRITE_SCALE)
-	# plant the character's MEASURED feet (from the idle frame's pixels) exactly
-	# on this body's ground line: (feet_px + offset) * scale == SPRITE_GROUND_Y
-	spr.offset = Vector2(0, SPRITE_GROUND_Y / SPRITE_SCALE - EnemySkins.feet_px(sprite_skin))
+	# Normalise EVERY skin to the same on-screen character height as the approved
+	# CraftPix orc (orc content x SPRITE_SCALE), so PixelLab skins (different frame
+	# sizes) don't come out giant or tiny. Per-archetype "scale" still applies via
+	# the enemy root, keeping golems big and rotfiends small.
+	var target = EnemySkins.content_height("orc") * SPRITE_SCALE
+	var sc = target / EnemySkins.content_height(sprite_skin)
+	spr.scale = Vector2(sc, sc)
+	# plant the character's MEASURED feet exactly on this body's ground line:
+	# (feet_px + offset) * sc == SPRITE_GROUND_Y
+	spr.offset = Vector2(0, SPRITE_GROUND_Y / sc - EnemySkins.feet_px(sprite_skin))
 	spr.animation = "idle"
 	spr.play("idle")
 	add_child(spr)
 	enemy_sprite = spr
 	# lift the health bar above the (much taller) sprite instead of inside it
-	var bar_y = -(50.0 * SPRITE_SCALE * 0.75) - 12.0
+	var bar_y = -(EnemySkins.content_height(sprite_skin) * sc) - 12.0
 	$HealthBarBG.position.y = bar_y
 	$HealthBarFill.position.y = bar_y
 

@@ -253,7 +253,10 @@ func build_skin_visual() -> void:
 	skin_sprite = AnimatedSprite2D.new()
 	skin_sprite.sprite_frames = EnemySkins.frames_for(skin)
 	skin_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	skin_sprite.scale = Vector2(SKIN_SCALE, SKIN_SCALE)
+	# normalise to the same on-screen height as the approved orc, whatever the
+	# skin's own frame size (CraftPix vs PixelLab differ)
+	var sc = EnemySkins.content_height("orc") * SKIN_SCALE / EnemySkins.content_height(skin)
+	skin_sprite.scale = Vector2(sc, sc)
 	# this body's ORIGIN IS AT THE FEET (collision spans -40..0): lift the frame
 	# by the character's MEASURED feet position so they land exactly at y = 0
 	skin_sprite.offset = Vector2(0, -EnemySkins.feet_px(skin))
