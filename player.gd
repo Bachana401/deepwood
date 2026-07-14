@@ -573,23 +573,26 @@ func update_shadow_aura(_delta: float) -> void:
 	if monarch_shader_mat != null:
 		var pallor = clampf((inten - 0.12) / 0.7, 0.0, 1.0) * 0.85
 		monarch_shader_mat.set_shader_parameter("pallor", pallor)
-	# tendril layer: a subtler accent now (so it no longer reads as a backdrop
-	# disc) -- the emitted wisps below are what sell "he radiates it"
+	# Ease HARD so early stages stay a faint whisper and the storm only arrives
+	# near the top (a linear ramp made 1/7 look like 6/7).
+	var e = pow(inten, 2.0)
+	# tendril layer: a subtle accent (no longer a backdrop disc) -- the emitted
+	# wisps below are what sell "he radiates it"
 	if shadow_aura != null:
 		shadow_aura.visible = stage >= 1
 		if stage >= 1:
-			var sc = lerpf(0.30, 1.3, inten)
+			var sc = lerpf(0.12, 1.25, e)
 			shadow_aura.scale = Vector2(sc, sc)
-			shadow_aura.modulate = Color(1, 1, 1, lerpf(0.32, 0.72, inten))
+			shadow_aura.modulate = Color(1, 1, 1, lerpf(0.12, 0.7, e))
 	# emitted wisps pouring off his body -- the "source". Reallocate particle
 	# params only when the stage actually changes (amount realloc is not free).
 	if shadow_emit != null:
 		shadow_emit.emitting = stage >= 1
 		if stage != _aura_stage:
 			_aura_stage = stage
-			shadow_emit.amount = maxi(1, int(lerpf(8.0, 46.0, inten)))
-			shadow_emit.initial_velocity_max = lerpf(20.0, 46.0, inten)
-			shadow_emit.scale_amount_max = lerpf(2.4, 4.4, inten)
+			shadow_emit.amount = maxi(1, int(lerpf(2.0, 46.0, e)))
+			shadow_emit.initial_velocity_max = lerpf(9.0, 46.0, e)
+			shadow_emit.scale_amount_max = lerpf(1.3, 4.4, e)
 
 # Two feathered wings on the character's back, hidden until the Aetherwing
 # relic is equipped. They sit behind the body (z -1) and flap -- fast while
