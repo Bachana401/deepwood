@@ -48,14 +48,14 @@ const WEAPONS = {
 # enemy body (color/size), picks its weapon mix, and nudges the base stats so
 # the flavor is felt in combat, not just visually.
 const ENEMY_ROSTERS = [
-	# 0 -- Ghouls (levels 1-5): shambling rotten dead, balanced weapon mix.
-	{"name": "Ghoul", "color": Color(0.33, 0.4, 0.29), "accent": Color(0.7, 1.0, 0.45), "scale": 1.0, "shape": "grunt", "weapons": ["sword", "spear", "bow"], "hp_mult": 1.0, "dmg_mult": 1.0, "speed_mult": 1.0},
-	# 1 -- Frost Wights (6-10): frozen undead skirmishers, spear & bow.
-	{"name": "Frost Wight", "color": Color(0.4, 0.5, 0.6), "accent": Color(0.7, 0.92, 1.0), "scale": 0.92, "shape": "frost", "weapons": ["spear", "bow"], "hp_mult": 0.85, "dmg_mult": 1.0, "speed_mult": 1.22},
-	# 2 -- Charred Revenants (11-15): burnt corpses, hit hard but slow.
-	{"name": "Charred Revenant", "color": Color(0.2, 0.15, 0.15), "accent": Color(1.0, 0.5, 0.12), "scale": 1.12, "shape": "ember", "weapons": ["sword", "spear"], "hp_mult": 1.3, "dmg_mult": 1.18, "speed_mult": 0.88},
-	# 3 -- Wraiths (16-20): spectral fast archers that swarm from range.
-	{"name": "Wraith", "color": Color(0.32, 0.22, 0.42), "accent": Color(0.7, 0.4, 1.0), "scale": 0.9, "shape": "wraith", "weapons": ["bow", "bow", "sword"], "hp_mult": 0.78, "dmg_mult": 1.0, "speed_mult": 1.32},
+	# 0 -- Orcs (levels 1-5): balanced weapon mix. [sprite skin]
+	{"name": "Orc", "color": Color(0.33, 0.4, 0.29), "accent": Color(0.7, 1.0, 0.45), "scale": 1.0, "shape": "grunt", "sprite": "orc", "weapons": ["sword", "spear", "bow"], "hp_mult": 1.0, "dmg_mult": 1.0, "speed_mult": 1.0},
+	# 1 -- Blood Fiends (6-10): fast skirmishers. [sprite skin]
+	{"name": "Blood Fiend", "color": Color(0.4, 0.5, 0.6), "accent": Color(0.7, 0.92, 1.0), "scale": 0.92, "shape": "frost", "sprite": "blood_monster", "weapons": ["spear", "bow"], "hp_mult": 0.85, "dmg_mult": 1.0, "speed_mult": 1.22},
+	# 2 -- Demons (11-15): hit hard but slow. [sprite skin]
+	{"name": "Demon", "color": Color(0.2, 0.15, 0.15), "accent": Color(1.0, 0.5, 0.12), "scale": 1.12, "shape": "ember", "sprite": "demon", "weapons": ["sword", "spear"], "hp_mult": 1.3, "dmg_mult": 1.18, "speed_mult": 0.88},
+	# 3 -- Fallen Soldiers (16-20): fast, archers among them. [sprite skin]
+	{"name": "Fallen Soldier", "color": Color(0.32, 0.22, 0.42), "accent": Color(0.7, 0.4, 1.0), "scale": 0.9, "shape": "wraith", "sprite": "soldier", "weapons": ["bow", "bow", "sword"], "hp_mult": 0.78, "dmg_mult": 1.0, "speed_mult": 1.32},
 	# 4 -- Bone Golems (21-25): huge tomb-bone tanks, slow, pure melee.
 	{"name": "Bone Golem", "color": Color(0.52, 0.5, 0.44), "accent": Color(0.86, 0.84, 0.72), "scale": 1.28, "shape": "stone", "weapons": ["sword"], "hp_mult": 1.7, "dmg_mult": 1.22, "speed_mult": 0.78},
 	# 5 -- Rotfiends (26-30): small, fast, diseased jabbers.
@@ -100,6 +100,24 @@ var wave_speed_multiplier = 1.0
 var character_shape := "grunt"
 var accent_color := Color(0.85, 0.42, 0.3)
 
+# Optional downloaded-spritesheet skin (CraftPix Tiny RPG packs, see
+# art/enemies/). When an archetype sets "sprite", the plain procedural body is
+# hidden and this AnimatedSprite2D drives idle/walk/attack/hurt/death instead.
+const ENEMY_FRAME_SIZE := 100      # each strip is a row of 100x100 frames
+const SPRITE_SCALE := 0.6          # 100px art -> ~60px (tweak if enemies read too big/small)
+const SPRITE_Y_OFFSET := -4.0      # nudge so the character's feet sit on the floor
+const ENEMY_SKIN_ANIMS := {
+	"idle":   {"file": "idle.png",   "fps": 8.0,  "loop": true},
+	"walk":   {"file": "walk.png",   "fps": 12.0, "loop": true},
+	"attack": {"file": "attack.png", "fps": 12.0, "loop": false},
+	"hurt":   {"file": "hurt.png",   "fps": 14.0, "loop": false},
+	"death":  {"file": "death.png",  "fps": 10.0, "loop": false},
+}
+static var _frames_cache := {}     # skin name -> shared SpriteFrames
+var sprite_skin := ""
+var use_sprite := false
+var enemy_sprite: AnimatedSprite2D = null
+
 func _ready() -> void:
 	start_x = global_position.x
 	spawn_position = global_position
@@ -139,6 +157,7 @@ func apply_block_archetype(block: int) -> void:
 		weapon_type = weapons[randi() % weapons.size()]
 	character_shape = data.get("shape", "grunt")
 	accent_color = data.get("accent", accent_color)
+	sprite_skin = data.get("sprite", "")
 	wave_hp_multiplier *= float(data.get("hp_mult", 1.0))
 	wave_damage_multiplier *= float(data.get("dmg_mult", 1.0))
 	wave_speed_multiplier *= float(data.get("speed_mult", 1.0))
@@ -151,6 +170,11 @@ const BONE := Color(0.82, 0.8, 0.72)
 func build_character() -> void:
 	if has_node("Features"):
 		$Features.queue_free()
+	# A downloaded-spritesheet archetype hides the procedural body entirely and
+	# animates from strips instead.
+	if sprite_skin != "":
+		_build_sprite_visual()
+		return
 	var f := Node2D.new()
 	f.name = "Features"
 	add_child(f)
@@ -227,6 +251,67 @@ func _add_dot(parent: Node2D, pos: Vector2, r: float, color: Color) -> void:
 	p.position = pos
 	p.color = color
 	parent.add_child(p)
+
+# --- Spritesheet-skinned enemies (downloaded art) ---
+# Hide the procedural body/weapon and drive an AnimatedSprite2D from combat
+# state. The strips live in art/enemies/<skin>/; SpriteFrames are built once per
+# skin and shared across every enemy wearing it.
+func _build_sprite_visual() -> void:
+	use_sprite = true
+	$ColorRect.visible = false
+	$WeaponIcon.visible = false
+	$BowVisual.visible = false
+	var spr := AnimatedSprite2D.new()
+	spr.name = "Skin"
+	spr.sprite_frames = _enemy_frames(sprite_skin)
+	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST   # keep pixel art crisp
+	spr.scale = Vector2(SPRITE_SCALE, SPRITE_SCALE)
+	spr.offset = Vector2(0, SPRITE_Y_OFFSET)
+	spr.animation = "idle"
+	spr.play("idle")
+	add_child(spr)
+	enemy_sprite = spr
+
+# Build (and cache) a SpriteFrames from a skin's strips. Each strip is one row
+# of 100x100 frames; frame count is read from the texture width so nothing is
+# hardcoded per character.
+func _enemy_frames(skin: String) -> SpriteFrames:
+	if _frames_cache.has(skin):
+		return _frames_cache[skin]
+	var sf := SpriteFrames.new()
+	if sf.has_animation("default"):
+		sf.remove_animation("default")
+	for anim in ENEMY_SKIN_ANIMS:
+		var info: Dictionary = ENEMY_SKIN_ANIMS[anim]
+		sf.add_animation(anim)
+		sf.set_animation_loop(anim, info["loop"])
+		sf.set_animation_speed(anim, info["fps"])
+		var tex: Texture2D = load("res://art/enemies/%s/%s" % [skin, info["file"]])
+		if tex == null:
+			continue
+		var count: int = maxi(1, int(tex.get_width() / ENEMY_FRAME_SIZE))
+		var h: int = tex.get_height()
+		for i in range(count):
+			var at := AtlasTexture.new()
+			at.atlas = tex
+			at.region = Rect2(i * ENEMY_FRAME_SIZE, 0, ENEMY_FRAME_SIZE, h)
+			sf.add_frame(anim, at)
+	_frames_cache[skin] = sf
+	return sf
+
+# Pick idle/walk/attack from state each frame, and face the player. (Death and
+# hurt are driven from die()/flash_hit().)
+func _update_enemy_anim() -> void:
+	if enemy_sprite == null:
+		return
+	enemy_sprite.flip_h = facing_direction < 0
+	var want := "idle"
+	if is_attacking:
+		want = "attack"
+	elif absf(velocity.x) > 5.0:
+		want = "walk"
+	if enemy_sprite.animation != want:
+		enemy_sprite.play(want)
 
 func setup_weapon_visual() -> void:
 	var stats = WEAPONS.get(weapon_type, WEAPONS["sword"])
@@ -331,6 +416,8 @@ func _physics_process(delta: float) -> void:
 		facing_direction = 1
 	elif velocity.x < 0:
 		facing_direction = -1
+	if use_sprite:
+		_update_enemy_anim()
 	if not is_attacking:
 		update_weapon_icon_position()
 
@@ -477,6 +564,10 @@ func apply_knockback(direction_sign: int, distance: float) -> void:
 	is_knocked_back = false
 
 func flash_hit() -> void:
+	if use_sprite and enemy_sprite != null:
+		enemy_sprite.modulate = Color(2.4, 2.4, 2.4)
+		create_tween().tween_property(enemy_sprite, "modulate", Color(1, 1, 1), 0.15)
+		return
 	$ColorRect.color = Color(1, 1, 1)
 	var tween = create_tween()
 	tween.tween_property($ColorRect, "color", base_color.darkened(clamp(generation * 0.15, 0.0, 0.6)), 0.15)
@@ -517,10 +608,15 @@ func die() -> void:
 
 func play_death_animation() -> void:
 	spawn_death_particles()
+	if use_sprite and enemy_sprite != null:
+		enemy_sprite.play("death")
 	var tween = create_tween()
 	tween.set_parallel(true)
-	tween.tween_property($ColorRect, "color", Color(1.0, 0.35, 0.05, 1), 0.15)
-	tween.tween_property($ColorRect, "modulate:a", 0.0, 0.45).set_delay(0.1)
+	if use_sprite and enemy_sprite != null:
+		tween.tween_property(enemy_sprite, "modulate:a", 0.0, 0.45).set_delay(0.18)
+	else:
+		tween.tween_property($ColorRect, "color", Color(1.0, 0.35, 0.05, 1), 0.15)
+		tween.tween_property($ColorRect, "modulate:a", 0.0, 0.45).set_delay(0.1)
 	if has_node("Features"):
 		tween.tween_property($Features, "modulate:a", 0.0, 0.45).set_delay(0.1)
 	tween.tween_property(self, "scale", Vector2(0.15, 0.15), 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
@@ -627,6 +723,9 @@ func respawn() -> void:
 	visible = true
 	scale = Vector2.ONE
 	$ColorRect.modulate = Color(1, 1, 1, 1)
+	if use_sprite and enemy_sprite != null:
+		enemy_sprite.modulate = Color(1, 1, 1, 1)
+		enemy_sprite.play("idle")
 	$CollisionShape2D.set_deferred("disabled", false)
 	update_health_bar()
 	update_body_color()

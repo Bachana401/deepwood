@@ -1,0 +1,21 @@
+Enemy character sprites
+=======================
+
+Source: CraftPix.net — "Tiny RPG Character Asset Pack" (Free)
+  - Tiny RPG Character Asset Pack 01 v2.0 — Free Soldier & Orc
+  - Tiny RPG Character Asset Pack 02 — Free Demon_A & Blood Monster_A
+
+Used here (100x100 per-animation strips, no-shadow variants):
+  orc/           <- Orc
+  soldier/       <- Soldier
+  demon/         <- Demon_A
+  blood_monster/ <- Blood Monster_A
+
+License: CraftPix Free License. Free for use in personal and commercial
+games. You may NOT redistribute or resell these assets as-is (e.g. in an
+asset pack). Attribution to craftpix.net is appreciated/required per their
+terms — see https://craftpix.net/file-licenses/ for the current license.
+
+The original downloads (full packs incl. Aseprite files, combined sheets,
+"with shadows" variants, and arrow projectiles) remain in art/ under their
+original pack folders.
