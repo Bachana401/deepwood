@@ -537,7 +537,11 @@ func build_shadow_aura() -> void:
 		shadow_aura.name = "ShadowAura"
 		shadow_aura.sprite_frames = sf
 		shadow_aura.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		shadow_aura.z_index = -2          # behind the body and its armour
+		# z 0 (NOT negative): a negative z dropped it below the whole world so
+		# buildings/mountains covered it. At z 0 it sits in the player's own draw
+		# plane (above the world, like his body) and is kept BEHIND the body by
+		# child order (move_child below).
+		shadow_aura.z_index = 0
 		shadow_aura.position = Vector2(0, -4)    # the body's visual centre (feet +24, height 56)
 		shadow_aura.visible = false
 		shadow_aura.play("swirl")
@@ -547,7 +551,7 @@ func build_shadow_aura() -> void:
 	# disc pasted behind him.
 	shadow_emit = CPUParticles2D.new()
 	shadow_emit.name = "ShadowEmit"
-	shadow_emit.z_index = -1                 # around/behind the body, in front of the tendril layer
+	shadow_emit.z_index = 0                   # same plane as the body; ordered behind it below
 	shadow_emit.position = Vector2(0, -4)    # the body's visual centre
 	shadow_emit.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
 	shadow_emit.emission_rect_extents = Vector2(10, 26)  # spans head-to-ankles
@@ -574,6 +578,13 @@ func build_shadow_aura() -> void:
 		sh.code = "shader_type canvas_item;\nuniform float pallor : hint_range(0.0,1.0) = 0.0;\nvoid fragment(){\n\tvec4 c = texture(TEXTURE, UV);\n\tfloat g = dot(c.rgb, vec3(0.299,0.587,0.114));\n\tvec3 pale = vec3(g)*1.1 + 0.06;\n\tpale = mix(pale, vec3(0.72,0.74,0.82), 0.25);\n\tCOLOR = vec4(mix(c.rgb, pale, pallor), c.a);\n}"
 		monarch_shader_mat.shader = sh
 		body_anim.material = monarch_shader_mat
+	# Draw order: at equal z the child list decides. Put the aura + wisps just
+	# BEHIND the body so they sit behind him but still in the player's above-world
+	# plane (aura -> wisps -> body).
+	if body_anim != null:
+		if shadow_aura != null:
+			move_child(shadow_aura, body_anim.get_index())
+		move_child(shadow_emit, body_anim.get_index())
 
 func update_shadow_aura(delta: float) -> void:
 	var stage = GameState.monarch_stage()
