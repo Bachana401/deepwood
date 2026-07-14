@@ -511,9 +511,16 @@ var monarch_shader_mat: ShaderMaterial = null
 var _aura_stage := -1
 
 func build_shadow_aura() -> void:
+	# NOTE: load the FULL 128x128 frames directly -- NOT via load_texture(), which
+	# auto-trims + bottom-anchors for characters and would shove this radial aura
+	# off-centre. Keeping the whole canvas means centered=true lands its true
+	# centre behind the body.
 	var frames: Array = []
 	for i in range(1, SHADOW_AURA_FRAMES + 1):
-		var t = load_texture("res://art/shadow_aura_%d.png" % i)
+		var path = "res://art/shadow_aura_%d.png" % i
+		if not ResourceLoader.exists(path):
+			break
+		var t = load(path)
 		if t == null:
 			break
 		frames.append(t)
