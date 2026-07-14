@@ -240,7 +240,8 @@ const HURT_SHAKE_TIME = 0.28
 # frame + procedural motion, so states light up one at a time as you add art.
 const ANIM_DEFS = [
 	{"name": "idle", "fps": 8.0, "loop": true},   # 8-frame fight-stance idle (PixelLab)
-	{"name": "walk", "fps": 9.0, "loop": true},
+	{"name": "walk", "fps": 12.0, "loop": true},          # filled with RUN frames -- A/D reads as running
+	{"name": "run_attack", "fps": 12.0, "loop": true},    # the core loop: running while casting/attacking
 	{"name": "jump", "fps": 8.0, "loop": false},
 	{"name": "fall", "fps": 8.0, "loop": false},
 	{"name": "land", "fps": 14.0, "loop": false},
@@ -319,9 +320,9 @@ func grant_starter_weapons() -> void:
 func ensure_test_items() -> void:
 	ensure_admin_wand()
 	ensure_flight_relics_for_test()
-	# test scaffolding: the two showpiece weapons on hand immediately so they
-	# can be tried without farming dungeon drops. Remove once done testing.
-	for wid in ["exc_ragnarok", "exc_wizardsbane"]:
+	# test scaffolding: the showpiece weapons on hand immediately so they can
+	# be tried without farming dungeon drops. Remove once done testing.
+	for wid in ["exc_ragnarok", "exc_wizardsbane", "wpn_tempest", "exc_doom", "exc_singularity"]:
 		if inventory.get_count(wid) == 0 and active_weapon_id != wid:
 			inventory.add_item(wid, 1)
 	# a load happened -> the UI panels may be showing a stale bag; refresh them
@@ -697,15 +698,21 @@ func current_anim_state() -> String:
 		return "dash"
 	if not is_on_floor():
 		return "jump" if velocity.y < 0.0 else "fall"
+	# Running while casting/attacking is the game's core loop, so it gets its own
+	# animation whenever those frames exist: both palms out, sprinting.
+	var moving = absf(velocity.x) > 12.0
+	var casting = has_weapon() and (mouse_aim_timer > 0.0 or aim_retract_timer > 0.0 or Input.is_action_pressed("attack"))
+	if moving and casting and real_anims.get("run_attack", false):
+		return "run_attack"
 	# Moving the mouse while holding a levitatable item plays the aim/levitation
-	# pose (hand reaches out and holds the object up). When the mouse stops it
-	# stays in "aim" a little longer to play the frames in reverse -- the hand
-	# retracts back -- before finally settling to idle.
+	# pose (hands reach out and hold the object up). When the mouse stops it
+	# stays in "aim" a little longer to play the frames in reverse -- the hands
+	# retract back -- before finally settling to idle.
 	if has_weapon() and (mouse_aim_timer > 0.0 or aim_retract_timer > 0.0):
 		return "aim"
 	if land_timer > 0.0:
 		return "land"
-	if absf(velocity.x) > 12.0:
+	if moving:
 		return "walk"
 	return "idle"
 
@@ -1640,6 +1647,8 @@ func cast_wand_projectile(special: Dictionary) -> void:
 var echo_hit_counter: int = 0
 # Ragnarok Blade: counts strikes so every Nth one erupts.
 var ragnarok_charge: int = 0
+# Singularity Edge: counts strikes so every Nth one collapses a black hole.
+var singularity_counter: int = 0
 
 # The unique effect of the active Excellent weapon, fired on each melee hit.
 func apply_excellent_effect(target: Node2D, damage_dealt: int) -> void:
@@ -1690,6 +1699,25 @@ func apply_excellent_effect(target: Node2D, damage_dealt: int) -> void:
 		if ragnarok_charge >= int(active_def.get("unique_value", 8)):
 			ragnarok_charge = 0
 			unleash_ragnarok()
+		return
+	if effect == "execute":
+		# Doombringer -- delete low-HP fodder outright; bosses take bonus instead
+		if not is_instance_valid(target) or not target.has_method("take_damage"):
+			return
+		if "boss_id" in target:
+			var extra = int(round(damage_dealt * active_def.get("boss_bonus", 0.5)))
+			if extra > 0:
+				target.take_damage(extra)
+		elif "max_health" in target and "health" in target:
+			if float(target.health) <= float(target.max_health) * active_def.get("unique_value", 0.18):
+				spawn_execute_flash(target.global_position)
+				target.take_damage(999999)
+		return
+	if effect == "singularity":
+		# Singularity Edge -- every Nth hit collapses a black hole at the target
+		singularity_counter += 1
+		if singularity_counter % int(active_def.get("unique_value", 5)) == 0 and is_instance_valid(target):
+			collapse_singularity(target.global_position, active_def.get("unique_radius", 320.0), damage_dealt)
 		return
 	if effect == "lifesteal":
 		var heal = int(round(damage_dealt * active_def.get("unique_value", 0.0)))
@@ -1824,6 +1852,73 @@ func spawn_gold_sparks(from_pos: Vector2, gold: int) -> void:
 	tt.tween_property(tag, "global_position:y", tag.global_position.y - 26.0, 0.5)
 	tt.parallel().tween_property(tag, "modulate:a", 0.0, 0.5)
 	tt.tween_callback(tag.queue_free)
+
+# Doombringer execute: a crimson X-slash flashes where a foe is culled.
+func spawn_execute_flash(at_pos: Vector2) -> void:
+	for ang in [0.7, -0.7]:
+		var bar = ColorRect.new()
+		bar.size = Vector2(46, 5)
+		bar.position = Vector2(-23, -2.5)
+		bar.color = Color(0.9, 0.1, 0.15, 0.95)
+		bar.pivot_offset = Vector2(23, 2.5)
+		bar.rotation = ang
+		bar.z_index = 50
+		var holder = Node2D.new()
+		holder.z_index = 50
+		get_parent().add_child(holder)
+		holder.global_position = at_pos
+		holder.add_child(bar)
+		var t = holder.create_tween()
+		t.tween_property(bar, "modulate:a", 0.0, 0.3)
+		t.tween_callback(holder.queue_free)
+
+# Singularity Edge: drag every nearby enemy toward one point, damage them, and
+# paint an imploding purple void there.
+func collapse_singularity(center: Vector2, radius: float, damage_dealt: int) -> void:
+	if has_node("Camera2D"):
+		$Camera2D.shake(7.0, 0.35)
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if center.distance_to(e.global_position) > radius:
+				continue
+			if e.has_method("apply_knockback"):
+				var dx = center.x - e.global_position.x
+				var pull_sign = 1 if dx >= 0.0 else -1
+				e.apply_knockback(pull_sign, min(absf(dx), radius))
+			e.take_damage(int(round(damage_dealt * 1.5)))
+	spawn_singularity_visual(center)
+
+func spawn_singularity_visual(center: Vector2) -> void:
+	# a dark core that swells then implodes, ringed by an inward-collapsing halo
+	var core = Polygon2D.new()
+	core.polygon = _circle_points(26.0, 22)
+	core.color = Color(0.15, 0.02, 0.25, 0.92)
+	core.z_index = 47
+	get_parent().add_child(core)
+	core.global_position = center
+	core.scale = Vector2(0.2, 0.2)
+	var ct = core.create_tween()
+	ct.tween_property(core, "scale", Vector2(1.6, 1.6), 0.22).set_trans(Tween.TRANS_SINE)
+	ct.tween_property(core, "scale", Vector2(0.05, 0.05), 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	ct.parallel().tween_property(core, "modulate:a", 0.0, 0.18)
+	ct.tween_callback(core.queue_free)
+	var halo = Line2D.new()
+	var pts = _circle_points(80.0, 32)
+	pts.append(pts[0])
+	halo.points = pts
+	halo.width = 4.0
+	halo.default_color = Color(0.7, 0.4, 1.0, 0.9)
+	halo.z_index = 47
+	get_parent().add_child(halo)
+	halo.global_position = center
+	var ht = halo.create_tween()
+	ht.tween_property(halo, "scale", Vector2(0.1, 0.1), 0.34).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	ht.parallel().tween_property(halo, "modulate:a", 0.0, 0.34)
+	ht.tween_callback(halo.queue_free)
 
 # Ragnarok Blade eruption: a 12-way slash nova + a meteor barrage raining
 # around the player + a big shockwave ring. The showpiece ultimate.
@@ -1999,11 +2094,13 @@ func animate_bow(stats: Dictionary) -> void:
 	spawn_arrow(stats, get_aim_direction())
 
 func spawn_arrow(stats: Dictionary, aim_dir: Vector2) -> void:
-	# a bow's "special" can fan the shot out (multi_shot) or make every arrow
-	# hunt on its own (homing) -- plain bows fire the single straight arrow
+	# a bow's "special" can fan the shot out (count), make every arrow hunt on
+	# its own (homing), or BOTH (Tempest Bow's storm_shot) -- plain bows fire
+	# the single straight arrow.
 	var special = active_def.get("special", {})
 	var special_type = str(special.get("type", ""))
-	var count = int(special.get("count", 1)) if special_type == "multi_shot" else 1
+	var count = int(special.get("count", 1)) if special.has("count") else 1
+	var homing = bool(special.get("homing", false)) or special_type == "homing"
 	var spread = deg_to_rad(float(special.get("spread_deg", 0.0)))
 	var hover = hover_for_mouse(stats.icon_offset)
 	for i in range(count):
@@ -2015,7 +2112,7 @@ func spawn_arrow(stats: Dictionary, aim_dir: Vector2) -> void:
 		# the Levitate skills), not from the character's body
 		arrow.position = global_position + dir * (hover + 8.0)
 		arrow.setup(dir, int(round(stats.damage * skill_damage_mult("bow"))), stats.knockback_min, stats.knockback_max, 4)
-		arrow.homing = special_type == "homing"
+		arrow.homing = homing
 		get_parent().add_child(arrow)
 
 func cast_wand() -> void:
