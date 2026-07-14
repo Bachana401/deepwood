@@ -987,10 +987,24 @@ func village_morale_multiplier() -> float:
 # and HALTS new births. A THRIVING village is rewarded in kind: stronger defense,
 # faster births, and (see generate_passive_income) up to 1.25x gold.
 const DESPAIR_MORALE := 20               # below 2/10 == the village is in crisis
-const DESPAIR_GRACE_HOURS := 18.0        # crisis must persist this long before deaths begin
-const DESPAIR_HP_DRAIN_PER_HOUR := 6.0   # then hunger eats HP...
-const DESPAIR_HP_REGEN_PER_HOUR := 12.0  # ...but a recovered village heals up again
+const DESPAIR_GRACE_HOURS := 18.0        # crisis must persist this long before it bites
+const DESPAIR_HP_DRAIN_PER_HOUR := 6.0   # then despair grinds the villager down...
+const DESPAIR_HP_REGEN_PER_HOUR := 12.0  # ...but a recovered village pulls them back
 const VILLAGER_MAX_HP := 100.0
+
+# --- Corruption (Step 2): neglect doesn't just kill, it turns villagers evil ---
+# A villager ground all the way down by untended despair (empty larder or
+# rock-bottom morale) doesn't quietly die -- their hope hits zero and they turn
+# DEMONIC, spawning as a siege_enemy that attacks the town from the inside. Each
+# turning heaps extra dread on the whole village (the domino), so a broadly
+# miserable town chains into a powder keg. The player can still save a rotting
+# villager by fixing food/morale before the drain finishes (redemption).
+const SIEGE_ENEMY_SCENE := preload("res://siege_enemy.tscn")
+const DEMON_BASE_HP := 40.0
+const DEMON_BASE_DMG := 9.0
+const DEMON_HP_PER_TIER := 0.30
+const DEMON_DMG_PER_TIER := 0.20
+const CORRUPTION_MORALE_SHOCK := 4.0     # extra town-wide dread per turning (domino)
 
 var low_morale_hours := 0.0
 var villager_hp: Dictionary = {}         # id -> current hp (0..100); absent == full health
@@ -1060,14 +1074,46 @@ func tick_morale_effects(hours_passed: float) -> void:
 			villager_hp[id] = minf(VILLAGER_MAX_HP, hp + hours_passed * DESPAIR_HP_REGEN_PER_HOUR)
 	for id in dead:
 		villager_hp.erase(id)
-		remove_villager_by_id(id)   # starved to death (also grieves the town)
-	# toast the loss, attributing the cause (hunger takes priority when both apply)
+		transform_villager_to_demon(id)   # despair consumes them -> they turn demonic
+	# toast the turning, flavouring by what finally broke them
 	if dead.size() > 0:
-		var cause = "starved to death" if village_is_starving() else "died of despair"
+		var cause = "A starving villager" if village_is_starving() else "A despairing villager"
 		if dead.size() == 1:
-			notify("A villager has " + cause + ".")
+			notify(cause + " has turned into a demon and attacks the village!")
 		else:
-			notify("%d villagers have %s." % [dead.size(), cause])
+			notify("%d villagers have been consumed by despair and turned demonic!" % dead.size())
+
+# A neglected villager's descent completes: spawn a demon where their avatar
+# stands (so it attacks the town from within), then purge the villager and heap
+# extra dread on the town (the domino). If the player is away in the dungeon
+# there's no village to spawn into -- the villager is simply lost to corruption.
+func transform_villager_to_demon(villager_id: String) -> void:
+	var pos = Vector2.ZERO
+	var parent: Node = null
+	for npc in get_tree().get_nodes_in_group("npc"):
+		if npc.villager_id == villager_id:
+			pos = npc.global_position
+			parent = npc.get_parent()
+			break
+	if parent != null and not in_dungeon:
+		_spawn_demon_at(pos, parent)
+	remove_villager_by_id(villager_id)   # roster + mating/school cleanup + avatar + grief
+	# each turning deepens the whole town's dread -> a miserable village chains
+	morale_death_shock = minf(morale_death_shock + CORRUPTION_MORALE_SHOCK, DEATH_SHOCK_MAX)
+
+# Spawn one demon (a reskinned besieger) at a world position, hunting the town.
+func _spawn_demon_at(pos: Vector2, parent: Node) -> void:
+	var tier = current_siege_tier()
+	var demon = SIEGE_ENEMY_SCENE.instantiate()
+	demon.max_health = int(round(DEMON_BASE_HP * (1.0 + (tier - 1) * DEMON_HP_PER_TIER)))
+	demon.attack_damage = int(round(DEMON_BASE_DMG * (1.0 + (tier - 1) * DEMON_DMG_PER_TIER)))
+	demon.reward = 4 + tier
+	demon.global_position = pos
+	parent.add_child(demon)
+	# _ready() defaulted wall to the village wall; clear it so the demon skips the
+	# wall and immediately hunts the nearest villager/player/building (from within)
+	demon.wall = null
+	demon.modulate = Color(1.0, 0.5, 0.55)   # demonic red cast
 
 # Morale swings the village's fighting strength: 0.5x at rock bottom, 1.0x at
 # 5/10, 1.5x when thriving. Demoralized towns bleed in sieges; happy ones hold.
