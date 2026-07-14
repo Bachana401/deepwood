@@ -506,7 +506,9 @@ func build_levitate_aura() -> void:
 # purely visual, the power itself rides get_bonus_total.
 const SHADOW_AURA_FRAMES := 13
 var shadow_aura: AnimatedSprite2D = null
+var shadow_emit: CPUParticles2D = null   # dark wisps pouring OFF his body (the "source")
 var monarch_shader_mat: ShaderMaterial = null
+var _aura_stage := -1
 
 func build_shadow_aura() -> void:
 	var frames: Array = []
@@ -532,6 +534,30 @@ func build_shadow_aura() -> void:
 		shadow_aura.visible = false
 		shadow_aura.play("swirl")
 		add_child(shadow_aura)
+	# Dark shadow wisps that EMIT from his body (a rectangle over the torso) and
+	# stream outward -- this makes HIM read as the source of the shadow, not a
+	# disc pasted behind him.
+	shadow_emit = CPUParticles2D.new()
+	shadow_emit.name = "ShadowEmit"
+	shadow_emit.z_index = -1                 # around/behind the body, in front of the tendril layer
+	shadow_emit.position = Vector2(0, -18)   # centred on the torso
+	shadow_emit.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+	shadow_emit.emission_rect_extents = Vector2(9, 22)   # roughly his silhouette
+	shadow_emit.direction = Vector2(0, -1)
+	shadow_emit.spread = 180.0               # billow out in every direction
+	shadow_emit.gravity = Vector2(0, -10)    # drift up as it dissipates
+	shadow_emit.initial_velocity_min = 8.0
+	shadow_emit.initial_velocity_max = 26.0
+	shadow_emit.lifetime = 0.9
+	shadow_emit.amount = 8
+	shadow_emit.scale_amount_min = 1.4
+	shadow_emit.scale_amount_max = 3.0
+	var ramp = Gradient.new()               # fade dark -> transparent
+	ramp.set_color(0, Color(0.13, 0.04, 0.22, 0.72))
+	ramp.set_color(1, Color(0.05, 0.02, 0.10, 0.0))
+	shadow_emit.color_ramp = ramp
+	shadow_emit.emitting = false
+	add_child(shadow_emit)
 	# paling shader on the body sprite (real desaturation + lift, not just modulate,
 	# so hit-flash / invincibility modulate still layer on top cleanly)
 	if body_anim != null:
@@ -547,15 +573,23 @@ func update_shadow_aura(_delta: float) -> void:
 	if monarch_shader_mat != null:
 		var pallor = clampf((inten - 0.12) / 0.7, 0.0, 1.0) * 0.85
 		monarch_shader_mat.set_shader_parameter("pallor", pallor)
-	if shadow_aura == null:
-		return
-	shadow_aura.visible = stage >= 1
-	if stage < 1:
-		return
-	# the 128px aura grows from a tight wisp to an engulfing storm, and deepens
-	var sc = lerpf(0.32, 1.45, inten)
-	shadow_aura.scale = Vector2(sc, sc)
-	shadow_aura.modulate = Color(1, 1, 1, lerpf(0.55, 1.0, inten))
+	# tendril layer: a subtler accent now (so it no longer reads as a backdrop
+	# disc) -- the emitted wisps below are what sell "he radiates it"
+	if shadow_aura != null:
+		shadow_aura.visible = stage >= 1
+		if stage >= 1:
+			var sc = lerpf(0.30, 1.3, inten)
+			shadow_aura.scale = Vector2(sc, sc)
+			shadow_aura.modulate = Color(1, 1, 1, lerpf(0.32, 0.72, inten))
+	# emitted wisps pouring off his body -- the "source". Reallocate particle
+	# params only when the stage actually changes (amount realloc is not free).
+	if shadow_emit != null:
+		shadow_emit.emitting = stage >= 1
+		if stage != _aura_stage:
+			_aura_stage = stage
+			shadow_emit.amount = maxi(1, int(lerpf(8.0, 46.0, inten)))
+			shadow_emit.initial_velocity_max = lerpf(20.0, 46.0, inten)
+			shadow_emit.scale_amount_max = lerpf(2.4, 4.4, inten)
 
 # Two feathered wings on the character's back, hidden until the Aetherwing
 # relic is equipped. They sit behind the body (z -1) and flap -- fast while
