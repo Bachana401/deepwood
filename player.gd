@@ -530,7 +530,7 @@ func build_shadow_aura() -> void:
 		shadow_aura.sprite_frames = sf
 		shadow_aura.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		shadow_aura.z_index = -2          # behind the body and its armour
-		shadow_aura.position = Vector2(0, -18)   # centred on the torso
+		shadow_aura.position = Vector2(0, -4)    # the body's visual centre (feet +24, height 56)
 		shadow_aura.visible = false
 		shadow_aura.play("swirl")
 		add_child(shadow_aura)
@@ -540,9 +540,9 @@ func build_shadow_aura() -> void:
 	shadow_emit = CPUParticles2D.new()
 	shadow_emit.name = "ShadowEmit"
 	shadow_emit.z_index = -1                 # around/behind the body, in front of the tendril layer
-	shadow_emit.position = Vector2(0, -18)   # centred on the torso
+	shadow_emit.position = Vector2(0, -4)    # the body's visual centre
 	shadow_emit.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
-	shadow_emit.emission_rect_extents = Vector2(9, 22)   # roughly his silhouette
+	shadow_emit.emission_rect_extents = Vector2(10, 26)  # spans head-to-ankles
 	shadow_emit.direction = Vector2(0, -1)
 	shadow_emit.spread = 180.0               # billow out in every direction
 	shadow_emit.gravity = Vector2(0, -10)    # drift up as it dissipates
