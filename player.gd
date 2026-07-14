@@ -499,46 +499,39 @@ func build_levitate_aura() -> void:
 	add_child(levitate_sparkles)
 
 # --- The Shadow Monarch aura (hidden 7-stage passive, see GameState) ---
-# A living shadow of dark tendrils + rising motes behind the body that GROWS with
-# the monarch stage, plus a paling shader that drains the sprite's colour toward
-# corpse-pale as the shadow takes hold. All driven by GameState.monarch_stage()/
-# monarch_intensity() -- purely visual here; the power itself rides get_bonus_total.
-const SHADOW_TENDRILS := 7
-var shadow_aura: Node2D = null
-var shadow_tendrils: Array = []
-var shadow_motes: CPUParticles2D = null
+# A real animated shadow aura (PixelLab, art/shadow_aura_N.png) layered BEHIND
+# the body that GROWS with the monarch stage -- from a tight wisp at 1/7 to an
+# engulfing storm at 7/7 -- plus a paling shader that drains the sprite's colour
+# toward corpse-pale. Driven by GameState.monarch_stage()/monarch_intensity();
+# purely visual, the power itself rides get_bonus_total.
+const SHADOW_AURA_FRAMES := 13
+var shadow_aura: AnimatedSprite2D = null
 var monarch_shader_mat: ShaderMaterial = null
-var shadow_aura_time := 0.0
 
 func build_shadow_aura() -> void:
-	shadow_aura = Node2D.new()
-	shadow_aura.name = "ShadowAura"
-	shadow_aura.z_index = -2   # behind the body and its armour
-	shadow_aura.position = Vector2(0, -8)
-	shadow_aura.visible = false
-	add_child(shadow_aura)
-	for i in range(SHADOW_TENDRILS):
-		var t = Line2D.new()
-		t.width = 3.0
-		t.default_color = Color(0.09, 0.03, 0.16, 0.85)
-		t.joint_mode = Line2D.LINE_JOINT_ROUND
-		t.begin_cap_mode = Line2D.LINE_CAP_ROUND
-		t.end_cap_mode = Line2D.LINE_CAP_ROUND
-		shadow_aura.add_child(t)
-		shadow_tendrils.append(t)
-	shadow_motes = CPUParticles2D.new()
-	shadow_motes.amount = 18
-	shadow_motes.lifetime = 1.1
-	shadow_motes.direction = Vector2(0, -1)
-	shadow_motes.spread = 55.0
-	shadow_motes.gravity = Vector2(0, -14)
-	shadow_motes.initial_velocity_min = 6.0
-	shadow_motes.initial_velocity_max = 22.0
-	shadow_motes.scale_amount_min = 1.0
-	shadow_motes.scale_amount_max = 2.6
-	shadow_motes.color = Color(0.13, 0.04, 0.22, 0.7)
-	shadow_motes.emitting = false
-	shadow_aura.add_child(shadow_motes)
+	var frames: Array = []
+	for i in range(1, SHADOW_AURA_FRAMES + 1):
+		var t = load_texture("res://art/shadow_aura_%d.png" % i)
+		if t == null:
+			break
+		frames.append(t)
+	if not frames.is_empty():
+		var sf = SpriteFrames.new()
+		sf.remove_animation("default")
+		sf.add_animation("swirl")
+		sf.set_animation_loop("swirl", true)
+		sf.set_animation_speed("swirl", 12.0)
+		for tex in frames:
+			sf.add_frame("swirl", tex)
+		shadow_aura = AnimatedSprite2D.new()
+		shadow_aura.name = "ShadowAura"
+		shadow_aura.sprite_frames = sf
+		shadow_aura.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		shadow_aura.z_index = -2          # behind the body and its armour
+		shadow_aura.position = Vector2(0, -18)   # centred on the torso
+		shadow_aura.visible = false
+		shadow_aura.play("swirl")
+		add_child(shadow_aura)
 	# paling shader on the body sprite (real desaturation + lift, not just modulate,
 	# so hit-flash / invincibility modulate still layer on top cleanly)
 	if body_anim != null:
@@ -548,40 +541,21 @@ func build_shadow_aura() -> void:
 		monarch_shader_mat.shader = sh
 		body_anim.material = monarch_shader_mat
 
-func update_shadow_aura(delta: float) -> void:
-	if shadow_aura == null:
-		return
+func update_shadow_aura(_delta: float) -> void:
 	var stage = GameState.monarch_stage()
 	var inten = GameState.monarch_intensity()
-	shadow_aura.visible = stage >= 1
 	if monarch_shader_mat != null:
 		var pallor = clampf((inten - 0.12) / 0.7, 0.0, 1.0) * 0.85
 		monarch_shader_mat.set_shader_parameter("pallor", pallor)
+	if shadow_aura == null:
+		return
+	shadow_aura.visible = stage >= 1
 	if stage < 1:
 		return
-	shadow_aura_time += delta
-	var reach = lerpf(11.0, 48.0, inten)
-	var amp = lerpf(3.0, 15.0, inten)
-	var alpha = lerpf(0.4, 0.95, inten)
-	var wide = lerpf(2.2, 5.5, inten)
-	var n = shadow_tendrils.size()
-	for i in range(n):
-		var t: Line2D = shadow_tendrils[i]
-		t.width = wide
-		t.default_color = Color(0.09, 0.03, 0.16, alpha)
-		var base_ang = TAU * float(i) / float(n) - PI / 2.0
-		var pts = PackedVector2Array()
-		var seg = 6
-		for k in range(seg + 1):
-			var f = float(k) / float(seg)
-			var r = reach * f
-			var wob = sin(shadow_aura_time * 3.0 + i * 1.3 + f * 4.0) * amp * f
-			var x = cos(base_ang) * r + wob
-			var y = sin(base_ang) * r * 0.82 - f * reach * 0.12
-			pts.append(Vector2(x, y))
-		t.points = pts
-	shadow_motes.emitting = true
-	shadow_motes.amount = int(lerpf(6.0, 30.0, inten))
+	# the 128px aura grows from a tight wisp to an engulfing storm, and deepens
+	var sc = lerpf(0.32, 1.45, inten)
+	shadow_aura.scale = Vector2(sc, sc)
+	shadow_aura.modulate = Color(1, 1, 1, lerpf(0.55, 1.0, inten))
 
 # Two feathered wings on the character's back, hidden until the Aetherwing
 # relic is equipped. They sit behind the body (z -1) and flap -- fast while
