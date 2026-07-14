@@ -239,7 +239,7 @@ const HURT_SHAKE_TIME = 0.28
 # player_death_1.png ...). Anything you haven't drawn yet falls back to the idle
 # frame + procedural motion, so states light up one at a time as you add art.
 const ANIM_DEFS = [
-	{"name": "idle", "fps": 2.5, "loop": true},   # slow breathing loop across the idle frames
+	{"name": "idle", "fps": 8.0, "loop": true},   # 8-frame fight-stance idle (PixelLab)
 	{"name": "walk", "fps": 9.0, "loop": true},
 	{"name": "jump", "fps": 8.0, "loop": false},
 	{"name": "fall", "fps": 8.0, "loop": false},
