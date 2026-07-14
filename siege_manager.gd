@@ -54,6 +54,7 @@ func start_live_siege(tier: int) -> void:
 	alive_count = 0
 	for i in range(count):
 		var e = SIEGE_ENEMY_SCENE.instantiate()
+		e.skin = "raider"          # PixelLab goblin marauder art
 		e.max_health = hp
 		e.attack_damage = dmg
 		e.reward = 5 + tier

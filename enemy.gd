@@ -257,12 +257,10 @@ func _build_sprite_visual() -> void:
 	spr.name = "Skin"
 	spr.sprite_frames = EnemySkins.frames_for(sprite_skin)
 	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST   # keep pixel art crisp
-	# Normalise EVERY skin to the same on-screen character height as the approved
-	# CraftPix orc (orc content x SPRITE_SCALE), so PixelLab skins (different frame
-	# sizes) don't come out giant or tiny. Per-archetype "scale" still applies via
-	# the enemy root, keeping golems big and rotfiends small.
-	var target = EnemySkins.content_height("orc") * SPRITE_SCALE
-	var sc = target / EnemySkins.content_height(sprite_skin)
+	# PixelLab skins normalise to a consistent on-screen height (their frames pack
+	# the character tightly); CraftPix strip skins keep their approved fixed scale.
+	# Per-archetype "scale" still applies via the enemy root (golems big, etc).
+	var sc = (EnemySkins.TARGET_HEIGHT / EnemySkins.content_height(sprite_skin)) if EnemySkins.is_per_frame(sprite_skin) else SPRITE_SCALE
 	spr.scale = Vector2(sc, sc)
 	# plant the character's MEASURED feet exactly on this body's ground line:
 	# (feet_px + offset) * sc == SPRITE_GROUND_Y

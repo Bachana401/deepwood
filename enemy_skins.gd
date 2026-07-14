@@ -12,6 +12,15 @@ extends RefCounted
 # SpriteFrames + measurements are cached per skin.
 
 const FRAME_SIZE := 100    # CraftPix strip slice width
+# On-screen character height (px) that PixelLab per-frame skins normalise to, so
+# every generated enemy reads at a consistent, slightly-imposing size vs the
+# ~56px player. (CraftPix strip skins keep their own fixed scale until replaced.)
+const TARGET_HEIGHT := 72.0
+
+# True if this skin ships as PixelLab per-frame PNGs (idle_1.png ...) rather than
+# a CraftPix strip.
+static func is_per_frame(skin: String) -> bool:
+	return ResourceLoader.exists("res://art/enemies/%s/idle_1.png" % skin)
 const ANIMS := {
 	"idle":   {"fps": 8.0,  "loop": true},
 	"walk":   {"fps": 12.0, "loop": true},
@@ -74,34 +83,48 @@ static func frames_for(skin: String) -> SpriteFrames:
 	_cache[skin] = sf
 	return sf
 
-# Content bounding box of the first idle frame, measured from the pixels:
-# {frame_h, top, bottom, height}. Rows are 0..frame_h-1; height = visible pixels.
+# Content bounding box of the FIRST idle frame, measured from the raw source
+# image (NOT AtlasTexture.get_image, which misreads strip regions): {frame_h,
+# top, bottom, height}. For a CraftPix strip only the first FRAME_SIZE columns
+# are scanned; for a PixelLab per-frame PNG the whole image is scanned.
 static func idle_bounds(skin: String) -> Dictionary:
 	if _bounds_cache.has(skin):
 		return _bounds_cache[skin]
 	var res := {"frame_h": float(FRAME_SIZE), "top": 0.0, "bottom": float(FRAME_SIZE - 1), "height": float(FRAME_SIZE)}
-	var frames := _anim_frames(skin, "idle")
-	if not frames.is_empty():
-		var img: Image = frames[0].get_image()
-		if img != null:
-			if img.is_compressed():
-				img.decompress()
-			var w := img.get_width()
-			var h := img.get_height()
-			var top := -1
-			var bot := -1
-			for y in range(h):
-				var hit := false
-				for x in range(w):
-					if img.get_pixel(x, y).a > 0.15:
-						hit = true
-						break
-				if hit:
-					if top < 0:
-						top = y
-					bot = y
-			if top >= 0:
-				res = {"frame_h": float(h), "top": float(top), "bottom": float(bot), "height": float(bot - top + 1)}
+	# Scan the FULL image (per-frame PNG = one frame; strip = every frame at once).
+	# Scanning all frames unions the poses, so a compressed idle breath-frame
+	# doesn't undercount the character's true standing height.
+	var img: Image = null
+	var pf := "res://art/enemies/%s/idle_1.png" % skin
+	if ResourceLoader.exists(pf):
+		var t: Texture2D = load(pf)
+		if t != null:
+			img = t.get_image()
+	else:
+		var sp := "res://art/enemies/%s/idle.png" % skin
+		if ResourceLoader.exists(sp):
+			var t2: Texture2D = load(sp)
+			if t2 != null:
+				img = t2.get_image()
+	if img != null:
+		if img.is_compressed():
+			img.decompress()
+		var w := img.get_width()
+		var h := img.get_height()
+		var top := -1
+		var bot := -1
+		for y in range(h):
+			var hit := false
+			for x in range(w):
+				if img.get_pixel(x, y).a > 0.15:
+					hit = true
+					break
+			if hit:
+				if top < 0:
+					top = y
+				bot = y
+		if top >= 0:
+			res = {"frame_h": float(h), "top": float(top), "bottom": float(bot), "height": float(bot - top + 1)}
 	_bounds_cache[skin] = res
 	return res
 
