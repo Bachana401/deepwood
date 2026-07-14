@@ -242,7 +242,7 @@ One skilled profession per building; School grants these, each unlocks its build
 1. ✅ **Hunger loop** — visible food, eating, starvation, morale hooks (commits `d1e4c6c`/`3fc887d`/`e44604e`). *(Proves the grammar.)*
 2. ✅ **Morale → transformation (v1)** — the demon turn + town-wide domino + rot telegraph (commit `e9359a9`; proximity domino + shrine redemption still to refine). *(The keystone; makes hunger matter and is the killer demo moment.)*
 3. **Hospital + no-regen + roaming nurses + paid player healing + boss-gated potions.**
-4. **Barracks shifts + manual wall defense.**
+4. ✅ **Barracks defenders (v1)** — trained warriors spawn as visible Soldier units that sally out and fight raiders during a live siege (commit `9d651ab`; 2-shift day/night patrol + manual wall assignment still to add).
 5. **Stat / School / mating pipeline (manual).**
 6. **Government automation layer** (turns the manual chores off, scaling).
 7. 🔵 Economy depth (Marketplace/Bank/wages), Shrine, then the **Finale**.
