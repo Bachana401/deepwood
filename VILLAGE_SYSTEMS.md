@@ -188,6 +188,25 @@ Only a maxed, perfect village opens the final floor. (The gate is *why* the harv
 
 **Foreshadowing 🟡** — plant seeds so it feels planned: suspiciously generous tribute/rewards, cryptic dungeon notes, a taunt that the Wizard *wants* you to grow.
 
+### 8b. The Shadow Monarch — the player's true nature 🔒 (foundation built)
+
+The hero is secretly the **Shadow Monarch**; nobody knows. A **hidden 7-stage passive** (never in the skill tree — it just happens) tied to **character level** (cap 100). Each stage: **bigger shadow aura + paler skin + a stacking shadow power.** The two kings mirror each other — the player Shadow Monarch vs the Wizard's fully-fed **Monarch of Despair** (§8).
+
+| Stage | Lv | Look | Power |
+|---|---|---|---|
+| 1/7 | 5 | wisps | **Umbral Touch** lifesteal |
+| 2/7 | 15 | growing, faint pallor | +shadow damage, dash trail |
+| 3/7 | 30 | tendrils, pale | **Shadowstep** (dash i-frames) |
+| 4/7 | 45 | tendrils wrap him | **Dread** fear aura (slow/weaken) |
+| 5/7 | 60 | so pale the **hood rises** | 🔥 **Rise, Shade** — kills raise a temporary shade to fight for you |
+| 6/7 | 80 | living shadow cloak | 🔥 **The Long Dark** — lethal hit → shadow-form (invuln+heal), not death |
+| 7/7 | 100 | **2× size, shadow armor, god** | 🔥 all amplified: permanent shades, 2× lifesteal, shadow nova |
+
+- **Finale reveal 🔒:** 7/7 fully manifests only when the whole village is **dead** (the Harvest, §8) — so **only Orin (Monarch of Despair)** ever sees the true form.
+- **Villagers react at 5–6:** deathly-pale hero → afraid / shy / lost / confused / awed mood lines (`npc.gd`).
+- **Built (v1, commit `2d5da18`):** stage system + `monarch_bonus()` folded into `get_bonus_total` (Shadow Armor 5/7+, +shadow dmg 2/7+, swiftness 3/7+, 7/7 spike), growing shadow-tendril aura + paling shader, ominous per-stage toasts, villager reactions.
+- **To build 🟡:** dash i-frames (3/7), dread slow aura (4/7), **Rise-Shade** army (5/7), **Long-Dark** undying (6/7), the **7/7 2× god-form** + the **hooded pale sprite** (5–6) — both need PixelLab once the base hero is locked.
+
 **Endgame — New Game+ 🔒** — on victory the player finds **time-reversal loot**. **The player and their loot are immune to the rewind** — the world resets but you keep yourself and all your gear. You replay, now able to choose the **Necromancer** (the hidden "???" class already in `skill_tree.gd`). Clean prestige loop; power carries over. *(Finer aftergame detail — e.g. a "true ending" that breaks the cycle — TBD later.)*
 
 ### 8a. Signature item — Soul Split Wand 🔒 (a joke that turns clutch)
