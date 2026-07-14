@@ -59,8 +59,8 @@ func _build() -> void:
 	panel.anchor_bottom = 0.5
 	panel.offset_left = -W / 2.0
 	panel.offset_right = W / 2.0
-	panel.offset_top = -230.0
-	panel.offset_bottom = 230.0
+	panel.offset_top = -268.0
+	panel.offset_bottom = 268.0
 	add_child(panel)
 
 	var title = Label.new()
@@ -121,7 +121,29 @@ func _build() -> void:
 		_notify("Admin: all dungeon levels unlocked."))
 	y += BH + 12.0
 
+	# --- Shadow Monarch (jump character level to each 1..7 stage to see the aura) ---
+	y = _section("SHADOW MONARCH  (set stage / level)", y)
+	var sx = PAD
+	for spec in [["1", 5], ["2", 15], ["3", 30], ["4", 45], ["5", 60], ["6", 80], ["7", 100]]:
+		var lvl = spec[1]
+		_btn(spec[0], sx, y, 38.0, BH, func(): _set_level(lvl))
+		sx += 38.0 + GAP
+	y += BH + GAP
+	_btn("Reset to Lv 1 (no aura)", PAD, y, 200, BH, func(): _set_level(1))
+	y += BH + 12.0
+
 	_btn("Close (P)", PAD, y, W - PAD * 2.0, BH, close)
+
+# Jump the character level so a stage's aura/pallor/power shows instantly.
+func _set_level(lvl: int) -> void:
+	GameState.player_level = lvl
+	GameState.player_xp = 0
+	GameState.skill_points = max(GameState.skill_points, lvl - 1)
+	GameState.announce_monarch_awakening()
+	var pl = _player()
+	if pl and pl.has_method("update_health_display"):
+		pl.update_health_display()   # max HP may scale with level
+	_notify("Admin: level %d  ->  Shadow Monarch %d/7" % [lvl, GameState.monarch_stage()])
 
 func _section(name: String, y: float) -> float:
 	var l = Label.new()
