@@ -509,6 +509,7 @@ var shadow_aura: AnimatedSprite2D = null
 var shadow_emit: CPUParticles2D = null   # dark wisps pouring OFF his body (the "source")
 var monarch_shader_mat: ShaderMaterial = null
 var _aura_stage := -1
+var _aura_pulse := 0.0
 
 func build_shadow_aura() -> void:
 	# NOTE: load the FULL 128x128 frames directly -- NOT via load_texture(), which
@@ -574,23 +575,27 @@ func build_shadow_aura() -> void:
 		monarch_shader_mat.shader = sh
 		body_anim.material = monarch_shader_mat
 
-func update_shadow_aura(_delta: float) -> void:
+func update_shadow_aura(delta: float) -> void:
 	var stage = GameState.monarch_stage()
 	var inten = GameState.monarch_intensity()
 	if monarch_shader_mat != null:
 		var pallor = clampf((inten - 0.12) / 0.7, 0.0, 1.0) * 0.85
 		monarch_shader_mat.set_shader_parameter("pallor", pallor)
-	# Ease HARD so early stages stay a faint whisper and the storm only arrives
-	# near the top (a linear ramp made 1/7 look like 6/7).
+	# SIZE stays a faint whisper early (eased hard); COLOUR/OPACITY ramps up a bit
+	# sooner so it never reads as a dull transparent smudge.
 	var e = pow(inten, 2.0)
-	# tendril layer: a subtle accent (no longer a backdrop disc) -- the emitted
-	# wisps below are what sell "he radiates it"
+	var ci = pow(inten, 1.4)
+	_aura_pulse += delta
+	var breathe = 1.0 + 0.10 * sin(_aura_pulse * 2.6)   # slow living pulse
+	# tendril layer: grows richer + less transparent + a glowing violet cast per
+	# stage, with a gentle breathing pulse so it feels alive
 	if shadow_aura != null:
 		shadow_aura.visible = stage >= 1
 		if stage >= 1:
-			var sc = lerpf(0.12, 1.25, e)
+			var sc = lerpf(0.12, 1.25, e) * (0.97 + 0.03 * sin(_aura_pulse * 2.6))
 			shadow_aura.scale = Vector2(sc, sc)
-			shadow_aura.modulate = Color(1, 1, 1, lerpf(0.12, 0.7, e))
+			var a = clampf(lerpf(0.24, 1.0, ci) * breathe, 0.0, 1.0)
+			shadow_aura.modulate = Color(1.0 + 0.28 * ci, 0.82 - 0.06 * ci, 1.0 + 0.6 * ci, a)
 	# emitted wisps pouring off his body -- the "source". Reallocate particle
 	# params only when the stage actually changes (amount realloc is not free).
 	if shadow_emit != null:
@@ -600,6 +605,9 @@ func update_shadow_aura(_delta: float) -> void:
 			shadow_emit.amount = maxi(1, int(lerpf(2.0, 46.0, e)))
 			shadow_emit.initial_velocity_max = lerpf(9.0, 46.0, e)
 			shadow_emit.scale_amount_max = lerpf(1.3, 4.4, e)
+			# vivid violet that deepens + gets less transparent as the stage climbs
+			shadow_emit.color_ramp.set_color(0, Color(0.52, 0.2, 0.98, lerpf(0.35, 1.0, ci)))
+			shadow_emit.color_ramp.set_color(1, Color(0.16, 0.04, 0.32, 0.0))
 
 # Two feathered wings on the character's back, hidden until the Aetherwing
 # relic is equipped. They sit behind the body (z -1) and flap -- fast while
