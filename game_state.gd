@@ -690,6 +690,15 @@ func village_defense_power() -> float:
 	# morale rides the whole village's fighting spirit up or down
 	return power * morale_defense_multiplier()
 
+# How many trained warriors the Barracks has -- drives how many VISIBLE soldier
+# units sally out to fight during a live siege (see siege_manager.gd).
+func warrior_count() -> int:
+	var n = 0
+	for v in rescued_villagers:
+		if v.get("stat_name", "") == "Warrior" or v.get("role_key", "") == "Barracks":
+			n += 1
+	return n
+
 func tick_sieges(hours_passed: float) -> void:
 	# Leaving for a dungeon abandons any in-progress live battle -- from here on
 	# sieges resolve abstractly until the player is back in the village.

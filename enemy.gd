@@ -104,17 +104,8 @@ var accent_color := Color(0.85, 0.42, 0.3)
 # Optional downloaded-spritesheet skin (CraftPix Tiny RPG packs, see
 # art/enemies/). When an archetype sets "sprite", the plain procedural body is
 # hidden and this AnimatedSprite2D drives idle/walk/attack/hurt/death instead.
-const ENEMY_FRAME_SIZE := 100      # each strip is a row of 100x100 frames
 const SPRITE_SCALE := 0.6          # 100px art -> ~60px (tweak if enemies read too big/small)
 const SPRITE_Y_OFFSET := -4.0      # nudge so the character's feet sit on the floor
-const ENEMY_SKIN_ANIMS := {
-	"idle":   {"file": "idle.png",   "fps": 8.0,  "loop": true},
-	"walk":   {"file": "walk.png",   "fps": 12.0, "loop": true},
-	"attack": {"file": "attack.png", "fps": 12.0, "loop": false},
-	"hurt":   {"file": "hurt.png",   "fps": 14.0, "loop": false},
-	"death":  {"file": "death.png",  "fps": 10.0, "loop": false},
-}
-static var _frames_cache := {}     # skin name -> shared SpriteFrames
 var sprite_skin := ""
 var use_sprite := false
 var enemy_sprite: AnimatedSprite2D = null
@@ -264,7 +255,7 @@ func _build_sprite_visual() -> void:
 	$BowVisual.visible = false
 	var spr := AnimatedSprite2D.new()
 	spr.name = "Skin"
-	spr.sprite_frames = _enemy_frames(sprite_skin)
+	spr.sprite_frames = EnemySkins.frames_for(sprite_skin)
 	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST   # keep pixel art crisp
 	spr.scale = Vector2(SPRITE_SCALE, SPRITE_SCALE)
 	spr.offset = Vector2(0, SPRITE_Y_OFFSET)
@@ -272,33 +263,6 @@ func _build_sprite_visual() -> void:
 	spr.play("idle")
 	add_child(spr)
 	enemy_sprite = spr
-
-# Build (and cache) a SpriteFrames from a skin's strips. Each strip is one row
-# of 100x100 frames; frame count is read from the texture width so nothing is
-# hardcoded per character.
-func _enemy_frames(skin: String) -> SpriteFrames:
-	if _frames_cache.has(skin):
-		return _frames_cache[skin]
-	var sf := SpriteFrames.new()
-	if sf.has_animation("default"):
-		sf.remove_animation("default")
-	for anim in ENEMY_SKIN_ANIMS:
-		var info: Dictionary = ENEMY_SKIN_ANIMS[anim]
-		sf.add_animation(anim)
-		sf.set_animation_loop(anim, info["loop"])
-		sf.set_animation_speed(anim, info["fps"])
-		var tex: Texture2D = load("res://art/enemies/%s/%s" % [skin, info["file"]])
-		if tex == null:
-			continue
-		var count: int = maxi(1, int(tex.get_width() / ENEMY_FRAME_SIZE))
-		var h: int = tex.get_height()
-		for i in range(count):
-			var at := AtlasTexture.new()
-			at.atlas = tex
-			at.region = Rect2(i * ENEMY_FRAME_SIZE, 0, ENEMY_FRAME_SIZE, h)
-			sf.add_frame(anim, at)
-	_frames_cache[skin] = sf
-	return sf
 
 # Pick idle/walk/attack from state each frame, and face the player. (Death and
 # hurt are driven from die()/flash_hit().)

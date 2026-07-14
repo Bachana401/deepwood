@@ -20,8 +20,16 @@ const SPAWN_Y = -70.0
 const DEFAULT_WALL_X = 4700.0
 const SPAWN_STANDOFF = 360.0
 
+# Barracks soldiers: visible defenders that sally out to meet the raiders. Count
+# = trained warriors, capped. They're a bit tankier/harder-hitting than raiders.
+const MAX_SOLDIERS = 6
+const SOLDIER_BASE_HP = 62.0
+const SOLDIER_BASE_DMG = 12.0
+const SOLDIER_SALLY_OFFSET = 130.0   # spawn just outside the wall (west), then charge on
+
 var alive_count = 0
 var siege_number = 0
+var soldiers: Array = []
 var label: Label = null
 
 func _ready() -> void:
@@ -56,6 +64,34 @@ func start_live_siege(tier: int) -> void:
 		alive_count += 1
 
 	notify("A siege begins! Wave %d -- %d attackers (tier %d)." % [siege_number, count, tier])
+	_spawn_barracks_soldiers(tier, face_x, wall)
+
+# The Barracks answers the horn: trained warriors sally out (just west of the
+# wall) as visible Soldier units and charge the raiders. Reuses the siege_enemy
+# body with faction "village" + the soldier sprite skin.
+func _spawn_barracks_soldiers(tier: int, face_x: float, wall) -> void:
+	soldiers.clear()
+	var n = min(GameState.warrior_count(), MAX_SOLDIERS)
+	if n <= 0:
+		return
+	var hp = int(round(SOLDIER_BASE_HP * (1.0 + (tier - 1) * HP_PER_TIER)))
+	var dmg = int(round(SOLDIER_BASE_DMG * (1.0 + (tier - 1) * DMG_PER_TIER)))
+	for i in range(n):
+		var s = SIEGE_ENEMY_SCENE.instantiate()
+		s.faction = "village"
+		s.skin = "soldier"
+		s.max_health = hp
+		s.attack_damage = dmg
+		s.wall = wall
+		s.facing = -1
+		s.global_position = Vector2(face_x - SOLDIER_SALLY_OFFSET - i * randf_range(30.0, 55.0), SPAWN_Y)
+		s.died.connect(_on_soldier_died.bind(s))
+		get_parent().add_child(s)
+		soldiers.append(s)
+	notify("%d soldier%s march out from the Barracks!" % [n, "" if n == 1 else "s"])
+
+func _on_soldier_died(s) -> void:
+	soldiers.erase(s)
 
 func _on_enemy_died() -> void:
 	alive_count -= 1
@@ -67,6 +103,11 @@ func end_siege() -> void:
 	var wall = get_tree().get_first_node_in_group("village_wall")
 	if wall and wall.has_method("repair_fully"):
 		wall.repair_fully()
+	# surviving soldiers march back to the Barracks
+	for s in soldiers:
+		if is_instance_valid(s):
+			s.queue_free()
+	soldiers.clear()
 	GameState.on_live_siege_ended()
 	notify("Siege repelled! The walls are patched up.")
 

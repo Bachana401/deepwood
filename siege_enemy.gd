@@ -31,8 +31,17 @@ var wall: Node2D = null
 var attack_cooldown_remaining = 0.0
 var facing = 1
 
+# Faction: "raider" (default) marches on the wall/village; "village" is a
+# Barracks soldier that sallies out and fights the raiders instead. Set (with
+# an optional sprite skin from art/enemies/) before add_child.
+var faction := "raider"
+var skin := ""
+const MELEE_ENGAGE_RANGE := 66.0   # a raider fights an in-its-face soldier over the wall
+
 var body: Node2D = null
 var body_rect: ColorRect = null
+var skin_sprite: AnimatedSprite2D = null
+var skin_attack_timer := 0.0
 var health_bar_bg: ColorRect = null
 var health_bar_fill: ColorRect = null
 
@@ -41,9 +50,15 @@ var health_bar_fill: ColorRect = null
 const DEFENDER_GROUPS = ["village_defender", "npc", "player", "building"]
 
 func _ready() -> void:
-	add_to_group("siege_enemy")
-	collision_layer = 4   # same as course enemies -> player weapons hit it
-	collision_mask = 1    # collide with ground only
+	if faction == "village":
+		# a friendly Barracks soldier: raiders target it (village_defender), and
+		# it is NOT in "siege_enemy" and NOT on the player-weapon layer.
+		add_to_group("village_defender")
+		collision_layer = 0
+	else:
+		add_to_group("siege_enemy")
+		collision_layer = 4   # course-enemy layer -> the player's weapons hit it
+	collision_mask = 1        # collide with ground only
 	health = max_health
 
 	var shape = CollisionShape2D.new()
@@ -56,7 +71,10 @@ func _ready() -> void:
 	if wall == null:
 		wall = get_tree().get_first_node_in_group("village_wall")
 
-	build_visual()
+	if skin != "":
+		build_skin_visual()
+	else:
+		build_visual()
 	build_health_bar()
 
 func _physics_process(delta: float) -> void:
@@ -71,13 +89,19 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		return
 
+	if skin_attack_timer > 0.0:
+		skin_attack_timer -= delta
+
 	var target = current_target()
 	if target == null:
-		velocity.x = SPEED   # nothing to hit yet -> keep marching into the village
+		# nothing to hit yet -> raiders push into the village (+x), soldiers march
+		# out to meet them (-x)
+		velocity.x = SPEED if faction == "raider" else -SPEED
 	else:
+		# approach the target from whichever side we're on, then attack
 		var stop_x = target_stop_x(target)
-		if global_position.x < stop_x:
-			velocity.x = SPEED
+		if absf(stop_x - global_position.x) > 2.0:
+			velocity.x = signf(stop_x - global_position.x) * SPEED
 		else:
 			velocity.x = 0.0
 			try_attack(target)
@@ -88,13 +112,21 @@ func _physics_process(delta: float) -> void:
 		facing = -1
 	if body:
 		body.scale.x = facing
+	if skin_sprite:
+		_update_skin_anim()
 	move_and_slide()
 
-# Wall first (while it stands); after a breach, the nearest reachable defender.
+# Raider: the wall while it stands, but retaliate against a soldier already in
+# its face; then the nearest defender. Village soldier: the nearest raider.
 func current_target() -> Node2D:
+	if faction == "village":
+		return nearest_raider()
+	var d = nearest_defender()
+	if d != null and global_position.distance_to(d.global_position) <= MELEE_ENGAGE_RANGE:
+		return d
 	if is_instance_valid(wall) and not wall.breached:
 		return wall
-	return nearest_defender()
+	return d
 
 func nearest_defender() -> Node2D:
 	var best: Node2D = null
@@ -111,10 +143,26 @@ func nearest_defender() -> Node2D:
 				best = d
 	return best
 
+# A soldier's target: the nearest living raider.
+func nearest_raider() -> Node2D:
+	var best: Node2D = null
+	var best_d = DEFENDER_SEEK_RANGE
+	for r in get_tree().get_nodes_in_group("siege_enemy"):
+		if not is_instance_valid(r) or ("is_dead" in r and r.is_dead):
+			continue
+		var dist = global_position.distance_to(r.global_position)
+		if dist < best_d:
+			best_d = dist
+			best = r
+	return best
+
 func target_stop_x(target: Node2D) -> float:
 	if target == wall and is_instance_valid(wall):
 		return wall.west_face_x() - ATTACK_STOP_GAP
-	return target.global_position.x - ATTACK_STOP_GAP
+	# plant on whichever side we're approaching from
+	if global_position.x <= target.global_position.x:
+		return target.global_position.x - ATTACK_STOP_GAP
+	return target.global_position.x + ATTACK_STOP_GAP
 
 func try_attack(target: Node2D) -> void:
 	if attack_cooldown_remaining > 0.0 or not is_instance_valid(target):
@@ -125,6 +173,7 @@ func try_attack(target: Node2D) -> void:
 	attack_cooldown_remaining = ATTACK_COOLDOWN
 	if target.has_method("take_damage"):
 		target.take_damage(attack_damage)
+	skin_attack_timer = 0.4
 	animate_attack()
 
 func animate_attack() -> void:
@@ -153,6 +202,10 @@ func apply_knockback(direction_sign: int, distance: float) -> void:
 	is_knocked_back = false
 
 func flash_hit() -> void:
+	if skin_sprite != null:
+		skin_sprite.modulate = Color(2.4, 2.4, 2.4)
+		skin_sprite.create_tween().tween_property(skin_sprite, "modulate", Color(1, 1, 1), 0.15)
+		return
 	if not body_rect:
 		return
 	var base = body_rect.color
@@ -162,6 +215,13 @@ func flash_hit() -> void:
 
 func die() -> void:
 	is_dead = true
+	if faction == "village":
+		# a fallen soldier is the town's loss, not a payout to the player
+		var stack = get_tree().get_first_node_in_group("notification_stack")
+		if stack:
+			stack.show_notification("A village soldier has fallen defending the wall.")
+		_finish_death()
+		return
 	var player = get_tree().get_first_node_in_group("player")
 	if player and player.has_method("add_currency"):
 		player.add_currency(reward)
@@ -171,9 +231,45 @@ func die() -> void:
 		if stack:
 			stack.show_notification("Salvaged " + Inventory.get_display_name(smat) + " from the raider.")
 	GameState.add_xp(6)
+	_finish_death()
+
+# Play the death animation (if skinned) then remove the unit.
+func _finish_death() -> void:
 	spawn_death_particles()
 	died.emit()
+	if skin_sprite != null:
+		skin_sprite.play("death")
+		var t = skin_sprite.create_tween()
+		t.tween_property(skin_sprite, "modulate:a", 0.0, 0.45).set_delay(0.18)
+		await t.finished
 	queue_free()
+
+# --- Sprite skin (shared with dungeon enemies via EnemySkins) ---
+const SKIN_SCALE := 0.62
+const SKIN_Y_OFFSET := -4.0
+
+func build_skin_visual() -> void:
+	body = Node2D.new()
+	add_child(body)
+	skin_sprite = AnimatedSprite2D.new()
+	skin_sprite.sprite_frames = EnemySkins.frames_for(skin)
+	skin_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	skin_sprite.scale = Vector2(SKIN_SCALE, SKIN_SCALE)
+	skin_sprite.offset = Vector2(0, SKIN_Y_OFFSET)
+	skin_sprite.animation = "idle"
+	skin_sprite.play("idle")
+	body.add_child(skin_sprite)
+
+func _update_skin_anim() -> void:
+	if skin_sprite == null:
+		return
+	var want := "idle"
+	if skin_attack_timer > 0.0:
+		want = "attack"
+	elif absf(velocity.x) > 5.0:
+		want = "walk"
+	if skin_sprite.animation != want:
+		skin_sprite.play(want)
 
 func spawn_death_particles() -> void:
 	var particles = CPUParticles2D.new()
