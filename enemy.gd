@@ -48,14 +48,15 @@ const WEAPONS = {
 # enemy body (color/size), picks its weapon mix, and nudges the base stats so
 # the flavor is felt in combat, not just visually.
 const ENEMY_ROSTERS = [
-	# 0 -- Orcs (levels 1-5): balanced weapon mix. [sprite skin]
-	{"name": "Orc", "color": Color(0.33, 0.4, 0.29), "accent": Color(0.7, 1.0, 0.45), "scale": 1.0, "shape": "grunt", "sprite": "orc", "weapons": ["sword", "spear", "bow"], "hp_mult": 1.0, "dmg_mult": 1.0, "speed_mult": 1.0},
-	# 1 -- Blood Fiends (6-10): fast skirmishers. [sprite skin]
-	{"name": "Blood Fiend", "color": Color(0.4, 0.5, 0.6), "accent": Color(0.7, 0.92, 1.0), "scale": 0.92, "shape": "frost", "sprite": "blood_monster", "weapons": ["spear", "bow"], "hp_mult": 0.85, "dmg_mult": 1.0, "speed_mult": 1.22},
-	# 2 -- Demons (11-15): hit hard but slow. [sprite skin]
+	# 0 -- Orcs (levels 1-5): melee brutes (sprite swings a cleaver -> no bows).
+	{"name": "Orc", "color": Color(0.33, 0.4, 0.29), "accent": Color(0.7, 1.0, 0.45), "scale": 1.0, "shape": "grunt", "sprite": "orc", "weapons": ["sword", "spear"], "hp_mult": 1.0, "dmg_mult": 1.0, "speed_mult": 1.0},
+	# 1 -- Blood Fiends (6-10): fast melee skirmishers (claw/lunge sprite).
+	{"name": "Blood Fiend", "color": Color(0.4, 0.5, 0.6), "accent": Color(0.7, 0.92, 1.0), "scale": 0.92, "shape": "frost", "sprite": "blood_monster", "weapons": ["spear", "sword"], "hp_mult": 0.85, "dmg_mult": 1.0, "speed_mult": 1.22},
+	# 2 -- Demons (11-15): heavy melee, hit hard but slow.
 	{"name": "Demon", "color": Color(0.2, 0.15, 0.15), "accent": Color(1.0, 0.5, 0.12), "scale": 1.12, "shape": "ember", "sprite": "demon", "weapons": ["sword", "spear"], "hp_mult": 1.3, "dmg_mult": 1.18, "speed_mult": 0.88},
-	# 3 -- Fallen Soldiers (16-20): fast, archers among them. [sprite skin]
-	{"name": "Fallen Soldier", "color": Color(0.32, 0.22, 0.42), "accent": Color(0.7, 0.4, 1.0), "scale": 0.9, "shape": "wraith", "sprite": "soldier", "weapons": ["bow", "bow", "sword"], "hp_mult": 0.78, "dmg_mult": 1.0, "speed_mult": 1.32},
+	# 3 -- Wraiths (16-20): spectral fast archers (procedural; the Soldier sprite
+	# is reserved for the village Barracks, not a dungeon enemy).
+	{"name": "Wraith", "color": Color(0.32, 0.22, 0.42), "accent": Color(0.7, 0.4, 1.0), "scale": 0.9, "shape": "wraith", "weapons": ["bow", "bow", "sword"], "hp_mult": 0.78, "dmg_mult": 1.0, "speed_mult": 1.32},
 	# 4 -- Bone Golems (21-25): huge tomb-bone tanks, slow, pure melee.
 	{"name": "Bone Golem", "color": Color(0.52, 0.5, 0.44), "accent": Color(0.86, 0.84, 0.72), "scale": 1.28, "shape": "stone", "weapons": ["sword"], "hp_mult": 1.7, "dmg_mult": 1.22, "speed_mult": 0.78},
 	# 5 -- Rotfiends (26-30): small, fast, diseased jabbers.
