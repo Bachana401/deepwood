@@ -246,7 +246,10 @@ func _finish_death() -> void:
 
 # --- Sprite skin (shared with dungeon enemies via EnemySkins) ---
 const SKIN_SCALE := 0.62
-const SKIN_Y_OFFSET := -4.0
+# This body's ORIGIN IS AT THE FEET (collision spans -40..0), while the 100px
+# frames are drawn centered -- so the character in the frame (feet ~25px below
+# the frame centre) must be lifted by that much or it renders half-sunk.
+const SKIN_Y_OFFSET := -25.0
 
 func build_skin_visual() -> void:
 	body = Node2D.new()
@@ -321,7 +324,8 @@ func build_health_bar() -> void:
 	health_bar_bg.z_index = 20
 	add_child(health_bar_bg)
 	health_bar_fill = ColorRect.new()
-	health_bar_fill.color = Color(0.85, 0.2, 0.2, 1.0)
+	# friendly units read green at a glance; hostiles red
+	health_bar_fill.color = Color(0.25, 0.8, 0.3, 1.0) if faction == "village" else Color(0.85, 0.2, 0.2, 1.0)
 	health_bar_fill.size = Vector2(34, 5)
 	health_bar_fill.position = Vector2(-17, -54)
 	health_bar_fill.z_index = 21

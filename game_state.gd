@@ -690,11 +690,14 @@ func village_defense_power() -> float:
 	# morale rides the whole village's fighting spirit up or down
 	return power * morale_defense_multiplier()
 
-# How many trained warriors the Barracks has -- drives how many VISIBLE soldier
-# units sally out to fight during a live siege (see siege_manager.gd).
+# How many TRAINED warriors the Barracks has -- drives how many VISIBLE soldier
+# units sally out to fight during a live siege (see siege_manager.gd). Recruits
+# still in training (role_title "Recruit") don't fight yet.
 func warrior_count() -> int:
 	var n = 0
 	for v in rescued_villagers:
+		if v.get("role_title", "") == "Recruit":
+			continue
 		if v.get("stat_name", "") == "Warrior" or v.get("role_key", "") == "Barracks":
 			n += 1
 	return n
@@ -1110,10 +1113,13 @@ func transform_villager_to_demon(villager_id: String) -> void:
 	# each turning deepens the whole town's dread -> a miserable village chains
 	morale_death_shock = minf(morale_death_shock + CORRUPTION_MORALE_SHOCK, DEATH_SHOCK_MAX)
 
-# Spawn one demon (a reskinned besieger) at a world position, hunting the town.
+# Spawn one demon at a world position, hunting the town. Wears the downloaded
+# demon sprite (art/enemies/demon) so a corrupted villager visibly becomes a
+# DEMON -- not a lookalike of the hooded siege raiders.
 func _spawn_demon_at(pos: Vector2, parent: Node) -> void:
 	var tier = current_siege_tier()
 	var demon = SIEGE_ENEMY_SCENE.instantiate()
+	demon.skin = "demon"
 	demon.max_health = int(round(DEMON_BASE_HP * (1.0 + (tier - 1) * DEMON_HP_PER_TIER)))
 	demon.attack_damage = int(round(DEMON_BASE_DMG * (1.0 + (tier - 1) * DEMON_DMG_PER_TIER)))
 	demon.reward = 4 + tier
@@ -1122,7 +1128,6 @@ func _spawn_demon_at(pos: Vector2, parent: Node) -> void:
 	# _ready() defaulted wall to the village wall; clear it so the demon skips the
 	# wall and immediately hunts the nearest villager/player/building (from within)
 	demon.wall = null
-	demon.modulate = Color(1.0, 0.5, 0.55)   # demonic red cast
 
 # Morale swings the village's fighting strength: 0.5x at rock bottom, 1.0x at
 # 5/10, 1.5x when thriving. Demoralized towns bleed in sieges; happy ones hold.
