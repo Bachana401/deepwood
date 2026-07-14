@@ -8,12 +8,13 @@ const DASH_DURATION = 0.15
 const DOUBLE_TAP_WINDOW = 0.3
 const DASH_COOLDOWN = 0.5
 
-# Dev/admin-only traversal dash bound to T -- always available (no purchase,
-# no cooldown) so I can fly around the map fast while testing, independent
-# of the player's normal purchasable Dash ability. Also grants invincibility
-# for the dash itself plus ADMIN_DASH_INVINCIBILITY_SECONDS afterward.
-const ADMIN_DASH_SPEED = DASH_SPEED * 7.0
-const ADMIN_DASH_INVINCIBILITY_SECONDS = 10.0
+# Blink-dash bound to T -- now a REAL player ability granted only by the
+# Shadowstep Sigil relic (relic_power "blink"), not an always-on admin power.
+# Speed was halved (was 7x DASH_SPEED, far too OP) and the old 10-second
+# god-mode invulnerability is now a short dodge i-frame, so it plays like a
+# proper dodge-roll instead of "press T to be immortal".
+const ADMIN_DASH_SPEED = DASH_SPEED * 3.5
+const ADMIN_DASH_INVINCIBILITY_SECONDS = 0.6
 
 const ARROW_SCENE = preload("res://arrow.tscn")
 
@@ -77,12 +78,11 @@ const CURRENCY_PICKUP_SCRIPT = preload("res://currency_pickup.gd")
 # the boomerang...) -- launched by perform_attack from a weapon's "special".
 const WEAPON_PROJECTILE_SCRIPT = preload("res://weapon_projectile.gd")
 
-# 25 slots (5 rows of 5). 15 stopped fitting once the gathering tools joined
-# the starter kit (8 weapons/tools + 3 coin stacks + 5 sample gear = 16 stacks
-# on a brand-new save); the weapon arsenal has since grown past 20 collectible
-# weapons, so a hoarder needs the extra row. The inventory panel sizes itself
-# from this (see inventory_ui.build_slots).
-const INVENTORY_CAPACITY = 25
+# 40 slots (8 rows of 5). The catalog keeps growing (30+ weapons, 20+ relics),
+# and the test backfill drops a big pile of showpiece gear in at once, so the
+# bag needs headroom. The inventory panel sizes itself from this (see
+# inventory_ui.build_slots).
+const INVENTORY_CAPACITY = 40
 # 9999 starting gold was a debug leftover from before real inventory slots
 # existed -- at 999/stack that alone would fill 10 of 15 slots on a brand
 # new save. Dropped to a sane starting amount now that currency is a real
@@ -238,16 +238,19 @@ const HURT_SHAKE_TIME = 0.28
 # fill any of them (e.g. player_walk_1.png, player_walk_2.png, player_jump_1.png,
 # player_death_1.png ...). Anything you haven't drawn yet falls back to the idle
 # frame + procedural motion, so states light up one at a time as you add art.
+# NOTE (developer decision 2026-07-14): attacking / mouse movement plays NO
+# body animation -- the weapon's own visuals carry the attack. The body only
+# ever plays movement states. Each jump in the chain gets its own animation.
 const ANIM_DEFS = [
 	{"name": "idle", "fps": 8.0, "loop": true},   # 8-frame fight-stance idle (PixelLab)
-	{"name": "walk", "fps": 12.0, "loop": true},          # filled with RUN frames -- A/D reads as running
-	{"name": "run_attack", "fps": 12.0, "loop": true},    # the core loop: running while casting/attacking
-	{"name": "jump", "fps": 8.0, "loop": false},
+	{"name": "walk", "fps": 12.0, "loop": true},  # filled with RUN frames -- A/D reads as running
+	{"name": "jump", "fps": 8.0, "loop": false},  # first jump
+	{"name": "jump2", "fps": 10.0, "loop": false},# double jump (its own animation)
+	{"name": "jump3", "fps": 10.0, "loop": false},# triple jump (its own animation, future skill)
 	{"name": "fall", "fps": 8.0, "loop": false},
 	{"name": "land", "fps": 14.0, "loop": false},
 	{"name": "dash", "fps": 12.0, "loop": false},
 	{"name": "hurt", "fps": 12.0, "loop": false},
-	{"name": "aim", "fps": 7.0, "loop": false},   # mouse-move levitation: hand reaches, then holds the orb up while aiming
 	{"name": "death", "fps": 8.0, "loop": false},
 ]
 var body_anim: AnimatedSprite2D = null
@@ -255,6 +258,7 @@ var body_visual: CanvasItem = null
 var anim_base_y = 0.0
 var base_scale := Vector2.ONE
 var real_anims: Dictionary = {}  # which states have their own frames (vs idle fallback)
+var current_jump_anim := "jump"  # which jump of the chain is playing (jump / jump2 / jump3)
 var was_on_floor := true
 var land_timer := 0.0
 var hurt_timer := 0.0
@@ -311,7 +315,9 @@ func _ready() -> void:
 # 8=axe, 9=pickaxe). Set gear and the newer Excellent weapons are NOT granted
 # -- they drop from dungeon bosses (see dungeon_interior.gd roll_gear_drop).
 func grant_starter_weapons() -> void:
-	for item_id in ["wpn_sword", "wpn_spear", "wpn_bow", "wpn_wand", "exc_vampiric", "exc_thunder", "wpn_admin_ruin", "tool_axe", "tool_pickaxe"]:
+	# NB: wpn_wand (classic screen-nuke) is intentionally NOT here -- it's an
+	# admin/test item, not a player weapon (see inventory.gd + shop_ui.gd).
+	for item_id in ["wpn_sword", "wpn_spear", "wpn_bow", "exc_vampiric", "exc_thunder", "wpn_admin_ruin", "tool_axe", "tool_pickaxe"]:
 		inventory.add_item(item_id, 1)
 
 # All the guaranteed-for-testing items in one call, safe to run repeatedly.
@@ -320,11 +326,18 @@ func grant_starter_weapons() -> void:
 func ensure_test_items() -> void:
 	ensure_admin_wand()
 	ensure_flight_relics_for_test()
-	# test scaffolding: the showpiece weapons on hand immediately so they can
-	# be tried without farming dungeon drops. Remove once done testing.
-	for wid in ["exc_ragnarok", "exc_wizardsbane", "wpn_tempest", "exc_doom", "exc_singularity"]:
-		if inventory.get_count(wid) == 0 and active_weapon_id != wid:
-			inventory.add_item(wid, 1)
+	# test scaffolding: the showpiece weapons + OP relics on hand immediately so
+	# they can be tried without farming dungeon drops. Remove once done testing.
+	var test_gear = [
+		"exc_ragnarok", "exc_wizardsbane", "wpn_tempest", "exc_doom", "exc_singularity",
+		"exc_worldsplitter", "exc_dawnbreaker",
+		"relic_godheart", "relic_warlord", "relic_fortune", "relic_celerity",
+		"relic_phoenix", "relic_thorns", "relic_aegis", "relic_vampire", "relic_juggernaut",
+	]
+	var equipped_ids = GameState.get_equipped_item_ids()
+	for gid in test_gear:
+		if inventory.get_count(gid) == 0 and active_weapon_id != gid and not (gid in equipped_ids):
+			inventory.add_item(gid, 1)
 	# a load happened -> the UI panels may be showing a stale bag; refresh them
 	var inv_ui = get_tree().get_first_node_in_group("inventory_ui")
 	if inv_ui and inv_ui.has_method("refresh"):
@@ -349,13 +362,16 @@ func ensure_admin_wand() -> void:
 # dungeon_interior.gd GEAR_RELIC_IDS. Remove this once flight is dialed in.)
 func ensure_flight_relics_for_test() -> void:
 	var equipped = GameState.get_equipped_item_ids()
-	for rid in ["relic_wings", "relic_feather"]:
+	for rid in ["relic_wings", "relic_feather", "relic_blink"]:
 		if inventory.get_count(rid) == 0 and not (rid in equipped):
 			inventory.add_item(rid, 1)
-	if not ("relic_wings" in equipped) and inventory.get_count("relic_wings") > 0:
-		var slot = GameState.first_empty_relic_slot()
-		if slot >= 0:
-			GameState.equip_item("relic_wings", self, slot)
+	# auto-equip the flight wings + Shadowstep Sigil so flight (Space) and the
+	# blink-dash (T) both work immediately for testing
+	for rid in ["relic_wings", "relic_blink"]:
+		if not (rid in GameState.get_equipped_item_ids()) and inventory.get_count(rid) > 0:
+			var slot = GameState.first_empty_relic_slot()
+			if slot >= 0:
+				GameState.equip_item(rid, self, slot)
 
 # Temporary: sample armor + relics so the equipment panel is usable. Weapons
 # are granted separately (grant_starter_weapons). Replaced by loot later.
@@ -697,22 +713,14 @@ func current_anim_state() -> String:
 	if is_dashing:
 		return "dash"
 	if not is_on_floor():
-		return "jump" if velocity.y < 0.0 else "fall"
-	# Running while casting/attacking is the game's core loop, so it gets its own
-	# animation whenever those frames exist: both palms out, sprinting.
-	var moving = absf(velocity.x) > 12.0
-	var casting = has_weapon() and (mouse_aim_timer > 0.0 or aim_retract_timer > 0.0 or Input.is_action_pressed("attack"))
-	if moving and casting and real_anims.get("run_attack", false):
-		return "run_attack"
-	# Moving the mouse while holding a levitatable item plays the aim/levitation
-	# pose (hands reach out and hold the object up). When the mouse stops it
-	# stays in "aim" a little longer to play the frames in reverse -- the hands
-	# retract back -- before finally settling to idle.
-	if has_weapon() and (mouse_aim_timer > 0.0 or aim_retract_timer > 0.0):
-		return "aim"
+		# each jump in the chain has its own animation (jump / jump2 / jump3);
+		# fall back to the plain jump if that variant has no frames yet
+		if velocity.y < 0.0:
+			return current_jump_anim if real_anims.get(current_jump_anim, false) else "jump"
+		return "fall"
 	if land_timer > 0.0:
 		return "land"
-	if moving:
+	if absf(velocity.x) > 12.0:
 		return "walk"
 	return "idle"
 
@@ -738,31 +746,12 @@ func update_body_anim(delta: float) -> void:
 		land_timer -= delta
 	if hurt_timer > 0.0:
 		hurt_timer -= delta
-	# aim plays FORWARD (reach->orb) while the mouse moves; the moment it stops,
-	# run the same frames BACKWARDS (orb->reach) so the hand visibly retracts,
-	# then settle to idle.
-	var aiming = has_weapon() and mouse_aim_timer > 0.0
-	if mouse_aim_timer > 0.0:
-		mouse_aim_timer -= delta
-	if aim_retract_timer > 0.0:
-		aim_retract_timer -= delta
-	if aim_was_forward and not aiming:
-		aim_retract_timer = _aim_length()   # mouse just stopped -> begin the retract
-	aim_was_forward = aiming
+	# (2026-07-14) attacking / mouse movement no longer plays any body animation
+	# -- the weapon's own visuals carry the attack; the body just moves.
 
 	var state = current_anim_state()
-	if state == "aim":
-		if aiming:
-			if body_anim.animation != "aim" or aim_reversed:
-				body_anim.play("aim")            # (re)extend forward
-				aim_reversed = false
-		elif not aim_reversed:
-			body_anim.play_backwards("aim")      # retract: run it in reverse
-			aim_reversed = true
-	else:
-		if body_anim.animation != state:
-			body_anim.play(state)
-		aim_reversed = false
+	if body_anim.animation != state:
+		body_anim.play(state)
 	body_anim.flip_h = facing_direction < 0
 
 	# If this state has its OWN drawn frames, let them do the work -- no
@@ -863,15 +852,61 @@ func get_max_health() -> int:
 
 # `weapon` is a weapon_type: "melee" | "spear" | "bow" | "wand".
 func skill_damage_mult(weapon: String) -> float:
+	var base := 1.0
 	if weapon == "melee" or weapon == "spear":
-		return 1.0 + GameState.get_bonus_total("melee_damage")
-	if weapon == "bow":
-		return 1.0 + GameState.get_bonus_total("bow_damage")
-	if weapon == "wand":
+		base = 1.0 + GameState.get_bonus_total("melee_damage")
+	elif weapon == "bow":
+		base = 1.0 + GameState.get_bonus_total("bow_damage")
+	elif weapon == "wand":
 		# scales the Mage's PROJECTILE wands (Emberstaff etc.); the classic
 		# nuke wand doesn't deal numeric damage so it ignores this.
-		return 1.0 + GameState.get_bonus_total("wand_damage")
-	return 1.0
+		base = 1.0 + GameState.get_bonus_total("wand_damage")
+	# Warrior's Feast and other food buffs add flat damage to every weapon
+	base += buff_bonus("all_damage")
+	# Juggernaut Idol (berserk): the lower your HP, the harder you hit, ramping
+	# to +relic_value at 1 HP.
+	if has_relic_power("berserk"):
+		var missing = clamp(1.0 - float(health) / float(get_max_health()), 0.0, 1.0)
+		base += relic_power_value("berserk", 0.5) * missing
+	return base
+
+# --- Crit ---
+# Everyone has a small base crit; gear/relics/skills (crit_chance/crit_damage)
+# and food (Sage's Supper) stack on top. Rolled per hit in roll_crit.
+const BASE_CRIT_CHANCE = 0.05
+const BASE_CRIT_DAMAGE = 0.5
+
+func get_crit_chance() -> float:
+	return clamp(BASE_CRIT_CHANCE + GameState.get_bonus_total("crit_chance") + buff_bonus("crit_chance"), 0.0, 1.0)
+
+func get_crit_damage() -> float:
+	return BASE_CRIT_DAMAGE + GameState.get_bonus_total("crit_damage")
+
+# Rolls a crit against a base amount. Returns [final_amount, is_crit].
+func roll_crit(base: int) -> Array:
+	if base > 0 and randf() < get_crit_chance():
+		return [int(round(base * (1.0 + get_crit_damage()))), true]
+	return [base, false]
+
+# Pop a floating damage number over a struck enemy.
+func show_hit(target: Node2D, amount: int, is_crit: bool) -> void:
+	if is_instance_valid(target):
+		FloatingText.spawn(get_parent(), target.global_position, amount, is_crit)
+
+# --- Timed buffs (from food). active_buffs[key] = {"v": amount, "until": t}. ---
+var active_buffs: Dictionary = {}
+
+func add_buff(key: String, value: float, duration: float) -> void:
+	active_buffs[key] = {"v": value, "until": _now() + duration}
+
+func buff_bonus(key: String) -> float:
+	var b = active_buffs.get(key, null)
+	if b == null:
+		return 0.0
+	if _now() >= b.until:
+		active_buffs.erase(key)
+		return 0.0
+	return b.v
 
 func skill_cooldown_mult(weapon: String) -> float:
 	var reduction = 0.0
@@ -1162,12 +1197,20 @@ func add_currency(amount: int) -> void:
 func take_damage(amount: int) -> void:
 	if invincible or is_dead or god_mode:
 		return
+	# Aegis Ward: a shield fully swallows one hit every few seconds
+	if has_relic_power("aegis") and _now() >= aegis_ready_at:
+		aegis_ready_at = _now() + AEGIS_COOLDOWN
+		spawn_aegis_block()
+		return
 	health -= amount
 	update_health_display()
 	play_sfx(SFX_HURT)
 	hurt_timer = HURT_SHAKE_TIME
 	if has_node("Camera2D"):
 		$Camera2D.shake(4.0, 0.15)
+	# Thornmail: fling a share of the pain back at everyone around you
+	if has_relic_power("thorns"):
+		reflect_thorns(int(round(amount * relic_power_value("thorns", 0.4))))
 	if health <= 0:
 		die()
 		return
@@ -1195,6 +1238,23 @@ func stop_invincibility_flash() -> void:
 	body_visual.modulate.a = 1.0
 
 func die() -> void:
+	# Phoenix Heart: cheat death -- back up at half health, off cooldown
+	if has_relic_power("phoenix") and _now() >= phoenix_ready_at:
+		phoenix_ready_at = _now() + PHOENIX_COOLDOWN
+		health = maxi(1, int(get_max_health() * 0.5))
+		update_health_display()
+		spawn_phoenix_revive()
+		invincible = true
+		start_invincibility_flash()
+		var t = get_tree().create_timer(INVINCIBILITY_DURATION)
+		t.timeout.connect(func():
+			if not is_dead:
+				stop_invincibility_flash()
+				invincible = false)
+		var stack = get_tree().get_first_node_in_group("notification_stack")
+		if stack:
+			stack.show_notification("The Phoenix Heart blazes -- you rise again!")
+		return
 	is_dead = true
 	velocity = Vector2.ZERO
 	play_sfx(SFX_DEATH)
@@ -1339,8 +1399,8 @@ func _physics_process(delta: float) -> void:
 		if Input.is_action_just_pressed("hotbar_%d" % (i + 1)):
 			select_hotbar_slot(i)
 
-	# admin_dash (T) stays a movement key; kill/restore-all moved to the admin panel (P)
-	if Input.is_action_just_pressed("admin_dash"):
+	# T = blink-dash, but ONLY while the Shadowstep Sigil relic is equipped
+	if Input.is_action_just_pressed("admin_dash") and has_relic_power("blink"):
 		perform_admin_dash()
 
 	if Input.is_action_just_pressed("place_torch"):
@@ -1362,10 +1422,12 @@ func _physics_process(delta: float) -> void:
 		if is_on_floor():
 			velocity.y = JUMP_VELOCITY
 			jumps_used = 1
+			current_jump_anim = "jump"
 			play_sfx(SFX_JUMP)
 		elif has_double_jump and jumps_used < 2:
 			velocity.y = JUMP_VELOCITY
 			jumps_used = 2
+			current_jump_anim = "jump2"   # the double jump has its own animation
 			play_sfx(SFX_JUMP)
 
 	var direction = Input.get_axis("move_left", "move_right")
@@ -1532,7 +1594,9 @@ func perform_attack() -> void:
 			return
 		attack_cooldown_remaining = stats.cooldown * skill_cooldown_mult(active_weapon_type)
 		if special.is_empty():
-			cast_wand()   # the classic screen-nuke wand
+			cast_wand()   # ADMIN screen-nuke (instakill everything)
+		elif special_type == "nuke":
+			cast_wand_nuke(special)   # Runeweave Scepter -- big FINITE screen AoE
 		else:
 			cast_wand_projectile(special)   # Emberstaff / Icicle Wand ...
 		return
@@ -1569,12 +1633,15 @@ func perform_attack() -> void:
 	var bodies = $AttackArea.get_overlapping_bodies()
 	if special_type == "cleave":
 		# the Sunderer carves through EVERY body in the arc, not just one
+		var cleave_total = 0
 		for body in bodies:
 			var cleave_dealt = int(round(stats.damage * skill_damage_mult("melee")))
 			if body.has_method("take_damage"):
 				body.take_damage(cleave_dealt)
+				cleave_total += cleave_dealt
 			if body.has_method("apply_knockback"):
 				body.apply_knockback(knockback_sign_toward(body), randf_range(stats.knockback_min, stats.knockback_max))
+		apply_omnivamp(cleave_total)
 	else:
 		var target = closest_body(bodies)
 		if target:
@@ -1583,6 +1650,7 @@ func perform_attack() -> void:
 			var dealt = int(round(stats.damage * mult))
 			if target.has_method("take_damage"):
 				target.take_damage(dealt)
+				apply_omnivamp(dealt)
 			if target.has_method("apply_knockback"):
 				var knockback_distance = randf_range(stats.knockback_min, stats.knockback_max)
 				target.apply_knockback(knockback_sign_toward(target), knockback_distance)
@@ -1649,6 +1717,107 @@ var echo_hit_counter: int = 0
 var ragnarok_charge: int = 0
 # Singularity Edge: counts strikes so every Nth one collapses a black hole.
 var singularity_counter: int = 0
+
+# --- Relic powers (triggered mechanics on equipped relics; see inventory.gd
+# relic_power). Cooldown-gated ones track their next-ready time. ---
+var phoenix_ready_at := 0.0   # Phoenix Heart: revive off cooldown
+var aegis_ready_at := 0.0     # Aegis Ward: shield off cooldown
+const PHOENIX_COOLDOWN = 45.0
+const AEGIS_COOLDOWN = 6.0
+
+func _now() -> float:
+	return Time.get_ticks_msec() / 1000.0
+
+# Is a relic granting `power` currently equipped?
+func has_relic_power(power: String) -> bool:
+	for id in GameState.get_equipped_item_ids():
+		if Inventory.get_item_def(id).get("relic_power", "") == power:
+			return true
+	return false
+
+# The relic_value of the first equipped relic with `power` (else `fallback`).
+func relic_power_value(power: String, fallback: float) -> float:
+	for id in GameState.get_equipped_item_ids():
+		var def = Inventory.get_item_def(id)
+		if def.get("relic_power", "") == power:
+			return def.get("relic_value", fallback)
+	return fallback
+
+# --- Relic power effects (see has_relic_power) ---
+
+# Vampire Lord's Signet: heal a share of melee damage dealt this swing.
+func apply_omnivamp(total_damage: int) -> void:
+	if total_damage <= 0 or not has_relic_power("omnivamp"):
+		return
+	var heal = int(round(total_damage * relic_power_value("omnivamp", 0.25)))
+	if heal > 0:
+		health = min(get_max_health(), health + heal)
+		update_health_display()
+
+# Thornmail: deal `dmg` to every enemy near the player.
+func reflect_thorns(dmg: int) -> void:
+	if dmg <= 0:
+		return
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if global_position.distance_to(e.global_position) <= 220.0:
+				e.take_damage(dmg)
+	spawn_shock_ring(global_position, 220.0, Color(0.95, 0.35, 0.3, 0.9))
+
+# Aegis Ward: a bright blocking flash around the player.
+func spawn_aegis_block() -> void:
+	play_sfx(SFX_HURT)
+	var ring = Line2D.new()
+	var pts = _circle_points(30.0, 28)
+	pts.append(pts[0])
+	ring.points = pts
+	ring.width = 5.0
+	ring.default_color = Color(0.6, 0.85, 1.0, 0.95)
+	ring.z_index = 50
+	add_child(ring)
+	var t = ring.create_tween()
+	t.tween_property(ring, "scale", Vector2(1.6, 1.6), 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	t.parallel().tween_property(ring, "modulate:a", 0.0, 0.25)
+	t.tween_callback(ring.queue_free)
+
+# Phoenix Heart: a golden-orange fire burst as the player rises.
+func spawn_phoenix_revive() -> void:
+	if has_node("Camera2D"):
+		$Camera2D.shake(9.0, 0.4)
+	for r in [40.0, 70.0]:
+		var ring = Line2D.new()
+		var pts = _circle_points(r, 34)
+		pts.append(pts[0])
+		ring.points = pts
+		ring.width = 5.0
+		ring.default_color = Color(1.0, 0.55, 0.15, 0.95)
+		ring.z_index = 50
+		add_child(ring)
+		var t = ring.create_tween()
+		t.tween_property(ring, "scale", Vector2(2.4, 2.4), 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		t.parallel().tween_property(ring, "modulate:a", 0.0, 0.45)
+		t.tween_callback(ring.queue_free)
+
+# Generic expanding ring in world space (shockwave / thorns pulse).
+func spawn_shock_ring(center: Vector2, radius: float, col: Color = Color(1.0, 0.6, 0.2, 0.9)) -> void:
+	var ring = Line2D.new()
+	var pts = _circle_points(radius, 40)
+	pts.append(pts[0])
+	ring.points = pts
+	ring.width = 5.0
+	ring.default_color = col
+	ring.z_index = 46
+	get_parent().add_child(ring)
+	ring.global_position = center
+	ring.scale = Vector2(0.15, 0.15)
+	var t = ring.create_tween()
+	t.tween_property(ring, "scale", Vector2.ONE, 0.28).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	t.parallel().tween_property(ring, "modulate:a", 0.0, 0.28)
+	t.tween_callback(ring.queue_free)
 
 # The unique effect of the active Excellent weapon, fired on each melee hit.
 func apply_excellent_effect(target: Node2D, damage_dealt: int) -> void:
@@ -1718,6 +1887,29 @@ func apply_excellent_effect(target: Node2D, damage_dealt: int) -> void:
 		singularity_counter += 1
 		if singularity_counter % int(active_def.get("unique_value", 5)) == 0 and is_instance_valid(target):
 			collapse_singularity(target.global_position, active_def.get("unique_radius", 320.0), damage_dealt)
+		return
+	if effect == "shockwave":
+		# Worldsplitter -- every blow blasts a wide radius around the target
+		if is_instance_valid(target):
+			var radius = active_def.get("unique_radius", 260.0)
+			var blast = int(round(damage_dealt * active_def.get("unique_value", 0.6)))
+			for group_name in HOSTILE_GROUPS:
+				for e in get_tree().get_nodes_in_group(group_name):
+					if e == target or not is_instance_valid(e) or not e.has_method("take_damage"):
+						continue
+					if "is_dead" in e and e.is_dead:
+						continue
+					if target.global_position.distance_to(e.global_position) <= radius:
+						e.take_damage(blast)
+			spawn_shock_ring(target.global_position, radius)
+		return
+	if effect == "radiance":
+		# Dawnbreaker -- heal on hit + a piercing sun-slash
+		var heal = int(round(damage_dealt * active_def.get("unique_value", 0.2)))
+		if heal > 0:
+			health = min(get_max_health(), health + heal)
+			update_health_display()
+		launch_projectile({"type": "flying_slash", "speed": 540.0, "range": 460.0}, get_aim_direction(), int(round(damage_dealt * 0.5)))
 		return
 	if effect == "lifesteal":
 		var heal = int(round(damage_dealt * active_def.get("unique_value", 0.0)))
@@ -2128,3 +2320,23 @@ func cast_wand() -> void:
 		for enemy in get_tree().get_nodes_in_group(group_name):
 			if is_instance_valid(enemy) and enemy.has_method("take_damage") and "is_dead" in enemy and not enemy.is_dead:
 				enemy.take_damage(999999)
+
+# The Runeweave Scepter's real (finite) screen-wipe: a big burst of arcane
+# damage to every enemy on screen, scaled by the Mage tree's Wand DMG. Wipes
+# trash outright, chunks bosses -- unlike the admin wand it does NOT instakill.
+func cast_wand_nuke(special: Dictionary) -> void:
+	play_sfx(SFX_BOW)
+	var icon = $WeaponIcon
+	if weapon_anim_tween:
+		weapon_anim_tween.kill()
+	weapon_anim_tween = create_tween()
+	weapon_anim_tween.tween_property(icon, "scale", Vector2(1.4, 1.4), 0.08)
+	weapon_anim_tween.tween_property(icon, "scale", Vector2.ONE, 0.15)
+	if has_node("Camera2D"):
+		$Camera2D.shake(6.0, 0.25)
+	var dmg = int(round(float(special.get("damage", 200)) * skill_damage_mult("wand")))
+	for group_name in HOSTILE_GROUPS:
+		for enemy in get_tree().get_nodes_in_group(group_name):
+			if is_instance_valid(enemy) and enemy.has_method("take_damage") and "is_dead" in enemy and not enemy.is_dead:
+				enemy.take_damage(dmg)
+	spawn_shock_ring(global_position, 380.0, Color(0.6, 0.4, 1.0, 0.85))
