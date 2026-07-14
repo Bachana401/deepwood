@@ -147,9 +147,16 @@ Each entry: **what it serves → the chore you do by hand → what automates it 
 - Transformation happens **only at morale 0**.
 - **Domino by proximity:** witnessing a nearby transformation costs a villager **−2 morale** (e.g., a 5 → 3). So a healthy town shrugs off one loss; a broadly miserable town is a **powder keg** that chains.
 
-**Proposed refinements 🟡**
-- **Telegraph + grace:** at morale 0 the villager visibly rots (reuse the existing "starving" grey tint) — shaking, darkening, whispering — for a short window so the player can still **save them** (feed, heal morale) before the point of no return.
-- **Redemption** via the Shrine (§6) once it exists.
+**Built — v1 (commit `e9359a9`) ✅**
+- Neglect (empty larder or rock-bottom morale) drains a villager's HP past a grace window; at 0 they **turn demonic** instead of dying — a reskinned `siege_enemy` spawns at their avatar (wall nulled) and hunts the town from within. Purged from the roster; toast on each turning.
+- **Telegraph/grace = the existing HP-drain + grey "rot" visual.** Fixing food/morale reverses the drain → **redemption** (nobody turns).
+- **Domino (v1) = town-wide dread:** each turning adds `CORRUPTION_MORALE_SHOCK`, so a miserable village chains. Away in the dungeon, a lost villager is simply removed (no demon).
+
+**Still to refine 🟡**
+- **Proximity domino:** the true "−2 to *nearby* witnesses" (currently a town-wide morale shock instead).
+- **Richer telegraph:** shaking/darkening/whispering distinct from the generic starving tint.
+- **Redemption via the Shrine** (§6) once it exists.
+- **Demon flavour:** distinct look/behaviour vs. a normal besieger (currently just a red tint).
 
 > **This answers "who are the enemies?"** — they are *fallen humans*. The dungeon and the village share one villain: **untended despair.**
 
@@ -232,8 +239,8 @@ One skilled profession per building; School grants these, each unlocks its build
 
 ## 10. Build order (vertical slices)
 
-1. **Hunger loop** — visible food, eating, starvation, morale hooks. *(Proves the grammar.)*
-2. **Morale → transformation** — the 0-morale demon turn + domino (+ telegraph). *(The keystone; makes hunger matter and is the killer demo moment.)*
+1. ✅ **Hunger loop** — visible food, eating, starvation, morale hooks (commits `d1e4c6c`/`3fc887d`/`e44604e`). *(Proves the grammar.)*
+2. ✅ **Morale → transformation (v1)** — the demon turn + town-wide domino + rot telegraph (commit `e9359a9`; proximity domino + shrine redemption still to refine). *(The keystone; makes hunger matter and is the killer demo moment.)*
 3. **Hospital + no-regen + roaming nurses + paid player healing + boss-gated potions.**
 4. **Barracks shifts + manual wall defense.**
 5. **Stat / School / mating pipeline (manual).**
