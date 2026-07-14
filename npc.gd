@@ -483,6 +483,12 @@ func mood_lines() -> Array:
 	var data = find_villager_data()
 	if data.is_empty():
 		return []
+	# Villagers can't help reacting to the deathly-pale figure their hero is
+	# becoming (Shadow Monarch 4/7+, unmistakable at 5-6): fear, shyness, awe,
+	# confusion. Overrides the normal mood line most of the time at those stages.
+	var mstage = GameState.monarch_stage()
+	if mstage >= 4 and randf() < (0.9 if mstage >= 5 else 0.4):
+		return _monarch_reaction_lines()
 	var n = GameState.villager_needs(data)
 	var morale = GameState.villager_morale(data)
 	var complaints: Array = []
@@ -504,6 +510,24 @@ func mood_lines() -> Array:
 	if morale < 35:
 		complaints += ["I can't take much more of this...", "This village is falling apart around us."]
 	return complaints
+
+# Reactions to the paling Shadow Monarch (afraid / shy / lost / confused / awed).
+func _monarch_reaction_lines() -> Array:
+	return [
+		"...why is your skin so pale? Are you unwell, my lord?",
+		"*takes a step back* Forgive me. You just... you feel so cold.",
+		"I— I shouldn't stare. Sorry. Sorry.",
+		"There's something wrong about the air around you.",
+		"My little one won't stop crying whenever you pass.",
+		"You saved us all... so why am I so afraid of you now?",
+		"The dogs won't come near you anymore.",
+		"Is it just me, or does your shadow move on its own?",
+		"You've changed. I can't say how. I just... know it.",
+		"*whispers to another* they say he isn't what he seems...",
+		"Bless you, hero. *clutches a charm* ...bless you, truly.",
+		"I mean no disrespect but... please, keep your distance.",
+		"Sometimes I forget your name, then I look at you and I'm just... afraid.",
+	]
 
 # Unassigned NPCs roam the whole village; once given a role_key, they're
 # confined to a small neighborhood around that specific building instead

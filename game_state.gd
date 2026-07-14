@@ -123,9 +123,11 @@ var researched_materials: Array = []
 # "weapon" slot holds an Excellent weapon, whose special power lives on the
 # player (see player.gd) rather than as a stat total.
 const RELIC_MAX_SLOTS = 6
-var equipment = {"helmet": "", "chest": "", "pants": "", "weapon": "", "relics": ["", "", "", "", "", ""]}
+var equipment = {"helmet": "", "chest": "", "pants": "", "gloves": "", "boots": "", "weapon": "", "relics": ["", "", "", "", "", ""]}
 
 func relic_slot_count() -> int:
+	if TEST_SKILL_SANDBOX:
+		return RELIC_MAX_SLOTS   # testing: all 6 relic slots usable at any level
 	if player_level >= 20:
 		return 6
 	if player_level >= 10:
@@ -134,7 +136,7 @@ func relic_slot_count() -> int:
 
 func get_equipment_total(effect_key: String) -> float:
 	var total = 0.0
-	for slot in ["helmet", "chest", "pants"]:
+	for slot in ["helmet", "chest", "pants", "gloves", "boots"]:
 		total += item_equip_effect(equipment[slot], effect_key)
 	for i in range(relic_slot_count()):
 		total += item_equip_effect(equipment.relics[i], effect_key)
@@ -145,14 +147,23 @@ func item_equip_effect(item_id: String, effect_key: String) -> float:
 		return 0.0
 	return Inventory.get_item_def(item_id).get("equip_effect", {}).get(effect_key, 0.0)
 
+# Every weapon passively buffs a bit of everything while wielded, scaled by its
+# grade (Inventory.get_weapon_passive) -- so a higher-grade weapon makes you
+# universally stronger, not just via its attack.
+func get_weapon_passive_total(effect_key: String) -> float:
+	var wid = wielded_weapon_id()
+	if wid == "":
+		return 0.0
+	return Inventory.get_weapon_passive(wid).get(effect_key, 0.0)
+
 # Single source of truth for combat/economy bonuses: skill tree + worn gear
-# + completed set bonuses.
+# + completed set bonuses + the wielded weapon's grade passive.
 func get_bonus_total(effect_key: String) -> float:
-	return get_skill_total(effect_key) + get_equipment_total(effect_key) + get_set_bonus_total(effect_key)
+	return get_skill_total(effect_key) + get_equipment_total(effect_key) + get_set_bonus_total(effect_key) + get_weapon_passive_total(effect_key) + monarch_bonus(effect_key)
 
 func get_equipped_item_ids() -> Array:
 	var ids = []
-	for slot in ["helmet", "chest", "pants", "weapon"]:
+	for slot in ["helmet", "chest", "pants", "gloves", "boots", "weapon"]:
 		if equipment[slot] != "":
 			ids.append(equipment[slot])
 	for i in range(relic_slot_count()):
@@ -188,8 +199,13 @@ func get_set_bonus_total(effect_key: String) -> float:
 	var total = 0.0
 	var wielded = wielded_weapon_id()
 	for set_id in Inventory.SET_DEFS.keys():
-		if is_set_complete(set_id):
-			var sd = Inventory.SET_DEFS[set_id]
+		var sd = Inventory.SET_DEFS[set_id]
+		var worn = set_pieces_equipped(set_id)
+		# partial 2-piece bonus first, then the full-armour bonus, then the
+		# even-greater tier for also wielding the set weapon
+		if worn >= 2:
+			total += sd.get("bonus_2pc", {}).get(effect_key, 0.0)
+		if worn >= sd.get("pieces", []).size():
 			total += sd.get("bonus", {}).get(effect_key, 0.0)
 			if sd.get("weapon", "") != "" and sd.get("weapon", "") == wielded:
 				total += sd.get("full_bonus", {}).get(effect_key, 0.0)
@@ -252,7 +268,7 @@ func first_empty_relic_slot() -> int:
 # Rebuild the equipment dict from saved (JSON-parsed) data, sanitizing shape
 # so a malformed/old save can't leave slots missing or the relic array short.
 func load_equipment(data: Dictionary) -> void:
-	for slot in ["helmet", "chest", "pants", "weapon"]:
+	for slot in ["helmet", "chest", "pants", "gloves", "boots", "weapon"]:
 		equipment[slot] = str(data.get(slot, ""))
 	var relics: Array = ["", "", "", "", "", ""]
 	var saved_relics = data.get("relics", [])
@@ -275,6 +291,80 @@ func add_xp(amount: int) -> void:
 		var notif = get_tree().get_first_node_in_group("notification_stack")
 		if notif:
 			notif.show_notification("Level up! You are now level %d (+1 skill point)" % player_level)
+	announce_monarch_awakening()
+
+# --- The Shadow Monarch (hidden 7-stage passive, tied to character level) ---
+# The player is secretly a Shadow Monarch; as they level (cap 100), their true
+# nature emerges across 7 stages -- a growing shadow aura, ever-paler skin, and
+# a stacking shadow power at each stage. It is never shown in the skill tree; it
+# just happens. 7/7 (the level cap) is the full 2x god-form for the finale.
+const MONARCH_STAGE_LEVELS := [5, 15, 30, 45, 60, 80, 100]
+const MONARCH_STAGE_NAMES := ["Stirring", "Creeping Dark", "Shadowstep",
+	"Dread Sovereign", "Veiled", "Ascendant", "Shadow Sovereign"]
+const MONARCH_AWAKEN_LINES := [
+	"A cold whisper stirs in your shadow...",
+	"The dark creeps closer. Your shadow lengthens.",
+	"You slip between shadows without thinking.",
+	"A dread presence gathers around you. (Shadow Monarch 4/7)",
+	"Your skin has gone deathly pale. The hood hides what you are becoming.",
+	"The shadow is a living cloak now. You are almost sovereign.",
+	"THE SHADOW MONARCH AWAKENS. Your true form, unshackled. (7/7)",
+]
+var monarch_stage_announced := 0
+
+# 0 (dormant) .. 7 (full Shadow Monarch), from the player's character level.
+func monarch_stage() -> int:
+	var s := 0
+	for lvl in MONARCH_STAGE_LEVELS:
+		if player_level >= lvl:
+			s += 1
+	return s
+
+# 0..1 progress from the current stage's level toward the next -- lets the aura
+# and pallor grow smoothly between breakpoints, not just snap at each stage.
+func monarch_progress() -> float:
+	var s = monarch_stage()
+	if s >= 7:
+		return 1.0
+	var lo = MONARCH_STAGE_LEVELS[s - 1] if s >= 1 else 1
+	var hi = MONARCH_STAGE_LEVELS[s]
+	return clampf(float(player_level - lo) / float(maxi(1, hi - lo)), 0.0, 1.0)
+
+# 0..1 overall shadow intensity (stage + progress), for aura/pallor scaling.
+func monarch_intensity() -> float:
+	return clampf((float(monarch_stage()) + monarch_progress()) / 7.0, 0.0, 1.0)
+
+# The shadow power folded into the existing bonus math (see get_bonus_total), so
+# it flows through combat with no separate hooks. All fractions/percentages.
+func monarch_bonus(key: String) -> float:
+	var s = monarch_stage()
+	if s <= 0:
+		return 0.0
+	match key:
+		"damage_reduction":   # Shadow Armor, 5/7+
+			if s < 5:
+				return 0.0
+			var dr = 0.08 * float(s - 4)
+			if s >= 7:
+				dr += 0.12
+			return dr          # 5/7 .08, 6/7 .16, 7/7 .36
+		"melee_damage", "bow_damage", "wand_damage":   # +shadow damage, 2/7+
+			var d = 0.05 * float(maxi(0, s - 1))
+			if s >= 7:
+				d += 0.35
+			return d           # 2/7 .05 ... 6/7 .25, 7/7 .65
+		"move_speed":         # shadow swiftness, 3/7+
+			return 0.03 * float(maxi(0, s - 2))
+		_:
+			return 0.0
+
+# Fire the ominous toast ONCE for each newly-reached stage (call after leveling).
+func announce_monarch_awakening() -> void:
+	var s = monarch_stage()
+	while monarch_stage_announced < s:
+		var line = MONARCH_AWAKEN_LINES[monarch_stage_announced]
+		monarch_stage_announced += 1
+		notify(line)
 
 func get_skill_total(effect_key: String) -> float:
 	var total = 0.0
@@ -312,6 +402,20 @@ func try_unlock_skill(node: Dictionary, player: Node) -> bool:
 	skill_points -= node.cost
 	unlocked_skills.append(node.id)
 	return true
+
+# Crafting: if the player has every ingredient for `item_id`'s recipe, consume
+# them and produce one. Returns "" on success, else a human error string.
+func try_craft(item_id: String, player: Node) -> String:
+	if not Inventory.CRAFT_RECIPES.has(item_id):
+		return "That can't be crafted."
+	var recipe = Inventory.CRAFT_RECIPES[item_id]
+	for ing in recipe.keys():
+		if player.inventory.get_count(ing) < recipe[ing]:
+			return "Missing %dx %s." % [recipe[ing], Inventory.get_display_name(ing)]
+	for ing in recipe.keys():
+		player.inventory.remove_item(ing, recipe[ing])
+	player.inventory.add_item(item_id, 1)
+	return ""
 
 # Testing (TEST_SKILL_SANDBOX): mark every skill-tree material as researched so
 # names show real and no node is blocked on identification. Unlocking itself is
@@ -1412,6 +1516,7 @@ func reset_for_new_game() -> void:
 	wizard_power_tier = 0
 	player_xp = 0
 	player_level = 1
+	monarch_stage_announced = 0
 	skill_points = 0
 	chosen_class = ""
 	unlocked_skills = []
@@ -1499,6 +1604,7 @@ func load_game() -> Dictionary:
 			highest_unlocked_level = max(highest_unlocked_level, 999)
 		player_xp = parsed.get("player_xp", player_xp)
 		player_level = parsed.get("player_level", player_level)
+		monarch_stage_announced = monarch_stage()   # already-reached stages don't re-toast
 		skill_points = parsed.get("skill_points", skill_points)
 		chosen_class = parsed.get("chosen_class", chosen_class)
 		unlocked_skills = parsed.get("unlocked_skills", unlocked_skills)

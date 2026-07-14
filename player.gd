@@ -82,7 +82,7 @@ const WEAPON_PROJECTILE_SCRIPT = preload("res://weapon_projectile.gd")
 # and the test backfill drops a big pile of showpiece gear in at once, so the
 # bag needs headroom. The inventory panel sizes itself from this (see
 # inventory_ui.build_slots).
-const INVENTORY_CAPACITY = 40
+const INVENTORY_CAPACITY = 55
 # 9999 starting gold was a debug leftover from before real inventory slots
 # existed -- at 999/stack that alone would fill 10 of 15 slots on a brand
 # new save. Dropped to a sane starting amount now that currency is a real
@@ -281,6 +281,7 @@ func _ready() -> void:
 	$BowVisual.z_index = 3
 	$WeaponTip.z_index = 3
 	setup_body_anim()
+	build_shadow_aura()
 	# entering/exiting the dungeon interior is a real scene transition, which
 	# re-instances (and re-_ready()s) a fresh Player -- restore the carried-
 	# over state instead of re-granting starting resources in that case.
@@ -333,11 +334,28 @@ func ensure_test_items() -> void:
 		"exc_worldsplitter", "exc_dawnbreaker",
 		"relic_godheart", "relic_warlord", "relic_fortune", "relic_celerity",
 		"relic_phoenix", "relic_thorns", "relic_aegis", "relic_vampire", "relic_juggernaut",
+		# batch: new weapons (maces/javelins/daggers/caster mythics)
+		"wpn_dagger", "wpn_mace", "wpn_greatsword", "wpn_warhammer", "wpn_javelin", "wpn_harpoon",
+		"exc_earthshaker", "exc_gungnir", "exc_shadowblade", "exc_frostmourne", "exc_voidcaller", "exc_stormfury",
+		# batch: gloves + boots + the Dragonscale 5-slot set
+		"gloves_assassin", "boots_storm", "gloves_titan", "boots_titan",
+		"helm_dragon", "armor_dragon", "pants_dragon", "gloves_dragon", "boots_dragon",
+		# batch: consumables + crafting ingredients
+		"potion_health", "potion_mana", "food_stew", "food_feast", "food_sage",
+		"herb", "raw_meat",
+		# batch: status wands + on-kill/ward/economy relics
+		"exc_voidcaller", "wpn_iciclewand", "relic_reaper", "relic_ward", "relic_steward",
 	]
 	var equipped_ids = GameState.get_equipped_item_ids()
 	for gid in test_gear:
 		if inventory.get_count(gid) == 0 and active_weapon_id != gid and not (gid in equipped_ids):
 			inventory.add_item(gid, 1)
+	# top up crafting ingredients so recipes can be tried (only once, on the
+	# first load that has none)
+	if inventory.get_count("herb") < 6:
+		inventory.add_item("herb", 6 - inventory.get_count("herb"))
+	if inventory.get_count("raw_meat") < 6:
+		inventory.add_item("raw_meat", 6 - inventory.get_count("raw_meat"))
 	# a load happened -> the UI panels may be showing a stale bag; refresh them
 	var inv_ui = get_tree().get_first_node_in_group("inventory_ui")
 	if inv_ui and inv_ui.has_method("refresh"):
@@ -479,6 +497,91 @@ func build_levitate_aura() -> void:
 	levitate_sparkles.z_index = 2
 	levitate_sparkles.emitting = false
 	add_child(levitate_sparkles)
+
+# --- The Shadow Monarch aura (hidden 7-stage passive, see GameState) ---
+# A living shadow of dark tendrils + rising motes behind the body that GROWS with
+# the monarch stage, plus a paling shader that drains the sprite's colour toward
+# corpse-pale as the shadow takes hold. All driven by GameState.monarch_stage()/
+# monarch_intensity() -- purely visual here; the power itself rides get_bonus_total.
+const SHADOW_TENDRILS := 7
+var shadow_aura: Node2D = null
+var shadow_tendrils: Array = []
+var shadow_motes: CPUParticles2D = null
+var monarch_shader_mat: ShaderMaterial = null
+var shadow_aura_time := 0.0
+
+func build_shadow_aura() -> void:
+	shadow_aura = Node2D.new()
+	shadow_aura.name = "ShadowAura"
+	shadow_aura.z_index = -2   # behind the body and its armour
+	shadow_aura.position = Vector2(0, -8)
+	shadow_aura.visible = false
+	add_child(shadow_aura)
+	for i in range(SHADOW_TENDRILS):
+		var t = Line2D.new()
+		t.width = 3.0
+		t.default_color = Color(0.09, 0.03, 0.16, 0.85)
+		t.joint_mode = Line2D.LINE_JOINT_ROUND
+		t.begin_cap_mode = Line2D.LINE_CAP_ROUND
+		t.end_cap_mode = Line2D.LINE_CAP_ROUND
+		shadow_aura.add_child(t)
+		shadow_tendrils.append(t)
+	shadow_motes = CPUParticles2D.new()
+	shadow_motes.amount = 18
+	shadow_motes.lifetime = 1.1
+	shadow_motes.direction = Vector2(0, -1)
+	shadow_motes.spread = 55.0
+	shadow_motes.gravity = Vector2(0, -14)
+	shadow_motes.initial_velocity_min = 6.0
+	shadow_motes.initial_velocity_max = 22.0
+	shadow_motes.scale_amount_min = 1.0
+	shadow_motes.scale_amount_max = 2.6
+	shadow_motes.color = Color(0.13, 0.04, 0.22, 0.7)
+	shadow_motes.emitting = false
+	shadow_aura.add_child(shadow_motes)
+	# paling shader on the body sprite (real desaturation + lift, not just modulate,
+	# so hit-flash / invincibility modulate still layer on top cleanly)
+	if body_anim != null:
+		monarch_shader_mat = ShaderMaterial.new()
+		var sh = Shader.new()
+		sh.code = "shader_type canvas_item;\nuniform float pallor : hint_range(0.0,1.0) = 0.0;\nvoid fragment(){\n\tvec4 c = texture(TEXTURE, UV);\n\tfloat g = dot(c.rgb, vec3(0.299,0.587,0.114));\n\tvec3 pale = vec3(g)*1.1 + 0.06;\n\tpale = mix(pale, vec3(0.72,0.74,0.82), 0.25);\n\tCOLOR = vec4(mix(c.rgb, pale, pallor), c.a);\n}"
+		monarch_shader_mat.shader = sh
+		body_anim.material = monarch_shader_mat
+
+func update_shadow_aura(delta: float) -> void:
+	if shadow_aura == null:
+		return
+	var stage = GameState.monarch_stage()
+	var inten = GameState.monarch_intensity()
+	shadow_aura.visible = stage >= 1
+	if monarch_shader_mat != null:
+		var pallor = clampf((inten - 0.12) / 0.7, 0.0, 1.0) * 0.85
+		monarch_shader_mat.set_shader_parameter("pallor", pallor)
+	if stage < 1:
+		return
+	shadow_aura_time += delta
+	var reach = lerpf(11.0, 48.0, inten)
+	var amp = lerpf(3.0, 15.0, inten)
+	var alpha = lerpf(0.4, 0.95, inten)
+	var wide = lerpf(2.2, 5.5, inten)
+	var n = shadow_tendrils.size()
+	for i in range(n):
+		var t: Line2D = shadow_tendrils[i]
+		t.width = wide
+		t.default_color = Color(0.09, 0.03, 0.16, alpha)
+		var base_ang = TAU * float(i) / float(n) - PI / 2.0
+		var pts = PackedVector2Array()
+		var seg = 6
+		for k in range(seg + 1):
+			var f = float(k) / float(seg)
+			var r = reach * f
+			var wob = sin(shadow_aura_time * 3.0 + i * 1.3 + f * 4.0) * amp * f
+			var x = cos(base_ang) * r + wob
+			var y = sin(base_ang) * r * 0.82 - f * reach * 0.12
+			pts.append(Vector2(x, y))
+		t.points = pts
+	shadow_motes.emitting = true
+	shadow_motes.amount = int(lerpf(6.0, 30.0, inten))
 
 # Two feathered wings on the character's back, hidden until the Aetherwing
 # relic is equipped. They sit behind the body (z -1) and flap -- fast while
@@ -899,6 +1002,32 @@ var active_buffs: Dictionary = {}
 func add_buff(key: String, value: float, duration: float) -> void:
 	active_buffs[key] = {"v": value, "until": _now() + duration}
 
+# Consume one of item_id from the bag and apply its use_effect. Returns true if
+# it was actually used (so the UI knows to remove one).
+func use_item(item_id: String) -> bool:
+	var def = Inventory.get_item_def(item_id)
+	if def.get("category", "") != "consumable" or inventory.get_count(item_id) <= 0:
+		return false
+	var eff = def.get("use_effect", {})
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if eff.has("heal_hp"):
+		health = min(get_max_health(), health + int(eff.heal_hp))
+		update_health_display()
+	if eff.has("heal_mana"):
+		gain_mana(float(eff.heal_mana))
+	if eff.has("buff"):
+		add_buff(str(eff.buff), float(eff.get("value", 0.0)), float(eff.get("duration", 30.0)))
+	if eff.get("reset_skills", false):
+		GameState.reset_skills()
+		on_equipment_changed()
+	inventory.remove_item(item_id, 1)
+	if stack:
+		stack.show_notification("Used " + Inventory.get_display_name(item_id) + ".")
+	var inv_ui = get_tree().get_first_node_in_group("inventory_ui")
+	if inv_ui and inv_ui.has_method("refresh"):
+		inv_ui.refresh()
+	return true
+
 func buff_bonus(key: String) -> float:
 	var b = active_buffs.get(key, null)
 	if b == null:
@@ -968,10 +1097,35 @@ func grant_bar_morale() -> void:
 	if stack:
 		stack.show_notification("The Bar lifts your spirits! +%d%% move speed for %d hours." % [int(BAR_MORALE_BONUS * 100), int(BAR_MORALE_HOURS)])
 
+# Enemy casters chill you: a temporary move-speed slow. status_resistance gear
+# shortens it (folded in when the slow is applied).
+var enemy_slow_until := 0.0
+var enemy_slow_factor := 1.0
+
+# Called by enemies/bosses when they die to player damage. Reaper's Toll heals
+# on kill.
+func on_enemy_killed() -> void:
+	if has_relic_power("reaper"):
+		health = min(get_max_health(), health + 8)
+		update_health_display()
+		gain_mana(5.0)
+
+func apply_slow(duration: float, factor: float) -> void:
+	# a status-resistance relic cuts the slow's duration
+	var resist = clamp(GameState.get_bonus_total("status_resistance"), 0.0, 0.9)
+	enemy_slow_until = max(enemy_slow_until, _now() + duration * (1.0 - resist))
+	enemy_slow_factor = min(enemy_slow_factor, factor)
+
+func player_slow_mult() -> float:
+	if _now() < enemy_slow_until:
+		return enemy_slow_factor
+	enemy_slow_factor = 1.0
+	return 1.0
+
 func skill_move_speed_mult() -> float:
 	var morale = BAR_MORALE_BONUS if bar_morale_active() else 0.0
 	# a joyful village gives every step a spring (up to +12% at 10/10 morale)
-	return 1.0 + GameState.get_bonus_total("move_speed") + morale + GameState.morale_speed_bonus()
+	return (1.0 + GameState.get_bonus_total("move_speed") + morale + GameState.morale_speed_bonus() + buff_bonus("move_speed")) * player_slow_mult()
 
 # Called by GameState whenever a piece of gear (armor/relic) is equipped or
 # unequipped, and on every hotbar wield -- both can change set bonuses, so
@@ -1079,7 +1233,10 @@ func _on_spear_tip_hit(body: Node2D) -> void:
 	spear_hit_bodies.append(body)
 	var stats = active_stats
 	if body.has_method("take_damage"):
-		body.take_damage(int(round(stats.damage * skill_damage_mult("spear"))))
+		var r = roll_crit(int(round(stats.damage * skill_damage_mult("spear"))))
+		body.take_damage(r[0])
+		show_hit(body, r[0], r[1])
+		apply_omnivamp(r[0])
 	if body.has_method("apply_knockback"):
 		var knockback_distance = randf_range(stats.knockback_min, stats.knockback_max)
 		body.apply_knockback(knockback_sign_toward(body), knockback_distance)
@@ -1202,6 +1359,7 @@ func take_damage(amount: int) -> void:
 		aegis_ready_at = _now() + AEGIS_COOLDOWN
 		spawn_aegis_block()
 		return
+	amount = int(round(amount * (1.0 - clamp(GameState.get_bonus_total("damage_reduction"), 0.0, 0.75))))
 	health -= amount
 	update_health_display()
 	play_sfx(SFX_HURT)
@@ -1459,6 +1617,7 @@ func _physics_process(delta: float) -> void:
 	handle_fall_landing()
 	# drive the sprite animation after movement (needs final velocity/floor state)
 	update_body_anim(delta)
+	update_shadow_aura(delta)
 
 # --- Flight (Aetherwing) ---
 func has_flight() -> bool:
@@ -1635,10 +1794,11 @@ func perform_attack() -> void:
 		# the Sunderer carves through EVERY body in the arc, not just one
 		var cleave_total = 0
 		for body in bodies:
-			var cleave_dealt = int(round(stats.damage * skill_damage_mult("melee")))
 			if body.has_method("take_damage"):
-				body.take_damage(cleave_dealt)
-				cleave_total += cleave_dealt
+				var cr = roll_crit(int(round(stats.damage * skill_damage_mult("melee"))))
+				body.take_damage(cr[0])
+				show_hit(body, cr[0], cr[1])
+				cleave_total += cr[0]
 			if body.has_method("apply_knockback"):
 				body.apply_knockback(knockback_sign_toward(body), randf_range(stats.knockback_min, stats.knockback_max))
 		apply_omnivamp(cleave_total)
@@ -1647,9 +1807,11 @@ func perform_attack() -> void:
 		if target:
 			# Excellent weapons are classless -- no skill-tree damage scaling.
 			var mult = 1.0 if is_excellent else skill_damage_mult("melee")
-			var dealt = int(round(stats.damage * mult))
+			var cr = roll_crit(int(round(stats.damage * mult)))
+			var dealt = cr[0]
 			if target.has_method("take_damage"):
 				target.take_damage(dealt)
+				show_hit(target, dealt, cr[1])
 				apply_omnivamp(dealt)
 			if target.has_method("apply_knockback"):
 				var knockback_distance = randf_range(stats.knockback_min, stats.knockback_max)
@@ -1664,8 +1826,9 @@ func perform_attack() -> void:
 # Spawns a weapon_projectile.gd configured from a weapon's "special" dict.
 # The special's type maps onto the projectile's kind ("flying_slash" flies as
 # a "slash", each javelin of a volley as a "javelin").
-func launch_projectile(cfg: Dictionary, dir: Vector2, dmg: int) -> void:
+func launch_projectile(cfg: Dictionary, dir: Vector2, dmg: int, is_crit: bool = false) -> void:
 	var p = WEAPON_PROJECTILE_SCRIPT.new()
+	p.is_crit = is_crit
 	var kind = str(cfg.get("type", "slash"))
 	match kind:
 		"flying_slash": kind = "slash"
@@ -1677,6 +1840,7 @@ func launch_projectile(cfg: Dictionary, dir: Vector2, dmg: int) -> void:
 	p.max_distance = float(cfg.get("range", 450.0))
 	p.pierce = bool(cfg.get("pierce", kind in ["slash", "javelin"]))
 	p.aoe_radius = float(cfg.get("aoe", 0.0))
+	p.on_hit_status = cfg.get("status", {})
 	p.source = self
 	p.position = global_position + dir * 34.0
 	get_parent().add_child(p)
@@ -1696,7 +1860,8 @@ func throw_javelin_volley(special: Dictionary) -> void:
 	var dmg = int(round(special.get("damage", 10) * skill_damage_mult("spear")))
 	for i in range(count):
 		var frac = 0.5 if count <= 1 else float(i) / float(count - 1)
-		launch_projectile(special, aim.rotated(lerp(-spread, spread, frac)), dmg)
+		var cr = roll_crit(dmg)
+		launch_projectile(special, aim.rotated(lerp(-spread, spread, frac)), cr[0], cr[1])
 
 # Emberstaff / Icicle Wand: a cast that launches a real projectile instead of
 # the classic wand's screen nuke. Scales with the Mage tree's wand_damage.
@@ -1708,8 +1873,8 @@ func cast_wand_projectile(special: Dictionary) -> void:
 	weapon_anim_tween = create_tween()
 	weapon_anim_tween.tween_property(icon, "scale", Vector2(1.4, 1.4), 0.08)
 	weapon_anim_tween.tween_property(icon, "scale", Vector2.ONE, 0.15)
-	var dmg = int(round(special.get("damage", 10) * skill_damage_mult("wand")))
-	launch_projectile(special, get_aim_direction(), dmg)
+	var cr = roll_crit(int(round(special.get("damage", 10) * skill_damage_mult("wand"))))
+	launch_projectile(special, get_aim_direction(), cr[0], cr[1])
 
 # Echo Rift: counts strikes so every 3rd one repeats its damage.
 var echo_hit_counter: int = 0
@@ -1821,6 +1986,10 @@ func spawn_shock_ring(center: Vector2, radius: float, col: Color = Color(1.0, 0.
 
 # The unique effect of the active Excellent weapon, fired on each melee hit.
 func apply_excellent_effect(target: Node2D, damage_dealt: int) -> void:
+	# any weapon carrying an on_hit_status (e.g. Frostmourne's chill) applies it
+	var st = active_def.get("on_hit_status", {})
+	if not st.is_empty() and is_instance_valid(target) and target.has_method("apply_status"):
+		target.apply_status(str(st.get("kind", "slow")), float(st.get("dur", 3.0)), float(st.get("mag", 0.0)))
 	var effect = active_def.get("unique_effect", "")
 	if effect == "gold_touch":
 		# Midas Edge -- pain into profit
@@ -2303,7 +2472,9 @@ func spawn_arrow(stats: Dictionary, aim_dir: Vector2) -> void:
 		# loose from wherever the levitating bow hovers (may be far out with
 		# the Levitate skills), not from the character's body
 		arrow.position = global_position + dir * (hover + 8.0)
-		arrow.setup(dir, int(round(stats.damage * skill_damage_mult("bow"))), stats.knockback_min, stats.knockback_max, 4)
+		var cr = roll_crit(int(round(stats.damage * skill_damage_mult("bow"))))
+		arrow.setup(dir, cr[0], stats.knockback_min, stats.knockback_max, 4)
+		arrow.is_crit = cr[1]
 		arrow.homing = homing
 		get_parent().add_child(arrow)
 
@@ -2338,5 +2509,7 @@ func cast_wand_nuke(special: Dictionary) -> void:
 	for group_name in HOSTILE_GROUPS:
 		for enemy in get_tree().get_nodes_in_group(group_name):
 			if is_instance_valid(enemy) and enemy.has_method("take_damage") and "is_dead" in enemy and not enemy.is_dead:
-				enemy.take_damage(dmg)
+				var cr = roll_crit(dmg)
+				enemy.take_damage(cr[0])
+				show_hit(enemy, cr[0], cr[1])
 	spawn_shock_ring(global_position, 380.0, Color(0.6, 0.4, 1.0, 0.85))
