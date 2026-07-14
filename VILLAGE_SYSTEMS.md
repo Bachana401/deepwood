@@ -147,6 +147,8 @@ Each entry: **what it serves → the chore you do by hand → what automates it 
 - Transformation happens **only at morale 0**.
 - **Domino by proximity:** witnessing a nearby transformation costs a villager **−2 morale** (e.g., a 5 → 3). So a healthy town shrugs off one loss; a broadly miserable town is a **powder keg** that chains.
 
+> ⏸ **2026-07-13: temporarily DISABLED** (developer call, during testing) via `GameState.CORRUPTION_ENABLED = false` — villager HP floors at 1 (sick but alive), nobody dies or turns. Flip the flag to reactivate.
+
 **Built — v1 (commit `e9359a9`) ✅**
 - Neglect (empty larder or rock-bottom morale) drains a villager's HP past a grace window; at 0 they **turn demonic** instead of dying — a reskinned `siege_enemy` spawns at their avatar (wall nulled) and hunts the town from within. Purged from the roster; toast on each turning.
 - **Telegraph/grace = the existing HP-drain + grey "rot" visual.** Fixing food/morale reverses the drain → **redemption** (nobody turns).

@@ -1011,6 +1011,11 @@ const VILLAGER_MAX_HP := 100.0
 # turning heaps extra dread on the whole village (the domino), so a broadly
 # miserable town chains into a powder keg. The player can still save a rotting
 # villager by fixing food/morale before the drain finishes (redemption).
+# TEMP KILL-SWITCH (2026-07-13, developer request): while false, misery can't
+# finish a villager off -- their HP floors at 1 (sick, grey, but alive) and
+# NOBODY dies or turns demonic from despair/hunger. Flip back to true to
+# reactivate the corruption transformation.
+const CORRUPTION_ENABLED := false
 const SIEGE_ENEMY_SCENE := preload("res://siege_enemy.tscn")
 const DEMON_BASE_HP := 40.0
 const DEMON_BASE_DMG := 9.0
@@ -1079,7 +1084,11 @@ func tick_morale_effects(hours_passed: float) -> void:
 		if starving:
 			hp -= hours_passed * drain_rate * _despair_rate(id)
 			if hp <= 0.0:
-				dead.append(id)
+				if CORRUPTION_ENABLED:
+					dead.append(id)
+				else:
+					# corruption disabled: misery sickens but can't finish them
+					villager_hp[id] = 1.0
 			else:
 				villager_hp[id] = hp
 		elif hp < VILLAGER_MAX_HP:

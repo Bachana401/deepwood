@@ -104,8 +104,8 @@ var accent_color := Color(0.85, 0.42, 0.3)
 # Optional downloaded-spritesheet skin (CraftPix Tiny RPG packs, see
 # art/enemies/). When an archetype sets "sprite", the plain procedural body is
 # hidden and this AnimatedSprite2D drives idle/walk/attack/hurt/death instead.
-const SPRITE_SCALE := 0.6          # 100px art -> ~60px (tweak if enemies read too big/small)
-const SPRITE_Y_OFFSET := -4.0      # nudge so the character's feet sit on the floor
+const SPRITE_SCALE := 3.0          # x5 from the first pass (0.6) -- developer sizing call
+const SPRITE_Y_OFFSET := -20.0     # lifts the in-frame character so feet meet the floor at this scale
 var sprite_skin := ""
 var use_sprite := false
 var enemy_sprite: AnimatedSprite2D = null
@@ -263,6 +263,10 @@ func _build_sprite_visual() -> void:
 	spr.play("idle")
 	add_child(spr)
 	enemy_sprite = spr
+	# lift the health bar above the (much taller) sprite instead of inside it
+	var bar_y = -(50.0 * SPRITE_SCALE * 0.75) - 12.0
+	$HealthBarBG.position.y = bar_y
+	$HealthBarFill.position.y = bar_y
 
 # Pick idle/walk/attack from state each frame, and face the player. (Death and
 # hurt are driven from die()/flash_hit().)
