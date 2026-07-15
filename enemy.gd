@@ -54,13 +54,13 @@ const ENEMY_ROSTERS = [
 	{"name": "Blood Fiend", "color": Color(0.4, 0.5, 0.6), "accent": Color(0.7, 0.92, 1.0), "scale": 0.92, "shape": "frost", "sprite": "blood_monster", "weapons": ["spear", "sword"], "hp_mult": 0.85, "dmg_mult": 1.0, "speed_mult": 1.22},
 	# 2 -- Demons (11-15): heavy melee, hit hard but slow.
 	{"name": "Demon", "color": Color(0.2, 0.15, 0.15), "accent": Color(1.0, 0.5, 0.12), "scale": 1.12, "shape": "ember", "sprite": "demon", "weapons": ["sword", "spear"], "hp_mult": 1.3, "dmg_mult": 1.18, "speed_mult": 0.88},
-	# 3 -- Wraiths (16-20): spectral fast archers (procedural; the Soldier sprite
-	# is reserved for the village Barracks, not a dungeon enemy).
-	{"name": "Wraith", "color": Color(0.32, 0.22, 0.42), "accent": Color(0.7, 0.4, 1.0), "scale": 0.9, "shape": "wraith", "weapons": ["bow", "bow", "sword"], "hp_mult": 0.78, "dmg_mult": 1.0, "speed_mult": 1.32},
+	# 3 -- Wraiths (16-20): spectral fast archers (PixelLab "wraith" skin -- looses
+	# a ghostly bow; the Soldier sprite stays reserved for the village Barracks).
+	{"name": "Wraith", "color": Color(0.32, 0.22, 0.42), "accent": Color(0.7, 0.4, 1.0), "scale": 0.9, "shape": "wraith", "sprite": "wraith", "weapons": ["bow", "bow", "sword"], "hp_mult": 0.78, "dmg_mult": 1.0, "speed_mult": 1.32},
 	# 4 -- Bone Golems (21-25): huge tomb-bone tanks, slow, pure melee.
-	{"name": "Bone Golem", "color": Color(0.52, 0.5, 0.44), "accent": Color(0.86, 0.84, 0.72), "scale": 1.28, "shape": "stone", "weapons": ["sword"], "hp_mult": 1.7, "dmg_mult": 1.22, "speed_mult": 0.78},
+	{"name": "Bone Golem", "color": Color(0.52, 0.5, 0.44), "accent": Color(0.86, 0.84, 0.72), "scale": 1.28, "shape": "stone", "sprite": "bone_golem", "weapons": ["sword"], "hp_mult": 1.7, "dmg_mult": 1.22, "speed_mult": 0.78},
 	# 5 -- Rotfiends (26-30): small, fast, diseased jabbers.
-	{"name": "Rotfiend", "color": Color(0.28, 0.4, 0.2), "accent": Color(0.7, 1.0, 0.3), "scale": 0.84, "shape": "venom", "weapons": ["spear", "spear", "bow"], "hp_mult": 0.85, "dmg_mult": 1.12, "speed_mult": 1.26},
+	{"name": "Rotfiend", "color": Color(0.28, 0.4, 0.2), "accent": Color(0.7, 1.0, 0.3), "scale": 0.84, "shape": "venom", "sprite": "rotfiend", "weapons": ["spear", "spear", "bow"], "hp_mult": 0.85, "dmg_mult": 1.12, "speed_mult": 1.26},
 ]
 
 @export var weapon_type: String = "sword"
