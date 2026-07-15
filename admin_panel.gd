@@ -151,15 +151,21 @@ func _buildings_level(mode: int) -> void:
 	for b in get_tree().get_nodes_in_group("building"):
 		if not ("building_level" in b):
 			continue
+		# finish construction first -- the honest start leaves most buildings
+		# as ruins, and levels/facades only show on FINISHED buildings
+		b.build_stage = GameState.TOTAL_BUILD_STAGES
+		GameState.building_stage[b.building_name] = b.build_stage
+		b.constructing = false
+		b.health = b.MAX_HEALTH
+		GameState.building_health[b.building_name] = b.health
 		var target: int = b.building_level + 1 if mode == 1 else (b.MAX_LEVEL if mode == 99 else 1)
 		target = clampi(target, 1, b.MAX_LEVEL)
-		if target == b.building_level:
-			continue
 		b.building_level = target
 		GameState.building_levels[b.building_name] = target
+		b.current_state = b.compute_visual_state()
 		b.rebuild_geometry()
 		n += 1
-	_notify("Admin: %d buildings -> %s" % [n, ("+1 level" if mode == 1 else ("MAX" if mode == 99 else "level 1"))])
+	_notify("Admin: %d buildings finished -> %s" % [n, ("+1 level" if mode == 1 else ("MAX" if mode == 99 else "level 1"))])
 
 # Jump the character level so a stage's aura/pallor/power shows instantly.
 func _set_level(lvl: int) -> void:
