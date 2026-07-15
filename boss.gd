@@ -253,7 +253,7 @@ const BOSSES = {
 		"color": Color(0.17, 0.11, 0.25), "eye_color": Color(0.9, 0.2, 1.0),
 		"magic": Color(0.75, 0.3, 1.0),
 		"body": Vector2(170, 240), "hp": 1220, "speed": 76.0, "shape": "void",
-		"abilities": ["teleport", "rain", "nova", "summon"],
+		"abilities": ["teleport", "rain", "nova", "summon"], "sprite": "void_sovereign",
 	},
 	# ----- FINALE TIER (levels 95/98/99/100) -----
 	# Apex bosses: enrage earlier, FRENZY at low health, and most fly.
