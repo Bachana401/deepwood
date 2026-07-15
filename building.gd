@@ -71,6 +71,16 @@ const WINDOWS = {
 	"Builderhouse": {"pairs": 1, "rows": 1},
 }
 
+# PixelLab facade art (art/buildings/<file>.png) shown for FINISHED buildings;
+# ruins, construction stages and the half-wrecked state keep the procedural
+# rubble look. Missing art falls back to the procedural silhouette (zero-risk).
+const BUILDING_ART = {
+	"Government": "government", "School": "school", "Farm": "farm",
+	"Hospital": "hospital", "Barracks": "barracks", "Fishing Dock": "fishing_dock",
+	"Science Lab": "science_lab", "Bank": "bank", "Blacksmith": "smithy",
+	"Tavern": "tavern", "Marketplace": "marketplace", "Builderhouse": "builderhouse",
+}
+
 const SCORCH = Color(0.12, 0.1, 0.09, 1.0)
 # Half-width of the Fishing Dock's water, as a multiple of its base width (each
 # side). main.gd reserves this so the water never touches its neighbours.
@@ -1040,6 +1050,29 @@ func build_intact(damaged: bool) -> void:
 	var lit = not damaged
 	draw_named_building(w, h, lit, damaged)
 	if building_level >= 4:
+	# PixelLab facade: stretch the painted front to the level-scaled footprint
+	# with its base on the ground line. Damage dims it and adds cracks/scorch
+	# on top; everything else (labels, torches, bars) is positioned by
+	# rebuild_geometry as usual.
+	var art_file: String = BUILDING_ART.get(building_name, "")
+	if art_file != "" and ResourceLoader.exists("res://art/buildings/%s.png" % art_file):
+		var tex: Texture2D = load("res://art/buildings/%s.png" % art_file)
+		var spr := Sprite2D.new()
+		spr.texture = tex
+		spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		spr.centered = false
+		spr.scale = Vector2(w / tex.get_width(), h / tex.get_height())
+		spr.position = Vector2(-w / 2.0, -h)
+		if damaged:
+			spr.modulate = Color(0.68, 0.66, 0.64)
+		gfx.add_child(spr)
+		body_node = null
+		if building_level >= 4:
+			add_pennant(w, h)
+		if damaged:
+			add_cracks(w, h, 3)
+			add_scorch(w, h, 1, 7.0)
+		return
 		add_pennant(w, h)
 	if damaged:
 		add_cracks(w, h, 3)
