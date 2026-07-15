@@ -210,7 +210,7 @@ const BOSSES = {
 		"color": Color(0.26, 0.32, 0.22), "eye_color": Color(0.7, 1.0, 0.4),
 		"magic": Color(0.55, 0.95, 0.35),
 		"body": Vector2(200, 260), "hp": 1000, "speed": 72.0, "shape": "brute",
-		"abilities": ["slam", "charge", "summon"],
+		"abilities": ["slam", "charge", "summon"], "sprite": "gravewarden",
 	},
 	# A tall, skeletal-thin frozen lich-king in an icy shroud.
 	"frost_monarch": {
@@ -331,6 +331,14 @@ var magic_color := Color(1, 1, 1)   # per-boss spell/effect palette
 var reach_mult := 1.0               # melee-ish radii scale with body size
 var rig: Node2D = null              # the procedural creature body
 var current_tint := Color(1, 1, 1)  # rig modulate baseline (shifts on enrage)
+
+# PixelLab boss skins (art/bosses/<skin>/) replace the procedural rig when a
+# BOSSES entry sets "sprite" and the art exists; otherwise the rig_<shape>()
+# build runs unchanged. The sprite lives UNDER rig, so flash_hit / telegraph /
+# death (all modulate rig) and facing (rig.scale.x) drive it for free.
+const BOSS_ROOT := "res://art/bosses/"
+const BOSS_FILL := 1.0   # sprite content height as a fraction of the boss body.y
+var boss_sprite: AnimatedSprite2D = null
 
 var is_busy := false
 var is_charging := false
@@ -629,6 +637,11 @@ func build_rig(shape: String, body: Vector2, eye: Color) -> void:
 	rig = Node2D.new()
 	rig.name = "Rig"
 	add_child(rig)
+	boss_sprite = null
+	var skin := str(current_def.get("sprite", ""))
+	if skin != "" and EnemySkins.is_per_frame(skin, BOSS_ROOT):
+		_build_boss_sprite(skin, body)
+		return
 	var hw := body.x / 2.0
 	var hh := body.y / 2.0
 	match shape:
@@ -643,6 +656,40 @@ func build_rig(shape: String, body: Vector2, eye: Color) -> void:
 		"titan": rig_eclipse(hw, hh, eye)
 		"wizard": rig_wizard(hw, hh, eye)
 		_: rig_gravewarden(hw, hh, eye)
+
+# --- Skinned bosses (PixelLab) ---
+# The sprite becomes the whole visible body; it's normalised so its measured
+# content height fills body.y and its feet sit on the collision underside.
+func _build_boss_sprite(skin: String, body: Vector2) -> void:
+	var spr := AnimatedSprite2D.new()
+	spr.name = "Skin"
+	spr.sprite_frames = EnemySkins.frames_for(skin, BOSS_ROOT)
+	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	var ch := EnemySkins.content_height(skin, BOSS_ROOT)
+	var sc := (body.y * BOSS_FILL) / ch
+	spr.scale = Vector2(sc, sc)
+	spr.offset = Vector2(0, (body.y / 2.0) / sc - EnemySkins.feet_px(skin, BOSS_ROOT))
+	if spr.sprite_frames.has_animation("idle"):
+		spr.play("idle")
+	spr.animation_finished.connect(_on_boss_anim_finished)
+	rig.add_child(spr)
+	boss_sprite = spr
+
+# Idle when still, walk when moving; attacks are triggered by start_attack and
+# left to finish before walk/idle resumes.
+func _update_boss_anim() -> void:
+	if boss_sprite == null:
+		return
+	if boss_sprite.animation == "attack" and boss_sprite.is_playing():
+		return
+	var want := "walk" if absf(velocity.x) > 8.0 else "idle"
+	var sf := boss_sprite.sprite_frames
+	if sf and sf.has_animation(want) and boss_sprite.animation != want:
+		boss_sprite.play(want)
+
+func _on_boss_anim_finished() -> void:
+	if boss_sprite and boss_sprite.animation != "idle" and boss_sprite.sprite_frames.has_animation("idle"):
+		boss_sprite.play("idle")
 
 func _rp(points: PackedVector2Array, color: Color, z: int = 0) -> Polygon2D:
 	var p := Polygon2D.new()
@@ -938,6 +985,7 @@ func _physics_process(delta: float) -> void:
 	# creature rigs face the way the boss moves/aims
 	if rig != null:
 		rig.scale.x = facing_direction
+	_update_boss_anim()
 
 	move_and_slide()
 
@@ -1101,6 +1149,8 @@ func set_cd(ability_name: String) -> void:
 func cooldown_mult() -> float:
 	var m := 1.0
 	if is_frenzied:
+	if boss_sprite and boss_sprite.sprite_frames.has_animation("attack"):
+		boss_sprite.play("attack")
 		m = 0.35
 	elif is_enraged:
 		m = 0.5 if is_apex else 0.6
@@ -1772,6 +1822,8 @@ func spawn_death_particles() -> void:
 	particles.scale_amount_min = 3.5
 	particles.scale_amount_max = 7.0
 	particles.color = Color(1.0, 0.4, 0.08, 1.0)
+	if boss_sprite and boss_sprite.sprite_frames.has_animation("death"):
+		boss_sprite.play("death")
 	get_parent().add_child(particles)
 	particles.emitting = true
 	particles.finished.connect(particles.queue_free)
