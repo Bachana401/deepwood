@@ -120,6 +120,12 @@ var pending_tp := Vector2.ZERO
 
 var visual: Node2D = null
 var visual_parts: Array = []   # [[node, base_color], ...] for hit-flash restore
+
+# PixelLab skins (art/mobs/<kind>/) replace the procedural polygon build when
+# the art is present; without it the poly build runs unchanged (zero-risk).
+const MOB_ROOT := "res://art/mobs/"
+const MOB_SPRITE_H := 60.0
+var mob_sprite: AnimatedSprite2D = null
 var health_fill: ColorRect = null
 
 const FLYER_CONTACT_RANGE = 42.0
@@ -245,6 +251,7 @@ func _physics_process(delta: float) -> void:
 		facing = -1
 	if visual:
 		visual.scale.x = facing
+	_update_mob_anim()
 	bob_time += delta
 	move_and_slide()
 	# hard containment: no mob (flyer, teleporter, or otherwise) ever ends a
@@ -614,11 +621,15 @@ func die() -> void:
 # --- visuals ---
 
 func set_flash(c: Color) -> void:
+	if mob_sprite:
+		mob_sprite.modulate = Color(2.2, 2.2, 2.2)
 	for entry in visual_parts:
 		if is_instance_valid(entry[0]):
 			entry[0].color = c
 
 func clear_flash() -> void:
+	if mob_sprite:
+		mob_sprite.modulate = Color(1, 1, 1)
 	for entry in visual_parts:
 		if is_instance_valid(entry[0]):
 			entry[0].color = entry[1]
@@ -631,6 +642,9 @@ func add_part(node: CanvasItem, color: Color) -> void:
 func build_visual() -> void:
 	visual = Node2D.new()
 	add_child(visual)
+	if EnemySkins.is_per_frame(kind, MOB_ROOT):
+		_build_mob_sprite()
+		return
 	match kind:
 		"flyer": build_flyer_visual()
 		"bomber": build_bomber_visual()
@@ -641,6 +655,30 @@ func build_visual() -> void:
 		"hexer": build_hexer_visual()
 		"runecaster": build_runecaster_visual()
 		"warlock": build_warlock_visual()
+
+# Skinned mob body: normalized to MOB_SPRITE_H, feet planted on visual-local
+# y=0 (the same ground line the polygon builds draw up from). Facing rides the
+# existing visual.scale.x flip; idle/walk swap from movement each frame.
+func _build_mob_sprite() -> void:
+	var spr := AnimatedSprite2D.new()
+	spr.name = "Skin"
+	spr.sprite_frames = EnemySkins.frames_for(kind, MOB_ROOT)
+	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	var sc := MOB_SPRITE_H / EnemySkins.content_height(kind, MOB_ROOT)
+	spr.scale = Vector2(sc, sc)
+	spr.offset = Vector2(-EnemySkins.hcenter_px(kind, MOB_ROOT), -EnemySkins.feet_px(kind, MOB_ROOT))
+	if spr.sprite_frames.has_animation("idle"):
+		spr.play("idle")
+	visual.add_child(spr)
+	mob_sprite = spr
+
+func _update_mob_anim() -> void:
+	if mob_sprite == null:
+		return
+	var want := "walk" if velocity.length() > 8.0 else "idle"
+	var sf := mob_sprite.sprite_frames
+	if sf and sf.has_animation(want) and mob_sprite.animation != want:
+		mob_sprite.play(want)
 
 func poly(points: PackedVector2Array) -> Polygon2D:
 	var p = Polygon2D.new()
