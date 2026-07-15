@@ -79,9 +79,24 @@ const BUILDING_ART = {
 	"Hospital": "hospital", "Barracks": "barracks", "Fishing Dock": "fishing_dock",
 	"Science Lab": "science_lab", "Bank": "bank", "Blacksmith": "smithy",
 	"Tavern": "tavern", "Marketplace": "marketplace", "Builderhouse": "builderhouse",
+	"Bar": "bar",
 }
 
 const SCORCH = Color(0.12, 0.1, 0.09, 1.0)
+
+# Content bounding box per facade PNG (transparent padding excluded), cached
+# so every building of a type scans its art once.
+static var _art_rects := {}
+static func _art_content_rect(key: String, tex: Texture2D) -> Rect2:
+	if _art_rects.has(key):
+		return _art_rects[key]
+	var img := tex.get_image()
+	if img.is_compressed():
+		img.decompress()
+	var used := img.get_used_rect()
+	var r := Rect2(used) if used.size.x > 0 else Rect2(Vector2.ZERO, Vector2(tex.get_width(), tex.get_height()))
+	_art_rects[key] = r
+	return r
 # Half-width of the Fishing Dock's water, as a multiple of its base width (each
 # side). main.gd reserves this so the water never touches its neighbours.
 const DOCK_WATER_HALF = 1.17
@@ -1088,7 +1103,13 @@ func build_intact(damaged: bool) -> void:
 		spr.texture = tex
 		spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		spr.centered = false
-		spr.scale = Vector2(w / tex.get_width(), h / tex.get_height())
+		# draw only the CONTENT box of the PNG (the canvas has transparent
+		# padding after backdrop-stripping) so the art's true base sits exactly
+		# on the ground line instead of levitating
+		var content := _art_content_rect(art_file, tex)
+		spr.region_enabled = true
+		spr.region_rect = content
+		spr.scale = Vector2(w / content.size.x, h / content.size.y)
 		spr.position = Vector2(-w / 2.0, -h)
 		if damaged:
 			spr.modulate = Color(0.68, 0.66, 0.64)

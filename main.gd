@@ -186,8 +186,9 @@ func generate_village() -> void:
 	for i in range(VILLAGE_BUILDINGS.size()):
 		var def = VILLAGE_BUILDINGS[i]
 		var sc = float(def.get("scale", 2.0))
-		var w = def.width * sc * VILLAGE_WIDTH_BOOST
-		var h = def.height * sc
+		# dev call: the whole village reads better 30% bigger
+		var w = def.width * sc * VILLAGE_WIDTH_BOOST * 1.3
+		var h = def.height * sc * 1.3
 		# Every building (Marketplace included) reserves its FULLY-UPGRADED width;
 		# the Fishing Dock reserves its full water span (wider than any upgrade).
 		var reserve = w * MAX_UPGRADE_FACTOR
