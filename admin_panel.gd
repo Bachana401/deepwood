@@ -23,6 +23,8 @@ func _ready() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("admin_panel"):
+		# P always opens the console (dev request: instant visual testing of
+		# upgrades without relaunching with --dev)
 		panel.visible = not panel.visible
 		if panel.visible:
 			refresh()
@@ -59,8 +61,8 @@ func _build() -> void:
 	panel.anchor_bottom = 0.5
 	panel.offset_left = -W / 2.0
 	panel.offset_right = W / 2.0
-	panel.offset_top = -268.0
-	panel.offset_bottom = 268.0
+	panel.offset_top = -298.0
+	panel.offset_bottom = 298.0
 	add_child(panel)
 
 	var title = Label.new()
@@ -132,7 +134,32 @@ func _build() -> void:
 	_btn("Reset to Lv 1 (no aura)", PAD, y, 200, BH, func(): _set_level(1))
 	y += BH + 12.0
 
+	# --- Buildings (set every building's level instantly to eyeball upgrades) ---
+	y = _section("BUILDINGS  (instant level, visual test)", y)
+	_btn("All +1", PAD, y, 92, BH, func(): _buildings_level(1))
+	_btn("All MAX", PAD + 92 + GAP, y, 92, BH, func(): _buildings_level(99))
+	_btn("All Lv 1", PAD + (92 + GAP) * 2.0, y, 92, BH, func(): _buildings_level(0))
+	y += BH + 12.0
+
 	_btn("Close (P)", PAD, y, W - PAD * 2.0, BH, close)
+
+# Instantly set every live building's level (no gold cost, clamped to
+# MAX_LEVEL) and rebuild its geometry so upgrades can be eyeballed on the
+# spot. 1 = +1 level, 99 = jump to max, 0 = back to level 1.
+func _buildings_level(mode: int) -> void:
+	var n := 0
+	for b in get_tree().get_nodes_in_group("building"):
+		if not ("building_level" in b):
+			continue
+		var target: int = b.building_level + 1 if mode == 1 else (b.MAX_LEVEL if mode == 99 else 1)
+		target = clampi(target, 1, b.MAX_LEVEL)
+		if target == b.building_level:
+			continue
+		b.building_level = target
+		GameState.building_levels[b.building_name] = target
+		b.rebuild_geometry()
+		n += 1
+	_notify("Admin: %d buildings -> %s" % [n, ("+1 level" if mode == 1 else ("MAX" if mode == 99 else "level 1"))])
 
 # Jump the character level so a stage's aura/pallor/power shows instantly.
 func _set_level(lvl: int) -> void:
