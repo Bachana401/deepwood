@@ -18,7 +18,12 @@ var _t := 0.0
 # tex/content: the facade texture + its content box. spr_pos/spr_scale: how the
 # base facade sprite maps content-space onto the building (we mirror it exactly
 # so every overlay sits pixel-perfect on its window).
-func build(tex: Texture2D, content: Rect2, spr_pos: Vector2, spr_scale: Vector2) -> void:
+# Only real hearth-buildings smoke; a smoking Bank pediment looks absurd.
+const SMOKE_BUILDINGS := ["Tavern", "Bar", "Blacksmith", "Barracks"]
+var _bname := ""
+
+func build(tex: Texture2D, content: Rect2, spr_pos: Vector2, spr_scale: Vector2, bname: String = "") -> void:
+	_bname = bname
 	var img := tex.get_image()
 	if img == null:
 		return
@@ -90,29 +95,40 @@ func build(tex: Texture2D, content: Rect2, spr_pos: Vector2, spr_scale: Vector2)
 func add_smoke(img: Image, content: Rect2, spr_pos: Vector2, spr_scale: Vector2) -> void:
 	if not ResourceLoader.exists("res://art/effects/smoke_1.png"):
 		return
+	if not SMOKE_BUILDINGS.has(_bname):
+		return
 	var x0 := int(content.position.x)
 	var y0 := int(content.position.y)
 	var cw := int(content.size.x)
-	# opaque runs on the topmost few rows = chimney candidates
-	var runs: Array = []
-	var run_start := -1
-	for x in range(cw):
-		var hit := false
-		for y in range(4):
-			if img.get_pixel(x0 + x, y0 + y).a > 0.5:
-				hit = true
-				break
-		if hit and run_start < 0:
-			run_start = x
-		elif not hit and run_start >= 0:
-			runs.append([run_start, x - 1])
-			run_start = -1
-	if run_start >= 0:
-		runs.append([run_start, cw - 1])
-	for r in runs:
-		var rw: int = r[1] - r[0] + 1
-		if rw < 4 or rw > cw * 0.22:
-			continue   # too thin to matter or too wide to be a chimney
+	# chimney candidates: opaque runs in the art's top band. Start shallow and
+	# deepen only while nothing chimney-like is found -- low buildings' roof
+	# ridges enter deep bands and swallow the chimney into one wide run, while
+	# facades with painted smoke wisps need a deeper look to reach the stack.
+	var valid: Array = []
+	for band in [6, 12, mini(int(content.size.y * 0.15), 34)]:
+		var runs: Array = []
+		var run_start := -1
+		for x in range(cw):
+			var hit := false
+			for y in range(band):
+				if img.get_pixel(x0 + x, y0 + y).a > 0.5:
+					hit = true
+					break
+			if hit and run_start < 0:
+				run_start = x
+			elif not hit and run_start >= 0:
+				runs.append([run_start, x - 1])
+				run_start = -1
+		if run_start >= 0:
+			runs.append([run_start, cw - 1])
+		valid = runs.filter(func(r):
+			var rw: int = r[1] - r[0] + 1
+			return rw >= 4 and rw <= cw * 0.22)
+		if not valid.is_empty():
+			break
+	# narrowest valid run = the most chimney-like; one plume per building
+	valid.sort_custom(func(a, b): return (a[1] - a[0]) < (b[1] - b[0]))
+	for r in valid.slice(0, 1):
 		var frames := SpriteFrames.new()
 		frames.add_animation("puff")
 		frames.set_animation_loop("puff", true)

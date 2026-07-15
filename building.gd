@@ -1119,7 +1119,7 @@ func build_intact(damaged: bool) -> void:
 		if not damaged:
 			var lights := BuildingLights.new()
 			gfx.add_child(lights)
-			lights.build(tex, content, spr.position, spr.scale)
+			lights.build(tex, content, spr.position, spr.scale, building_name)
 		body_node = null
 		if building_level >= 4:
 			add_pennant(w, h)
