@@ -377,6 +377,32 @@ func _physics_process(delta: float) -> void:
 		velocity = Vector2.ZERO
 		return
 
+	# En route to a building visit: march straight to the door, then slip in.
+	if door_target != null:
+		if not is_instance_valid(door_target):
+			door_target = null
+		else:
+			if not is_on_floor():
+				velocity.y += GRAVITY * delta
+			var door_dx = door_target.global_position.x - global_position.x
+			if absf(door_dx) < 8.0:
+				_complete_enter()
+				return
+			direction = 1 if door_dx > 0.0 else -1
+			velocity.x = direction * SPEED
+			if body_gfx:
+				body_gfx.scale.x = direction * body_scale_factor
+			_update_villager_anim()
+			walk_anim_t += delta * 9.0
+			var door_swing = sin(walk_anim_t)
+			if l_leg:
+				l_leg.rotation = door_swing * 0.5
+				r_leg.rotation = -door_swing * 0.5
+				l_arm.rotation = -door_swing * 0.42
+				r_arm.rotation = door_swing * 0.42
+			move_and_slide()
+			return
+
 	if not is_on_floor():
 		velocity.y += GRAVITY * delta
 
@@ -686,7 +712,10 @@ func exit_building() -> void:
 		var role_key = find_villager_data().get("role_key", "")
 		building = get_building_for_role(role_key) if role_key != "" else null
 	if building and is_instance_valid(building):
-		global_position = building.global_position + Vector2(randf_range(-15.0, 15.0), -60.0)
+		# step out through the door, not out of thin air
+		if building.has_method("play_door_anim"):
+			building.play_door_anim()
+		global_position = building.global_position + Vector2(randf_range(-5.0, 5.0), -30.0)
 	pick_new_state()
 
 # Small info fields shared by both the Press-E notification (joined with
@@ -697,11 +726,22 @@ func info_fields() -> Array:
 	if data.is_empty():
 		return []
 	var age_text = "Kid" if data.get("is_kid", false) else "Adult"
+var door_target: Node = null   # building we're walking to before slipping inside
 	var stat_text = data.get("stat_name", "") if data.get("stat_name", "") != "" else "no stat yet"
+# A visit now starts by WALKING to the building's door (see the door_target
+# branch in _physics_process); the actual disappearance happens on arrival in
+# _complete_enter, with the facade's door swinging open.
 	var fields = [data.get("name", "?"), age_text + ", " + data.get("sex", "?"), stat_text]
 	if data.get("role_title", "") != "":
+	door_target = building
+
+func _complete_enter() -> void:
+	var building = door_target
+	door_target = null
 		fields.append("Works: " + data.get("role_title"))
 	return fields
+	if building and is_instance_valid(building) and building.has_method("play_door_anim"):
+		building.play_door_anim()
 
 func show_info() -> void:
 	var fields = info_fields()

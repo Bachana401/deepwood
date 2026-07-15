@@ -637,6 +637,33 @@ func employed_count() -> int:
 func refresh_workers() -> void:
 	if not workers_layer:
 		return
+# A quick door-swing overlay at the entrance so villager entries/exits read
+# visibly on the facade: the dark doorway shows, the panel swings open, holds
+# a beat while the NPC slips through, then shuts. Self-cleaning.
+func play_door_anim() -> void:
+	var w = eff_w()
+	var dw = clampf(w * 0.14, 14.0, 28.0)
+	var dh = dw * 1.9
+	var frame := ColorRect.new()
+	frame.size = Vector2(dw, dh)
+	frame.position = Vector2(-dw / 2.0, -dh)
+	frame.color = Color(0.05, 0.045, 0.04, 0.95)
+	frame.z_index = 3
+	add_child(frame)
+	var door := ColorRect.new()
+	door.size = Vector2(dw, dh)
+	door.position = Vector2(-dw / 2.0, -dh)
+	door.color = Color(0.23, 0.15, 0.09)
+	door.z_index = 4
+	door.pivot_offset = Vector2(0.0, dh / 2.0)   # hinge on the left jamb
+	add_child(door)
+	var t := create_tween()
+	t.tween_property(door, "scale:x", 0.12, 0.2).set_trans(Tween.TRANS_SINE)
+	t.tween_interval(0.55)
+	t.tween_property(door, "scale:x", 1.0, 0.2).set_trans(Tween.TRANS_SINE)
+	t.tween_callback(frame.queue_free)
+	t.tween_callback(door.queue_free)
+
 	for c in workers_layer.get_children():
 		workers_layer.remove_child(c)
 		c.queue_free()
