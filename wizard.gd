@@ -57,6 +57,14 @@ var cast_cooldown_remaining = 0.0
 var regen_timer = 0.0
 var facing := 1
 
+# PixelLab skin (art/orin/) replaces the procedural robe/hat/staff rig when the
+# art is present; without it, build_visual falls back to the polygon wizard so
+# this stays safe with no art shipped. idle + attack(cast) [+ hurt].
+const ORIN_ROOT := "res://art/"
+const ORIN_SKIN := "orin"
+const ORIN_SPRITE_H := 64.0
+var orin_sprite: AnimatedSprite2D = null
+
 # Recompute every scaled stat from the current death count.
 func apply_power_tier() -> void:
 	power_tier = GameState.wizard_power_tier
@@ -586,6 +594,11 @@ func build_visual() -> void:
 	gfx.name = "Gfx"
 	add_child(gfx)
 
+	# a PixelLab wizard skin replaces the whole polygon rig (robe/hat/staff/orb)
+	if EnemySkins.is_per_frame(ORIN_SKIN, ORIN_ROOT):
+		_build_orin_sprite()
+		return
+
 	# robe (indigo, flaring to the hem at the feet)
 	var robe = Polygon2D.new()
 	robe.polygon = PackedVector2Array([
@@ -630,6 +643,28 @@ func build_visual() -> void:
 
 	build_staff()
 
+# Skinned Orin: an AnimatedSprite2D under gfx, feet planted on the old robe-hem
+# line (gfx-local +22 = the collision underside), idle playing. Casting swaps to
+# the non-looping attack anim and returns to idle when it finishes.
+func _build_orin_sprite() -> void:
+	var spr := AnimatedSprite2D.new()
+	spr.name = "Skin"
+	spr.sprite_frames = EnemySkins.frames_for(ORIN_SKIN, ORIN_ROOT)
+	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	var ch := EnemySkins.content_height(ORIN_SKIN, ORIN_ROOT)
+	var sc := ORIN_SPRITE_H / ch
+	spr.scale = Vector2(sc, sc)
+	spr.offset = Vector2(0, 22.0 / sc - EnemySkins.feet_px(ORIN_SKIN, ORIN_ROOT))
+	if spr.sprite_frames.has_animation("idle"):
+		spr.play("idle")
+	spr.animation_finished.connect(_on_orin_anim_finished)
+	gfx.add_child(spr)
+	orin_sprite = spr
+
+func _on_orin_anim_finished() -> void:
+	if orin_sprite and orin_sprite.animation != "idle" and orin_sprite.sprite_frames.has_animation("idle"):
+		orin_sprite.play("idle")
+
 func build_staff() -> void:
 	staff = Node2D.new()
 	staff.name = "Staff"
@@ -662,6 +697,9 @@ func start_idle_animation() -> void:
 	t.tween_property(orb_glow, "scale", Vector2(0.85, 0.85), 1.1).set_trans(Tween.TRANS_SINE)
 
 func animate_cast() -> void:
+	# skinned Orin plays his cast animation (returns to idle when it finishes)
+	if orin_sprite and orin_sprite.sprite_frames.has_animation("attack"):
+		orin_sprite.play("attack")
 	# a quick bright flare of the orb on each cast
 	if orb:
 		var t = orb.create_tween()
