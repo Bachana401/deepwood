@@ -1114,6 +1114,12 @@ func build_intact(damaged: bool) -> void:
 		if damaged:
 			spr.modulate = Color(0.68, 0.66, 0.64)
 		gfx.add_child(spr)
+		# living candle-light: the painted windows/fires flicker (see
+		# building_lights.gd) -- skipped while damaged, the lights are out
+		if not damaged:
+			var lights := BuildingLights.new()
+			gfx.add_child(lights)
+			lights.build(tex, content, spr.position, spr.scale)
 		body_node = null
 		if building_level >= 4:
 			add_pennant(w, h)

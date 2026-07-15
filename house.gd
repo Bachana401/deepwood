@@ -72,6 +72,9 @@ func build_visual() -> void:
 		spr.scale = Vector2(s, s)
 		spr.position = Vector2(-content.size.x * s / 2.0, -content.size.y * s)
 		add_child(spr)
+		var lights := BuildingLights.new()
+		add_child(lights)
+		lights.build(tex, content, spr.position, spr.scale)
 		return
 	var body = Polygon2D.new()
 	body.polygon = PackedVector2Array([
