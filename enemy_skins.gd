@@ -1,26 +1,34 @@
 class_name EnemySkins
 extends RefCounted
 
-# Shared skin builder for dungeon enemies (enemy.gd), village soldiers/raiders and
-# corruption demons (siege_enemy.gd). A skin lives in art/enemies/<skin>/ and may
-# be EITHER format:
+# Shared skin builder for downloaded/generated character art. Originally for
+# dungeon enemies (enemy.gd), village soldiers/raiders and corruption demons
+# (siege_enemy.gd); now also serves villagers (npc.gd) and any other character
+# via the optional `root` arg. A skin lives in <root><skin>/ (root defaults to
+# res://art/enemies/) and may be EITHER format:
 #   - CraftPix STRIP:  <anim>.png  = one horizontal row of FRAME_SIZE(100) frames
 #   - PixelLab FRAMES: <anim>_1.png, <anim>_2.png, ...  = one PNG per frame
 # frames_for() auto-detects. Heights differ between packs, so content_height()/
 # feet_px() measure the actual character pixels from the idle frame -- bodies use
 # those to normalise every skin to a consistent on-screen size and plant its feet.
-# SpriteFrames + measurements are cached per skin.
+# SpriteFrames + measurements are cached per (root+skin).
 
 const FRAME_SIZE := 100    # CraftPix strip slice width
-# On-screen character height (px) that PixelLab per-frame skins normalise to, so
-# every generated enemy reads at a consistent, slightly-imposing size vs the
-# ~56px player. (CraftPix strip skins keep their own fixed scale until replaced.)
+# On-screen character height (px) that PixelLab per-frame ENEMY skins normalise
+# to, so every generated enemy reads at a consistent, slightly-imposing size vs
+# the ~56px player. (CraftPix strip skins keep their own fixed scale until
+# replaced. Non-enemy callers -- villagers -- pass their own target height.)
 const TARGET_HEIGHT := 72.0
+const DEFAULT_ROOT := "res://art/enemies/"
+
+static func _dir(root: String, skin: String) -> String:
+	return root + skin + "/"
 
 # True if this skin ships as PixelLab per-frame PNGs (idle_1.png ...) rather than
 # a CraftPix strip.
-static func is_per_frame(skin: String) -> bool:
-	return ResourceLoader.exists("res://art/enemies/%s/idle_1.png" % skin)
+static func is_per_frame(skin: String, root: String = DEFAULT_ROOT) -> bool:
+	return ResourceLoader.exists(_dir(root, skin) + "idle_1.png")
+
 const ANIMS := {
 	"idle":   {"fps": 8.0,  "loop": true},
 	"walk":   {"fps": 12.0, "loop": true},
@@ -34,11 +42,12 @@ static var _bounds_cache := {}
 
 # The frame textures for one animation, in order. Per-frame PixelLab folders win;
 # otherwise a CraftPix strip is sliced into FRAME_SIZE-wide regions.
-static func _anim_frames(skin: String, anim: String) -> Array:
+static func _anim_frames(skin: String, anim: String, root: String = DEFAULT_ROOT) -> Array:
 	var out: Array = []
+	var base := _dir(root, skin)
 	var i := 1
 	while true:
-		var p := "res://art/enemies/%s/%s_%d.png" % [skin, anim, i]
+		var p := base + "%s_%d.png" % [anim, i]
 		if not ResourceLoader.exists(p):
 			break
 		var t: Texture2D = load(p)
@@ -49,7 +58,7 @@ static func _anim_frames(skin: String, anim: String) -> Array:
 	if not out.is_empty():
 		return out
 	# strip fallback
-	var sp := "res://art/enemies/%s/%s.png" % [skin, anim]
+	var sp := base + anim + ".png"
 	if not ResourceLoader.exists(sp):
 		return out
 	var tex: Texture2D = load(sp)
@@ -64,14 +73,15 @@ static func _anim_frames(skin: String, anim: String) -> Array:
 		out.append(at)
 	return out
 
-static func frames_for(skin: String) -> SpriteFrames:
-	if _cache.has(skin):
-		return _cache[skin]
+static func frames_for(skin: String, root: String = DEFAULT_ROOT) -> SpriteFrames:
+	var key := root + skin
+	if _cache.has(key):
+		return _cache[key]
 	var sf := SpriteFrames.new()
 	if sf.has_animation("default"):
 		sf.remove_animation("default")
 	for anim in ANIMS:
-		var frames := _anim_frames(skin, anim)
+		var frames := _anim_frames(skin, anim, root)
 		if frames.is_empty():
 			continue
 		var info: Dictionary = ANIMS[anim]
@@ -80,28 +90,30 @@ static func frames_for(skin: String) -> SpriteFrames:
 		sf.set_animation_speed(anim, info["fps"])
 		for t in frames:
 			sf.add_frame(anim, t)
-	_cache[skin] = sf
+	_cache[key] = sf
 	return sf
 
 # Content bounding box of the FIRST idle frame, measured from the raw source
 # image (NOT AtlasTexture.get_image, which misreads strip regions): {frame_h,
 # top, bottom, height}. For a CraftPix strip only the first FRAME_SIZE columns
 # are scanned; for a PixelLab per-frame PNG the whole image is scanned.
-static func idle_bounds(skin: String) -> Dictionary:
-	if _bounds_cache.has(skin):
-		return _bounds_cache[skin]
+static func idle_bounds(skin: String, root: String = DEFAULT_ROOT) -> Dictionary:
+	var key := root + skin
+	if _bounds_cache.has(key):
+		return _bounds_cache[key]
+	var base := _dir(root, skin)
 	var res := {"frame_h": float(FRAME_SIZE), "top": 0.0, "bottom": float(FRAME_SIZE - 1), "height": float(FRAME_SIZE)}
 	# Scan the FULL image (per-frame PNG = one frame; strip = every frame at once).
 	# Scanning all frames unions the poses, so a compressed idle breath-frame
 	# doesn't undercount the character's true standing height.
 	var img: Image = null
-	var pf := "res://art/enemies/%s/idle_1.png" % skin
+	var pf := base + "idle_1.png"
 	if ResourceLoader.exists(pf):
 		var t: Texture2D = load(pf)
 		if t != null:
 			img = t.get_image()
 	else:
-		var sp := "res://art/enemies/%s/idle.png" % skin
+		var sp := base + "idle.png"
 		if ResourceLoader.exists(sp):
 			var t2: Texture2D = load(sp)
 			if t2 != null:
@@ -125,15 +137,15 @@ static func idle_bounds(skin: String) -> Dictionary:
 				bot = y
 		if top >= 0:
 			res = {"frame_h": float(h), "top": float(top), "bottom": float(bot), "height": float(bot - top + 1)}
-	_bounds_cache[skin] = res
+	_bounds_cache[key] = res
 	return res
 
 # Lowest visible pixel of the idle frame, relative to the frame CENTRE (positive =
 # below centre) -- used to plant feet exactly on a body's ground line.
-static func feet_px(skin: String) -> float:
-	var b := idle_bounds(skin)
+static func feet_px(skin: String, root: String = DEFAULT_ROOT) -> float:
+	var b := idle_bounds(skin, root)
 	return b["bottom"] - b["frame_h"] / 2.0
 
 # Visible character height in pixels (for normalising every skin to one size).
-static func content_height(skin: String) -> float:
-	return maxf(1.0, idle_bounds(skin)["height"])
+static func content_height(skin: String, root: String = DEFAULT_ROOT) -> float:
+	return maxf(1.0, idle_bounds(skin, root)["height"])

@@ -120,6 +120,13 @@ const NPC_TUNICS_F = [Color(0.62, 0.44, 0.52), Color(0.6, 0.5, 0.34), Color(0.5,
 const NPC_PANTS = [Color(0.3, 0.28, 0.34), Color(0.36, 0.3, 0.22), Color(0.28, 0.34, 0.3)]
 const NPC_HOODS = [Color(0.24, 0.4, 0.26), Color(0.42, 0.3, 0.2), Color(0.45, 0.26, 0.28)]
 
+# PixelLab villager skins (art/villagers/<man|woman|kid>/) replace the ColorRect
+# body when the art is present; without it, apply_size falls back to the
+# deterministic little-person build above, so this is safe with no art shipped.
+const VILLAGER_ROOT := "res://art/villagers/"
+const VILLAGER_SPRITE_H := 38.0   # adult on-screen height; kids inherit body_scale_factor (0.65)
+var villager_sprite: AnimatedSprite2D = null
+
 var body_gfx: Node2D = null
 var body_scale_factor := 1.0
 # limb references for the walk animation (arms/legs swing in opposition)
@@ -163,34 +170,78 @@ func apply_size() -> void:
 		for c in body_gfx.get_children():
 			body_gfx.remove_child(c)
 			c.queue_free()
-		# deterministic look per villager
-		var rng = RandomNumberGenerator.new()
-		rng.seed = hash(villager_id)
-		var skin = NPC_SKINS[rng.randi() % NPC_SKINS.size()]
-		var tunics = NPC_TUNICS_M if sex == "Male" else NPC_TUNICS_F
-		var tunic = tunics[rng.randi() % tunics.size()]
-		var pants = NPC_PANTS[rng.randi() % NPC_PANTS.size()]
-		var hood = NPC_HOODS[rng.randi() % NPC_HOODS.size()]
-		# ~34px human, feet at local (0,0); limbs pivot at hip/shoulder so the
-		# walk cycle can swing them (arm forward, opposite leg back)
-		l_leg = _body_px(-5.5, -10.0, 4.4, 10.0, pants)
-		r_leg = _body_px(1.1, -10.0, 4.4, 10.0, pants)
-		l_leg.pivot_offset = Vector2(2.2, 0.0)
-		r_leg.pivot_offset = Vector2(2.2, 0.0)
-		_body_px(-6.5, -23.5, 13.0, 13.5, tunic)               # tunic
-		l_arm = _body_px(-9.2, -22.5, 3.0, 10.0, tunic.darkened(0.12))
-		r_arm = _body_px(6.2, -22.5, 3.0, 10.0, tunic.darkened(0.12))
-		l_arm.pivot_offset = Vector2(1.5, 0.0)
-		r_arm.pivot_offset = Vector2(1.5, 0.0)
-		_body_px(-6.5, -12.5, 13.0, 2.4, tunic.darkened(0.35)) # belt
-		_body_px(-4.2, -32.0, 8.4, 8.5, skin)                  # head
-		_body_px(-4.8, -34.4, 9.6, 3.6, hood)                  # hood
+		# a skinned villager drives an AnimatedSprite2D; the procedural limb refs
+		# stay null so the walk/cheer code below harmlessly skips them
+		l_leg = null
+		r_leg = null
+		l_arm = null
+		r_arm = null
+		var vskin := _villager_skin(is_kid, sex)
+		if EnemySkins.is_per_frame(vskin, VILLAGER_ROOT):
+			_build_villager_sprite(vskin)
+		else:
+			# deterministic little-person fallback (no PixelLab art present)
+			var rng = RandomNumberGenerator.new()
+			rng.seed = hash(villager_id)
+			var skin = NPC_SKINS[rng.randi() % NPC_SKINS.size()]
+			var tunics = NPC_TUNICS_M if sex == "Male" else NPC_TUNICS_F
+			var tunic = tunics[rng.randi() % tunics.size()]
+			var pants = NPC_PANTS[rng.randi() % NPC_PANTS.size()]
+			var hood = NPC_HOODS[rng.randi() % NPC_HOODS.size()]
+			# ~34px human, feet at local (0,0); limbs pivot at hip/shoulder so the
+			# walk cycle can swing them (arm forward, opposite leg back)
+			l_leg = _body_px(-5.5, -10.0, 4.4, 10.0, pants)
+			r_leg = _body_px(1.1, -10.0, 4.4, 10.0, pants)
+			l_leg.pivot_offset = Vector2(2.2, 0.0)
+			r_leg.pivot_offset = Vector2(2.2, 0.0)
+			_body_px(-6.5, -23.5, 13.0, 13.5, tunic)               # tunic
+			l_arm = _body_px(-9.2, -22.5, 3.0, 10.0, tunic.darkened(0.12))
+			r_arm = _body_px(6.2, -22.5, 3.0, 10.0, tunic.darkened(0.12))
+			l_arm.pivot_offset = Vector2(1.5, 0.0)
+			r_arm.pivot_offset = Vector2(1.5, 0.0)
+			_body_px(-6.5, -12.5, 13.0, 2.4, tunic.darkened(0.35)) # belt
+			_body_px(-4.2, -32.0, 8.4, 8.5, skin)                  # head
+			_body_px(-4.8, -34.4, 9.6, 3.6, hood)                  # hood
 		body_gfx.scale = Vector2(scale_factor, scale_factor)
 		# the collision box is centred on the node, so its underside sits
 		# 18*scale below origin -- anchor the feet THERE, on the actual ground
 		body_gfx.position = Vector2(0.0, 18.0 * scale_factor)
 	if collision_shape and collision_shape.shape:
 		collision_shape.shape.size = Vector2(20.0 * scale_factor, 36.0 * scale_factor)
+
+# man for adult males, woman for adult females, one shared kid sprite.
+func _villager_skin(is_kid: bool, sex: String) -> String:
+	if is_kid:
+		return "kid"
+	return "man" if sex == "Male" else "woman"
+
+# Builds the AnimatedSprite2D villager body under body_gfx: normalised to
+# VILLAGER_SPRITE_H, feet planted on body_gfx's local origin (matching the
+# procedural build), idle playing. body_gfx.scale (facing * body_scale_factor)
+# and body_gfx.position are applied by apply_size for both body types.
+func _build_villager_sprite(vskin: String) -> void:
+	var spr := AnimatedSprite2D.new()
+	spr.name = "Skin"
+	spr.sprite_frames = EnemySkins.frames_for(vskin, VILLAGER_ROOT)
+	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	var ch := EnemySkins.content_height(vskin, VILLAGER_ROOT)
+	var sc := VILLAGER_SPRITE_H / ch
+	spr.scale = Vector2(sc, sc)
+	spr.offset = Vector2(0, -EnemySkins.feet_px(vskin, VILLAGER_ROOT))
+	if spr.sprite_frames.has_animation("idle"):
+		spr.animation = "idle"
+		spr.play("idle")
+	body_gfx.add_child(spr)
+	villager_sprite = spr
+
+# Skinned villagers swap idle<->walk from the movement state each frame.
+func _update_villager_anim() -> void:
+	if villager_sprite == null:
+		return
+	var want := "walk" if is_walking else "idle"
+	var sf := villager_sprite.sprite_frames
+	if sf and sf.has_animation(want) and villager_sprite.animation != want:
+		villager_sprite.play(want)
 
 func refresh_size_if_needed() -> void:
 	var data = find_villager_data()
@@ -357,6 +408,7 @@ func _physics_process(delta: float) -> void:
 		body_gfx.position.y = 18.0 * body_scale_factor   # feet back on the ground
 		body_gfx.rotation = 0.0
 
+	_update_villager_anim()
 	move_and_slide()
 
 # Called by village_life.gd while the town is celebrating a 10/10 morale. Each
