@@ -244,7 +244,7 @@ const BOSSES = {
 		"color": Color(0.36, 0.38, 0.3), "eye_color": Color(1.0, 1.0, 0.55),
 		"magic": Color(0.95, 0.95, 0.55),
 		"body": Vector2(150, 180), "hp": 880, "speed": 88.0, "shape": "caster",
-		"abilities": ["nova", "pillars", "barrage"],
+		"abilities": ["nova", "pillars", "barrage"], "sprite": "stormcaller",
 	},
 	# The hollow king: a dead monarch whose chest is an open void, his crown
 	# floating above the ruin of his head.
