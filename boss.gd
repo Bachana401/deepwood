@@ -227,7 +227,7 @@ const BOSSES = {
 		"color": Color(0.16, 0.12, 0.11), "eye_color": Color(1.0, 0.6, 0.15),
 		"magic": Color(1.0, 0.5, 0.12),
 		"body": Vector2(240, 230), "hp": 1100, "speed": 95.0, "shape": "colossus",
-		"abilities": ["charge", "barrage", "pillars"],
+		"abilities": ["charge", "barrage", "pillars"], "sprite": "cinder_colossus",
 	},
 	# A SMALL corpse-spider brood mother -- quick, evasive, hard to corner;
 	# her legs span far wider than her body.
@@ -263,7 +263,7 @@ const BOSSES = {
 		"color": Color(0.78, 0.74, 0.6), "eye_color": Color(1.0, 0.55, 0.1),
 		"magic": Color(1.0, 0.85, 0.4),
 		"body": Vector2(140, 220), "hp": 2400, "speed": 130.0, "shape": "angel",
-		"flying": true, "apex": true,
+		"flying": true, "apex": true, "sprite": "seraph",
 		"abilities": ["dive", "volley", "rain", "nova"],
 	},
 	# A LONG skeletal abyss-wyrm; its "meteors" are teal water-spouts and its
