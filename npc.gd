@@ -209,11 +209,25 @@ func apply_size() -> void:
 	if collision_shape and collision_shape.shape:
 		collision_shape.shape.size = Vector2(20.0 * scale_factor, 36.0 * scale_factor)
 
-# man for adult males, woman for adult females, one shared kid sprite.
+# Adult villagers pick deterministically among the sprite VARIANTS whose art is
+# actually present -- so each person keeps one consistent look, and dropping in
+# art/villagers/man2 ... man5 / woman2 ... woman5 automatically widens the pool
+# with no code change. Kids share one sprite.
+const VILLAGER_VARIANTS := {
+	"Male": ["man", "man2", "man3", "man4", "man5"],
+	"Female": ["woman", "woman2", "woman3", "woman4", "woman5"],
+}
 func _villager_skin(is_kid: bool, sex: String) -> String:
 	if is_kid:
 		return "kid"
-	return "man" if sex == "Male" else "woman"
+	var candidates: Array = VILLAGER_VARIANTS.get(sex, VILLAGER_VARIANTS["Female"])
+	var have: Array = []
+	for v in candidates:
+		if EnemySkins.is_per_frame(v, VILLAGER_ROOT):
+			have.append(v)
+	if have.is_empty():
+		return candidates[0]
+	return have[abs(hash(villager_id)) % have.size()]
 
 # Builds the AnimatedSprite2D villager body under body_gfx: normalised to
 # VILLAGER_SPRITE_H, feet planted on body_gfx's local origin (matching the
