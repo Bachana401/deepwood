@@ -668,7 +668,7 @@ func _build_boss_sprite(skin: String, body: Vector2) -> void:
 	var ch := EnemySkins.content_height(skin, BOSS_ROOT)
 	var sc := (body.y * BOSS_FILL) / ch
 	spr.scale = Vector2(sc, sc)
-	spr.offset = Vector2(0, (body.y / 2.0) / sc - EnemySkins.feet_px(skin, BOSS_ROOT))
+	spr.offset = Vector2(-EnemySkins.hcenter_px(skin, BOSS_ROOT), (body.y / 2.0) / sc - EnemySkins.feet_px(skin, BOSS_ROOT))
 	if spr.sprite_frames.has_animation("idle"):
 		spr.play("idle")
 	spr.animation_finished.connect(_on_boss_anim_finished)

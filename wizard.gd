@@ -654,7 +654,7 @@ func _build_orin_sprite() -> void:
 	var ch := EnemySkins.content_height(ORIN_SKIN, ORIN_ROOT)
 	var sc := ORIN_SPRITE_H / ch
 	spr.scale = Vector2(sc, sc)
-	spr.offset = Vector2(0, 22.0 / sc - EnemySkins.feet_px(ORIN_SKIN, ORIN_ROOT))
+	spr.offset = Vector2(-EnemySkins.hcenter_px(ORIN_SKIN, ORIN_ROOT), 22.0 / sc - EnemySkins.feet_px(ORIN_SKIN, ORIN_ROOT))
 	if spr.sprite_frames.has_animation("idle"):
 		spr.play("idle")
 	spr.animation_finished.connect(_on_orin_anim_finished)

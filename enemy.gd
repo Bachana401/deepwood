@@ -264,7 +264,7 @@ func _build_sprite_visual() -> void:
 	spr.scale = Vector2(sc, sc)
 	# plant the character's MEASURED feet exactly on this body's ground line:
 	# (feet_px + offset) * sc == SPRITE_GROUND_Y
-	spr.offset = Vector2(0, SPRITE_GROUND_Y / sc - EnemySkins.feet_px(sprite_skin))
+	spr.offset = Vector2(-EnemySkins.hcenter_px(sprite_skin), SPRITE_GROUND_Y / sc - EnemySkins.feet_px(sprite_skin))
 	spr.animation = "idle"
 	spr.play("idle")
 	add_child(spr)

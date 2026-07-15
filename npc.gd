@@ -227,7 +227,7 @@ func _build_villager_sprite(vskin: String) -> void:
 	var ch := EnemySkins.content_height(vskin, VILLAGER_ROOT)
 	var sc := VILLAGER_SPRITE_H / ch
 	spr.scale = Vector2(sc, sc)
-	spr.offset = Vector2(0, -EnemySkins.feet_px(vskin, VILLAGER_ROOT))
+	spr.offset = Vector2(-EnemySkins.hcenter_px(vskin, VILLAGER_ROOT), -EnemySkins.feet_px(vskin, VILLAGER_ROOT))
 	if spr.sprite_frames.has_animation("idle"):
 		spr.animation = "idle"
 		spr.play("idle")

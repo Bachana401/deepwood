@@ -102,7 +102,7 @@ static func idle_bounds(skin: String, root: String = DEFAULT_ROOT) -> Dictionary
 	if _bounds_cache.has(key):
 		return _bounds_cache[key]
 	var base := _dir(root, skin)
-	var res := {"frame_h": float(FRAME_SIZE), "top": 0.0, "bottom": float(FRAME_SIZE - 1), "height": float(FRAME_SIZE)}
+	var res := {"frame_h": float(FRAME_SIZE), "frame_w": float(FRAME_SIZE), "top": 0.0, "bottom": float(FRAME_SIZE - 1), "height": float(FRAME_SIZE), "foot_cx": float(FRAME_SIZE) / 2.0}
 	# Scan the FULL image (per-frame PNG = one frame; strip = every frame at once).
 	# Scanning all frames unions the poses, so a compressed idle breath-frame
 	# doesn't undercount the character's true standing height.
@@ -125,18 +125,37 @@ static func idle_bounds(skin: String, root: String = DEFAULT_ROOT) -> Dictionary
 		var h := img.get_height()
 		var top := -1
 		var bot := -1
+		var row_minx := PackedInt32Array()
+		var row_maxx := PackedInt32Array()
+		row_minx.resize(h)
+		row_maxx.resize(h)
 		for y in range(h):
-			var hit := false
+			var rmin := -1
+			var rmax := -1
 			for x in range(w):
 				if img.get_pixel(x, y).a > 0.15:
-					hit = true
-					break
-			if hit:
+					if rmin < 0:
+						rmin = x
+					rmax = x
+			row_minx[y] = rmin
+			row_maxx[y] = rmax
+			if rmax >= 0:
 				if top < 0:
 					top = y
 				bot = y
 		if top >= 0:
-			res = {"frame_h": float(h), "top": float(top), "bottom": float(bot), "height": float(bot - top + 1)}
+			# Horizontal centre of the FEET band (bottom ~18% of the body), so a
+			# character anchors on where it STANDS -- a raised weapon or an
+			# outstretched arm no longer drags its centre sideways.
+			var band := maxi(2, int(round((bot - top + 1) * 0.18)))
+			var fmin := w
+			var fmax := -1
+			for y in range(maxi(top, bot - band + 1), bot + 1):
+				if row_maxx[y] >= 0:
+					fmin = mini(fmin, row_minx[y])
+					fmax = maxi(fmax, row_maxx[y])
+			var foot_cx := (float(fmin) + float(fmax)) / 2.0 if fmax >= 0 else float(w) / 2.0
+			res = {"frame_h": float(h), "frame_w": float(w), "top": float(top), "bottom": float(bot), "height": float(bot - top + 1), "foot_cx": foot_cx}
 	_bounds_cache[key] = res
 	return res
 
@@ -149,3 +168,10 @@ static func feet_px(skin: String, root: String = DEFAULT_ROOT) -> float:
 # Visible character height in pixels (for normalising every skin to one size).
 static func content_height(skin: String, root: String = DEFAULT_ROOT) -> float:
 	return maxf(1.0, idle_bounds(skin, root)["height"])
+
+# Horizontal offset (texture px) of the character's standing centre from the
+# frame centre. Feed the NEGATIVE of this into a sprite's offset.x so it stands
+# centred on its node (health bar / hitbox / shadow) instead of drifting sideways.
+static func hcenter_px(skin: String, root: String = DEFAULT_ROOT) -> float:
+	var b := idle_bounds(skin, root)
+	return b["foot_cx"] - b["frame_w"] / 2.0
