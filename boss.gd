@@ -282,7 +282,7 @@ const BOSSES = {
 		"color": Color(0.09, 0.06, 0.08), "eye_color": Color(1.0, 0.2, 0.1),
 		"magic": Color(1.0, 0.25, 0.12),
 		"body": Vector2(260, 340), "hp": 3300, "speed": 90.0, "shape": "titan",
-		"apex": true,
+		"apex": true, "sprite": "eclipse",
 		"abilities": ["beam", "pillars", "meteors", "teleport", "summon"],
 	},
 	# The level-100 finale: barely taller than the adventurer -- his power is
