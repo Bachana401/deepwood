@@ -35,6 +35,12 @@ const ANIMS := {
 	"attack": {"fps": 12.0, "loop": false},
 	"hurt":   {"fps": 14.0, "loop": false},
 	"death":  {"fps": 10.0, "loop": false},
+	# optional bespoke POWER clips (finale wizard: one per ability family);
+	# skins without these files simply skip them
+	"beam":     {"fps": 10.0, "loop": false},
+	"summon":   {"fps": 10.0, "loop": false},
+	"curse":    {"fps": 10.0, "loop": false},
+	"teleport": {"fps": 12.0, "loop": false},
 }
 
 static var _cache := {}

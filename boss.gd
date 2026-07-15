@@ -295,7 +295,7 @@ const BOSSES = {
 		"color": Color(0.09, 0.05, 0.07), "eye_color": Color(1.0, 0.12, 0.08),
 		"magic": Color(1.0, 0.22, 0.12),
 		"body": Vector2(34, 52), "hp": 4000, "speed": 120.0, "shape": "wizard",
-		"flying": true, "apex": true,
+		"flying": true, "apex": true, "sprite": "fallen_wizard",
 		"passives": ["crumbling_aura", "blink_on_hit", "soul_split"],
 		"abilities": ["curse", "beam", "meteors", "teleport", "volley", "doomring", "clone"],
 	},
@@ -465,6 +465,7 @@ func configure_from_def(def: Dictionary) -> void:
 
 	if has_aura:
 		build_aura()
+		_build_wizard_ground_aura()
 	if is_clone:
 		build_shard_aura()
 
@@ -690,6 +691,73 @@ func _update_boss_anim() -> void:
 func _on_boss_anim_finished() -> void:
 	if boss_sprite and boss_sprite.animation != "idle" and boss_sprite.sprite_frames.has_animation("idle"):
 		boss_sprite.play("idle")
+
+# Skinned bosses with bespoke POWER animations (the Fallen Wizard finale):
+# each ability maps to its own clip when the skin ships one -- beam channels,
+# meteors raise the staff skyward, curse/doomring/clone spread the arms wide,
+# teleport swirls the cloak. Anything unmapped (or missing art) falls back to
+# the generic "attack" clip, so partially-animated skins still read fine.
+const BOSS_ABILITY_ANIMS := {
+	"beam": "beam", "meteors": "summon", "rain": "summon",
+	"curse": "curse", "doomring": "curse", "clone": "curse", "nova": "curse",
+	"teleport": "teleport",
+}
+
+func _play_boss_ability_anim(ability: String) -> void:
+	if boss_sprite == null:
+		return
+	var sf := boss_sprite.sprite_frames
+	var want: String = BOSS_ABILITY_ANIMS.get(ability, "attack")
+	if not sf.has_animation(want):
+		want = "attack"
+	if sf.has_animation(want):
+		boss_sprite.play(want)
+
+# The finale wizard's CONSTANT ground aura: a looping pillar of crumbling
+# crimson-and-purple flame erupting from beneath his feet (PixelLab effect
+# frames, art/bosses/<skin>/aura_N.png). Bottom-anchored on the collision
+# underside so it always pours off his feet, drawn behind the body, with a
+# slow breathing pulse so it feels alive. Self-guarding: no art, no aura.
+var ground_aura: AnimatedSprite2D = null
+
+func _build_wizard_ground_aura() -> void:
+	var skin := str(current_def.get("sprite", ""))
+	if skin == "" or not ResourceLoader.exists(BOSS_ROOT + skin + "/aura_1.png"):
+		return
+	var sf := SpriteFrames.new()
+	sf.add_animation("burn")
+	sf.set_animation_loop("burn", true)
+	sf.set_animation_speed("burn", 10.0)
+	var i := 1
+	while true:
+		var p := BOSS_ROOT + skin + "/aura_%d.png" % i
+		if not ResourceLoader.exists(p):
+			break
+		sf.add_frame("burn", load(p))
+		i += 1
+	if sf.get_frame_count("burn") == 0:
+		return
+	var spr := AnimatedSprite2D.new()
+	spr.name = "GroundAura"
+	spr.sprite_frames = sf
+	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	var body: Vector2 = current_def.get("body", Vector2(160, 220))
+	var tex: Texture2D = sf.get_frame_texture("burn", 0)
+	# span comfortably wider than the boss and pour upward from the feet
+	var sc := (body.x * 2.6) / float(tex.get_width())
+	spr.scale = Vector2(sc, sc)
+	spr.centered = false
+	spr.offset = Vector2(-tex.get_width() / 2.0, -float(tex.get_height()))
+	spr.position = Vector2(0, body.y / 2.0)   # bottom pinned to his feet
+	spr.modulate = Color(1.0, 0.55, 0.45, 0.9)
+	add_child(spr)
+	move_child(spr, rig.get_index())   # behind the body, above the world
+	spr.play("burn")
+	ground_aura = spr
+	# slow breathing pulse -- the fire swells and settles forever
+	var t := create_tween().set_loops()
+	t.tween_property(spr, "scale", Vector2(sc * 1.12, sc * 1.06), 1.1).set_trans(Tween.TRANS_SINE)
+	t.tween_property(spr, "scale", Vector2(sc, sc), 1.1).set_trans(Tween.TRANS_SINE)
 
 func _rp(points: PackedVector2Array, color: Color, z: int = 0) -> Polygon2D:
 	var p := Polygon2D.new()
@@ -1131,6 +1199,7 @@ func start_attack(attack_name: String) -> void:
 		"nova": do_nova()
 		"teleport": do_teleport()
 		"summon": do_summon()
+	_play_boss_ability_anim(ability_name)
 		"pillars": do_pillars()
 		"dive": do_dive()
 		"volley": do_volley()
@@ -1149,6 +1218,7 @@ func set_cd(ability_name: String) -> void:
 func cooldown_mult() -> float:
 	var m := 1.0
 	if is_frenzied:
+	_play_boss_ability_anim(attack_name)
 	if boss_sprite and boss_sprite.sprite_frames.has_animation("attack"):
 		boss_sprite.play("attack")
 		m = 0.35
