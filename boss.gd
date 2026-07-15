@@ -218,7 +218,7 @@ const BOSSES = {
 		"color": Color(0.55, 0.68, 0.8), "eye_color": Color(0.85, 0.97, 1.0),
 		"magic": Color(0.65, 0.9, 1.0),
 		"body": Vector2(110, 250), "hp": 780, "speed": 56.0, "shape": "crown",
-		"abilities": ["rain", "nova", "teleport"],
+		"abilities": ["rain", "nova", "teleport"], "sprite": "frost_monarch",
 	},
 	# A huge charcoal stag-demon, antlers still burning from the forest fire
 	# that killed it. Stampedes and erupts fire.
