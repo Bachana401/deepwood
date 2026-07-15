@@ -52,6 +52,19 @@ func _ready() -> void:
 	add_child(prompt)
 
 func build_visual() -> void:
+	# PixelLab cottage facade replaces the flat polygon look when present
+	# (fits the footprint, base on the ground line); fallback stays procedural.
+	if ResourceLoader.exists("res://art/buildings/house.png"):
+		var tex: Texture2D = load("res://art/buildings/house.png")
+		var spr := Sprite2D.new()
+		spr.texture = tex
+		spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		spr.centered = false
+		var s := (height + 22.0) / tex.get_height()   # roof peak room like the polygon roof
+		spr.scale = Vector2(s, s)
+		spr.position = Vector2(-tex.get_width() * s / 2.0, -tex.get_height() * s)
+		add_child(spr)
+		return
 	var body = Polygon2D.new()
 	body.polygon = PackedVector2Array([
 		Vector2(-width / 2.0, 0), Vector2(width / 2.0, 0),
