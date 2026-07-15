@@ -32,7 +32,7 @@
 [ext_resource type="Script" path="res://food_readout.gd" id="33_foodreadout"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_j7ovs"]
-size = Vector2(19713, 77)
+size = Vector2(39426, 77)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_1bvp3"]
 size = Vector2(98, 77)
@@ -155,13 +155,13 @@ polygon = PackedVector2Array(660, -950, 653, -910, 632, -876, 600, -854, 562, -8
 [node name="Ground" type="StaticBody2D" parent="." unique_id=1856301967]
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Ground" unique_id=1577726374]
-position = Vector2(9143.5, -0.5)
+position = Vector2(19000, -0.5)
 shape = SubResource("RectangleShape2D_j7ovs")
 
 [node name="ColorRect" type="ColorRect" parent="Ground" unique_id=37273744]
 offset_left = -713.0
 offset_top = -39.0
-offset_right = 19000.0
+offset_right = 38000.0
 offset_bottom = 38.0
 color = Color(0.36, 0.56, 0.22, 1)
 

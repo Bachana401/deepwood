@@ -82,9 +82,61 @@ func build(tex: Texture2D, content: Rect2, spr_pos: Vector2, spr_scale: Vector2)
 		spr.modulate = Color(1, 0.9, 0.6, 0.0)   # warm additive tint, driven below
 		add_child(spr)
 		_glows.append({"n": spr, "phase": randf() * TAU, "speed": randf_range(4.0, 9.0)})
+	add_smoke(img, content, spr_pos, spr_scale)
+
+# Curling chimney smoke (art/effects/smoke_N.png loop) anchored on the
+# facade's chimney: the tallest narrow content column at the very top of the
+# art. Buildings without a chimney silhouette simply get no smoke.
+func add_smoke(img: Image, content: Rect2, spr_pos: Vector2, spr_scale: Vector2) -> void:
+	if not ResourceLoader.exists("res://art/effects/smoke_1.png"):
+		return
+	var x0 := int(content.position.x)
+	var y0 := int(content.position.y)
+	var cw := int(content.size.x)
+	# opaque runs on the topmost few rows = chimney candidates
+	var runs: Array = []
+	var run_start := -1
+	for x in range(cw):
+		var hit := false
+		for y in range(4):
+			if img.get_pixel(x0 + x, y0 + y).a > 0.5:
+				hit = true
+				break
+		if hit and run_start < 0:
+			run_start = x
+		elif not hit and run_start >= 0:
+			runs.append([run_start, x - 1])
+			run_start = -1
+	if run_start >= 0:
+		runs.append([run_start, cw - 1])
+	for r in runs:
+		var rw: int = r[1] - r[0] + 1
+		if rw < 4 or rw > cw * 0.22:
+			continue   # too thin to matter or too wide to be a chimney
+		var frames := SpriteFrames.new()
+		frames.add_animation("puff")
+		frames.set_animation_loop("puff", true)
+		frames.set_animation_speed("puff", 7.0)
+		var i := 1
+		while ResourceLoader.exists("res://art/effects/smoke_%d.png" % i):
+			frames.add_frame("puff", load("res://art/effects/smoke_%d.png" % i))
+			i += 1
+		var smoke := AnimatedSprite2D.new()
+		smoke.sprite_frames = frames
+		smoke.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		var cx: float = (r[0] + r[1]) / 2.0
+		smoke.position = spr_pos + Vector2(cx * spr_scale.x, -6.0)
+		smoke.scale = Vector2(0.55, 0.55) * maxf(spr_scale.x, 0.5)
+		smoke.offset = Vector2(0, -40.0)   # plume rises from the stack
+		smoke.modulate = Color(1, 1, 1, 0.55)
+		smoke.play("puff")
+		add_child(smoke)
+		_smokes.append(smoke)
+
+var _smokes: Array = []
 
 func _process(delta: float) -> void:
-	if _glows.is_empty():
+	if _glows.is_empty() and _smokes.is_empty():
 		return
 	_t += delta
 	# candles barely simmer by day, dance at night
@@ -95,3 +147,6 @@ func _process(delta: float) -> void:
 		var flick: float = 0.5 + 0.5 * sin(_t * g["speed"] + g["phase"])
 		flick = flick * 0.7 + 0.3 * (0.5 + 0.5 * sin(_t * g["speed"] * 2.7 + g["phase"] * 1.7))
 		g["n"].modulate.a = base + amp * flick
+	# hearths burn harder after dark
+	for s in _smokes:
+		s.modulate.a = 0.75 if night else 0.45

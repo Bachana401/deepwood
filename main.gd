@@ -97,7 +97,7 @@ const STANDING_TORCH_SCRIPT = preload("res://standing_torch.gd")
 # generate_village) so no two overlap regardless of their scaled widths.
 const VILLAGE_BUILDINGS = [
 	{"name": "Government", "role_key": "Government", "width": 130.0, "height": 100.0, "scale": 3.0, "color": Color(0.55, 0.48, 0.38, 1)},
-	{"name": "School", "role_key": "School", "width": 100.0, "height": 80.0, "scale": 2.0, "color": Color(0.45, 0.55, 0.65, 1)},
+	{"name": "School", "role_key": "School", "width": 100.0, "height": 80.0, "scale": 3.2, "color": Color(0.45, 0.55, 0.65, 1)},
 	{"name": "Farm", "role_key": "Farm", "width": 110.0, "height": 75.0, "scale": 2.8, "color": Color(0.5, 0.6, 0.3, 1)},
 	{"name": "Hospital", "role_key": "Hospital", "width": 105.0, "height": 85.0, "scale": 2.5, "color": Color(0.75, 0.72, 0.7, 1)},
 	{"name": "Barracks", "role_key": "Barracks", "width": 115.0, "height": 80.0, "scale": 2.5, "color": Color(0.4, 0.35, 0.32, 1)},
