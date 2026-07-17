@@ -237,6 +237,32 @@ const STANCE_COUNTER_DAMAGE = 26
 const STANCE_COUNTER_STUN = 0.6
 var parry_until := 0.0
 var _parry_consumed := false
+# --- apex tier signatures (floors 95-100) ---
+# Seraphiel 95 -- Judgment (full-height light wall SWEEPS across: dodge sideways)
+const JUDGMENT_TELEGRAPH = 0.6
+const JUDGMENT_SPEED = 620.0
+const JUDGMENT_SPAN = 1400.0
+const JUDGMENT_DAMAGE = 24
+const JUDGMENT_BAND = 55.0
+# Leviathan 98 -- Tidal Crush (low WAVE sweeps the floor: get to high ground)
+const TIDAL_TELEGRAPH = 0.7
+const TIDAL_SPEED = 560.0
+const TIDAL_SPAN = 1500.0
+const TIDAL_DAMAGE = 26
+const TIDAL_BAND = 60.0
+const TIDAL_LOW = 130.0        # only catches players within this height of the floor line
+# Eclipse 99 -- Black Sun (darkness closes in: the safe lit ring SHRINKS to it)
+const SUN_STEPS = 5
+const SUN_STEP_TIME = 0.5
+const SUN_START_RADIUS = 620.0
+const SUN_END_RADIUS = 190.0
+const SUN_DAMAGE = 16
+# Fallen Wizard 100 -- Unwriting (the arena UNWRITES: void tears open under you)
+const UNWRITE_TELEGRAPH = 0.7
+const UNWRITE_ZONES = 5
+const UNWRITE_RADIUS = 130.0
+const UNWRITE_DAMAGE = 14
+const UNWRITE_LIFETIME = 2.4
 
 # Mirror Legion: the Wizard copies himself, up to 6 echoes at once -- but the
 # legion grows SLOWLY: at full HP no echoes are allowed at all, and the cap
@@ -320,6 +346,11 @@ const ABILITY_META = {
 	"eruption":       {"cd": 7.5, "min": 0.0,   "max": 100000.0},
 	"refraction":     {"cd": 6.5, "min": 0.0,   "max": 100000.0},
 	"riposte_stance": {"cd": 8.0, "min": 0.0,   "max": 100000.0},
+	# signature abilities -- apex tier (95-100)
+	"judgment":     {"cd": 8.0, "min": 0.0, "max": 100000.0},
+	"tidal_crush":  {"cd": 8.0, "min": 0.0, "max": 100000.0},
+	"black_sun":    {"cd": 9.0, "min": 0.0, "max": 100000.0},
+	"unwriting":    {"cd": 9.0, "min": 0.0, "max": 100000.0},
 }
 
 # --- The Fallen Wizard's combo book (level 100 only) ---
@@ -336,6 +367,7 @@ const WIZARD_COMBOS = [
 	["meteors", "teleport", "beam", "teleport", "volley"],       # Skyfall
 	["clone", "teleport", "curse", "volley", "curse"],           # Mirror Hunt
 	["teleport", "beam", "teleport", "doomring", "teleport", "volley"],  # Phantom Barrage
+	["unwriting", "teleport", "doomring", "clone", "unwriting"],         # Unwriting (the finale mutate)
 ]
 
 # The roster. Ids here must line up with BOSS_ARENAS / get_boss_id in
@@ -2126,9 +2158,9 @@ const BOSS_COMBOS = {
 	# Last Man: he fights like YOU do -- close, blink, punish, repeat.
 	"last_man": [["charge", "riposte_stance", "teleport", "volley"], ["teleport", "charge", "riposte_stance", "nova"], ["volley", "teleport", "nova", "riposte_stance"]],
 	# --- the finale gauntlet: the longest, nastiest sentences in the game ---
-	"seraph": [["volley", "rain", "nova"], ["nova", "volley", "rain"], ["rain", "nova", "volley"]],
-	"leviathan": [["meteors", "vortex"], ["summon", "meteors", "vortex"], ["vortex", "meteors"]],
-	"eclipse": [["beam", "pillars", "meteors"], ["teleport", "beam", "pillars"], ["meteors", "teleport", "beam"]],
+	"seraph": [["volley", "judgment", "rain"], ["judgment", "volley", "nova"], ["rain", "nova", "judgment"]],
+	"leviathan": [["meteors", "tidal_crush", "vortex"], ["tidal_crush", "meteors", "vortex"], ["vortex", "tidal_crush", "meteors"]],
+	"eclipse": [["beam", "black_sun", "meteors"], ["black_sun", "beam", "pillars"], ["meteors", "teleport", "black_sun"]],
 }
 
 # The floor this boss is being fought on decides how long its sentences run.
@@ -2269,6 +2301,10 @@ func run_ability(ability_name: String) -> void:
 		"eruption": await do_eruption()
 		"refraction": await do_refraction()
 		"riposte_stance": await do_riposte_stance()
+		"judgment": await do_judgment()
+		"tidal_crush": await do_tidal_crush()
+		"black_sun": await do_black_sun()
+		"unwriting": await do_unwriting()
 		_: pass
 
 func start_attack(attack_name: String) -> void:
@@ -2308,6 +2344,10 @@ func start_attack(attack_name: String) -> void:
 		"eruption": do_eruption()
 		"refraction": do_refraction()
 		"riposte_stance": do_riposte_stance()
+		"judgment": do_judgment()
+		"tidal_crush": do_tidal_crush()
+		"black_sun": do_black_sun()
+		"unwriting": do_unwriting()
 		"doomring": do_doomring()
 		"clone": do_clone()
 		_:
@@ -3184,6 +3224,116 @@ func _do_parry_counter() -> void:
 	deal_player_damage(STANCE_COUNTER_DAMAGE)
 	if player != null and is_instance_valid(player) and player.has_method("apply_stun"):
 		player.apply_stun(STANCE_COUNTER_STUN)
+
+# SERAPHIEL 95 -- Judgment: a full-height wall of light SWEEPS across the arena.
+# There is no jumping it; you move sideways and stay off its line.
+func do_judgment() -> void:
+	if player == null or not is_instance_valid(player):
+		set_cd("judgment"); is_busy = false; return
+	flash_telegraph(Color(1.0, 0.95, 0.6))
+	var dir: float = signf(player.global_position.x - global_position.x)
+	if dir == 0.0:
+		dir = 1.0
+	var x: float = global_position.x - dir * JUDGMENT_SPAN * 0.5
+	var end_x: float = global_position.x + dir * JUDGMENT_SPAN * 0.5
+	var bar := _make_wall(Color(1.0, 0.97, 0.7, 0.5), 1200.0)
+	await get_tree().create_timer(JUDGMENT_TELEGRAPH).timeout
+	var last_hit := -1.0
+	while (dir > 0.0 and x < end_x) or (dir < 0.0 and x > end_x):
+		if is_dead:
+			break
+		x += dir * JUDGMENT_SPEED * get_physics_process_delta_time()
+		bar.global_position = Vector2(x, global_position.y)
+		if player != null and is_instance_valid(player) and absf(player.global_position.x - x) < JUDGMENT_BAND:
+			if _time_now() - last_hit > 0.5:
+				last_hit = _time_now()
+				deal_player_damage(JUDGMENT_DAMAGE)
+		await get_tree().physics_frame
+	if is_instance_valid(bar):
+		bar.queue_free()
+	set_cd("judgment"); is_busy = false
+
+# LEVIATHAN 98 -- Tidal Crush: a low wave sweeps the floor. Get to HIGH GROUND
+# (a platform, or airborne) -- it only catches you near the floor line.
+func do_tidal_crush() -> void:
+	if player == null or not is_instance_valid(player):
+		set_cd("tidal_crush"); is_busy = false; return
+	flash_telegraph(Color(0.3, 0.85, 0.9))
+	var floor_y: float = global_position.y + 40.0
+	var dir: float = signf(player.global_position.x - global_position.x)
+	if dir == 0.0:
+		dir = 1.0
+	var x: float = global_position.x - dir * TIDAL_SPAN * 0.5
+	var end_x: float = global_position.x + dir * TIDAL_SPAN * 0.5
+	var wave := _make_wall(Color(0.3, 0.8, 0.95, 0.5), 200.0)
+	await get_tree().create_timer(TIDAL_TELEGRAPH).timeout
+	var last_hit := -1.0
+	while (dir > 0.0 and x < end_x) or (dir < 0.0 and x > end_x):
+		if is_dead:
+			break
+		x += dir * TIDAL_SPEED * get_physics_process_delta_time()
+		wave.global_position = Vector2(x, floor_y)
+		if player != null and is_instance_valid(player) and absf(player.global_position.x - x) < TIDAL_BAND:
+			if player.global_position.y > floor_y - TIDAL_LOW and _time_now() - last_hit > 0.5:
+				last_hit = _time_now()
+				deal_player_damage(TIDAL_DAMAGE)
+				knockback_player_away(150.0)
+		await get_tree().physics_frame
+	if is_instance_valid(wave):
+		wave.queue_free()
+	set_cd("tidal_crush"); is_busy = false
+
+# ECLIPSE 99 -- Black Sun: the light DIES. The only safe ground is a ring around
+# the Titan that SHRINKS -- you must close in on it to stay lit, or the dark bites.
+func do_black_sun() -> void:
+	flash_telegraph(Color(0.2, 0.05, 0.1))
+	for i in range(SUN_STEPS):
+		if is_dead:
+			return
+		var r: float = lerpf(SUN_START_RADIUS, SUN_END_RADIUS, float(i) / float(SUN_STEPS - 1))
+		spawn_ring_telegraph(global_position, r, Color(1.0, 0.7, 0.3), SUN_STEP_TIME)
+		await get_tree().create_timer(SUN_STEP_TIME).timeout
+		if is_dead:
+			return
+		# outside the shrinking light = the dark takes a bite
+		if player != null and is_instance_valid(player):
+			if player.global_position.distance_to(global_position) > r:
+				deal_player_damage(SUN_DAMAGE)
+				if player.has_method("apply_slow"):
+					player.apply_slow(0.8, 0.6)
+	set_cd("black_sun"); is_busy = false
+
+# FALLEN WIZARD 100 -- Unwriting: reality comes apart. Void tears open across the
+# arena -- one right under you -- erasing safe ground for a moment. The culmination.
+func do_unwriting() -> void:
+	flash_telegraph(Color(0.5, 0.2, 0.7))
+	var spots: Array = []
+	if player != null and is_instance_valid(player):
+		spots.append(player.global_position)           # one always opens under you
+	for i in range(UNWRITE_ZONES - spots.size()):
+		spots.append(global_position + Vector2(randf_range(-700.0, 700.0), randf_range(-120.0, 40.0)))
+	for s in spots:
+		spawn_ground_marker(s, Color(0.55, 0.25, 0.75), UNWRITE_TELEGRAPH, UNWRITE_RADIUS * 2.0)
+	await get_tree().create_timer(UNWRITE_TELEGRAPH).timeout
+	if is_dead:
+		return
+	shake_camera(9.0, 0.4)
+	for s in spots:
+		spawn_hazard(s, UNWRITE_RADIUS, UNWRITE_DAMAGE, UNWRITE_LIFETIME,
+			Color(0.35, 0.1, 0.5, 0.55), "slow", 1.0, 0.55)
+		spawn_ring_telegraph(s, UNWRITE_RADIUS, Color(0.6, 0.3, 0.9), 0.35)
+	set_cd("unwriting"); is_busy = false
+
+# a tall/wide sweeping wall visual owned by the caller
+func _make_wall(color: Color, height: float) -> Polygon2D:
+	var w := Polygon2D.new()
+	w.polygon = PackedVector2Array([
+		Vector2(-14, -height * 0.5), Vector2(14, -height * 0.5),
+		Vector2(14, height * 0.5), Vector2(-14, height * 0.5)])
+	w.color = color
+	w.z_index = 6
+	get_parent().add_child(w)
+	return w
 
 # point-to-ray-segment distance test (for beam lines)
 func _point_near_ray(origin: Vector2, dir: Vector2, length: float, point: Vector2, width: float) -> bool:

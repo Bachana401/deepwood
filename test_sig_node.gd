@@ -373,5 +373,111 @@ func _ready() -> void:
 		"boss %d -> %d" % [boss_hp2, lm.health])
 	lm.queue_free()
 
+	await cleanup()
+	# ============ APEX TIER (floors 95-100) ============
+
+	# ---------------- JUDGMENT (sweeping light wall) ----------------
+	var se = mk.call("seraph")
+	await get_tree().process_frame
+	se.player = p
+	se.global_position = pin
+	p.health = p.get_max_health(); p.invincible = false; p.monarch_iframes_until = 0.0
+	p.global_position = pin + Vector2(300, 0)   # off to one side; the wall sweeps through
+	var jhp0: int = p.health
+	var jdone := false
+	for i in range(120):
+		p.global_position = pin + Vector2(300, 0)   # hold still; the wall comes to you
+		p.velocity = Vector2.ZERO
+		await get_tree().physics_frame
+		if p.health < jhp0:
+			jdone = true
+			break
+	check("Seraphiel Judgment: the sweeping wall of light hits a still player", jdone,
+		"%d -> %d" % [jhp0, p.health])
+	# the do_judgment coroutine is still sweeping; let it finish
+	for i in range(30):
+		await get_tree().physics_frame
+	se.queue_free()
+
+	# ---------------- BLACK SUN (shrinking safe ring) ----------------
+	var ec = mk.call("eclipse")
+	await get_tree().process_frame
+	ec.player = p
+	ec.global_position = pin
+	p.health = p.get_max_health(); p.invincible = false; p.monarch_iframes_until = 0.0
+	# stand FAR from the Titan: as the light ring shrinks, being outside it bites
+	p.global_position = pin + Vector2(560, 0)
+	var bhp0: int = p.health
+	var bdone := false
+	var brun := false
+	# run black_sun and hold the player out in the dark
+	ec.start_attack("black_sun")
+	for i in range(200):
+		p.global_position = pin + Vector2(560, 0)
+		p.velocity = Vector2.ZERO
+		await get_tree().physics_frame
+		if p.health < bhp0:
+			bdone = true
+			break
+		if not ec.is_busy and i > 5:
+			break
+	check("Eclipse Black Sun: standing outside the shrinking light is bitten", bdone,
+		"%d -> %d" % [bhp0, p.health])
+	ec.queue_free()
+
+	# ---------------- TIDAL CRUSH (low wave; airborne is safe) ----------------
+	var lev = mk.call("leviathan")
+	await get_tree().process_frame
+	lev.player = p
+	# ground the player, put boss at same floor line, player near the floor in the path
+	p.global_position = Vector2(g.x, g.y)
+	for i in range(60):
+		await get_tree().physics_frame
+		if p.is_on_floor():
+			break
+	var g2: Vector2 = p.global_position
+	lev.global_position = Vector2(g2.x - 300.0, g2.y - 40.0)
+	p.health = p.get_max_health(); p.invincible = false; p.monarch_iframes_until = 0.0
+	var thp0: int = p.health
+	var tdone := false
+	lev.start_attack("tidal_crush")
+	for i in range(160):
+		p.velocity.x = 0.0
+		await get_tree().physics_frame
+		if p.health < thp0:
+			tdone = true
+			break
+		if not lev.is_busy and i > 5:
+			break
+	check("Leviathan Tidal Crush: a low, grounded player is swept", tdone,
+		"%d -> %d" % [thp0, p.health])
+	lev.queue_free()
+
+	# ---------------- UNWRITING (void tears open, one under you) ----------------
+	await cleanup()
+	var wz = mk.call("wizard")
+	await get_tree().process_frame
+	wz.player = p
+	wz.global_position = pin + Vector2(-200, 0)
+	p.global_position = pin
+	await wz.do_unwriting()
+	await get_tree().process_frame
+	var voids := host.get_tree().root.find_children("*", "Node2D", true, false).filter(
+		func(n): return n.get_script() != null and n.get_script().resource_path.ends_with("hazard_zone.gd"))
+	check("Fallen Wizard Unwriting: void zones tear open across the arena", voids.size() >= 4,
+		"%d void zones" % voids.size())
+	# one opens under the player -> standing still, it should hurt
+	p.health = p.get_max_health(); p.invincible = false; p.monarch_iframes_until = 0.0
+	var uhp0: int = p.health
+	for i in range(60):
+		p.global_position = pin
+		await get_tree().physics_frame
+		if p.health < uhp0:
+			break
+	check("Unwriting: the void under you erases your footing (damages)", p.health < uhp0,
+		"%d -> %d" % [uhp0, p.health])
+	wz.queue_free()
+
+	await cleanup()
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)
