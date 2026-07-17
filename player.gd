@@ -248,9 +248,17 @@ const SPRITE_TARGET_HEIGHT = 56.1   # 66 - 15% (character shrunk to suit the big
 # simply stays bare-headed at every stage. See refresh_monarch_skin.
 const BASE_ART := "res://art/player_"
 const HOODED_ART := "res://art/hooded/player_"
+# At 7/7, when there is no one left alive to see it, he stops wearing the man
+# entirely: crowned, armoured, cloaked, with fire where his face was. A third
+# skin folder on the same swap as the hood -- absent art just leaves him hooded.
+const ASCENDED_ART := "res://art/ascended/player_"
 const HOOD_STAGE := 5
 var _hooded := false
+var _ascended := false
 var _art_prefix := BASE_ART
+# The man's own drawn scale, set once from the base art. Every other skin sizes
+# itself relative to this rather than to whatever sprite happens to be loaded.
+var _man_scale := Vector2.ONE
 const WALK_BOB_AMP = 2.5
 const WALK_BOB_SPEED = 12.0
 # procedural "juice" tuning (all applied on top of the single idle sprite)
@@ -726,6 +734,10 @@ void fragment() {
 #                          lifesteal. It only fully manifests when no villager
 #                          is left alive to see it (or forced from the P panel).
 
+# How much taller than the man the god-form stands. Dev: "tower him... 1.7x size
+# of original character" -- tall is better than wide, because width only buys an
+# illogical hitbox. Visual only; collision never changes.
+const TRUE_FORM_SCALE := 1.7
 const LONG_DARK_COOLDOWN := 75.0
 const LONG_DARK_DURATION := 2.6
 const DREAD_AURA_RADIUS := 170.0
@@ -770,12 +782,24 @@ func monarch_tick(delta: float) -> void:
 			fire_shadow_nova()
 
 func _apply_true_form(on: bool) -> void:
-	# The 2x god-form is VISUAL scale only (collision untouched, so gameplay
-	# stays fair): base_scale feeds every animated pose, and feet_anchor_y()
-	# re-plants the giant's feet on the ground line every frame.
-	var m: float = 1.6 if on else 1.0
-	base_scale = base_scale / monarch_scale_mult * m
+	# The god-form is VISUAL scale only (collision untouched, so gameplay stays
+	# fair): base_scale feeds every animated pose, and feet_anchor_y() re-plants
+	# the giant's feet on the ground line every frame.
+	#
+	# Dev's call: TOWER him -- tall reads as god, wide just reads as a fat
+	# hitbox. 1.7x the man's height, and the ascended art is drawn tall and
+	# narrow (aspect 0.41 vs the man's 0.38) so he gains almost no width doing
+	# it. He swaps to the ascended SKIN first, so the scale lands on the right
+	# sprite rather than blowing up the hooded one for a frame.
+	var m: float = TRUE_FORM_SCALE if on else 1.0
 	monarch_scale_mult = m
+	# Swap the skin FIRST: refresh_monarch_skin sizes the ascended sprite itself
+	# (it has its own proportions) and re-applies _man_scale * mult for the
+	# others -- so the scale always lands on the sprite it was computed for,
+	# rather than blowing up the hooded art for a frame.
+	refresh_monarch_skin()
+	if not _ascended:
+		base_scale = _man_scale * m   # no ascended art: the old grow-the-man path
 	if on:
 		spawn_shock_ring(global_position, NOVA_RADIUS, Color(0.55, 0.2, 1.0, 0.95))
 		if has_node("Camera2D"):
@@ -940,7 +964,8 @@ func setup_body_anim() -> void:
 	body_anim.centered = true
 	var tex = frames.get_frame_texture("idle", 0)
 	var sc = SPRITE_TARGET_HEIGHT / float(max(tex.get_height(), 1))
-	base_scale = Vector2(sc, sc) * monarch_scale_mult   # survives a skin reload in true form
+	_man_scale = Vector2(sc, sc)                        # the MAN's size, the baseline for everything
+	base_scale = _man_scale * monarch_scale_mult        # survives a skin reload in true form
 	body_anim.scale = base_scale
 	anim_base_y = 24.0 - SPRITE_TARGET_HEIGHT / 2.0  # feet on the ground line
 	body_anim.position = Vector2(0, anim_base_y)
@@ -994,26 +1019,45 @@ func load_frames_for(anim: String) -> Array:
 func refresh_monarch_skin() -> void:
 	if body_anim == null:
 		return
-	var want: bool = GameState.monarch_stage() >= HOOD_STAGE and _hooded_art_present()
-	if want == _hooded:
+	# three skins, deepest first: ascended (7/7 true form) > hooded (5/7+) > the man
+	var want_asc: bool = monarch_true_form_active and _ascended_art_present()
+	var want_hood: bool = GameState.monarch_stage() >= HOOD_STAGE and _hooded_art_present()
+	if want_asc == _ascended and want_hood == _hooded:
 		return
-	_hooded = want
-	_art_prefix = HOODED_ART if want else BASE_ART
+	var prev_asc := _ascended
+	var prev_hood := _hooded
+	_ascended = want_asc
+	_hooded = want_hood
+	_art_prefix = ASCENDED_ART if want_asc else (HOODED_ART if want_hood else BASE_ART)
 	var sf = build_sprite_frames()
 	if sf == null:                      # art vanished mid-run: keep what we have
-		_hooded = not want
-		_art_prefix = HOODED_ART if _hooded else BASE_ART
+		_ascended = prev_asc
+		_hooded = prev_hood
+		_art_prefix = ASCENDED_ART if _ascended else (HOODED_ART if _hooded else BASE_ART)
 		return
 	var was: String = body_anim.animation
 	var fr: int = body_anim.frame
 	body_anim.sprite_frames = sf
-	# base_scale is deliberately NOT re-derived here. The hooded art trims ~6px
-	# taller than the bare head, so normalising it to SPRITE_TARGET_HEIGHT again
-	# would shrink his BODY to make room for the cowl -- he'd look like he got
-	# smaller when the hood went up. Keeping the base art's scale means the body
-	# stays exactly the size it was and the hood simply adds height, which is
-	# what pulling a hood up actually looks like. feet_anchor_y() re-plants him
-	# per frame, so the taller art still stands on the ground.
+	# Sizing rule differs by skin, on purpose:
+	#
+	# base/hooded -- do NOT re-derive. The hooded art trims ~6px taller than the
+	#   bare head, so re-normalising would shrink his BODY to fit the cowl into
+	#   the same silhouette; he'd look like he got smaller when the hood went up.
+	#   Keeping the man's own scale means the hood simply ADDS height.
+	# ascended  -- DO re-derive, to TRUE_FORM_SCALE x the man's height. It's a
+	#   different sprite with its own proportions, so the man's scale would size
+	#   it by accident. This is what makes him tower.
+	if _ascended:
+		var at = sf.get_frame_texture("monarchidle", 0)
+		if at == null:
+			at = sf.get_frame_texture("idle", 0)
+		if at != null:
+			var asc_sc: float = (SPRITE_TARGET_HEIGHT * TRUE_FORM_SCALE) / float(maxi(at.get_height(), 1))
+			base_scale = Vector2(asc_sc, asc_sc)
+	else:
+		# back to a man: his own scale, times whatever the true form is doing
+		base_scale = _man_scale * monarch_scale_mult
+	body_anim.scale = base_scale
 	if sf.has_animation(was):
 		body_anim.play(was)
 		body_anim.frame = mini(fr, maxi(sf.get_frame_count(was) - 1, 0))
@@ -1023,6 +1067,10 @@ func refresh_monarch_skin() -> void:
 func _hooded_art_present() -> bool:
 	return ResourceLoader.exists(HOODED_ART + "idle_1.png") \
 		or FileAccess.file_exists(HOODED_ART + "idle_1.png")
+
+func _ascended_art_present() -> bool:
+	return ResourceLoader.exists(ASCENDED_ART + "monarchidle_1.png") \
+		or FileAccess.file_exists(ASCENDED_ART + "monarchidle_1.png")
 
 # Accepts an imported resource OR a loose not-yet-imported PNG, and auto-trims
 # transparent margins so the character fills the frame (feet at the bottom) no

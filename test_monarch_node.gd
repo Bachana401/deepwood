@@ -3,7 +3,7 @@ extends Node
 # Headless functional test for the Shadow Monarch OP powers (task #7).
 # Boots main.tscn, drives the player to stage 6/7, and exercises:
 # Shadowstep i-frames, Rise-Shade (cap 2), The Long Dark, the 7/7 true form
-# (scale x1.6, shade cap 4, permanent shades), and a shadow nova tick.
+# (TRUE_FORM_SCALE, shade cap 4, permanent shades), and a shadow nova tick.
 
 var fails := 0
 
@@ -87,8 +87,12 @@ func _ready() -> void:
 	for i in range(20):
 		await get_tree().process_frame
 	check("true form manifests", p.monarch_true_form_active)
-	check("god-form scale x1.6", is_equal_approx(p.base_scale.x, scale_before.x * 1.6),
-		"%.3f -> %.3f" % [scale_before.x, p.base_scale.x])
+	# The ascended sprite derives its own scale from its own proportions, so
+	# assert how tall he DRAWS rather than a multiple of the man's base_scale.
+	var gi: Image = p.body_anim.sprite_frames.get_frame_texture(p.body_anim.animation, 0).get_image()
+	var gh: float = gi.get_height() * p.base_scale.y
+	check("god-form towers (%.0fpx = %.1fx the man)" % [gh, gh / p.SPRITE_TARGET_HEIGHT],
+		gh > p.SPRITE_TARGET_HEIGHT * 1.4, "drew %.1fpx" % gh)
 	for i in range(6):
 		p.on_enemy_killed()
 	p.monarch_shades = p.monarch_shades.filter(func(s): return is_instance_valid(s))

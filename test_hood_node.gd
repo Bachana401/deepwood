@@ -107,9 +107,14 @@ func _ready() -> void:
 	GameState.rescued_villagers.clear()
 	for i in range(20):
 		await get_tree().process_frame
-	check("true form still doubles the hooded hero", p.monarch_true_form_active
-		and absf(p.base_scale.x - pre.x * 1.6) < 0.02,
-		"%.3f -> %.3f" % [pre.x, p.base_scale.x])
+	# base_scale is no longer "the man's scale x N" -- the ascended sprite has its
+	# own proportions and derives its own scale, so assert the thing that
+	# actually matters: how tall he DRAWS.
+	var tfi: Image = p.body_anim.sprite_frames.get_frame_texture(p.body_anim.animation, 0).get_image()
+	var tfh: float = tfi.get_height() * p.base_scale.y
+	check("true form towers (%.0fpx = %.1fx the man)" % [tfh, tfh / p.SPRITE_TARGET_HEIGHT],
+		p.monarch_true_form_active and tfh > p.SPRITE_TARGET_HEIGHT * 1.4,
+		"drew %.1fpx, man is %.1f" % [tfh, p.SPRITE_TARGET_HEIGHT])
 
 	# --- and it goes back down if the stage is taken away (admin/testing) ---
 	GameState.rescued_villagers.append({"name": "T"})
@@ -117,6 +122,30 @@ func _ready() -> void:
 	for i in range(10):
 		await get_tree().process_frame
 	check("hood comes back down below 5/7", not p._hooded and p._art_prefix == p.BASE_ART)
+
+	# --- 7/7: he stops wearing the man entirely ---
+	GameState.player_level = 100
+	GameState.rescued_villagers.clear()
+	for i in range(30):
+		await get_tree().physics_frame
+	check("ascended art is present", p._ascended_art_present())
+	check("7/7 wears the ASCENDED skin", p._ascended and p._art_prefix == p.ASCENDED_ART,
+		"prefix %s" % p._art_prefix)
+	# he must TOWER: measure the pixels actually drawn, not the flag
+	var ai: Image = p.body_anim.sprite_frames.get_frame_texture("monarchidle", 0).get_image()
+	var ah: float = ai.get_height() * p.base_scale.y
+	var aw: float = ai.get_width() * p.base_scale.x
+	check("god-form TOWERS at %.0fpx (%.1fx the man)" % [ah, ah / p.SPRITE_TARGET_HEIGHT],
+		absf(ah - p.SPRITE_TARGET_HEIGHT * p.TRUE_FORM_SCALE) < 2.0,
+		"%.1f vs target %.1f" % [ah, p.SPRITE_TARGET_HEIGHT * p.TRUE_FORM_SCALE])
+	check("...and is TALLER than wide (%.0fx%.0f)" % [aw, ah], ah > aw,
+		"tall must beat wide")
+	# and back down: the god recedes to the man
+	GameState.rescued_villagers.append({"name": "T2"})
+	for i in range(30):
+		await get_tree().physics_frame
+	check("god recedes -> back to the hooded man", not p._ascended and p._art_prefix == p.HOODED_ART,
+		"prefix %s" % p._art_prefix)
 
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)
