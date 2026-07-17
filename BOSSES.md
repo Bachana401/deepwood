@@ -143,9 +143,24 @@ otherwise (dev's call: *"mechanics are the most important"*).
    and the dash (superman pose). **`mode="v3"` only** — template animations
    regenerate from the description and destroy a design.
 
-## 5. Open questions for the dev
+## 5. Dev decisions — LOCKED (2026-07-17)
 
-- **Does `phase`/`dread_ward` need art support?** (an intangible boss wants a
-  ghost-shader pass, not just a flag)
-- **Do the 12 new bosses need new arenas?** `BOSS_ARENAS` is keyed by boss id.
-- The **ascended Monarch** design pick (16 candidates shown) feeds floor 100.
+**`phase` is OBITO-STYLE.** It goes intangible ~2s **and can still attack you
+while intangible** — it phases reactively the instant your blade lands, then hits
+you out of the ghost. You can never trade with it; you have to bait the phase out
+first. It gets a **visible tell** (translucent/ghosted) so the fight is hard
+because you misread it, not because it's unfair. That means `phase` DOES need an
+art/shader pass, not just a flag.
+
+**Every boss gets its own arena, built against it.** *"Get extremely creative."*
+`BOSS_ARENAS` is already keyed by boss id. The arena is part of the fight, not
+decoration — `skyfall` is meaningless in an open room and lethal under a low
+ceiling with pillars; `tether` wants sight-blockers to break; `dread_ward` wants
+flankable geometry. Design each arena WITH its boss's mechanics, not after.
+
+**Floor 100's ascended Monarch: candidate #4** — the crowned king, heavy cloak
+sweeping behind, regal. Preserved as PixelLab object
+`5901ec07-d4af-4af6-b48d-954545da58b7`. **His eyes burn — fiery, lit, on fire.**
+He keeps the hood and the void face, so the ascension reads as the same man
+risen rather than a new character; the fire in the hood is the only thing
+looking back.
