@@ -733,19 +733,24 @@ func refresh_workers() -> void:
 			var j = i - inside_n
 			if j < stations.size():
 				var st = stations[j]
+				# Every trade below used to run the SAME hammer-rock with a
+				# different chip colour -- the farmer, the sawyer and the soldier
+				# were all miming the smith. `craft` names the real drawn motion;
+				# a worker whose villager art has it performs it, and anyone whose
+				# art doesn't falls back to the old rock (see worker_figure.gd).
 				match st[0]:
 					"smith":
-						fig.mode = "anvil"; fig.sparks = true
+						fig.mode = "anvil"; fig.craft = "smith"; fig.sparks = true
 					"train":
-						fig.mode = "anvil"; fig.sparks = false; fig.chip_color = Color(0.82, 0.72, 0.42)
+						fig.mode = "anvil"; fig.craft = "train"; fig.sparks = false; fig.chip_color = Color(0.82, 0.72, 0.42)
 					"saw":
-						fig.mode = "anvil"; fig.sparks = false; fig.chip_color = Color(0.72, 0.52, 0.3)
+						fig.mode = "anvil"; fig.craft = "saw"; fig.sparks = false; fig.chip_color = Color(0.72, 0.52, 0.3)
 					"hoe":
-						fig.mode = "anvil"; fig.sparks = false; fig.chip_color = Color(0.45, 0.34, 0.2)
+						fig.mode = "anvil"; fig.craft = "hoe"; fig.sparks = false; fig.chip_color = Color(0.45, 0.34, 0.2)
 					"grind":
-						fig.mode = "anvil"; fig.sparks = false; fig.chip_color = Color(0.45, 0.8, 0.5)
+						fig.mode = "anvil"; fig.craft = "grind"; fig.sparks = false; fig.chip_color = Color(0.45, 0.8, 0.5)
 					"sweep":
-						fig.mode = "sweep"
+						fig.mode = "sweep"; fig.craft = "sweep"
 					"carry":
 						fig.mode = "carry"
 						fig.min_x = ax - area_world_half() + 14.0

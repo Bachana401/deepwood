@@ -15,6 +15,15 @@ extends Node2D
 #   vendor -- stands at a market stall, bobbing, little arm-raise.
 #   fish   -- stands on the dock deck with a rod line down to the water.
 
+# The CRAFT this worker is actually practising, when the villager art has a
+# drawn animation for it (art/villagers/<skin>/<craft>_N.png). Every yard trade
+# used to run the same generic hammer-rock with differently coloured chips --
+# the farmer, the sawyer, the soldier and the smith were all doing the identical
+# motion, which is what made the yards read as fake. A worker whose skin has the
+# real craft animation plays THAT instead; anyone else falls back to the rock,
+# so this degrades gracefully per-skin rather than all-or-nothing.
+var craft := ""
+
 var mode := "walk"
 var window_rect := Rect2(0, 0, 20, 20)
 var min_x := -40.0
@@ -92,9 +101,14 @@ func _ready() -> void:
 		"anvil":
 			_build_person()
 			position = spot
-			# a skinned smith draws his own arms -- rocking the whole body into
-			# each blow reads better than a spare limb pasted over the sprite
-			if skin_sprite == null:
+			if _plays_craft():
+				# he has the real motion drawn -- let it play, add nothing
+				_skin_anim(craft)
+				skin_sprite.speed_scale = randf_range(0.85, 1.15)
+				if skin_sprite.sprite_frames.get_frame_count(craft) > 0:
+					skin_sprite.frame = randi() % skin_sprite.sprite_frames.get_frame_count(craft)
+			elif skin_sprite == null:
+				# unskinned fallback: a swinging ColorRect arm
 				arm = _px(2.8, -11.0, 2.2, 6.5, skin)
 				arm.pivot_offset = Vector2(1.1, 0.5)
 		"vendor":
@@ -139,14 +153,42 @@ func _ready() -> void:
 	gfx.scale = Vector2(face_sign * body_scale, body_scale)
 
 # Picks a villager skin whose art is actually present; "" if none is.
+# When this worker has a CRAFT, prefer the villagers who can actually perform
+# it -- so the smith is drawn as someone who owns a hammer swing, rather than
+# rolling a random villager and hoping.
 func _pick_skin() -> String:
 	var have: Array = []
+	var skilled: Array = []
 	for v in VILLAGER_VARIANTS:
-		if EnemySkins.is_per_frame(v, VILLAGER_ROOT):
-			have.append(v)
+		if not EnemySkins.is_per_frame(v, VILLAGER_ROOT):
+			continue
+		have.append(v)
+		if craft != "" and _skin_has_anim(v, craft):
+			skilled.append(v)
+	if not skilled.is_empty():
+		return skilled[randi() % skilled.size()]
 	if have.is_empty():
 		return ""
 	return have[randi() % have.size()]
+
+func _skin_has_anim(vskin: String, anim: String) -> bool:
+	return ResourceLoader.exists("%s%s/%s_1.png" % [VILLAGER_ROOT, vskin, anim])
+
+# Roughly the frame where the tool lands, so sparks/chips fly ON the strike.
+# The craft loops are drawn as one full swing, so the blow lands around the
+# middle of the cycle.
+var _last_craft_frame := -1
+func _strike_frame() -> int:
+	if skin_sprite == null:
+		return 0
+	return int(skin_sprite.sprite_frames.get_frame_count(craft) * 0.5)
+
+# True once this worker is both skinned AND that skin can really do the craft.
+func _plays_craft() -> bool:
+	if craft == "" or skin_sprite == null:
+		return false
+	var sf := skin_sprite.sprite_frames
+	return sf != null and sf.has_animation(craft) and sf.get_frame_count(craft) > 1
 
 # The sprite body, feet on gfx's local origin -- same contract as _build_body,
 # so every mode's tools/particles keep working against the same anchor.
@@ -242,14 +284,25 @@ func _process(delta: float) -> void:
 				gfx.scale.x = face * body_scale
 		"anvil":
 			swing_t += delta
-			if arm:
+			if _plays_craft():
+				# the drawn craft carries the whole performance -- don't rock the
+				# sprite on top of it. Spark on the frame the tool lands, so the
+				# chips fly with the strike instead of on a timer of their own.
+				var f: int = skin_sprite.frame
+				if f != _last_craft_frame:
+					_last_craft_frame = f
+					if f == _strike_frame():
+						_burst()
+			elif arm:
 				arm.rotation = -absf(sin(swing_t * 5.0)) * 1.3
+				if fmod(swing_t, TAU / 5.0) < delta:
+					_burst()
 			elif skin_sprite:
-				# the whole smith leans into the blow, and recoils on the strike
+				# skinned but no drawn craft: lean the body into the blow
 				skin_sprite.rotation = -absf(sin(swing_t * 5.0)) * 0.16 * face
 				skin_sprite.position.y = -absf(sin(swing_t * 5.0)) * 1.1
-			if fmod(swing_t, TAU / 5.0) < delta:
-				_burst()
+				if fmod(swing_t, TAU / 5.0) < delta:
+					_burst()
 		"vendor":
 			gfx.position.y = -absf(sin(t * 2.2)) * 1.0 * body_scale
 			gfx.scale.y = body_scale * (1.0 + (0.08 if fmod(t, 4.0) < 0.4 else 0.0))

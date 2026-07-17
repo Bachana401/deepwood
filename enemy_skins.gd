@@ -41,6 +41,15 @@ const ANIMS := {
 	"summon":   {"fps": 10.0, "loop": false},
 	"curse":    {"fps": 10.0, "loop": false},
 	"teleport": {"fps": 12.0, "loop": false},
+	# optional TRADE clips -- the work a villager is actually doing out in a
+	# building's yard (see worker_figure.gd `craft`). Without these every trade
+	# mimed the same hammer-swing with recoloured chips. Skins without the files
+	# simply skip them and fall back, so these can be drawn one trade at a time.
+	"smith":  {"fps": 9.0,  "loop": true},   # hammering the anvil
+	"saw":    {"fps": 10.0, "loop": true},   # sawing a plank
+	"hoe":    {"fps": 8.0,  "loop": true},   # tilling the rows
+	"grind":  {"fps": 9.0,  "loop": true},   # pestle and mortar
+	"train":  {"fps": 10.0, "loop": true},   # sword drill
 }
 
 static var _cache := {}
