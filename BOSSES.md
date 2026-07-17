@@ -3,7 +3,7 @@
 > **Status (updated 2026-07-17): §1–4 are BUILT.** The 17 reactive mechanics,
 > the flat 22-boss ladder (the modulo is gone), and the 22 unique arenas are
 > implemented and headless-tested (commits 7be0d60 / b7f9686). §1's "measured
-> problem" below is kept as the HISTORICAL record of what was fixed. **§5
+> problem" below is kept as the HISTORICAL record of what was fixed. **§6
 > (Signature abilities) is the current DESIGN layer — not built yet:** it fixes
 > the one thing §1–4 didn't, the shared/overused active-ability pool.
 
@@ -205,7 +205,7 @@ looking back.
 
 ---
 
-## 5. Signature abilities — one distinct move per boss (added 2026-07-17)
+## 6. Signature abilities — one distinct move per boss (added 2026-07-17)
 
 ### 4.1 The problem, measured
 The reactive **mechanics** (§2) and the **arenas** are unique per boss — but the
