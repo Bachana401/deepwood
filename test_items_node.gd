@@ -1,0 +1,70 @@
+extends Node
+
+# Item-table integrity (WEAPONS.md batches): every weapon must have a grade and
+# valid weapon_stats, every graded id must resolve to a real def, and the new
+# grade-fill weapons must actually be present and loadable. Cheap guard that
+# stops a typo (a weapon with no grade → grey fallback, or a bad stat block →
+# crash on wield) from shipping.
+
+var fails := 0
+func check(name: String, ok: bool, detail := "") -> void:
+	if ok: printerr("PASS  ", name)
+	else: fails += 1; printerr("FAIL  ", name, "   ", detail)
+
+func _ready() -> void:
+	await get_tree().process_frame
+	var defs = Inventory.ITEM_DEFS
+	var grades = Inventory.ITEM_GRADES
+
+	# every weapon has a grade + a usable weapon_stats block
+	var no_grade: Array = []
+	var bad_stats: Array = []
+	var weapon_count := 0
+	for id in defs.keys():
+		var d = defs[id]
+		if d.get("category", "") != "weapon":
+			continue
+		weapon_count += 1
+		if not grades.has(id):
+			no_grade.append(id)
+		var ws = d.get("weapon_stats", {})
+		if not (ws.has("damage") and ws.has("cooldown") and ws.has("area_size")):
+			bad_stats.append(id)
+	check("every weapon has a grade", no_grade.is_empty(), "missing: %s" % ", ".join(no_grade))
+	check("every weapon has a valid weapon_stats block", bad_stats.is_empty(), "bad: %s" % ", ".join(bad_stats))
+
+	# every graded id resolves to a real item def
+	var orphan_grades: Array = []
+	for id in grades.keys():
+		if not defs.has(id):
+			orphan_grades.append(id)
+	check("no grade points at a missing item", orphan_grades.is_empty(), ", ".join(orphan_grades))
+
+	# the grade-fill weapons are present, graded, and loadable
+	var new_weapons = ["wpn_shortsword","wpn_rapier","wpn_cleaver","wpn_hatchet","wpn_woodspear",
+		"wpn_slingshot","wpn_huntingbow","wpn_sparkwand","wpn_falchion","wpn_warpick","wpn_twinblades",
+		"wpn_saber","wpn_trident","wpn_warglaive","wpn_crossbow","wpn_flatbow","wpn_frostwand","wpn_channelwand"]
+	var missing: Array = []
+	for id in new_weapons:
+		var d = Inventory.get_item_def(id)
+		if d.is_empty() or not grades.has(id) or not d.get("weapon_stats", {}).has("damage"):
+			missing.append(id)
+	check("all 18 grade-fill weapons load with a grade + stats", missing.is_empty(), ", ".join(missing))
+
+	# the +15% pass landed (sword 8 -> 9)
+	var sword_dmg = int(defs["wpn_sword"]["weapon_stats"]["damage"])
+	check("+15% pass applied (Sword base 8 -> 9)", sword_dmg == 9, "got %d" % sword_dmg)
+
+	# the grades are no longer bottom-starved
+	var cnt := {}
+	for id in grades.keys():
+		var g = grades[id]
+		cnt[g] = cnt.get(g, 0) + 1
+	check("common grade is no longer starved (>= 14)", cnt.get("common", 0) >= 14, "common=%d" % cnt.get("common", 0))
+	check("uncommon grade filled out (>= 22)", cnt.get("uncommon", 0) >= 22, "uncommon=%d" % cnt.get("uncommon", 0))
+	printerr("weapons=%d  grades: common=%d uncommon=%d rare=%d epic=%d legendary=%d mythic=%d" % [
+		weapon_count, cnt.get("common",0), cnt.get("uncommon",0), cnt.get("rare",0),
+		cnt.get("epic",0), cnt.get("legendary",0), cnt.get("mythic",0)])
+
+	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
+	get_tree().quit(1 if fails > 0 else 0)

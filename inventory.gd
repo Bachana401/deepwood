@@ -400,6 +400,67 @@ const ITEM_DEFS = {
 		"weapon_stats": {"damage": 18, "cooldown": 0.55, "range_offset": 90, "area_size": Vector2(110, 40), "knockback_min": 24.0, "knockback_max": 48.0, "icon_size": Vector2(15, 15), "icon_color": Color(0.5, 0.8, 1.0), "icon_offset": 18.0},
 		"special": {"type": "storm_shot", "count": 6, "spread_deg": 26.0, "homing": true},
 		"unique_desc": "Unleashes 6 homing storm-arrows in a screaming fan -- the sky itself hunts your foes."},
+	# --- Grade-fill weapons (WEAPONS.md §3): early variety, each distinct on the
+	# existing dials -- hitbox shape (area_size), reach, attack speed, knockback.
+	# Damage already at the +15% baseline. Icons render via the by-type fallback. ---
+	# COMMON melee
+	"wpn_shortsword": {"name": "Short Sword", "category": "weapon", "weapon_type": "melee", "max_stack": 1, "color": Color(0.78, 0.8, 0.85, 1.0),
+		"weapon_stats": {"damage": 9, "cooldown": 0.24, "range_offset": 44, "area_size": Vector2(46, 30), "knockback_min": 18.0, "knockback_max": 38.0, "icon_size": Vector2(44, 12), "icon_color": Color(0.78, 0.8, 0.85), "icon_offset": 20.0},
+		"unique_desc": "A light, quick blade -- fast jabs, low commitment."},
+	"wpn_rapier": {"name": "Rapier", "category": "weapon", "weapon_type": "melee", "max_stack": 1, "color": Color(0.85, 0.86, 0.9, 1.0),
+		"weapon_stats": {"damage": 8, "cooldown": 0.28, "range_offset": 60, "area_size": Vector2(40, 18), "knockback_min": 8.0, "knockback_max": 20.0, "icon_size": Vector2(58, 8), "icon_color": Color(0.85, 0.86, 0.9), "icon_offset": 22.0},
+		"unique_desc": "A long, thin point -- great reach, a tiny precise hitbox."},
+	"wpn_cleaver": {"name": "Cleaver", "category": "weapon", "weapon_type": "melee", "max_stack": 1, "color": Color(0.7, 0.7, 0.72, 1.0),
+		"weapon_stats": {"damage": 15, "cooldown": 0.55, "range_offset": 46, "area_size": Vector2(76, 46), "knockback_min": 45.0, "knockback_max": 80.0, "icon_size": Vector2(52, 20), "icon_color": Color(0.7, 0.7, 0.72), "icon_offset": 20.0},
+		"unique_desc": "A broad, heavy chop -- a wide arc, but slow."},
+	"wpn_hatchet": {"name": "Hand Hatchet", "category": "weapon", "weapon_type": "melee", "max_stack": 1, "color": Color(0.66, 0.55, 0.4, 1.0),
+		"weapon_stats": {"damage": 12, "cooldown": 0.42, "range_offset": 44, "area_size": Vector2(54, 34), "knockback_min": 55.0, "knockback_max": 90.0, "icon_size": Vector2(46, 16), "icon_color": Color(0.66, 0.55, 0.4), "icon_offset": 20.0},
+		"unique_desc": "A choppy little axe with a solid shove."},
+	# COMMON spear / bow / wand
+	"wpn_woodspear": {"name": "Woodspear", "category": "weapon", "weapon_type": "spear", "max_stack": 1, "color": Color(0.6, 0.48, 0.32, 1.0),
+		"weapon_stats": {"damage": 18, "cooldown": 0.85, "range_offset": 60, "area_size": Vector2(72, 38), "knockback_min": 45.0, "knockback_max": 70.0, "icon_size": Vector2(66, 8), "icon_color": Color(0.6, 0.48, 0.32), "icon_offset": 24.0},
+		"unique_desc": "A sharpened pole -- cheap, long, and slow."},
+	"wpn_slingshot": {"name": "Slingshot", "category": "weapon", "weapon_type": "bow", "max_stack": 1, "color": Color(0.55, 0.42, 0.3, 1.0),
+		"weapon_stats": {"damage": 8, "cooldown": 0.34, "range_offset": 78, "area_size": Vector2(100, 34), "knockback_min": 8.0, "knockback_max": 18.0, "icon_size": Vector2(15, 15), "icon_color": Color(0.55, 0.42, 0.3), "icon_offset": 18.0},
+		"unique_desc": "Pelts stones fast -- weak, but relentless."},
+	"wpn_huntingbow": {"name": "Hunting Bow", "category": "weapon", "weapon_type": "bow", "max_stack": 1, "color": Color(0.62, 0.5, 0.34, 1.0),
+		"weapon_stats": {"damage": 15, "cooldown": 0.5, "range_offset": 92, "area_size": Vector2(110, 40), "knockback_min": 22.0, "knockback_max": 44.0, "icon_size": Vector2(15, 15), "icon_color": Color(0.62, 0.5, 0.34), "icon_offset": 18.0},
+		"unique_desc": "A steady woodland bow."},
+	"wpn_sparkwand": {"name": "Spark Wand", "category": "weapon", "weapon_type": "wand", "max_stack": 1, "color": Color(0.6, 0.7, 0.95, 1.0), "mana_cost": 4,
+		"weapon_stats": {"damage": 10, "cooldown": 0.44, "range_offset": 30, "area_size": Vector2(10, 10), "knockback_min": 0.0, "knockback_max": 0.0, "icon_size": Vector2(48, 8), "icon_color": Color(0.6, 0.7, 0.95), "icon_offset": 20.0},
+		"unique_desc": "A cheap caster's spark -- light on mana."},
+	# UNCOMMON melee
+	"wpn_falchion": {"name": "Falchion", "category": "weapon", "weapon_type": "melee", "max_stack": 1, "color": Color(0.8, 0.72, 0.55, 1.0),
+		"weapon_stats": {"damage": 16, "cooldown": 0.4, "range_offset": 50, "area_size": Vector2(66, 40), "knockback_min": 30.0, "knockback_max": 60.0, "icon_size": Vector2(54, 14), "icon_color": Color(0.8, 0.72, 0.55), "icon_offset": 20.0},
+		"unique_desc": "A curved slasher -- wide and quick."},
+	"wpn_warpick": {"name": "War Pick", "category": "weapon", "weapon_type": "melee", "max_stack": 1, "color": Color(0.55, 0.56, 0.6, 1.0),
+		"weapon_stats": {"damage": 20, "cooldown": 0.72, "range_offset": 46, "area_size": Vector2(50, 30), "knockback_min": 65.0, "knockback_max": 105.0, "icon_size": Vector2(48, 12), "icon_color": Color(0.55, 0.56, 0.6), "icon_offset": 20.0},
+		"unique_desc": "A brutal pick -- narrow, heavy, huge knockback."},
+	"wpn_twinblades": {"name": "Twin Fangs", "category": "weapon", "weapon_type": "melee", "max_stack": 1, "color": Color(0.72, 0.74, 0.82, 1.0),
+		"weapon_stats": {"damage": 6, "cooldown": 0.18, "range_offset": 42, "area_size": Vector2(46, 28), "knockback_min": 12.0, "knockback_max": 24.0, "icon_size": Vector2(42, 14), "icon_color": Color(0.72, 0.74, 0.82), "icon_offset": 20.0},
+		"unique_desc": "Two blades in a blur -- the fastest strikes around."},
+	"wpn_saber": {"name": "Cavalry Saber", "category": "weapon", "weapon_type": "melee", "max_stack": 1, "color": Color(0.82, 0.78, 0.6, 1.0),
+		"weapon_stats": {"damage": 13, "cooldown": 0.32, "range_offset": 54, "area_size": Vector2(60, 32), "knockback_min": 28.0, "knockback_max": 52.0, "icon_size": Vector2(56, 12), "icon_color": Color(0.82, 0.78, 0.6), "icon_offset": 21.0},
+		"unique_desc": "A long, curved saber -- quick and reaching."},
+	# UNCOMMON spear / bow / wand
+	"wpn_trident": {"name": "Trident", "category": "weapon", "weapon_type": "spear", "max_stack": 1, "color": Color(0.5, 0.7, 0.75, 1.0),
+		"weapon_stats": {"damage": 17, "cooldown": 0.7, "range_offset": 55, "area_size": Vector2(80, 46), "knockback_min": 35.0, "knockback_max": 65.0, "icon_size": Vector2(64, 12), "icon_color": Color(0.5, 0.7, 0.75), "icon_offset": 24.0},
+		"unique_desc": "Three prongs -- a wide, hard thrust."},
+	"wpn_warglaive": {"name": "War Glaive", "category": "weapon", "weapon_type": "spear", "max_stack": 1, "color": Color(0.6, 0.6, 0.65, 1.0),
+		"weapon_stats": {"damage": 18, "cooldown": 0.78, "range_offset": 55, "area_size": Vector2(86, 48), "knockback_min": 40.0, "knockback_max": 72.0, "icon_size": Vector2(68, 10), "icon_color": Color(0.6, 0.6, 0.65), "icon_offset": 24.0},
+		"unique_desc": "A long polearm that sweeps a huge arc."},
+	"wpn_crossbow": {"name": "Crossbow", "category": "weapon", "weapon_type": "bow", "max_stack": 1, "color": Color(0.5, 0.4, 0.32, 1.0),
+		"weapon_stats": {"damage": 25, "cooldown": 0.85, "range_offset": 96, "area_size": Vector2(110, 40), "knockback_min": 30.0, "knockback_max": 58.0, "icon_size": Vector2(15, 15), "icon_color": Color(0.5, 0.4, 0.32), "icon_offset": 18.0},
+		"unique_desc": "Slow to crank, but the bolt hits like a hammer."},
+	"wpn_flatbow": {"name": "Flatbow", "category": "weapon", "weapon_type": "bow", "max_stack": 1, "color": Color(0.68, 0.56, 0.38, 1.0),
+		"weapon_stats": {"damage": 12, "cooldown": 0.4, "range_offset": 92, "area_size": Vector2(110, 40), "knockback_min": 18.0, "knockback_max": 36.0, "icon_size": Vector2(15, 15), "icon_color": Color(0.68, 0.56, 0.38), "icon_offset": 18.0},
+		"unique_desc": "A fast flatbow -- a quicker draw for less punch."},
+	"wpn_frostwand": {"name": "Novice Frost Wand", "category": "weapon", "weapon_type": "wand", "max_stack": 1, "color": Color(0.6, 0.85, 1.0, 1.0), "mana_cost": 7,
+		"weapon_stats": {"damage": 13, "cooldown": 0.5, "range_offset": 30, "area_size": Vector2(10, 10), "knockback_min": 0.0, "knockback_max": 0.0, "icon_size": Vector2(50, 8), "icon_color": Color(0.6, 0.85, 1.0), "icon_offset": 20.0},
+		"unique_desc": "A chill bolt for a beginner cryomancer."},
+	"wpn_channelwand": {"name": "Channeling Wand", "category": "weapon", "weapon_type": "wand", "max_stack": 1, "color": Color(0.8, 0.6, 0.95, 1.0), "mana_cost": 3,
+		"weapon_stats": {"damage": 8, "cooldown": 0.28, "range_offset": 30, "area_size": Vector2(10, 10), "knockback_min": 0.0, "knockback_max": 0.0, "icon_size": Vector2(48, 8), "icon_color": Color(0.8, 0.6, 0.95), "icon_offset": 20.0},
+		"unique_desc": "Rapid little bolts -- cheap and fast."},
 }
 
 # ---------------------------------------------------------------------------
@@ -469,6 +530,12 @@ const ITEM_GRADES = {
 	"wpn_warhammer": "rare", "wpn_harpoon": "rare",
 	"exc_shadowblade": "legendary", "exc_earthshaker": "mythic", "exc_gungnir": "mythic",
 	"exc_frostmourne": "mythic", "exc_voidcaller": "mythic", "exc_stormfury": "mythic",
+	# grade-fill weapons (WEAPONS.md §3) -- early variety
+	"wpn_shortsword": "common", "wpn_rapier": "common", "wpn_cleaver": "common", "wpn_hatchet": "common",
+	"wpn_woodspear": "common", "wpn_slingshot": "common", "wpn_huntingbow": "common", "wpn_sparkwand": "common",
+	"wpn_falchion": "uncommon", "wpn_warpick": "uncommon", "wpn_twinblades": "uncommon", "wpn_saber": "uncommon",
+	"wpn_trident": "uncommon", "wpn_warglaive": "uncommon", "wpn_crossbow": "uncommon", "wpn_flatbow": "uncommon",
+	"wpn_frostwand": "uncommon", "wpn_channelwand": "uncommon",
 }
 
 # Crafting recipes: item_id -> {ingredient_id: count}. Food + the Reset Potion
