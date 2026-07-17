@@ -6,6 +6,7 @@ extends CharacterBody2D
 # take_damage only RECORDS -- it can't be killed.
 
 const WINDOW := 3.0            # seconds the DPS average is measured over
+const TOTAL_RESET := 25.0      # the running total zeroes out every 25s
 var is_dead := false           # the attack code checks this; always false here
 var health := 1_000_000_000
 var max_health := 1_000_000_000
@@ -15,6 +16,7 @@ var _hits: Array = []          # [[t, dmg], ...] within WINDOW
 var _total := 0
 var _last := 0
 var _peak_dps := 0.0
+var _total_reset_at := 0.0     # wall-clock time the total next resets
 var _label: Label = null
 
 func _ready() -> void:
@@ -47,6 +49,7 @@ func _ready() -> void:
 	_label.add_theme_constant_override("outline_size", 4)
 	_label.z_index = 60
 	add_child(_label)
+	_total_reset_at = Time.get_ticks_msec() / 1000.0 + TOTAL_RESET
 	_refresh_label(0.0)
 
 func take_damage(amount: int) -> void:
@@ -70,14 +73,17 @@ func _process(_delta: float) -> void:
 	var t := Time.get_ticks_msec() / 1000.0
 	while _hits.size() > 0 and t - _hits[0][0] > WINDOW:
 		_hits.remove_at(0)
+	if t >= _total_reset_at:
+		_total = 0
+		_total_reset_at = t + TOTAL_RESET
 	var sum := 0
 	for h in _hits:
 		sum += h[1]
 	var dps := float(sum) / WINDOW
 	_peak_dps = maxf(_peak_dps, dps)
-	_refresh_label(dps)
+	_refresh_label(dps, maxf(0.0, _total_reset_at - t))
 
-func _refresh_label(dps: float) -> void:
+func _refresh_label(dps: float, reset_in := TOTAL_RESET) -> void:
 	if _label != null:
-		_label.text = "TRAINING DUMMY\nDPS %d   (peak %d)\nlast %d   ·   total %d" % [
-			int(round(dps)), int(round(_peak_dps)), _last, _total]
+		_label.text = "TRAINING DUMMY\nDPS %d   (peak %d)\nlast %d   ·   total %d  (resets %ds)" % [
+			int(round(dps)), int(round(_peak_dps)), _last, _total, int(ceil(reset_in))]
