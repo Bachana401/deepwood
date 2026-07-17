@@ -504,6 +504,14 @@ func build_ground_skin() -> void:
 	var rect: ColorRect = $Ground.get_node_or_null("ColorRect")
 	if rect:
 		rect.visible = false
+	# The surface tile is a WANG tile: its grass sits partway down the cell with
+	# transparent padding above it. Laying the cell's top edge on GROUND_Y put
+	# the visible green that far BELOW the line every building stands on -- so
+	# the entire village hung in the air by exactly that padding. Hoist the strip
+	# by the measured padding so the GRASS lands on GROUND_Y, and start the earth
+	# where the surface strip actually ends.
+	var pad := _tile_top_padding(img, 96, 0)
+	var surf_top := GROUND_Y - float(pad)
 	var s1 := Sprite2D.new()
 	s1.texture = surf
 	s1.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
@@ -511,17 +519,27 @@ func build_ground_skin() -> void:
 	s1.centered = false
 	s1.region_enabled = true
 	s1.region_rect = Rect2(0, 0, span, 32)
-	s1.position = Vector2(WORLD_LEFT, -39.0)
+	s1.position = Vector2(WORLD_LEFT, surf_top)
 	$Ground.add_child(s1)
+	var fill_top := surf_top + 32.0
 	var s2 := Sprite2D.new()
 	s2.texture = fill
 	s2.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 	s2.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	s2.centered = false
 	s2.region_enabled = true
-	s2.region_rect = Rect2(0, 0, span, 46)
-	s2.position = Vector2(WORLD_LEFT, -7.0)
+	s2.region_rect = Rect2(0, 0, span, maxf(46.0, 39.0 - fill_top))
+	s2.position = Vector2(WORLD_LEFT, fill_top)
 	$Ground.add_child(s2)
+
+# Rows of transparent padding above a tile's first opaque pixel. Measured rather
+# than hardcoded so re-arting the tileset can't silently float the village again.
+func _tile_top_padding(img: Image, ox: int, oy: int) -> int:
+	for y in range(32):
+		for x in range(32):
+			if img.get_pixel(ox + x, oy + y).a > 0.5:
+				return y
+	return 0
 
 # a jagged ridge instead of a flat triangle or pure per-point noise: a few
 # distinct "peaks" at random positions/heights shape the overall silhouette
