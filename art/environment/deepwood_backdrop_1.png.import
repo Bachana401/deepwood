@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bu61bjf85ujyo"
-path="res://.godot/imported/qc_backdrop.png-9cdedcb34466996846acba40b9dafdfb.ctex"
+uid="uid://be1yf2neouhjh"
+path="res://.godot/imported/deepwood_backdrop_1.png-a2bdc6ac1060ee8a9b9a75fe4ad52053.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://qc_backdrop.png"
-dest_files=["res://.godot/imported/qc_backdrop.png-9cdedcb34466996846acba40b9dafdfb.ctex"]
+source_file="res://art/environment/deepwood_backdrop_1.png"
+dest_files=["res://.godot/imported/deepwood_backdrop_1.png-a2bdc6ac1060ee8a9b9a75fe4ad52053.ctex"]
 
 [params]
 

@@ -591,11 +591,17 @@ var skyfall_ready_at := 0.0
 
 # FALSE_TWIN -- it splits into copies and only ONE is real. The fakes hit back,
 # so you can't just swing at everything. The tell: the real one casts a shadow.
-# (Hollow Choir 35.)
+# (Hollow Choir 35, Eclipse 99.)
 const TWIN_COUNT := 2
+const TWIN_HP_FRAC := 0.18        # a fake folds fast -- the cost is the time you spent
+const TWIN_DMG_FRAC := 0.6        # but it hits hard enough that ignoring it is not free
+const TWIN_RESPLIT := 9.0         # kill every fake and it just splits again
+const TWIN_SPREAD := 260.0
 var has_false_twin := false
 var is_false_copy := false
 var _twins: Array = []
+var twin_ready_at := 0.0
+var true_shadow: Polygon2D = null
 
 # COVENANT -- two bodies, one soul: they share an HP pool and heal each other
 # unless both are pressured. (Twin Despair 75, Last Man 90.)
@@ -1030,6 +1036,23 @@ func configure_from_def(def: Dictionary) -> void:
 		has_blink_on_hit = false
 		has_soul_split = false
 		modulate = Color(1.0, 0.85, 1.0, 0.75)
+
+	# A FAKE of a false_twin boss. Deliberately NOT tinted: it has to look
+	# exactly like the real thing, or the mechanic answers its own riddle. It
+	# keeps the full kit so it fights back convincingly, but it cannot split
+	# again, cannot inherit the ward-style passives (an unkillable fake would be
+	# a wall, not a puzzle), and casts no shadow -- that absence IS the tell.
+	if is_false_copy:
+		has_false_twin = false
+		max_health = max(1, int(round(max_health * TWIN_HP_FRAC)))
+		health = max_health
+		damage_multiplier *= TWIN_DMG_FRAC
+		has_dread_ward = false
+		has_stagger_armour = false
+		has_covenant = false
+		has_soulbind = false
+		has_phase = false
+		has_mirror = false
 
 	# stagger initial cooldowns so the boss doesn't dump every ability at once
 	for a in abilities:

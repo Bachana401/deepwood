@@ -1,55 +1,68 @@
-﻿extends SceneTree
+extends SceneTree
 
-# Composites the backdrop plate exactly as generate_mountains() tiles it
-# (mirror every other tile) so the seams can be EYEBALLED offline -- headless
+# Composites the backdrop plates exactly as generate_mountains() tiles them
+# (cycle 1,2,3 then 1',2',3') so the seams can be EYEBALLED offline -- headless
 # can't render the game, but it can prove the tiling maths.
-# Draws a red line where GROUND_Y sits relative to MOUNTAIN_Y, so anything baked
-# into the plate below that line is provably hidden in-game.
+# Red line = where GROUND_Y cuts the plate (rows below it are hidden in-game).
+# Cyan ticks = tile joins, drawn only in the top 6px so they don't hide the seam.
 # usage: -- [tiles]
 
 const MOUNTAIN_Y := 40.0
 const GROUND_Y := -39.0
 const SCALE := 3
+const PLATES := [
+	"res://art/environment/deepwood_backdrop_1.png",
+	"res://art/environment/deepwood_backdrop_2.png",
+	"res://art/environment/deepwood_backdrop_3.png",
+]
 
 func _initialize() -> void:
 	var a := OS.get_cmdline_user_args()
-	var tiles: int = int(a[0]) if a.size() > 0 else 3
-	var t: Texture2D = load("res://art/environment/deepwood_backdrop.png")
-	if t == null:
-		printerr("no plate")
-		quit(1)
-		return
-	var src := t.get_image()
-	if src.is_compressed():
-		src.decompress()
-	src.convert(Image.FORMAT_RGBA8)
-	var w := src.get_width()
-	var h := src.get_height()
+	var tiles: int = int(a[0]) if a.size() > 0 else 6
+	var imgs: Array = []
+	for p in PLATES:
+		var t: Texture2D = load(p)
+		if t == null:
+			printerr("missing plate %s" % p)
+			quit(1)
+			return
+		var im := t.get_image()
+		if im.is_compressed():
+			im.decompress()
+		im.convert(Image.FORMAT_RGBA8)
+		imgs.append(im)
+	var w: int = (imgs[0] as Image).get_width()
+	var h: int = (imgs[0] as Image).get_height()
+	for im in imgs:
+		if (im as Image).get_width() != w or (im as Image).get_height() != h:
+			printerr("SIZE MISMATCH -- plates are not aligned")
+			quit(1)
+			return
 
-	var flip := Image.create(w, h, false, Image.FORMAT_RGBA8)
-	for y in range(h):
-		for x in range(w):
-			flip.set_pixel(x, y, src.get_pixel(w - 1 - x, y))
+	var flips: Array = []
+	for im in imgs:
+		var f := Image.create(w, h, false, Image.FORMAT_RGBA8)
+		for y in range(h):
+			for x in range(w):
+				f.set_pixel(x, y, (im as Image).get_pixel(w - 1 - x, y))
+		flips.append(f)
 
 	var out := Image.create(w * tiles, h, false, Image.FORMAT_RGBA8)
 	for i in range(tiles):
-		out.blit_rect(flip if i % 2 == 1 else src, Rect2i(0, 0, w, h), Vector2i(i * w, 0))
+		var src: Image = flips[i % imgs.size()] if (i / imgs.size()) % 2 == 1 else imgs[i % imgs.size()]
+		out.blit_rect(src, Rect2i(0, 0, w, h), Vector2i(i * w, 0))
+		printerr("tile %d -> plate %d%s" % [i, (i % imgs.size()) + 1, "'" if (i / imgs.size()) % 2 == 1 else ""])
 
-	# Where does the ground surface cut across the plate?
-	# plate top sits at MOUNTAIN_Y - h*SCALE ; ground surface at GROUND_Y.
 	var top_world := MOUNTAIN_Y - float(h * SCALE)
 	var ground_row := int(round((GROUND_Y - top_world) / float(SCALE)))
-	printerr("plate %dx%d  scale %d  world height %d" % [w, h, SCALE, h * SCALE])
-	printerr("plate top world y = %.1f ; ground surface y = %.1f" % [top_world, GROUND_Y])
-	printerr("ground cuts the plate at source row %d of %d (rows below it are hidden in-game)" % [ground_row, h])
+	printerr("plate %dx%d scale %d -> %d world px tall; top y=%.1f" % [w, h, SCALE, h * SCALE, top_world])
+	printerr("ground cuts source row %d/%d -- rows below are hidden in-game" % [ground_row, h])
 	if ground_row >= 0 and ground_row < h:
 		for x in range(out.get_width()):
 			out.set_pixel(x, ground_row, Color(1, 0, 0))
-	# mark each seam in cyan so a mismatch is obvious
 	for i in range(1, tiles):
-		for y in range(h):
+		for y in range(6):
 			out.set_pixel(i * w, y, Color(0, 1, 1))
-	var dst := ProjectSettings.globalize_path("res://qc_backdrop.png")
-	printerr("saved -> %s  (red = ground line, cyan = tile seams)" % dst)
-	out.save_png(dst)
+	out.save_png(ProjectSettings.globalize_path("res://qc_backdrop.png"))
+	printerr("saved qc_backdrop.png (red = ground line, cyan ticks = joins)")
 	quit(0)

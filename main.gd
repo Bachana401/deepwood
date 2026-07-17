@@ -52,6 +52,18 @@ const MOUNTAIN_Y = 40.0
 const BACKDROP_SCALE = 3
 const BACKDROP_MARGIN = 600.0   # tile past both world ends so an edge never shows
 
+# Three plates of the SAME style, cycled so the treeline never visibly repeats.
+# They are interchangeable by construction: identical 400x160 size, and
+# tool_bg_align has ramped every plate's outer columns to one shared canonical
+# trunk column -- so each plate's left edge is pixel-identical to every plate's
+# right edge, and any join lands inside a tree trunk. Order and flipping are
+# therefore free. Re-run tool_bg_align if a plate is ever re-arted.
+const BACKDROP_PLATES = [
+	"res://art/environment/deepwood_backdrop_1.png",
+	"res://art/environment/deepwood_backdrop_2.png",
+	"res://art/environment/deepwood_backdrop_3.png",
+]
+
 # Kept for the procedural fallback below (used only when the plate is missing).
 const MOUNTAIN_ZONES = [
 	{"x": -480.0, "width": 1240.0, "height": 855.0, "peaks": 3, "color": Color(0.36, 0.46, 0.38, 1)},
@@ -440,25 +452,34 @@ func generate_mountains() -> void:
 	#
 	# Height is deliberate -- see BACKDROP_SCALE: the canopy tops out at -440, low
 	# enough that the sun/moon arc (-540 to -760) always rides clear above it.
-	if ResourceLoader.exists("res://art/environment/deepwood_backdrop.png"):
-		var tex: Texture2D = load("res://art/environment/deepwood_backdrop.png")
-		var img: Image = tex.get_image()
-		if img.is_compressed():
-			img.decompress()
-		var used := Rect2(img.get_used_rect())
-		var tw: float = used.size.x * BACKDROP_SCALE
-		var th: float = used.size.y * BACKDROP_SCALE
+	if ResourceLoader.exists(BACKDROP_PLATES[0]):
+		var texs: Array[Texture2D] = []
+		for path in BACKDROP_PLATES:
+			if ResourceLoader.exists(path):
+				texs.append(load(path))
+		# Every plate must be identical in size or the tops/bases would step and
+		# the tile widths would drift. Cut by tool_bg_cut, proven by tool_bg_align.
+		var ps: Vector2 = texs[0].get_size()
+		for t2 in texs:
+			assert(t2.get_size() == ps, "backdrop plates must all be the same size")
+		var tw: float = ps.x * BACKDROP_SCALE
+		var th: float = ps.y * BACKDROP_SCALE
 		var bx := WORLD_LEFT - BACKDROP_MARGIN
 		var i := 0
 		while bx < WORLD_RIGHT + BACKDROP_MARGIN:
 			var bs := Sprite2D.new()
-			bs.texture = tex
+			# Cycle plate, and flip the whole cycle every second pass: the run is
+			# 1,2,3,1',2',3' -- a 6-tile period, and never the same plate twice in
+			# a row, so no mirrored butterfly ever forms.
+			bs.texture = texs[i % texs.size()]
 			bs.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 			bs.centered = false
+			# Full rect, deliberately NOT get_used_rect(): trimming is per-image and
+			# would give the plates different widths, drifting the tiling apart.
 			bs.region_enabled = true
-			bs.region_rect = used
+			bs.region_rect = Rect2(Vector2.ZERO, ps)
 			bs.scale = Vector2(BACKDROP_SCALE, BACKDROP_SCALE)
-			bs.flip_h = i % 2 == 1
+			bs.flip_h = (i / texs.size()) % 2 == 1
 			bs.position = Vector2(bx, MOUNTAIN_Y - th)
 			$Background/Mountains.add_child(bs)
 			bx += tw

@@ -44,13 +44,17 @@ func _ready() -> void:
 	await get_tree().process_frame
 	dw.has_dread_ward = true
 	dw.player = p
+	# Move the BOSS around the player, never the player around the boss: the
+	# ground surface is at y=-39, so parking him at a bare boss's y=0 drops him
+	# under the map and he falls forever (which is what silently voided the
+	# grounded check below).
 	# player in FRONT (boss faces +x by default, player to its right = front)
-	p.global_position = dw.global_position + Vector2(60, 0)
+	dw.global_position = p.global_position + Vector2(-60, 0)
 	var h0: int = dw.health
 	dw.take_damage(80)
 	check("dread_ward: hitting its FACE does nothing", dw.health == h0, "%d -> %d" % [h0, dw.health])
 	# player BEHIND it
-	p.global_position = dw.global_position + Vector2(-60, 0)
+	dw.global_position = p.global_position + Vector2(60, 0)
 	dw.take_damage(80)
 	check("dread_ward: flanking it WORKS", dw.health < h0, "%d -> %d" % [h0, dw.health])
 
@@ -59,21 +63,28 @@ func _ready() -> void:
 	sk.boss_id = "stormcaller"
 	host.add_child(sk)
 	await get_tree().process_frame
+	sk.player = p
+	# Let the player actually LAND before arming it. Skipping this check when he
+	# happened to still be falling is how "grounded is safe" would quietly stop
+	# being tested the day it broke.
+	var landed := false
+	for i in range(240):
+		await get_tree().physics_frame
+		if p.is_on_floor():
+			landed = true
+			break
 	sk.has_skyfall = true
 	sk.skyfall_ready_at = 0.0
-	sk.player = p
 	sk.global_position = p.global_position
 	# on the ground -> safe
 	p.health = p.get_max_health()
 	p.invincible = false
 	p.monarch_iframes_until = 0.0
 	var ghp: int = p.health
-	for i in range(3):
+	for i in range(6):
 		await get_tree().physics_frame
-	if p.is_on_floor():
-		check("skyfall: standing on the GROUND is safe", p.health == ghp, "%d -> %d" % [ghp, p.health])
-	else:
-		printerr("SKIP  skyfall ground check (player wasn't grounded)")
+	check("skyfall: standing on the GROUND is safe", landed and p.health == ghp,
+		"landed=%s  %d -> %d" % [landed, ghp, p.health])
 	# airborne -> punished
 	p.global_position.y -= 200.0
 	p.velocity.y = -50.0
@@ -103,13 +114,15 @@ func _ready() -> void:
 	mi.player = p
 	# check findability on an arrow FAR from the mirror, or the boss reflects it
 	# before we can look (which is what happened first time round)
-	mi.global_position = Vector2(4000, 0)
+	# high in open air: at ground level (y=0) the test arrow buries itself in the
+	# terrain and break_arrow()s before the mirror ever sees it.
+	mi.position = Vector2(4000, -1500)
 	var probe = arrow_scene.instantiate()
 	probe.direction = Vector2.RIGHT
 	# position BEFORE add_child: an arrow records its start point in _ready and
 	# despawns once it is max_range from it, so teleporting it after adding it
 	# reads as "flew 4000px" and it deletes itself.
-	probe.position = Vector2(-4000, 0)
+	probe.position = Vector2(-4000, -1500)
 	host.add_child(probe)
 	await get_tree().process_frame
 	check("a player arrow is FINDABLE in flight (the silent-no-op trap)",
