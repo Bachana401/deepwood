@@ -112,6 +112,10 @@ var status_poison_dps := 0.0
 var status_freeze_until := 0.0
 var status_slow_until := 0.0
 var status_slow_factor := 1.0
+# PETRIFY (Gorgon's Gaze relic, WEAPONS.md §6): turned to stone -- can't act like
+# a freeze, but ALSO takes bonus damage while stoned. Its own timer + grey overlay.
+var status_petrify_until := 0.0
+const PETRIFY_DAMAGE_MULT := 1.5
 var status_dot_accum := 0.0
 var status_overlay: ColorRect = null
 
@@ -154,7 +158,12 @@ func apply_status(kind: String, duration: float, magnitude: float = 0.0) -> void
 		"slow":
 			status_slow_until = max(status_slow_until, until)
 			status_slow_factor = min(status_slow_factor, magnitude if magnitude > 0.0 else 0.5)
+		"petrify":
+			status_petrify_until = max(status_petrify_until, until)
 	_refresh_status_overlay()
+
+func is_petrified() -> bool:
+	return _now_s() < status_petrify_until
 
 func tick_statuses(delta: float) -> void:
 	var now = _now_s()
@@ -181,7 +190,9 @@ func tick_statuses(delta: float) -> void:
 func _refresh_status_overlay() -> void:
 	var now = _now_s()
 	var col := Color(0, 0, 0, 0)
-	if now < status_freeze_until:
+	if now < status_petrify_until:
+		col = Color(0.55, 0.55, 0.58, 0.7)   # stone grey (highest priority)
+	elif now < status_freeze_until:
 		col = Color(0.5, 0.8, 1.0, 0.5)      # icy
 	elif now < status_burn_until:
 		col = Color(1.0, 0.45, 0.1, 0.4)     # fiery
@@ -434,8 +445,8 @@ func _physics_process(delta: float) -> void:
 	if not is_on_floor():
 		velocity.y += GRAVITY * delta
 
-	# frozen: rooted, can't act (still falls with gravity)
-	if is_frozen():
+	# frozen OR petrified: rooted, can't act (still falls with gravity)
+	if is_frozen() or is_petrified():
 		velocity.x = 0
 		move_and_slide()
 		return
@@ -803,6 +814,9 @@ func take_damage(amount: int) -> void:
 		if from_front:
 			amount = int(round(amount * 0.4))
 			spawn_block_spark()
+	# a stoned foe is brittle -- it takes bonus damage while petrified
+	if is_petrified():
+		amount = int(round(amount * PETRIFY_DAMAGE_MULT))
 	health -= amount
 	update_health_bar()
 	if health <= 0:

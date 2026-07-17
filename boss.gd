@@ -3592,6 +3592,16 @@ func flash_telegraph(color: Color) -> void:
 	tween.tween_property(rig, "modulate", current_tint, 0.12)
 	tween.set_loops(2)
 
+# PETRIFY (Gorgon's Gaze relic, WEAPONS.md §6). The apex / undying bosses shrug
+# it off -- that is the "works on some bosses and not others." The rest can be
+# stoned: routed through the stun that roots them and locks their attacks.
+# Returns whether it LANDED, so the relic can report "immune".
+func apply_petrify(dur: float) -> bool:
+	if is_apex or is_dead:
+		return false
+	stun_timer = maxf(stun_timer, dur)
+	return true
+
 func take_damage(amount: int) -> void:
 	if is_dead:
 		return
