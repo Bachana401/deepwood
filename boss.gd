@@ -170,6 +170,37 @@ const RIFT_DURATION = 1.8
 const RIFT_PULL = 300.0      # px/s of drag velocity (added each frame while open)
 const RIFT_DAMAGE = 8
 const RIFT_RADIUS = 120.0
+const HOMING_SCENE = preload("res://homing_bolt.gd")
+
+# --- deep tier signatures (floors 35-60) ---
+# Hollow Choir 35 -- Dissonant Scream (DISORIENT cone)
+const SCREAM_TELEGRAPH = 0.5
+const SCREAM_RANGE = 380.0
+const SCREAM_DAMAGE = 16
+const SCREAM_DISORIENT = 1.4
+# Ashen Penitent 40 -- Prayer Pyre (EXPANDING flame front)
+const PYRE_STEPS = 4
+const PYRE_STEP_TIME = 0.34
+const PYRE_DAMAGE = 12
+const PYRE_MAX_RADIUS = 360.0
+# Gaoler 45 -- Iron Maiden (DELAYED cage trap: heavy hit + brief cage-root)
+const MAIDEN_TELEGRAPH = 0.7
+const MAIDEN_DAMAGE = 26
+const MAIDEN_RADIUS = 82.0
+const MAIDEN_ROOT = 0.55
+# Sablefang 50 -- Pounce (GAP-CLOSER leap)
+const POUNCE_TELEGRAPH = 0.4
+const POUNCE_TIME = 0.34
+const POUNCE_DAMAGE = 22
+const POUNCE_HIT_RADIUS = 92.0
+# Effigy 55 -- Splinter Burst (DELAYED outward ring + embers)
+const SPLINTER_TELEGRAPH = 0.55
+const SPLINTER_COUNT = 12
+const SPLINTER_DAMAGE = 14
+const SPLINTER_RANGE = 460.0
+# Mourncaller 60 -- Keening (HOMING swarm)
+const KEENING_COUNT = 5
+const KEENING_DAMAGE = 11
 
 # Mirror Legion: the Wizard copies himself, up to 6 echoes at once -- but the
 # legion grows SLOWLY: at full HP no echoes are allowed at all, and the cap
@@ -239,6 +270,13 @@ const ABILITY_META = {
 	"web_snare":    {"cd": 7.0, "min": 0.0,   "max": 100000.0},
 	"thunderstrike":{"cd": 6.0, "min": 0.0,   "max": 100000.0},
 	"void_rift":    {"cd": 8.5, "min": 120.0, "max": 100000.0},
+	# signature abilities -- deep tier (35-60)
+	"dissonant_scream": {"cd": 6.0, "min": 0.0,   "max": 420.0},
+	"prayer_pyre":      {"cd": 8.0, "min": 0.0,   "max": 100000.0},
+	"iron_maiden":      {"cd": 7.0, "min": 0.0,   "max": 100000.0},
+	"pounce":           {"cd": 6.0, "min": 140.0, "max": 100000.0},
+	"splinter_burst":   {"cd": 6.5, "min": 0.0,   "max": 100000.0},
+	"keening":          {"cd": 6.5, "min": 0.0,   "max": 100000.0},
 }
 
 # --- The Fallen Wizard's combo book (level 100 only) ---
@@ -2020,18 +2058,18 @@ const BOSS_COMBOS = {
 	# --- the deep ---
 	# Choir: fills the room, then makes you look away from the fakes. Its combos
 	# always END on summon -- the adds are the point, the rest is pressure.
-	"hollow_choir": [["nova", "rain", "summon"], ["rain", "nova", "summon"], ["nova", "summon", "rain"]],
+	"hollow_choir": [["dissonant_scream", "rain", "summon"], ["rain", "dissonant_scream", "summon"], ["nova", "summon", "rain"]],
 	# Penitent: it barely moves, so everything it does is REACH. Pillars then
 	# beam means the floor is taken before the line is drawn.
-	"ashen_penitent": [["pillars", "beam", "nova"], ["beam", "pillars", "beam"], ["nova", "pillars", "beam"]],
+	"ashen_penitent": [["prayer_pyre", "beam", "nova"], ["beam", "prayer_pyre", "beam"], ["nova", "prayer_pyre", "beam"]],
 	# Gaoler: chain you, then close. slam->charge is a shove into the tether.
-	"gaoler": [["pillars", "slam", "charge"], ["charge", "slam", "pillars"], ["slam", "pillars", "charge"]],
+	"gaoler": [["iron_maiden", "slam", "charge"], ["charge", "slam", "iron_maiden"], ["slam", "iron_maiden", "charge"]],
 	# Sablefang: blink-in, bite, blink-out. Fast and rude; never stands still.
-	"sablefang": [["teleport", "charge", "volley"], ["charge", "volley", "teleport"], ["volley", "teleport", "charge"]],
+	"sablefang": [["teleport", "pounce", "volley"], ["pounce", "volley", "teleport"], ["volley", "teleport", "pounce"]],
 	# Effigy: takes the floor, then drops the sky on it. Slow, enormous, patient.
-	"effigy": [["pillars", "slam", "meteors"], ["meteors", "pillars", "slam"], ["slam", "meteors", "pillars"]],
+	"effigy": [["splinter_burst", "slam", "meteors"], ["meteors", "splinter_burst", "slam"], ["slam", "meteors", "splinter_burst"]],
 	# Mourncaller: mourners first, then grief from above. Never melees.
-	"mourncaller": [["summon", "rain", "volley"], ["volley", "summon", "rain"], ["rain", "volley", "summon"]],
+	"mourncaller": [["keening", "summon", "rain"], ["summon", "keening", "rain"], ["rain", "keening", "summon"]],
 	# Unseen: it is never where the last thing came from. Curse -> blink -> spit.
 	"unseen": [["curse", "teleport", "volley"], ["teleport", "volley", "curse"], ["volley", "curse", "teleport"]],
 	# Warden: pins the sky, floors the ground, then swings. Nothing rushed.
@@ -2176,6 +2214,12 @@ func run_ability(ability_name: String) -> void:
 		"web_snare": await do_web_snare()
 		"thunderstrike": await do_thunderstrike()
 		"void_rift": await do_void_rift()
+		"dissonant_scream": await do_dissonant_scream()
+		"prayer_pyre": await do_prayer_pyre()
+		"iron_maiden": await do_iron_maiden()
+		"pounce": await do_pounce()
+		"splinter_burst": await do_splinter_burst()
+		"keening": await do_keening()
 		_: pass
 
 func start_attack(attack_name: String) -> void:
@@ -2203,6 +2247,12 @@ func start_attack(attack_name: String) -> void:
 		"web_snare": do_web_snare()
 		"thunderstrike": do_thunderstrike()
 		"void_rift": do_void_rift()
+		"dissonant_scream": do_dissonant_scream()
+		"prayer_pyre": do_prayer_pyre()
+		"iron_maiden": do_iron_maiden()
+		"pounce": do_pounce()
+		"splinter_burst": do_splinter_burst()
+		"keening": do_keening()
 		"doomring": do_doomring()
 		"clone": do_clone()
 		_:
@@ -2800,6 +2850,152 @@ func do_void_rift() -> void:
 	if is_instance_valid(marker):
 		marker.queue_free()
 	set_cd("void_rift"); is_busy = false
+
+# HOLLOW CHOIR 35 -- Dissonant Scream: a frontal cone of sound that DISORIENTS
+# (your controls invert), so the fakes and adds land while you're turned around.
+func do_dissonant_scream() -> void:
+	if player == null or not is_instance_valid(player):
+		set_cd("dissonant_scream"); is_busy = false; return
+	var face: float = -1.0 if (boss_sprite != null and boss_sprite.flip_h) else 1.0
+	if player != null:
+		face = signf(player.global_position.x - global_position.x)
+		if face == 0.0:
+			face = 1.0
+	flash_telegraph(Color(0.75, 0.9, 0.65))
+	# a cone telegraph fanning out toward the player's side
+	_spawn_cone(face, SCREAM_RANGE, Color(0.8, 0.95, 0.6, 0.22), SCREAM_TELEGRAPH)
+	await get_tree().create_timer(SCREAM_TELEGRAPH).timeout
+	if is_dead:
+		return
+	shake_camera(6.0, 0.25)
+	if player != null and is_instance_valid(player):
+		var dx: float = player.global_position.x - global_position.x
+		var dy: float = absf(player.global_position.y - global_position.y)
+		if signf(dx) == face and absf(dx) < SCREAM_RANGE and dy < 200.0:
+			deal_player_damage(SCREAM_DAMAGE)
+			if player.has_method("apply_disorient"):
+				player.apply_disorient(SCREAM_DISORIENT)
+	set_cd("dissonant_scream"); is_busy = false
+
+# ASHEN PENITENT 40 -- Prayer Pyre: a ring of fire EXPANDS out from it in pulses,
+# forcing you to range (it barely moves, so it makes the near ground lethal).
+func do_prayer_pyre() -> void:
+	flash_telegraph(Color(1.0, 0.55, 0.15))
+	for i in range(PYRE_STEPS):
+		if is_dead:
+			return
+		var r: float = PYRE_MAX_RADIUS * float(i + 1) / float(PYRE_STEPS)
+		spawn_ring_telegraph(global_position, r, Color(1.0, 0.5, 0.12), PYRE_STEP_TIME)
+		await get_tree().create_timer(PYRE_STEP_TIME).timeout
+		if is_dead:
+			return
+		# the flame FRONT: hits if you're in the expanding band (stay ahead of it)
+		if player != null and is_instance_valid(player):
+			var d: float = player.global_position.distance_to(global_position)
+			if d < r and d > r - 110.0:
+				deal_player_damage(PYRE_DAMAGE)
+				if player.has_method("apply_poison"):
+					player.apply_poison(1.2, 4.0)
+	set_cd("prayer_pyre"); is_busy = false
+
+# GAOLER 45 -- Iron Maiden: a spiked cage slams down on your spot -- heavy hit
+# and a brief cage-ROOT. Punishes standing; the mark lands where you ARE.
+func do_iron_maiden() -> void:
+	if player == null or not is_instance_valid(player):
+		set_cd("iron_maiden"); is_busy = false; return
+	var spot: Vector2 = player.global_position
+	spawn_ground_marker(spot, Color(0.5, 0.8, 1.0), MAIDEN_TELEGRAPH, MAIDEN_RADIUS * 2.0)
+	await get_tree().create_timer(MAIDEN_TELEGRAPH).timeout
+	if is_dead:
+		return
+	spawn_ring_telegraph(spot, MAIDEN_RADIUS, Color(0.5, 0.8, 1.0), 0.3)
+	shake_camera(8.0, 0.3)
+	if _player_in(spot, MAIDEN_RADIUS):
+		deal_player_damage(MAIDEN_DAMAGE)
+		if player.has_method("apply_root"):
+			player.apply_root(MAIDEN_ROOT)
+	set_cd("iron_maiden"); is_busy = false
+
+# SABLEFANG 50 -- Pounce: it LEAPS the gap to where you are and bites. Fast, and
+# it commits -- dodge on the landing frame. (Position-leap; velocity is pinned so
+# the boss's own move_and_slide doesn't fight it.)
+func do_pounce() -> void:
+	if player == null or not is_instance_valid(player):
+		set_cd("pounce"); is_busy = false; return
+	flash_telegraph(Color(0.8, 0.7, 1.0))
+	var target: Vector2 = player.global_position
+	await get_tree().create_timer(POUNCE_TELEGRAPH).timeout
+	if is_dead:
+		return
+	var start: Vector2 = global_position
+	var landing := Vector2(target.x, start.y)
+	var t := 0.0
+	var hit := false
+	while t < POUNCE_TIME and not is_dead:
+		velocity = Vector2.ZERO
+		var f: float = t / POUNCE_TIME
+		var arc: float = sin(f * PI) * 70.0
+		global_position = Vector2(lerpf(start.x, landing.x, f), start.y - arc)
+		if not hit and _player_in(global_position, POUNCE_HIT_RADIUS):
+			hit = true
+			deal_player_damage(POUNCE_DAMAGE)
+			knockback_player_away(180.0)
+		await get_tree().physics_frame
+		t += get_physics_process_delta_time()
+	velocity = Vector2.ZERO
+	set_cd("pounce"); is_busy = false
+
+# EFFIGY 55 -- Splinter Burst: sheds a ring of burning splinters that blow
+# OUTWARD a beat later, leaving embers where they land.
+func do_splinter_burst() -> void:
+	flash_telegraph(Color(1.0, 0.6, 0.15))
+	spawn_ring_telegraph(global_position, 130.0, Color(1.0, 0.6, 0.15), SPLINTER_TELEGRAPH)
+	await get_tree().create_timer(SPLINTER_TELEGRAPH).timeout
+	if is_dead:
+		return
+	shake_camera(6.0, 0.25)
+	for i in range(SPLINTER_COUNT):
+		var ang: float = i * TAU / SPLINTER_COUNT
+		var dir := Vector2.RIGHT.rotated(ang)
+		spawn_arrow(global_position + dir * 44.0, dir, SPLINTER_DAMAGE, SPLINTER_RANGE)
+	# a few embers linger on the ground around it
+	for s in [-1.0, 1.0]:
+		spawn_hazard(global_position + Vector2(s * 130.0, 0), 60.0, 8, 2.6,
+			Color(1.0, 0.5, 0.12, 0.5), "poison", 1.0, 4.0)
+	set_cd("splinter_burst"); is_busy = false
+
+# MOURNCALLER 60 -- Keening: releases a swarm of slow HOMING sorrow-wisps you
+# have to outmaneuver, not outrun. It never melees; this is its reach.
+func do_keening() -> void:
+	if player == null or not is_instance_valid(player):
+		set_cd("keening"); is_busy = false; return
+	flash_telegraph(Color(0.6, 0.75, 1.0))
+	await get_tree().create_timer(0.4).timeout
+	if is_dead:
+		return
+	for i in range(KEENING_COUNT):
+		var b = HOMING_SCENE.new()
+		b.damage = KEENING_DAMAGE
+		b.damage_multiplier = damage_multiplier
+		b.dir = Vector2.RIGHT.rotated(randf() * TAU)
+		get_parent().add_child(b)
+		b.global_position = global_position + b.dir * 30.0
+	set_cd("keening"); is_busy = false
+
+# a triangular cone telegraph fanning from the boss along a horizontal facing
+func _spawn_cone(face: float, length: float, color: Color, duration: float) -> void:
+	var cone := Polygon2D.new()
+	cone.polygon = PackedVector2Array([
+		Vector2.ZERO,
+		Vector2(face * length, -length * 0.5),
+		Vector2(face * length, length * 0.5)])
+	cone.color = color
+	cone.z_index = 5
+	get_parent().add_child(cone)
+	cone.global_position = global_position
+	var t = cone.create_tween()
+	t.tween_property(cone, "modulate:a", 0.0, duration)
+	t.tween_callback(cone.queue_free)
 
 # a translucent octagon marker the CALLER owns (moves/frees it); for tracking
 # and channelled signatures. Self-freeing flashes use spawn_ring_telegraph.

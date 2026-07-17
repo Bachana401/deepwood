@@ -144,5 +144,99 @@ func _ready() -> void:
 		"%.0f -> %.0f" % [before_x, p.global_position.x])
 	vs.queue_free()
 
+	# ============ DEEP TIER (floors 35-60) ============
+
+	# ---------------- DISSONANT SCREAM (disorient cone) ----------------
+	var hc = mk.call("hollow_choir")
+	await get_tree().process_frame
+	hc.player = p
+	hc.global_position = pin + Vector2(-200, 0)   # boss left, player right = in its cone
+	p.global_position = pin
+	p.clear_crowd_control()
+	await hc.do_dissonant_scream()
+	check("Hollow Choir Dissonant Scream: DISORIENTS a player in the cone",
+		p._now() < p.disorient_until)
+	p.clear_crowd_control()
+	hc.queue_free()
+
+	# ---------------- PRAYER PYRE (expanding flame front) ----------------
+	var ap = mk.call("ashen_penitent")
+	await get_tree().process_frame
+	ap.player = p
+	ap.global_position = pin
+	p.health = p.get_max_health(); p.invincible = false; p.monarch_iframes_until = 0.0
+	var php0: int = p.health
+	# stand ~200px out: the expanding ring will sweep over this
+	p.global_position = pin + Vector2(200, 0)
+	await ap.do_prayer_pyre()
+	check("Ashen Penitent Prayer Pyre: the flame front burns you", p.health < php0,
+		"%d -> %d" % [php0, p.health])
+	ap.queue_free()
+
+	# ---------------- IRON MAIDEN (delayed cage, root + heavy hit) ----------------
+	var ga = mk.call("gaoler")
+	await get_tree().process_frame
+	ga.player = p
+	ga.global_position = pin + Vector2(160, 0)
+	p.health = p.get_max_health(); p.invincible = false; p.monarch_iframes_until = 0.0
+	p.global_position = pin
+	p.clear_crowd_control()
+	var ghp0: int = p.health
+	await ga.do_iron_maiden()
+	check("Gaoler Iron Maiden: cages (ROOTS) a standing player", p.cc_move_locked())
+	check("Iron Maiden: and it hits hard", p.health < ghp0, "%d -> %d" % [ghp0, p.health])
+	p.clear_crowd_control()
+	ga.queue_free()
+
+	# ---------------- POUNCE (gap-closer leap) ----------------
+	var sf = mk.call("sablefang")
+	await get_tree().process_frame
+	sf.player = p
+	p.global_position = pin
+	sf.global_position = pin + Vector2(520, 0)     # far away
+	var boss_x0: float = sf.global_position.x
+	await sf.do_pounce()
+	check("Sablefang Pounce: LEAPS the gap toward the player", sf.global_position.x < boss_x0 - 100.0,
+		"%.0f -> %.0f (player at %.0f)" % [boss_x0, sf.global_position.x, p.global_position.x])
+	sf.queue_free()
+
+	# ---------------- SPLINTER BURST (radial + embers) ----------------
+	var ef = mk.call("effigy")
+	await get_tree().process_frame
+	ef.player = p
+	ef.global_position = pin + Vector2(300, 0)
+	var arrows_before := get_tree().get_nodes_in_group("hostile_projectile").size() + get_tree().get_nodes_in_group("course_enemy").size()
+	await ef.do_splinter_burst()
+	await get_tree().process_frame
+	var embers := host.get_tree().root.find_children("*", "Node2D", true, false).filter(
+		func(n): return n.get_script() != null and n.get_script().resource_path.ends_with("hazard_zone.gd"))
+	check("Effigy Splinter Burst: leaves burning embers behind", embers.size() >= 2,
+		"%d embers" % embers.size())
+	ef.queue_free()
+
+	# ---------------- KEENING (homing swarm) ----------------
+	var mc = mk.call("mourncaller")
+	await get_tree().process_frame
+	mc.player = p
+	mc.global_position = pin + Vector2(-300, 0)
+	await mc.do_keening()
+	await get_tree().process_frame
+	var wisps := host.get_tree().root.find_children("*", "Node2D", true, false).filter(
+		func(n): return n.get_script() != null and n.get_script().resource_path.ends_with("homing_bolt.gd"))
+	check("Mourncaller Keening: releases a homing swarm", wisps.size() >= 3,
+		"%d wisps" % wisps.size())
+	# and a wisp steers toward the player over a moment
+	if wisps.size() > 0:
+		var w = wisps[0]
+		p.global_position = pin
+		var d0: float = w.global_position.distance_to(p.global_position)
+		for i in range(40):
+			await get_tree().physics_frame
+			if not is_instance_valid(w):
+				break
+		check("Keening: a wisp homes in (closes distance or hits)",
+			not is_instance_valid(w) or w.global_position.distance_to(p.global_position) < d0)
+	mc.queue_free()
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)
