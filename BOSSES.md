@@ -1,7 +1,11 @@
 # Deepwood — The Boss Ladder
 
-> **Status: DESIGN, not built.** Nothing here is implemented yet. This exists so
-> the dev can veto before a single generation is spent. Build order at the end.
+> **Status (updated 2026-07-17): §1–4 are BUILT.** The 17 reactive mechanics,
+> the flat 22-boss ladder (the modulo is gone), and the 22 unique arenas are
+> implemented and headless-tested (commits 7be0d60 / b7f9686). §1's "measured
+> problem" below is kept as the HISTORICAL record of what was fixed. **§5
+> (Signature abilities) is the current DESIGN layer — not built yet:** it fixes
+> the one thing §1–4 didn't, the shared/overused active-ability pool.
 
 ---
 
@@ -198,3 +202,75 @@ sweeping behind, regal. Preserved as PixelLab object
 He keeps the hood and the void face, so the ascension reads as the same man
 risen rather than a new character; the fire in the hood is the only thing
 looking back.
+
+---
+
+## 5. Signature abilities — one distinct move per boss (added 2026-07-17)
+
+### 4.1 The problem, measured
+The reactive **mechanics** (§2) and the **arenas** are unique per boss — but the
+**active abilities are not.** All 22 bosses draw from one shared pool, and it is
+badly overused:
+
+- **`nova` (radial projectile burst) is on 11 of 22 bosses** — half the roster.
+- `teleport` 9 · `pillars` (the "spike thrower") 8 · `volley` 7 · `summon` 7 · `charge` 7.
+- Only `curse`, `clone`, `vortex`, `doomring`, `dive` are anywhere near unique.
+
+And the deeper flaw: the whole pool is **one *type*** — throw-a-projectile /
+radial-burst / summon-adds. There is no grab, no counter, no zone-denial, no
+mobility mix-up, no disorient. For a heavy combat game aiming at
+**Wukong / Dark Souls** feel, that flatness is fatal — bosses have to *threaten
+differently*, not just reskin the same threat.
+
+### 4.2 The fix
+Every boss gets **one SIGNATURE ability** — unique to it (or shared with at most
+one other) — and the shared pool is **trimmed hard** (nova/pillars drop from
+8–11 bosses to ~2–3 each). A boss's kit becomes **[1 signature] + [1–2 trimmed
+shared moves for combo flow]**, so the signature is the thing you *remember and
+learn*. The forever-rule (bosses differ in MANY ways) finally reaches the
+moveset, not just the passives.
+
+**The point isn't 22 new projectiles — it's 22 new VERBS.** The signatures are
+spread across attack *types* on purpose; variety of type is what breaks the
+sameness:
+
+| Fl | Boss | Signature | Type (the new verb) | What it does |
+|---|---|---|---|---|
+| 5 | Gravewarden | **Grave Grasp** | grab / root | a hand bursts from the ground under you, rooting you ~1s (telegraphed shadow) — then it closes |
+| 10 | Frost Monarch | **Rime Lance** | tracking projectile | a slow homing ice-spear; dodge laterally or be frozen in place |
+| 15 | Cinder Colossus | **Magma Wake** | zone denial | its charge leaves a burning lava trail that lingers — the lane you dodged into becomes lethal |
+| 20 | The Weaver | **Web Snare** | root-zone | fires webbing that lays a sticky patch; standing in it roots/slows you for the adds |
+| 25 | Stormcaller | **Thunderstrike** | delayed strike | telegraphed bolts drop on your *current* spot after a beat — punishes standing still |
+| 30 | Void Sovereign | **Void Rift** | pull-zone | opens a stationary singularity that drags you toward it while it attacks |
+| 35 | Hollow Choir | **Dissonant Scream** | disorient | a frontal sound-cone: damage + briefly scrambles/reverses your movement |
+| 40 | Ashen Penitent | **Prayer Pyre** | expanding aura | a ring of fire grows out from it, forcing you to range (synergy: `famine`) |
+| 45 | The Gaoler | **Iron Maiden** | delayed trap | slams a spiked cage down on your location after a tell — inside = a heavy hit |
+| 50 | Sablefang | **Pounce** | gap-closer combo | leaps the arena in a multi-hit bite; fast, dodged on the landing frame |
+| 55 | The Effigy | **Splinter Burst** | delayed ring | sheds a ring of burning splinters that blow outward a beat later |
+| 60 | Mourncaller | **Keening** | homing swarm | releases slow homing sorrow-wisps you have to outmaneuver, not outrun |
+| 65 | The Unseen | **Ambush** | mobility-strike | vanishes and reappears *behind* you attacking (pairs with its `curse`) |
+| 70 | Warden of Nails | **Impale** | tracking overhead | a giant nail drops from the ceiling tracking you (synergy: low ceiling + `skyfall`) |
+| 75 | Twin Despair | **Pincer Lunge** | dual gap-close | both twins dash from opposite sides at once (synergy: `covenant`) |
+| 80 | Cinderking | **Eruption** | arena wave | cracks race across the floor gouting fire in a spreading line — jump the gaps |
+| 85 | Glass Saint | **Refraction** | multi-beam | its beam splits into several angled beams that sweep (synergy: `mirror`) |
+| 90 | The Last Man | **Riposte Stance** | active COUNTER | takes a guard; hit it during the stance and it **parries and counters hard** — it fights like you |
+| 95 | Seraphiel | **Judgment** | arena sweep | a pillar of light sweeps the floor; stay ahead of it (on top of its `dive`) |
+| 98 | Leviathan | **Tidal Crush** | vertical wave | a wave sweeps the floor — get to high ground or be swept (on top of `vortex`) |
+| 99 | Eclipse | **Black Sun** | space-shrink | darkness closes in, shrinking the safe lit ring to a circle around it |
+| 100 | Fallen Wizard | **Unwriting** | arena-mutate | erases/rearranges arena platforms mid-fight — the culmination, keeps its full kit too |
+
+### 4.3 Rules for building these
+- **MECHANICS FIRST, headless-proven before any visual** — same rule as §2: each
+  signature must measurably *do its thing* (Grave Grasp roots; Riposte Stance
+  punishes a hit during the stance and NOT outside it; Void Rift measurably pulls).
+- **Difficulty from the MOVE, never a one-shot** (the forever-rule): signatures
+  telegraph, and deeper bosses get *longer/nastier* signature-laced combos, not
+  bigger single numbers.
+- **Signatures may re-tune arenas** (§ arenas already built): a Tidal Crush wants
+  reachable high ground; an Eruption wants gaps to jump. Re-verify each arena
+  against its boss's new signature after implementation.
+- **Trim the shared pool** in `boss.gd BOSSES` ability lists as signatures land,
+  so `nova`/`pillars`/`teleport` stop being everyone's move.
+- **QC every generated frame** if any signature ever gets bespoke art later
+  (art is FROZEN for now — these ship on procedural telegraphs/projectiles,
+  which are gameplay feedback, not art assets).
