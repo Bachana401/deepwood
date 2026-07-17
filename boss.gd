@@ -35,6 +35,28 @@ const WALL_TURN_DURATION = 0.8
 const BOSS_CLIMB_VELOCITY = -480.0
 const BOSS_CLIMB_COOLDOWN = 0.55
 
+# BEHAVIOR PROFILE -- the boss's MOVEMENT personality, separate from its attacks,
+# so no two bosses cross the floor the same way (dev: "significantly different").
+# Flying bosses ignore this and hover (process_hover). The vocabulary:
+#   rusher   -- closes straight in (default, bruisers)
+#   kiter    -- holds a range; backs off when you crowd it (ranged casters)
+#   pursuer  -- relentless: ACCELERATES the longer it chases you
+#   pouncer  -- holds a medium range, then bursts in and peels back out
+#   erratic  -- unpredictable feinting bursts and pauses (skittery)
+#   weave    -- advances while wobbling forward/back, hard to time
+#   turtle   -- barely moves; it wants YOU to come to it
+#   hopper   -- approaches in periodic jumps instead of walking
+#   mirror   -- moves only while YOU move; stalks your rhythm (the Last Man)
+const KITE_RANGE = 380.0
+const KITE_HYSTERESIS = 70.0
+const POUNCE_HOLD_RANGE = 300.0
+var profile := "rusher"
+# per-boss movement state used by the profiles above
+var _move_timer := 0.0
+var _move_phase := 0.0
+var _move_dir := 0.0
+var _chase_ramp := 1.0
+
 # --- shared ability tuning ---
 # Ranges are deliberately long: boss arenas are 3-5x the regular width, so a
 # boss must be able to threaten across a big gap or it just gets kited.
@@ -391,6 +413,7 @@ const BOSSES = {
 	},
 	# A tall, skeletal-thin frozen lich-king in an icy shroud.
 	"frost_monarch": {
+		"profile": "kiter",
 		"name": "The Frost Monarch",
 		"color": Color(0.55, 0.68, 0.8), "eye_color": Color(0.85, 0.97, 1.0),
 		"magic": Color(0.65, 0.9, 1.0),
@@ -401,6 +424,7 @@ const BOSSES = {
 	# A huge charcoal stag-demon, antlers still burning from the forest fire
 	# that killed it. Stampedes and erupts fire.
 	"cinder_colossus": {
+		"profile": "pursuer",
 		"name": "The Cinder Colossus",
 		"color": Color(0.16, 0.12, 0.11), "eye_color": Color(1.0, 0.6, 0.15),
 		"magic": Color(1.0, 0.5, 0.12),
@@ -411,6 +435,7 @@ const BOSSES = {
 	# A SMALL corpse-spider brood mother -- quick, evasive, hard to corner;
 	# her legs span far wider than her body.
 	"weaver": {
+		"profile": "erratic",
 		"name": "The Weaver",
 		"color": Color(0.3, 0.22, 0.34), "eye_color": Color(1.0, 0.4, 0.9),
 		"magic": Color(0.95, 0.4, 0.85),
@@ -420,6 +445,7 @@ const BOSSES = {
 	},
 	# A lightning-scarred owl-wraith of the dead canopy; medium build.
 	"stormcaller": {
+		"profile": "weave",
 		"name": "The Stormcaller",
 		"color": Color(0.36, 0.38, 0.3), "eye_color": Color(1.0, 1.0, 0.55),
 		"magic": Color(0.95, 0.95, 0.55),
@@ -430,6 +456,7 @@ const BOSSES = {
 	# The hollow king: a dead monarch whose chest is an open void, his crown
 	# floating above the ruin of his head.
 	"void_sovereign": {
+		"profile": "pouncer",
 		"name": "The Void Sovereign",
 		"color": Color(0.17, 0.11, 0.25), "eye_color": Color(0.9, 0.2, 1.0),
 		"magic": Color(0.75, 0.3, 1.0),
@@ -450,6 +477,7 @@ const BOSSES = {
 	# it fills the arena sideways so there is nowhere to stand that isn't in
 	# front of some part of it. Slow. The fakes sing; the real one doesn't.
 	"hollow_choir": {
+		"profile": "pursuer",
 		"name": "The Hollow Choir",
 		"color": Color(0.34, 0.33, 0.30), "eye_color": Color(0.9, 0.95, 0.8),
 		"magic": Color(0.75, 0.85, 0.6),
@@ -460,6 +488,7 @@ const BOSSES = {
 	# 40 -- a burning devil locked mid-prayer. TALL and thin, and it barely
 	# moves: it wants you to come to it and swing at the prayer.
 	"ashen_penitent": {
+		"profile": "turtle",
 		"name": "The Ashen Penitent",
 		"color": Color(0.36, 0.16, 0.12), "eye_color": Color(1.0, 0.55, 0.15),
 		"magic": Color(1.0, 0.45, 0.1),
@@ -480,6 +509,7 @@ const BOSSES = {
 	# 50 -- a beast that has learned your habits. SMALL and very fast: it dodges
 	# what you repeat, so the fight punishes muscle memory.
 	"sablefang": {
+		"profile": "pouncer",
 		"name": "Sablefang",
 		"color": Color(0.16, 0.14, 0.20), "eye_color": Color(1.0, 0.85, 0.2),
 		"magic": Color(0.8, 0.7, 1.0),
@@ -490,6 +520,7 @@ const BOSSES = {
 	# 55 -- a burning wicker giant. HUGE and slow; it sows fire where you were,
 	# and chip damage does nothing to a thing made of bundled logs.
 	"effigy": {
+		"profile": "hopper",
 		"name": "The Effigy",
 		"color": Color(0.42, 0.28, 0.12), "eye_color": Color(1.0, 0.7, 0.2),
 		"magic": Color(1.0, 0.6, 0.15),
@@ -532,6 +563,7 @@ const BOSSES = {
 	# 75 -- two bodies, one soul. Narrow and quick, and it will not stay still
 	# long enough to be traded with.
 	"twin_despair": {
+		"profile": "erratic",
 		"name": "The Twin Despair",
 		"color": Color(0.20, 0.18, 0.28), "eye_color": Color(0.85, 0.3, 1.0),
 		"magic": Color(0.7, 0.3, 1.0),
@@ -542,6 +574,7 @@ const BOSSES = {
 	# 80 -- devil-lord of the burning deep. Broad and heavy; reflects what you
 	# throw, burns where you stood, and eats your mana for standing near him.
 	"cinderking": {
+		"profile": "weave",
 		"name": "The Cinderking",
 		"color": Color(0.34, 0.12, 0.10), "eye_color": Color(1.0, 0.6, 0.1),
 		"magic": Color(1.0, 0.4, 0.05),
@@ -552,6 +585,7 @@ const BOSSES = {
 	# 85 -- reflects everything, must be flanked, and punishes a steady rhythm:
 	# every ranged answer is closed; it is a pure melee-discipline fight.
 	"glass_saint": {
+		"profile": "kiter",
 		"name": "The Glass Saint",
 		"color": Color(0.62, 0.66, 0.72), "eye_color": Color(0.95, 1.0, 1.0),
 		"magic": Color(0.8, 0.95, 1.0),
@@ -562,6 +596,7 @@ const BOSSES = {
 	# 90 -- the last soulless human. Man-sized, man-speed: he fights exactly the
 	# way the player does, and punishes the player's own habits.
 	"last_man": {
+		"profile": "mirror",
 		"name": "The Last Man",
 		"color": Color(0.18, 0.17, 0.24), "eye_color": Color(1.0, 1.0, 1.0),
 		"magic": Color(0.6, 0.6, 0.7),
@@ -589,6 +624,7 @@ const BOSSES = {
 	},
 	# The biggest creature in the game: a dead god crowned by a black sun.
 	"eclipse": {
+		"profile": "turtle",
 		"name": "The Eclipse Titan",
 		"color": Color(0.09, 0.06, 0.08), "eye_color": Color(1.0, 0.2, 0.1),
 		"magic": Color(1.0, 0.25, 0.12),
@@ -602,6 +638,7 @@ const BOSSES = {
 	# reflexively when struck, and he mirrors himself into a legion of up to 6
 	# echoes. Nothing counters him.
 	"wizard": {
+		"profile": "erratic",
 		"name": "The Fallen Wizard",
 		"color": Color(0.09, 0.05, 0.07), "eye_color": Color(1.0, 0.12, 0.08),
 		"magic": Color(1.0, 0.22, 0.12),
@@ -1369,6 +1406,7 @@ func configure_from_def(def: Dictionary) -> void:
 	has_false_twin = "false_twin" in passives
 	has_soulbind = "soulbind" in passives
 	has_covenant = "covenant" in passives
+	profile = def.get("profile", "rusher")
 	abilities = (def.get("abilities", ["slam"]) as Array).duplicate()
 	max_health = int(round(float(def.get("hp", 900)) * level_hp_mult))
 	health = max_health
@@ -2040,7 +2078,7 @@ func _physics_process(delta: float) -> void:
 				elif wall_turn_timer > 0:
 					velocity.x = -facing_direction * effective_speed()
 				else:
-					velocity.x = facing_direction * effective_speed()
+					_drive_profile(dist, delta)
 		check_bump()
 
 	# creature rigs face the way the boss moves/aims
@@ -2214,12 +2252,77 @@ func active_combos() -> Array:
 func drive_wizard(delta: float) -> void:
 	if combo_recovery_timer > 0.0:
 		combo_recovery_timer -= delta
+		# a combo boss expresses its movement personality BETWEEN sentences
 		if flying:
 			process_hover(delta)
+		elif player != null and is_instance_valid(player):
+			_drive_profile(global_position.distance_to(player.global_position), delta)
 		else:
 			velocity.x = 0
 		return
 	run_combo()
+
+# The movement personality. Sets velocity from the boss's `profile` so no two
+# bosses cross the floor the same way. (See the profile vocabulary up top.)
+func _drive_profile(dist: float, delta: float) -> void:
+	var spd := effective_speed()
+	var face := float(facing_direction)
+	match profile:
+		"kiter":
+			if dist < KITE_RANGE - KITE_HYSTERESIS:
+				velocity.x = -face * spd            # crowded: back off, keep shooting
+			elif dist > KITE_RANGE + KITE_HYSTERESIS:
+				velocity.x = face * spd             # too far: close some gap
+			else:
+				velocity.x = 0.0                    # in the pocket: hold
+		"pursuer":
+			# relentless -- the longer it chases, the faster it comes
+			if dist > 130.0:
+				_chase_ramp = minf(2.1, _chase_ramp + delta * 0.7)
+			else:
+				_chase_ramp = 1.0
+			velocity.x = face * spd * _chase_ramp
+		"pouncer":
+			_move_timer -= delta
+			if _move_phase > 0.0:                    # mid-pounce burst
+				_move_phase -= delta
+				velocity.x = face * spd * 2.3
+			elif _move_timer <= 0.0:
+				_move_timer = randf_range(1.2, 2.0)
+				_move_phase = 0.28                   # start a new burst
+			elif dist < POUNCE_HOLD_RANGE:
+				velocity.x = -face * spd * 0.7       # too close between pounces: peel out
+			else:
+				velocity.x = 0.0
+		"erratic":
+			_move_timer -= delta
+			if _move_timer <= 0.0:
+				_move_timer = randf_range(0.22, 0.6)
+				var r := randf()
+				_move_dir = face if r < 0.6 else (-face if r < 0.82 else 0.0)  # feint/pause
+			velocity.x = _move_dir * spd * 1.25
+		"weave":
+			_move_phase += delta * 4.5
+			velocity.x = face * spd * lerpf(-0.4, 1.0, 0.5 + 0.5 * sin(_move_phase))
+		"turtle":
+			velocity.x = face * spd * 0.22           # it wants you to come to it
+		"hopper":
+			velocity.x = face * spd * 0.85
+			_move_timer -= delta
+			if _move_timer <= 0.0 and is_on_floor():
+				_move_timer = randf_range(0.7, 1.15)
+				velocity.y = -430.0                  # a hop toward you
+		"mirror":
+			# it moves only while YOU move -- it stalks your rhythm. Detected by
+			# the player's POSITION change (robust to velocity being zeroed).
+			var pmoving := false
+			if player != null and is_instance_valid(player):
+				if _move_dir != 0.0:   # _move_dir holds the last-seen player x here
+					pmoving = absf(player.global_position.x - _move_dir) > 2.0
+				_move_dir = player.global_position.x
+			velocity.x = (face * spd) if pmoving else 0.0
+		_:                                           # rusher / default
+			velocity.x = face * spd
 
 # Gaps between combo steps and the length of the punish window both tighten as
 # he enrages (60% HP) and then frenzies (25% HP) -- the fight escalates.
