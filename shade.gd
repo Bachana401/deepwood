@@ -11,16 +11,40 @@ extends Node2D
 
 const HOSTILE_GROUPS = ["course_enemy", "dungeon_combatant", "siege_enemy"]
 const FLY_SPEED := 250.0
-const ATTACK_RANGE := 40.0
-const ATTACK_COOLDOWN := 0.85
 const SEEK_RANGE := 760.0
 const HOME_RANGE := 46.0      # hover ring around the Monarch when idle
+
+# --- the legion: some kill, some guard -------------------------------------
+# A shade army that all charges at once is a swarm, not a legion. Each shade
+# takes a ROLE and keeps it: attackers hunt, defenders stay home and eat the
+# projectiles meant for their king. The split is per-shade and re-rolled as the
+# army's size changes, so you never get all-attack or all-defend.
+enum Role { ATTACK, DEFEND }
+var role: int = Role.ATTACK
+const DEFEND_SHARE := 0.4     # ~40% guard, so an army always does both
+
+# Two attacks, deliberately different in reach AND rhythm:
+#   CLAW  -- melee, fast, low damage. The workhorse.
+#   BOLT  -- low/mid range, slow, hits harder. Punishes hanging back.
+const CLAW_RANGE := 44.0
+const CLAW_COOLDOWN := 0.8
+const BOLT_RANGE := 300.0
+const BOLT_MIN_RANGE := 60.0  # won't bolt point-blank -- that's what claws are for
+const BOLT_COOLDOWN := 3.2
+const BOLT_SPEED := 420.0
+
+# Defenders body-block: a hostile projectile that touches a guarding shade dies
+# on it instead of reaching the Monarch.
+const GUARD_RADIUS := 26.0
+const GUARD_ORBIT := 54.0     # how far out front the guards hold station
+const PROJECTILE_GROUPS = ["enemy_projectile", "boss_projectile", "hostile_projectile"]
 
 var damage := 10
 var expires_at := 0.0         # ticks-seconds; 0 = permanent (true form)
 var owner_player: Node2D = null
 
 var _attack_ready_at := 0.0
+var _bolt_ready_at := 0.0
 var _bob := randf() * TAU
 var _home_side := 1.0 if randf() < 0.5 else -1.0
 var _dying := false
@@ -41,15 +65,19 @@ func _ready() -> void:
 	t.tween_callback(func(): _spawned = true)
 
 func _build_visual() -> void:
-	# soft violet halo behind the body
-	var glow = Polygon2D.new()
-	glow.polygon = _blob(16.0, 10)
-	glow.color = Color(0.45, 0.15, 0.85, 0.20)
+	# The Monarch's aura, inherited but lesser: his is a broad swirling cloud of
+	# tendrils that swallows him whole; a shade's is a tight, jagged, upward-
+	# licking flame of the same violet -- clearly his power, clearly a fraction
+	# of it, and a different SHAPE so the two never read as the same effect.
+	_aura = Polygon2D.new()
+	_aura.polygon = _aura_shape(0.0)
+	_aura.color = Color(0.45, 0.15, 0.85, 0.30)
 	var add_mat = CanvasItemMaterial.new()
 	add_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	glow.material = add_mat
-	glow.position = Vector2(0, -14)
-	add_child(glow)
+	_aura.material = add_mat
+	_aura.position = Vector2(0, -12)
+	_aura.z_index = -1
+	add_child(_aura)
 	# hooded wraith silhouette: cowled head, cloaked torso, ragged trailing hem
 	var body = Polygon2D.new()
 	body.polygon = PackedVector2Array([
@@ -70,6 +98,32 @@ func _build_visual() -> void:
 		eye.material = add_mat
 		add_child(eye)
 
+# A ragged upward flame: spikes of alternating length around a small core, the
+# odd ones stretched up. Nothing like the Monarch's round tendril cloud -- same
+# colour, same family, unmistakably a lesser thing.
+var _aura: Polygon2D = null
+var _aura_t := 0.0
+const AURA_SPIKES := 11
+const AURA_CORE := 9.0
+
+func _aura_shape(t: float) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	for i in range(AURA_SPIKES):
+		var a: float = TAU * float(i) / AURA_SPIKES - PI / 2.0
+		var up: float = maxf(0.0, -sin(a))          # 1 at the top, 0 at the sides
+		var spike: float = 1.0 if i % 2 == 0 else 0.55
+		var lick: float = 1.0 + 0.35 * sin(t * 3.4 + float(i) * 1.9)
+		var r: float = AURA_CORE * spike * lick * (1.0 + up * 1.5)
+		pts.append(Vector2(cos(a), sin(a)) * r)
+	return pts
+
+func _tick_aura(delta: float) -> void:
+	if _aura == null:
+		return
+	_aura_t += delta
+	_aura.polygon = _aura_shape(_aura_t)
+	_aura.color.a = 0.22 + 0.12 * (0.5 + 0.5 * sin(_aura_t * 2.6))
+
 func _blob(r: float, n: int) -> PackedVector2Array:
 	var pts := PackedVector2Array()
 	for i in range(n):
@@ -80,6 +134,8 @@ func _blob(r: float, n: int) -> PackedVector2Array:
 func _process(delta: float) -> void:
 	if _dying:
 		return
+	_tick_aura(delta)
+	_tick_bolts(delta)
 	if expires_at > 0.0 and _now() > expires_at:
 		dissolve()
 		return
@@ -87,6 +143,9 @@ func _process(delta: float) -> void:
 		dissolve()   # the Monarch has fallen -- his shadows go with him
 		return
 	_bob += delta * 3.0
+	if role == Role.DEFEND:
+		_tick_defend(delta)
+		return
 	var target = _nearest_enemy()
 	var dest: Vector2
 	if target != null:
@@ -99,11 +158,134 @@ func _process(delta: float) -> void:
 	if _spawned and absf(to.x) > 2.0:
 		scale.x = absf(scale.x) * (1.0 if to.x >= 0.0 else -1.0)
 	position.y += sin(_bob) * 6.0 * delta
-	# claws of dark
+	# BOLT: the slow one. Only from mid range -- hanging back is not safety.
+	if target != null and _now() >= _bolt_ready_at:
+		var d: float = global_position.distance_to(target.global_position)
+		if d > BOLT_MIN_RANGE and d <= BOLT_RANGE:
+			_bolt_ready_at = _now() + BOLT_COOLDOWN
+			_fire_bolt(target)
+	# CLAW: the fast one, in close
 	if target != null and _now() >= _attack_ready_at \
-			and global_position.distance_to(target.global_position) <= ATTACK_RANGE:
-		_attack_ready_at = _now() + ATTACK_COOLDOWN
+			and global_position.distance_to(target.global_position) <= CLAW_RANGE:
+		_attack_ready_at = _now() + CLAW_COOLDOWN
 		_slash(target)
+
+# --- DEFEND: hold station in front of the king and eat what's coming ---------
+# A guarding shade doesn't chase. It orbits just ahead of the Monarch on the
+# side the danger is, and any hostile projectile that touches it dies there --
+# that IS its purpose. It cannot block what it isn't standing in front of, so a
+# player who lets every shade go hunting has no screen.
+func _tick_defend(delta: float) -> void:
+	var threat := _nearest_projectile()
+	var face_x: float = _home_side
+	if threat != null:
+		# slide to intercept: get between the king and the incoming shot
+		face_x = signf(threat.global_position.x - owner_player.global_position.x)
+		if face_x == 0.0:
+			face_x = _home_side
+	var dest: Vector2 = owner_player.global_position + Vector2(face_x * GUARD_ORBIT, -26.0 + sin(_bob) * 5.0)
+	var to := dest - global_position
+	if to.length() > 4.0:
+		global_position += to.normalized() * minf(FLY_SPEED * delta, to.length())
+	if _spawned:
+		scale.x = absf(scale.x) * (1.0 if face_x >= 0.0 else -1.0)
+	# body-block: anything hostile that reaches us dies on us
+	for pr in _projectiles_near(GUARD_RADIUS):
+		_block(pr)
+
+func _nearest_projectile() -> Node2D:
+	var best: Node2D = null
+	var best_d := 420.0
+	for g in PROJECTILE_GROUPS:
+		for pr in get_tree().get_nodes_in_group(g):
+			if not is_instance_valid(pr) or not (pr is Node2D):
+				continue
+			var d: float = owner_player.global_position.distance_to(pr.global_position)
+			if d < best_d:
+				best_d = d
+				best = pr
+	return best
+
+func _projectiles_near(r: float) -> Array:
+	var out: Array = []
+	for g in PROJECTILE_GROUPS:
+		for pr in get_tree().get_nodes_in_group(g):
+			if is_instance_valid(pr) and pr is Node2D \
+					and global_position.distance_to(pr.global_position) <= r:
+				out.append(pr)
+	return out
+
+# Eat one shot: a violet spark where it broke, and the shot is gone.
+func _block(pr: Node) -> void:
+	if not is_instance_valid(pr):
+		return
+	var spark := CPUParticles2D.new()
+	spark.one_shot = true
+	spark.explosiveness = 1.0
+	spark.amount = 7
+	spark.lifetime = 0.28
+	spark.spread = 180.0
+	spark.initial_velocity_min = 40.0
+	spark.initial_velocity_max = 110.0
+	spark.color = Color(0.62, 0.28, 1.0)
+	spark.z_index = 30
+	get_parent().add_child(spark)
+	spark.global_position = (pr as Node2D).global_position
+	spark.emitting = true
+	spark.finished.connect(spark.queue_free)
+	pr.queue_free()
+
+# BOLT: the slow, longer-reaching attack -- a bolt of shadow it throws.
+func _fire_bolt(target: Node2D) -> void:
+	if not is_instance_valid(target):
+		return
+	var bolt := Area2D.new()
+	bolt.collision_layer = 0
+	bolt.collision_mask = 0
+	var vis := Polygon2D.new()
+	vis.polygon = PackedVector2Array([Vector2(-7, 0), Vector2(0, -3.5), Vector2(9, 0), Vector2(0, 3.5)])
+	vis.color = Color(0.62, 0.26, 1.0, 0.95)
+	bolt.add_child(vis)
+	var glow := Polygon2D.new()
+	glow.polygon = _blob(7.0, 9)
+	glow.color = Color(0.45, 0.15, 0.85, 0.35)
+	var am := CanvasItemMaterial.new()
+	am.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	glow.material = am
+	bolt.add_child(glow)
+	bolt.z_index = 8
+	get_parent().add_child(bolt)
+	bolt.global_position = global_position
+	var dir: Vector2 = (target.global_position - global_position).normalized()
+	bolt.rotation = dir.angle()
+	_bolts.append({"n": bolt, "dir": dir, "dmg": int(round(damage * 1.6)), "life": 1.6})
+
+var _bolts: Array = []
+
+func _tick_bolts(delta: float) -> void:
+	for i in range(_bolts.size() - 1, -1, -1):
+		var b: Dictionary = _bolts[i]
+		var n: Node2D = b["n"]
+		if not is_instance_valid(n):
+			_bolts.remove_at(i)
+			continue
+		b["life"] -= delta
+		n.global_position += b["dir"] * BOLT_SPEED * delta
+		if b["life"] <= 0.0:
+			n.queue_free()
+			_bolts.remove_at(i)
+			continue
+		for g in HOSTILE_GROUPS:
+			for e in get_tree().get_nodes_in_group(g):
+				if not is_instance_valid(e) or not e.has_method("take_damage"):
+					continue
+				if "is_dead" in e and e.is_dead:
+					continue
+				if n.global_position.distance_to(e.global_position) <= 26.0:
+					e.take_damage(b["dmg"])
+					n.queue_free()
+					_bolts.remove_at(i)
+					return
 
 func _nearest_enemy() -> Node2D:
 	var best: Node2D = null

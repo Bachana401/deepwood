@@ -823,6 +823,26 @@ func raise_shade() -> void:
 	get_parent().add_child(shade)
 	shade.global_position = global_position + Vector2(randf_range(-26.0, 26.0), 0.0)
 	monarch_shades.append(shade)
+	_rebalance_shades()
+
+# A legion, not a swarm: some of the dead hunt for him, the rest stand between
+# him and what's coming. Re-split every time the army changes size so you never
+# end up with all-attack (no screen) or all-defend (nothing dies) -- and so a
+# lone shade always hunts rather than guarding an unthreatened king.
+func _rebalance_shades() -> void:
+	monarch_shades = monarch_shades.filter(func(s): return is_instance_valid(s))
+	var n: int = monarch_shades.size()
+	if n == 0:
+		return
+	var want_guards: int = 0 if n < 2 else int(round(n * shade_defend_share()))
+	want_guards = clampi(want_guards, 0, n - 1)   # never ALL guards
+	for i in range(n):
+		monarch_shades[i].role = 1 if i < want_guards else 0   # Role.DEFEND / ATTACK
+
+# How much of the legion guards. The true form has bodies to spare, so it can
+# afford a real screen.
+func shade_defend_share() -> float:
+	return 0.5 if monarch_true_form_active else 0.34
 
 # The true form's heartbeat: every few seconds the dark detonates outward.
 # Only rings visibly when it actually catches someone -- no spam in the village.
