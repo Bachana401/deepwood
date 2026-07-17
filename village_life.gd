@@ -72,6 +72,7 @@ func _recompute_bounds() -> void:
 
 func _process(delta: float) -> void:
 	_update_decor()
+	_update_lanterns(delta)
 	_update_celebration(delta)
 	_update_critters(delta)
 
@@ -91,6 +92,7 @@ func _update_decor() -> void:
 	built_tier = ops.size()
 	for c in decor_layer.get_children():
 		c.queue_free()
+	_lanterns.clear()   # the lamps we were flickering just got freed with the layer
 	# per-building dressing
 	for b in ops:
 		var bx = b.global_position.x
@@ -133,9 +135,33 @@ func _flower_box(base: Vector2) -> void:
 
 func _lantern(base: Vector2) -> void:
 	_rect(decor_layer, base + Vector2(-1, -34), Vector2(2, 34), Color(0.4, 0.28, 0.16))  # post
-	_rect(decor_layer, base + Vector2(-4, -40), Vector2(8, 8), LANTERN)                    # lamp
+	var lamp = _rect(decor_layer, base + Vector2(-4, -40), Vector2(8, 8), LANTERN)
 	var glow = _rect(decor_layer, base + Vector2(-7, -43), Vector2(14, 14), Color(LANTERN.r, LANTERN.g, LANTERN.b, 0.22))
 	glow.z_index = -1
+	# A lamp with a dead-steady flame is just a yellow box. These burn: each one
+	# gutters on its own rhythm, blazes after dark and dims to nothing by day
+	# (GameState.torches_lit), so the street lights itself as the sun goes down.
+	_lanterns.append({"lamp": lamp, "glow": glow, "phase": randf() * TAU, "speed": randf_range(3.2, 6.5)})
+
+var _lanterns: Array = []
+
+func _update_lanterns(delta: float) -> void:
+	if _lanterns.is_empty():
+		return
+	_lantern_t += delta
+	var night: bool = GameState.torches_lit()
+	for l in _lanterns:
+		var f: float = 0.5 + 0.5 * sin(_lantern_t * l["speed"] + l["phase"])
+		f = f * 0.65 + 0.35 * (0.5 + 0.5 * sin(_lantern_t * l["speed"] * 2.3 + l["phase"] * 1.6))
+		if night:
+			l["lamp"].color = LANTERN.lerp(Color(1.0, 0.95, 0.7), f * 0.5)
+			l["lamp"].color.a = 1.0
+			l["glow"].color.a = 0.16 + 0.26 * f
+		else:
+			l["lamp"].color = LANTERN.darkened(0.45)
+			l["glow"].color.a = 0.04
+
+var _lantern_t := 0.0
 
 func _banner(base: Vector2) -> void:
 	_rect(decor_layer, base + Vector2(-1, -120), Vector2(2, 120), Color(0.5, 0.36, 0.2))   # pole
