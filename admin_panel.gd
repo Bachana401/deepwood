@@ -162,6 +162,11 @@ func _enter_proving_grounds() -> void:
 	var pl = _player()
 	if pl:
 		GameState.pending_player_state = GameState.capture_player_state(pl)
+		# remember where to drop the player back in the village -- without this
+		# the exit falls back to pre_dungeon_position's default (0,0), which is
+		# below the village ground line (GROUND_Y = -39) so you'd spawn embedded
+		# in the floor and fall through. (matches level_select_ui's entry.)
+		GameState.pre_dungeon_position = pl.global_position
 	close()
 	get_tree().change_scene_to_file.call_deferred("res://dungeon_interior.tscn")
 

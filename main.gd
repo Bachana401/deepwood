@@ -213,7 +213,11 @@ func _ready() -> void:
 	spawn_existing_villager_avatars()
 	if GameState.returning_from_dungeon:
 		GameState.returning_from_dungeon = false
-		$Player.global_position = GameState.pre_dungeon_position
+		# only restore a real recorded spot -- the default (0,0) is below the
+		# ground line and would spawn the player embedded in the floor. If it was
+		# never set, keep the scene's own on-ground spawn instead.
+		if GameState.pre_dungeon_position != Vector2.ZERO:
+			$Player.global_position = GameState.pre_dungeon_position
 	show_away_report()
 
 # Summarises any sieges that resolved off-screen while the player was in a
