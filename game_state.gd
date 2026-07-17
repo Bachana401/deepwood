@@ -123,7 +123,20 @@ var researched_materials: Array = []
 # "weapon" slot holds an Excellent weapon, whose special power lives on the
 # player (see player.gd) rather than as a stat total.
 const RELIC_MAX_SLOTS = 6
-var equipment = {"helmet": "", "chest": "", "pants": "", "gloves": "", "boots": "", "weapon": "", "relics": ["", "", "", "", "", ""]}
+# The ONE list of gear slots. Everything that walks slots reads these, so adding
+# a slot can't leave a stale copy behind -- which is exactly how gloves/boots got
+# dropped from reset_for_new_game and blew up every stat query on a new game.
+const ARMOUR_SLOTS = ["helmet", "chest", "pants", "gloves", "boots"]
+const GEAR_SLOTS = ["helmet", "chest", "pants", "gloves", "boots", "weapon"]
+
+static func empty_equipment() -> Dictionary:
+	var e := {}
+	for s in GEAR_SLOTS:
+		e[s] = ""
+	e["relics"] = ["", "", "", "", "", ""]
+	return e
+
+var equipment = empty_equipment()
 
 func relic_slot_count() -> int:
 	if TEST_SKILL_SANDBOX:
@@ -136,7 +149,7 @@ func relic_slot_count() -> int:
 
 func get_equipment_total(effect_key: String) -> float:
 	var total = 0.0
-	for slot in ["helmet", "chest", "pants", "gloves", "boots"]:
+	for slot in ARMOUR_SLOTS:
 		total += item_equip_effect(equipment[slot], effect_key)
 	for i in range(relic_slot_count()):
 		total += item_equip_effect(equipment.relics[i], effect_key)
@@ -163,7 +176,7 @@ func get_bonus_total(effect_key: String) -> float:
 
 func get_equipped_item_ids() -> Array:
 	var ids = []
-	for slot in ["helmet", "chest", "pants", "gloves", "boots", "weapon"]:
+	for slot in GEAR_SLOTS:
 		if equipment[slot] != "":
 			ids.append(equipment[slot])
 	for i in range(relic_slot_count()):
@@ -268,7 +281,7 @@ func first_empty_relic_slot() -> int:
 # Rebuild the equipment dict from saved (JSON-parsed) data, sanitizing shape
 # so a malformed/old save can't leave slots missing or the relic array short.
 func load_equipment(data: Dictionary) -> void:
-	for slot in ["helmet", "chest", "pants", "gloves", "boots", "weapon"]:
+	for slot in GEAR_SLOTS:
 		equipment[slot] = str(data.get(slot, ""))
 	var relics: Array = ["", "", "", "", "", ""]
 	var saved_relics = data.get("relics", [])
@@ -1533,7 +1546,22 @@ func reset_for_new_game() -> void:
 	chosen_class = ""
 	unlocked_skills = []
 	researched_materials = []
-	equipment = {"helmet": "", "chest": "", "pants": "", "weapon": "", "relics": ["", "", "", "", "", ""]}
+	equipment = empty_equipment()
+	# Per-run flags that were quietly surviving into fresh games. The admin's
+	# forced god-form stayed forced; the starvation/morale warnings stayed
+	# "already warned" and so could never fire again for the rest of the install;
+	# and a New Game started from inside a dungeon kept the dungeon transition
+	# half-armed. (deepest_level_reached and game_completed are NOT reset here --
+	# those are deliberate lifetime records with their own save files.)
+	monarch_true_form_forced = false
+	_warned_no_food = false
+	_warned_low_morale = false
+	in_dungeon = false
+	returning_from_dungeon = false
+	active_dungeon_level = 1
+	pre_dungeon_position = Vector2.ZERO
+	income_timer = 0.0
+	tribute_timer = 0.0
 	# A fresh village opens with a full larder (computed after any test-populate,
 	# so the starting food matches the starting headcount) -- the player has a
 	# comfortable runway to rebuild the Farm before hunger bites.
