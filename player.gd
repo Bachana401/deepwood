@@ -604,6 +604,8 @@ func update_shadow_aura(delta: float) -> void:
 		shadow_aura.visible = stage >= 1
 		if stage >= 1:
 			var sc = lerpf(0.12, 1.25, e) * (0.97 + 0.03 * sin(_aura_pulse * 2.6))
+			if monarch_true_form_active:
+				sc *= 1.7   # the true form's aura swallows him whole
 			shadow_aura.scale = Vector2(sc, sc)
 			var a = clampf(lerpf(0.24, 1.0, ci) * breathe, 0.0, 1.0)
 			shadow_aura.modulate = Color(1.0 + 0.28 * ci, 0.82 - 0.06 * ci, 1.0 + 0.6 * ci, a)
@@ -619,6 +621,132 @@ func update_shadow_aura(delta: float) -> void:
 			# vivid violet that deepens + gets less transparent as the stage climbs
 			shadow_emit.color_ramp.set_color(0, Color(0.52, 0.2, 0.98, lerpf(0.35, 1.0, ci)))
 			shadow_emit.color_ramp.set_color(1, Color(0.16, 0.04, 0.32, 0.0))
+
+# ========================= THE SHADOW MONARCH'S POWERS ========================
+# The OP half of the hidden 7-stage passive (design: VILLAGE_SYSTEMS.md 8b).
+#   3/7 Shadowstep      -- dashes have full i-frames + a torn-shadow trail
+#   4/7 Dread Sovereign -- a constant aura of dread slows every foe near you
+#   5/7 Rise, Shade     -- kills tear the foe's shadow free to fight for you
+#   6/7 The Long Dark   -- a lethal hit melts you into shadow, not a grave
+#   7/7 true form       -- 2x size, permanent shades, shadow novas, doubled
+#                          lifesteal. It only fully manifests when no villager
+#                          is left alive to see it (or forced from the P panel).
+
+const LONG_DARK_COOLDOWN := 75.0
+const LONG_DARK_DURATION := 2.6
+const DREAD_AURA_RADIUS := 170.0
+const NOVA_PERIOD := 5.0
+const NOVA_RADIUS := 260.0
+const SHADE_LIFETIME := 12.0
+
+var monarch_iframes_until := 0.0
+var monarch_long_dark_ready_at := 0.0
+var monarch_dread_accum := 0.0
+var monarch_nova_accum := 0.0
+var monarch_shades: Array = []
+var monarch_true_form_active := false
+var monarch_scale_mult := 1.0
+
+func monarch_tick(delta: float) -> void:
+	var stage = GameState.monarch_stage()
+	# Dread Sovereign (4/7+): proximity to the Monarch is itself a wound --
+	# foes near you move as if wading through the dark.
+	if stage >= 4 and not is_dead:
+		monarch_dread_accum += delta
+		if monarch_dread_accum >= 0.5:
+			monarch_dread_accum = 0.0
+			for group_name in HOSTILE_GROUPS:
+				for e in get_tree().get_nodes_in_group(group_name):
+					if not is_instance_valid(e) or not e.has_method("apply_status"):
+						continue
+					if "is_dead" in e and e.is_dead:
+						continue
+					if global_position.distance_to(e.global_position) <= DREAD_AURA_RADIUS:
+						e.apply_status("slow", 0.8, 0.62)
+	# the true form manifests/withdraws by itself the moment its condition flips
+	var tf: bool = GameState.monarch_true_form()
+	if tf != monarch_true_form_active:
+		monarch_true_form_active = tf
+		_apply_true_form(tf)
+	if tf and not is_dead:
+		monarch_nova_accum += delta
+		if monarch_nova_accum >= NOVA_PERIOD:
+			monarch_nova_accum = 0.0
+			fire_shadow_nova()
+
+func _apply_true_form(on: bool) -> void:
+	# The 2x god-form is VISUAL scale only (collision untouched, so gameplay
+	# stays fair): base_scale feeds every animated pose, and feet_anchor_y()
+	# re-plants the giant's feet on the ground line every frame.
+	var m: float = 1.6 if on else 1.0
+	base_scale = base_scale / monarch_scale_mult * m
+	monarch_scale_mult = m
+	if on:
+		spawn_shock_ring(global_position, NOVA_RADIUS, Color(0.55, 0.2, 1.0, 0.95))
+		if has_node("Camera2D"):
+			$Camera2D.shake(10.0, 0.5)
+		var stack = get_tree().get_first_node_in_group("notification_stack")
+		if stack:
+			stack.show_notification("There is no one left to hide from. The Shadow Monarch stands revealed.")
+
+# Rise, Shade (5/7+): the slain foe's shadow tears free of the ground and
+# serves. Temporary soldiers below 7/7; the true form keeps a standing army.
+func raise_shade() -> void:
+	monarch_shades = monarch_shades.filter(func(s): return is_instance_valid(s))
+	var true_form: bool = GameState.monarch_true_form()
+	var cap: int = 4 if true_form else 2
+	if monarch_shades.size() >= cap:
+		return
+	var shade = load("res://shade.gd").new()
+	shade.owner_player = self
+	shade.damage = int(round((8.0 + GameState.player_level * 0.55) * (1.6 if true_form else 1.0)))
+	shade.expires_at = 0.0 if true_form else (_now() + SHADE_LIFETIME)
+	get_parent().add_child(shade)
+	shade.global_position = global_position + Vector2(randf_range(-26.0, 26.0), 0.0)
+	monarch_shades.append(shade)
+
+# The true form's heartbeat: every few seconds the dark detonates outward.
+# Only rings visibly when it actually catches someone -- no spam in the village.
+func fire_shadow_nova() -> void:
+	var dmg = 30 + GameState.player_level
+	var hit := 0
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if global_position.distance_to(e.global_position) <= NOVA_RADIUS:
+				e.take_damage(dmg)
+				hit += 1
+	if hit > 0:
+		spawn_shock_ring(global_position, NOVA_RADIUS, Color(0.5, 0.15, 0.95, 0.9))
+
+# The Long Dark (6/7+): death reached for you and closed on shadow. The body
+# melts into living dark -- unkillable while it knits itself back together.
+func enter_long_dark() -> void:
+	health = 1
+	update_health_display()
+	invincible = true
+	stop_invincibility_flash()
+	body_visual.modulate = Color(0.08, 0.02, 0.16, 0.85)
+	spawn_shock_ring(global_position, 200.0, Color(0.45, 0.1, 0.9, 0.95))
+	if has_node("Camera2D"):
+		$Camera2D.shake(8.0, 0.4)
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if stack:
+		stack.show_notification("The Long Dark: death reached for you and closed on shadow.")
+	# knit back to 40% HP across the shadow-form, then reform in flesh
+	var heal_target = int(get_max_health() * 0.40)
+	var steps := 8
+	for i in range(steps):
+		await get_tree().create_timer(LONG_DARK_DURATION / steps).timeout
+		if is_dead:
+			return
+		health = mini(get_max_health(), maxi(health, int(round(lerpf(1.0, float(heal_target), float(i + 1) / steps)))))
+		update_health_display()
+	body_visual.modulate = Color(1, 1, 1, 1)
+	invincible = false
 
 # Two feathered wings on the character's back, hidden until the Aetherwing
 # relic is equipped. They sit behind the body (z -1) and flap -- fast while
@@ -717,7 +845,7 @@ func setup_body_anim() -> void:
 	body_anim.centered = true
 	var tex = frames.get_frame_texture("idle", 0)
 	var sc = SPRITE_TARGET_HEIGHT / float(max(tex.get_height(), 1))
-	base_scale = Vector2(sc, sc)
+	base_scale = Vector2(sc, sc) * monarch_scale_mult   # survives a skin reload in true form
 	body_anim.scale = base_scale
 	anim_base_y = 24.0 - SPRITE_TARGET_HEIGHT / 2.0  # feet on the ground line
 	body_anim.position = Vector2(0, anim_base_y)
@@ -955,7 +1083,8 @@ func spawn_dash_afterimage(delta: float) -> void:
 	ghost.flip_h = body_anim.flip_h
 	ghost.rotation = body_anim.global_rotation
 	ghost.global_position = body_anim.global_position
-	ghost.modulate = Color(0.6, 0.75, 1.0, 0.5)
+	# Shadowstep (3/7+): the trail is torn shadow, not light
+	ghost.modulate = Color(0.38, 0.14, 0.7, 0.6) if GameState.monarch_stage() >= 3 else Color(0.6, 0.75, 1.0, 0.5)
 	ghost.z_index = -1
 	get_parent().add_child(ghost)
 	var tw = ghost.create_tween()
@@ -1146,6 +1275,9 @@ func on_enemy_killed() -> void:
 		health = min(get_max_health(), health + 8)
 		update_health_display()
 		gain_mana(5.0)
+	# Rise, Shade (5/7+): the slain foe's shadow tears free and serves
+	if GameState.monarch_stage() >= 5:
+		raise_shade()
 
 func apply_slow(duration: float, factor: float) -> void:
 	# a status-resistance relic cuts the slow's duration
@@ -1391,6 +1523,8 @@ func add_currency(amount: int) -> void:
 func take_damage(amount: int) -> void:
 	if invincible or is_dead or god_mode:
 		return
+	if _now() < monarch_iframes_until:
+		return   # Shadowstep: mid-dash the Monarch simply isn't there
 	# Aegis Ward: a shield fully swallows one hit every few seconds
 	if has_relic_power("aegis") and _now() >= aegis_ready_at:
 		aegis_ready_at = _now() + AEGIS_COOLDOWN
@@ -1407,6 +1541,12 @@ func take_damage(amount: int) -> void:
 	if has_relic_power("thorns"):
 		reflect_thorns(int(round(amount * relic_power_value("thorns", 0.4))))
 	if health <= 0:
+		# The Long Dark (6/7+): a lethal blow cannot kill what is already
+		# shadow. Outranks Living Fortress so the skill charge is kept.
+		if GameState.monarch_stage() >= 6 and _now() >= monarch_long_dark_ready_at:
+			monarch_long_dark_ready_at = _now() + LONG_DARK_COOLDOWN
+			enter_long_dark()
+			return
 		die()
 		return
 	invincible = true
@@ -1525,6 +1665,10 @@ func perform_dash(dash_direction: int) -> void:
 		return
 	last_dash_time = now
 	is_dashing = true
+	# Shadowstep (3/7+): the Monarch dashes BETWEEN shadows -- untouchable for
+	# the whole dash (the trail tints dark in spawn_dash_afterimage).
+	if GameState.monarch_stage() >= 3:
+		monarch_iframes_until = now + DASH_DURATION + 0.08
 	play_sfx(SFX_DASH)
 	velocity.x = dash_direction * DASH_SPEED
 	await get_tree().create_timer(DASH_DURATION).timeout
@@ -1655,6 +1799,7 @@ func _physics_process(delta: float) -> void:
 	# drive the sprite animation after movement (needs final velocity/floor state)
 	update_body_anim(delta)
 	update_shadow_aura(delta)
+	monarch_tick(delta)
 
 # --- Flight (Aetherwing) ---
 func has_flight() -> bool:
@@ -1951,7 +2096,7 @@ func relic_power_value(power: String, fallback: float) -> float:
 func apply_omnivamp(total_damage: int) -> void:
 	if total_damage <= 0 or not has_relic_power("omnivamp"):
 		return
-	var heal = int(round(total_damage * relic_power_value("omnivamp", 0.25)))
+	var heal = int(round(total_damage * relic_power_value("omnivamp", 0.25) * (2.0 if monarch_true_form_active else 1.0)))
 	if heal > 0:
 		health = min(get_max_health(), health + heal)
 		update_health_display()

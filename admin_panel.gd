@@ -132,6 +132,7 @@ func _build() -> void:
 		sx += 38.0 + GAP
 	y += BH + GAP
 	_btn("Reset to Lv 1 (no aura)", PAD, y, 200, BH, func(): _set_level(1))
+	_btn("TRUE FORM", PAD + 200 + GAP, y, 106, BH, _toggle_true_form)
 	y += BH + 12.0
 
 	# --- Buildings (set every building's level instantly to eyeball upgrades) ---
@@ -166,6 +167,14 @@ func _buildings_level(mode: int) -> void:
 		b.rebuild_geometry()
 		n += 1
 	_notify("Admin: %d buildings finished -> %s" % [n, ("+1 level" if mode == 1 else ("MAX" if mode == 99 else "level 1"))])
+
+# 7/7's full god-form normally waits for the finale (no villagers left alive);
+# forcing it lets the 2x form + novas + permanent shades be eyeballed any time.
+func _toggle_true_form() -> void:
+	GameState.monarch_true_form_forced = not GameState.monarch_true_form_forced
+	if GameState.monarch_true_form_forced and GameState.player_level < 100:
+		_set_level(100)
+	_notify("Admin: Shadow Monarch true form %s" % ("FORCED ON" if GameState.monarch_true_form_forced else "off (finale-gated)"))
 
 # Jump the character level so a stage's aura/pallor/power shows instantly.
 func _set_level(lvl: int) -> void:

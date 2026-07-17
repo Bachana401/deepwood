@@ -45,6 +45,15 @@ func _ready() -> void:
 	build_hard_button_fire()
 	update_buttons()
 	update_deepest_level_label()
+	# Headless test hook: MONARCH_TEST=1 skips the menu into a fresh run with a
+	# test driver script attached under root (it survives the scene change).
+	var test_script = OS.get_environment("MONARCH_TEST")
+	if test_script != "" and ResourceLoader.exists(test_script):
+		GameState.reset_for_new_game()
+		var tester = Node.new()
+		tester.set_script(load(test_script))
+		get_tree().root.add_child.call_deferred(tester)
+		get_tree().change_scene_to_file.call_deferred("res://main.tscn")
 
 const HARD_FIRE_COUNT = 14
 const HARD_FIRE_COLORS = [

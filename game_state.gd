@@ -366,6 +366,18 @@ func announce_monarch_awakening() -> void:
 		monarch_stage_announced += 1
 		notify(line)
 
+# The 7/7 TRUE form (2x size, permanent shades, shadow novas, doubled
+# lifesteal -- see player.gd monarch_tick). The numeric 7/7 spikes above always
+# apply at level 100, but the visible god-form only manifests once no villager
+# is left alive to witness it (the Harvest / finale, story.gd) -- or when
+# forced from the admin P panel for testing.
+var monarch_true_form_forced := false
+
+func monarch_true_form() -> bool:
+	if monarch_stage() < 7:
+		return false
+	return monarch_true_form_forced or rescued_villagers.is_empty()
+
 func get_skill_total(effect_key: String) -> float:
 	var total = 0.0
 	for node_id in unlocked_skills:
