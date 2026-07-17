@@ -54,6 +54,9 @@ var rope: Line2D = null     # hook: drawn back to the thrower
 const HOSTILE_GROUPS = ["course_enemy", "dungeon_combatant", "siege_enemy"]
 
 func _ready() -> void:
+	# findable in flight, so a mirror boss has something to reflect (boss.gd
+	# tick_mirror). Without this the mechanic is a silent no-op.
+	add_to_group("player_projectile")
 	collision_layer = 0
 	collision_mask = 4   # enemy layer, same as the player's arrows target
 	monitoring = true

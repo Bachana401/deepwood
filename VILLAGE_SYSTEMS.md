@@ -1,5 +1,7 @@
 # Deepwood — Village Systems & Endgame Design
 
+> ⚠️ **SUPERSEDED by [`GAME_BIBLE.md`](GAME_BIBLE.md) (2026-07-15) — where this file disagrees, the Bible wins.** The finale (§8 here) was updated: the Ten hero-hostages resist the Harvest and fight beside the player, and victory ends with the **Shadow Army** reviving all fallen villagers (Bible §8–9). "Necromancer" is renamed **Shadow Monarch** throughout. This file remains as deep-design reference for the village machine.
+
 > **Purpose.** The master plan for Deepwood's living-village: the survival needs, the
 > morale-driven building machine, the corruption mechanic, and the finale. This is a
 > shared reference — a design bible for the developer **and** an execution guardrail so

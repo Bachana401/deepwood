@@ -37,6 +37,22 @@ const PLATFORM_TUFTS = [
 # version of this system) fill the remaining gaps. Mixed palette: some
 # green-tinted, some the original purple-blue "distant range" tone.
 const MOUNTAIN_Y = 40.0
+
+# Deep-wood backdrop plate (art/environment/deepwood_backdrop.png, 400x160).
+# INTEGER scale only -- 3 keeps every source pixel exactly 3x3 world px, so the
+# plate is never stretched or resampled.
+#
+# Why 3 and not 4: the canopy top lands at MOUNTAIN_Y - 160*S. The sun/moon arc
+# between day_night_cycle's SKY_HORIZON_Y (-540) and SKY_PEAK_Y (-760), and they
+# draw at z=-50 -- BEHIND this backdrop. At scale 4 the canopy reaches -600,
+# above the -540 horizon, so the sun and moon would be swallowed by the trees at
+# every sunrise and sunset. Scale 3 tops the canopy out at -440: still well above
+# the camera's view at ground level (~-390), so the woods fill the background,
+# but always below the arc, so the sun and moon ride clear over the treetops.
+const BACKDROP_SCALE = 3
+const BACKDROP_MARGIN = 600.0   # tile past both world ends so an edge never shows
+
+# Kept for the procedural fallback below (used only when the plate is missing).
 const MOUNTAIN_ZONES = [
 	{"x": -480.0, "width": 1240.0, "height": 855.0, "peaks": 3, "color": Color(0.36, 0.46, 0.38, 1)},
 	{"x": -140.0, "width": 855.0, "height": 560.0, "peaks": 2, "color": Color(0.5, 0.47, 0.63, 1)},
@@ -409,36 +425,44 @@ func place_trap(x: float, y: float) -> void:
 	$Traps.add_child(trap)
 
 func generate_mountains() -> void:
-	# Painted parallax (PixelLab ridges + a dead-forest treeline) when the art
-	# exists; the procedural polygon ridges stay as the fallback.
-	if ResourceLoader.exists("res://art/environment/mountains_far.png"):
-		var texs: Array = [load("res://art/environment/mountains_far.png"), load("res://art/environment/mountains_low.png")]
-		# original zones + generated ones marching on across the enlarged world
-		var zones: Array = []
-		for z in MOUNTAIN_ZONES:
-			zones.append(z)
-		var mx := 8200.0
-		while mx < WORLD_RIGHT:
-			zones.append({"x": mx, "width": randf_range(900.0, 1500.0), "height": randf_range(550.0, 900.0)})
-			mx += randf_range(2200.0, 3200.0)
-		var idx := 0
-		for zone in zones:
-			var tex: Texture2D = texs[idx % 2]
-			var img: Image = tex.get_image()
-			if img.is_compressed():
-				img.decompress()
-			var used := Rect2(img.get_used_rect())
-			var spr := Sprite2D.new()
-			spr.texture = tex
-			spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-			spr.centered = false
-			spr.region_enabled = true
-			spr.region_rect = used
-			spr.scale = Vector2(zone.width / used.size.x, zone.height / used.size.y)
-			spr.position = Vector2(zone.x - zone.width / 2.0, MOUNTAIN_Y - zone.height)
-			spr.flip_h = idx % 3 == 1
-			$Background/Mountains.add_child(spr)
-			idx += 1
+	# The deep-wood backdrop: one painted plate tiled edge-to-edge behind the
+	# whole village, with the dead-forest treeline in front of it. The procedural
+	# polygon ridges stay as the fallback.
+	#
+	# Two rules this obeys that the old ridge code did not:
+	#  1. UNIFORM INTEGER scale. The ridges were scaled per zone by
+	#     (zone.width/art.x, zone.height/art.y) -- a non-uniform stretch that
+	#     squashed the same art differently in every zone. The plate is drawn at
+	#     BACKDROP_SCALE on both axes, so its pixels stay square everywhere.
+	#  2. MIRROR tiling. Every other tile is flipped, so a tile's right edge is
+	#     always its neighbour's mirrored right edge -- the columns match and the
+	#     seam disappears, without needing a seamless plate.
+	#
+	# Height is deliberate -- see BACKDROP_SCALE: the canopy tops out at -440, low
+	# enough that the sun/moon arc (-540 to -760) always rides clear above it.
+	if ResourceLoader.exists("res://art/environment/deepwood_backdrop.png"):
+		var tex: Texture2D = load("res://art/environment/deepwood_backdrop.png")
+		var img: Image = tex.get_image()
+		if img.is_compressed():
+			img.decompress()
+		var used := Rect2(img.get_used_rect())
+		var tw: float = used.size.x * BACKDROP_SCALE
+		var th: float = used.size.y * BACKDROP_SCALE
+		var bx := WORLD_LEFT - BACKDROP_MARGIN
+		var i := 0
+		while bx < WORLD_RIGHT + BACKDROP_MARGIN:
+			var bs := Sprite2D.new()
+			bs.texture = tex
+			bs.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			bs.centered = false
+			bs.region_enabled = true
+			bs.region_rect = used
+			bs.scale = Vector2(BACKDROP_SCALE, BACKDROP_SCALE)
+			bs.flip_h = i % 2 == 1
+			bs.position = Vector2(bx, MOUNTAIN_Y - th)
+			$Background/Mountains.add_child(bs)
+			bx += tw
+			i += 1
 		# the dead forest line in front of the ridges: overlapping, randomly
 		# flipped copies so no repeating seam ever shows
 		if ResourceLoader.exists("res://art/environment/treeline.png"):

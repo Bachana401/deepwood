@@ -528,14 +528,7 @@ var has_riposte := false
 var riposte_ready_at := 0.0
 var telegraphing := false      # true only during an ability's wind-up
 
-# SKYFALL -- anti-air. Punishes the player for being off the ground, which now
-# matters because the Monarch levitates from 1/7. Levitation is not a free win.
-const SKYFALL_COOLDOWN := 3.0
-var has_skyfall := false
-var skyfall_ready_at := 0.0
-
-# MIRROR -- reflects PROJECTILES back at you. Close to melee, or stop spamming.
-var has_mirror := false
+# (skyfall + mirror are declared with the rest of the deep mechanics below)
 
 # RHYTHM_PUNISH -- every Nth CONSECUTIVE hit is countered. Punishes mashing one
 # button; beaten by varying your rhythm or dropping a beat.
@@ -579,6 +572,36 @@ var trap_next_at := 0.0
 # DREAD_WARD -- only takes damage from BEHIND. It must be flanked, not out-DPSed.
 # (Warden of Nails 70, Seraphiel 95, The Glass Saint 85.)
 var has_dread_ward := false
+
+# MIRROR -- hostile-to-IT projectiles are turned around and sent back. Closes the
+# ranged answer entirely: get in its face, or eat your own arrows.
+# (Mourncaller 60, Cinderking 80, Glass Saint 85.)
+const MIRROR_RADIUS := 90.0
+const MIRROR_COOLDOWN := 0.35     # so a volley doesn't reflect 20 shots in a frame
+var has_mirror := false
+var mirror_ready_at := 0.0
+
+# SKYFALL -- anti-air. Being off the ground near it is punished, which matters
+# now the Monarch levitates from 1/7: flight is not a free win.
+# (Stormcaller 25, Warden of Nails 70.)
+const SKYFALL_RADIUS := 320.0
+const SKYFALL_COOLDOWN := 3.0
+var has_skyfall := false
+var skyfall_ready_at := 0.0
+
+# FALSE_TWIN -- it splits into copies and only ONE is real. The fakes hit back,
+# so you can't just swing at everything. The tell: the real one casts a shadow.
+# (Hollow Choir 35.)
+const TWIN_COUNT := 2
+var has_false_twin := false
+var is_false_copy := false
+var _twins: Array = []
+
+# COVENANT -- two bodies, one soul: they share an HP pool and heal each other
+# unless both are pressured. (Twin Despair 75, Last Man 90.)
+const COVENANT_HEAL := 14.0       # hp/sec the partner claws back if left alone
+var has_covenant := false
+var covenant_partner: Node = null
 
 # --- phase (Obito) -----------------------------------------------------------
 # The nastiest thing in the vocabulary, and the dev's own example. The instant
@@ -766,6 +789,103 @@ func _plant_trap(at: Vector2) -> void:
 		if is_instance_valid(mark):
 			mark.queue_free())
 
+# MIRROR: turn incoming shots around. Your own arrow is now the problem.
+# Deliberately radius-based rather than on-hit: the shot must be SEEN to come
+# back, so the player can watch it happen and learn to stop shooting.
+const PLAYER_PROJECTILE_GROUPS = ["player_projectile"]   # arrow.gd + weapon_projectile.gd join this in _ready
+
+func tick_mirror(delta: float) -> void:
+	if not has_mirror or is_dead:
+		return
+	if _time_now() < mirror_ready_at:
+		return
+	for g in PLAYER_PROJECTILE_GROUPS:
+		for pr in get_tree().get_nodes_in_group(g):
+			if not is_instance_valid(pr) or not (pr is Node2D):
+				continue
+			if global_position.distance_to(pr.global_position) > MIRROR_RADIUS:
+				continue
+			mirror_ready_at = _time_now() + MIRROR_COOLDOWN
+			_reflect(pr)
+			return
+
+func _reflect(pr: Node2D) -> void:
+	# turn it around: flip whatever it uses to travel, and hand it to the player
+	if "velocity" in pr:
+		pr.velocity = -pr.velocity
+	if "direction" in pr:
+		pr.direction = -pr.direction
+	if "dir" in pr:
+		pr.dir = -pr.dir
+	pr.rotation += PI
+	# it belongs to the boss now
+	for g in PLAYER_PROJECTILE_GROUPS:
+		if pr.is_in_group(g):
+			pr.remove_from_group(g)
+	pr.add_to_group("hostile_projectile")
+	if "owner_is_player" in pr:
+		pr.owner_is_player = false
+	var flash := Line2D.new()
+	var pts := PackedVector2Array()
+	for i in range(14):
+		var a := TAU * float(i) / 14.0
+		pts.append(Vector2(cos(a), sin(a)) * 22.0)
+	pts.append(pts[0])
+	flash.points = pts
+	flash.width = 2.5
+	flash.default_color = Color(0.85, 0.95, 1.0, 0.9)
+	flash.z_index = 40
+	get_parent().add_child(flash)
+	flash.global_position = pr.global_position
+	var t := flash.create_tween()
+	t.tween_property(flash, "scale", Vector2(1.8, 1.8), 0.18)
+	t.parallel().tween_property(flash, "modulate:a", 0.0, 0.18)
+	t.tween_callback(flash.queue_free)
+
+# SKYFALL: anti-air. Leave the ground near it and it drags you back down.
+func tick_skyfall(delta: float) -> void:
+	if not has_skyfall or is_dead or player == null or not is_instance_valid(player):
+		return
+	if _time_now() < skyfall_ready_at:
+		return
+	if global_position.distance_to(player.global_position) > SKYFALL_RADIUS:
+		return
+	# only bites if they're actually airborne
+	if player.has_method("is_on_floor") and player.is_on_floor():
+		return
+	skyfall_ready_at = _time_now() + SKYFALL_COOLDOWN
+	if player.has_method("take_damage"):
+		player.take_damage(int(round(SKYFALL_DAMAGE * sqrt(damage_multiplier))))
+	# slam them groundward -- flight is not a free win here
+	if "velocity" in player:
+		player.velocity.y = maxf(player.velocity.y, 520.0)
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if stack and stack.has_method("show_notification"):
+		stack.show_notification("It will not let you leave the ground.")
+
+# COVENANT: two bodies, one soul. Left alone, a partner claws its twin back up --
+# so you cannot burn one down and rest. Split the damage or win nothing.
+func tick_covenant(delta: float) -> void:
+	if not has_covenant or is_dead:
+		return
+	if covenant_partner == null or not is_instance_valid(covenant_partner):
+		return
+	if covenant_partner.is_dead:
+		return
+	# if I haven't been hit recently, I spend that time healing my twin
+	if _time_now() - _last_hurt_at < 2.0:
+		return
+	_covenant_accum += delta * COVENANT_HEAL
+	if _covenant_accum >= 1.0:
+		var heal := int(_covenant_accum)
+		_covenant_accum -= heal
+		covenant_partner.health = mini(covenant_partner.max_health, covenant_partner.health + heal)
+		if covenant_partner.has_method("update_health_bar"):
+			covenant_partner.update_health_bar()
+
+var _covenant_accum := 0.0
+var _last_hurt_at := 0.0
+
 # STAGGER ARMOUR: a chip hit rings off the guard, and says so.
 func _spawn_guard_spark() -> void:
 	var p := CPUParticles2D.new()
@@ -893,6 +1013,8 @@ func configure_from_def(def: Dictionary) -> void:
 	has_famine = "famine" in passives
 	has_afterimage_trap = "afterimage_trap" in passives
 	has_dread_ward = "dread_ward" in passives
+	has_false_twin = "false_twin" in passives
+	has_covenant = "covenant" in passives
 	abilities = (def.get("abilities", ["slam"]) as Array).duplicate()
 	max_health = int(round(float(def.get("hp", 900)) * level_hp_mult))
 	health = max_health
@@ -1490,6 +1612,9 @@ func _physics_process(delta: float) -> void:
 	tick_tether(delta)
 	tick_famine(delta)
 	tick_traps(delta)
+	tick_mirror(delta)
+	tick_skyfall(delta)
+	tick_covenant(delta)
 
 	# flying bosses ignore gravity entirely; they steer in full 2D
 	if not flying and not is_on_floor():
@@ -2402,6 +2527,7 @@ func take_damage(amount: int) -> void:
 	if has_soul_split:
 		dmg = max(1, int(round(dmg * (SOUL_WARD_BASE + SOUL_WARD_PER_CLONE * living_clones()))))
 	health -= dmg
+	_last_hurt_at = _time_now()   # covenant: pressure me and I stop healing my twin
 	update_health_bar()
 	if health <= 0:
 		die()

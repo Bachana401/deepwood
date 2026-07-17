@@ -1,5 +1,7 @@
 # DEEPWOOD — Full Game Overview
 
+> ⚠️ **Point-in-time implementation snapshot (2026-07-11) — STALE in places.** For design truth read [`GAME_BIBLE.md`](GAME_BIBLE.md) (2026-07-15); for current code state verify against the live code. Known-stale here: buildings-start-destroyed and siege/defense ARE built; itemization/loot IS built; "Necromancer" is now the **Shadow Monarch**; the enemy identity IS settled (undead/deepwood).
+
 _A complete text description of the game as it exists right now. Written 2026-07-11 to hand to another AI assistant (or anyone) with zero prior context. Engine: Godot 4.7, GDScript, all visuals procedural (no image assets — polygons/rects only), Windows. Project root: `C:\Users\bacho\Documents\deepwood`. Not a git repo. Developer is a solo hobbyist who iterates conversationally; every change is expected to be verified via headless Godot test runs (`Godot.exe --headless --path . res://_test_runner.tscn` pattern, temp files deleted after) — see PROJECT_SNAPSHOT.md §7 for the exact methodology._
 
 ## Premise

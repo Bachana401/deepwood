@@ -1,5 +1,7 @@
 # Deepwood — Director's Roadmap
 
+> ⚠️ **Design decisions now live in [`GAME_BIBLE.md`](GAME_BIBLE.md) (2026-07-15) — the single source of truth.** As of 2026-07-15 the project is in a **documentation-first phase**: no new gameplay code until the Bible is polished to 100%. This file stays as the director's log + process notes.
+
 _Maintained by Claude in a project-director/PM capacity (role started 2026-07-13, developer's request). This file is forward-looking only — decisions to make, what's next, what's at risk. It does NOT describe current game state; see `GAME_OVERVIEW.md` for that, `PROJECT_SNAPSHOT.md` for implementation detail, `REVIEW_3DAYS.md` for the last dated review. Re-read those before trusting this file's "current state" framing if it's been a while._
 
 ---

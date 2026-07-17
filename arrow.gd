@@ -29,6 +29,10 @@ const HOMING_RANGE = 460.0
 const HOMING_GROUPS = ["course_enemy", "dungeon_combatant", "siege_enemy"]
 
 func _ready() -> void:
+	# So the world can FIND a player shot in flight. Nothing could before, which
+	# meant a mirror boss (boss.gd tick_mirror) had nothing to reflect -- it
+	# would have looked implemented and silently done nothing forever.
+	add_to_group("player_projectile")
 	start_position = global_position
 	rotation = direction.angle()
 	$HitArea.body_entered.connect(_on_hit_area_body_entered)
