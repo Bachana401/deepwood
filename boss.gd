@@ -130,6 +130,47 @@ const DOOMRING_WAVES = 2
 const DOOMRING_RANGE = 900.0
 const DOOMRING_DAMAGE = 13
 
+# --- SIGNATURE abilities (BOSSES.md §6): one distinct move per boss, spread
+# across attack TYPES (grab/root, tracking-freeze, zone-denial, stun, pull, ...)
+# so bosses threaten DIFFERENTLY, not just with reskinned projectiles. These use
+# the player CC substrate (player.gd apply_root/freeze/stun/disorient/pull) and
+# the hazard_zone primitive. Teaching tier (floors 5-30) implemented first.
+const HAZARD_SCENE = preload("res://hazard_zone.gd")
+
+# Gravewarden 5 -- Grave Grasp (GRAB/ROOT): a hand bursts up under you and holds
+const GRASP_TELEGRAPH = 0.55
+const GRASP_DAMAGE = 14
+const GRASP_ROOT = 1.1
+const GRASP_RADIUS = 74.0
+# Frost Monarch 10 -- Rime Lance (TRACKING + FREEZE): a marker that follows, locks, strikes
+const RIME_TRACK = 0.7
+const RIME_TELEGRAPH = 0.3
+const RIME_DAMAGE = 18
+const RIME_FREEZE = 1.15
+const RIME_RADIUS = 62.0
+# Cinder Colossus 15 -- Magma Wake (ZONE DENIAL): a line of lingering fire toward you
+const MAGMA_COUNT = 5
+const MAGMA_DAMAGE = 9
+const MAGMA_LIFETIME = 3.2
+const MAGMA_RADIUS = 66.0
+# Weaver 20 -- Web Snare (ROOT-ZONE): a sticky patch that roots/slows
+const WEB_TELEGRAPH = 0.4
+const WEB_DAMAGE = 6
+const WEB_LIFETIME = 4.0
+const WEB_RADIUS = 90.0
+# Stormcaller 25 -- Thunderstrike (DELAYED STRIKE + STUN): a bolt drops on your spot
+const THUNDER_TELEGRAPH = 0.5
+const THUNDER_DAMAGE = 20
+const THUNDER_STUN = 0.7
+const THUNDER_RADIUS = 58.0
+const THUNDER_BOLTS = 3
+# Void Sovereign 30 -- Void Rift (PULL-ZONE): a singularity drags you in while it hits
+const RIFT_TELEGRAPH = 0.5
+const RIFT_DURATION = 1.8
+const RIFT_PULL = 300.0      # px/s of drag velocity (added each frame while open)
+const RIFT_DAMAGE = 8
+const RIFT_RADIUS = 120.0
+
 # Mirror Legion: the Wizard copies himself, up to 6 echoes at once -- but the
 # legion grows SLOWLY: at full HP no echoes are allowed at all, and the cap
 # rises with his missing health (see allowed_clones), only reaching 6 near
@@ -191,6 +232,13 @@ const ABILITY_META = {
 	"curse":    {"cd": 5.5, "min": 0.0,   "max": 100000.0},
 	"doomring": {"cd": 6.0, "min": 0.0,   "max": 100000.0},
 	"clone":    {"cd": 12.0, "min": 0.0,  "max": 100000.0},
+	# signature abilities (BOSSES.md §6) -- teaching tier
+	"grave_grasp":  {"cd": 6.0, "min": 0.0,   "max": 520.0},
+	"rime_lance":   {"cd": 6.5, "min": 0.0,   "max": 100000.0},
+	"magma_wake":   {"cd": 7.0, "min": 150.0, "max": 100000.0},
+	"web_snare":    {"cd": 7.0, "min": 0.0,   "max": 100000.0},
+	"thunderstrike":{"cd": 6.0, "min": 0.0,   "max": 100000.0},
+	"void_rift":    {"cd": 8.5, "min": 120.0, "max": 100000.0},
 }
 
 # --- The Fallen Wizard's combo book (level 100 only) ---
@@ -226,7 +274,7 @@ const BOSSES = {
 		"color": Color(0.26, 0.32, 0.22), "eye_color": Color(0.7, 1.0, 0.4),
 		"magic": Color(0.55, 0.95, 0.35),
 		"body": Vector2(200, 260), "hp": 1000, "speed": 72.0, "shape": "brute",
-		"abilities": ["slam", "charge", "summon"], "sprite": "gravewarden",
+		"abilities": ["grave_grasp", "slam", "charge"], "sprite": "gravewarden",
 	},
 	# A tall, skeletal-thin frozen lich-king in an icy shroud.
 	"frost_monarch": {
@@ -234,7 +282,7 @@ const BOSSES = {
 		"color": Color(0.55, 0.68, 0.8), "eye_color": Color(0.85, 0.97, 1.0),
 		"magic": Color(0.65, 0.9, 1.0),
 		"body": Vector2(110, 250), "hp": 780, "speed": 56.0, "shape": "crown",
-		"abilities": ["rain", "nova", "teleport"], "sprite": "frost_monarch",
+		"abilities": ["rime_lance", "rain", "teleport"], "sprite": "frost_monarch",
 		"passives": ["stagger_armour"],   # teaches: commit to heavy hits
 	},
 	# A huge charcoal stag-demon, antlers still burning from the forest fire
@@ -244,7 +292,7 @@ const BOSSES = {
 		"color": Color(0.16, 0.12, 0.11), "eye_color": Color(1.0, 0.6, 0.15),
 		"magic": Color(1.0, 0.5, 0.12),
 		"body": Vector2(240, 230), "hp": 1100, "speed": 95.0, "shape": "colossus",
-		"abilities": ["charge", "barrage", "pillars"], "sprite": "cinder_colossus",
+		"abilities": ["magma_wake", "charge", "barrage"], "sprite": "cinder_colossus",
 		"passives": ["riposte"],          # teaches: read the tell, hit the recovery
 	},
 	# A SMALL corpse-spider brood mother -- quick, evasive, hard to corner;
@@ -254,7 +302,7 @@ const BOSSES = {
 		"color": Color(0.3, 0.22, 0.34), "eye_color": Color(1.0, 0.4, 0.9),
 		"magic": Color(0.95, 0.4, 0.85),
 		"body": Vector2(120, 110), "hp": 720, "speed": 105.0, "shape": "spider",
-		"abilities": ["summon", "nova", "teleport"],
+		"abilities": ["web_snare", "summon", "teleport"],
 		"passives": ["soulbind"],         # teaches: kill the adds first
 	},
 	# A lightning-scarred owl-wraith of the dead canopy; medium build.
@@ -263,7 +311,7 @@ const BOSSES = {
 		"color": Color(0.36, 0.38, 0.3), "eye_color": Color(1.0, 1.0, 0.55),
 		"magic": Color(0.95, 0.95, 0.55),
 		"body": Vector2(150, 180), "hp": 880, "speed": 88.0, "shape": "caster",
-		"abilities": ["nova", "pillars", "barrage"], "sprite": "stormcaller",
+		"abilities": ["thunderstrike", "nova", "barrage"], "sprite": "stormcaller",
 		"passives": ["skyfall"],          # teaches: the ground is safer
 	},
 	# The hollow king: a dead monarch whose chest is an open void, his crown
@@ -273,7 +321,7 @@ const BOSSES = {
 		"color": Color(0.17, 0.11, 0.25), "eye_color": Color(0.9, 0.2, 1.0),
 		"magic": Color(0.75, 0.3, 1.0),
 		"body": Vector2(170, 240), "hp": 1220, "speed": 76.0, "shape": "void",
-		"abilities": ["teleport", "rain", "nova", "summon"], "sprite": "void_sovereign",
+		"abilities": ["void_rift", "teleport", "nova", "summon"], "sprite": "void_sovereign",
 		"passives": ["sidestep"],         # teaches: bait it, do not spam
 	},
 	# ----- FINALE TIER (levels 95/98/99/100) -----
@@ -2122,6 +2170,12 @@ func run_ability(ability_name: String) -> void:
 		"pillars": await do_pillars()
 		"vortex": await do_vortex()
 		"summon": await do_summon()
+		"grave_grasp": await do_grave_grasp()
+		"rime_lance": await do_rime_lance()
+		"magma_wake": await do_magma_wake()
+		"web_snare": await do_web_snare()
+		"thunderstrike": await do_thunderstrike()
+		"void_rift": await do_void_rift()
 		_: pass
 
 func start_attack(attack_name: String) -> void:
@@ -2143,6 +2197,12 @@ func start_attack(attack_name: String) -> void:
 		"vortex": do_vortex()
 		"beam": do_beam()
 		"curse": do_curse()
+		"grave_grasp": do_grave_grasp()
+		"rime_lance": do_rime_lance()
+		"magma_wake": do_magma_wake()
+		"web_snare": do_web_snare()
+		"thunderstrike": do_thunderstrike()
+		"void_rift": do_void_rift()
 		"doomring": do_doomring()
 		"clone": do_clone()
 		_:
@@ -2594,6 +2654,166 @@ func do_clone() -> void:
 		spawn_shockwave(70.0, magic_color)
 	set_cd("clone")
 	is_busy = false
+
+# ===================== SIGNATURE ABILITIES (BOSSES.md §6) =====================
+
+# A lingering hazard patch (magma/web/fire). The boss drops it and forgets it.
+func spawn_hazard(pos: Vector2, radius: float, dmg: int, lifetime: float, color: Color, kind := "", dur := 1.0, mag := 0.0) -> void:
+	var h = HAZARD_SCENE.new()
+	h.radius = radius
+	h.damage = dmg
+	h.lifetime = lifetime
+	h.color = color
+	h.damage_multiplier = damage_multiplier
+	h.on_kind = kind
+	h.on_dur = dur
+	h.on_mag = mag
+	get_parent().add_child(h)
+	h.global_position = pos
+
+func _player_in(pos: Vector2, radius: float) -> bool:
+	return player != null and is_instance_valid(player) and player.global_position.distance_to(pos) < radius
+
+# GRAVEWARDEN 5 -- Grave Grasp: a hand erupts under you and ROOTS you. Punishes
+# standing still (the mark lands where you ARE), then the slam/charge follows.
+func do_grave_grasp() -> void:
+	if player == null or not is_instance_valid(player):
+		set_cd("grave_grasp"); is_busy = false; return
+	var spot: Vector2 = player.global_position
+	spawn_ground_marker(spot, Color(0.35, 0.85, 0.4), GRASP_TELEGRAPH, GRASP_RADIUS * 2.0)
+	await get_tree().create_timer(GRASP_TELEGRAPH).timeout
+	if is_dead:
+		return
+	spawn_ring_telegraph(spot, GRASP_RADIUS, Color(0.3, 0.9, 0.4), 0.3)
+	shake_camera(5.0, 0.2)
+	if _player_in(spot, GRASP_RADIUS):
+		deal_player_damage(GRASP_DAMAGE)
+		if player.has_method("apply_root"):
+			player.apply_root(GRASP_ROOT)
+	set_cd("grave_grasp"); is_busy = false
+
+# FROST MONARCH 10 -- Rime Lance: a marker TRACKS you, locks, then strikes and
+# FREEZES. You can't just stand off; you have to break the lock at the last beat.
+func do_rime_lance() -> void:
+	if player == null or not is_instance_valid(player):
+		set_cd("rime_lance"); is_busy = false; return
+	var marker := _zone_marker(player.global_position, RIME_RADIUS, Color(0.6, 0.85, 1.0, 0.28))
+	var t := 0.0
+	while t < RIME_TRACK and not is_dead and is_instance_valid(player):
+		marker.global_position = player.global_position
+		await get_tree().physics_frame
+		t += get_physics_process_delta_time()
+	var lock: Vector2 = marker.global_position
+	await get_tree().create_timer(RIME_TELEGRAPH).timeout
+	if is_instance_valid(marker):
+		marker.queue_free()
+	if is_dead:
+		return
+	spawn_ring_telegraph(lock, RIME_RADIUS, Color(0.7, 0.9, 1.0), 0.25)
+	if _player_in(lock, RIME_RADIUS):
+		deal_player_damage(RIME_DAMAGE)
+		if player.has_method("apply_freeze"):
+			player.apply_freeze(RIME_FREEZE)
+	set_cd("rime_lance"); is_busy = false
+
+# CINDER COLOSSUS 15 -- Magma Wake: lays a line of lingering fire from itself
+# toward you, so the lane you dodge into can already be burning.
+func do_magma_wake() -> void:
+	if player == null or not is_instance_valid(player):
+		set_cd("magma_wake"); is_busy = false; return
+	flash_telegraph(Color(1.0, 0.4, 0.1))
+	await get_tree().create_timer(0.35).timeout
+	if is_dead:
+		return
+	var to_p: Vector2 = (player.global_position - global_position)
+	var step: Vector2 = to_p / float(MAGMA_COUNT)
+	for i in range(MAGMA_COUNT):
+		var pos: Vector2 = global_position + step * float(i + 1)
+		pos.y = global_position.y
+		spawn_hazard(pos, MAGMA_RADIUS, MAGMA_DAMAGE, MAGMA_LIFETIME,
+			Color(1.0, 0.45, 0.12, 0.5), "poison", 1.2, 5.0)   # burn = poison-type DoT
+	shake_camera(5.0, 0.25)
+	set_cd("magma_wake"); is_busy = false
+
+# WEAVER 20 -- Web Snare: a sticky patch on your position that ROOTS you, so its
+# adds and novas land while you're pinned. Get off it fast.
+func do_web_snare() -> void:
+	if player == null or not is_instance_valid(player):
+		set_cd("web_snare"); is_busy = false; return
+	var spot: Vector2 = player.global_position
+	spawn_ground_marker(spot, Color(0.9, 0.95, 0.7), WEB_TELEGRAPH, WEB_RADIUS * 2.0)
+	await get_tree().create_timer(WEB_TELEGRAPH).timeout
+	if is_dead:
+		return
+	# the web lingers and re-roots anyone standing in it
+	spawn_hazard(spot, WEB_RADIUS, WEB_DAMAGE, WEB_LIFETIME,
+		Color(0.85, 0.9, 0.75, 0.4), "root", 0.6)
+	set_cd("web_snare"); is_busy = false
+
+# STORMCALLER 25 -- Thunderstrike: telegraphed bolts drop on your CURRENT spot a
+# beat later and STUN. Punishes standing; keep moving through the tells.
+func do_thunderstrike() -> void:
+	if player == null or not is_instance_valid(player):
+		set_cd("thunderstrike"); is_busy = false; return
+	var spots: Array = []
+	for i in range(THUNDER_BOLTS):
+		var s: Vector2 = player.global_position + Vector2(randf_range(-40.0, 40.0) * i, 0)
+		spots.append(s)
+		spawn_ground_marker(s, Color(1.0, 1.0, 0.6), THUNDER_TELEGRAPH, THUNDER_RADIUS * 2.0)
+	await get_tree().create_timer(THUNDER_TELEGRAPH).timeout
+	if is_dead:
+		return
+	shake_camera(6.0, 0.2)
+	for s in spots:
+		spawn_ring_telegraph(s, THUNDER_RADIUS, Color(1.0, 1.0, 0.7), 0.22)
+		if _player_in(s, THUNDER_RADIUS):
+			deal_player_damage(THUNDER_DAMAGE)
+			if player.has_method("apply_stun"):
+				player.apply_stun(THUNDER_STUN)
+	set_cd("thunderstrike"); is_busy = false
+
+# VOID SOVEREIGN 30 -- Void Rift: opens a singularity that DRAGS you toward it
+# while it hits, so you fight its pull as well as its blinks.
+func do_void_rift() -> void:
+	if player == null or not is_instance_valid(player):
+		set_cd("void_rift"); is_busy = false; return
+	# open it a short, fixed distance to the player's side, not on top of them
+	var side: float = signf(player.global_position.x - global_position.x)
+	if side == 0.0:
+		side = 1.0
+	var center: Vector2 = player.global_position + Vector2(side * 220.0, 0)
+	var marker := _zone_marker(center, RIFT_RADIUS, Color(0.55, 0.25, 0.75, 0.32))
+	spawn_ring_telegraph(center, RIFT_RADIUS, Color(0.7, 0.3, 1.0), RIFT_TELEGRAPH)
+	await get_tree().create_timer(RIFT_TELEGRAPH).timeout
+	var t := 0.0
+	var dmg_acc := 0.0
+	while t < RIFT_DURATION and not is_dead and is_instance_valid(player):
+		if player.has_method("apply_pull"):
+			player.apply_pull(center.x, RIFT_PULL)
+		dmg_acc += get_physics_process_delta_time()
+		if dmg_acc >= 0.4:
+			dmg_acc -= 0.4
+			if _player_in(center, RIFT_RADIUS):
+				deal_player_damage(RIFT_DAMAGE)
+		await get_tree().physics_frame
+		t += get_physics_process_delta_time()
+	if is_instance_valid(marker):
+		marker.queue_free()
+	set_cd("void_rift"); is_busy = false
+
+# a translucent octagon marker the CALLER owns (moves/frees it); for tracking
+# and channelled signatures. Self-freeing flashes use spawn_ring_telegraph.
+func _zone_marker(pos: Vector2, radius: float, color: Color) -> Polygon2D:
+	var m := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(8):
+		pts.append(Vector2(cos((i + 0.5) * TAU / 8), sin((i + 0.5) * TAU / 8)) * radius)
+	m.polygon = pts
+	m.color = color
+	m.z_index = 5
+	get_parent().add_child(m)
+	m.global_position = pos
+	return m
 
 # --- ability helpers ---
 
