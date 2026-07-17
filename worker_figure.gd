@@ -39,6 +39,22 @@ var static_window := false
 # (36px avatar body) with a little per-person variety.
 var body_scale := 1.0
 
+# Outdoor workers wear the same PixelLab villager art as the wandering
+# villagers (art/villagers/), so the people working the yards are the same
+# people who live here -- not a stack of coloured rectangles. The window
+# silhouettes stay procedural ON PURPOSE: those are shapes behind glass, and a
+# dark head-and-shoulders reads better there than a shrunken sprite.
+# If the art is missing, every mode falls back to the little ColorRect person
+# below, so this is safe with no art shipped.
+const VILLAGER_ROOT := "res://art/villagers/"
+const VILLAGER_VARIANTS := ["man", "man2", "man3", "man4", "man5",
+	"woman", "woman2", "woman3", "woman4", "woman5"]
+# The sprite is normalised to the SAME height the ColorRect person is drawn at,
+# so body_scale keeps sizing the worker exactly as before and every mode's tool
+# coordinates (the rod, the broom, the crate) still land in the hands.
+const PROC_BODY_H := 16.7
+var skin_sprite: AnimatedSprite2D = null
+
 const SILHOUETTE = Color(0.12, 0.13, 0.19, 0.95)
 const SKINS = [Color(0.87, 0.72, 0.56), Color(0.78, 0.6, 0.45), Color(0.92, 0.78, 0.64)]
 const TUNICS = [
@@ -68,33 +84,37 @@ func _ready() -> void:
 				paper = _px(1.5, -8.0, 3.0, 4.0, Color(0.95, 0.95, 0.9))
 		"walk":
 			speed = randf_range(24.0, 40.0)
-			_build_body()
+			_build_person()
 			position = Vector2(randf_range(min_x, max_x), ground_y)
 		"stand":
-			_build_body()
+			_build_person()
 			position = spot
 		"anvil":
-			_build_body()
+			_build_person()
 			position = spot
-			arm = _px(2.8, -11.0, 2.2, 6.5, skin)
-			arm.pivot_offset = Vector2(1.1, 0.5)
+			# a skinned smith draws his own arms -- rocking the whole body into
+			# each blow reads better than a spare limb pasted over the sprite
+			if skin_sprite == null:
+				arm = _px(2.8, -11.0, 2.2, 6.5, skin)
+				arm.pivot_offset = Vector2(1.1, 0.5)
 		"vendor":
-			_build_body()
+			_build_person()
 			position = spot
 		"carry":
 			# hauls a crate back and forth across the yard
 			speed = randf_range(16.0, 24.0)
-			_build_body()
+			_build_person()
 			var crate = _px(2.5, -10.5, 6.0, 5.0, Color(0.62, 0.44, 0.26))
 			crate.z_index = 1
 			_px(2.5, -8.6, 6.0, 1.2, Color(0.5, 0.34, 0.2))
 			position = Vector2(randf_range(min_x, max_x), ground_y)
 		"sweep":
 			# stands and sweeps: broom rocks around its grip
-			_build_body()
+			_build_person()
 			position = spot
 			arm = _px(2.2, -10.0, 1.8, 12.0, Color(0.55, 0.4, 0.22))   # broom pole
 			arm.pivot_offset = Vector2(0.9, 0.0)
+			arm.z_index = 1
 			var head = ColorRect.new()
 			head.position = Vector2(-1.6, 10.5)
 			head.size = Vector2(5.0, 2.6)
@@ -102,12 +122,13 @@ func _ready() -> void:
 			head.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			arm.add_child(head)
 		"fish":
-			_build_body()
+			_build_person()
 			position = spot
 			rod = Line2D.new()
 			rod.width = 1.4
 			rod.default_color = Color(0.4, 0.3, 0.18)
 			rod.points = PackedVector2Array([Vector2(3, -10), Vector2(15, -15), Vector2(16, 4)])
+			rod.z_index = 1
 			gfx.add_child(rod)
 	# outdoor workers stand as tall as the wandering NPC avatars (36px body):
 	# base art is ~16.7px -> ~2.05-2.3x, varied so heights differ person to person
@@ -116,6 +137,41 @@ func _ready() -> void:
 	dir = [-1, 1][randi() % 2]
 	var face_sign = dir if mode in ["walk", "window", "carry"] else face
 	gfx.scale = Vector2(face_sign * body_scale, body_scale)
+
+# Picks a villager skin whose art is actually present; "" if none is.
+func _pick_skin() -> String:
+	var have: Array = []
+	for v in VILLAGER_VARIANTS:
+		if EnemySkins.is_per_frame(v, VILLAGER_ROOT):
+			have.append(v)
+	if have.is_empty():
+		return ""
+	return have[randi() % have.size()]
+
+# The sprite body, feet on gfx's local origin -- same contract as _build_body,
+# so every mode's tools/particles keep working against the same anchor.
+func _build_skin(vskin: String) -> void:
+	var spr := AnimatedSprite2D.new()
+	spr.name = "Skin"
+	spr.sprite_frames = EnemySkins.frames_for(vskin, VILLAGER_ROOT)
+	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	var ch := EnemySkins.content_height(vskin, VILLAGER_ROOT)
+	var sc: float = PROC_BODY_H / maxf(ch, 1.0)
+	spr.scale = Vector2(sc, sc)
+	spr.offset = Vector2(-EnemySkins.hcenter_px(vskin, VILLAGER_ROOT), -EnemySkins.feet_px(vskin, VILLAGER_ROOT))
+	if spr.sprite_frames.has_animation("idle"):
+		spr.animation = "idle"
+		spr.play("idle")
+	gfx.add_child(spr)
+	skin_sprite = spr
+
+# Skinned workers walk when they're walking and idle when they're not.
+func _skin_anim(want: String) -> void:
+	if skin_sprite == null:
+		return
+	var sf := skin_sprite.sprite_frames
+	if sf and sf.has_animation(want) and skin_sprite.animation != want:
+		skin_sprite.play(want)
 
 func _px(x: float, y: float, w: float, h: float, col: Color) -> ColorRect:
 	var r = ColorRect.new()
@@ -132,6 +188,15 @@ var l_leg: ColorRect = null
 var r_leg: ColorRect = null
 var l_arm: ColorRect = null
 var r_arm: ColorRect = null
+
+# Every outdoor mode builds its body through here: the villager sprite when the
+# art is there, the little ColorRect person when it isn't.
+func _build_person() -> void:
+	var vskin := _pick_skin()
+	if vskin != "":
+		_build_skin(vskin)
+	else:
+		_build_body()
 
 func _build_body() -> void:
 	var tunic = TUNICS[randi() % TUNICS.size()]
@@ -166,7 +231,9 @@ func _process(delta: float) -> void:
 				_tick_span(delta, window_rect.position.x + 3.0, window_rect.end.x - 3.0)
 		"walk":
 			_tick_span(delta, min_x, max_x)
-			gfx.position.y = -absf(sin(t * 8.0)) * 1.2 * body_scale
+			_skin_anim("idle" if pause_t > 0.0 else "walk")
+			if skin_sprite == null:
+				gfx.position.y = -absf(sin(t * 8.0)) * 1.2 * body_scale
 			_swing_limbs(t * 9.0, 1.0)
 		"stand":
 			gfx.rotation = sin(t * 1.3) * 0.045
@@ -177,6 +244,10 @@ func _process(delta: float) -> void:
 			swing_t += delta
 			if arm:
 				arm.rotation = -absf(sin(swing_t * 5.0)) * 1.3
+			elif skin_sprite:
+				# the whole smith leans into the blow, and recoils on the strike
+				skin_sprite.rotation = -absf(sin(swing_t * 5.0)) * 0.16 * face
+				skin_sprite.position.y = -absf(sin(swing_t * 5.0)) * 1.1
 			if fmod(swing_t, TAU / 5.0) < delta:
 				_burst()
 		"vendor":
@@ -184,7 +255,9 @@ func _process(delta: float) -> void:
 			gfx.scale.y = body_scale * (1.0 + (0.08 if fmod(t, 4.0) < 0.4 else 0.0))
 		"carry":
 			_tick_span(delta, min_x, max_x)
-			gfx.position.y = -absf(sin(t * 6.0)) * 1.0 * body_scale   # heavier trudge
+			_skin_anim("idle" if pause_t > 0.0 else "walk")
+			if skin_sprite == null:
+				gfx.position.y = -absf(sin(t * 6.0)) * 1.0 * body_scale   # heavier trudge
 			_swing_limbs(t * 6.5, 0.6)   # legs only really -- arms hold the crate
 		"sweep":
 			if arm:
