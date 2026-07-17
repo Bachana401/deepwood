@@ -390,6 +390,11 @@ func _physics_process(delta: float) -> void:
 				return
 			direction = 1 if door_dx > 0.0 else -1
 			velocity.x = direction * SPEED
+			# A villager sent to their building keeps whatever walk/idle state the
+			# wander AI last picked, so anyone summoned mid-idle marched to the
+			# door playing their IDLE animation -- sliding along like a statue on
+			# rails. They are, self-evidently, walking.
+			is_walking = true
 			if body_gfx:
 				body_gfx.scale.x = direction * body_scale_factor
 			_update_villager_anim()

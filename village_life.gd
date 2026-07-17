@@ -5,7 +5,7 @@ extends Node2D
 # Two layers, both purely cosmetic (no gameplay state lives here):
 #  1) AMBIENT LIFE that grows with the town. The more buildings stand, the more
 #     festive the streets get -- flower boxes and lanterns at every finished
-#     building, garlands strung between them, banner flags, and finally a
+#     building, banner flags, and finally a
 #     central fountain + maypole once the whole village is rebuilt. Birds and
 #     butterflies drift about in numbers that scale with morale, so a happy
 #     town literally teems with life.
@@ -102,10 +102,9 @@ func _update_decor() -> void:
 		_lantern(Vector2(bx - half + 10.0, GROUND_Y))
 		if built_tier >= 6:
 			_lantern(Vector2(bx + half - 10.0, GROUND_Y))
-	# garlands strung between neighbouring buildings once the town takes shape
-	if built_tier >= 4:
-		for i in range(ops.size() - 1):
-			_garland(ops[i].global_position.x, ops[i + 1].global_position.x)
+	# (2026-07-16) The garlands strung between the buildings are gone -- dev call:
+	# a flat green rope sagging across the street just read as a stray line over
+	# the painted facades. The lanterns/flower boxes carry the festive read.
 	# banner flags on poles down the main street
 	if built_tier >= 8:
 		for b in ops:
@@ -137,28 +136,6 @@ func _lantern(base: Vector2) -> void:
 	_rect(decor_layer, base + Vector2(-4, -40), Vector2(8, 8), LANTERN)                    # lamp
 	var glow = _rect(decor_layer, base + Vector2(-7, -43), Vector2(14, 14), Color(LANTERN.r, LANTERN.g, LANTERN.b, 0.22))
 	glow.z_index = -1
-
-func _garland(x0: float, x1: float) -> void:
-	var line = Line2D.new()
-	var sag = 26.0
-	var n = 10
-	var pts = PackedVector2Array()
-	for i in range(n + 1):
-		var t = float(i) / float(n)
-		var x = lerpf(x0, x1, t)
-		var y = GROUND_Y - 96.0 + sin(t * PI) * sag
-		pts.append(Vector2(x, y))
-	line.points = pts
-	line.width = 2.0
-	line.default_color = Color(0.3, 0.5, 0.3)
-	line.z_index = 2
-	decor_layer.add_child(line)
-	# little flags/lights along the rope
-	for i in range(1, n):
-		var t = float(i) / float(n)
-		var x = lerpf(x0, x1, t)
-		var y = GROUND_Y - 96.0 + sin(t * PI) * sag
-		_rect(decor_layer, Vector2(x - 2, y), Vector2(4, 5), BANNER[i % BANNER.size()], 2)
 
 func _banner(base: Vector2) -> void:
 	_rect(decor_layer, base + Vector2(-1, -120), Vector2(2, 120), Color(0.5, 0.36, 0.2))   # pole
