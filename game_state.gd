@@ -111,6 +111,9 @@ func test_populate_village() -> void:
 #     Player on the other side restores it instead of re-granting starting
 #     resources (see player.gd's _ready()) or losing progress made mid-run.
 var active_dungeon_level = 1
+# Proving Grounds: an admin test arena reusing dungeon_interior.tscn -- all items
+# in labelled chests + an invincible DPS dummy, no combat. Set before entering.
+var proving_grounds := false
 var pre_dungeon_position = Vector2.ZERO
 # Vector2.ZERO is itself a plausible real position, so a separate flag marks
 # whether pre_dungeon_position should actually be applied on this main.tscn

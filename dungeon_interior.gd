@@ -395,6 +395,12 @@ const GATE_SCRIPT = preload("res://dungeon_gate.gd")
 
 func _ready() -> void:
 	GameState.in_dungeon = true
+	if GameState.proving_grounds:
+		build_proving_grounds()
+		place_player_at_entry(false)
+		setup_exit_button()
+		start_music()
+		return
 	boss_counter_seq = build_counter_sequence()
 	current_level = GameState.active_dungeon_level
 	build_level_visuals(current_level)
@@ -1704,7 +1710,83 @@ func _on_combatant_died() -> void:
 			call_deferred("play_final_victory")
 		show_notification("Level " + str(current_level) + " cleared! The far gate is open.")
 
+# ===================== PROVING GROUNDS (admin test arena) =====================
+const DPS_DUMMY = preload("res://dps_dummy.gd")
+const VAULT_CHEST = preload("res://vault_chest.gd")
+const PROVING_WIDTH = 2600.0   # a medium, regular-dungeon-sized flat room
+
+func build_proving_grounds() -> void:
+	current_level = 0
+	current_width = PROVING_WIDTH
+	current_ceiling = CEILING_Y
+	build_background(false)
+	build_ground_and_walls()
+	# a title banner
+	_proving_label(Vector2(PROVING_WIDTH / 2.0, GROUND_Y - 330.0), "THE PROVING GROUNDS",
+		Color(1, 0.9, 0.6), 0)
+	_proving_label(Vector2(PROVING_WIDTH / 2.0, GROUND_Y - 300.0),
+		"open a chest (E) to take its items · beat on the dummy for DPS · Exit when done",
+		Color(0.8, 0.78, 0.7), 0)
+
+	# ---- the item vault: one chest per rarity + a materials chest + everything ----
+	var by_grade := {}
+	for id in Inventory.ITEM_GRADES.keys():
+		var g: String = Inventory.ITEM_GRADES[id]
+		if not by_grade.has(g):
+			by_grade[g] = []
+		by_grade[g].append(id)
+	var ungraded := []
+	var everything := []
+	for id in Inventory.ITEM_DEFS.keys():
+		everything.append(id)
+		var cat: String = Inventory.ITEM_DEFS[id].get("category", "")
+		if not Inventory.ITEM_GRADES.has(id) and cat in ["material", "consumable", "currency"]:
+			ungraded.append(id)
+
+	var order := ["common", "uncommon", "rare", "epic", "legendary", "mythic"]
+	var chests := []
+	for g in order:
+		var ids: Array = by_grade.get(g, [])
+		var gd: Dictionary = Inventory.GRADE_DEFS.get(g, {})
+		chests.append({"ids": ids, "title": g.to_upper(),
+			"sub": "%d items" % ids.size(), "accent": gd.get("color", Color.WHITE)})
+	chests.append({"ids": ungraded, "title": "MATERIALS & USE",
+		"sub": "%d items" % ungraded.size(), "accent": Color(0.7, 0.85, 0.55)})
+	chests.append({"ids": everything, "title": "EVERYTHING",
+		"sub": "%d items" % everything.size(), "accent": Color(1, 0.85, 0.4)})
+
+	var margin := 260.0
+	var span := PROVING_WIDTH - margin * 2.0
+	for i in range(chests.size()):
+		var c: Dictionary = chests[i]
+		var x: float = margin + span * float(i) / float(chests.size() - 1)
+		var chest = VAULT_CHEST.new()
+		chest.item_ids = c["ids"]
+		chest.title = c["title"]
+		chest.subtitle = c["sub"]
+		chest.accent = c["accent"]
+		$LevelContainer.add_child(chest)
+		chest.global_position = Vector2(x, GROUND_Y)
+
+	# ---- the DPS dummy, centre stage ----
+	var dummy = DPS_DUMMY.new()
+	$LevelContainer.add_child(dummy)
+	dummy.global_position = Vector2(PROVING_WIDTH / 2.0, GROUND_Y)
+
+func _proving_label(pos: Vector2, text: String, col: Color, _z: int) -> void:
+	var l := Label.new()
+	l.text = text
+	l.position = pos - Vector2(300, 0)
+	l.size = Vector2(600, 40)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.add_theme_color_override("font_color", col)
+	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	l.add_theme_constant_override("outline_size", 4)
+	l.z_index = 40
+	$LevelContainer.add_child(l)
+
 func exit_dungeon() -> void:
+	GameState.proving_grounds = false   # never carry the test arena back out
 	starting = false
 	var player = get_tree().get_first_node_in_group("player")
 	if player:

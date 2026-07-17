@@ -66,8 +66,8 @@ func _build() -> void:
 	panel.anchor_bottom = 0.5
 	panel.offset_left = -W / 2.0
 	panel.offset_right = W / 2.0
-	panel.offset_top = -298.0
-	panel.offset_bottom = 298.0
+	panel.offset_top = -334.0
+	panel.offset_bottom = 334.0
 	add_child(panel)
 
 	var title = Label.new()
@@ -147,7 +147,23 @@ func _build() -> void:
 	_btn("All Lv 1", PAD + (92 + GAP) * 2.0, y, 92, BH, func(): _buildings_level(0))
 	y += BH + 12.0
 
+	# --- Test arena ---
+	y = _section("TEST ARENA", y)
+	_btn("PROVING GROUNDS  (all items in chests + DPS dummy)", PAD, y, W - PAD * 2.0, BH, _enter_proving_grounds)
+	y += BH + 12.0
+
 	_btn("Close (P)", PAD, y, W - PAD * 2.0, BH, close)
+
+# Enter the Proving Grounds: a flat test arena (dungeon_interior in a special
+# mode) with every item in labelled rarity chests and an invincible DPS dummy.
+func _enter_proving_grounds() -> void:
+	GameState.proving_grounds = true
+	GameState.active_dungeon_level = 1
+	var pl = _player()
+	if pl:
+		GameState.pending_player_state = GameState.capture_player_state(pl)
+	close()
+	get_tree().change_scene_to_file.call_deferred("res://dungeon_interior.tscn")
 
 # Instantly set every live building's level (no gold cost, clamped to
 # MAX_LEVEL) and rebuild its geometry so upgrades can be eyeballed on the
