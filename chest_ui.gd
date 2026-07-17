@@ -6,6 +6,7 @@ const SLOT_SIZE = 40.0
 const SLOT_GAP = 6.0
 const ICON_MARGIN = 6.0
 const GRID_ORIGIN = Vector2(16.0, 46.0)
+const BUTTON_H = 32.0        # matches the Take/Deposit/Close buttons in the .tscn
 
 const SLOT_BG_COLOR = Color(0.15, 0.15, 0.18, 0.9)
 
@@ -18,15 +19,40 @@ var slot_counts: Array = []
 func _ready() -> void:
 	visible = false
 	add_to_group("esc_window")
+	add_to_group("chest_ui")   # so vault chests can find the shared UI by group
 	player = get_tree().get_first_node_in_group("player")
-	build_slots()
+	build_slots(COLUMNS * ROWS)
 	$Panel/TakeButton.pressed.connect(_on_take_coins)
 	$Panel/DepositButton.pressed.connect(_on_deposit_coins)
 	$Panel/CloseButton.pressed.connect(close)
 	DragState.register_panel(self)
 
-func build_slots() -> void:
-	for i in range(COLUMNS * ROWS):
+# Rebuild the slot grid to hold exactly `count` slots (6 per row, growing
+# downward), then resize the panel and drop the buttons below the grid. Most
+# chests are the standard 24; the Proving Grounds vaults are much bigger, so the
+# grid has to grow to fit them rather than hiding items past slot 24.
+func _ensure_grid(count: int) -> void:
+	if slot_bgs.size() == count:
+		return
+	for arr in [slot_bgs, slot_icons, slot_counts]:
+		for n in arr:
+			if is_instance_valid(n):
+				n.queue_free()
+	slot_bgs.clear(); slot_icons.clear(); slot_counts.clear()
+	build_slots(count)
+
+func _layout_panel(count: int) -> void:
+	var rows: int = int(ceil(float(count) / float(COLUMNS)))
+	var btn_y: float = GRID_ORIGIN.y + rows * (SLOT_SIZE + SLOT_GAP) + 16.0
+	var panel_h: float = btn_y + BUTTON_H + 12.0
+	var half: float = panel_h / 2.0
+	$Panel.offset_top = -half
+	$Panel.offset_bottom = half
+	for btn in [$Panel/TakeButton, $Panel/DepositButton, $Panel/CloseButton]:
+		btn.position.y = btn_y
+
+func build_slots(count: int) -> void:
+	for i in range(count):
 		var col = i % COLUMNS
 		var row = i / COLUMNS
 		var pos = GRID_ORIGIN + Vector2(col * (SLOT_SIZE + SLOT_GAP), row * (SLOT_SIZE + SLOT_GAP))
@@ -102,6 +128,14 @@ func get_inventory_for_drag() -> Inventory:
 
 func open_chest(chest: Node) -> void:
 	current_chest = chest
+	var cap: int = chest.inventory.capacity if chest and chest.inventory else COLUMNS * ROWS
+	_ensure_grid(cap)
+	_layout_panel(cap)
+	# the coin Take-All/Deposit-All buttons only make sense for real loot chests;
+	# on a disposable vault "Deposit All" would sink your gold into it, so hide them
+	var is_vault: bool = "ui_title" in chest and chest.ui_title != ""
+	$Panel/TakeButton.visible = not is_vault
+	$Panel/DepositButton.visible = not is_vault
 	visible = true
 	refresh()
 
@@ -134,7 +168,11 @@ func refresh() -> void:
 			slot_icons[i].visible = true
 			Inventory.paint_icon(slot_icons[i], slot.item_id)
 			slot_counts[i].text = str(slot.count) if slot.count > 1 else ""
-	$Panel/TitleLabel.text = "Chest (" + str(inv.get_count("coin_gold")) + "g coins)"
+	# vault chests carry their own title; ordinary chests show their coin count
+	if current_chest and "ui_title" in current_chest and current_chest.ui_title != "":
+		$Panel/TitleLabel.text = current_chest.ui_title
+	else:
+		$Panel/TitleLabel.text = "Chest (" + str(inv.get_count("coin_gold")) + "g coins)"
 
 func _on_take_coins() -> void:
 	if not current_chest or not player:

@@ -1725,10 +1725,10 @@ func build_proving_grounds() -> void:
 	_proving_label(Vector2(PROVING_WIDTH / 2.0, GROUND_Y - 330.0), "THE PROVING GROUNDS",
 		Color(1, 0.9, 0.6), 0)
 	_proving_label(Vector2(PROVING_WIDTH / 2.0, GROUND_Y - 300.0),
-		"open a chest (E) to take its items · beat on the dummy for DPS · Exit when done",
+		"open a chest (E) — your bag opens too · drag an item out to take it, drag it back to return · beat the dummy for DPS",
 		Color(0.8, 0.78, 0.7), 0)
 
-	# ---- the item vault: one chest per rarity + a materials chest + everything ----
+	# ---- the item vault: one chest per rarity + a materials/consumables chest ----
 	var by_grade := {}
 	for id in Inventory.ITEM_GRADES.keys():
 		var g: String = Inventory.ITEM_GRADES[id]
@@ -1736,9 +1736,7 @@ func build_proving_grounds() -> void:
 			by_grade[g] = []
 		by_grade[g].append(id)
 	var ungraded := []
-	var everything := []
 	for id in Inventory.ITEM_DEFS.keys():
-		everything.append(id)
 		var cat: String = Inventory.ITEM_DEFS[id].get("category", "")
 		if not Inventory.ITEM_GRADES.has(id) and cat in ["material", "consumable", "currency"]:
 			ungraded.append(id)
@@ -1749,11 +1747,9 @@ func build_proving_grounds() -> void:
 		var ids: Array = by_grade.get(g, [])
 		var gd: Dictionary = Inventory.GRADE_DEFS.get(g, {})
 		chests.append({"ids": ids, "title": g.to_upper(),
-			"sub": "%d items" % ids.size(), "accent": gd.get("color", Color.WHITE)})
+			"sub": "%d items · drag to take" % ids.size(), "accent": gd.get("color", Color.WHITE)})
 	chests.append({"ids": ungraded, "title": "MATERIALS & USE",
-		"sub": "%d items" % ungraded.size(), "accent": Color(0.7, 0.85, 0.55)})
-	chests.append({"ids": everything, "title": "EVERYTHING",
-		"sub": "%d items" % everything.size(), "accent": Color(1, 0.85, 0.4)})
+		"sub": "%d items · drag to take" % ungraded.size(), "accent": Color(0.7, 0.85, 0.55)})
 
 	var margin := 260.0
 	var span := PROVING_WIDTH - margin * 2.0

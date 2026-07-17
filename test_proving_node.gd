@@ -38,16 +38,29 @@ func _ready() -> void:
 	check("dummy shows a DPS readout", d._label != null and d._label.text.contains("DPS"))
 	d.queue_free()
 
-	# ---------------- a vault chest grants its items ----------------
-	var before: int = p.inventory.get_count("wpn_katana")
+	# ---------------- a vault chest is a stocked, browsable catalogue ----------------
 	var chest = load("res://vault_chest.gd").new()
-	chest.item_ids = ["wpn_katana", "relic_gorgon", "armor_dragon"]
-	chest.title = "TEST"; chest.subtitle = "3 items"
+	chest.item_ids = ["wpn_katana", "relic_gorgon", "armor_dragon", "potion_health", "wood"]
+	chest.title = "TEST"; chest.subtitle = "5 items"
 	host.add_child(chest); await get_tree().process_frame
-	chest._grant()
-	check("chest grants its items into the bag",
-		p.inventory.get_count("wpn_katana") > before and p.inventory.get_count("relic_gorgon") >= 1,
-		"katana %d->%d" % [before, p.inventory.get_count("wpn_katana")])
+	check("vault chest stocks one full stack of each item (weapons 1, potions 20, mats 99)",
+		chest.inventory != null
+		and chest.inventory.get_count("wpn_katana") == 1
+		and chest.inventory.get_count("relic_gorgon") == 1
+		and chest.inventory.get_count("potion_health") == 20
+		and chest.inventory.get_count("wood") == 99,
+		"katana=%d potion=%d wood=%d" % [chest.inventory.get_count("wpn_katana"), chest.inventory.get_count("potion_health"), chest.inventory.get_count("wood")])
+	# taking an item out (drag) empties that stack; reopening tops it back up
+	chest.inventory.transfer_to(p.inventory, "wpn_katana", 1)
+	check("taking an item removes it from the chest", chest.inventory.get_count("wpn_katana") == 0)
+	chest._restock()
+	check("reopening restocks it -- the vault is bottomless", chest.inventory.get_count("wpn_katana") == 1)
+	# opening routes through the shared ChestUI (found by group) and pops the bag
+	chest._open()
+	await get_tree().process_frame
+	var cui = get_tree().get_first_node_in_group("chest_ui")
+	check("opening the vault routes through the shared ChestUI", cui != null and cui.current_chest == chest)
+	if cui != null and cui.has_method("close"): cui.close()
 	chest.queue_free()
 
 	# ---------------- the arena builds chests + a dummy ----------------
@@ -64,7 +77,7 @@ func _ready() -> void:
 		if s == null: continue
 		if s.resource_path.ends_with("vault_chest.gd"): chests += 1
 		if s.resource_path.ends_with("dps_dummy.gd"): dummies += 1
-	check("Proving Grounds builds a chest per rarity + more (>= 8)", chests >= 8, "%d chests" % chests)
+	check("Proving Grounds builds a chest per rarity + a materials chest (>= 7)", chests >= 7, "%d chests" % chests)
 	check("Proving Grounds builds the DPS dummy", dummies == 1, "%d dummies" % dummies)
 	arena.queue_free()
 	GameState.proving_grounds = false

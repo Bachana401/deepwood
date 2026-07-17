@@ -1,21 +1,38 @@
 extends Area2D
 
-# A Proving Grounds vault chest. Labelled with what it holds; press E while
-# standing on it to drop every item in its list straight into the bag. Set
-# `item_ids`, `title`, `subtitle`, and `accent` before adding it to the tree.
+# A Proving Grounds vault chest. Unlike a normal loot chest it's a bottomless
+# *catalogue*: it stocks one full stack of every item on its list and tops
+# itself back up every time you open it, so the item is always there to grab
+# again. Press E to open it in the shared ChestUI -- then it's the exact same
+# drag interface as any chest in the game: drag an item out into your bag to
+# take it, drag it back into the chest to put it away. Your bag opens alongside
+# it automatically so both panels are on screen to drag between.
+#
+# Set `item_ids`, `title`, `subtitle`, and `accent` before adding it to the
+# tree (build_proving_grounds does this).
 
 var item_ids: Array = []
 var title := "CHEST"
 var subtitle := ""
 var accent := Color(0.8, 0.8, 0.85)
+var ui_title := ""            # what the ChestUI title bar shows when open
+
+var inventory: Inventory
 var _inside := false
 var _prompt: Label = null
-var _taken := false
+
+const SPARE_SLOTS := 8        # room for the player to drop items back in
 
 func _ready() -> void:
 	collision_layer = 0
 	collision_mask = 2         # detect the player body (player is on layer 2)
 	monitoring = true
+	# one slot per catalogued item, plus spare slots so putting things back
+	# always has somewhere to land
+	inventory = Inventory.new(item_ids.size() + SPARE_SLOTS)
+	_restock()
+	ui_title = "%s  ·  %d items" % [title, item_ids.size()]
+
 	var cs := CollisionShape2D.new()
 	var rect := RectangleShape2D.new()
 	rect.size = Vector2(96, 96)
@@ -56,7 +73,7 @@ func _ready() -> void:
 	_prompt.position = Vector2(-60, -70)
 	_prompt.size = Vector2(120, 20)
 	_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_prompt.text = "[E] Take all"
+	_prompt.text = "[E] Open"
 	_prompt.add_theme_color_override("font_color", Color(1, 1, 0.8))
 	_prompt.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	_prompt.add_theme_constant_override("outline_size", 3)
@@ -66,28 +83,45 @@ func _ready() -> void:
 	body_entered.connect(_on_enter)
 	body_exited.connect(_on_exit)
 
+# Top every catalogued item back up to a full stack. Weapons/armor/relics stack
+# to 1, potions to 20, materials to 99 -- so the chest always shows the whole
+# catalogue no matter how much you've taken, while staying a well-formed
+# inventory (never an over-cap stack that would break equipping/wielding).
+func _restock() -> void:
+	for id in item_ids:
+		var target: int = Inventory.get_max_stack(id)
+		var have: int = inventory.get_count(id)
+		if have < target:
+			inventory.add_item(id, target - have)
+
 func _process(_delta: float) -> void:
 	if _inside and Input.is_action_just_pressed("interact"):
-		_grant()
+		_open()
 
-func _grant() -> void:
-	var p = get_tree().get_first_node_in_group("player")
-	if p == null or not ("inventory" in p) or p.inventory == null:
+func _open() -> void:
+	_restock()   # always a full catalogue on open
+	var chest_ui = get_tree().get_first_node_in_group("chest_ui")
+	if chest_ui == null:
 		return
-	var n := 0
-	for id in item_ids:
-		if p.inventory.add_item(id, 1) > 0 or true:   # count added; chests always try
-			n += 1
-	var stack = get_tree().get_first_node_in_group("notification_stack")
-	if stack != null and stack.has_method("show_notification"):
-		stack.show_notification("%s: took %d items" % [title, n])
+	chest_ui.open_chest(self)
+	# open the bag alongside so there are two panels to drag between
+	var bag = get_tree().get_first_node_in_group("inventory_ui")
+	if bag != null:
+		bag.visible = true
+		if bag.has_method("refresh"):
+			bag.refresh()
 	if _prompt != null:
-		_prompt.text = "taken ✓"
+		_prompt.visible = false
+
+# ChestUI calls this on close. An admin vault is disposable -- never write its
+# giant contents into the save file.
+func save_contents() -> void:
+	pass
 
 func _on_enter(body: Node) -> void:
 	if body.is_in_group("player"):
 		_inside = true
-		if _prompt != null and _prompt.text.begins_with("["):
+		if _prompt != null:
 			_prompt.visible = true
 
 func _on_exit(body: Node) -> void:
@@ -95,3 +129,6 @@ func _on_exit(body: Node) -> void:
 		_inside = false
 		if _prompt != null:
 			_prompt.visible = false
+		var chest_ui = get_tree().get_first_node_in_group("chest_ui")
+		if chest_ui != null and chest_ui.current_chest == self:
+			chest_ui.close()

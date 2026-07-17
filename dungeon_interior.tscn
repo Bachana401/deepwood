@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://dungeon_interior.gd" id="1_interior"]
 [ext_resource type="PackedScene" path="res://player.tscn" id="2_player"]
@@ -10,6 +10,7 @@
 [ext_resource type="PackedScene" path="res://item_tooltip.tscn" id="8_tooltip"]
 [ext_resource type="PackedScene" path="res://hotbar_ui.tscn" id="9_hotbar"]
 [ext_resource type="Script" path="res://inventory_ui.gd" id="10_inventory_ui"]
+[ext_resource type="Script" path="res://chest_ui.gd" id="11_chest_ui"]
 
 [node name="DungeonManager" type="Node2D"]
 script = ExtResource("1_interior")
@@ -152,6 +153,48 @@ offset_bottom = 226.0
 theme_override_font_sizes/font_size = 11
 theme_override_colors/font_color = Color(0.7, 0.7, 0.72, 1)
 text = "Press Tab to close"
+
+[node name="ChestUI" type="CanvasLayer" parent="."]
+script = ExtResource("11_chest_ui")
+
+[node name="Panel" type="Panel" parent="ChestUI"]
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = -326.0
+offset_top = -145.0
+offset_right = -24.0
+offset_bottom = 145.0
+
+[node name="TitleLabel" type="Label" parent="ChestUI/Panel"]
+offset_left = 16.0
+offset_top = 10.0
+offset_right = 280.0
+offset_bottom = 34.0
+theme_override_font_sizes/font_size = 18
+text = "Chest"
+
+[node name="TakeButton" type="Button" parent="ChestUI/Panel"]
+offset_left = 16.0
+offset_top = 246.0
+offset_right = 100.0
+offset_bottom = 278.0
+text = "Take All"
+
+[node name="DepositButton" type="Button" parent="ChestUI/Panel"]
+offset_left = 108.0
+offset_top = 246.0
+offset_right = 210.0
+offset_bottom = 278.0
+text = "Deposit All"
+
+[node name="CloseButton" type="Button" parent="ChestUI/Panel"]
+offset_left = 218.0
+offset_top = 246.0
+offset_right = 286.0
+offset_bottom = 278.0
+text = "Close"
 
 [node name="DeathScreen" type="CanvasLayer" parent="."]
 script = ExtResource("3_death_screen")
