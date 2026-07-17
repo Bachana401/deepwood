@@ -364,6 +364,57 @@ var is_frenzied := false
 var has_aura := false
 var has_blink_on_hit := false
 
+# ============================ REACTIVE MECHANICS =============================
+# The vocabulary that makes each boss fight differently (design: BOSSES.md 2).
+# The rule every one of these obeys: NONE of them raise damage. They gate HOW
+# you are allowed to fight, and each has a counter-play the player can learn.
+# Difficulty must come from misreading the fight, never from a big number.
+# -----------------------------------------------------------------------------
+
+# SIDESTEP -- it blinks a body-width out of your melee swing, leaving an
+# afterimage. Beaten by baiting it, or by reach. Only dodges MELEE: a projectile
+# already in the air isn't something you can read a dodge off.
+# Punish damage, deliberately in the same band as its ordinary attacks
+# (SLAM 30 / CHARGE 26) and scaled by the SAME sqrt(damage_multiplier) the rest
+# of the fight uses -- a counter must sting, never one-shot. That is the dev's
+# hard line: hard because you misread it, not because the number was too big.
+const RIPOSTE_DAMAGE := 28
+const RHYTHM_DAMAGE := 18
+const SKYFALL_DAMAGE := 22
+
+const SIDESTEP_COOLDOWN := 1.6
+var has_sidestep := false
+var sidestep_ready_at := 0.0
+
+# RIPOSTE -- hit it during its WIND-UP and it counters. Hit it in the recovery
+# and you're fine. This is the mechanic that punishes attacking on reflex: the
+# tell is there, you just have to actually read it.
+const RIPOSTE_COOLDOWN := 2.5
+var has_riposte := false
+var riposte_ready_at := 0.0
+var telegraphing := false      # true only during an ability's wind-up
+
+# SKYFALL -- anti-air. Punishes the player for being off the ground, which now
+# matters because the Monarch levitates from 1/7. Levitation is not a free win.
+const SKYFALL_COOLDOWN := 3.0
+var has_skyfall := false
+var skyfall_ready_at := 0.0
+
+# MIRROR -- reflects PROJECTILES back at you. Close to melee, or stop spamming.
+var has_mirror := false
+
+# RHYTHM_PUNISH -- every Nth CONSECUTIVE hit is countered. Punishes mashing one
+# button; beaten by varying your rhythm or dropping a beat.
+const RHYTHM_WINDOW := 1.2     # hits this close together count as consecutive
+const RHYTHM_COUNT := 4        # every 4th in a row bites
+var has_rhythm_punish := false
+var rhythm_streak := 0
+var rhythm_last_hit := 0.0
+
+# STAGGER_ARMOUR -- chip damage bounces; only a HEAVY/crit hit breaks the guard.
+const STAGGER_HEAVY_FRACTION := 0.06   # >=6% of its max HP in one blow = heavy
+var has_stagger_armour := false
+
 # --- phase (Obito) -----------------------------------------------------------
 # The nastiest thing in the vocabulary, and the dev's own example. The instant
 # your blade lands, the boss goes INTANGIBLE -- your hits pass clean through for
@@ -382,6 +433,94 @@ var phase_ready_at := 0.0
 
 func _time_now() -> float:
 	return Time.get_ticks_msec() / 1000.0
+
+# --- reactive mechanic behaviours --------------------------------------------
+
+# Is the player close enough that this hit could only be melee? Projectiles are
+# resolved at range, so distance is a good enough proxy without plumbing the
+# damage source through every weapon.
+func _player_is_meleeing() -> bool:
+	if player == null or not is_instance_valid(player):
+		return false
+	return global_position.distance_to(player.global_position) < MELEE_READ_RANGE
+const MELEE_READ_RANGE := 150.0
+
+# SIDESTEP: leave an afterimage where you were, and be a body-width away.
+func _do_sidestep() -> void:
+	var gfx: CanvasItem = boss_sprite if boss_sprite != null else self
+	var ghost := Sprite2D.new()
+	if boss_sprite != null and boss_sprite.sprite_frames != null:
+		ghost.texture = boss_sprite.sprite_frames.get_frame_texture(boss_sprite.animation, boss_sprite.frame)
+		ghost.centered = boss_sprite.centered
+		ghost.offset = boss_sprite.offset
+		ghost.scale = boss_sprite.scale
+		ghost.flip_h = boss_sprite.flip_h
+	ghost.modulate = Color(0.6, 0.7, 1.0, 0.55)
+	ghost.z_index = 5
+	get_parent().add_child(ghost)
+	ghost.global_position = gfx.global_position
+	var gt := ghost.create_tween()
+	gt.tween_property(ghost, "modulate:a", 0.0, 0.3)
+	gt.tween_callback(ghost.queue_free)
+	# step AWAY from the player, along the ground
+	var away := 1.0 if (player == null or global_position.x >= player.global_position.x) else -1.0
+	var dist: float = float(current_def.get("body", Vector2(120, 200)).x) * 0.45
+	global_position.x += away * dist
+
+# RIPOSTE: it was waiting for you to swing at the wind-up.
+func _do_riposte() -> void:
+	if player == null or not is_instance_valid(player) or not player.has_method("take_damage"):
+		return
+	var ring := Line2D.new()
+	var pts := PackedVector2Array()
+	for i in range(16):
+		var a := TAU * float(i) / 16.0
+		pts.append(Vector2(cos(a), sin(a)) * 34.0)
+	pts.append(pts[0])
+	ring.points = pts
+	ring.width = 3.0
+	ring.default_color = Color(1.0, 0.85, 0.3, 0.95)
+	ring.z_index = 45
+	add_child(ring)
+	var t := ring.create_tween()
+	t.tween_property(ring, "scale", Vector2(1.9, 1.9), 0.2)
+	t.parallel().tween_property(ring, "modulate:a", 0.0, 0.2)
+	t.tween_callback(ring.queue_free)
+	player.take_damage(riposte_damage())
+	if player.has_method("apply_slow"):
+		player.apply_slow(0.8, 0.55)
+
+# Scaled off the boss's own hit, so it stings without ever one-shotting.
+func riposte_damage() -> int:
+	return int(round(RIPOSTE_DAMAGE * sqrt(damage_multiplier)))
+
+# RHYTHM PUNISH: the fourth identical beat in a row gets answered.
+func _do_rhythm_counter() -> void:
+	if player == null or not is_instance_valid(player) or not player.has_method("take_damage"):
+		return
+	player.take_damage(int(round(RHYTHM_DAMAGE * sqrt(damage_multiplier))))
+	if player.has_method("apply_slow"):
+		player.apply_slow(0.6, 0.6)
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if stack and stack.has_method("show_notification"):
+		stack.show_notification("It has learned your rhythm.")
+
+# STAGGER ARMOUR: a chip hit rings off the guard, and says so.
+func _spawn_guard_spark() -> void:
+	var p := CPUParticles2D.new()
+	p.one_shot = true
+	p.explosiveness = 1.0
+	p.amount = 5
+	p.lifetime = 0.25
+	p.direction = Vector2(0, -1)
+	p.spread = 90.0
+	p.initial_velocity_min = 40.0
+	p.initial_velocity_max = 90.0
+	p.color = Color(0.85, 0.88, 1.0)
+	p.z_index = 40
+	add_child(p)
+	p.emitting = true
+	p.finished.connect(p.queue_free)
 
 func is_phased() -> bool:
 	return _time_now() < phase_until
@@ -483,6 +622,12 @@ func configure_from_def(def: Dictionary) -> void:
 	has_blink_on_hit = "blink_on_hit" in passives
 	has_soul_split = "soul_split" in passives
 	has_phase = "phase" in passives
+	has_sidestep = "sidestep" in passives
+	has_riposte = "riposte" in passives
+	has_skyfall = "skyfall" in passives
+	has_mirror = "mirror" in passives
+	has_rhythm_punish = "rhythm_punish" in passives
+	has_stagger_armour = "stagger_armour" in passives
 	abilities = (def.get("abilities", ["slam"]) as Array).duplicate()
 	max_health = int(round(float(def.get("hp", 900)) * level_hp_mult))
 	health = max_health
@@ -1878,6 +2023,30 @@ func take_damage(amount: int) -> void:
 	if is_phased():
 		_spawn_phase_whiff()
 		return
+	# SIDESTEP: it reads the swing and isn't there any more. Melee only -- you
+	# can't dodge what's already in the air.
+	if has_sidestep and _time_now() >= sidestep_ready_at and _player_is_meleeing():
+		sidestep_ready_at = _time_now() + SIDESTEP_COOLDOWN
+		_do_sidestep()
+		return
+	# STAGGER ARMOUR: chip damage rings off the guard. Only a heavy blow breaks
+	# it -- you have to commit to slow hits while it's swinging at you.
+	if has_stagger_armour and amount < int(max_health * STAGGER_HEAVY_FRACTION):
+		_spawn_guard_spark()
+		return
+	# RIPOSTE: you hit it during the WIND-UP. It was waiting for that.
+	if has_riposte and telegraphing and _time_now() >= riposte_ready_at:
+		riposte_ready_at = _time_now() + RIPOSTE_COOLDOWN
+		_do_riposte()
+		# the blow still lands -- the punish is the counter, not immunity
+	# RHYTHM PUNISH: mash the same beat and the fourth one bites.
+	if has_rhythm_punish:
+		var t := _time_now()
+		rhythm_streak = (rhythm_streak + 1) if (t - rhythm_last_hit) < RHYTHM_WINDOW else 1
+		rhythm_last_hit = t
+		if rhythm_streak >= RHYTHM_COUNT:
+			rhythm_streak = 0
+			_do_rhythm_counter()
 	var dmg := amount
 	# weapon counter: countering weapon hits harder AND fires its mechanic;
 	# every other weapon is guarded (unless an archer has just exposed the boss)
