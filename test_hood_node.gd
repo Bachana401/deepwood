@@ -53,8 +53,30 @@ func _ready() -> void:
 	check("5/7 stage is 5", GameState.monarch_stage() == 5)
 	check("5/7 pulls the hood up", p._hooded, "prefix %s" % p._art_prefix)
 	check("5/7 uses the hooded art path", p._art_prefix == p.HOODED_ART)
-	check("hood keeps playing the same animation", p.body_anim.animation == anim_4,
-		"%s -> %s" % [anim_4, p.body_anim.animation])
+	# From 5/7 he must stand like a sovereign, not like the brawler he was.
+	# The fists-up idle belongs to the man below 5/7 only.
+	# (idle only reads true once he's actually standing on the ground)
+	# wait for him to land AND for the landing squash to finish settling
+	for i in range(300):
+		await get_tree().physics_frame
+		if p.is_on_floor() and absf(p.velocity.x) < 1.0 and p.land_timer <= 0.0:
+			break
+	check("player is grounded and settled", p.is_on_floor() and p.land_timer <= 0.0,
+		"state '%s'" % p.body_anim.animation)
+	check("5/7 stands like a MONARCH (not the old fists-up idle)",
+		p.body_anim.animation == "monarchidle",
+		"playing '%s'" % p.body_anim.animation)
+	check("...and it's real drawn art, not an idle fallback",
+		p.real_anims.get("monarchidle", false))
+	# and below 5/7 he must go back to the brawler stance
+	GameState.player_level = 45
+	for i in range(30):
+		await get_tree().physics_frame
+	check("4/7 stands like the brawler he was ('idle')",
+		p.body_anim.animation == "idle", "playing '%s'" % p.body_anim.animation)
+	GameState.player_level = 60
+	for i in range(10):
+		await get_tree().physics_frame
 	# the hood must ADD height, not shrink him into the same silhouette
 	var im: Image = p.body_anim.sprite_frames.get_frame_texture("idle", 0).get_image()
 	var drawn_h: float = im.get_height() * p.base_scale.y
