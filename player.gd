@@ -623,7 +623,7 @@ func build_shadow_aura() -> void:
 	if body_anim != null:
 		monarch_shader_mat = ShaderMaterial.new()
 		var sh = Shader.new()
-		sh.code = "shader_type canvas_item;\nuniform float pallor : hint_range(0.0,1.0) = 0.0;\nvoid fragment(){\n\tvec4 c = texture(TEXTURE, UV);\n\tfloat g = dot(c.rgb, vec3(0.299,0.587,0.114));\n\tvec3 pale = vec3(g)*1.1 + 0.06;\n\tpale = mix(pale, vec3(0.72,0.74,0.82), 0.25);\n\tCOLOR = vec4(mix(c.rgb, pale, pallor), c.a);\n}"
+		sh.code = MONARCH_PALLOR_SHADER
 		monarch_shader_mat.shader = sh
 		body_anim.material = monarch_shader_mat
 	# Draw order: at equal z the child list decides. Put the aura + wisps just
@@ -669,6 +669,40 @@ func update_shadow_aura(delta: float) -> void:
 			# vivid violet that deepens + gets less transparent as the stage climbs
 			shadow_emit.color_ramp.set_color(0, Color(0.52, 0.2, 0.98, lerpf(0.35, 1.0, ci)))
 			shadow_emit.color_ramp.set_color(1, Color(0.16, 0.04, 0.32, 0.0))
+
+# The Monarch goes corpse-pale as he rises -- but a man losing his colour does
+# NOT bleach his coat, his hair and his boots with him. The old shader drained
+# the WHOLE sprite toward grey, which is why he faded into a washed-out smudge
+# instead of a pale man in dark clothes.
+#
+# Only SKIN drains now. His palette separates cleanly (sampled from the art):
+#   skin  0.94,0.74,0.68 + two shadow tones -- warm, ordered r>=g>=b, bright
+#   coat  0.14,0.15,0.24 -- blue-dominant, b > r
+#   trim  0.51,0.09,0.42 -- magenta, g < b
+#   hair  0.04,0.02,0.03 -- near black
+# so the mask is: warm ordering, bright enough not to be hair/boots, warm
+# enough not to be neutral grey, not so warm it catches the magenta trim.
+# Everything that isn't skin passes through untouched, at any stage.
+const MONARCH_PALLOR_SHADER := """
+shader_type canvas_item;
+uniform float pallor : hint_range(0.0, 1.0) = 0.0;
+
+void fragment() {
+	vec4 c = texture(TEXTURE, UV);
+	float mx = max(c.r, max(c.g, c.b));
+	float warmth = c.r - c.b;
+	float is_skin =
+		  step(c.b, c.g)          // g >= b
+		* step(c.g, c.r)          // r >= g   (warm skin ordering)
+		* step(0.50, mx)          // bright   (not the black hair or boots)
+		* step(0.10, warmth)      // warm     (not neutral grey/steel)
+		* step(warmth, 0.52);     // not the coat's saturated magenta trim
+	// corpse-pale: drain the blood but keep the shading that models the face
+	float lum = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+	vec3 pale = mix(vec3(lum), vec3(0.86, 0.88, 0.93), 0.5) * 1.02;
+	COLOR = vec4(mix(c.rgb, pale, pallor * is_skin), c.a);
+}
+"""
 
 # ========================= THE SHADOW MONARCH'S POWERS ========================
 # The OP half of the hidden 7-stage passive (design: VILLAGE_SYSTEMS.md 8b).
