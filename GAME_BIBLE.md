@@ -299,7 +299,27 @@ The village is **not a menu of independent buildings** — it is one machine who
 
 **Government is the meta-connector:** it doesn't make a resource — it **automates the links** so the player isn't hand-carrying every hand-off (kids auto-route School→job, wall shifts auto-fill, taxes auto-collect). Early game you *are* the connective tissue, by hand; Government is how you earn your way out of that.
 
-- 🟡 Open (§12): the exact ore/metal resource ids and whether Mine ore is a new item or reuses stone + a metal tier; the depth/floor each new dependency "switches on" (when bare warriors stop sufficing, etc.); whether the Mine is hand-buildable from Act I or gated; Shrine staffing role.
+#### 5.7.1 The dependency-activation ladder — *when* each link switches on
+
+The web's pacing spine. Every dependency is **dormant until a pressure crosses a threshold**, then it *bites*. The three pressures that turn links on: **DEPTH** (how deep the player has pushed — sets siege strength & material tiers), **POP** (how many mouths the village holds), **NEGLECT** (unmet needs). This is the schedule that makes §5.7 a *curve* instead of a switch — structure now, exact thresholds are a balance-later numbers pass (§12 #10).
+
+| Link that switches on | Trigger (the pressure) | ≈ Act / band | If ignored |
+|---|---|---|---|
+| Farm alone → **+ Fishing Dock** | POP outgrows single-Farm output | II | hunger → morale → corruption |
+| Barracks → **needs Hospital** | first siege that leaves warriors wounded (no passive regen §4.1) | I→II | the warrior pool bleeds out permanently |
+| Builderhouse becomes **mandatory** | sieges break walls faster than you hand-repair | II | walls stay down, every siege hits the village |
+| Barracks → **needs Blacksmith arms** | DEPTH: siege strength passes what basic-gear warriors can kill | II (mid) | warriors lose the wall, defense collapses onto the player |
+| Blacksmith → **needs Mine metal** | you lean on the Blacksmith faster than hand-mining can supply | II (mid, right after the above) | Blacksmith idles → Barracks stops improving |
+| Hand-pay → **needs Marketplace + Bank** | POP employed grows past what player gold can hand-pay | II→III | wages dry up → workers quit → cascade |
+| Pre-stat'd staff → **needs School flow** | you run out of already-skilled villagers to fill new buildings | I→II (and forever) | new buildings can't be staffed |
+| Skill tier 3+ / upgrades → **need Science Lab** | player hits tier-3 skills or wants building upgrades | II | progression freezes |
+| Corruption is permanent → **Shrine** softens it | DEPTH 30 | II | every morale-0 loss is forever until then |
+| Manual chores → **Government automation** | village complexity (buildings × villagers) overwhelms hand-management | III | the grown village drowns the player in micro |
+| Blind defense → **Watchtower foresight** | player wants to plan runs around sieges (QoL, never hard-required) | II+ | defense stays pure reaction |
+
+**Reading the ladder:** Act I is almost all independent/DIY — the only early links are Hospital (first wounded) and School (first restaffing). The web *activates through Act II*, in a deliberate order: **defense chain first** (Blacksmith→Mine, because that's the pressure the player feels most sharply — the wall), then the **money chain** (Marketplace/Bank as the payroll grows), then the **Shrine** at depth 30. Act III is total interdependence, and **Government automation is the reward** that keeps a fully-chained village from becoming unplayable micro. The Ten (§8) don't add links — each one *supercharges an existing one* (Brannoc the Barracks, Toren the Blacksmith, Sylvara the Farm…), so rescuing them is how you keep the ladder ahead of the pressure.
+
+- 🟡 Open (§12): the exact ore/metal resource ids and whether Mine ore is a new item or reuses stone + a metal tier; the precise threshold **numbers** on this ladder (which floor/pop/siege-tier each link fires at); whether the Mine is hand-buildable from Act I or gated; Shrine staffing role.
 
 ---
 
