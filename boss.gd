@@ -201,6 +201,42 @@ const SPLINTER_RANGE = 460.0
 # Mourncaller 60 -- Keening (HOMING swarm)
 const KEENING_COUNT = 5
 const KEENING_DAMAGE = 11
+# --- deep tier signatures (floors 65-90) ---
+# Unseen 65 -- Ambush (MOBILITY-STRIKE: blink behind + hit + brief stun)
+const AMBUSH_VANISH = 0.28
+const AMBUSH_STRIKE = 0.22
+const AMBUSH_DAMAGE = 20
+const AMBUSH_STUN = 0.5
+const AMBUSH_RADIUS = 105.0
+# Warden of Nails 70 -- Impale (TRACKING OVERHEAD nail: hit + knockback)
+const IMPALE_TRACK = 0.45
+const IMPALE_TELEGRAPH = 0.3
+const IMPALE_DAMAGE = 24
+const IMPALE_RADIUS = 72.0
+# Twin Despair 75 -- Pincer Lunge (cross-LEAP through the player)
+const PINCER_TELEGRAPH = 0.38
+const PINCER_TIME = 0.4
+const PINCER_DAMAGE = 21
+const PINCER_HIT_RADIUS = 88.0
+# Cinderking 80 -- Eruption (spreading floor WAVE: jump the cracks)
+const ERUPT_STEPS = 5
+const ERUPT_SPACING = 135.0
+const ERUPT_STEP_TIME = 0.16
+const ERUPT_DAMAGE = 18
+const ERUPT_BAND = 82.0
+# Glass Saint 85 -- Refraction (MULTI-BEAM)
+const REFRACT_BEAMS = 5
+const REFRACT_TELEGRAPH = 0.5
+const REFRACT_DAMAGE = 16
+const REFRACT_LENGTH = 720.0
+const REFRACT_WIDTH = 42.0
+const REFRACT_SPREAD = 0.5     # radians between adjacent beams
+# Last Man 90 -- Riposte Stance (active COUNTER)
+const STANCE_DURATION = 1.3
+const STANCE_COUNTER_DAMAGE = 26
+const STANCE_COUNTER_STUN = 0.6
+var parry_until := 0.0
+var _parry_consumed := false
 
 # Mirror Legion: the Wizard copies himself, up to 6 echoes at once -- but the
 # legion grows SLOWLY: at full HP no echoes are allowed at all, and the cap
@@ -277,6 +313,13 @@ const ABILITY_META = {
 	"pounce":           {"cd": 6.0, "min": 140.0, "max": 100000.0},
 	"splinter_burst":   {"cd": 6.5, "min": 0.0,   "max": 100000.0},
 	"keening":          {"cd": 6.5, "min": 0.0,   "max": 100000.0},
+	# signature abilities -- deep tier (65-90)
+	"ambush":         {"cd": 6.0, "min": 0.0,   "max": 100000.0},
+	"impale":         {"cd": 6.5, "min": 0.0,   "max": 100000.0},
+	"pincer_lunge":   {"cd": 6.0, "min": 120.0, "max": 100000.0},
+	"eruption":       {"cd": 7.5, "min": 0.0,   "max": 100000.0},
+	"refraction":     {"cd": 6.5, "min": 0.0,   "max": 100000.0},
+	"riposte_stance": {"cd": 8.0, "min": 0.0,   "max": 100000.0},
 }
 
 # --- The Fallen Wizard's combo book (level 100 only) ---
@@ -2071,17 +2114,17 @@ const BOSS_COMBOS = {
 	# Mourncaller: mourners first, then grief from above. Never melees.
 	"mourncaller": [["keening", "summon", "rain"], ["summon", "keening", "rain"], ["rain", "keening", "summon"]],
 	# Unseen: it is never where the last thing came from. Curse -> blink -> spit.
-	"unseen": [["curse", "teleport", "volley"], ["teleport", "volley", "curse"], ["volley", "curse", "teleport"]],
+	"unseen": [["curse", "teleport", "ambush"], ["ambush", "volley", "curse"], ["teleport", "curse", "ambush"]],
 	# Warden: pins the sky, floors the ground, then swings. Nothing rushed.
-	"warden_of_nails": [["barrage", "pillars", "slam"], ["pillars", "barrage", "slam"], ["slam", "barrage", "pillars"]],
+	"warden_of_nails": [["barrage", "impale", "slam"], ["impale", "barrage", "slam"], ["slam", "barrage", "impale"]],
 	# Twin Despair: split, blink, blow. You never know which one you're hitting.
-	"twin_despair": [["clone", "teleport", "nova"], ["teleport", "nova", "clone"], ["nova", "clone", "teleport"]],
+	"twin_despair": [["clone", "teleport", "pincer_lunge"], ["teleport", "pincer_lunge", "clone"], ["pincer_lunge", "clone", "teleport"]],
 	# Cinderking: sky, floor, blast, and then he's on top of you.
-	"cinderking": [["meteors", "pillars", "nova", "charge"], ["charge", "meteors", "nova", "pillars"], ["pillars", "nova", "charge", "meteors"]],
+	"cinderking": [["meteors", "eruption", "charge"], ["charge", "meteors", "eruption"], ["eruption", "nova", "charge", "meteors"]],
 	# Glass Saint: light, then more light. Everything at range comes back at you.
-	"glass_saint": [["beam", "nova", "volley"], ["volley", "beam", "nova"], ["nova", "volley", "beam"]],
+	"glass_saint": [["refraction", "nova", "volley"], ["volley", "refraction", "nova"], ["nova", "volley", "refraction"]],
 	# Last Man: he fights like YOU do -- close, blink, punish, repeat.
-	"last_man": [["charge", "nova", "teleport", "volley"], ["teleport", "charge", "volley", "nova"], ["volley", "teleport", "nova", "charge"]],
+	"last_man": [["charge", "riposte_stance", "teleport", "volley"], ["teleport", "charge", "riposte_stance", "nova"], ["volley", "teleport", "nova", "riposte_stance"]],
 	# --- the finale gauntlet: the longest, nastiest sentences in the game ---
 	"seraph": [["volley", "rain", "nova"], ["nova", "volley", "rain"], ["rain", "nova", "volley"]],
 	"leviathan": [["meteors", "vortex"], ["summon", "meteors", "vortex"], ["vortex", "meteors"]],
@@ -2220,6 +2263,12 @@ func run_ability(ability_name: String) -> void:
 		"pounce": await do_pounce()
 		"splinter_burst": await do_splinter_burst()
 		"keening": await do_keening()
+		"ambush": await do_ambush()
+		"impale": await do_impale()
+		"pincer_lunge": await do_pincer_lunge()
+		"eruption": await do_eruption()
+		"refraction": await do_refraction()
+		"riposte_stance": await do_riposte_stance()
 		_: pass
 
 func start_attack(attack_name: String) -> void:
@@ -2253,6 +2302,12 @@ func start_attack(attack_name: String) -> void:
 		"pounce": do_pounce()
 		"splinter_burst": do_splinter_burst()
 		"keening": do_keening()
+		"ambush": do_ambush()
+		"impale": do_impale()
+		"pincer_lunge": do_pincer_lunge()
+		"eruption": do_eruption()
+		"refraction": do_refraction()
+		"riposte_stance": do_riposte_stance()
 		"doomring": do_doomring()
 		"clone": do_clone()
 		_:
@@ -2982,6 +3037,175 @@ func do_keening() -> void:
 		b.global_position = global_position + b.dir * 30.0
 	set_cd("keening"); is_busy = false
 
+# UNSEEN 65 -- Ambush: it blinks out and reappears right BEHIND you, striking
+# and briefly STUNNING. It is never where the last thing came from.
+func do_ambush() -> void:
+	if player == null or not is_instance_valid(player):
+		set_cd("ambush"); is_busy = false; return
+	spawn_ring_telegraph(global_position, 70.0, Color(0.75, 0.2, 0.95), AMBUSH_VANISH)
+	await get_tree().create_timer(AMBUSH_VANISH).timeout
+	if is_dead:
+		return
+	# reappear on its own approach side, close behind the player
+	var side: float = signf(global_position.x - player.global_position.x)
+	if side == 0.0:
+		side = 1.0
+	global_position = player.global_position + Vector2(side * 80.0, 0)
+	if boss_sprite != null:
+		boss_sprite.flip_h = side > 0.0
+	spawn_ring_telegraph(global_position, AMBUSH_RADIUS, Color(0.8, 0.3, 1.0), AMBUSH_STRIKE)
+	await get_tree().create_timer(AMBUSH_STRIKE).timeout
+	if is_dead:
+		return
+	if _player_in(player.global_position, AMBUSH_RADIUS):
+		deal_player_damage(AMBUSH_DAMAGE)
+		if player.has_method("apply_stun"):
+			player.apply_stun(AMBUSH_STUN)
+	set_cd("ambush"); is_busy = false
+
+# WARDEN OF NAILS 70 -- Impale: a giant nail TRACKS you overhead, then drops.
+# Synergy with the low ceiling + skyfall: leaving the ground is already death.
+func do_impale() -> void:
+	if player == null or not is_instance_valid(player):
+		set_cd("impale"); is_busy = false; return
+	var marker := _zone_marker(player.global_position, IMPALE_RADIUS, Color(0.9, 0.85, 0.4, 0.28))
+	var t := 0.0
+	while t < IMPALE_TRACK and not is_dead and is_instance_valid(player):
+		marker.global_position = player.global_position
+		await get_tree().physics_frame
+		t += get_physics_process_delta_time()
+	var lock: Vector2 = marker.global_position
+	await get_tree().create_timer(IMPALE_TELEGRAPH).timeout
+	if is_instance_valid(marker):
+		marker.queue_free()
+	if is_dead:
+		return
+	spawn_ring_telegraph(lock, IMPALE_RADIUS, Color(0.95, 0.9, 0.45), 0.25)
+	shake_camera(7.0, 0.25)
+	if _player_in(lock, IMPALE_RADIUS):
+		deal_player_damage(IMPALE_DAMAGE)
+		knockback_player_away(160.0)
+	set_cd("impale"); is_busy = false
+
+# TWIN DESPAIR 75 -- Pincer Lunge: it leaps THROUGH you to the far side, hitting
+# on the pass. With its covenant twin also lunging, you are caught between them.
+func do_pincer_lunge() -> void:
+	if player == null or not is_instance_valid(player):
+		set_cd("pincer_lunge"); is_busy = false; return
+	flash_telegraph(Color(0.7, 0.3, 1.0))
+	var side: float = signf(player.global_position.x - global_position.x)
+	if side == 0.0:
+		side = 1.0
+	var through_x: float = player.global_position.x + side * 210.0
+	await get_tree().create_timer(PINCER_TELEGRAPH).timeout
+	if is_dead:
+		return
+	var start: Vector2 = global_position
+	var t := 0.0
+	var hit := false
+	while t < PINCER_TIME and not is_dead:
+		velocity = Vector2.ZERO
+		var f: float = t / PINCER_TIME
+		global_position = Vector2(lerpf(start.x, through_x, f), start.y)
+		if not hit and _player_in(global_position, PINCER_HIT_RADIUS):
+			hit = true
+			deal_player_damage(PINCER_DAMAGE)
+			knockback_player_away(140.0)
+		await get_tree().physics_frame
+		t += get_physics_process_delta_time()
+	velocity = Vector2.ZERO
+	set_cd("pincer_lunge"); is_busy = false
+
+# CINDERKING 80 -- Eruption: cracks race outward across the floor and gout fire.
+# It only catches you if you're GROUNDED when the crack reaches your spot -- jump
+# the wave as it passes.
+func do_eruption() -> void:
+	flash_telegraph(Color(1.0, 0.4, 0.05))
+	var fy: float = global_position.y
+	for step in range(ERUPT_STEPS):
+		if is_dead:
+			return
+		var offs := ERUPT_SPACING * float(step + 1)
+		for s in [-1.0, 1.0]:
+			spawn_ground_marker(Vector2(global_position.x + s * offs, fy), Color(1.0, 0.45, 0.1),
+				ERUPT_STEP_TIME, ERUPT_BAND * 2.0)
+		await get_tree().create_timer(ERUPT_STEP_TIME).timeout
+		if is_dead:
+			return
+		for s in [-1.0, 1.0]:
+			var ex: float = global_position.x + s * offs
+			spawn_ring_telegraph(Vector2(ex, fy), 52.0, Color(1.0, 0.5, 0.12), 0.16)
+			if player != null and is_instance_valid(player):
+				var grounded: bool = player.is_on_floor() if player.has_method("is_on_floor") else true
+				if absf(player.global_position.x - ex) < ERUPT_BAND and grounded:
+					deal_player_damage(ERUPT_DAMAGE)
+	set_cd("eruption"); is_busy = false
+
+# GLASS SAINT 85 -- Refraction: its light splits into several angled beams that
+# fan across you. Synergy with mirror -- everything at range comes back at you.
+func do_refraction() -> void:
+	if player == null or not is_instance_valid(player):
+		set_cd("refraction"); is_busy = false; return
+	var base: float = (player.global_position - global_position).angle()
+	var dirs: Array = []
+	for i in range(REFRACT_BEAMS):
+		var off: float = (i - (REFRACT_BEAMS - 1) / 2.0) * REFRACT_SPREAD
+		dirs.append(Vector2.RIGHT.rotated(base + off))
+	for d in dirs:
+		_spawn_beam_line(global_position, d, REFRACT_LENGTH, Color(0.8, 0.95, 1.0, 0.25), REFRACT_TELEGRAPH)
+	await get_tree().create_timer(REFRACT_TELEGRAPH).timeout
+	if is_dead:
+		return
+	shake_camera(6.0, 0.2)
+	var struck := false
+	for d in dirs:
+		_spawn_beam_line(global_position, d, REFRACT_LENGTH, Color(0.9, 0.98, 1.0, 0.85), 0.22)
+		if not struck and player != null and is_instance_valid(player):
+			if _point_near_ray(global_position, d, REFRACT_LENGTH, player.global_position, REFRACT_WIDTH):
+				struck = true
+				deal_player_damage(REFRACT_DAMAGE)
+	set_cd("refraction"); is_busy = false
+
+# LAST MAN 90 -- Riposte Stance: it takes a guard. Hit it during the stance and
+# it PARRIES the blow (no damage) and counters hard -- it fights like you do.
+# (The parry is consumed in take_damage; see the gate there.)
+func do_riposte_stance() -> void:
+	flash_telegraph(Color(0.9, 0.9, 1.0))
+	parry_until = _time_now() + STANCE_DURATION
+	_parry_consumed = false
+	spawn_ring_telegraph(global_position, 90.0, Color(0.85, 0.9, 1.0), STANCE_DURATION)
+	await get_tree().create_timer(STANCE_DURATION).timeout
+	parry_until = 0.0
+	set_cd("riposte_stance"); is_busy = false
+
+func _do_parry_counter() -> void:
+	spawn_ring_telegraph(global_position, 110.0, Color(1.0, 0.95, 0.8), 0.3)
+	shake_camera(8.0, 0.25)
+	deal_player_damage(STANCE_COUNTER_DAMAGE)
+	if player != null and is_instance_valid(player) and player.has_method("apply_stun"):
+		player.apply_stun(STANCE_COUNTER_STUN)
+
+# point-to-ray-segment distance test (for beam lines)
+func _point_near_ray(origin: Vector2, dir: Vector2, length: float, point: Vector2, width: float) -> bool:
+	var to_pt: Vector2 = point - origin
+	var proj: float = to_pt.dot(dir)
+	if proj < 0.0 or proj > length:
+		return false
+	var closest: Vector2 = origin + dir * proj
+	return closest.distance_to(point) < width
+
+func _spawn_beam_line(origin: Vector2, dir: Vector2, length: float, color: Color, duration: float) -> void:
+	var line := Line2D.new()
+	line.width = 10.0
+	line.default_color = color
+	line.points = PackedVector2Array([Vector2.ZERO, dir * length])
+	line.z_index = 6
+	get_parent().add_child(line)
+	line.global_position = origin
+	var t = line.create_tween()
+	t.tween_property(line, "modulate:a", 0.0, duration)
+	t.tween_callback(line.queue_free)
+
 # a triangular cone telegraph fanning from the boss along a horizontal facing
 func _spawn_cone(face: float, length: float, color: Color, duration: float) -> void:
 	var cone := Polygon2D.new()
@@ -3117,6 +3341,14 @@ func flash_telegraph(color: Color) -> void:
 
 func take_damage(amount: int) -> void:
 	if is_dead:
+		return
+	# RIPOSTE STANCE (Last Man 90 signature): while its guard is up, the first
+	# blow is PARRIED -- no damage -- and answered with a hard counter + stun.
+	# Highest priority: it fights like you, and it was waiting for that swing.
+	if _time_now() < parry_until and not _parry_consumed:
+		_parry_consumed = true
+		parry_until = 0.0
+		_do_parry_counter()
 		return
 	# PHASE (Obito): while intangible the blow passes clean through. Not reduced,
 	# not guarded -- it does not land at all, so there is nothing to out-damage.
