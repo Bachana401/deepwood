@@ -1083,6 +1083,10 @@ func spawn_boss() -> Node:
 	boss.level_hp_mult = scaling.hp
 	boss.damage_multiplier = scaling.dmg
 	boss.speed_multiplier = scaling.speed
+	# How deep this fight is decides how LONG its combos run (see
+	# boss.gd active_combos). Depth buys longer, nastier sentences -- not
+	# bigger numbers.
+	boss.boss_floor = current_level
 	# Spawn a fixed distance from wherever the player entered, biased toward the
 	# arena interior. In these very wide arenas spawning at the far edge would
 	# leave a melee boss trudging across for a minute; this starts the fight

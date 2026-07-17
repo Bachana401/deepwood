@@ -258,6 +258,53 @@ const BOSSES = {
 	# ----- FINALE TIER (levels 95/98/99/100) -----
 	# Apex bosses: enrage earlier, FRENZY at low health, and most fly.
 	# A fallen angel of bone: skeletal wings, tarnished halo.
+	# ======================= THE DEEP: floors 35-90 =========================
+	# The forever rule: every boss differs in MANY ways at once -- combos,
+	# pattern, attack manner, speed, and SIZE (width and length both). No two
+	# silhouettes and no two rhythms may repeat. Depth buys LONGER, nastier
+	# combos and stacked reactive mechanics -- never bigger numbers.
+
+	# 35 -- villagers fused into one chorus of soulless mouths. WIDE and squat:
+	# it fills the arena sideways so there is nowhere to stand that isn't in
+	# front of some part of it. Slow. The fakes sing; the real one doesn't.
+	"hollow_choir": {
+		"name": "The Hollow Choir",
+		"color": Color(0.34, 0.33, 0.30), "eye_color": Color(0.9, 0.95, 0.8),
+		"magic": Color(0.75, 0.85, 0.6),
+		"body": Vector2(300, 150), "hp": 1150, "speed": 44.0, "shape": "brute",
+		"abilities": ["summon", "nova", "rain"],
+		"passives": ["false_twin", "soulbind"],
+	},
+	# 40 -- a burning devil locked mid-prayer. TALL and thin, and it barely
+	# moves: it wants you to come to it and swing at the prayer.
+	"ashen_penitent": {
+		"name": "The Ashen Penitent",
+		"color": Color(0.36, 0.16, 0.12), "eye_color": Color(1.0, 0.55, 0.15),
+		"magic": Color(1.0, 0.45, 0.1),
+		"body": Vector2(90, 300), "hp": 900, "speed": 34.0, "shape": "caster",
+		"abilities": ["pillars", "beam", "nova"],
+		"passives": ["riposte", "famine"],
+	},
+	# 45 -- warden of the soul-pits. Heavy, armoured, deliberate: chains you to
+	# the floor you stand on and then walks you down.
+	"gaoler": {
+		"name": "The Gaoler",
+		"color": Color(0.28, 0.26, 0.30), "eye_color": Color(0.6, 0.9, 1.0),
+		"magic": Color(0.5, 0.8, 1.0),
+		"body": Vector2(190, 240), "hp": 1500, "speed": 52.0, "shape": "titan",
+		"abilities": ["slam", "charge", "pillars"],
+		"passives": ["tether", "stagger_armour"],
+	},
+	# 50 -- a beast that has learned your habits. SMALL and very fast: it dodges
+	# what you repeat, so the fight punishes muscle memory.
+	"sablefang": {
+		"name": "Sablefang",
+		"color": Color(0.16, 0.14, 0.20), "eye_color": Color(1.0, 0.85, 0.2),
+		"magic": Color(0.8, 0.7, 1.0),
+		"body": Vector2(150, 90), "hp": 820, "speed": 165.0, "shape": "spider",
+		"abilities": ["charge", "volley", "teleport"],
+		"passives": ["sidestep", "rhythm_punish"],
+	},
 	"seraph": {
 		"name": "Seraphiel, the Last Light",
 		"color": Color(0.78, 0.74, 0.6), "eye_color": Color(1.0, 0.55, 0.1),
@@ -1342,11 +1389,45 @@ func choose_attack(dist: float) -> String:
 # Combo books for the OTHER apex bosses (the wizard keeps WIZARD_COMBOS). Only
 # synchronous, await-completing abilities are used (NOT charge/dive, which
 # finish later in process_charge/process_dive and would let a combo run ahead).
+# DEPTH BUYS LENGTH. Dev: "as their level is higher, the longer the combos and
+# disgusting." The chains below scale with the floor, and combo_length_for()
+# enforces it so a shallow boss can never accidentally ship a 5-beat chain:
+#   fl 5-30 -> 2 beats   (learn the verb)
+#   fl 35-60 -> 3        (learn to read a sentence)
+#   fl 65-90 -> 4        (no safe gap in it)
+#   fl 95-100 -> 5+      (the gauntlet)
+# Every boss also gets its OWN chains -- never a shared list -- because two
+# bosses that open the same way are the same boss wearing a different colour.
 const BOSS_COMBOS = {
+	# --- the deep ---
+	# Choir: fills the room, then makes you look away from the fakes. Its combos
+	# always END on summon -- the adds are the point, the rest is pressure.
+	"hollow_choir": [["nova", "rain", "summon"], ["rain", "nova", "summon"], ["nova", "summon", "rain"]],
+	# Penitent: it barely moves, so everything it does is REACH. Pillars then
+	# beam means the floor is taken before the line is drawn.
+	"ashen_penitent": [["pillars", "beam", "nova"], ["beam", "pillars", "beam"], ["nova", "pillars", "beam"]],
+	# Gaoler: chain you, then close. slam->charge is a shove into the tether.
+	"gaoler": [["pillars", "slam", "charge"], ["charge", "slam", "pillars"], ["slam", "pillars", "charge"]],
+	# Sablefang: blink-in, bite, blink-out. Fast and rude; never stands still.
+	"sablefang": [["teleport", "charge", "volley"], ["charge", "volley", "teleport"], ["volley", "teleport", "charge"]],
+	# --- the finale gauntlet: the longest, nastiest sentences in the game ---
 	"seraph": [["volley", "rain", "nova"], ["nova", "volley", "rain"], ["rain", "nova", "volley"]],
 	"leviathan": [["meteors", "vortex"], ["summon", "meteors", "vortex"], ["vortex", "meteors"]],
 	"eclipse": [["beam", "pillars", "meteors"], ["teleport", "beam", "pillars"], ["meteors", "teleport", "beam"]],
 }
+
+# The floor this boss is being fought on decides how long its sentences run.
+# Set by dungeon_interior alongside the scaling multipliers.
+var boss_floor := 5
+
+func combo_length_for(floor_lv: int) -> int:
+	if floor_lv >= 95:
+		return 5
+	if floor_lv >= 65:
+		return 4
+	if floor_lv >= 35:
+		return 3
+	return 2
 
 func is_wizard_boss() -> bool:
 	return boss_id == "wizard" and not is_clone
@@ -1359,9 +1440,26 @@ func is_combo_boss() -> bool:
 	return boss_id == "wizard" or BOSS_COMBOS.has(boss_id)
 
 func active_combos() -> Array:
-	if boss_id == "wizard":
-		return WIZARD_COMBOS
-	return BOSS_COMBOS.get(boss_id, [])
+	var base: Array = WIZARD_COMBOS if boss_id == "wizard" else BOSS_COMBOS.get(boss_id, [])
+	if base.is_empty():
+		return base
+	# DEPTH BUYS LENGTH. The same boss met deeper says a longer sentence: its
+	# chains are trimmed at shallow floors and EXTENDED at deep ones by looping
+	# its own verbs back in, so a floor-90 fight has no safe gap to breathe in.
+	# Nothing here touches damage -- only how long you're under it.
+	var want: int = combo_length_for(boss_floor)
+	var out: Array = []
+	for c in base:
+		var chain: Array = (c as Array).duplicate()
+		if chain.size() > want:
+			chain = chain.slice(0, want)
+		else:
+			var i := 0
+			while chain.size() < want:
+				chain.append(c[i % c.size()])   # loop its OWN verbs, never a foreign one
+				i += 1
+		out.append(chain)
+	return out
 
 # Called each idle frame for the wizard: either burn down the recovery window
 # (a real opening for the player -- he hovers exposed and won't blink away) or
