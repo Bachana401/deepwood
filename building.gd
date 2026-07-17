@@ -84,6 +84,18 @@ const BUILDING_ART = {
 
 const SCORCH = Color(0.12, 0.1, 0.09, 1.0)
 
+# Rows of CONTENT (art px, measured from the bottom of the content box) that are
+# drawn BELOW the building's true base and must be buried in the dirt: the
+# Government's front steps, the Builderhouse's painted ground patch. Without
+# this the lowest painted pixel is what lands on the ground line, so the
+# building hovers on its own steps. Everything else grounds on its own bottom
+# row -- notably the Fishing Dock, whose pilings are SUPPOSED to reach the
+# ground. Measure with tool_art_audit.gd / tool_ground_qc.gd.
+const ART_SINK = {
+	"Government": 2.0,
+	"Builderhouse": 16.0,
+}
+
 # Content bounding box per facade PNG (transparent padding excluded), cached
 # so every building of a type scans its art once.
 static var _art_rects := {}
@@ -1109,8 +1121,15 @@ func build_intact(damaged: bool) -> void:
 		var content := _art_content_rect(art_file, tex)
 		spr.region_enabled = true
 		spr.region_rect = content
-		spr.scale = Vector2(w / content.size.x, h / content.size.y)
-		spr.position = Vector2(-w / 2.0, -h)
+		# UNIFORM scale, driven by height: a per-axis fit stretched every facade
+		# to a made-up footprint (the Dock came out 72% too wide). The sink rows
+		# are scaled away first, so `h` is the height the building actually
+		# stands ABOVE ground and the buried rows fall below y=0 on their own.
+		var ch: float = maxf(content.size.y - float(ART_SINK.get(building_name, 0.0)), 1.0)
+		var s: float = h / ch
+		var dw: float = content.size.x * s
+		spr.scale = Vector2(s, s)
+		spr.position = Vector2(-dw / 2.0, -h)
 		if damaged:
 			spr.modulate = Color(0.68, 0.66, 0.64)
 		gfx.add_child(spr)

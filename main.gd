@@ -81,7 +81,14 @@ const TRAP_PLATFORM_ZONES = [
 # reflects Elin's rescue automatically since her role matches "Farm".
 const VILLAGE_START_X = 4900.0   # LEFT edge of the first building
 const VILLAGE_GAP = 360.0        # roomy gap: holds the extended work-yards even with buildings fully upgraded
-const VILLAGE_WIDTH_BOOST = 1.35 # buildings drawn wider than tall for a townier look
+# (retired 2026-07-16) Back when every building was a procedural box this
+# stretched them 35% wide for a townier look. The painted facades have their own
+# proportions, and stretching them to a made-up footprint is exactly what made
+# the Fishing Dock read 72% too wide. Each building's `width` below is now
+# derived FROM its art (content aspect x height), so the facade is drawn at the
+# proportions it was painted at. Keep it that way: if you re-art a building, run
+# tool_art_audit.gd and re-derive its width.
+const VILLAGE_WIDTH_BOOST = 1.0
 # Mirrors building.gd (1 + (MAX_LEVEL-1) * WIDTH_PER_LEVEL) = 1 + 5*0.08. Each
 # building's slot reserves its FULLY-UPGRADED width so upgrades never overlap.
 const MAX_UPGRADE_FACTOR = 1.4
@@ -95,20 +102,23 @@ const STANDING_TORCH_SCRIPT = preload("res://standing_torch.gd")
 # village reads big on a full-screen display. Grandest civic buildings are
 # largest; utility buildings x2. Buildings are then placed edge-to-edge (see
 # generate_village) so no two overlap regardless of their scaled widths.
+# `width` is DERIVED from each facade's art: (content width / content height
+# above its ground-sink) x height. Height stays the dev-tuned dial; width just
+# follows so the painting is never stretched. See tool_art_audit.gd.
 const VILLAGE_BUILDINGS = [
-	{"name": "Government", "role_key": "Government", "width": 130.0, "height": 100.0, "scale": 3.0, "color": Color(0.55, 0.48, 0.38, 1)},
-	{"name": "School", "role_key": "School", "width": 100.0, "height": 80.0, "scale": 3.2, "color": Color(0.45, 0.55, 0.65, 1)},
-	{"name": "Farm", "role_key": "Farm", "width": 110.0, "height": 75.0, "scale": 2.8, "color": Color(0.5, 0.6, 0.3, 1)},
-	{"name": "Hospital", "role_key": "Hospital", "width": 105.0, "height": 85.0, "scale": 2.5, "color": Color(0.75, 0.72, 0.7, 1)},
-	{"name": "Barracks", "role_key": "Barracks", "width": 115.0, "height": 80.0, "scale": 2.5, "color": Color(0.4, 0.35, 0.32, 1)},
-	{"name": "Fishing Dock", "role_key": "Fishing Dock", "width": 120.0, "height": 70.0, "scale": 2.6, "color": Color(0.35, 0.5, 0.55, 1)},
-	{"name": "Science Lab", "role_key": "Science Lab", "width": 105.0, "height": 85.0, "scale": 2.0, "color": Color(0.4, 0.45, 0.6, 1)},
-	{"name": "Bank", "role_key": "Bank", "width": 100.0, "height": 90.0, "scale": 2.0, "color": Color(0.6, 0.55, 0.35, 1)},
-	{"name": "Blacksmith", "role_key": "Blacksmith", "width": 95.0, "height": 75.0, "scale": 2.0, "color": Color(0.45, 0.4, 0.4, 1)},
-	{"name": "Tavern", "role_key": "Tavern", "width": 110.0, "height": 80.0, "scale": 2.0, "color": Color(0.55, 0.35, 0.25, 1)},
-	{"name": "Bar", "role_key": "Bar", "width": 100.0, "height": 78.0, "scale": 2.2, "color": Color(0.3, 0.24, 0.22, 1)},
-	{"name": "Marketplace", "role_key": "Marketplace", "width": 130.0, "height": 65.0, "scale": 2.5, "color": Color(0.6, 0.5, 0.35, 1)},
-	{"name": "Builderhouse", "role_key": "Builderhouse", "width": 120.0, "height": 90.0, "scale": 2.5, "color": Color(0.42, 0.38, 0.3, 1)},
+	{"name": "Government", "role_key": "Government", "width": 135.0, "height": 100.0, "scale": 3.0, "color": Color(0.55, 0.48, 0.38, 1)},
+	{"name": "School", "role_key": "School", "width": 91.0, "height": 80.0, "scale": 3.2, "color": Color(0.45, 0.55, 0.65, 1)},
+	{"name": "Farm", "role_key": "Farm", "width": 133.0, "height": 75.0, "scale": 2.8, "color": Color(0.5, 0.6, 0.3, 1)},
+	{"name": "Hospital", "role_key": "Hospital", "width": 97.0, "height": 85.0, "scale": 2.5, "color": Color(0.75, 0.72, 0.7, 1)},
+	{"name": "Barracks", "role_key": "Barracks", "width": 96.0, "height": 80.0, "scale": 2.5, "color": Color(0.4, 0.35, 0.32, 1)},
+	{"name": "Fishing Dock", "role_key": "Fishing Dock", "width": 94.0, "height": 70.0, "scale": 2.6, "color": Color(0.35, 0.5, 0.55, 1)},
+	{"name": "Science Lab", "role_key": "Science Lab", "width": 106.0, "height": 85.0, "scale": 2.0, "color": Color(0.4, 0.45, 0.6, 1)},
+	{"name": "Bank", "role_key": "Bank", "width": 114.0, "height": 90.0, "scale": 2.0, "color": Color(0.6, 0.55, 0.35, 1)},
+	{"name": "Blacksmith", "role_key": "Blacksmith", "width": 104.0, "height": 75.0, "scale": 2.0, "color": Color(0.45, 0.4, 0.4, 1)},
+	{"name": "Tavern", "role_key": "Tavern", "width": 90.0, "height": 80.0, "scale": 2.0, "color": Color(0.55, 0.35, 0.25, 1)},
+	{"name": "Bar", "role_key": "Bar", "width": 130.0, "height": 78.0, "scale": 2.2, "color": Color(0.3, 0.24, 0.22, 1)},
+	{"name": "Marketplace", "role_key": "Marketplace", "width": 145.0, "height": 65.0, "scale": 2.5, "color": Color(0.6, 0.5, 0.35, 1)},
+	{"name": "Builderhouse", "role_key": "Builderhouse", "width": 142.0, "height": 90.0, "scale": 2.5, "color": Color(0.42, 0.38, 0.3, 1)},
 ]
 # Right edge of the last building, set by generate_village -- the houses start
 # past it so the enlarged village never overruns the cottages.
