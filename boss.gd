@@ -363,6 +363,77 @@ var is_frenzied := false
 # passives (the Fallen Wizard)
 var has_aura := false
 var has_blink_on_hit := false
+
+# --- phase (Obito) -----------------------------------------------------------
+# The nastiest thing in the vocabulary, and the dev's own example. The instant
+# your blade lands, the boss goes INTANGIBLE -- your hits pass clean through for
+# PHASE_SECONDS and deal nothing. There is no damage number to beat; the hit
+# simply does not connect. And it keeps attacking out of the ghost, so you can
+# never trade: you have to bait the phase out and punish the solid frames.
+#
+# It is only fair because you can SEE it: while phased the body goes translucent
+# and washes toward its magic colour. Hard because you misread the tell, never
+# because it was hidden. (Design: BOSSES.md 5.)
+const PHASE_SECONDS := 2.0
+const PHASE_COOLDOWN := 4.5     # it cannot live permanently intangible
+var has_phase := false
+var phase_until := 0.0
+var phase_ready_at := 0.0
+
+func _time_now() -> float:
+	return Time.get_ticks_msec() / 1000.0
+
+func is_phased() -> bool:
+	return _time_now() < phase_until
+
+# A hit that passed through: say so, or the player just thinks the game ate the
+# input. A pale ring at the point of contact, no number.
+func _spawn_phase_whiff() -> void:
+	var ring := Line2D.new()
+	var pts := PackedVector2Array()
+	for i in range(14):
+		var a := TAU * float(i) / 14.0
+		pts.append(Vector2(cos(a), sin(a)) * 26.0)
+	pts.append(pts[0])
+	ring.points = pts
+	ring.width = 2.5
+	var m: Color = current_def.get("magic", Color(0.7, 0.7, 1.0))
+	ring.default_color = Color(m.r, m.g, m.b, 0.8)
+	ring.z_index = 40
+	add_child(ring)
+	var t := ring.create_tween()
+	t.tween_property(ring, "scale", Vector2(1.7, 1.7), 0.22)
+	t.parallel().tween_property(ring, "modulate:a", 0.0, 0.22)
+	t.tween_callback(ring.queue_free)
+
+# Drop back to solid the moment the window closes -- called every frame, cheap.
+func tick_phase() -> void:
+	if not has_phase:
+		return
+	var ghosted: bool = is_phased()
+	if ghosted != _was_phased:
+		_was_phased = ghosted
+		_refresh_phase_visual()
+
+var _was_phased := false
+
+# Called the moment a hit lands on a phase boss (see take_damage).
+func enter_phase() -> void:
+	if not has_phase or is_dead or _time_now() < phase_ready_at:
+		return
+	phase_until = _time_now() + PHASE_SECONDS
+	phase_ready_at = phase_until + PHASE_COOLDOWN
+	_refresh_phase_visual()
+
+func _refresh_phase_visual() -> void:
+	var gfx: CanvasItem = boss_sprite if boss_sprite != null else self
+	if is_phased():
+		# ghosted, and washed toward its own magic colour so it reads as the
+		# boss having stepped sideways out of the world rather than gone dim
+		var m: Color = current_def.get("magic", Color(0.7, 0.7, 1.0))
+		gfx.modulate = Color(m.r, m.g, m.b, 0.38)
+	else:
+		gfx.modulate = Color(1, 1, 1, 1)
 var aura_particles: CPUParticles2D = null
 var aura_timer := 0.0
 # the aura rides a trailing anchor that chases the boss with a slight delay,
@@ -411,6 +482,7 @@ func configure_from_def(def: Dictionary) -> void:
 	has_aura = "crumbling_aura" in passives
 	has_blink_on_hit = "blink_on_hit" in passives
 	has_soul_split = "soul_split" in passives
+	has_phase = "phase" in passives
 	abilities = (def.get("abilities", ["slam"]) as Array).duplicate()
 	max_health = int(round(float(def.get("hp", 900)) * level_hp_mult))
 	health = max_health
@@ -1003,6 +1075,8 @@ func get_display_name() -> String:
 func _physics_process(delta: float) -> void:
 	if is_dead:
 		return
+
+	tick_phase()   # drop back to solid when the ghost window closes
 
 	# flying bosses ignore gravity entirely; they steer in full 2D
 	if not flying and not is_on_floor():
@@ -1799,6 +1873,11 @@ func flash_telegraph(color: Color) -> void:
 func take_damage(amount: int) -> void:
 	if is_dead:
 		return
+	# PHASE (Obito): while intangible the blow passes clean through. Not reduced,
+	# not guarded -- it does not land at all, so there is nothing to out-damage.
+	if is_phased():
+		_spawn_phase_whiff()
+		return
 	var dmg := amount
 	# weapon counter: countering weapon hits harder AND fires its mechanic;
 	# every other weapon is guarded (unless an archer has just exposed the boss)
@@ -1818,6 +1897,11 @@ func take_damage(amount: int) -> void:
 	if health <= 0:
 		die()
 	else:
+		# REACTIVE: the blow landed and it lived, so it steps out of the world --
+		# everything you throw for the next couple of seconds hits nothing. This
+		# is what stops the fight being a damage race: you get ONE hit, then you
+		# have to read it.
+		enter_phase()
 		flash_hit()
 		play_sfx(SFX_HIT)
 		# apex bosses enrage earlier AND hit a second gear near death
