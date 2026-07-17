@@ -179,7 +179,14 @@ var invincible = false
 # window ends at -- lets a repeated T press extend the window without an
 # earlier, still-pending "turn it off" call cutting it short.
 var admin_invincible_until = 0.0
-var god_mode := false   # toggled from the admin panel (P) -- ignores all damage
+# GOD MODE (admin panel, P). One switch, three powers, so the map can be roamed
+# and new content reached fast: nothing can hurt you, T blink-dashes without the
+# Shadowstep Sigil, and you fly on Space without the Aetherwing -- on an
+# unlimited budget, because a 10s wing that strands you mid-map is no use for
+# testing. Purely a test tool: it grants nothing the player can earn, and every
+# gate it opens is checked against god_mode ONLY here (see has_flight, the T
+# dash in _physics_process, and take_damage).
+var god_mode := false
 var knockback_immune_until := 0.0   # no re-knockback until this time (post-hit window)
 var is_dead = false
 var undying_used := false   # Living Fortress: the once-per-life lethal-hit save has fired
@@ -1887,8 +1894,8 @@ func _physics_process(delta: float) -> void:
 		if Input.is_action_just_pressed("hotbar_%d" % (i + 1)):
 			select_hotbar_slot(i)
 
-	# T = blink-dash, but ONLY while the Shadowstep Sigil relic is equipped
-	if Input.is_action_just_pressed("admin_dash") and has_relic_power("blink"):
+	# T = blink-dash: the Shadowstep Sigil relic earns it, god mode just gives it
+	if Input.is_action_just_pressed("admin_dash") and (has_relic_power("blink") or god_mode):
 		perform_admin_dash()
 
 	if Input.is_action_just_pressed("place_torch"):
@@ -1952,10 +1959,11 @@ func _physics_process(delta: float) -> void:
 
 # --- Flight (Aetherwing) ---
 func has_flight() -> bool:
-	return GameState.get_bonus_total("flight") > 0.0
+	return god_mode or GameState.get_bonus_total("flight") > 0.0
 
 func has_fall_immunity() -> bool:
-	return GameState.get_bonus_total("fall_immunity") > 0.0
+	# god mode flies, so it must not be killed by its own landing
+	return god_mode or GameState.get_bonus_total("fall_immunity") > 0.0
 
 # Runs every frame after gravity. With wings equipped: on the ground it refills
 # the flight budget; in the air, holding Space soars (draining the budget) and
@@ -1966,9 +1974,11 @@ func update_flight(delta: float) -> void:
 		if is_on_floor():
 			flight_time_left = FLIGHT_MAX_SECONDS
 			flight_depleted_notified = false
-		elif Input.is_action_pressed("jump") and flight_time_left > 0.0:
+		elif Input.is_action_pressed("jump") and (flight_time_left > 0.0 or god_mode):
 			flying = true
-			flight_time_left = max(0.0, flight_time_left - delta)
+			# god mode never runs out of wing -- the point is to cross the map
+			if not god_mode:
+				flight_time_left = max(0.0, flight_time_left - delta)
 			velocity.y = FLIGHT_RISE_SPEED
 			if flight_time_left == 0.0 and not flight_depleted_notified:
 				flight_depleted_notified = true

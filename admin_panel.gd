@@ -42,7 +42,12 @@ func refresh() -> void:
 		morale_label.text = "Morale: %.1f / 10   (nudge %+d)" % [GameState.village_morale_10(), GameState.morale_admin_offset / 10]
 	if god_button:
 		var pl = _player()
-		god_button.text = "Invincibility: %s" % ("ON" if (pl and pl.god_mode) else "OFF")
+		var on: bool = pl != null and pl.god_mode
+		god_button.text = "GOD MODE: %s" % ("ON" if on else "OFF")
+		# green while it's live -- easy to see at a glance that you're not
+		# testing the real difficulty
+		god_button.add_theme_color_override("font_color",
+			Color(0.5, 1.0, 0.55) if on else Color(1, 1, 1))
 
 func _player() -> Node:
 	return get_tree().get_first_node_in_group("player")
@@ -96,7 +101,7 @@ func _build() -> void:
 
 	# --- Player ---
 	y = _section("PLAYER", y)
-	god_button = _btn("Invincibility: OFF", PAD, y, 150, BH, _toggle_god)
+	god_button = _btn("GOD MODE: OFF", PAD, y, 150, BH, _toggle_god)
 	_btn("Kill player", PAD + 156, y, 160, BH, func():
 		var pl = _player()
 		if pl:
@@ -222,11 +227,19 @@ func _build_all() -> void:
 			b.restore_full()
 	_notify("Admin: all buildings restored.")
 
+# One switch for roaming the map: untouchable, T blink-dash without needing the
+# Shadowstep Sigil, and unlimited flight without needing the Aetherwing.
 func _toggle_god() -> void:
 	var pl = _player()
-	if pl:
-		pl.god_mode = not pl.god_mode
-		_notify("Admin: Invincibility %s." % ("ON" if pl.god_mode else "OFF"))
+	if pl == null:
+		return
+	pl.god_mode = not pl.god_mode
+	if pl.god_mode:
+		pl.flight_time_left = pl.FLIGHT_MAX_SECONDS   # start airborne-ready
+		_notify("GOD MODE ON — invincible · T = super dash · hold Space = fly")
+	else:
+		_notify("GOD MODE OFF — mortal again")
+	refresh()
 
 func _full_heal() -> void:
 	var pl = _player()

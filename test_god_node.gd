@@ -1,0 +1,123 @@
+extends Node
+
+# GOD MODE: one admin switch that must give all three powers at once --
+# untouchable, T super-dash, and unlimited flight with the wings showing --
+# and must give NONE of them when it's off.
+
+var fails := 0
+
+func check(name: String, ok: bool, detail: String = "") -> void:
+	if ok:
+		printerr("PASS  ", name)
+	else:
+		fails += 1
+		printerr("FAIL  ", name, "   ", detail)
+
+func _ready() -> void:
+	var p: Node = null
+	for i in range(1200):
+		await get_tree().process_frame
+		p = get_tree().get_first_node_in_group("player")
+		if p != null:
+			break
+	if p == null:
+		printerr("no player"); get_tree().quit(1); return
+	for i in range(60):
+		await get_tree().process_frame
+		if not get_tree().paused:
+			break
+		for n in get_tree().root.find_children("*", "", true, false):
+			if n.has_method("finish") and n.has_method("show_line"):
+				n.finish(); break
+
+	var panel: Node = null
+	for n in get_tree().root.find_children("*", "", true, false):
+		if n.has_method("_toggle_god"):
+			panel = n
+			break
+	check("admin panel found", panel != null)
+	if panel == null:
+		printerr("RESULT: 1 FAILURES"); get_tree().quit(1); return
+
+	# --- OFF: a mortal player gets none of it ---
+	p.god_mode = false
+	check("off: not flying", not p.has_flight())
+	check("off: no wings", p.wings_left == null or not p.wings_left.visible)
+	var hp0: int = p.health
+	p.invincible = false
+	p.monarch_iframes_until = 0.0
+	p.take_damage(7)
+	check("off: damage lands", p.health < hp0, "%d -> %d" % [hp0, p.health])
+
+	# --- the button ---
+	panel._toggle_god()
+	await get_tree().process_frame
+	check("button turns god mode ON", p.god_mode)
+	check("button label reads GOD MODE: ON",
+		panel.god_button != null and panel.god_button.text == "GOD MODE: ON",
+		panel.god_button.text if panel.god_button else "?")
+
+	# --- 1) untouchable ---
+	p.health = p.get_max_health()
+	p.invincible = false
+	p.monarch_iframes_until = 0.0
+	var hp1: int = p.health
+	p.take_damage(9999)
+	check("on: nothing can hurt you", p.health == hp1 and not p.is_dead,
+		"%d -> %d dead=%s" % [hp1, p.health, p.is_dead])
+
+	# --- 2) T super dash, through the real input path ---
+	check("on: no blink relic equipped (so it's god mode granting it)",
+		not p.has_relic_power("blink"))
+	# is_action_just_pressed is true for ONE frame, and the dash is short, so
+	# sample across the window rather than betting on a single frame landing
+	p.is_dashing = false
+	p.last_dash_time = 0.0
+	var x0: float = p.global_position.x
+	var saw_dash := false
+	var top_speed := 0.0
+	Input.action_press("admin_dash")
+	for i in range(30):
+		await get_tree().physics_frame
+		if i == 1:
+			Input.action_release("admin_dash")
+		if p.is_dashing:
+			saw_dash = true
+		top_speed = maxf(top_speed, absf(p.velocity.x))
+	check("on: T triggers the super dash", saw_dash)
+	check("on: dash hits ADMIN speed (%.0f)" % top_speed,
+		top_speed >= p.ADMIN_DASH_SPEED - 1.0,
+		"%.0f vs %.0f" % [top_speed, p.ADMIN_DASH_SPEED])
+	check("on: the dash actually moves you", absf(p.global_position.x - x0) > 100.0,
+		"moved %.0fpx" % absf(p.global_position.x - x0))
+
+	# --- 3) flight + wings ---
+	check("on: flight granted without the Aetherwing", p.has_flight())
+	check("on: fall immunity granted (won't die on landing)", p.has_fall_immunity())
+	await get_tree().physics_frame
+	check("on: wings are visible", p.wings_left != null and p.wings_left.visible)
+	# fly: hold Space off the ground and the budget must NOT drain
+	p.global_position.y -= 300.0
+	p.flight_time_left = p.FLIGHT_MAX_SECONDS
+	Input.action_press("jump")
+	var rose := false
+	var y0: float = p.global_position.y
+	for i in range(30):
+		await get_tree().physics_frame
+		if p.global_position.y < y0 - 5.0:
+			rose = true
+	Input.action_release("jump")
+	check("on: holding Space lifts you", rose, "y %.0f -> %.0f" % [y0, p.global_position.y])
+	check("on: flight budget never drains", absf(p.flight_time_left - p.FLIGHT_MAX_SECONDS) < 0.01,
+		"%.2f left of %.1f" % [p.flight_time_left, p.FLIGHT_MAX_SECONDS])
+
+	# --- back off again ---
+	panel._toggle_god()
+	await get_tree().process_frame
+	check("button turns god mode OFF", not p.god_mode)
+	check("off again: flight revoked", not p.has_flight())
+	check("off again: label reads OFF",
+		panel.god_button.text == "GOD MODE: OFF", panel.god_button.text)
+
+	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
+	get_tree().quit(1 if fails > 0 else 0)
