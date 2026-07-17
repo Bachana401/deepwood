@@ -190,15 +190,16 @@ What the player is actually *doing and worrying about* at every stage. This is t
 
 **Three stages of every task:** do-it-yourself (early) → delegated (staffed, slower) → automated (staffed + upgraded + wages paid). **Automation costs wages; can't pay → workers quit → back to manual.** Two layers: building-level automation (farmers farm, nurses heal) and **management-level automation (Government)** — the mid→late building that scales automation of the *player's own chores*.
 
-### 5.2 The building roster (14) — status mixed ✅/🔨/📋
+### 5.2 The building roster (16) — status mixed ✅/🔨/📋
 | Building | Serves | Falls → breaks |
 |---|---|---|
-| **School** (keystone) | skilled workforce — teaches stats | the whole automation web unravels |
+| **School** (keystone) | skilled workforce — teaches stats (the role roll §5.4) | the whole automation web unravels |
 | **Farm** | food #1 | starvation |
 | **Fishing Dock** | food #2, variety | no backup food, variety morale lost |
 | **Hospital** | healing + births | wounds kill; no new children |
 | **Barracks** | defense — day/night shifts (§7.5) | every siege is on the player |
-| **Blacksmith** | arms & tools + the depth-35 Forge | weak defense, slow workers |
+| **Mine** 📋 (new 2026-07-17) | ore/metal + stone — the delegated form of hand-mining | Blacksmith & Builderhouse starve for raw materials |
+| **Blacksmith** | arms & tools + the depth-35 Forge; **arms the Barracks** (§5.7) | weak defense, slow workers |
 | **Builderhouse** | repair/construction | rebuild everything by hand |
 | **Science Lab** | research (materials, upgrades) | no progression |
 | **Marketplace** | trade — production → gold | can't pay wages |
@@ -207,11 +208,12 @@ What the player is actually *doing and worrying about* at every stage. This is t
 | **Tavern** (inn) | lodging — newcomers arrive here until housed | newcomers have nowhere to be |
 | **Bar** | drink, music, fun → morale | despair comes faster |
 | **Shrine** 📋 | *redemption* — capture & cleanse a transformed demon back into a villager; unlocks at depth 30 | despair is always a death sentence |
+| **Watchtower** 📋 (§7.1) | siege foresight (none → 1h → 2h → 24h warning) | you never know when the wave hits |
 
-All buildings start **visually destroyed** and non-functional; repair costs gold + materials in stages (✅ built, incl. siege damage/repair).
+All buildings start **visually destroyed** and non-functional; repair costs gold + materials in stages (✅ built, incl. siege damage/repair). **How they interlock into one system is §5.7.**
 
 ### 5.3 Professions ✅ decided
-One profession stat per building (Farmer, Fisher, Doctor/Nurse, Smith, Builder, Scholar, Merchant, Banker, Official, Teacher, Innkeeper, Barkeep) + **Warrior** (Barracks — deletes all other stats, permanent, one-way sacrifice). Leadership roles (Leader / Principal / Warchief) can **never** be taught — only rescued hostages who already carry them qualify. Leader bonuses (+15% class-appropriate boosts) ✅.
+One profession stat per building (Farmer, Fisher, Doctor/Nurse, Smith, Builder, **Miner**, Scholar, Merchant, Banker, Official, Teacher, Innkeeper, Barkeep) + **Warrior** (Barracks — deletes all other stats, permanent, one-way sacrifice). Leadership roles (Leader / Principal / Warchief) can **never** be taught — only rescued hostages who already carry them qualify. Leader bonuses (+15% class-appropriate boosts) ✅.
 
 ### 5.4 Villager stats & the school pipeline — the role roll ✅ decided (model revised 2026-07-17) / 🔨 partial
 - Every NPC carries **0–5 profession stats** (1 common → 5 extremely rare). **1 stat = employable + safe from depression.** Extra stats = pure versatility.
@@ -248,6 +250,56 @@ Before the Hospital is repaired and staffed (§5.2), the player's *only* reliabl
 
 ### 5.6 Economy ✅ core / 📋 depth
 Assigned workers generate passive gold scaled by stat; Government taxes; leader bonuses; tribute; morale rewards. 📋 Depth pass: wages as a real drain, Marketplace auto-selling, Bank interest/payroll. Morale meter ✅ (unlocks once every building has been repaired).
+
+### 5.7 The Building Web — one connected system (new canon 2026-07-17) 📋
+
+The village is **not a menu of independent buildings** — it is one machine whose parts feed each other, and the whole point is that *the connections become mandatory exactly when the difficulty demands them.*
+
+**The core principle — independent early, interdependent under pressure.** Every building is **self-sufficient at low difficulty** and only *needs* the others as the pressure (deeper floors, bigger sieges, more mouths) rises. The Barracks example the dev gave is the template: early, the Barracks spawns warriors who fight waves *on their own*, fists and basic gear enough. As waves get stronger, that stops being enough — now the Barracks **needs the Blacksmith** to forge better weapons; the Blacksmith **needs metal**, which **needs the Mine**; the Mine needs a **Miner**, who came from the **School**, who is fed by the **Farm**, housed by the **Tavern**, kept sane by the **Bar**… Pull any link and the chain downstream weakens. That cascade *is* the game.
+
+#### The resource types (what flows through the web)
+| Resource | Made by | Consumed by |
+|---|---|---|
+| **Food** | Farm, Fishing Dock | every villager (starve → morale → §10) |
+| **Construction** (wood/stone/resin) | gathering + **Mine** (stone) | Builderhouse (repairs, walls) |
+| **Ore/metal** 📋 | **Mine** | Blacksmith (arms & tools) |
+| **Skill materials** (slime→ancient_relic) | dungeon only | Science Lab research → the player's skill tree |
+| **Gold** | Marketplace (sells production), taxes | wages, purchases, repairs |
+| **Knowledge** (profession stats) | School (role roll §5.4) | staffs *every* building |
+| **Morale / hope** | Bar, Tavern, food, housing | the fuel that stops villagers corrupting (§10) |
+| **Defense** | Barracks warriors + walls | survives sieges (§7) |
+
+#### The chains (the "one connected system")
+- **A — The War Machine (the dev's example):** **Mine → ore → Blacksmith → forged weapons → Barracks → stronger warriors → survive harder sieges.** Support links: **Hospital** heals wounded warriors between shifts (§7); **Builderhouse** rebuilds walls after each siege; **Watchtower** (§7.1) tells you when the next one lands. When waves outscale bare warriors, this whole chain is what keeps the walls standing — and every link is a building that must be staffed, supplied, and paid.
+- **B — The Population Engine:** **Food + Housing (Tavern) + Morale (Bar) keep people alive and un-corrupted → cottage pairing → child → School (role roll) → employed → staffs the buildings → more production.** This is the flywheel that fills the village; §5.4 is its heart.
+- **C — The Money Loop:** **staffed buildings produce → Marketplace sells → gold → Bank manages & pays wages → wages keep workers → automation stays on.** No gold → workers quit → services stop → the other chains stall. Government taxes skim this loop to fund itself.
+- **D — The Player-Power Loop:** **dungeon → skill materials + loot → Science Lab research → skill tree; Blacksmith gear → stronger player → deeper dungeon → more rescues + rarer materials.** The village makes the player; the player feeds the village.
+- **E — The Rescue Flywheel (the chain reaction the dev described):** **rescue an NPC (regular ones often; an MVP/Ten every few bosses, §8) → house them (Tavern) → employ or School them → they produce → they pair → kid → School → employ → …** Each rescue is one more pair of hands, and hands compound. This is how a dead village becomes a full one.
+- **F — The Corruption Cascade (the anti-flywheel — §10):** neglect one need and the flywheel **runs in reverse** — see §10 for the full chain-reaction rule. A neglected village *eats itself*.
+
+#### Per-building purpose, inputs → outputs, and the dependency that bites
+| Building | Purpose (what it's FOR) | Needs (in) | Feeds (out) | The dependency that bites under pressure |
+|---|---|---|---|---|
+| **Farm** | food #1 | Farmer | Food → everyone | more mouths (rescues, births) demand more Farmers/Sylvara (§8) |
+| **Fishing Dock** | food #2 + variety morale | Fisher | Food, variety morale, (Kaldos) materials | backup when Farm alone can't feed the grown village |
+| **Mine** 📋 | raw ore/metal + stone | Miner | Blacksmith (metal), Builderhouse (stone) | **Blacksmith & repairs stall without it** once you stop hand-mining |
+| **Blacksmith** | forge/upgrade **warrior weapons**, player gear (depth-35 Forge), gathering tools | Smith + **ore (Mine)** | Barracks arms, player gear, tools | **Barracks can't out-arm scaling waves without it**; it can't run without Mine metal |
+| **Barracks** | train Warriors → fight waves + man walls | villagers → Warrior | Defense | self-sufficient early; **needs Blacksmith weapons** as waves scale; **needs Hospital** to recover the wounded |
+| **Hospital** | heal wounded warriors + player (§5.5a) + births | Doctor/Nurse | fighting-fit warriors, player HP, new children | every siege leaves wounded who **don't recover without it** (no passive regen, §4.1) |
+| **Builderhouse** | repair/build (incl. walls) | Builder + **construction mats** | standing buildings & walls | sieges break walls faster than you can hand-repair |
+| **School** (keystone) | teach stats — the role roll (§5.4) | Teacher | the workforce for **every** building | if it falls, **nothing else can be staffed** long-term |
+| **Science Lab** | research materials + building upgrades | Scholar | skill-tree access, upgrades (incl. School weight-tuning §5.4) | progression **freezes** without it |
+| **Marketplace** | production → gold (auto-sell) | Merchant | gold | **wages dry up without it** |
+| **Bank** | treasury, interest, payroll, death-insurance | Banker | safe gold, wage automation, interest | the Money Loop (C) leaks without it |
+| **Government** | management brain — scales **automation** of the player's chores | Official + a rescued **Leader** | less micro across *all* systems | the late-game relief valve; without it the grown village drowns you in manual tasks |
+| **Tavern** (inn) | housing — rescued/newcomers live here until homed | Innkeeper | housing → morale floor | **unhoused villagers lose morale → corruption risk (§10)** |
+| **Bar** | drink/music/fun → morale | Barkeep | morale buffer (hope) | the morale cushion that makes the Cascade (F) *survivable* |
+| **Shrine** 📋 | cleanse a corrupted demon back to a villager (depth 30) | (Seraphel §8 boosts) | recovered villagers | before it, every corruption is a permanent loss |
+| **Watchtower** 📋 | siege foresight (§7.1) | build + upgrades | warning time → planning | without it, defense is pure reaction |
+
+**Government is the meta-connector:** it doesn't make a resource — it **automates the links** so the player isn't hand-carrying every hand-off (kids auto-route School→job, wall shifts auto-fill, taxes auto-collect). Early game you *are* the connective tissue, by hand; Government is how you earn your way out of that.
+
+- 🟡 Open (§12): the exact ore/metal resource ids and whether Mine ore is a new item or reuses stone + a metal tier; the depth/floor each new dependency "switches on" (when bare warriors stop sufficing, etc.); whether the Mine is hand-buildable from Act I or gated; Shrine staffing role.
 
 ---
 
@@ -370,8 +422,10 @@ A quest-reward novelty weapon, *deliberately useless* everywhere, that becomes t
 
 **Lore (the Law of Despair, §2.2):** no one is born evil — evil is a broken person, and **morale is hope.** A villager whose morale hits **0** becomes hopeless, falls into despair, and turns **demonic** — the same kind of creature as the dungeon's — attacking the village from within. Every rescued villager already resisted the fall of Deepwood once (§2.2), but hope that survived a catastrophe can still be *eroded* by neglect — hunger, homelessness, joylessness. The dungeon and the village share one villain: *untended despair.* (And the finale, §9.3, is this same law executed on the whole town at once — the corruption system IS the foreshadowing of the ending.)
 
-- Transformation **only at morale 0**; neglect (hunger, homelessness, no joy) drains HP past a grace window with a grey "rot" telegraph; fixing the need in time **redeems** them (nobody turns).
-- **Domino:** each turning shocks morale, so a miserable town chains like a powder keg while a healthy one shrugs off a single loss. (True *proximity* domino — −2 to nearby witnesses — still to refine 🔨.)
+- Transformation **only at morale 0**; neglect (hunger, homelessness, no joy) drains HP/morale past a grace window with a grey "rot" telegraph; fixing the need in time **redeems** them (nobody turns).
+- **What it turns INTO:** a villager at morale 0 becomes a **random non-boss evil** of the same kind the dungeon spawns, now loose *inside the walls* and attacking the village.
+- **The chain reaction — proximity infection (refined 2026-07-17):** a fresh turning doesn't just shock morale globally — it **infects nearby villagers by their own morale state.** A neighbour whose morale is **already low** is dragged to 0 and **turns too** — which infects *their* neighbours — a spreading powder-keg cascade. A neighbour with **healthy morale resists** and does **not** turn, *unless something else is also draining them* (hunger, no home, no joy) — then the nearby turning is the push that finishes the job. So corruption spreads fastest exactly where the village is already neglected, and a well-fed, housed, entertained town **firewalls** it: healthy neighbours are the breakers that stop the chain. **This is why the player is forced to keep the whole village cared for — neglect anywhere lets the town eat itself and undo your progress.** (The finale §9.3 is this same cascade with the morale floor kicked out from under *everyone* at once.)
+- 🟡 Open (§12): exact infection radius, the morale threshold that counts as "already low," and the per-tick spread rate — numbers-pass; the mechanic shape is decided.
 - **Shrine redemption** 📋: from depth 30, a turned demon can be captured & cleansed back into a living villager.
 - ⏸ Currently behind `GameState.CORRUPTION_ENABLED = false` (testing) — villager HP floors at 1. Flip to reactivate.
 
@@ -400,6 +454,8 @@ A quest-reward novelty weapon, *deliberately useless* everywhere, that becomes t
 7. **"Leaving Deepwood"** (§2.4.1) — is the escalating exit-army purely narrative (a scripted failed escape), or an actually attemptable action the player can retry (an optional escalating gauntlet at the map edge that is never worth it until the endgame)? Decide before building the opening.
 8. **The Doctor & the three defenders — names.** Minor; not blocking. Give the Doctor a name when the opening dialogue is written.
 9. **Role-roll numbers (§5.4)** — MECHANIC shape is decided (weighted roll; progressive School weight-tuning that maxes at a large-but-capped bias, never 100%); only NUMBERS remain, balanced later: the default weighted table (food/fun common, economic/skilled rare, leadership never); the per-upgrade adjustment amounts and the final single-role cap (~40% is the working sketch); whether re-education is pure weighted-random or can *target* a role at a steep cost premium (recommendation: first-graduation random for the luck loop, targeted re-ed as the reliable-but-expensive path); whether a pity/floor softens long rare-role droughts.
+10. **The Building Web wiring (§5.7)** — MECHANIC shape decided (independent early → interdependent under pressure; the chains and per-building purposes are canon). Open: the exact **ore/metal resource ids** (new item vs reuse stone + a metal tier), the **depth/pressure point each dependency "switches on"** (when bare warriors stop sufficing and the Barracks *needs* Blacksmith arms, etc.), whether the **Mine** is hand-buildable from Act I or gated, and the **Shrine's staffing role**.
+11. **Corruption cascade numbers (§10)** — MECHANIC shape decided (proximity infection gated by each neighbour's morale). Open: infection radius, the "already low" morale threshold, spread rate per tick. Numbers-pass; re-enable behind `CORRUPTION_ENABLED` when tuned.
 
 ---
 
@@ -410,4 +466,4 @@ A quest-reward novelty weapon, *deliberately useless* everywhere, that becomes t
 - **Build order after this book is signed off** stays vertical-slice: finish needs/hospital/wages (§5.5) → Barracks shifts (§7) → Government automation (§5.1) → Shrine + corruption refinements (§10) → economy depth (§5.6) → the Ten (§8) → the Finale (§9) → post-game (§11).
 - **Execution guardrails** (from VILLAGE_SYSTEMS §11, still binding): extend existing systems (`game_state.gd` morale, `npc.gd` villagers, `building.gd`), never fork parallel ones; never rewrite the save format (extend additively); headless-verify every change; don't touch dungeon balance or the L100 curves unless the task says so.
 
-*Living document. Last full revision: 2026-07-15. Amended 2026-07-17: the arrival/opening sequence (§2.4.1), Orin's three-step introduction at ~L15 + starting NPC roster (§2.5.1), the Doctor early-healing mechanic (§5.5a), the Watchtower wave-warning progression (§7.1), and the School "role roll" — weighted-random professions with late-game weight-tuning (§5.4); art/PixelLab frozen until the mechanical + story side is finished (dev directive).*
+*Living document. Last full revision: 2026-07-15. Amended 2026-07-17: the arrival/opening sequence (§2.4.1), Orin's three-step introduction at ~L15 + starting NPC roster (§2.5.1), the Doctor early-healing mechanic (§5.5a), the Watchtower wave-warning progression (§7.1), and the School "role roll" — weighted-random professions with late-game weight-tuning (§5.4); the Building Web — every building's purpose + the dependency chains as one connected system, plus the new **Mine** (§5.7, roster now 16); and the corruption **proximity chain-reaction** (§10); art/PixelLab frozen until the mechanical + story side is finished (dev directive).*
