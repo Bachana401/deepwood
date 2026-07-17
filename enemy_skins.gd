@@ -45,6 +45,10 @@ const ANIMS := {
 	# building's yard (see worker_figure.gd `craft`). Without these every trade
 	# mimed the same hammer-swing with recoloured chips. Skins without the files
 	# simply skip them and fall back, so these can be drawn one trade at a time.
+	# a FLYING body's cruise clip. Flying bosses were playing the walk cycle
+	# while airborne -- striding through empty sky with nothing under their
+	# feet. Skins without this file fall back to walk, as before.
+	"levitate": {"fps": 7.0, "loop": true},
 	"smith":  {"fps": 9.0,  "loop": true},   # hammering the anvil
 	"saw":    {"fps": 10.0, "loop": true},   # sawing a plank
 	"hoe":    {"fps": 8.0,  "loop": true},   # tilling the rows

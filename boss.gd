@@ -683,8 +683,14 @@ func _update_boss_anim() -> void:
 		return
 	if boss_sprite.animation == "attack" and boss_sprite.is_playing():
 		return
-	var want := "walk" if absf(velocity.x) > 8.0 else "idle"
+	# A FLYING boss has nothing under its feet, so it must not stride: the
+	# Fallen Wizard was walking through open sky. Airborne bosses cruise on
+	# their levitate clip instead, and fall back to walk if a skin hasn't drawn
+	# one yet.
 	var sf := boss_sprite.sprite_frames
+	var want := "walk" if absf(velocity.x) > 8.0 else "idle"
+	if flying and sf and sf.has_animation("levitate"):
+		want = "levitate"
 	if sf and sf.has_animation(want) and boss_sprite.animation != want:
 		boss_sprite.play(want)
 

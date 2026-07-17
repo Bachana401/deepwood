@@ -51,6 +51,11 @@ var has_touched_ground := false
 # damage (via fall_immunity), they don't slow the drop.
 const FLIGHT_MAX_SECONDS = 10.0
 const FLIGHT_RISE_SPEED = -300.0   # brisk ascent while holding Space
+# The Monarch does not need feathers. From the first stirring of the shadow
+# (1/7, character level 5) he simply stops obeying the ground -- the Aetherwing
+# is only ever a shortcut to something he was always going to grow into.
+const LEVITATE_STAGE = 1
+var is_levitating := false         # airborne under his own power -> levitate clip
 var flight_time_left := FLIGHT_MAX_SECONDS
 var flight_depleted_notified := false
 var wings_left: Polygon2D = null
@@ -266,6 +271,9 @@ const ANIM_DEFS = [
 	# stops standing like a brawler with his fists up and stands like a
 	# sovereign. Slower, because nothing about him needs to hurry.
 	{"name": "monarchidle", "fps": 6.0, "loop": true},
+	# Hanging in the air under his own power -- feet loose, coat drifting up.
+	# Without this he played the JUMP frames the whole time he hovered.
+	{"name": "levitate", "fps": 7.0, "loop": true},
 	{"name": "walk", "fps": 12.0, "loop": true},  # filled with RUN frames -- A/D reads as running
 	{"name": "jump", "fps": 8.0, "loop": false},  # first jump
 	{"name": "jump2", "fps": 10.0, "loop": false},# double jump (its own animation)
@@ -1106,6 +1114,9 @@ func current_anim_state() -> String:
 	if is_dashing:
 		return "dash"
 	if not is_on_floor():
+		# hanging in the air under his own power is not jumping -- he hovers
+		if is_levitating and real_anims.get("levitate", false):
+			return "levitate"
 		# each jump in the chain has its own animation (jump / jump2 / jump3);
 		# fall back to the plain jump if that variant has no frames yet
 		if velocity.y < 0.0:
@@ -2002,7 +2013,9 @@ func _physics_process(delta: float) -> void:
 
 # --- Flight (Aetherwing) ---
 func has_flight() -> bool:
-	return god_mode or GameState.get_bonus_total("flight") > 0.0
+	return god_mode \
+		or GameState.monarch_stage() >= LEVITATE_STAGE \
+		or GameState.get_bonus_total("flight") > 0.0
 
 func has_fall_immunity() -> bool:
 	# god mode flies, so it must not be killed by its own landing
@@ -2030,6 +2043,7 @@ func update_flight(delta: float) -> void:
 					stack.show_notification("Wings spent -- touch ground to recharge.")
 		# else: not holding Space (or budget spent) -> plain gravity fall. The
 		# wings don't slow it; fall_immunity just spares you the landing damage.
+	is_levitating = flying
 	update_wings(flying)
 
 # --- Fall damage ---
