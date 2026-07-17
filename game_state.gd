@@ -14,27 +14,45 @@ var deepest_level_reached = 0
 # part of the save file, not just a per-run counter (see DungeonManager).
 var highest_unlocked_level = 1
 
-# TESTING: while true, every dungeon level is unlocked (both New Game and
-# Continue) so all 100 can be checked. Flip to false to restore real
-# progression. Applied in reset_for_new_game() and load_game().
-const TEST_UNLOCK_ALL_LEVELS = true
+# Story: the opening plea (Story.OPENING) plays once at the start of a new game.
+# Persisted so Continue never replays it; reset by reset_for_new_game().
+var seen_intro := false
+# The Level-100 reveal (Story.L100_REVEAL) plays once per playthrough, at the
+# gate. Per-save, reset by reset_for_new_game().
+var seen_l100_reveal := false
+# Beating Orin at Level 100 completes the game and PERMANENTLY unlocks the
+# Shadow Monarch class for all future runs (persisted in its own file, like
+# deepest_level -- survives new games). Loaded in _ready via load_game_completed.
+const GAME_COMPLETED_PATH = "user://game_completed.dat"
+var game_completed := false
 
-# TESTING: while true, death skips the 7-second countdown entirely -- the
-# player respawns instantly (drops/penalties still apply). Flip to false to
-# restore the real death sequence. Read in player.gd die().
-const TEST_INSTANT_RESPAWN = true
+func load_game_completed() -> void:
+	game_completed = FileAccess.file_exists(GAME_COMPLETED_PATH)
 
-# TESTING: skill-tree sandbox. While true, unlocking a node ignores its point
-# cost AND material requirements (try_unlock_skill), the skill-tree UI shows an
-# "Unlock ALL Trees" button + a free "Switch Class" button (keeps what you've
-# unlocked so you can stack every tree), and Shadow Monarch is selectable to view.
-# Flip to false to restore real, gated progression.
-const TEST_SKILL_SANDBOX = true
+func mark_game_completed() -> void:
+	if game_completed:
+		return
+	game_completed = true
+	var f = FileAccess.open(GAME_COMPLETED_PATH, FileAccess.WRITE)
+	if f:
+		f.store_8(1)
+		f.close()
 
-# TESTING: while true, a near-empty roster is auto-filled with villagers so
-# every building runs at ~55% staff (plus a few unemployed wanderers) -- purely
-# to SEE the workers/avatars systems populated. Flip to false to stop.
-const TEST_POPULATE_VILLAGE = true
+# === DEV / TEST MODE =========================================================
+# The single switch that separates the developer's testing sandbox from the
+# real, honest game. OFF (default) = a proper playthrough: weak starter kit, no
+# gold, no admin wand/test gear, skills cost points + materials, only dungeon
+# Lv1 open, real death penalties, an empty village you must rescue. ON = every
+# testing convenience below is restored. Enable by launching with `--dev` (set
+# in _ready), or flip this default to true. The four TEST_* flags all mirror it.
+var dev_mode := false
+
+# All driven by dev_mode in _ready() -- kept as named vars so the many existing
+# GameState.TEST_* reads keep working unchanged.
+var TEST_UNLOCK_ALL_LEVELS := false   # every dungeon level open from the start
+var TEST_INSTANT_RESPAWN := false     # death skips the 7s countdown
+var TEST_SKILL_SANDBOX := false       # skill nodes ignore point + material cost
+var TEST_POPULATE_VILLAGE := false    # auto-fill the roster with sample villagers
 const POPULATE_STAFF_FRACTION = 0.55
 
 # Standing torches the player has placed with G (see player.try_place_torch):
@@ -408,7 +426,13 @@ func is_skill_unlocked(node_id: String) -> bool:
 func try_unlock_skill(node: Dictionary, player: Node) -> bool:
 	if is_skill_unlocked(node.id):
 		return false
-	if node.prereq != "" and not is_skill_unlocked(node.prereq):
+	# graph-aware prereq: `prereq` may be an id, "" (none), or an Array meaning
+	# "any of these" where a fork reconverges.
+	if not SkillTreeData.prereq_met(node):
+		return false
+	# opportunity cost: a fork you didn't take is locked forever. Enforced even
+	# in the sandbox -- you must CHOOSE, you can't buy both sides.
+	if SkillTreeData.is_exclusive_blocked(node):
 		return false
 	# sandbox: prereq order still applies (so the tree reads sensibly) but the
 	# node is free -- no points, no materials. Checked BEFORE the point cost.
@@ -511,6 +535,9 @@ const INCOME_ROLES = {
 	"Tavern": "Barman", "Marketplace": "Trader",
 }
 const PARTY_MEMBER_INCOME = 1.0
+# A villager whose personal bond (VillagerQuests) is complete works with unlocked
+# potential -- their role income is multiplied by this. See turn_in_villager_quest.
+const BOND_INCOME_MULT = 1.5
 
 # --- Leader bonuses ---
 # Filling a building's Leader/Principal/Warchief slot grants a bonus themed
@@ -658,6 +685,14 @@ const BUILDING_MAX_HEALTH = 400
 const TOTAL_BUILD_STAGES = 3
 var building_stage: Dictionary = {}
 
+# The Blacksmith (the Forge) is a MID-GAME building: it can't be raised until the
+# player has braved this dungeon depth. It exists to reliably supply equippable
+# gear of every slot up to a non-OP tier -- see assign_ui.add_smithy_section.
+const BLACKSMITH_UNLOCK_DEPTH = 35
+
+func blacksmith_unlocked() -> bool:
+	return deepest_level_reached >= BLACKSMITH_UNLOCK_DEPTH
+
 func building_build_stage(name: String) -> int:
 	return int(building_stage.get(name, 0))
 
@@ -719,7 +754,16 @@ signal couple_departed(house_id, male_id, female_id)
 signal child_produced(child_id)
 
 func _ready() -> void:
+	# Launch with `--dev` to restore the whole testing sandbox; otherwise this is
+	# the real game. All four TEST_* conveniences follow dev_mode.
+	if OS.get_cmdline_args().has("--dev"):
+		dev_mode = true
+	TEST_UNLOCK_ALL_LEVELS = dev_mode
+	TEST_INSTANT_RESPAWN = dev_mode
+	TEST_SKILL_SANDBOX = dev_mode
+	TEST_POPULATE_VILLAGE = dev_mode
 	load_deepest_level()
+	load_game_completed()
 	setup_audio()
 
 # --- Audio: a "Master" (Volume) bus and a dedicated "Music" bus routed into it,
@@ -781,6 +825,7 @@ func _process(delta: float) -> void:
 	if income_timer >= INCOME_INTERVAL_SECONDS:
 		income_timer -= INCOME_INTERVAL_SECONDS
 		generate_passive_income()
+		apply_leadership_automation()
 	tick_village_clock()
 	update_morale_meter_unlock()
 
@@ -816,6 +861,10 @@ func village_defense_power() -> float:
 	for v in rescued_villagers:
 		if v.get("stat_name", "") == "Warrior" or v.get("role_key", "") == "Barracks":
 			power += SIEGE_DEF_PER_WARRIOR
+	# warriors ARMED from the Barracks armory hit far above their weight
+	power += ARMED_WARRIOR_BONUS * float(armed_warriors())
+	# a seated Warchief is a standing army in themselves -- auto-repels far more
+	power += WARCHIEF_DEFENSE * seated_leaders("Barracks")
 	# morale rides the whole village's fighting spirit up or down
 	return power * morale_defense_multiplier()
 
@@ -937,8 +986,9 @@ func farm_worker_count() -> int:
 	return n
 
 # Passive food produced per in-game hour by a staffed farm (0 if unstaffed).
+# A seated Harvestmaster drives the fields far harder (auto-feeds the town).
 func food_production_per_hour() -> float:
-	return float(farm_worker_count()) * FOOD_PER_FARMER_PER_DAY / 24.0
+	return float(farm_worker_count()) * FOOD_PER_FARMER_PER_DAY / 24.0 * (1.0 + HARVESTMASTER_FOOD_BONUS * seated_leaders("Farm"))
 
 # Days of food left at the current population's burn rate (for the HUD readout).
 func food_days_remaining() -> float:
@@ -1080,6 +1130,7 @@ func village_morale() -> int:
 	score += 18.0 * float(paired) / float(adults)                    # mating / good sex
 	score += 10.0 if is_building_operational("Bar") else 0.0         # social life
 	score += 10.0 * clampf(float(pop) / MORALE_POP_TARGET, 0.0, 1.0) # numbers alive
+	score += LEADER_MORALE_EACH * (seated_leaders("Tavern") + seated_leaders("Bar"))  # a good host keeps spirits up
 	score -= morale_death_shock                                      # grief from losses
 	# morale_admin_offset is a dev-panel nudge (0 in normal play)
 	return clampi(int(round(score)) + morale_admin_offset, 0, 100)
@@ -1345,6 +1396,9 @@ func generate_passive_income() -> void:
 			value = PARTY_MEMBER_INCOME
 		# a higher-level building produces more from the same worker
 		value *= building_output_multiplier(role_key)
+		# a villager whose personal bond is complete works at unlocked potential
+		if villager.get("bond", false):
+			value *= BOND_INCOME_MULT
 		total += value * village_mult
 	if total <= 0:
 		return
@@ -1362,20 +1416,200 @@ func count_leader_holders(role_key: String, title: String) -> int:
 	return count
 
 func get_village_income_multiplier() -> float:
-	return 1.0 + count_leader_holders("Government", "Leader") * LEADER_BONUS_PER_HOLDER
+	return 1.0 + count_leader_holders("Government", "Chancellor") * LEADER_BONUS_PER_HOLDER
 
 func get_farm_income_multiplier() -> float:
-	return 1.0 + count_leader_holders("Farm", "Leader") * LEADER_BONUS_PER_HOLDER
+	return 1.0 + count_leader_holders("Farm", "Harvestmaster") * LEADER_BONUS_PER_HOLDER
 
 func get_gestation_speed_multiplier() -> float:
 	# a happy town makes babies faster; a despairing one makes none at all
-	return (1.0 + count_leader_holders("Hospital", "Leader") * LEADER_BONUS_PER_HOLDER) * morale_birth_multiplier()
+	return (1.0 + count_leader_holders("Hospital", "Chief Physician") * LEADER_BONUS_PER_HOLDER) * morale_birth_multiplier()
 
 func get_school_graduation_speed_multiplier() -> float:
 	return 1.0 + count_leader_holders("School", "Principal") * LEADER_BONUS_PER_HOLDER
 
 func get_barracks_graduation_speed_multiplier() -> float:
 	return 1.0 + count_leader_holders("Barracks", "Warchief") * LEADER_BONUS_PER_HOLDER
+
+# ============================ LEADERSHIP AUTOMATION ============================
+# The rescued VIP leaders don't just buff numbers -- they RUN the village so it
+# needs far less hand-management (the colony-sim payoff). Driven once per income
+# tick (right after generate_passive_income) plus a few read-time multipliers
+# (defense/food/morale, folded into those functions). Every effect is gated on
+# that building's leadership seat(s) being FILLED and scales with how many are
+# seated (Science Lab 4, Barracks/School/Builderhouse 2). Leaders keep working
+# even while the player is off in the dungeon -- the town runs itself.
+const BANK_INTEREST_RATE := 0.03        # Treasurer: treasury grows this fraction per tick
+const BANK_INTEREST_CAP := 60           # ...capped per tick so wealth can't run away
+const AUTO_HEAL_PER_PHYSICIAN := 18.0   # Chief Physician: injured-villager HP restored per tick
+const AUTO_SELL_KEEP := 12              # Merchant Prince: keep this many of each material
+const AUTO_SELL_PRICE := 4              # ...and sell the surplus at this gold each
+const AUTO_ENROLL_PER_PRINCIPAL := 2    # Principal: idle children auto-enrolled per tick
+const WARCHIEF_DEFENSE := 4.0           # Warchief: standing siege defense added per seat
+const HARVESTMASTER_FOOD_BONUS := 0.6   # Harvestmaster: +this fraction of farm food output
+const LEADER_MORALE_EACH := 6           # Tavernkeeper/Publican: morale points added per seat
+
+# --- Barracks armory ---
+# Warriors fight far harder when ARMED. Early game the player hand-carries spare
+# weapons/armor to the Barracks (deposit_one_arm) to stock its armory; once a
+# Forgemaster (Blacksmith leader) is seated, his smiths auto-deliver arms every
+# tick (see apply_leadership_automation). arm_value scales with the gear's grade.
+var barracks_arms := 0
+const ARMED_WARRIOR_BONUS := 1.5        # extra siege defense per armed warrior
+const BARRACKS_ARMS_CAP := 99           # armory stockpile ceiling
+const FORGE_ARMS_PER_TICK := 3          # arms the Forgemaster's smiths deliver per tick
+
+# How much one piece of gear arms the barracks (better grade == better kit).
+func arm_value_of(item_id: String) -> int:
+	var grade = Inventory.get_grade(item_id)
+	if Inventory.GRADE_DEFS.has(grade):
+		return int(Inventory.GRADE_DEFS[grade].rank)
+	return 1
+
+# Warriors actually equipped from the armory (can't arm more than you have).
+func armed_warriors() -> int:
+	return min(warrior_count(), barracks_arms)
+
+# Is a Forgemaster keeping the armory supplied automatically?
+func forgemaster_supplying() -> bool:
+	return seated_leaders("Blacksmith") > 0 and is_building_operational("Barracks")
+
+# Manual deposit: hand one piece of spare gear to the Barracks. Returns arms added.
+func deposit_one_arm(player: Node, item_id: String) -> int:
+	if player == null or not ("inventory" in player) or player.inventory == null:
+		return 0
+	if player.inventory.get_count(item_id) <= 0:
+		return 0
+	var cat = str(Inventory.get_item_def(item_id).get("category", ""))
+	if cat != "weapon" and cat != "armor":
+		return 0
+	if barracks_arms >= BARRACKS_ARMS_CAP:
+		return 0
+	player.inventory.remove_item(item_id, 1)
+	var v = min(arm_value_of(item_id), BARRACKS_ARMS_CAP - barracks_arms)
+	barracks_arms += v
+	return v
+
+# How many VIP leaders are currently seated at a building's top post(s).
+func seated_leaders(role_key: String) -> int:
+	var n := 0
+	for rd in BuildingRoles.get_roles(role_key):
+		if rd.get("leadership", false):
+			n += count_leader_holders(role_key, str(rd.get("title", "")))
+	return n
+
+func apply_leadership_automation() -> void:
+	var player = get_tree().get_first_node_in_group("player")
+	if seated_leaders("Government") > 0:            # Chancellor: staff the town
+		auto_staff_villagers()
+	if player and player.has_method("add_currency") and seated_leaders("Bank") > 0:
+		var interest = clampi(int(player.currency * BANK_INTEREST_RATE), 0, BANK_INTEREST_CAP)
+		if interest > 0:
+			player.add_currency(interest)               # Treasurer: interest
+	var researchers = seated_leaders("Science Lab")
+	if researchers > 0:
+		auto_research(researchers)                  # Lead Researchers: identify mats
+	if player and seated_leaders("Marketplace") > 0:
+		auto_sell_surplus(player)                   # Merchant Prince: sell surplus
+	var physicians = seated_leaders("Hospital")
+	if physicians > 0:
+		auto_heal_villagers(physicians)             # Chief Physician: heal the hurt
+	if seated_leaders("School") > 0:
+		auto_enroll_children(seated_leaders("School"))  # Principal: school the kids
+	if seated_leaders("Builderhouse") > 0:
+		auto_repair_one()                           # Builders: rebuild the ruins
+	if forgemaster_supplying() and barracks_arms < BARRACKS_ARMS_CAP:
+		barracks_arms = min(BARRACKS_ARMS_CAP, barracks_arms + FORGE_ARMS_PER_TICK)  # Forgemaster: arm the barracks
+
+# Chancellor: seat every idle adult in an understaffed, operational worker role
+# they qualify for (matching-stat first, then any open role). Leadership seats
+# are never touched -- those stay unique to their rescued figure.
+func auto_staff_villagers() -> void:
+	for v in rescued_villagers:
+		if v.get("is_kid", false) or str(v.get("role_key", "")) != "" or school_enrollments.has(v.get("id")):
+			continue
+		if not try_auto_place(v, true):
+			try_auto_place(v, false)
+
+func try_auto_place(v: Dictionary, require_stat_match: bool) -> bool:
+	for bkey in BuildingRoles.ROLE_DEFS.keys():
+		if not is_building_operational(bkey):
+			continue
+		for rd in BuildingRoles.get_roles(bkey):
+			if rd.get("leadership", false) or rd.get("is_enrollment", false):
+				continue
+			var need = str(rd.get("required_stat", ""))
+			if require_stat_match and need != str(v.get("stat_name", "")):
+				continue
+			if not require_stat_match and need != "":
+				continue
+			if count_leader_holders(bkey, str(rd.get("title", ""))) >= int(rd.get("slots", 0)):
+				continue
+			v["role_key"] = bkey
+			v["role_title"] = str(rd.get("title", ""))
+			return true
+	return false
+
+func auto_research(n: int) -> void:
+	var done := 0
+	for item_id in Inventory.ITEM_DEFS.keys():
+		if done >= n:
+			return
+		if Inventory.ITEM_DEFS[item_id].get("is_material", false) and not researched_materials.has(item_id):
+			researched_materials.append(item_id)
+			done += 1
+
+func auto_sell_surplus(player) -> void:
+	if not ("inventory" in player) or player.inventory == null:
+		return
+	var earned := 0
+	for item_id in Inventory.ITEM_DEFS.keys():
+		if not Inventory.ITEM_DEFS[item_id].get("is_material", false):
+			continue
+		var have = player.inventory.get_count(item_id)
+		if have > AUTO_SELL_KEEP:
+			var sell = have - AUTO_SELL_KEEP
+			player.inventory.remove_item(item_id, sell)
+			earned += sell * AUTO_SELL_PRICE
+	if earned > 0 and player.has_method("add_currency"):
+		player.add_currency(earned)
+
+func auto_heal_villagers(physicians: int) -> void:
+	var amount = AUTO_HEAL_PER_PHYSICIAN * float(physicians)
+	for id in villager_hp.keys():
+		var hp = float(villager_hp[id])
+		if hp < VILLAGER_MAX_HP:
+			villager_hp[id] = minf(VILLAGER_MAX_HP, hp + amount)
+
+func auto_enroll_children(principals: int) -> void:
+	if not is_building_operational("School"):
+		return
+	var budget = AUTO_ENROLL_PER_PRINCIPAL * principals
+	for v in rescued_villagers:
+		if budget <= 0:
+			return
+		if v.get("is_kid", false) and str(v.get("role_key", "")) == "" and not school_enrollments.has(v.get("id")):
+			enroll_villager(str(v.get("id")), "School", "Student", "random")
+			budget -= 1
+
+# Builderhouse: advance the single most-ruined building one construction stage
+# each tick, for free -- the crew slowly rebuilds Deepwood on its own.
+func auto_repair_one() -> void:
+	var worst := ""
+	var worst_stage := TOTAL_BUILD_STAGES
+	for bn in STARTING_BUILDINGS:
+		var st = building_build_stage(bn)
+		if st < worst_stage:
+			worst_stage = st
+			worst = bn
+	if worst == "" or worst_stage >= TOTAL_BUILD_STAGES:
+		return
+	building_stage[worst] = worst_stage + 1
+	if int(building_stage[worst]) >= TOTAL_BUILD_STAGES:
+		building_health[worst] = BUILDING_MAX_HEALTH
+	for node in get_tree().get_nodes_in_group("building"):
+		if "role_key" in node and str(node.role_key) == worst and node.has_method("refresh_visual"):
+			node.refresh_visual()
 
 func find_available_parents() -> Dictionary:
 	var male_id = ""
@@ -1535,6 +1769,9 @@ func reset_for_new_game() -> void:
 	morale_meter_unlocked = false
 	low_morale_hours = 0.0
 	villager_hp = {}
+	barracks_arms = 0
+	seen_intro = false
+	seen_l100_reveal = false
 	morale_admin_offset = 0
 	if TEST_POPULATE_VILLAGE:
 		test_populate_village()
@@ -1611,6 +1848,9 @@ func save_game(player: Node) -> void:
 		"low_morale_hours": low_morale_hours,
 		"villager_hp": villager_hp,
 		"morale_admin_offset": morale_admin_offset,
+		"barracks_arms": barracks_arms,
+		"seen_intro": seen_intro,
+		"seen_l100_reveal": seen_l100_reveal,
 		"village_food": village_food,
 		"food_empty_hours": food_empty_hours,
 	}
@@ -1688,6 +1928,9 @@ func load_game() -> Dictionary:
 		morale_admin_offset = int(parsed.get("morale_admin_offset", 0))
 		# Older saves have no larder key -> default to a full one for the loaded pop.
 		food_empty_hours = float(parsed.get("food_empty_hours", 0.0))
+		barracks_arms = int(parsed.get("barracks_arms", 0))
+		seen_intro = bool(parsed.get("seen_intro", true))   # old saves: don't replay
+		seen_l100_reveal = bool(parsed.get("seen_l100_reveal", false))
 		village_food = float(parsed.get("village_food", food_capacity()))
 		villager_hp = {}
 		if parsed.has("villager_hp") and parsed["villager_hp"] is Dictionary:
@@ -1703,7 +1946,77 @@ func delete_save() -> void:
 		DirAccess.remove_absolute(SAVE_PATH)
 
 func rescue_villager(data: Dictionary) -> void:
+	# personal bond (VillagerQuests): if this named villager has a quest, it
+	# starts active the moment they're freed.
+	if VillagerQuests.has_quest(str(data.get("id", ""))):
+		data["quest_state"] = "active"
+		data["quest_progress"] = 0
 	rescued_villagers.append(data)
+	# rescuing someone can be the objective of a "reunite" bond on ANOTHER villager
+	quest_event("reunite", str(data.get("id", "")), 1)
+
+# --- Villager bonds (personal quests) ---
+# Advance every active bond of a matching kind. gather bonds aren't event-driven
+# (readiness is read live from the bag at turn-in); slay/reach_level/reunite
+# accumulate here. Called from player.on_enemy_killed (slay), the dungeon on a
+# level clear (reach_level), and rescue_villager (reunite).
+func quest_event(kind: String, key: String, amount: int) -> void:
+	for v in rescued_villagers:
+		if v.get("quest_state", "") != "active":
+			continue
+		var def = VillagerQuests.get_def(str(v.get("id", "")))
+		if def.is_empty() or str(def.get("kind", "")) != kind:
+			continue
+		match kind:
+			"slay":
+				v["quest_progress"] = int(v.get("quest_progress", 0)) + amount
+			"reach_level":
+				v["quest_progress"] = max(int(v.get("quest_progress", 0)), amount)
+			"reunite":
+				if key == str(def.get("key", "")):
+					v["quest_progress"] = int(def.get("count", 1))
+
+func find_villager_by_id(villager_id: String) -> Dictionary:
+	for v in rescued_villagers:
+		if str(v.get("id", "")) == villager_id:
+			return v
+	return {}
+
+# Is this villager's bond finished-but-not-yet-claimed? gather reads the live
+# bag; the rest compare accumulated quest_progress to the target count.
+func villager_quest_ready(v: Dictionary, player: Node) -> bool:
+	if v.get("quest_state", "") != "active":
+		return false
+	var def = VillagerQuests.get_def(str(v.get("id", "")))
+	if def.is_empty():
+		return false
+	var count = int(def.get("count", 1))
+	if str(def.get("kind", "")) == "gather":
+		if player == null or not ("inventory" in player) or player.inventory == null:
+			return false
+		return player.inventory.get_count(str(def.get("key", ""))) >= count
+	return int(v.get("quest_progress", 0)) >= count
+
+# Claim a ready bond: consume gather items, reveal the hidden stat, pay the
+# reward, and mark the villager bonded (permanent income boost). Returns the
+# villager's completion line for the caller to voice, or "" if not claimable.
+func turn_in_villager_quest(villager_id: String, player: Node) -> String:
+	var v = find_villager_by_id(villager_id)
+	if v.is_empty() or not villager_quest_ready(v, player):
+		return ""
+	var def = VillagerQuests.get_def(villager_id)
+	if str(def.get("kind", "")) == "gather" and player and "inventory" in player and player.inventory:
+		player.inventory.remove_item(str(def.get("key", "")), int(def.get("count", 1)))
+	v["quest_state"] = "done"
+	v["bond"] = true
+	if str(def.get("reveal_stat", "")) != "":
+		v["stat2_name"] = str(def.get("reveal_stat"))
+		v["stat2_value"] = int(def.get("reveal_value", 0))
+	if int(def.get("reward_gold", 0)) > 0 and player and player.has_method("add_currency"):
+		player.add_currency(int(def.get("reward_gold")))
+	if str(def.get("reward_item", "")) != "" and player and "inventory" in player and player.inventory:
+		player.inventory.add_item(str(def.get("reward_item")), int(def.get("reward_count", 1)))
+	return str(def.get("reward_line", ""))
 
 func is_villager_rescued(villager_id: String) -> bool:
 	for entry in rescued_villagers:
@@ -1711,12 +2024,27 @@ func is_villager_rescued(villager_id: String) -> bool:
 			return true
 	return false
 
-func assign_villager_to_role(villager_id: String, role_key: String, role_title: String) -> void:
+func assign_villager_to_role(villager_id: String, role_key: String, role_title: String) -> bool:
+	# Leadership seats are RESERVED and unique: only the rescued VIP who carries
+	# that post's own stat may ever hold it. This is a hard invariant enforced
+	# here (not just filtered by the assign UI), so no code path can seat a
+	# regular villager, a School graduate, or a child as a leader.
+	for rd in BuildingRoles.get_roles(role_key):
+		if str(rd.get("title", "")) == role_title and rd.get("leadership", false):
+			var who := {}
+			for v in rescued_villagers:
+				if v.get("id") == villager_id:
+					who = v
+					break
+			if who.is_empty() or str(who.get("stat_name", "")) != str(rd.get("required_stat", "")):
+				return false
+			break
 	for villager in rescued_villagers:
 		if villager.get("id") == villager_id:
 			villager["role_key"] = role_key
 			villager["role_title"] = role_title
-			return
+			return true
+	return false
 
 # Fully removes one villager: from the roster, plus any mating/pregnancy/
 # school state they were tied to, plus their walking world avatar. Shared by

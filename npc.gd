@@ -267,8 +267,8 @@ func build_hover_panel() -> void:
 	hover_panel.visible = false
 	hover_panel.z_index = 100
 	hover_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hover_panel.position = Vector2(-72, -92)
-	hover_panel.size = Vector2(144, 66)
+	hover_panel.position = Vector2(-78, -108)
+	hover_panel.size = Vector2(156, 82)
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.06, 0.06, 0.09, 0.9)
 	style.border_color = Color(0.65, 0.65, 0.7, 1.0)
@@ -545,8 +545,37 @@ func _process(delta: float) -> void:
 			hover_panel.visible = false
 		return
 	if player_inside and Input.is_action_just_pressed("interact"):
-		show_info()
+		if not try_bond_interaction():
+			show_info()
 	tick_mood_talk(delta)
+
+# E on a villager with a bond: claim it if ready (reveal + reward + their line),
+# otherwise voice the quest giver/objective. Returns true if the bond handled the
+# press so the generic self-introduction doesn't also fire. No bond -> false.
+func try_bond_interaction() -> bool:
+	var data = find_villager_data()
+	if data.is_empty() or VillagerQuests.get_def(str(data.get("id", ""))).is_empty():
+		return false
+	if data.get("quest_state", "") == "done":
+		return false   # bond finished; fall through to normal chatter
+	var pl = get_tree().get_first_node_in_group("player")
+	var def = VillagerQuests.get_def(str(data.get("id", "")))
+	if GameState.villager_quest_ready(data, pl):
+		var line = GameState.turn_in_villager_quest(str(data.get("id", "")), pl)
+		SpeechText.spawn(self, line if line != "" else "Thank you.")
+		var notif = get_node_or_null("../CanvasLayer/NotificationStack")
+		if notif == null:
+			notif = get_tree().get_first_node_in_group("notification_stack")
+		if notif:
+			var msg = "Bond complete: " + str(def.get("title", ""))
+			if int(def.get("reward_gold", 0)) > 0:
+				msg += "  (+%dg)" % int(def.get("reward_gold"))
+			notif.show_notification(msg)
+		if pl and pl.has_method("update_currency_display"):
+			pl.update_currency_display()
+	else:
+		SpeechText.spawn(self, str(def.get("giver", "")) + "\n(" + VillagerQuests.objective_text(def) + ")")
+	return true
 	update_hover_panel(get_global_mouse_position())
 
 # --- mood talk ---
@@ -699,14 +728,26 @@ func pick_visit_building() -> Node:
 	return work if work_ok else null
 
 var current_visit_building: Node = null
+var door_target: Node = null   # building we're walking to before slipping inside
 
+# A visit now starts by WALKING to the building's door (see the door_target
+# branch in _physics_process); the actual disappearance happens on arrival in
+# _complete_enter, with the facade's door swinging open.
 func enter_building_node(building: Node) -> void:
 	current_visit_building = building
+	door_target = building
+
+func _complete_enter() -> void:
+	var building = door_target
+	door_target = null
 	is_in_building = true
 	hours_until_exit = randf_range(VISIT_MIN_HOURS, VISIT_MAX_HOURS)
+	if building and is_instance_valid(building) and building.has_method("play_door_anim"):
+		building.play_door_anim()
 	visible = false
 	velocity = Vector2.ZERO
-	global_position = building.global_position + Vector2(0.0, -4.0)
+	if building and is_instance_valid(building):
+		global_position = building.global_position + Vector2(0.0, -4.0)
 
 func exit_building() -> void:
 	is_in_building = false
@@ -731,22 +772,28 @@ func info_fields() -> Array:
 	if data.is_empty():
 		return []
 	var age_text = "Kid" if data.get("is_kid", false) else "Adult"
-var door_target: Node = null   # building we're walking to before slipping inside
 	var stat_text = data.get("stat_name", "") if data.get("stat_name", "") != "" else "no stat yet"
-# A visit now starts by WALKING to the building's door (see the door_target
-# branch in _physics_process); the actual disappearance happens on arrival in
-# _complete_enter, with the facade's door swinging open.
 	var fields = [data.get("name", "?"), age_text + ", " + data.get("sex", "?"), stat_text]
 	if data.get("role_title", "") != "":
-	door_target = building
-
-func _complete_enter() -> void:
-	var building = door_target
-	door_target = null
 		fields.append("Works: " + data.get("role_title"))
+	fields.append_array(bond_fields(data))
 	return fields
-	if building and is_instance_valid(building) and building.has_method("play_door_anim"):
-		building.play_door_anim()
+
+# The villager's personal bond, shown right in their hover panel: the objective
+# + progress while active, "press E" when ready, or the unlocked hidden stat
+# once complete.
+func bond_fields(data: Dictionary) -> Array:
+	var def = VillagerQuests.get_def(str(data.get("id", "")))
+	if def.is_empty():
+		return []
+	if data.get("quest_state", "") == "done":
+		if str(data.get("stat2_name", "")) != "":
+			return ["♥ " + str(data.get("stat2_name")) + " +" + str(data.get("stat2_value", 0))]
+		return ["♥ Bonded"]
+	var pl = get_tree().get_first_node_in_group("player")
+	if GameState.villager_quest_ready(data, pl):
+		return ["★ " + str(def.get("title", "Bond")) + " — press E"]
+	return [str(def.get("title", "Bond")) + ": " + VillagerQuests.progress_text(def, data, pl)]
 
 func show_info() -> void:
 	var fields = info_fields()
