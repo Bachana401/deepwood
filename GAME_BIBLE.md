@@ -52,6 +52,8 @@ Before Deepwood, three great powers ruled — the **Monarchs**:
 - The **Monarch of War** — whose domain now lies in another realm. *(Sequel hook. Never on screen.)*
 - The **Shadow Monarch** — a power of shadow and death, equal to the other two. **This is the player.**
 
+> **Naming note (decided 2026-07-17): "Monarch" is deliberately KEPT** — considered vs Solo Leveling and retained. Reasons: (1) the whole Monarch layer is *hidden* — it surfaces only mid/late (the reveal §9), and the player's own **Shadow Monarch** identity is an **endgame-only** reveal, so the term never fronts the early theme; (2) **"Monarch of Despair" is original to Deepwood** (Solo Leveling's Monarchs are Destruction/Frost/Beasts/Plagues/etc., never Despair). **Design constraint that keeps this safe: do NOT over-expose "Monarch" in early-game copy** — early dialogue talks about "the evil / the Despair," not "the Monarch." Guard the word so its late reveal keeps its weight.
+
 Ages ago, Despair and War **allied against the Shadow Monarch** and defeated him in a battle that broke the world. Dying, he cast one last forbidden spell: he unwove his power and poured his soul into a **mortal shell**. It worked — but the price was everything: throne, power, name, and memory, sealed inside an ordinary human who woke with nothing. Since then, War withdrew to another dimension; **Despair went on alone and turned his hunger on mankind.**
 
 ### 2.2 The world now — and the Law of Despair (refined 2026-07-15)
