@@ -195,7 +195,7 @@ What the player is actually *doing and worrying about* at every stage. This is t
 |---|---|---|
 | **School** (keystone) | skilled workforce — teaches stats (the role roll §5.4) | the whole automation web unravels |
 | **Farm** | food #1 | starvation |
-| **Fishing Dock** | food #2, variety | no backup food, variety morale lost |
+| **Fishing Dock** | food #2 — **premium food** (more morale, sates longer than Farm) | no backup food; the morale/longevity food edge lost |
 | **Hospital** | healing + births | wounds kill; no new children |
 | **Barracks** | defense — day/night shifts (§7.5) | every siege is on the player |
 | **Mine** 📋 (new 2026-07-17) | ore/metal + stone — the delegated form of hand-mining | Blacksmith & Builderhouse starve for raw materials |
@@ -261,7 +261,19 @@ Before the Hospital is repaired and staffed (§5.2), the player's *only* reliabl
 **The loop:** dungeon gold + taxes + interest → **treasury** → Bank pays **wages** → workers keep buildings running → buildings produce the goods/services that keep the village prosperous → Government taxes that prosperity → more gold. **Early you subsidize the village from the dungeon; as Government + Bank scale, it approaches self-funding.** The dungeon is the faucet; the village is the multiplier.
 
 - Morale meter ✅ (unlocks once every building has been repaired). Leader bonuses / tribute / morale rewards still apply.
-- 🟡 Open (§12): what happens to the **Marketplace** now that "auto-sell production → gold" is gone (proposal: repurpose as a player-driven **trade post** — sell surplus materials, buy scarce supplies — *not* a passive gold source); exact tax/interest/wage numbers.
+- 🟡 Open (§12): exact tax / interest / wage numbers. *(The Marketplace question is now answered — §5.6a.)*
+
+### 5.6a The Marketplace — the Wanderer's Post 📋 (new canon 2026-07-17)
+
+The Marketplace makes **no gold**. It is the town's **guest-stall**: a stop for **wandering treasure-sellers** who drift in, set up, and sell **random loot** — and how well they treat you is a *direct function of how nice your village is to be in.* This is what turns morale from a defensive stat into an **economic lever.**
+
+- **One seller at a time.** A wanderer arrives with a **random stock** (gear, materials, consumables, the occasional rare find) at set starting prices.
+- **Hospitality decides the visit** — driven by **morale** (the 0–10 meter), plus being **fed** and **decorations / ambience**:
+  - **High morale (~5–7+):** the seller likes it here — **stays the full ~24 in-game hours** and **slowly marks prices DOWN across the stay.** The happier the town, the longer they linger and the cheaper it gets the longer you wait.
+  - **Low-ish morale:** prices **hold flat** and the seller **cuts the visit short** (~12h, scaling down with morale) — a gloomy town gets a quick, full-price visit and an early goodbye.
+- **Rotation & escalation:** after one leaves, **the next arrives at a random later time**, and successive wanderers trend toward **better / rarer stock — but at a higher starting price** (which your morale-discount then eats into). A well-run village gradually attracts *better merchants with better loot*, and its hospitality is what makes their prices affordable.
+- **Purely a gold SINK** (you spend to buy) — consistent with §5.6's "only Gov + Bank make gold." Its deeper role: the Bar, Tavern, food, and decorations you keep up for corruption-defense (§10) *also* buy you cheaper, rarer loot here. One more strand tying the web together.
+- 🟡 Open (§12): the exact morale → (dwell-time, discount) curve; the loot tables + escalation; whether a **Merchant** staffer improves wanderer frequency/quality/haggling (recommendation: yes — gives the Merchant profession its purpose); whether "**decorations**" are a real sub-system or just fold into morale.
 
 ### 5.7 The Building Web — one connected system (new canon 2026-07-17) 📋
 
@@ -293,7 +305,7 @@ The village is **not a menu of independent buildings** — it is one machine who
 | Building | Purpose (what it's FOR) | Needs (in) | Feeds (out) | The dependency that bites under pressure |
 |---|---|---|---|---|
 | **Farm** | food #1 | Farmer | Food → everyone | more mouths (rescues, births) demand more Farmers/Sylvara (§8) |
-| **Fishing Dock** | food #2 + variety morale | Fisher | Food, variety morale, (Kaldos) materials | backup when Farm alone can't feed the grown village |
+| **Fishing Dock** | food #2 — **premium food** (fish gives more morale on eating and sates *longer* than Farm food); deep-catch → (Kaldos) materials | Fisher | premium food, morale, materials | backup food security + the quality-food edge is lost without it |
 | **Mine** 📋 | raw ore/metal + stone | Miner | Blacksmith (metal), Builderhouse (stone) | **Blacksmith & repairs stall without it** once you stop hand-mining |
 | **Blacksmith** | forge/upgrade **warrior weapons**, player gear (depth-35 Forge), gathering tools | Smith + **ore (Mine)** | Barracks arms, player gear, tools | **Barracks can't out-arm scaling waves without it**; it can't run without Mine metal |
 | **Barracks** | train Warriors → fight waves + man walls | villagers → Warrior | Defense | self-sufficient early; **needs Blacksmith weapons** as waves scale; **needs Hospital** to recover the wounded |
@@ -301,7 +313,7 @@ The village is **not a menu of independent buildings** — it is one machine who
 | **Builderhouse** | repair/build (incl. walls) | Builder + **construction mats** | standing buildings & walls | sieges break walls faster than you can hand-repair |
 | **School** (keystone) | teach stats — the role roll (§5.4) | Teacher | the workforce for **every** building | if it falls, **nothing else can be staffed** long-term |
 | **Science Lab** | research materials + building upgrades | Scholar | skill-tree access, upgrades (incl. School weight-tuning §5.4) | progression **freezes** without it |
-| **Marketplace** 📋 | *(repurposed §5.6)* player trade post — sell surplus materials, buy scarce supplies. **No longer a passive gold source.** | Merchant | a gold *sink/lever*, not a faucet | without it, no place to offload surplus or buy shortfalls |
+| **Marketplace** 📋 | *(§5.6a)* the **Wanderer's Post** — hosts rotating treasure-sellers; **morale sets their prices & how long they stay.** No passive gold. | Merchant (haggling/quality) | a gold *sink*; better loot the nicer your town | without it, no wandering merchants, no loot market |
 | **Bank** | **one of only two gold makers** — treasury, **interest**, payroll (pays wages), death-insurance | Banker | gold, wage automation, safe treasury | the Money Loop (C) has no payroll or growth without it |
 | **Government** | **the other gold maker** — **taxes** village prosperity — AND the management brain that scales **automation** of the player's chores | Official + a rescued **Leader** | gold (taxes) + less micro across *all* systems | no passive village income, and the grown village drowns you in manual tasks |
 | **Tavern** (inn) | housing — rescued/newcomers live here until homed | Innkeeper | housing → morale floor | **unhoused villagers lose morale → corruption risk (§10)** |
@@ -488,7 +500,7 @@ A quest-reward novelty weapon, *deliberately useless* everywhere, that becomes t
 9. **Role-roll numbers (§5.4)** — MECHANIC shape is decided (weighted roll; progressive School weight-tuning that maxes at a large-but-capped bias, never 100%); only NUMBERS remain, balanced later: the default weighted table (food/fun common, economic/skilled rare, leadership never); the per-upgrade adjustment amounts and the final single-role cap (~40% is the working sketch); whether re-education is pure weighted-random or can *target* a role at a steep cost premium (recommendation: first-graduation random for the luck loop, targeted re-ed as the reliable-but-expensive path); whether a pity/floor softens long rare-role droughts.
 10. **The Building Web wiring (§5.7)** — MECHANIC shape decided (independent early → interdependent under pressure; the chains and per-building purposes are canon). Open: the exact **ore/metal resource ids** (new item vs reuse stone + a metal tier), the **depth/pressure point each dependency "switches on"** (when bare warriors stop sufficing and the Barracks *needs* Blacksmith arms, etc.), whether the **Mine** is hand-buildable from Act I or gated, and the **Shrine's staffing role**.
 11. **Corruption cascade numbers (§10)** — MECHANIC shape decided (proximity infection gated by each neighbour's morale). Open: infection radius, the "already low" morale threshold, spread rate per tick. Numbers-pass; re-enable behind `CORRUPTION_ENABLED` when tuned.
-12. **Economy revision fallout (§5.6)** — DECIDED: gold is made by only Government (taxes) + Bank (interest) + a Bar trickle + the dungeon; per-building passive gold is removed (a code change). Open: the **Marketplace's** new identity (recommendation: player trade post — sell surplus, buy shortfalls; *not* passive income) — confirm or cut it; and whether the **Fishing Dock** stays a distinct building or folds into the Farm as a "fishing" upgrade (it currently overlaps Farm on food, justified only by food-security + variety-morale + a materials angle — the softest-differentiated building in the roster).
+12. **Economy revision fallout (§5.6)** — DECIDED: gold is made by only Government (taxes) + Bank (interest) + a Bar trickle + the dungeon; per-building passive gold is removed (a code change). **Marketplace = the Wanderer's Post** (§5.6a); **Fishing Dock kept distinct as premium food** (§5.7). Remaining open: the Wanderer's Post morale→(dwell,discount) curve + loot tables + Merchant-staff effect; whether "**decorations**" is a real morale sub-system or folds into morale; exact tax/interest/wage/food numbers. All numbers-pass; the mechanics are decided.
 
 ---
 
@@ -499,4 +511,4 @@ A quest-reward novelty weapon, *deliberately useless* everywhere, that becomes t
 - **Build order after this book is signed off** stays vertical-slice: finish needs/hospital/wages (§5.5) → Barracks shifts (§7) → Government automation (§5.1) → Shrine + corruption refinements (§10) → economy depth (§5.6) → the Ten (§8) → the Finale (§9) → post-game (§11).
 - **Execution guardrails** (from VILLAGE_SYSTEMS §11, still binding): extend existing systems (`game_state.gd` morale, `npc.gd` villagers, `building.gd`), never fork parallel ones; never rewrite the save format (extend additively); headless-verify every change; don't touch dungeon balance or the L100 curves unless the task says so.
 
-*Living document. Last full revision: 2026-07-15. Amended 2026-07-17: the arrival/opening sequence (§2.4.1), Orin's three-step introduction at ~L15 + starting NPC roster (§2.5.1), the Doctor early-healing mechanic (§5.5a), the Watchtower wave-warning progression (§7.1), and the School "role roll" — weighted-random professions with late-game weight-tuning (§5.4); the Building Web — every building's purpose + the dependency chains as one connected system, plus the new **Mine** (§5.7, roster now 16); and the corruption **proximity chain-reaction** (§10); the dependency-activation ladder (§5.7.1); and the **economy revision** — only Government + Bank (+ a Bar trickle + the dungeon) make gold, no per-building passive income, Marketplace repurposed as a trade post (§5.6); art/PixelLab frozen until the mechanical + story side is finished (dev directive).*
+*Living document. Last full revision: 2026-07-15. Amended 2026-07-17: the arrival/opening sequence (§2.4.1), Orin's three-step introduction at ~L15 + starting NPC roster (§2.5.1), the Doctor early-healing mechanic (§5.5a), the Watchtower wave-warning progression (§7.1), and the School "role roll" — weighted-random professions with late-game weight-tuning (§5.4); the Building Web — every building's purpose + the dependency chains as one connected system, plus the new **Mine** (§5.7, roster now 16); and the corruption **proximity chain-reaction** (§10); the dependency-activation ladder (§5.7.1); and the **economy revision** — only Government + Bank (+ a Bar trickle + the dungeon) make gold, no per-building passive income, Marketplace repurposed as the **Wanderer's Post** — morale-priced rotating treasure-sellers (§5.6a) — and the Fishing Dock kept as premium food (§5.6); art/PixelLab frozen until the mechanical + story side is finished (dev directive).*
