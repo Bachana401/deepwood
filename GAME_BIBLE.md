@@ -71,6 +71,18 @@ The trail ends at Deepwood.
 ### 2.4 Deepwood
 A once-thriving village, now almost empty. Buildings broken and ruined — farm fallow, dock rotted, bank and school silent. A handful of survivors starve in the wreckage. Scattered through the ruins and the dungeon below are **the taken**: villagers frozen mid-motion, pulsing faintly like a held breath — the people whose hope would not die when Deepwood fell, imprisoned mid-breaking and force-fed sorrow until it does. A rescue doesn't just free a body; it **interrupts a breaking**. One still has enough of himself left to beg you for help. *(This plea is the game's opening — ✅ wired via `Story.OPENING`.)*
 
+### 2.4.1 The Arrival — the opening sequence (new canon 2026-07-17) 📋
+
+The plea (§2.4) is the first beat. The rest of the arrival, in order, is what teaches the player *where they are and why they can't just leave*:
+
+1. **The three defenders.** Following the taken villager's plea into Deepwood, the player finds **three adventurer NPCs already in active battle** against a wave of the Despair Army. The player fights beside them and helps repel this first wave — the game's first combat, learned in company rather than alone.
+2. **The trap explained.** With the wave broken, the three explain their situation: **they have been stuck in Deepwood for weeks.** They cannot leave in any direction — *every attempt to find a path out of the Deepwood makes the Despair Army swell far larger.* The way out is not blocked by a wall; it is guarded by an army that grows to meet anyone who tries. They are trapped, and now so is the player. *(This is the in-fiction answer to "the trail ends at Deepwood": the player is not merely drawn here — they are held here.)*
+3. **The failed escape.** Undeterred, the player tries to cut the path out **himself** — and barely survives it, staggering back into the village near death. The lesson lands as gameplay: the exit is not an option yet; the only way out is *through* — down the dungeon, to the root.
+4. **The healer.** The player is treated by a **woman tending the three wounded adventurers** — a villager who survived the latest raids, and who was **Deepwood's doctor before it fell.** She heals the player too. *(She is the anchor of the early-game healing mechanic — §5.5a.)*
+5. **Her account (the Law of Despair, told by a survivor).** She tells what Deepwood was: **once mighty** — full of skilled, educated, talented people, one of the strongest villages of the age, which endured for *years* even after the Despair cataclysm began. But lately the waves grew monstrous and the village was destroyed **building by building**; the **strong-willed were dragged off as hostages**, the **weak-willed converted** into the very enemy at the gates. This is the Law of Despair (§2.2) delivered diegetically for the first time — and it names, without the player yet knowing it, exactly what the taken (§2.4) and the Ten (§8) are.
+
+**What this sequence establishes:** the trap (why the whole game happens *here*), the stakes, the three defenders as the player's early peers, the Doctor as the early lifeline, and the world's law — all shown, not narrated. *(Character names TBD; not blocking. The three defenders' relationship to Orin is an open reconciliation — §12.)*
+
 ### 2.5 Orin — the enemy wearing a hero's face
 **Orin** appears as a stranded defender-mage: the last thing standing between Deepwood and the dark, hurling meteors at the nightly horde, dying for the village and rising each dawn. The survivors love him. **You fight beside him for most of the game.**
 
@@ -93,9 +105,12 @@ At the gates of Level 100 the mask falls: the dungeon kneels to Orin, and someth
 What the player is actually *doing and worrying about* at every stage. This is the spine the content hangs on.
 
 ### Act I — The Ashes (dungeon floors ~1–15)
+- **The arrival** (§2.4.1): the plea → fighting beside the three trapped defenders → learning you *can't leave* → the failed escape → the Doctor heals you and tells you what Deepwood was. This is the tutorial-as-story.
 - **Survive.** Weak start: basic weapon, no gold, gated skills, empty ruined village (✅ honest-start mode is the default; the old sandbox lives behind `--dev`).
 - **Learn the loop:** enter the dungeon, clear floors, take the first boss (floor 5), carry loot home.
 - **First rescues** (Elin, Milo, early taken) and **first repairs** — done poor: every coin hurts.
+- **Healing is the Doctor** (§5.5a): scarce, escalating in cost, and *losable* — every avoidable wound bleeds your economy, and she can die.
+- **Sieges are pure chaos** (§7.1): no warning, random timing and size, until you can afford the Watchtower.
 - **Everything is manual:** you hand-feed villagers, hand-assign the first workers, hammer walls yourself.
 - **Responsibility:** keep a handful of people alive with your own hands.
 
@@ -207,6 +222,16 @@ One profession stat per building (Farmer, Fisher, Doctor/Nurse, Smith, Builder, 
 
 **Potions rule** 📋: HP/mana potions drop **only** from pre-boss waves and boss fights — the player enters every boss stocked, and can't potion-spam normal floors.
 
+### 5.5a The Doctor — the early-game lifeline 📋 (new canon 2026-07-17)
+
+Before the Hospital is repaired and staffed (§5.2), the player's *only* reliable healing is **the Doctor** — the raid-survivor who healed the player on arrival (§2.4.1). She bridges story and system: she is the first Doctor/Nurse, working out of the ruined Hospital, and the game's answer to "no passive HP regen" (§4.1) in Act I.
+
+- **Escalating heal cost.** The **first heal each in-game day is cheap** (or free); **each additional heal the same day costs steeply more**, and the price **slowly resets** over time back toward the base. She is a lifeline, not a fountain — you cannot afford to make many mistakes, and every avoidable wound is a real drain on your economy. This is the early-game tension the potion rule enforces later.
+- **She can die.** She is a mortal villager in a besieged town — a siege that reaches her, or neglect that lets it, can **kill her.** Losing her means losing your only healer until the Hospital is properly staffed: a serious, felt setback, not a soft reset.
+- **Replacing her (the stakes with an out).** If she dies, the *only* path back to a healer runs through the village lifecycle (§5.4): pair villagers → child → School → if the child rolls the **Doctor** stat → employ them at the Hospital. It is slow, luck-touched, and exactly the kind of hard recovery the game is about — you can come back from her death, but you will *feel* it.
+- **Design intent:** healing is scarce, personal, and losable in Act I; the player learns early that people are infrastructure and mistakes cost. It also plants the Hospital's importance long before it's rebuilt.
+- 🟡 Open (§12): exact cost curve + daily reset rate; whether the "first heal free vs cheap" and how her death is triggered (siege reach vs a neglect timer).
+
 ### 5.6 Economy ✅ core / 📋 depth
 Assigned workers generate passive gold scaled by stat; Government taxes; leader bonuses; tribute; morale rewards. 📋 Depth pass: wages as a real drain, Marketplace auto-selling, Bank interest/payroll. Morale meter ✅ (unlocks once every building has been repaired).
 
@@ -233,7 +258,17 @@ A **7-stage hidden passive** — never shown in the skill tree, it just *happens
 
 ## 7. Defense — sieges, warriors, walls ✅ core / 🔨
 
-- **Scheduled sieges** scale with village health — a *living* village is an insult to the Monarch of Despair; prosperity literally raises the pressure (the squeeze is the design, not a bug).
+- **Sieges** scale in size with village health — a *living* village is an insult to the Monarch of Despair; prosperity literally raises the pressure (the squeeze is the design, not a bug).
+
+### 7.1 The Watchtower — earning foresight (new canon 2026-07-17) 📋
+
+The siege *schedule* is not given to the player — it is **earned.**
+
+- **Act I: true chaos.** Early on there is **no wave indicator at all** — sieges hit at **genuinely random times and in random amounts.** You cannot plan; you can only stay ready. This is the intended early-game dread: you never know when, or how bad.
+- **Build the Watchtower** (turret / lookout — name TBD, dev doesn't mind) from gathered loot, resources, and items → you unlock **exact wave times and dates**, with a **~1 in-game hour warning** before each incoming wave. Chaos becomes something you can brace for.
+- **Upgrade it → 2-hour warning.** **Upgrade again → a full 24-hour warning** — you can now schedule your dungeon runs around known siege windows, the Act III "can't be everywhere" squeeze (§3) becomes a *planned* juggling act instead of a gamble.
+- **Design intent:** foresight is a reward, not a default. The progression turns defense from "react to chaos" → "manage a schedule," pacing the player's growing mastery. It also gives the day/night Barracks-shift system (§7 above) something concrete to plan against.
+- 🟡 Open (§12): is the Watchtower a **15th building** in the §5.2 roster, or a standalone defensive structure? Warning tiers are locked (none → 1h → 2h → 24h); its build/upgrade costs are a numbers-pass item.
 - Walls with HP on both sides; trained warriors sally out as visible soldier units ✅ v1.
 - **Barracks shifts** 📋: two shifts (day/night) that swap so the off-shift can sleep and be healed for 12h (no passive regen — nurses do it). Manual wall assignment early → Government automates. Night sieges and mid-siege shift changes are intentional tension hooks.
 - After a siege, wounded warriors **stay wounded** until the Hospital heals them.
@@ -346,7 +381,10 @@ A quest-reward novelty weapon, *deliberately useless* everywhere, that becomes t
 2. **Soul Split Wand quest** — which quest line awards it, and how the game teaches "this is a joke item" without spoiling that it will matter.
 3. **Post-game shadow-village depth** — do shadow villagers have any new mechanics (no needs? night-strength?) or work exactly as before? Currently: exactly as before, visually shadow. Decide if that's final.
 4. **"True ending" / breaking the NG+ cycle** — deliberately deferred until after the base finale is built.
-5. **Numbers pass** — every 📋 system above ships with placeholder-free tuning (wages, potion drop rates, Devourer tier curve, the Ten's boon values). Balancing happens at build time against the endgame-balance curves already in code.
+5. **Numbers pass** — every 📋 system above ships with placeholder-free tuning (wages, potion drop rates, Devourer tier curve, the Ten's boon values, the Doctor's heal-cost curve §5.5a, Watchtower costs §7.1). Balancing happens at build time against the endgame-balance curves already in code.
+6. **The three defenders ↔ Orin** (§2.4.1) — how do the three trapped adventurers relate to Orin, the beloved undying defender-mage (§2.5)? Are they separate mortal heroes who fight the nightly siege *alongside* Orin; is one of them tied to him; do they survive into the mid/late game or is their role the opening? (They must NOT muddy the "survivors love Orin" thread or pre-empt the Harvest — the Ten §8 are the ones who stand with you at the end, not these three, unless the dev promotes one.)
+7. **"Leaving Deepwood"** (§2.4.1) — is the escalating exit-army purely narrative (a scripted failed escape), or an actually attemptable action the player can retry (an optional escalating gauntlet at the map edge that is never worth it until the endgame)? Decide before building the opening.
+8. **The Doctor & the three defenders — names.** Minor; not blocking. Give the Doctor a name when the opening dialogue is written.
 
 ---
 
@@ -357,4 +395,4 @@ A quest-reward novelty weapon, *deliberately useless* everywhere, that becomes t
 - **Build order after this book is signed off** stays vertical-slice: finish needs/hospital/wages (§5.5) → Barracks shifts (§7) → Government automation (§5.1) → Shrine + corruption refinements (§10) → economy depth (§5.6) → the Ten (§8) → the Finale (§9) → post-game (§11).
 - **Execution guardrails** (from VILLAGE_SYSTEMS §11, still binding): extend existing systems (`game_state.gd` morale, `npc.gd` villagers, `building.gd`), never fork parallel ones; never rewrite the save format (extend additively); headless-verify every change; don't touch dungeon balance or the L100 curves unless the task says so.
 
-*Living document. Last full revision: 2026-07-15.*
+*Living document. Last full revision: 2026-07-15. Amended 2026-07-17: the arrival/opening sequence (§2.4.1), the Doctor early-healing mechanic (§5.5a), and the Watchtower wave-warning progression (§7.1); art/PixelLab frozen until the mechanical + story side is finished (dev directive).*
