@@ -84,7 +84,7 @@ The plea (§2.4) is the first beat. The rest of the arrival, in order, is what t
 **What this sequence establishes:** the trap (why the whole game happens *here*), the stakes, the three defenders as the player's early peers, the Doctor as the early lifeline, and the world's law — all shown, not narrated. *(Character names TBD; not blocking. The three defenders' relationship to Orin is an open reconciliation — §12.)*
 
 ### 2.5 Orin — the enemy wearing a hero's face
-**Orin** appears as a stranded defender-mage: the last thing standing between Deepwood and the dark, hurling meteors at the nightly horde, dying for the village and rising each dawn. The survivors love him. **You fight beside him for most of the game.**
+**Orin** appears as a stranded defender-mage: the last thing standing between Deepwood and the dark, hurling meteors at the nightly horde, dying for the village and rising each dawn. The survivors love him. **You fight beside him for most of the game — but he is NOT there at the start; he enters ~floor 15 (§2.5.1).**
 
 It is a mask. **Orin is the Monarch of Despair.** The horde is his; the "defense" is theater — a slow harvest dressed as heroism. He is genuinely **undying**: struck down, he collapses to an ember and reforms *stronger*, forever (✅ built — his death-escalation loop is intentional and must never be nerfed).
 
@@ -92,7 +92,15 @@ It is a mask. **Orin is the Monarch of Despair.** The horde is his; the "defense
 - **Why he can't die:** *an undivided soul cannot be destroyed.* This is the lock on the entire game — and its key.
 - **Why he waits (the full truth):** Orin has been **waiting for you to build the village to its maximum.** The tribute, the breathing room between sieges, the survivable nights — all calculated generosity. He wants Deepwood at its peak so that, with one sweep of his hand, he can turn *everything you built* against you. It isn't just harvest. **He wants to play with his food** — to watch the builder's face as the built thing turns. Despair is his nature; manufacturing the *perfect* despair is his art.
 
-### 2.6 The shape of the journey
+### 2.5.1 How Orin enters the game (new canon 2026-07-17) 📋
+
+Orin is **absent from the village at the start.** He is *foreshadowed*, then *arrives*, then *becomes the beloved defender* the rest of the canon describes — a three-step reveal that makes his eventual betrayal land.
+
+1. **The rumour (Act I, from the Doctor).** As the player learns about the dungeon, the Doctor (§2.4.1) tells what she saw: the enemy dragging villagers down into the dungeon as hostages weeks ago. She is sure they are dead — no one has returned. **She mentions a wizard**, too: a stranger who came wanting to save them, went down into the dungeon, and *never came back either.* *(That wizard is Orin. Dramatic irony: she mourns him as another lost hero.)*
+2. **The return (~floor 15, after a boss).** The player descends, rescues a few hostages, and around floor 15 — likely **right after a boss** — **Orin appears, whole and unshattered**, as though returning from a long walk. He introduces himself as a **wandering mage** who, after the Despair cataclysm, was searching for a place to live peacefully among people; he'd heard of this famed advanced village of brilliant, talented folk, and came — only to find it near-empty, its people dead or taken. He says he **tried to save them himself**: he was down in the dungeon fighting, **cleared one of the levels, then got stuck — and that's why he's back now.** *(Every word is a lie shaped to mirror the player's own arrival.)*
+3. **The introductions & the pact.** The Doctor introduces the player and the three defenders to Orin (she and Orin had met **3–4 days earlier**). Now everyone lays out their intentions: they all chased the **same rumour** of a safe, advanced haven; with the world all but destroyed, the only way to earn that safety is to **rescue the taken and outlast the evil** using the village's advanced technology and its brilliant people. Everyone commits to the same plan — **rebuild Deepwood, free its people, grow strong.** From here, Orin takes up the nightly defense and becomes the hero of §2.5.
+
+**Starting NPC roster (Act I):** the player begins with **6 NPCs** — the **3 heroes** met on arrival (the village's defending unit), **1 Doctor** (the healer, §5.5a), and **2 Farmers** (first food). Everyone else is dead or a hostage to be rescued. *(Orin is not a village NPC in the roster sense — he is the defender/story figure who joins at ~L15.)*
 The story is *earned* through the loop, not told in cutscenes: descend → free them → rebuild → grow strong → the siege tightens. The village growing brighter and the nights growing worse are **the same story told from both ends.** (The act-by-act player experience is §3; the finale is §9.)
 
 ### 2.7 How it ends (summary — full beat-by-beat in §9)
@@ -115,6 +123,7 @@ What the player is actually *doing and worrying about* at every stage. This is t
 - **Responsibility:** keep a handful of people alive with your own hands.
 
 ### Act II — The Rebuilding (floors ~15–50)
+- **Orin arrives** (~floor 15, after a boss — §2.5.1): the "wandering mage" cover story; from here he takes up the nightly defense and becomes the hero the survivors love.
 - **The village machine starts turning:** Farm/Dock feed people, School teaches stats, first cottage pairings, first children.
 - **Class identity:** the player commits to Sword / Archer / Mage; tier 1–3 skills; first set-armor pieces from bosses.
 - **Sieges begin and scale** — walls, warriors, the day/night shift rhythm.
@@ -204,12 +213,17 @@ All buildings start **visually destroyed** and non-functional; repair costs gold
 ### 5.3 Professions ✅ decided
 One profession stat per building (Farmer, Fisher, Doctor/Nurse, Smith, Builder, Scholar, Merchant, Banker, Official, Teacher, Innkeeper, Barkeep) + **Warrior** (Barracks — deletes all other stats, permanent, one-way sacrifice). Leadership roles (Leader / Principal / Warchief) can **never** be taught — only rescued hostages who already carry them qualify. Leader bonuses (+15% class-appropriate boosts) ✅.
 
-### 5.4 Villager stats & the school pipeline ✅ decided / 🔨 partial
+### 5.4 Villager stats & the school pipeline — the role roll ✅ decided (model revised 2026-07-17) / 🔨 partial
 - Every NPC carries **0–5 profession stats** (1 common → 5 extremely rare). **1 stat = employable + safe from depression.** Extra stats = pure versatility.
-- **Statless NPCs** slowly become depressed → fix via School (gain a stat) or Barracks (become a Warrior).
-- School retraining: 2nd stat 5× time, 3rd stat 10× time, **hard cap 3 via School** — natural 4–5-stat rescues stay elite finds.
-- **Lifecycle pipeline:** pair at cottage → ~25h → child → enroll → ~24h → adult with a stat → employ. Manual early (deliberately tedious); **Government automates the whole chain** (kids self-route to school → straight to a job).
+- **The role roll (revised 2026-07-17):** a graduating child — and any statless NPC put through School — does **not pick** their profession. They **roll one from a weighted table.** Weight is **inverse to the role's value/difficulty:** low-skill, low-stakes roles that mostly serve food / fun / morale (**Farmer, Fisher, Barkeep, Innkeeper**) are **common**; skilled, high-leverage roles (**Banker, Scholar, Doctor/Nurse, Official, Teacher, Smith, Merchant, Builder**) are **rare**. Leadership (Leader / Principal / Warchief) is **never on the table** — rescued only (§5.3). *Rationale: anyone can tend a field; a banker or a scholar is a rare mind. Scarcity makes the valuable roles feel valuable and keeps rescued VIPs precious.*
+- **The consequence — luck + volume:** to staff the rare roles you must **produce and school many children** and accept the odds. This is the engine that gives the cottage → child → school lifecycle a real *economy*: population growth is how you eventually fill the Bank, the Lab, the Hospital. A run is partly a numbers game of "keep the cradles full."
+- **Statless NPCs** slowly become depressed → fix via School (roll a role) or Barracks (become a Warrior).
+- **Re-education, up to 3 total:** each re-schooling grants one **new** profession (no repeats), **rolled the same weighted way**; 2nd stat 5× time, 3rd stat 10× time; **hard cap 3 via School.** So an NPC is up to three weighted rolls — more shots at a rare role, at growing time cost. Natural 4–5-stat *rescues* stay elite finds.
+- **Rescues bypass the roll:** rescued villagers arrive with their **real** professions intact — the only *guaranteed* source of rare and leadership roles. This is a major reason rescuing (and the Ten, §8) matters.
+- **Late-game — School weight-tuning (📋):** an upgraded School lets the player **hand-adjust the role weights within a capped budget** — bias graduations toward what the village lacks (pull Farmer down, push Banker up). RNG becomes *steerable* RNG: a mastery reward in the §5.1 automation spirit, and the pressure-valve for the luck economy. **Late-game only** — early game you live with the dice.
+- **Lifecycle pipeline:** pair at cottage → ~25h → child → enroll → ~24h → adult who **rolls a stat** → employ. Manual early (deliberately tedious); **Government automates the whole chain** (kids self-route to school → straight to a job).
 - **Villager bonds** ✅: per-villager personal quests (gather/slay/reach-level/reunite) that reveal a hidden stat + reward + 1.5× income from that villager.
+- 🟡 Open (§12): the default weight table; whether re-education stays weighted-random or may *target* a role at higher cost; the weight-tuning budget/cap; any pity/floor to soften rare-role droughts.
 
 ### 5.5 Needs ✅ decided / 🔨 partially built
 | Need | Filled by | Empty → | Status |
@@ -382,9 +396,10 @@ A quest-reward novelty weapon, *deliberately useless* everywhere, that becomes t
 3. **Post-game shadow-village depth** — do shadow villagers have any new mechanics (no needs? night-strength?) or work exactly as before? Currently: exactly as before, visually shadow. Decide if that's final.
 4. **"True ending" / breaking the NG+ cycle** — deliberately deferred until after the base finale is built.
 5. **Numbers pass** — every 📋 system above ships with placeholder-free tuning (wages, potion drop rates, Devourer tier curve, the Ten's boon values, the Doctor's heal-cost curve §5.5a, Watchtower costs §7.1). Balancing happens at build time against the endgame-balance curves already in code.
-6. **The three defenders ↔ Orin** (§2.4.1) — how do the three trapped adventurers relate to Orin, the beloved undying defender-mage (§2.5)? Are they separate mortal heroes who fight the nightly siege *alongside* Orin; is one of them tied to him; do they survive into the mid/late game or is their role the opening? (They must NOT muddy the "survivors love Orin" thread or pre-empt the Harvest — the Ten §8 are the ones who stand with you at the end, not these three, unless the dev promotes one.)
+6. **The three defenders' fate** — RESOLVED that they are separate mortal heroes (starting defenders), and Orin is absent until ~L15 (§2.5.1). Residual: **what happens to the three at the Harvest (§9.3)?** As mortal villagers their hope breaks like everyone's — the three heroes you started the game beside turning against you would be a gut-punch — *unless* one earns a place among the Ten (§8) or is written a special fate. Decide when the finale roster is finalized.
 7. **"Leaving Deepwood"** (§2.4.1) — is the escalating exit-army purely narrative (a scripted failed escape), or an actually attemptable action the player can retry (an optional escalating gauntlet at the map edge that is never worth it until the endgame)? Decide before building the opening.
 8. **The Doctor & the three defenders — names.** Minor; not blocking. Give the Doctor a name when the opening dialogue is written.
+9. **Role-roll numbers (§5.4)** — the default weighted table (rough intent: food/fun roles common, economic/skilled roles rare, leadership never); whether re-education is pure weighted-random or can *target* a role at a steep cost premium (recommendation: keep first-graduation random for the luck loop, consider targeted re-ed as the reliable-but-expensive path); the late-game weight-tuning budget/cap; whether a pity/floor softens long rare-role droughts. All numbers-pass items, but the *targeting* fork is a real design choice.
 
 ---
 
@@ -395,4 +410,4 @@ A quest-reward novelty weapon, *deliberately useless* everywhere, that becomes t
 - **Build order after this book is signed off** stays vertical-slice: finish needs/hospital/wages (§5.5) → Barracks shifts (§7) → Government automation (§5.1) → Shrine + corruption refinements (§10) → economy depth (§5.6) → the Ten (§8) → the Finale (§9) → post-game (§11).
 - **Execution guardrails** (from VILLAGE_SYSTEMS §11, still binding): extend existing systems (`game_state.gd` morale, `npc.gd` villagers, `building.gd`), never fork parallel ones; never rewrite the save format (extend additively); headless-verify every change; don't touch dungeon balance or the L100 curves unless the task says so.
 
-*Living document. Last full revision: 2026-07-15. Amended 2026-07-17: the arrival/opening sequence (§2.4.1), the Doctor early-healing mechanic (§5.5a), and the Watchtower wave-warning progression (§7.1); art/PixelLab frozen until the mechanical + story side is finished (dev directive).*
+*Living document. Last full revision: 2026-07-15. Amended 2026-07-17: the arrival/opening sequence (§2.4.1), Orin's three-step introduction at ~L15 + starting NPC roster (§2.5.1), the Doctor early-healing mechanic (§5.5a), the Watchtower wave-warning progression (§7.1), and the School "role roll" — weighted-random professions with late-game weight-tuning (§5.4); art/PixelLab frozen until the mechanical + story side is finished (dev directive).*
