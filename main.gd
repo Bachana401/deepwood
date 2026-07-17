@@ -36,9 +36,9 @@ const MOUNTAIN_ZONES = [
 	{"x": 6200.0, "width": 1450.0, "height": 780.0, "peaks": 4, "color": Color(0.42, 0.44, 0.56, 1)},
 ]
 
-const CLOUD_COUNT = 40
+const CLOUD_COUNT = 110
 const CLOUD_SPAN_START = -900.0
-const CLOUD_SPAN_END = 8100.0
+const CLOUD_SPAN_END = 38500.0
 const CLOUD_Y_MIN = -720.0
 const CLOUD_Y_MAX = -470.0
 const CLOUD_MIN_SCALE = 0.6
@@ -152,6 +152,7 @@ func _ready() -> void:
 	generate_traps()
 	generate_platform_traps()
 	generate_clouds()
+	build_ground_skin()
 	generate_village()
 	generate_houses()
 	generate_harvestables()
@@ -386,12 +387,105 @@ func place_trap(x: float, y: float) -> void:
 	$Traps.add_child(trap)
 
 func generate_mountains() -> void:
+	# Painted parallax (PixelLab ridges + a dead-forest treeline) when the art
+	# exists; the procedural polygon ridges stay as the fallback.
+	if ResourceLoader.exists("res://art/environment/mountains_far.png"):
+		var texs: Array = [load("res://art/environment/mountains_far.png"), load("res://art/environment/mountains_low.png")]
+		# original zones + generated ones marching on across the enlarged world
+		var zones: Array = []
+		for z in MOUNTAIN_ZONES:
+			zones.append(z)
+		var mx := 8200.0
+		while mx < 38000.0:
+			zones.append({"x": mx, "width": randf_range(900.0, 1500.0), "height": randf_range(550.0, 900.0)})
+			mx += randf_range(2200.0, 3200.0)
+		var idx := 0
+		for zone in zones:
+			var tex: Texture2D = texs[idx % 2]
+			var img: Image = tex.get_image()
+			if img.is_compressed():
+				img.decompress()
+			var used := Rect2(img.get_used_rect())
+			var spr := Sprite2D.new()
+			spr.texture = tex
+			spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			spr.centered = false
+			spr.region_enabled = true
+			spr.region_rect = used
+			spr.scale = Vector2(zone.width / used.size.x, zone.height / used.size.y)
+			spr.position = Vector2(zone.x - zone.width / 2.0, MOUNTAIN_Y - zone.height)
+			spr.flip_h = idx % 3 == 1
+			$Background/Mountains.add_child(spr)
+			idx += 1
+		# the dead forest line in front of the ridges: overlapping, randomly
+		# flipped copies so no repeating seam ever shows
+		if ResourceLoader.exists("res://art/environment/treeline.png"):
+			var ttex: Texture2D = load("res://art/environment/treeline.png")
+			var timg: Image = ttex.get_image()
+			if timg.is_compressed():
+				timg.decompress()
+			var tused := Rect2(timg.get_used_rect())
+			var x := -900.0
+			var k := 0
+			while x < 38500.0:
+				var t := Sprite2D.new()
+				t.texture = ttex
+				t.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+				t.centered = false
+				t.region_enabled = true
+				t.region_rect = tused
+				var tsc := randf_range(0.95, 1.3)
+				t.scale = Vector2(tsc, tsc)
+				t.flip_h = k % 2 == 1
+				t.position = Vector2(x, MOUNTAIN_Y - tused.size.y * tsc + 4.0)
+				$Background/Mountains.add_child(t)
+				x += tused.size.x * tsc * randf_range(0.72, 0.88)
+				k += 1
+		return
 	for zone in MOUNTAIN_ZONES:
 		var mountain = Polygon2D.new()
 		mountain.position = Vector2(zone.x, MOUNTAIN_Y)
 		mountain.color = zone.color
 		mountain.polygon = generate_mountain_shape(zone.width, zone.height, zone.peaks)
 		$Background/Mountains.add_child(mountain)
+
+# Re-dresses the flat green ground strip in the PixelLab tiles: a mossy-grass
+# surface row across the whole span with the stony-earth fill beneath it.
+func build_ground_skin() -> void:
+	if not ResourceLoader.exists("res://art/environment/ground_tiles.png"):
+		return
+	var sheet: Texture2D = load("res://art/environment/ground_tiles.png")
+	var img: Image = sheet.get_image()
+	if img.is_compressed():
+		img.decompress()
+	var mk_tile = func(x: int, y: int) -> ImageTexture:
+		var t := Image.create(32, 32, false, Image.FORMAT_RGBA8)
+		t.blit_rect(img, Rect2i(x, y, 32, 32), Vector2i.ZERO)
+		return ImageTexture.create_from_image(t)
+	var surf: ImageTexture = mk_tile.call(96, 0)    # grass-capped surface tile
+	var fill: ImageTexture = mk_tile.call(64, 32)   # solid earth fill tile
+	var span := 38713.0
+	var rect: ColorRect = $Ground.get_node_or_null("ColorRect")
+	if rect:
+		rect.visible = false
+	var s1 := Sprite2D.new()
+	s1.texture = surf
+	s1.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+	s1.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	s1.centered = false
+	s1.region_enabled = true
+	s1.region_rect = Rect2(0, 0, span, 32)
+	s1.position = Vector2(-713.0, -39.0)
+	$Ground.add_child(s1)
+	var s2 := Sprite2D.new()
+	s2.texture = fill
+	s2.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+	s2.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	s2.centered = false
+	s2.region_enabled = true
+	s2.region_rect = Rect2(0, 0, span, 46)
+	s2.position = Vector2(-713.0, -7.0)
+	$Ground.add_child(s2)
 
 # a jagged ridge instead of a flat triangle or pure per-point noise: a few
 # distinct "peaks" at random positions/heights shape the overall silhouette
@@ -423,10 +517,25 @@ func generate_mountain_shape(width: float, height: float, peak_count: int) -> Pa
 	return points
 
 func generate_clouds() -> void:
+	var painted := ResourceLoader.exists("res://art/environment/cloud.png")
+	var ctex: Texture2D = load("res://art/environment/cloud.png") if painted else null
 	for i in range(CLOUD_COUNT):
-		var cloud = Polygon2D.new()
 		var x = randf_range(CLOUD_SPAN_START, CLOUD_SPAN_END)
 		var y = randf_range(CLOUD_Y_MIN, CLOUD_Y_MAX)
+		if painted:
+			var spr := Sprite2D.new()
+			spr.texture = ctex
+			spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			spr.position = Vector2(x, y)
+			spr.z_index = CLOUD_Z_INDEX
+			var s = randf_range(CLOUD_MIN_SCALE, CLOUD_MAX_SCALE)
+			spr.scale = Vector2(s, s)
+			spr.flip_h = randf() < 0.5
+			spr.modulate = Color(1, 1, 1, randf_range(0.5, 0.85))
+			spr.set_meta("speed", randf_range(CLOUD_MIN_SPEED, CLOUD_MAX_SPEED))
+			$Clouds.add_child(spr)
+			continue
+		var cloud = Polygon2D.new()
 		cloud.position = Vector2(x, y)
 		cloud.z_index = CLOUD_Z_INDEX
 		var scale_factor = randf_range(CLOUD_MIN_SCALE, CLOUD_MAX_SCALE)
