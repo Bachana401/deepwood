@@ -116,33 +116,33 @@ z_as_relative = false
 
 [node name="SkyBand1" type="ColorRect" parent="Background" unique_id=1163699001]
 z_index = -100
-offset_left = -1000.0
+offset_left = -1113.0
 offset_top = -1200.0
-offset_right = 19000.0
+offset_right = 38400.0
 offset_bottom = -875.0
 color = Color(0.5, 0.7, 0.93, 1)
 
 [node name="SkyBand2" type="ColorRect" parent="Background" unique_id=1163699002]
 z_index = -100
-offset_left = -1000.0
+offset_left = -1113.0
 offset_top = -875.0
-offset_right = 19000.0
+offset_right = 38400.0
 offset_bottom = -550.0
 color = Color(0.58, 0.78, 0.95, 1)
 
 [node name="SkyBand3" type="ColorRect" parent="Background" unique_id=1163699003]
 z_index = -100
-offset_left = -1000.0
+offset_left = -1113.0
 offset_top = -550.0
-offset_right = 19000.0
+offset_right = 38400.0
 offset_bottom = -225.0
 color = Color(0.66, 0.84, 0.96, 1)
 
 [node name="SkyBand4" type="ColorRect" parent="Background" unique_id=1163699004]
 z_index = -100
-offset_left = -1000.0
+offset_left = -1113.0
 offset_top = -225.0
-offset_right = 19000.0
+offset_right = 38400.0
 offset_bottom = 100.0
 color = Color(0.76, 0.9, 0.94, 1)
 

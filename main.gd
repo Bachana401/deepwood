@@ -12,6 +12,17 @@ const GROUND_SPAN_END = 4470.0
 const GROUND_Y = -39.0
 const TUFT_COUNT = 32
 
+# The world's real horizontal extent -- the ground skin, and everything the
+# background has to cover. Anything that has to reach "the end of the map"
+# derives from these two, so the world can be lengthened again without half the
+# backdrop being left behind (which is exactly what happened: the ground was
+# doubled and the scene-authored sky bands stayed at x=19000, leaving ~19,000px
+# of bare viewport grey past the midpoint).
+const WORLD_LEFT = -713.0
+const WORLD_SPAN = 38713.0
+const WORLD_RIGHT = WORLD_LEFT + WORLD_SPAN
+const SKY_MARGIN = 400.0   # sky overhangs both ends so the edge is never on screen
+
 const PLATFORM_TUFTS = [
 	{"pos": Vector2(1470, -195), "count": 2},
 	{"pos": Vector2(1900, -195), "count": 2},
@@ -38,7 +49,7 @@ const MOUNTAIN_ZONES = [
 
 const CLOUD_COUNT = 110
 const CLOUD_SPAN_START = -900.0
-const CLOUD_SPAN_END = 38500.0
+const CLOUD_SPAN_END = WORLD_RIGHT + 500.0
 const CLOUD_Y_MIN = -720.0
 const CLOUD_Y_MAX = -470.0
 const CLOUD_MIN_SCALE = 0.6
@@ -162,6 +173,7 @@ func _ready() -> void:
 	generate_traps()
 	generate_platform_traps()
 	generate_clouds()
+	fit_sky_to_world()
 	build_ground_skin()
 	generate_village()
 	generate_houses()
@@ -406,7 +418,7 @@ func generate_mountains() -> void:
 		for z in MOUNTAIN_ZONES:
 			zones.append(z)
 		var mx := 8200.0
-		while mx < 38000.0:
+		while mx < WORLD_RIGHT:
 			zones.append({"x": mx, "width": randf_range(900.0, 1500.0), "height": randf_range(550.0, 900.0)})
 			mx += randf_range(2200.0, 3200.0)
 		var idx := 0
@@ -437,7 +449,7 @@ func generate_mountains() -> void:
 			var tused := Rect2(timg.get_used_rect())
 			var x := -900.0
 			var k := 0
-			while x < 38500.0:
+			while x < WORLD_RIGHT + 500.0:
 				var t := Sprite2D.new()
 				t.texture = ttex
 				t.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -459,6 +471,20 @@ func generate_mountains() -> void:
 		mountain.polygon = generate_mountain_shape(zone.width, zone.height, zone.peaks)
 		$Background/Mountains.add_child(mountain)
 
+# The sky bands are authored in main.tscn, and were authored back when the world
+# ended at x=19000. When the map was extended they stayed put, so the entire
+# right half of Deepwood had no sky behind it at all -- just the viewport's grey
+# clear colour. Stretch them across the real world span at load, so lengthening
+# the map can never strand the sky again.
+func fit_sky_to_world() -> void:
+	var bg := get_node_or_null("Background")
+	if bg == null:
+		return
+	for band in bg.get_children():
+		if band is ColorRect and band.name.begins_with("SkyBand"):
+			band.offset_left = WORLD_LEFT - SKY_MARGIN
+			band.offset_right = WORLD_RIGHT + SKY_MARGIN
+
 # Re-dresses the flat green ground strip in the PixelLab tiles: a mossy-grass
 # surface row across the whole span with the stony-earth fill beneath it.
 func build_ground_skin() -> void:
@@ -474,7 +500,7 @@ func build_ground_skin() -> void:
 		return ImageTexture.create_from_image(t)
 	var surf: ImageTexture = mk_tile.call(96, 0)    # grass-capped surface tile
 	var fill: ImageTexture = mk_tile.call(64, 32)   # solid earth fill tile
-	var span := 38713.0
+	var span := WORLD_SPAN
 	var rect: ColorRect = $Ground.get_node_or_null("ColorRect")
 	if rect:
 		rect.visible = false
@@ -485,7 +511,7 @@ func build_ground_skin() -> void:
 	s1.centered = false
 	s1.region_enabled = true
 	s1.region_rect = Rect2(0, 0, span, 32)
-	s1.position = Vector2(-713.0, -39.0)
+	s1.position = Vector2(WORLD_LEFT, -39.0)
 	$Ground.add_child(s1)
 	var s2 := Sprite2D.new()
 	s2.texture = fill
@@ -494,7 +520,7 @@ func build_ground_skin() -> void:
 	s2.centered = false
 	s2.region_enabled = true
 	s2.region_rect = Rect2(0, 0, span, 46)
-	s2.position = Vector2(-713.0, -7.0)
+	s2.position = Vector2(WORLD_LEFT, -7.0)
 	$Ground.add_child(s2)
 
 # a jagged ridge instead of a flat triangle or pure per-point noise: a few
