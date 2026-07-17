@@ -160,6 +160,7 @@ const TRAP_SCENE = preload("res://trap.tscn")
 
 const ENEMY_SCENE = preload("res://enemy.tscn")
 const BOSS_SCENE = preload("res://boss.tscn")
+const VILLAGER_SCENE = preload("res://villager.tscn")
 const SPECIAL_MOB_SCRIPT = preload("res://special_mob.gd")
 const WEAPON_TYPES = ["sword", "spear", "bow"]
 const HP_SCALE_PER_LEVEL = 0.15
@@ -862,7 +863,44 @@ func spawn_level_combat() -> void:
 	else:
 		spawn_level_mobs()
 		show_notification("Level " + str(current_level))
+	spawn_deep_rescue()
 	update_level_label()
+	# Level 100: the mask falls. Play the reveal once, at the gate, before the
+	# fight (the DialogueBox pauses the tree, so Orin waits until it's done).
+	if current_level >= MAX_LEVEL and not GameState.seen_l100_reveal:
+		GameState.seen_l100_reveal = true
+		call_deferred("play_l100_reveal")
+
+func play_l100_reveal() -> void:
+	DialogueBox.play(self, Story.L100_REVEAL)
+
+# Orin is down -- the deathless made mortal for one instant, and the blow landed.
+# Play the ending, permanently unlock the Shadow Monarch, and salute the win.
+func play_final_victory() -> void:
+	GameState.mark_game_completed()
+	DialogueBox.play(self, Story.ENDING, func():
+		show_notification("Deepwood stands. The Shadow Monarch has returned — a new class awaits your next journey."))
+
+# Deep-level rescues: a reserved important figure (VillagerQuests.IMPORTANT_FIGURES,
+# levels 85/90/95) is chained up in this level to be freed with E. Skipped once
+# they've been rescued (the roster dedupes, same as village hostages). They add
+# to the roster on rescue and their walking avatar appears back in the village.
+func spawn_deep_rescue() -> void:
+	var figure = VillagerQuests.figure_for_level(current_level)
+	if figure.is_empty() or GameState.is_villager_rescued(str(figure.get("villager_id", ""))):
+		return
+	var v = VILLAGER_SCENE.instantiate()
+	v.villager_id = str(figure.get("villager_id", ""))
+	v.villager_name = str(figure.get("villager_name", "?"))
+	v.stat_name = str(figure.get("stat_name", ""))
+	v.stat_value = int(figure.get("stat_value", 0))
+	v.role_key = str(figure.get("role_key", ""))
+	v.role_title = str(figure.get("role_title", ""))
+	v.sex = str(figure.get("sex", "Female"))
+	v.backstory = str(figure.get("backstory", ""))
+	v.position = Vector2(current_width * 0.5, GROUND_Y - 40.0)
+	$LevelContainer.add_child(v)
+	show_notification("A captive of note is held here — free them!")
 
 # --- normal-level mob composition ---
 #
@@ -967,11 +1005,29 @@ func spawn_enemy() -> void:
 	enemy.wave_speed_multiplier = scaling.speed
 	# re-skin into this 5-level block's roster (levels 1-5 -> block 0, etc.)
 	enemy.apply_block_archetype(int((current_level - 1) / 5))
+	assign_enemy_behavior(enemy)
 	enemy.position = Vector2(randf_range(600.0, current_width - 200.0), GROUND_Y - 60.0)
 	enemy.add_to_group("dungeon_combatant")
 	$LevelContainer.add_child(enemy)
 	enemy.died.connect(_on_combatant_died)
 	alive_count += 1
+
+# Roughly a third of dungeon enemies become a special archetype (shield/caster/
+# healer/summoner/dasher), and a few of THOSE (or plain ones) become elites.
+# The variety ramps a bit with depth so early levels stay gentle.
+const ENEMY_BEHAVIORS = ["shield", "caster", "healer", "summoner", "dasher"]
+
+func assign_enemy_behavior(enemy: Node) -> void:
+	if not enemy.has_method("set_behavior"):
+		return
+	var special_chance = clamp(0.18 + current_level * 0.006, 0.18, 0.45)
+	var elite_chance = clamp(0.03 + current_level * 0.004, 0.03, 0.16)
+	var kind := ""
+	if randf() < special_chance:
+		kind = ENEMY_BEHAVIORS[randi() % ENEMY_BEHAVIORS.size()]
+	var elite = randf() < elite_chance
+	if kind != "" or elite:
+		enemy.set_behavior(kind, elite)
 
 func spawn_boss() -> Node:
 	var boss = BOSS_SCENE.instantiate()
@@ -1035,16 +1091,25 @@ func roll_material_drop(guaranteed: bool = false) -> void:
 # gathering-exclusive, see harvest_node.gd.)
 const GEAR_RELIC_IDS = ["relic_vigor", "relic_swiftness", "relic_greed", "relic_wisdom",
 	"relic_berserker", "relic_hawk", "relic_archon", "relic_wellspring",
-	"relic_wings", "relic_feather"]
+	"relic_wings", "relic_feather",
+	"relic_godheart", "relic_warlord", "relic_fortune", "relic_celerity",
+	"relic_phoenix", "relic_thorns", "relic_aegis", "relic_vampire", "relic_juggernaut",
+	"relic_blink", "relic_reaper", "relic_ward", "relic_steward"]
 const GEAR_ARMOR_IDS = ["helm_bulwark", "armor_bulwark", "pants_bulwark",
 	"helm_windstalker", "armor_windstalker", "pants_windstalker",
-	"helm_runeweave", "armor_runeweave", "pants_runeweave"]
+	"helm_runeweave", "armor_runeweave", "pants_runeweave",
+	# batch: mid-tier Ranger set + gloves/boots + Dragonscale endgame set
+	"helm_ranger", "armor_ranger", "pants_ranger",
+	"gloves_leather", "gloves_iron", "gloves_assassin", "gloves_titan",
+	"boots_leather", "boots_swift", "boots_storm", "boots_titan",
+	"helm_dragon", "armor_dragon", "pants_dragon", "gloves_dragon", "boots_dragon"]
 const GEAR_SET_WEAPON_IDS = ["wpn_claymore", "wpn_recurve", "wpn_scepter"]
 # special-attack class weapons (flying slash, javelin volley, multi-shot,
 # homing arrows, fireball, frost shard, cleave) -- see inventory.gd "special"
 const GEAR_CLASS_WEAPON_IDS = ["wpn_windcutter", "wpn_sunderer", "wpn_stormlance",
-	"wpn_stormvolley", "wpn_seeker", "wpn_emberstaff", "wpn_iciclewand"]
-const GEAR_EXCELLENT_IDS = ["exc_midas", "exc_echo", "exc_soul", "exc_hook", "exc_boomerang", "exc_chrono", "exc_wizardsbane", "exc_ragnarok"]
+	"wpn_stormvolley", "wpn_seeker", "wpn_emberstaff", "wpn_iciclewand",
+	"wpn_mace", "wpn_greatsword", "wpn_katana", "wpn_warhammer", "wpn_javelin", "wpn_harpoon"]
+const GEAR_EXCELLENT_IDS = ["exc_midas", "exc_echo", "exc_soul", "exc_hook", "exc_boomerang", "exc_chrono", "exc_wizardsbane", "exc_ragnarok", "wpn_tempest", "exc_doom", "exc_singularity", "exc_worldsplitter", "exc_dawnbreaker", "exc_shadowblade", "exc_earthshaker", "exc_gungnir", "exc_frostmourne", "exc_voidcaller", "exc_stormfury"]
 const EXCELLENT_MIN_LEVEL = 25
 const EXCELLENT_DROP_CHANCE = 0.15
 
@@ -1100,6 +1165,11 @@ func _on_combatant_died() -> void:
 		level_in_progress = false
 		level_cleared = true
 		GameState.highest_unlocked_level = max(GameState.highest_unlocked_level, current_level + 1)
+		# advance any "reach dungeon level N" villager bonds
+		GameState.quest_event("reach_level", "", current_level)
+		# beating Level 100 = beating Orin = the ending
+		if current_level >= MAX_LEVEL:
+			call_deferred("play_final_victory")
 		show_notification("Level " + str(current_level) + " cleared! The far gate is open.")
 
 func exit_dungeon() -> void:

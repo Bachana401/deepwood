@@ -16,74 +16,82 @@ extends RefCounted
 #                gets on graduation -- "random" (School) or a fixed name
 #                (Barracks always grants "Warrior")
 #
-# Leadership titles (Leader/Principal/Warchief) are deliberately unreachable
-# through school -- GameState.REGULAR_STATS never includes them, so the
-# only way to fill those slots is a rescued villager who already carries
-# that exact stat_name. Same reasoning covers Party/Teachers: there's no
-# matching graduate stat for those either, so they're just open to any
-# assigned adult rather than gated.
+# Every building's TOP role is a unique, named leadership post ("leadership":
+# true). Each carries a distinct required_stat equal to its title, so ONE
+# rescued figure who carries that exact stat is the sole key to that one job
+# (the Chancellor can only govern, the Forgemaster only runs the smithy) -- see
+# VillagerQuests.IMPORTANT_FIGURES, the boss-level "important NPC" rescues.
+# These leadership stats are deliberately absent from GameState.REGULAR_STATS,
+# so School can never graduate one -- a leader is always a rescued VIP. The
+# "leadership" flag (not the title) is what code keys off (fixed slot count in
+# building.effective_slots, the leader-bonus multipliers in game_state).
 const ROLE_DEFS = {
 	"Government": [
-		{"title": "Leader", "slots": 1, "required_stat": "Leader"},
+		{"title": "Chancellor", "slots": 1, "required_stat": "Chancellor", "leadership": true},
 		{"title": "Party", "slots": 10, "required_stat": ""},
 	],
 	"School": [
-		{"title": "Principal", "slots": 2, "required_stat": "Principal"},
+		{"title": "Principal", "slots": 2, "required_stat": "Principal", "leadership": true},
 		{"title": "Teachers", "slots": 10, "required_stat": ""},
 		{"title": "Student", "slots": 20, "required_stat": "", "is_enrollment": true, "requires_kid": true, "grants_stat": "random"},
 	],
 	"Farm": [
-		{"title": "Leader", "slots": 1, "required_stat": "Leader"},
+		{"title": "Harvestmaster", "slots": 1, "required_stat": "Harvestmaster", "leadership": true},
 		{"title": "Farmer", "slots": 10, "required_stat": "Farm"},
 	],
 	"Hospital": [
-		{"title": "Leader", "slots": 1, "required_stat": "Leader"},
+		{"title": "Chief Physician", "slots": 1, "required_stat": "Chief Physician", "leadership": true},
 		{"title": "Doctors", "slots": 10, "required_stat": "Hospital"},
 	],
 	"Barracks": [
-		{"title": "Warchief", "slots": 2, "required_stat": "Warchief"},
+		{"title": "Warchief", "slots": 2, "required_stat": "Warchief", "leadership": true},
 		{"title": "Warrior", "slots": 10, "required_stat": "Warrior"},
 		{"title": "Recruit", "slots": 20, "required_stat": "", "is_enrollment": true, "requires_sex": "Male", "grants_stat": "Warrior"},
 	],
-	# The remaining 6 buildings each match one of GameState.REGULAR_STATS
-	# exactly, so every School graduate has a real, matching building to
-	# work at (not just Farm) -- same Leader/Worker shape as Farm/Hospital.
+	# The remaining buildings each match one of GameState.REGULAR_STATS with
+	# their WORKER role, so every School graduate has a real matching building
+	# to work at -- same leadership/worker shape throughout.
 	"Fishing Dock": [
-		{"title": "Leader", "slots": 1, "required_stat": "Leader"},
+		{"title": "Harbormaster", "slots": 1, "required_stat": "Harbormaster", "leadership": true},
 		{"title": "Fisherman", "slots": 10, "required_stat": "Fishing"},
 	],
 	"Science Lab": [
-		{"title": "Leader", "slots": 1, "required_stat": "Leader"},
+		{"title": "Lead Researcher", "slots": 4, "required_stat": "Lead Researcher", "leadership": true},
 		{"title": "Scientist", "slots": 10, "required_stat": "Scientist"},
 	],
 	"Bank": [
-		{"title": "Leader", "slots": 1, "required_stat": "Leader"},
+		{"title": "Treasurer", "slots": 1, "required_stat": "Treasurer", "leadership": true},
 		{"title": "Financist", "slots": 10, "required_stat": "Financist"},
 	],
 	"Blacksmith": [
-		{"title": "Leader", "slots": 1, "required_stat": "Leader"},
+		{"title": "Forgemaster", "slots": 1, "required_stat": "Forgemaster", "leadership": true},
 		{"title": "Blacksmith", "slots": 10, "required_stat": "Blacksmith"},
 	],
 	"Tavern": [
-		{"title": "Leader", "slots": 1, "required_stat": "Leader"},
+		{"title": "Tavernkeeper", "slots": 1, "required_stat": "Tavernkeeper", "leadership": true},
 		{"title": "Barman", "slots": 10, "required_stat": "Tavern"},
 	],
 	# The Bar is the village's social heart: every NPC drops by now and then
 	# (see npc.gd), fun music plays from it, and visiting lifts the player's
 	# morale (see player.gd bar morale). Bartender is open to any adult.
 	"Bar": [
-		{"title": "Leader", "slots": 1, "required_stat": "Leader"},
+		{"title": "Publican", "slots": 1, "required_stat": "Publican", "leadership": true},
 		{"title": "Bartender", "slots": 6, "required_stat": ""},
 	],
 	"Marketplace": [
-		{"title": "Leader", "slots": 1, "required_stat": "Leader"},
+		{"title": "Merchant Prince", "slots": 1, "required_stat": "Merchant Prince", "leadership": true},
 		{"title": "Trader", "slots": 10, "required_stat": "Marketplace"},
+	],
+	# Builderhouse powers the repair/defense workforce (not passive income). Its
+	# two leaders -- Master Builder (design) and Foreman (labour) -- are rescued
+	# VIPs like every other top post.
+	"Builderhouse": [
+		{"title": "Master Builder", "slots": 1, "required_stat": "Master Builder", "leadership": true},
+		{"title": "Foreman", "slots": 1, "required_stat": "Foreman", "leadership": true},
+		{"title": "Worker", "slots": 20, "required_stat": ""},
 	],
 }
 
-# Builderhouse isn't detailed yet -- it's meant to power the village-defense
-# wall-building/repair workforce, not passive income, so it'll get its own
-# role list once that system exists rather than a generic income-style one.
 const DEFAULT_ROLES = [
 	{"title": "Worker", "slots": 20, "required_stat": ""},
 ]

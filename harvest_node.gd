@@ -140,6 +140,9 @@ func _harvest(player: Node) -> void:
 		if randf() < 0.35:
 			player.inventory.add_item("resin", 1)
 			got.append("1 Resin")
+		if randf() < 0.4:   # wild herbs for cooking (crafting ingredient)
+			player.inventory.add_item("herb", 1)
+			got.append("1 " + Inventory.get_display_name("herb"))
 		if randf() < RELIC_FIND_CHANCE and player.inventory.get_count("relic_sylvan") == 0:
 			player.inventory.add_item("relic_sylvan", 1)
 			_notify("Hidden in the roots... the Sylvan Charm!")

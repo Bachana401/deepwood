@@ -1036,7 +1036,7 @@ func _physics_process(delta: float) -> void:
 					process_hover(delta)
 				else:
 					velocity.x = 0
-			elif is_wizard_boss():
+			elif is_combo_boss():
 				drive_wizard(delta)
 			else:
 				var chosen = choose_attack(dist)
@@ -1114,8 +1114,29 @@ func choose_attack(dist: float) -> String:
 
 # --- The Fallen Wizard's active combo brain (level 100 only) ---
 # Only the REAL wizard runs combos; echoes keep the simple AI.
+# Combo books for the OTHER apex bosses (the wizard keeps WIZARD_COMBOS). Only
+# synchronous, await-completing abilities are used (NOT charge/dive, which
+# finish later in process_charge/process_dive and would let a combo run ahead).
+const BOSS_COMBOS = {
+	"seraph": [["volley", "rain", "nova"], ["nova", "volley", "rain"], ["rain", "nova", "volley"]],
+	"leviathan": [["meteors", "vortex"], ["summon", "meteors", "vortex"], ["vortex", "meteors"]],
+	"eclipse": [["beam", "pillars", "meteors"], ["teleport", "beam", "pillars"], ["meteors", "teleport", "beam"]],
+}
+
 func is_wizard_boss() -> bool:
 	return boss_id == "wizard" and not is_clone
+
+# Any apex boss with a combo book runs the combo brain (the wizard uses its own
+# WIZARD_COMBOS; the rest use BOSS_COMBOS). Clones never combo.
+func is_combo_boss() -> bool:
+	if is_clone:
+		return false
+	return boss_id == "wizard" or BOSS_COMBOS.has(boss_id)
+
+func active_combos() -> Array:
+	if boss_id == "wizard":
+		return WIZARD_COMBOS
+	return BOSS_COMBOS.get(boss_id, [])
 
 # Called each idle frame for the wizard: either burn down the recovery window
 # (a real opening for the player -- he hovers exposed and won't blink away) or
@@ -1148,7 +1169,7 @@ func combo_recovery_time() -> float:
 
 # Pick a combo, never the same one twice running so the skills keep changing.
 func pick_combo_index() -> int:
-	var n = WIZARD_COMBOS.size()
+	var n = active_combos().size()
 	if n <= 1:
 		return 0
 	var idx = randi() % n
@@ -1162,7 +1183,7 @@ func run_combo() -> void:
 	in_combo = true
 	shake_camera(4.0, 0.2)   # a small "here it comes" cue
 	last_combo_index = pick_combo_index()
-	var steps: Array = WIZARD_COMBOS[last_combo_index]
+	var steps: Array = active_combos()[last_combo_index]
 	var gap = combo_step_gap()
 	for step in steps:
 		if is_dead or player == null or not is_instance_valid(player):
@@ -1178,6 +1199,7 @@ func run_combo() -> void:
 # Fires one ability by name and waits for it to finish. Called straight (not via
 # start_attack) so combos ignore per-ability cooldowns and just flow.
 func run_ability(ability_name: String) -> void:
+	_play_boss_ability_anim(ability_name)
 	match ability_name:
 		"teleport": await do_teleport()
 		"volley": await do_volley()
@@ -1186,11 +1208,17 @@ func run_ability(ability_name: String) -> void:
 		"beam": await do_beam()
 		"doomring": await do_doomring()
 		"clone": await do_clone()
+		"rain": await do_rain()
+		"nova": await do_nova()
+		"pillars": await do_pillars()
+		"vortex": await do_vortex()
+		"summon": await do_summon()
 		_: pass
 
 func start_attack(attack_name: String) -> void:
 	is_busy = true
 	velocity.x = 0
+	_play_boss_ability_anim(attack_name)
 	match attack_name:
 		"slam": do_slam()
 		"charge": do_charge()
@@ -1199,7 +1227,6 @@ func start_attack(attack_name: String) -> void:
 		"nova": do_nova()
 		"teleport": do_teleport()
 		"summon": do_summon()
-	_play_boss_ability_anim(ability_name)
 		"pillars": do_pillars()
 		"dive": do_dive()
 		"volley": do_volley()
@@ -1218,9 +1245,6 @@ func set_cd(ability_name: String) -> void:
 func cooldown_mult() -> float:
 	var m := 1.0
 	if is_frenzied:
-	_play_boss_ability_anim(attack_name)
-	if boss_sprite and boss_sprite.sprite_frames.has_animation("attack"):
-		boss_sprite.play("attack")
 		m = 0.35
 	elif is_enraged:
 		m = 0.5 if is_apex else 0.6
@@ -1866,6 +1890,8 @@ func die() -> void:
 
 func play_death_animation() -> void:
 	spawn_death_particles()
+	if boss_sprite and boss_sprite.sprite_frames.has_animation("death"):
+		boss_sprite.play("death")
 	var tween = create_tween()
 	tween.set_parallel(true)
 	if rig != null:
@@ -1892,8 +1918,6 @@ func spawn_death_particles() -> void:
 	particles.scale_amount_min = 3.5
 	particles.scale_amount_max = 7.0
 	particles.color = Color(1.0, 0.4, 0.08, 1.0)
-	if boss_sprite and boss_sprite.sprite_frames.has_animation("death"):
-		boss_sprite.play("death")
 	get_parent().add_child(particles)
 	particles.emitting = true
 	particles.finished.connect(particles.queue_free)

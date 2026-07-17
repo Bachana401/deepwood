@@ -21,7 +21,27 @@ var max_distance := 450.0
 var pierce := false
 var aoe_radius := 0.0
 var knockback := 40.0
+var is_crit := false        # set by the player when it rolls a crit
+var on_hit_status := {}     # {"kind","dur","mag"} applied to enemies on hit
 var source: Node2D = null   # the player (hook pull target / boomerang home)
+
+func _apply_status_to(node) -> void:
+	if not on_hit_status.is_empty() and node.has_method("apply_status"):
+		node.apply_status(str(on_hit_status.get("kind","burn")), float(on_hit_status.get("dur",3.0)), float(on_hit_status.get("mag",0.0)))
+	# Elementalist Wildfire / Cataclysm: the burn you just applied leaps to any
+	# foes crowded around the one you struck.
+	if GameState.get_bonus_total("combustion") > 0.0 and is_instance_valid(node):
+		var mag = GameState.get_bonus_total("on_hit_burn")
+		if mag <= 0.0:
+			mag = 6.0
+		for group_name in HOSTILE_GROUPS:
+			for e in get_tree().get_nodes_in_group(group_name):
+				if e == node or not is_instance_valid(e) or not e.has_method("apply_status"):
+					continue
+				if "is_dead" in e and e.is_dead:
+					continue
+				if node.global_position.distance_to(e.global_position) <= 110.0:
+					e.apply_status("burn", 3.0, mag)
 
 var traveled := 0.0
 var returning := false      # boomerang: on the way back
@@ -99,10 +119,14 @@ func _on_body_entered(body: Node2D) -> void:
 			explode()
 		"hook":
 			body.take_damage(damage)
+			FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+			_apply_status_to(body)
 			_pull_to_source(body)
 			queue_free()
 		_:
 			body.take_damage(damage)
+			FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+			_apply_status_to(body)
 			if body.has_method("apply_knockback"):
 				body.apply_knockback(1 if direction.x >= 0.0 else -1, knockback)
 			if not pierce and kind != "boomerang":
@@ -130,6 +154,8 @@ func explode() -> void:
 				continue
 			if global_position.distance_to(e.global_position) <= aoe_radius:
 				e.take_damage(damage)
+				FloatingText.spawn(get_parent(), e.global_position, damage, is_crit)
+				_apply_status_to(e)
 				if e.has_method("apply_knockback"):
 					e.apply_knockback(1 if e.global_position.x >= global_position.x else -1, knockback)
 	# blast flash: expanding fading disc + ring, left behind as we free

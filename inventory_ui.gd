@@ -118,7 +118,9 @@ func _on_slot_gui_input(event: InputEvent, index: int) -> void:
 		# right-click: weapons -> wield instantly; armor/relics -> equip; other
 		# stacks (coins/materials) keep the stack-split behavior.
 		var slot = player.inventory.slots[index]
-		if slot != null and Inventory.get_category(slot.item_id) == "weapon":
+		if slot != null and Inventory.get_category(slot.item_id) == "consumable":
+			player.use_item(slot.item_id)   # potions / food / reset -> consume + apply
+		elif slot != null and Inventory.get_category(slot.item_id) == "weapon":
 			if player.wield_weapon(slot.item_id):
 				notify("Wielding " + Inventory.get_display_name(slot.item_id))
 		elif slot != null and Inventory.is_equippable(slot.item_id):

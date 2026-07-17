@@ -101,6 +101,108 @@ var wave_speed_multiplier = 1.0
 var character_shape := "grunt"
 var accent_color := Color(0.85, 0.42, 0.3)
 
+# --- Status effects (see apply_status). burn/poison = damage-over-time,
+# freeze = stunned (can't move or attack), slow = reduced move speed. Applied
+# by the player's elemental weapons/relics; a frozen or burning enemy shows a
+# tinted overlay. ---
+var status_burn_until := 0.0
+var status_burn_dps := 0.0
+var status_poison_until := 0.0
+var status_poison_dps := 0.0
+var status_freeze_until := 0.0
+var status_slow_until := 0.0
+var status_slow_factor := 1.0
+var status_dot_accum := 0.0
+var status_overlay: ColorRect = null
+
+# --- Behavior archetype (mechanics beyond plain melee/bow). Set by spawn:
+# "shield" (halves FRONTAL damage -- flank it), "caster" (fires slow-bolts),
+# "healer" (mends nearby wounded allies), "summoner" (spawns minions),
+# "dasher" (evasive lunges). "" = the normal grunt AI. is_elite scales it up. ---
+var behavior := ""
+var is_elite := false
+var behavior_timer := 0.0
+var summoned_minions: Array = []
+
+func _now_s() -> float:
+	return Time.get_ticks_msec() / 1000.0
+
+func move_speed() -> float:
+	return SPEED * speed_variance * wave_speed_multiplier * status_slow_mult()
+
+func status_slow_mult() -> float:
+	return status_slow_factor if _now_s() < status_slow_until else 1.0
+
+func is_frozen() -> bool:
+	return _now_s() < status_freeze_until
+
+# Applies (or refreshes) a status. magnitude: DoT/sec for burn/poison, the
+# speed FACTOR (<1) for slow, ignored for freeze.
+func apply_status(kind: String, duration: float, magnitude: float = 0.0) -> void:
+	if is_dead:
+		return
+	var until = _now_s() + duration
+	match kind:
+		"burn":
+			status_burn_until = max(status_burn_until, until)
+			status_burn_dps = max(status_burn_dps, magnitude)
+		"poison":
+			status_poison_until = max(status_poison_until, until)
+			status_poison_dps = max(status_poison_dps, magnitude)
+		"freeze":
+			status_freeze_until = max(status_freeze_until, until)
+		"slow":
+			status_slow_until = max(status_slow_until, until)
+			status_slow_factor = min(status_slow_factor, magnitude if magnitude > 0.0 else 0.5)
+	_refresh_status_overlay()
+
+func tick_statuses(delta: float) -> void:
+	var now = _now_s()
+	var dps := 0.0
+	if now < status_burn_until:
+		dps += status_burn_dps
+	if now < status_poison_until:
+		dps += status_poison_dps
+	if dps > 0.0:
+		status_dot_accum += dps * delta
+		if status_dot_accum >= 1.0:
+			var whole = int(status_dot_accum)
+			status_dot_accum -= whole
+			health -= whole
+			update_health_bar()
+			if health <= 0:
+				die()
+				return
+	if now >= status_slow_until:
+		status_slow_factor = 1.0
+	_refresh_status_overlay()
+
+# A translucent tint over the body showing the strongest active status.
+func _refresh_status_overlay() -> void:
+	var now = _now_s()
+	var col := Color(0, 0, 0, 0)
+	if now < status_freeze_until:
+		col = Color(0.5, 0.8, 1.0, 0.5)      # icy
+	elif now < status_burn_until:
+		col = Color(1.0, 0.45, 0.1, 0.4)     # fiery
+	elif now < status_poison_until:
+		col = Color(0.5, 0.9, 0.2, 0.4)      # toxic
+	elif now < status_slow_until:
+		col = Color(0.6, 0.75, 1.0, 0.3)     # chilled
+	if col.a == 0.0:
+		if status_overlay != null and is_instance_valid(status_overlay):
+			status_overlay.visible = false
+		return
+	if status_overlay == null or not is_instance_valid(status_overlay):
+		status_overlay = ColorRect.new()
+		status_overlay.size = Vector2(40, 52)
+		status_overlay.position = Vector2(-20, -46)
+		status_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		status_overlay.z_index = 5
+		add_child(status_overlay)
+	status_overlay.visible = true
+	status_overlay.color = col
+
 # Optional downloaded-spritesheet skin (CraftPix Tiny RPG packs, see
 # art/enemies/). When an archetype sets "sprite", the plain procedural body is
 # hidden and this AnimatedSprite2D drives idle/walk/attack/hurt/death instead.
@@ -325,8 +427,23 @@ func _physics_process(delta: float) -> void:
 	if is_dead:
 		return
 
+	tick_statuses(delta)
+	if is_dead:
+		return
+
 	if not is_on_floor():
 		velocity.y += GRAVITY * delta
+
+	# frozen: rooted, can't act (still falls with gravity)
+	if is_frozen():
+		velocity.x = 0
+		move_and_slide()
+		return
+
+	# special-behaviour ticks (heal allies / summon / cast) run on top of the
+	# normal movement AI below
+	if behavior != "":
+		process_behavior(delta)
 
 	if attack_cooldown_remaining > 0:
 		attack_cooldown_remaining -= delta
@@ -369,19 +486,19 @@ func _physics_process(delta: float) -> void:
 			if hesitate_remaining > 0:
 				velocity.x = 0
 			elif wall_turn_timer > 0:
-				velocity.x = -dir_to_player * SPEED * speed_variance * wave_speed_multiplier
+				velocity.x = -dir_to_player * move_speed()
 			elif weapon_type == "bow" and dist_to_player < BOW_RETREAT_RANGE and not player_above:
-				velocity.x = -dir_to_player * SPEED * speed_variance * wave_speed_multiplier
+				velocity.x = -dir_to_player * move_speed()
 			elif weapon_type == "bow" and dist_to_player < BOW_HOLD_RANGE and not player_above:
 				velocity.x = 0
 			elif absf(dx) <= HORIZONTAL_DEADZONE and not player_above:
 				velocity.x = 0
 			else:
-				velocity.x = dir_to_player * SPEED * speed_variance * wave_speed_multiplier
+				velocity.x = dir_to_player * move_speed()
 			try_attack(dir_to_player)
 			try_jump(player_above)
 		else:
-			velocity.x = direction * SPEED * speed_variance * wave_speed_multiplier
+			velocity.x = direction * move_speed()
 			if direction > 0 and global_position.x - start_x > 150:
 				direction = -1
 			elif direction < 0 and global_position.x - start_x < -150:
@@ -519,9 +636,173 @@ func animate_bow_attack(stats: Dictionary) -> void:
 	arrow.setup(aim_dir, int(stats.damage * damage_multiplier), stats.knockback_min, stats.knockback_max, 2 | 8, true, ENEMY_ARROW_RANGE)
 	get_parent().add_child(arrow)
 
+# --- Behavior archetypes -----------------------------------------------------
+# NB: enemy.tscn is load()ed lazily inside summon_minions rather than
+# preload()ed as a const -- preloading the scene whose root IS this script is a
+# circular reference that upsets compile order.
+
+# Turn this enemy into a special archetype (+ optional elite). Call before or
+# just after spawn; sets stats and a random timer offset so a pack doesn't all
+# act on the same beat.
+func set_behavior(kind: String, elite: bool = false) -> void:
+	behavior = kind
+	is_elite = elite
+	behavior_timer = randf_range(0.6, 2.2)
+	match kind:
+		"shield":
+			wave_hp_multiplier *= 1.4
+			accent_color = Color(0.7, 0.75, 0.85)
+		"healer":
+			wave_hp_multiplier *= 1.1
+			accent_color = Color(0.4, 1.0, 0.5)
+		"summoner":
+			wave_hp_multiplier *= 1.25
+			accent_color = Color(0.8, 0.4, 1.0)
+		"caster":
+			accent_color = Color(0.55, 0.5, 1.0)
+			detection_range_current *= 1.6
+		"dasher":
+			wave_speed_multiplier *= 1.15
+			accent_color = Color(1.0, 0.55, 0.3)
+	if elite:
+		wave_hp_multiplier *= 2.4
+		wave_damage_multiplier *= 1.4
+		scale *= 1.25
+
+# Periodic special action layered on the normal movement AI.
+func process_behavior(delta: float) -> void:
+	behavior_timer -= delta
+	if behavior_timer > 0.0:
+		return
+	match behavior:
+		"healer":
+			behavior_timer = 3.2
+			heal_nearby_allies()
+		"summoner":
+			behavior_timer = 5.5
+			summon_minions()
+		"caster":
+			if player != null and is_instance_valid(player) and not is_attacking and global_position.distance_to(player.global_position) < 540.0:
+				behavior_timer = 2.3
+				cast_hex_bolt()
+			else:
+				behavior_timer = 0.3
+		"dasher":
+			var d = global_position.distance_to(player.global_position) if player else 9999.0
+			if player != null and is_instance_valid(player) and d < 320.0 and d > 60.0 and not is_knocked_back:
+				behavior_timer = 2.6
+				perform_lunge()
+			else:
+				behavior_timer = 0.4
+		_:
+			behavior_timer = 1.0
+
+func _living_allies(radius: float) -> Array:
+	var out = []
+	for g in ["course_enemy", "dungeon_combatant", "siege_enemy"]:
+		for e in get_tree().get_nodes_in_group(g):
+			if e == self or not is_instance_valid(e):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if global_position.distance_to(e.global_position) <= radius:
+				out.append(e)
+	return out
+
+func heal_nearby_allies() -> void:
+	var healed = false
+	for e in _living_allies(280.0):
+		if "health" in e and "max_health" in e and e.health < e.max_health:
+			e.health = min(e.max_health, e.health + int(round(e.max_health * 0.15)))
+			if e.has_method("update_health_bar"):
+				e.update_health_bar()
+			if e.has_method("spawn_status_spark"):
+				e.spawn_status_spark(Color(0.4, 1.0, 0.5))
+			healed = true
+	if healed:
+		spawn_status_spark(Color(0.4, 1.0, 0.5))
+
+func summon_minions() -> void:
+	summoned_minions = summoned_minions.filter(func(m): return is_instance_valid(m) and not (("is_dead" in m) and m.is_dead))
+	if summoned_minions.size() >= 3:
+		return
+	var group = "dungeon_combatant" if is_in_group("dungeon_combatant") else "course_enemy"
+	for i in range(2):
+		if summoned_minions.size() >= 3:
+			break
+		var m = load("res://enemy.tscn").instantiate()
+		m.respawns = false
+		m.instant_aggro = true
+		m.weapon_type = "sword"
+		m.wave_hp_multiplier = 0.4 * wave_hp_multiplier
+		m.wave_damage_multiplier = 0.6 * wave_damage_multiplier
+		m.wave_speed_multiplier = wave_speed_multiplier
+		m.position = global_position + Vector2(randf_range(-70, 70), -10)
+		m.add_to_group(group)
+		get_parent().add_child(m)
+		summoned_minions.append(m)
+	spawn_status_spark(Color(0.8, 0.4, 1.0))
+
+func cast_hex_bolt() -> void:
+	if player == null or not is_instance_valid(player):
+		return
+	is_attacking = true
+	play_sfx(SFX_BOW)
+	var aim_dir = (player.global_position - global_position).normalized()
+	var arrow = ARROW_SCENE.instantiate()
+	arrow.position = global_position + aim_dir * 22.0
+	arrow.setup(aim_dir, int(round(9 * damage_multiplier)), 8.0, 16.0, 2 | 8, true, ENEMY_ARROW_RANGE)
+	if "slows_player" in arrow:
+		arrow.slows_player = true
+	get_parent().add_child(arrow)
+	spawn_status_spark(Color(0.55, 0.5, 1.0))
+	get_tree().create_timer(0.3).timeout.connect(func(): is_attacking = false)
+
+func perform_lunge() -> void:
+	if player == null or not is_instance_valid(player):
+		return
+	var dir = sign(player.global_position.x - global_position.x)
+	if dir == 0:
+		dir = facing_direction
+	facing_direction = dir
+	is_knocked_back = true   # borrow the knockback lock so the AI doesn't fight it
+	velocity.x = dir * 620.0
+	spawn_status_spark(Color(1.0, 0.55, 0.3))
+	get_tree().create_timer(0.22).timeout.connect(func():
+		is_knocked_back = false)
+
+func spawn_block_spark() -> void:
+	spawn_status_spark(Color(0.8, 0.85, 1.0))
+
+# A quick colored spark over the enemy (block / heal / summon / cast cues).
+func spawn_status_spark(col: Color) -> void:
+	var s = Polygon2D.new()
+	var pts = PackedVector2Array()
+	for i in range(10):
+		var a = TAU * float(i) / 10.0
+		var rad = 10.0 if i % 2 == 0 else 4.0
+		pts.append(Vector2(cos(a), sin(a)) * rad)
+	s.polygon = pts
+	s.color = col
+	s.position = Vector2(0, -30)
+	s.z_index = 8
+	add_child(s)
+	var t = s.create_tween()
+	t.tween_property(s, "scale", Vector2(1.8, 1.8), 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	t.parallel().tween_property(s, "modulate:a", 0.0, 0.25)
+	t.tween_callback(s.queue_free)
+
 func take_damage(amount: int) -> void:
 	if is_dead:
 		return
+	# Shielded enemies halve damage taken from the FRONT -- the player has to
+	# get around behind them (or burst through) to punish. Attacks from the
+	# back land full.
+	if behavior == "shield" and player != null and is_instance_valid(player):
+		var from_front = sign(player.global_position.x - global_position.x) == facing_direction
+		if from_front:
+			amount = int(round(amount * 0.4))
+			spawn_block_spark()
 	health -= amount
 	update_health_bar()
 	if health <= 0:
@@ -559,11 +840,20 @@ func die() -> void:
 	if player.has_method("add_currency"):
 		player.add_currency(reward)
 	GameState.add_xp(int(round(8 * damage_multiplier)))
+	if player.has_method("on_enemy_killed"):
+		player.on_enemy_killed()
 	spawn_coin_popup(reward)
 	# low-rate construction-material drop (tougher gens roll a little better)
 	var mat = GameState.roll_construction_drop(player, 1.0 + 0.15 * generation)
 	if mat != "":
 		spawn_material_popup(mat)
+	# raw meat (cooking ingredient) + rare potion drops
+	if randf() < 0.25:
+		player.inventory.add_item("raw_meat", 1)
+	if randf() < 0.05:
+		player.inventory.add_item("potion_health", 1)
+	if randf() < 0.04:
+		player.inventory.add_item("potion_mana", 1)
 	is_dead = true
 	is_attacking = false
 	$CollisionShape2D.set_deferred("disabled", true)

@@ -42,6 +42,10 @@ func refresh() -> void:
 		add_role_section(list, role_def)
 	if current_building.role_key == "Science Lab":
 		add_research_section(list)
+	if current_building.role_key == "Blacksmith":
+		add_smithy_section(list)
+	if current_building.role_key == "Barracks":
+		add_armory_section(list)
 
 # Shown while a building is being raised: it takes several construction stages,
 # each costing one material bundle and playing a build animation.
@@ -68,11 +72,25 @@ func add_repair_section(list: VBoxContainer) -> void:
 	cost.text = "  Each stage needs: " + b.repair_requirement_text()
 	list.add_child(cost)
 
+	# The Forge is a mid-game unlock -- gate its construction behind dungeon depth.
+	var forge_locked = b.role_key == "Blacksmith" and not GameState.blacksmith_unlocked()
+	if forge_locked:
+		var lock = Label.new()
+		lock.add_theme_font_size_override("font_size", 12)
+		lock.add_theme_color_override("font_color", Color(0.95, 0.5, 0.45, 1))
+		lock.autowrap_mode = TextServer.AUTOWRAP_WORD
+		lock.custom_minimum_size = Vector2(300, 0)
+		lock.text = "  🔒 The Forge can only be raised once you've braved the deep — reach dungeon Lv %d (deepest so far: %d)." % [GameState.BLACKSMITH_UNLOCK_DEPTH, GameState.deepest_level_reached]
+		list.add_child(lock)
+
 	var btn = Button.new()
 	btn.text = "  Build stage %d / %d" % [b.build_stage + 1, total]
 	btn.custom_minimum_size = Vector2(0, 32)
 	if b.constructing:
 		btn.text = "  Building..."
+		btn.disabled = true
+	elif forge_locked:
+		btn.text = "  🔒 Locked until dungeon Lv %d" % GameState.BLACKSMITH_UNLOCK_DEPTH
 		btn.disabled = true
 	btn.pressed.connect(_on_repair)
 	list.add_child(btn)
@@ -90,6 +108,8 @@ func _on_repair() -> void:
 			notif.show_notification("%s -- building... (stage %d/%d)" % [current_building.building_name, current_building.build_stage, GameState.TOTAL_BUILD_STAGES])
 	elif result == "materials" and notif:
 		notif.show_notification("Not enough materials -- need: " + ", ".join(current_building.missing_repair_materials(player)))
+	elif result == "locked" and notif:
+		notif.show_notification("The Forge can't be raised yet -- reach dungeon Lv %d first." % GameState.BLACKSMITH_UNLOCK_DEPTH)
 	refresh()
 
 # Level + upgrade control. Upgrading grows the building, adds worker slots, and
@@ -179,6 +199,145 @@ func _on_research(item_id: String) -> void:
 		notif.show_notification("Research complete: it's " + Inventory.ITEM_DEFS[item_id].name + "! Usable in the skill tree now.")
 	refresh()
 
+# The Forge (Blacksmith) is Deepwood's reliable gear vendor: it stocks equippable
+# gear of EVERY slot -- weapons of all types, helm/chest/pants, gloves, boots --
+# but only up to Rare grade. The OP tiers (Epic+, set weapons, Excellents) stay
+# dungeon-drop only, so the Forge fills gaps without spoiling the loot chase.
+const SMITHY_PRICE_BY_GRADE = {"common": 25, "uncommon": 60, "rare": 130}
+const SMITHY_MAX_RANK = 3   # rare (see Inventory.GRADE_DEFS ranks)
+
+# Every equippable item at or below the Forge's tier cap, tidy-sorted (grade,
+# then name). Base starter kit + admin + all OP tiers are excluded by design.
+func smithy_stock() -> Array:
+	var base_kit = {"wpn_sword": true, "wpn_spear": true, "wpn_bow": true, "wpn_wand": true}
+	var out := []
+	for id in Inventory.ITEM_DEFS.keys():
+		var def = Inventory.ITEM_DEFS[id]
+		var cat = str(def.get("category", ""))
+		if cat != "armor" and cat != "weapon":
+			continue
+		if base_kit.has(id) or id == "wpn_admin_ruin" or def.get("excellent", false):
+			continue
+		var grade = Inventory.get_grade(id)
+		if not Inventory.GRADE_DEFS.has(grade) or int(Inventory.GRADE_DEFS[grade].rank) > SMITHY_MAX_RANK:
+			continue
+		out.append(id)
+	out.sort_custom(func(a, b):
+		var ra = int(Inventory.GRADE_DEFS[Inventory.get_grade(a)].rank)
+		var rb = int(Inventory.GRADE_DEFS[Inventory.get_grade(b)].rank)
+		if ra != rb:
+			return ra < rb
+		return str(Inventory.ITEM_DEFS[a].name) < str(Inventory.ITEM_DEFS[b].name))
+	return out
+
+func smithy_price(item_id: String) -> int:
+	return int(SMITHY_PRICE_BY_GRADE.get(Inventory.get_grade(item_id), 40))
+
+func add_smithy_section(list: VBoxContainer) -> void:
+	var header = Label.new()
+	header.add_theme_font_size_override("font_size", 14)
+	header.add_theme_color_override("font_color", Color(0.95, 0.7, 0.4, 1))
+	header.text = "The Forge — buy gear (up to Rare)"
+	list.add_child(header)
+	var player = get_tree().get_first_node_in_group("player")
+	if not player:
+		return
+	for item_id in smithy_stock():
+		var price = smithy_price(item_id)
+		var grade_name = Inventory.get_grade_name(item_id)
+		var row = Button.new()
+		row.text = "  %s  [%s]  —  %dg" % [Inventory.get_display_name(item_id), grade_name, price]
+		row.custom_minimum_size = Vector2(0, 26)
+		row.add_theme_color_override("font_color", Inventory.get_grade_color(item_id))
+		row.pressed.connect(_on_buy_gear.bind(item_id, price))
+		list.add_child(row)
+
+func _on_buy_gear(item_id: String, price: int) -> void:
+	var player = get_tree().get_first_node_in_group("player")
+	var notif = get_tree().get_first_node_in_group("notification_stack")
+	if not player:
+		return
+	if player.currency < price:
+		if notif:
+			notif.show_notification("Not enough gold for %s (need %dg, have %dg)." % [Inventory.get_display_name(item_id), price, player.currency])
+		return
+	if player.inventory.add_item(item_id, 1) > 0:   # >0 leftover == couldn't fit
+		if notif:
+			notif.show_notification("Your bag is full.")
+		return
+	player.currency -= price
+	if player.has_method("update_currency_display"):
+		player.update_currency_display()
+	if notif:
+		notif.show_notification("Forged: %s." % Inventory.get_display_name(item_id))
+	refresh()
+
+# The Barracks armory: warriors fight far harder once ARMED. Early game the
+# player hand-carries spare weapons/armor here to stock it; once a Forgemaster
+# is employed at the Blacksmith, his smiths keep it filled automatically.
+func add_armory_section(list: VBoxContainer) -> void:
+	var header = Label.new()
+	header.add_theme_font_size_override("font_size", 14)
+	header.add_theme_color_override("font_color", Color(0.85, 0.6, 0.5, 1))
+	header.text = "Armory — arm your warriors"
+	list.add_child(header)
+
+	var status = Label.new()
+	status.add_theme_font_size_override("font_size", 12)
+	status.add_theme_color_override("font_color", Color(0.8, 0.85, 0.8, 1))
+	status.text = "  Armed: %d / %d warriors   (arms in store: %d)" % [GameState.armed_warriors(), GameState.warrior_count(), GameState.barracks_arms]
+	list.add_child(status)
+
+	var note = Label.new()
+	note.add_theme_font_size_override("font_size", 11)
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD
+	note.custom_minimum_size = Vector2(300, 0)
+	if GameState.forgemaster_supplying():
+		note.add_theme_color_override("font_color", Color(0.55, 0.85, 0.55, 1))
+		note.text = "  🔨 The Forgemaster's smiths are delivering arms automatically — no need to haul gear here anymore."
+	else:
+		note.add_theme_color_override("font_color", Color(0.75, 0.7, 0.6, 1))
+		note.text = "  Bring spare weapons & armor here to arm the warriors. (Employ a Forgemaster at the Blacksmith to automate this.)"
+	list.add_child(note)
+
+	var player = get_tree().get_first_node_in_group("player")
+	if not player:
+		return
+	var found = false
+	for item_id in Inventory.ITEM_DEFS.keys():
+		var cat = str(Inventory.ITEM_DEFS[item_id].get("category", ""))
+		if cat != "weapon" and cat != "armor":
+			continue
+		var held = player.inventory.get_count(item_id)
+		if held <= 0:
+			continue
+		found = true
+		var row = Button.new()
+		row.text = "  Give %s  (x%d)  →  +%d arms" % [Inventory.get_display_name(item_id), held, GameState.arm_value_of(item_id)]
+		row.custom_minimum_size = Vector2(0, 26)
+		row.add_theme_color_override("font_color", Inventory.get_grade_color(item_id))
+		row.pressed.connect(_on_deposit_arm.bind(item_id))
+		list.add_child(row)
+	if not found:
+		var none_label = Label.new()
+		none_label.add_theme_font_size_override("font_size", 11)
+		none_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6, 1))
+		none_label.text = "  (no spare weapons or armor in your bag to donate)"
+		list.add_child(none_label)
+
+func _on_deposit_arm(item_id: String) -> void:
+	var player = get_tree().get_first_node_in_group("player")
+	var notif = get_tree().get_first_node_in_group("notification_stack")
+	if not player:
+		return
+	var added = GameState.deposit_one_arm(player, item_id)
+	if notif:
+		if added > 0:
+			notif.show_notification("Armed the warriors with %s (+%d arms)." % [Inventory.get_display_name(item_id), added])
+		else:
+			notif.show_notification("The armory is full.")
+	refresh()
+
 func add_role_section(list: VBoxContainer, role_def: Dictionary) -> void:
 	var holders = current_building.get_role_holders(role_def.title)
 
@@ -233,7 +392,9 @@ func _on_assign(villager_id: String, role_def: Dictionary) -> void:
 		if notif:
 			notif.show_notification("Enrolled as " + role_def.title + "! Check back in 24 in-game hours.")
 	else:
-		GameState.assign_villager_to_role(villager_id, current_building.role_key, role_def.title)
-		if notif:
-			notif.show_notification("Assigned as " + role_def.title + " at " + current_building.building_name + "!")
+		if GameState.assign_villager_to_role(villager_id, current_building.role_key, role_def.title):
+			if notif:
+				notif.show_notification("Assigned as " + role_def.title + " at " + current_building.building_name + "!")
+		elif notif:
+			notif.show_notification("Only the rightful figure can hold the post of " + role_def.title + ".")
 	refresh()

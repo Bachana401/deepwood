@@ -23,6 +23,8 @@ const GEAR_SLOTS = [
 	{"key": "helmet", "label": "Helmet"},
 	{"key": "chest", "label": "Armor"},
 	{"key": "pants", "label": "Pants"},
+	{"key": "gloves", "label": "Gloves"},
+	{"key": "boots", "label": "Boots"},
 ]
 const RELIC_UNLOCK_LEVEL = [0, 0, 0, 0, 10, 20]  # per relic slot index
 
@@ -99,28 +101,31 @@ func build_panel() -> void:
 	close_btn.pressed.connect(close)
 	panel.add_child(close_btn)
 
-	# three armour slots, head-to-toe, each a labelled box centred in the panel
+	# armour slots in TWO columns (3 rows) so all five fit above the relics
 	var cx = PANEL_W / 2.0
-	var box = 64.0
+	var box = 60.0
 	var start_y = 40.0
-	var step = 88.0
-	var i = 0
-	for def in GEAR_SLOTS:
-		var ly = start_y + i * step
+	var step = 92.0
+	var col_gap = 16.0
+	for i in range(GEAR_SLOTS.size()):
+		var def = GEAR_SLOTS[i]
+		var col = i % 2
+		var row = i / 2
+		var lx = (cx - box - col_gap / 2.0) if col == 0 else (cx + col_gap / 2.0)
+		var ly = start_y + row * step
 		var name_lbl = Label.new()
-		name_lbl.position = Vector2(cx - box / 2.0, ly)
+		name_lbl.position = Vector2(lx, ly)
 		name_lbl.add_theme_font_size_override("font_size", 12)
 		name_lbl.add_theme_color_override("font_color", Color(0.82, 0.84, 0.92, 1))
 		name_lbl.text = def.label
 		panel.add_child(name_lbl)
-		var button = _slot_button(cx - box / 2.0, ly + 18.0, box, box)
+		var button = _slot_button(lx, ly + 18.0, box, box)
 		button.pressed.connect(_on_gear_slot_pressed.bind(def.key))
 		button.mouse_entered.connect(_on_gear_slot_hover.bind(def.key))
 		button.mouse_exited.connect(_hide_tip)
 		slot_buttons[def.key] = button
-		i += 1
 
-	# relics below, in a grid (3 per row)
+	# relics below the 3 rows of armour
 	var relic_y = start_y + 3 * step + 8.0
 	var relic_header = Label.new()
 	relic_header.position = Vector2(12, relic_y)

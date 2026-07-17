@@ -182,6 +182,7 @@ var admin_invincible_until = 0.0
 var god_mode := false   # toggled from the admin panel (P) -- ignores all damage
 var knockback_immune_until := 0.0   # no re-knockback until this time (post-hit window)
 var is_dead = false
+var undying_used := false   # Living Fortress: the once-per-life lethal-hit save has fired
 
 # currency is now a real inventory item ("coin_gold") instead of a bare int
 # -- this property just proxies to the inventory so every EXISTING call site
@@ -305,9 +306,12 @@ func _ready() -> void:
 		# weapons FIRST so they land in the first hotbar slots (1=sword, 2=spear,
 		# 3=bow, 4=wand, 5=Vampiric Fang, 6=Thundercaller) for easy testing.
 		grant_starter_weapons()
-		inventory.add_item("coin_gold", STARTING_CURRENCY)
-		inventory.add_item("coin_silver", STARTING_SILVER)
-		inventory.add_item("coin_bronze", STARTING_BRONZE)
+		# the real game starts with NO money -- gold is earned from kills + the
+		# village economy. --dev seeds a purse so the shop can be tried at once.
+		if GameState.dev_mode:
+			inventory.add_item("coin_gold", STARTING_CURRENCY)
+			inventory.add_item("coin_silver", STARTING_SILVER)
+			inventory.add_item("coin_bronze", STARTING_BRONZE)
 		grant_starter_gear()
 		wield_weapon("wpn_sword")
 	# admin Ruin Wand + flight relics are guaranteed present. On a NEW game
@@ -324,21 +328,40 @@ func _ready() -> void:
 	update_currency_display()
 	update_health_display()
 	update_mana_display()
+	# the opening plea (once, on a fresh real game, in the village)
+	call_deferred("maybe_play_intro")
+
+# Fires the scripted opening the first time a new game begins in the village.
+# Skipped on Continue (seen_intro persisted), inside the dungeon, and in dev mode.
+func maybe_play_intro() -> void:
+	if GameState.dev_mode or GameState.seen_intro or GameState.in_dungeon:
+		return
+	GameState.seen_intro = true
+	DialogueBox.play(self, Story.OPENING)
 
 # TEST: hands the player every basic weapon at the start so the whole hotbar
 # is usable immediately (1=sword ... 6=Thundercaller, 7=ADMIN Ruin Wand,
 # 8=axe, 9=pickaxe). Set gear and the newer Excellent weapons are NOT granted
 # -- they drop from dungeon bosses (see dungeon_interior.gd roll_gear_drop).
 func grant_starter_weapons() -> void:
-	# NB: wpn_wand (classic screen-nuke) is intentionally NOT here -- it's an
-	# admin/test item, not a player weapon (see inventory.gd + shop_ui.gd).
-	for item_id in ["wpn_sword", "wpn_spear", "wpn_bow", "exc_vampiric", "exc_thunder", "wpn_admin_ruin", "tool_axe", "tool_pickaxe"]:
+	# The REAL game starts weak: just a plain sword and the two gathering tools
+	# (needed for the repair loop). The spear/bow are shop purchases, and every
+	# Excellent/set weapon is dungeon loot. --dev restores the full test hotbar.
+	# NB: wpn_wand (classic screen-nuke) is an admin item, never a player weapon.
+	var starter = ["wpn_sword", "tool_axe", "tool_pickaxe"]
+	if GameState.dev_mode:
+		starter = ["wpn_sword", "wpn_spear", "wpn_bow", "exc_vampiric", "exc_thunder", "wpn_admin_ruin", "tool_axe", "tool_pickaxe"]
+	for item_id in starter:
 		inventory.add_item(item_id, 1)
 
 # All the guaranteed-for-testing items in one call, safe to run repeatedly.
 # MUST run after any inventory load (new-game grant, Continue's save load, or
 # dungeon-return snapshot) or the load overwrites what it added.
 func ensure_test_items() -> void:
+	# ALL test scaffolding (admin wand, flight relics, showpiece gear) is dev-only.
+	# In the real game this is a no-op, so a New Game / Continue stays honest.
+	if not GameState.dev_mode:
+		return
 	ensure_admin_wand()
 	ensure_flight_relics_for_test()
 	# test scaffolding: the showpiece weapons + OP relics on hand immediately so
@@ -408,7 +431,11 @@ func ensure_flight_relics_for_test() -> void:
 # Temporary: sample armor + relics so the equipment panel is usable. Weapons
 # are granted separately (grant_starter_weapons). Replaced by loot later.
 func grant_starter_gear() -> void:
-	for item_id in ["helm_leather", "armor_leather", "pants_leather", "relic_vigor", "relic_swiftness"]:
+	# a basic leather kit to start; relics are loot, so --dev seeds two for testing
+	var gear = ["helm_leather", "armor_leather", "pants_leather"]
+	if GameState.dev_mode:
+		gear.append_array(["relic_vigor", "relic_swiftness"])
+	for item_id in gear:
 		inventory.add_item(item_id, 1)
 
 # --- worn-gear visuals (helmet / chest / pants overlays on the body) ---
@@ -1183,6 +1210,10 @@ func skill_damage_mult(weapon: String) -> float:
 		# scales the Mage's PROJECTILE wands (Emberstaff etc.); the classic
 		# nuke wand doesn't deal numeric damage so it ignores this.
 		base = 1.0 + GameState.get_bonus_total("wand_damage")
+		# Mystic Spellblade: wand damage grows with your Mana pool
+		var m2d = GameState.get_bonus_total("mana_to_damage")
+		if m2d > 0.0:
+			base += m2d * get_max_mana()
 	# Warrior's Feast and other food buffs add flat damage to every weapon
 	base += buff_bonus("all_damage")
 	# Juggernaut Idol (berserk): the lower your HP, the harder you hit, ramping
@@ -1190,7 +1221,23 @@ func skill_damage_mult(weapon: String) -> float:
 	if has_relic_power("berserk"):
 		var missing = clamp(1.0 - float(health) / float(get_max_health()), 0.0, 1.0)
 		base += relic_power_value("berserk", 0.5) * missing
+	# Berserker Blood Rage: swing harder while badly hurt (under 40% HP)
+	var lowhp = GameState.get_bonus_total("low_hp_damage_mult")
+	if lowhp > 0.0 and float(health) <= float(get_max_health()) * 0.40:
+		base += lowhp
+	# Avatar of Slaughter / Godslayer: each recent kill stacks bonus damage
+	if rampage_stacks > 0:
+		if _now() < rampage_until:
+			base += GameState.get_bonus_total("on_kill_rampage") * rampage_stacks
+		else:
+			rampage_stacks = 0
 	return base
+
+# Avatar of Slaughter (on_kill_rampage): kills stack a short damage frenzy.
+var rampage_stacks: int = 0
+var rampage_until: float = 0.0
+const RAMPAGE_MAX_STACKS = 10
+const RAMPAGE_DURATION = 5.0
 
 # --- Crit ---
 # Everyone has a small base crit; gear/relics/skills (crit_chance/crit_damage)
@@ -1328,9 +1375,17 @@ func on_enemy_killed() -> void:
 		health = min(get_max_health(), health + 8)
 		update_health_display()
 		gain_mana(5.0)
+	# Avatar of Slaughter / Godslayer: each kill refreshes and grows the frenzy
+	if GameState.get_bonus_total("on_kill_rampage") > 0.0:
+		if _now() >= rampage_until:
+			rampage_stacks = 0
+		rampage_stacks = mini(RAMPAGE_MAX_STACKS, rampage_stacks + 1)
+		rampage_until = _now() + RAMPAGE_DURATION
 	# Rise, Shade (5/7+): the slain foe's shadow tears free and serves
 	if GameState.monarch_stage() >= 5:
 		raise_shade()
+	# advance any "slay N foes" villager bonds
+	GameState.quest_event("slay", "", 1)
 
 func apply_slow(duration: float, factor: float) -> void:
 	# a status-resistance relic cuts the slow's duration
@@ -1459,6 +1514,7 @@ func _on_spear_tip_hit(body: Node2D) -> void:
 		body.take_damage(r[0])
 		show_hit(body, r[0], r[1])
 		apply_omnivamp(r[0])
+		apply_melee_skills(body, r[0])
 	if body.has_method("apply_knockback"):
 		var knockback_distance = randf_range(stats.knockback_min, stats.knockback_max)
 		body.apply_knockback(knockback_sign_toward(body), knockback_distance)
@@ -1578,27 +1634,67 @@ func take_damage(amount: int) -> void:
 		return
 	if _now() < monarch_iframes_until:
 		return   # Shadowstep: mid-dash the Monarch simply isn't there
+	# Evasion (Riposte / Evasion / Blink Step): a chance to dodge the hit whole
+	var dodge = GameState.get_bonus_total("dodge_chance")
+	if dodge > 0.0 and randf() < dodge:
+		FloatingText.spawn(get_parent(), global_position + Vector2(0, -20), 0, false, Color(0.7, 0.95, 1.0))
+		var dt = Label.new(); dt.text = "Dodge"; dt.z_index = 100
+		dt.add_theme_color_override("font_color", Color(0.7, 0.95, 1.0))
+		dt.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8)); dt.add_theme_constant_override("outline_size", 4)
+		get_parent().add_child(dt); dt.global_position = global_position + Vector2(-14, -34)
+		var dtw = dt.create_tween()
+		dtw.tween_property(dt, "global_position:y", dt.global_position.y - 30, 0.5)
+		dtw.parallel().tween_property(dt, "modulate:a", 0.0, 0.5); dtw.tween_callback(dt.queue_free)
+		return
 	# Aegis Ward: a shield fully swallows one hit every few seconds
 	if has_relic_power("aegis") and _now() >= aegis_ready_at:
 		aegis_ready_at = _now() + AEGIS_COOLDOWN
 		spawn_aegis_block()
 		return
 	amount = int(round(amount * (1.0 - clamp(GameState.get_bonus_total("damage_reduction"), 0.0, 0.75))))
+	# Mana Barrier (Mystic): a share of the hit is paid from Mana, not HP
+	var msf = clamp(GameState.get_bonus_total("mana_shield"), 0.0, 0.8)
+	if msf > 0.0 and mana > 0.0:
+		var absorb = min(mana, float(amount) * msf)
+		mana -= absorb
+		amount = maxi(0, amount - int(round(absorb)))
+		update_mana_display()
 	health -= amount
 	update_health_display()
 	play_sfx(SFX_HURT)
 	hurt_timer = HURT_SHAKE_TIME
 	if has_node("Camera2D"):
 		$Camera2D.shake(4.0, 0.15)
-	# Thornmail: fling a share of the pain back at everyone around you
+	# Thorns: skill (Spiked Armor) + relic (Thornmail) both reflect the pain
+	var thorns_frac = GameState.get_bonus_total("thorns")
 	if has_relic_power("thorns"):
-		reflect_thorns(int(round(amount * relic_power_value("thorns", 0.4))))
+		thorns_frac += relic_power_value("thorns", 0.4)
+	if thorns_frac > 0.0:
+		reflect_thorns(int(round(amount * thorns_frac)))
 	if health <= 0:
 		# The Long Dark (6/7+): a lethal blow cannot kill what is already
 		# shadow. Outranks Living Fortress so the skill charge is kept.
 		if GameState.monarch_stage() >= 6 and _now() >= monarch_long_dark_ready_at:
 			monarch_long_dark_ready_at = _now() + LONG_DARK_COOLDOWN
 			enter_long_dark()
+			return
+		# Living Fortress (undying): once per life, refuse to fall -- snap back
+		# to 20% HP with a burst of i-frames instead of dying.
+		if GameState.get_bonus_total("undying") > 0.0 and not undying_used:
+			undying_used = true
+			health = maxi(1, int(get_max_health() * 0.20))
+			update_health_display()
+			spawn_shock_ring(global_position, 200.0, Color(1.0, 0.85, 0.3, 0.95))
+			var stack = get_tree().get_first_node_in_group("notification_stack")
+			if stack:
+				stack.show_notification("Living Fortress: you refuse to fall!")
+			invincible = true
+			start_invincibility_flash()
+			var ut = get_tree().create_timer(INVINCIBILITY_DURATION * 2.0)
+			ut.timeout.connect(func():
+				if not is_dead:
+					stop_invincibility_flash()
+					invincible = false)
 			return
 		die()
 		return
@@ -2033,6 +2129,7 @@ func perform_attack() -> void:
 				var cr = roll_crit(int(round(stats.damage * skill_damage_mult("melee"))))
 				body.take_damage(cr[0])
 				show_hit(body, cr[0], cr[1])
+				apply_melee_skills(body, cr[0])
 				cleave_total += cr[0]
 			if body.has_method("apply_knockback"):
 				body.apply_knockback(knockback_sign_toward(body), randf_range(stats.knockback_min, stats.knockback_max))
@@ -2048,6 +2145,7 @@ func perform_attack() -> void:
 				target.take_damage(dealt)
 				show_hit(target, dealt, cr[1])
 				apply_omnivamp(dealt)
+				apply_melee_skills(target, dealt)
 			if target.has_method("apply_knockback"):
 				var knockback_distance = randf_range(stats.knockback_min, stats.knockback_max)
 				target.apply_knockback(knockback_sign_toward(target), knockback_distance)
@@ -2075,7 +2173,14 @@ func launch_projectile(cfg: Dictionary, dir: Vector2, dmg: int, is_crit: bool = 
 	p.max_distance = float(cfg.get("range", 450.0))
 	p.pierce = bool(cfg.get("pierce", kind in ["slash", "javelin"]))
 	p.aoe_radius = float(cfg.get("aoe", 0.0))
-	p.on_hit_status = cfg.get("status", {})
+	# a weapon's own status wins; otherwise the Elementalist's Ignite skill rides
+	# the cast so a plain wand still burns once you've taken the keystone.
+	var status = cfg.get("status", {})
+	if status.is_empty():
+		var sb = GameState.get_bonus_total("on_hit_burn")
+		if sb > 0.0:
+			status = {"kind": "burn", "dur": 3.0, "mag": sb}
+	p.on_hit_status = status
 	p.source = self
 	p.position = global_position + dir * 34.0
 	get_parent().add_child(p)
@@ -2153,6 +2258,35 @@ func apply_omnivamp(total_damage: int) -> void:
 	if heal > 0:
 		health = min(get_max_health(), health + heal)
 		update_health_display()
+
+# Skill-tree melee keystones fired on each landed melee/spear hit: Bloodthirst
+# (lifesteal), Warden/Elementalist on-hit status (unusual on melee but general),
+# and Executioner (instakill low-HP fodder).
+func apply_melee_skills(target: Node2D, dealt: int) -> void:
+	if not is_instance_valid(target):
+		return
+	var ls = GameState.get_bonus_total("lifesteal")
+	if monarch_true_form_active:
+		ls *= 2.0   # 7/7 true form: the dark drinks twice as deep
+	if ls > 0.0 and dealt > 0:
+		health = min(get_max_health(), health + int(round(dealt * ls)))
+		update_health_display()
+	if target.has_method("apply_status"):
+		var b = GameState.get_bonus_total("on_hit_burn")
+		if b > 0.0: target.apply_status("burn", 3.0, b)
+		var po = GameState.get_bonus_total("on_hit_poison")
+		if po > 0.0: target.apply_status("poison", 4.0, po)
+		if GameState.get_bonus_total("on_hit_slow") > 0.0: target.apply_status("slow", 2.5, 0.6)
+	var ex = GameState.get_bonus_total("execute_threshold")
+	if ex > 0.0 and not ("boss_id" in target) and "max_health" in target and "health" in target and target.has_method("take_damage"):
+		if float(target.health) <= float(target.max_health) * ex and float(target.health) > 0.0:
+			spawn_execute_flash(target.global_position)
+			target.take_damage(999999)
+			# Headhunter: reaping a foe stitches you back together
+			var eh = GameState.get_bonus_total("execute_heal")
+			if eh > 0.0:
+				health = min(get_max_health(), health + int(round(get_max_health() * eh)))
+				update_health_display()
 
 # Thornmail: deal `dmg` to every enemy near the player.
 func reflect_thorns(dmg: int) -> void:
@@ -2696,7 +2830,26 @@ func spawn_arrow(stats: Dictionary, aim_dir: Vector2) -> void:
 	var special = active_def.get("special", {})
 	var special_type = str(special.get("type", ""))
 	var count = int(special.get("count", 1)) if special.has("count") else 1
-	var homing = bool(special.get("homing", false)) or special_type == "homing"
+	# Ranger multishot keystones (Twin Shot / Arrow Storm / Tempest) add arrows
+	count += int(GameState.get_bonus_total("multishot"))
+	# Warden keystones make arrows carry statuses. These now STACK -- Venom
+	# (poison) plus a fork of Frost (slow) or Flame (burn) all ride the arrow.
+	var arrow_statuses := []
+	var poi = GameState.get_bonus_total("on_hit_poison")
+	if poi > 0.0:
+		arrow_statuses.append({"kind": "poison", "dur": 4.0, "mag": poi})
+	if GameState.get_bonus_total("on_hit_slow") > 0.0:
+		arrow_statuses.append({"kind": "slow", "dur": 3.0, "mag": 0.55})
+	var abn = GameState.get_bonus_total("on_hit_burn")
+	if abn > 0.0:
+		arrow_statuses.append({"kind": "burn", "dur": 3.0, "mag": abn})
+	if count < 1:
+		count = 1
+	# Seeker Arrows / Tempest (arrow_homing) make every shaft hunt; Piercing Shot
+	# (arrow_pierce) punches through foes; Contagion (poison_spread) leaps poison.
+	var homing = bool(special.get("homing", false)) or special_type == "homing" or GameState.get_bonus_total("arrow_homing") > 0.0
+	var pierce_count = int(GameState.get_bonus_total("arrow_pierce"))
+	var spreads_poison = GameState.get_bonus_total("poison_spread") > 0.0
 	var spread = deg_to_rad(float(special.get("spread_deg", 0.0)))
 	var hover = hover_for_mouse(stats.icon_offset)
 	for i in range(count):
@@ -2711,6 +2864,9 @@ func spawn_arrow(stats: Dictionary, aim_dir: Vector2) -> void:
 		arrow.setup(dir, cr[0], stats.knockback_min, stats.knockback_max, 4)
 		arrow.is_crit = cr[1]
 		arrow.homing = homing
+		arrow.enemy_statuses = arrow_statuses
+		arrow.pierce_count = pierce_count
+		arrow.poison_spread = spreads_poison
 		get_parent().add_child(arrow)
 
 func cast_wand() -> void:

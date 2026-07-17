@@ -13,6 +13,12 @@ var start_position := Vector2.ZERO
 var has_hit := false
 var max_range := DEFAULT_MAX_RANGE
 var pierces_terrain := false
+var is_crit := false   # set by the player when it rolls a crit for this arrow
+var slows_player := false   # caster enemies fire chilling bolts that slow you
+var enemy_statuses := []   # Warden keystones: list of {"kind","dur","mag"} applied on hit
+var pierce_count := 0   # Marksman Piercing Shot / Skyfall: pass through this many foes
+var poison_spread := false   # Warden Contagion: poison also splashes onto nearby foes
+var pierced_bodies := []   # bodies already struck this flight (so pierce never double-hits)
 
 # Seeker Bow: the arrow bends mid-flight toward the nearest living enemy
 # (capped turn rate, so point-blank dodges still work). Enabled by the
@@ -100,7 +106,26 @@ func break_arrow() -> void:
 	queue_free()
 
 func _on_hit_area_body_entered(body: Node2D) -> void:
-	if has_hit:
+	if has_hit or body in pierced_bodies:
+		return
+	pierced_bodies.append(body)
+	if body.has_method("take_damage"):
+		body.take_damage(damage)
+		FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+	if slows_player and body.has_method("apply_slow"):
+		body.apply_slow(3.0, 0.55)
+	if body.has_method("apply_status"):
+		for st in enemy_statuses:
+			body.apply_status(str(st.get("kind", "poison")), float(st.get("dur", 4.0)), float(st.get("mag", 0.0)))
+	if poison_spread:
+		spread_poison_near(body.global_position, body)
+	if body.has_method("apply_knockback"):
+		var knockback_distance = randf_range(knockback_min, knockback_max)
+		var knockback_dir_sign = 1 if direction.x >= 0 else -1
+		body.apply_knockback(knockback_dir_sign, knockback_distance)
+	# Piercing Shot: keep flying through the first N enemies instead of stopping
+	if pierce_count > 0:
+		pierce_count -= 1
 		return
 	has_hit = true
 	set_physics_process(false)
@@ -108,10 +133,15 @@ func _on_hit_area_body_entered(body: Node2D) -> void:
 	$CollisionShape2D.set_deferred("disabled", true)
 	visible = false
 	global_position = Vector2(200000, 200000)
-	if body.has_method("take_damage"):
-		body.take_damage(damage)
-	if body.has_method("apply_knockback"):
-		var knockback_distance = randf_range(knockback_min, knockback_max)
-		var knockback_dir_sign = 1 if direction.x >= 0 else -1
-		body.apply_knockback(knockback_dir_sign, knockback_distance)
 	queue_free()
+
+# Warden Contagion: the poison you just applied also seeps into nearby foes.
+func spread_poison_near(center: Vector2, struck: Node2D) -> void:
+	for group_name in HOMING_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if e == struck or not is_instance_valid(e) or not e.has_method("apply_status"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if e.global_position.distance_to(center) <= 120.0:
+				e.apply_status("poison", 4.0, 6.0)

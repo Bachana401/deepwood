@@ -4,7 +4,6 @@ const DASH_COST = 30
 const DOUBLE_JUMP_COST = 20
 const SPEAR_COST = 40
 const BOW_COST = 35
-const WAND_COST = 1
 
 const SFX_PURCHASE = preload("res://audio/purchase.wav")
 const SFX_DENIED = preload("res://audio/purchase_denied.wav")
@@ -19,7 +18,9 @@ func _ready() -> void:
 	_connect_option($DoubleJumpOption, "double_jump")
 	_connect_option($SpearOption, "spear")
 	_connect_option($BowOption, "bow")
-	_connect_option($MagicWandOption, "wand")
+	# The classic screen-nuke Magic Wand is an ADMIN/test item (it deletes every
+	# enemy incl. bosses) -- it is NOT for sale in the real game. Hidden here.
+	$MagicWandOption.visible = false
 
 func esc_is_open() -> bool:
 	return visible
@@ -51,8 +52,6 @@ func _get_label(item: String) -> Label:
 			return $SpearOption
 		"bow":
 			return $BowOption
-		"wand":
-			return $MagicWandOption
 	return null
 
 func _on_option_gui_input(event: InputEvent, item: String) -> void:
@@ -68,8 +67,6 @@ func _on_option_gui_input(event: InputEvent, item: String) -> void:
 				try_buy_spear()
 			"bow":
 				try_buy_bow()
-			"wand":
-				try_buy_wand()
 
 func try_buy_dash() -> void:
 	if player.has_dash:
@@ -116,9 +113,6 @@ func try_buy_spear() -> void:
 
 func try_buy_bow() -> void:
 	try_buy_weapon_item("wpn_bow", BOW_COST, "Bow")
-
-func try_buy_wand() -> void:
-	try_buy_weapon_item("wpn_wand", WAND_COST, "Magic Wand")
 
 func show_notification(text: String) -> void:
 	$SFXPlayer.stream = SFX_PURCHASE
