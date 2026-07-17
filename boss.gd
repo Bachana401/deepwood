@@ -219,6 +219,7 @@ const BOSSES = {
 		"magic": Color(0.65, 0.9, 1.0),
 		"body": Vector2(110, 250), "hp": 780, "speed": 56.0, "shape": "crown",
 		"abilities": ["rain", "nova", "teleport"], "sprite": "frost_monarch",
+		"passives": ["stagger_armour"],   # teaches: commit to heavy hits
 	},
 	# A huge charcoal stag-demon, antlers still burning from the forest fire
 	# that killed it. Stampedes and erupts fire.
@@ -228,6 +229,7 @@ const BOSSES = {
 		"magic": Color(1.0, 0.5, 0.12),
 		"body": Vector2(240, 230), "hp": 1100, "speed": 95.0, "shape": "colossus",
 		"abilities": ["charge", "barrage", "pillars"], "sprite": "cinder_colossus",
+		"passives": ["riposte"],          # teaches: read the tell, hit the recovery
 	},
 	# A SMALL corpse-spider brood mother -- quick, evasive, hard to corner;
 	# her legs span far wider than her body.
@@ -237,6 +239,7 @@ const BOSSES = {
 		"magic": Color(0.95, 0.4, 0.85),
 		"body": Vector2(120, 110), "hp": 720, "speed": 105.0, "shape": "spider",
 		"abilities": ["summon", "nova", "teleport"],
+		"passives": ["soulbind"],         # teaches: kill the adds first
 	},
 	# A lightning-scarred owl-wraith of the dead canopy; medium build.
 	"stormcaller": {
@@ -245,6 +248,7 @@ const BOSSES = {
 		"magic": Color(0.95, 0.95, 0.55),
 		"body": Vector2(150, 180), "hp": 880, "speed": 88.0, "shape": "caster",
 		"abilities": ["nova", "pillars", "barrage"], "sprite": "stormcaller",
+		"passives": ["skyfall"],          # teaches: the ground is safer
 	},
 	# The hollow king: a dead monarch whose chest is an open void, his crown
 	# floating above the ruin of his head.
@@ -254,6 +258,7 @@ const BOSSES = {
 		"magic": Color(0.75, 0.3, 1.0),
 		"body": Vector2(170, 240), "hp": 1220, "speed": 76.0, "shape": "void",
 		"abilities": ["teleport", "rain", "nova", "summon"], "sprite": "void_sovereign",
+		"passives": ["sidestep"],         # teaches: bait it, do not spam
 	},
 	# ----- FINALE TIER (levels 95/98/99/100) -----
 	# Apex bosses: enrage earlier, FRENZY at low health, and most fly.
@@ -304,6 +309,88 @@ const BOSSES = {
 		"body": Vector2(150, 90), "hp": 820, "speed": 165.0, "shape": "spider",
 		"abilities": ["charge", "volley", "teleport"],
 		"passives": ["sidestep", "rhythm_punish"],
+	},
+	# 55 -- a burning wicker giant. HUGE and slow; it sows fire where you were,
+	# and chip damage does nothing to a thing made of bundled logs.
+	"effigy": {
+		"name": "The Effigy",
+		"color": Color(0.42, 0.28, 0.12), "eye_color": Color(1.0, 0.7, 0.2),
+		"magic": Color(1.0, 0.6, 0.15),
+		"body": Vector2(230, 330), "hp": 1750, "speed": 40.0, "shape": "colossus",
+		"abilities": ["slam", "pillars", "meteors"],
+		"passives": ["stagger_armour", "afterimage_trap"],
+	},
+	# 60 -- a widow of the Harvest. Mid-sized, drifting; grief reflects, and she
+	# feeds on what you throw until her mourners are dead.
+	"mourncaller": {
+		"name": "Mourncaller",
+		"color": Color(0.24, 0.20, 0.30), "eye_color": Color(0.7, 0.9, 1.0),
+		"magic": Color(0.55, 0.75, 1.0),
+		"body": Vector2(110, 200), "hp": 1050, "speed": 82.0, "shape": "caster",
+		"abilities": ["summon", "rain", "volley"],
+		"passives": ["soulbind", "mirror"],
+		"flying": true,
+	},
+	# 65 -- intangible. You cannot hit it AND cannot stand still. The two
+	# mechanics eat each other's counter-play: the answer is patience + motion.
+	"unseen": {
+		"name": "The Unseen",
+		"color": Color(0.12, 0.12, 0.16), "eye_color": Color(0.9, 0.2, 0.9),
+		"magic": Color(0.75, 0.2, 0.95),
+		"body": Vector2(100, 210), "hp": 980, "speed": 136.0, "shape": "void",
+		"abilities": ["teleport", "volley", "curse"],
+		"passives": ["phase", "afterimage_trap"],
+		"flying": true,
+	},
+	# 70 -- anti-air, flankable only, and it punishes the wind-up. Three
+	# mechanics that each close a different escape.
+	"warden_of_nails": {
+		"name": "The Warden of Nails",
+		"color": Color(0.30, 0.24, 0.22), "eye_color": Color(1.0, 0.9, 0.4),
+		"magic": Color(0.9, 0.8, 0.35),
+		"body": Vector2(170, 270), "hp": 1600, "speed": 60.0, "shape": "titan",
+		"abilities": ["barrage", "pillars", "slam"],
+		"passives": ["skyfall", "dread_ward", "riposte"],
+	},
+	# 75 -- two bodies, one soul. Narrow and quick, and it will not stay still
+	# long enough to be traded with.
+	"twin_despair": {
+		"name": "The Twin Despair",
+		"color": Color(0.20, 0.18, 0.28), "eye_color": Color(0.85, 0.3, 1.0),
+		"magic": Color(0.7, 0.3, 1.0),
+		"body": Vector2(95, 230), "hp": 1250, "speed": 117.0, "shape": "crown",
+		"abilities": ["teleport", "clone", "nova"],
+		"passives": ["covenant", "sidestep", "phase"],
+	},
+	# 80 -- devil-lord of the burning deep. Broad and heavy; reflects what you
+	# throw, burns where you stood, and eats your mana for standing near him.
+	"cinderking": {
+		"name": "The Cinderking",
+		"color": Color(0.34, 0.12, 0.10), "eye_color": Color(1.0, 0.6, 0.1),
+		"magic": Color(1.0, 0.4, 0.05),
+		"body": Vector2(260, 250), "hp": 1900, "speed": 66.0, "shape": "brute",
+		"abilities": ["meteors", "pillars", "nova", "charge"],
+		"passives": ["afterimage_trap", "mirror", "famine"],
+	},
+	# 85 -- reflects everything, must be flanked, and punishes a steady rhythm:
+	# every ranged answer is closed; it is a pure melee-discipline fight.
+	"glass_saint": {
+		"name": "The Glass Saint",
+		"color": Color(0.62, 0.66, 0.72), "eye_color": Color(0.95, 1.0, 1.0),
+		"magic": Color(0.8, 0.95, 1.0),
+		"body": Vector2(130, 290), "hp": 1450, "speed": 93.0, "shape": "angel",
+		"abilities": ["beam", "volley", "nova"],
+		"passives": ["mirror", "dread_ward", "rhythm_punish"],
+	},
+	# 90 -- the last soulless human. Man-sized, man-speed: he fights exactly the
+	# way the player does, and punishes the player's own habits.
+	"last_man": {
+		"name": "The Last Man",
+		"color": Color(0.18, 0.17, 0.24), "eye_color": Color(1.0, 1.0, 1.0),
+		"magic": Color(0.6, 0.6, 0.7),
+		"body": Vector2(80, 180), "hp": 1300, "speed": 145.0, "shape": "crown",
+		"abilities": ["charge", "teleport", "volley", "nova"],
+		"passives": ["rhythm_punish", "phase", "covenant"],
 	},
 	"seraph": {
 		"name": "Seraphiel, the Last Light",
@@ -462,6 +549,37 @@ var rhythm_last_hit := 0.0
 const STAGGER_HEAVY_FRACTION := 0.06   # >=6% of its max HP in one blow = heavy
 var has_stagger_armour := false
 
+# TETHER -- chains the player to where they stand. The chain doesn't stop you,
+# it BILLS you: the further you drag it, the harder it pulls back. Break line of
+# sight or close the distance. (The Gaoler, floor 45.)
+const TETHER_RANGE := 420.0        # snaps if you get further than this
+const TETHER_DPS := 6.0            # per second, ramping with distance
+const TETHER_RECAST := 7.0
+var has_tether := false
+var tether_active := false
+var tether_anchor := Vector2.ZERO
+var tether_next_at := 0.0
+var _tether_line: Line2D = null
+
+# FAMINE -- drains MANA on contact, not HP. Your resources are the resource.
+# (The Ashen Penitent, floor 40.)
+const FAMINE_RADIUS := 120.0
+const FAMINE_DRAIN := 9.0          # mana/sec inside the radius
+var has_famine := false
+
+# AFTERIMAGE_TRAP -- marks the ground where you STOOD, and it detonates. Standing
+# still is the mistake. (The Effigy 55, The Unseen 65, The Cinderking 80.)
+const TRAP_DELAY := 1.5
+const TRAP_RADIUS := 54.0
+const TRAP_PERIOD := 2.2
+const TRAP_DAMAGE := 20
+var has_afterimage_trap := false
+var trap_next_at := 0.0
+
+# DREAD_WARD -- only takes damage from BEHIND. It must be flanked, not out-DPSed.
+# (Warden of Nails 70, Seraphiel 95, The Glass Saint 85.)
+var has_dread_ward := false
+
 # --- phase (Obito) -----------------------------------------------------------
 # The nastiest thing in the vocabulary, and the dev's own example. The instant
 # your blade lands, the boss goes INTANGIBLE -- your hits pass clean through for
@@ -551,6 +669,102 @@ func _do_rhythm_counter() -> void:
 	var stack = get_tree().get_first_node_in_group("notification_stack")
 	if stack and stack.has_method("show_notification"):
 		stack.show_notification("It has learned your rhythm.")
+
+# DREAD WARD: is the player actually behind it? It faces the player by default,
+# so "behind" means the player is on the side its back is turned to.
+func _hit_from_behind() -> bool:
+	if player == null or not is_instance_valid(player):
+		return true          # nothing to flank: don't make it immortal
+	var facing: float = -1.0 if (boss_sprite != null and boss_sprite.flip_h) else 1.0
+	var to_player: float = signf(player.global_position.x - global_position.x)
+	return to_player != 0.0 and to_player != facing
+
+# --- ticked mechanics --------------------------------------------------------
+
+# TETHER: chain them where they stand. It doesn't stop you moving -- it bills
+# you for it, harder the further you drag. Break LOS/close in, or bleed.
+func tick_tether(delta: float) -> void:
+	if not has_tether or is_dead or player == null or not is_instance_valid(player):
+		return
+	if not tether_active:
+		if _time_now() >= tether_next_at and global_position.distance_to(player.global_position) < TETHER_RANGE:
+			tether_active = true
+			tether_anchor = player.global_position
+			tether_next_at = _time_now() + TETHER_RECAST
+			_tether_line = Line2D.new()
+			_tether_line.width = 2.0
+			_tether_line.default_color = Color(0.5, 0.85, 1.0, 0.75)
+			_tether_line.z_index = 20
+			add_child(_tether_line)
+		return
+	var d: float = player.global_position.distance_to(tether_anchor)
+	if d > TETHER_RANGE:
+		_drop_tether()          # dragged it past breaking: it snaps, you're free
+		return
+	if _tether_line != null and is_instance_valid(_tether_line):
+		_tether_line.points = PackedVector2Array([Vector2.ZERO, to_local(player.global_position)])
+		_tether_line.default_color.a = 0.4 + 0.5 * clampf(d / TETHER_RANGE, 0.0, 1.0)
+	# the bill ramps with how far you've pulled
+	_tether_accum += delta * TETHER_DPS * (0.35 + 1.4 * clampf(d / TETHER_RANGE, 0.0, 1.0))
+	if _tether_accum >= 1.0:
+		var tick := int(_tether_accum)
+		_tether_accum -= tick
+		if player.has_method("take_damage"):
+			player.take_damage(tick)
+
+var _tether_accum := 0.0
+
+func _drop_tether() -> void:
+	tether_active = false
+	if _tether_line != null and is_instance_valid(_tether_line):
+		_tether_line.queue_free()
+	_tether_line = null
+
+# FAMINE: standing near it costs MANA, not health. Your resources are the prize.
+func tick_famine(delta: float) -> void:
+	if not has_famine or is_dead or player == null or not is_instance_valid(player):
+		return
+	if global_position.distance_to(player.global_position) > FAMINE_RADIUS:
+		return
+	if "mana" in player:
+		player.mana = maxf(0.0, player.mana - FAMINE_DRAIN * delta)
+		if player.has_method("update_mana_display"):
+			player.update_mana_display()
+
+# AFTERIMAGE_TRAP: mark where they STOOD, and burn it a beat later. Standing
+# still is the mistake; the counter-play is simply to keep moving.
+func tick_traps(delta: float) -> void:
+	if not has_afterimage_trap or is_dead or player == null or not is_instance_valid(player):
+		return
+	if _time_now() < trap_next_at:
+		return
+	trap_next_at = _time_now() + TRAP_PERIOD
+	_plant_trap(player.global_position)
+
+func _plant_trap(at: Vector2) -> void:
+	var mark := Node2D.new()
+	get_parent().add_child(mark)
+	mark.global_position = at
+	var ring := Line2D.new()
+	var pts := PackedVector2Array()
+	for i in range(18):
+		var a := TAU * float(i) / 18.0
+		pts.append(Vector2(cos(a), sin(a)) * TRAP_RADIUS)
+	pts.append(pts[0])
+	ring.points = pts
+	ring.width = 2.0
+	var m: Color = current_def.get("magic", Color(1, 0.5, 0.2))
+	ring.default_color = Color(m.r, m.g, m.b, 0.85)
+	mark.add_child(ring)
+	# it TELLS you: the ring closes over TRAP_DELAY, then it goes off
+	var t := mark.create_tween()
+	t.tween_property(ring, "scale", Vector2(0.25, 0.25), TRAP_DELAY)
+	t.tween_callback(func():
+		if is_instance_valid(player) and player.global_position.distance_to(at) <= TRAP_RADIUS \
+				and player.has_method("take_damage"):
+			player.take_damage(int(round(TRAP_DAMAGE * sqrt(damage_multiplier))))
+		if is_instance_valid(mark):
+			mark.queue_free())
 
 # STAGGER ARMOUR: a chip hit rings off the guard, and says so.
 func _spawn_guard_spark() -> void:
@@ -675,6 +889,10 @@ func configure_from_def(def: Dictionary) -> void:
 	has_mirror = "mirror" in passives
 	has_rhythm_punish = "rhythm_punish" in passives
 	has_stagger_armour = "stagger_armour" in passives
+	has_tether = "tether" in passives
+	has_famine = "famine" in passives
+	has_afterimage_trap = "afterimage_trap" in passives
+	has_dread_ward = "dread_ward" in passives
 	abilities = (def.get("abilities", ["slam"]) as Array).duplicate()
 	max_health = int(round(float(def.get("hp", 900)) * level_hp_mult))
 	health = max_health
@@ -1269,6 +1487,9 @@ func _physics_process(delta: float) -> void:
 		return
 
 	tick_phase()   # drop back to solid when the ghost window closes
+	tick_tether(delta)
+	tick_famine(delta)
+	tick_traps(delta)
 
 	# flying bosses ignore gravity entirely; they steer in full 2D
 	if not flying and not is_on_floor():
@@ -1410,6 +1631,22 @@ const BOSS_COMBOS = {
 	"gaoler": [["pillars", "slam", "charge"], ["charge", "slam", "pillars"], ["slam", "pillars", "charge"]],
 	# Sablefang: blink-in, bite, blink-out. Fast and rude; never stands still.
 	"sablefang": [["teleport", "charge", "volley"], ["charge", "volley", "teleport"], ["volley", "teleport", "charge"]],
+	# Effigy: takes the floor, then drops the sky on it. Slow, enormous, patient.
+	"effigy": [["pillars", "slam", "meteors"], ["meteors", "pillars", "slam"], ["slam", "meteors", "pillars"]],
+	# Mourncaller: mourners first, then grief from above. Never melees.
+	"mourncaller": [["summon", "rain", "volley"], ["volley", "summon", "rain"], ["rain", "volley", "summon"]],
+	# Unseen: it is never where the last thing came from. Curse -> blink -> spit.
+	"unseen": [["curse", "teleport", "volley"], ["teleport", "volley", "curse"], ["volley", "curse", "teleport"]],
+	# Warden: pins the sky, floors the ground, then swings. Nothing rushed.
+	"warden_of_nails": [["barrage", "pillars", "slam"], ["pillars", "barrage", "slam"], ["slam", "barrage", "pillars"]],
+	# Twin Despair: split, blink, blow. You never know which one you're hitting.
+	"twin_despair": [["clone", "teleport", "nova"], ["teleport", "nova", "clone"], ["nova", "clone", "teleport"]],
+	# Cinderking: sky, floor, blast, and then he's on top of you.
+	"cinderking": [["meteors", "pillars", "nova", "charge"], ["charge", "meteors", "nova", "pillars"], ["pillars", "nova", "charge", "meteors"]],
+	# Glass Saint: light, then more light. Everything at range comes back at you.
+	"glass_saint": [["beam", "nova", "volley"], ["volley", "beam", "nova"], ["nova", "volley", "beam"]],
+	# Last Man: he fights like YOU do -- close, blink, punish, repeat.
+	"last_man": [["charge", "nova", "teleport", "volley"], ["teleport", "charge", "volley", "nova"], ["volley", "teleport", "nova", "charge"]],
 	# --- the finale gauntlet: the longest, nastiest sentences in the game ---
 	"seraph": [["volley", "rain", "nova"], ["nova", "volley", "rain"], ["rain", "nova", "volley"]],
 	"leviathan": [["meteors", "vortex"], ["summon", "meteors", "vortex"], ["vortex", "meteors"]],
@@ -2130,6 +2367,11 @@ func take_damage(amount: int) -> void:
 	# STAGGER ARMOUR: chip damage rings off the guard. Only a heavy blow breaks
 	# it -- you have to commit to slow hits while it's swinging at you.
 	if has_stagger_armour and amount < int(max_health * STAGGER_HEAVY_FRACTION):
+		_spawn_guard_spark()
+		return
+	# DREAD WARD: it can only be hurt from BEHIND. Standing in front of it and
+	# holding attack does nothing at all -- it has to be flanked.
+	if has_dread_ward and not _hit_from_behind():
 		_spawn_guard_spark()
 		return
 	# RIPOSTE: you hit it during the WIND-UP. It was waiting for that.
