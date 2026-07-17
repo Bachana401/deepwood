@@ -1,9 +1,15 @@
 # DEEPWOOD — The Item Catalog
 
 > **The complete inventory of everything in the game**, extracted from
-> `inventory.gd` (`ITEM_DEFS` + `ITEM_GRADES`, 2026-07-17). **120 items total.**
+> `inventory.gd` (`ITEM_DEFS` + `ITEM_GRADES`, 2026-07-17). **139 items total.**
 > This is the reference for itemization review, balance, and gap-hunting. When an
 > item is added/changed in code, update this file.
+>
+> **⚠ Mid-overhaul (WEAPONS.md).** Since first capture: +18 grade-fill weapons
+> (common/uncommon), a creative relic **Gorgon's Gaze** (petrify), and a **+15%**
+> weapon-damage pass. The tables below still show the pre-overhaul base numbers
+> for the original items — the [live catalog artifact] is the current view; this
+> md will be fully re-synced when the weapon-dial batches land.
 
 ## The grade ladder (6 tiers) — `GRADE_DEFS`
 Every equippable carries a grade; a wielded weapon's grade also passively buffs
