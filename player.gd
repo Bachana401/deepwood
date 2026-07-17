@@ -1497,6 +1497,19 @@ func grant_bar_morale() -> void:
 var enemy_slow_until := 0.0
 var enemy_slow_factor := 1.0
 
+# --- boss crowd-control on the PLAYER (set by boss signature abilities) ---
+# Every one respects the status_resistance relic and is a no-op under god_mode,
+# and all are absolute deadlines (_now() + dur) so they ALWAYS expire on their
+# own — a boss can never permanently lock control. Cleared on respawn too.
+var stun_until := 0.0        # stun: no actions at all (move/jump/dash/attack)
+var freeze_until := 0.0      # freeze: hard stun + can't even be slid (velocity.x pinned 0)
+var root_until := 0.0        # root: can't move/jump/dash, but CAN still attack
+var disorient_until := 0.0   # disorient/"make you miss": movement axis inverted
+var poison_until := 0.0      # poison: damage-over-time
+var poison_dps := 0.0
+var _poison_accum := 0.0
+var pull_vel_x := 0.0        # per-frame horizontal pull (void rift etc.), consumed each frame
+
 # Called by enemies/bosses when they die to player damage. Reaper's Toll heals
 # on kill.
 func on_enemy_killed() -> void:
@@ -1521,6 +1534,74 @@ func apply_slow(duration: float, factor: float) -> void:
 	var resist = clamp(GameState.get_bonus_total("status_resistance"), 0.0, 0.9)
 	enemy_slow_until = max(enemy_slow_until, _now() + duration * (1.0 - resist))
 	enemy_slow_factor = min(enemy_slow_factor, factor)
+
+# --- boss crowd-control API (called by boss.gd signature abilities) ---
+# status_resistance shortens every one; god_mode ignores them all.
+func _cc_dur(duration: float) -> float:
+	return duration * (1.0 - clamp(GameState.get_bonus_total("status_resistance"), 0.0, 0.9))
+
+func apply_stun(duration: float) -> void:
+	if god_mode or is_dead: return
+	stun_until = max(stun_until, _now() + _cc_dur(duration))
+
+func apply_freeze(duration: float) -> void:
+	if god_mode or is_dead: return
+	freeze_until = max(freeze_until, _now() + _cc_dur(duration))
+
+func apply_root(duration: float) -> void:
+	if god_mode or is_dead: return
+	root_until = max(root_until, _now() + _cc_dur(duration))
+
+func apply_disorient(duration: float) -> void:
+	if god_mode or is_dead: return
+	disorient_until = max(disorient_until, _now() + _cc_dur(duration))
+
+func apply_poison(duration: float, dps: float) -> void:
+	if god_mode or is_dead: return
+	poison_until = max(poison_until, _now() + _cc_dur(duration))
+	poison_dps = max(poison_dps, dps)
+
+# Sustained horizontal pull toward a point (Void Rift). Called every frame while
+# the pull is active; consumed once in _physics_process.
+func apply_pull(source_x: float, strength: float) -> void:
+	if god_mode or is_dead: return
+	var dir = signf(source_x - global_position.x)
+	pull_vel_x += dir * strength * (1.0 - clamp(GameState.get_bonus_total("status_resistance"), 0.0, 0.9))
+
+# stun/freeze: no actions at all. Root does NOT hard-lock (you can still swing).
+func cc_action_locked() -> bool:
+	if god_mode: return false
+	return _now() < stun_until or _now() < freeze_until
+
+# stun/freeze/root: cannot move, jump, or dash.
+func cc_move_locked() -> bool:
+	if god_mode: return false
+	return cc_action_locked() or _now() < root_until
+
+# a quiet damage-over-time tick: no hurt-sfx/shake/dodge spam, but a lethal tick
+# routes through take_damage so all death-saves (Long Dark / Undying / Phoenix) fire.
+func _poison_tick(dmg: int) -> void:
+	if is_dead or god_mode: return
+	dmg = int(round(dmg * (1.0 - clamp(GameState.get_bonus_total("damage_reduction"), 0.0, 0.75))))
+	if dmg <= 0: return
+	if health - dmg <= 0:
+		health = maxi(1, health)   # let take_damage run the full death cascade
+		take_damage(9999)
+		return
+	health -= dmg
+	update_health_display()
+	FloatingText.spawn(get_parent(), global_position + Vector2(0, -20), dmg, false, Color(0.5, 0.9, 0.4))
+
+# Wipe all CC — called on respawn so nothing survives a death.
+func clear_crowd_control() -> void:
+	stun_until = 0.0
+	freeze_until = 0.0
+	root_until = 0.0
+	disorient_until = 0.0
+	poison_until = 0.0
+	poison_dps = 0.0
+	_poison_accum = 0.0
+	pull_vel_x = 0.0
 
 func player_slow_mult() -> float:
 	if _now() < enemy_slow_until:
@@ -1901,6 +1982,7 @@ func die() -> void:
 		body_anim.position = Vector2(0, anim_base_y)
 	invincible = false
 	is_dead = false
+	clear_crowd_control()   # never let a boss CC survive a death
 	update_health_display()
 
 # All difficulties drop currency on death -- the amount stays in the world
@@ -2011,13 +2093,26 @@ func _physics_process(delta: float) -> void:
 			health = min(get_max_health(), health + whole)
 			update_health_display()
 
+	# boss poison DoT (a signature ability): ticks while active, expires on its own
+	if _now() < poison_until and not god_mode and not is_dead:
+		_poison_accum += poison_dps * delta
+		if _poison_accum >= 1.0:
+			var whole = int(_poison_accum)
+			_poison_accum -= whole
+			_poison_tick(whole)
+
+	# boss crowd-control gates for this frame (stun/freeze block everything; root
+	# blocks movement but allows attacks)
+	var cc_hard := cc_action_locked()
+	var cc_stuck := cc_move_locked()
+
 	# hotbar: keys 1-9 and 0 pick inventory slots 0-9; wield the weapon there
 	for i in range(HOTBAR_SIZE):
 		if Input.is_action_just_pressed("hotbar_%d" % (i + 1)):
 			select_hotbar_slot(i)
 
 	# T = blink-dash: the Shadowstep Sigil relic earns it, god mode just gives it
-	if Input.is_action_just_pressed("admin_dash") and (has_relic_power("blink") or god_mode):
+	if Input.is_action_just_pressed("admin_dash") and not cc_stuck and (has_relic_power("blink") or god_mode):
 		perform_admin_dash()
 
 	if Input.is_action_just_pressed("place_torch"):
@@ -2025,17 +2120,17 @@ func _physics_process(delta: float) -> void:
 
 	if Input.is_action_just_pressed("move_left"):
 		var now = Time.get_ticks_msec() / 1000.0
-		if now - last_left_press_time < DOUBLE_TAP_WINDOW:
+		if now - last_left_press_time < DOUBLE_TAP_WINDOW and not cc_stuck:
 			perform_dash(-1)
 		last_left_press_time = now
 
 	if Input.is_action_just_pressed("move_right"):
 		var now = Time.get_ticks_msec() / 1000.0
-		if now - last_right_press_time < DOUBLE_TAP_WINDOW:
+		if now - last_right_press_time < DOUBLE_TAP_WINDOW and not cc_stuck:
 			perform_dash(1)
 		last_right_press_time = now
 
-	if Input.is_action_just_pressed("jump"):
+	if Input.is_action_just_pressed("jump") and not cc_stuck:
 		if is_on_floor():
 			velocity.y = JUMP_VELOCITY
 			jumps_used = 1
@@ -2048,6 +2143,10 @@ func _physics_process(delta: float) -> void:
 			play_sfx(SFX_JUMP)
 
 	var direction = Input.get_axis("move_left", "move_right")
+	if cc_stuck:
+		direction = 0.0                       # stun/freeze/root: rooted in place
+	elif _now() < disorient_until and not god_mode:
+		direction = -direction                # disorient: your controls betray you
 	if direction:
 		facing_direction = sign(direction)
 	levitate_time += get_physics_process_delta_time()
@@ -2058,18 +2157,23 @@ func _physics_process(delta: float) -> void:
 
 	if not is_dashing and not is_knocked_back:
 		velocity.x = direction * SPEED * skill_move_speed_mult()
+		if _now() < freeze_until and not god_mode:
+			velocity.x = 0.0                  # frozen solid: can't even be slid
+		velocity.x += pull_vel_x              # boss pull (Void Rift) rides on top
+	pull_vel_x = 0.0                          # consumed this frame
 
 	# Hold left-click to keep attacking: the weapon auto-fires on cooldown and the
 	# hand flares each shot. (The dedicated attack body pose -- the future
 	# two-hands-up frame -- isn't wired yet; these frames are now the aim pose.)
-	if Input.is_action_pressed("attack"):
+	# Root still lets you swing; only stun/freeze (cc_hard) locks attacks out.
+	if Input.is_action_pressed("attack") and not cc_hard:
 		var was_ready = attack_cooldown_remaining <= 0.0 and has_weapon()
 		perform_attack()
 		if was_ready and attack_cooldown_remaining > 0.0:
 			trigger_levitate_flash()   # per-shot telekinetic pop
 
 	# right-click = the admin Ruin Wand's no-aim percent burst (see below)
-	if Input.is_action_just_pressed("secondary_attack"):
+	if Input.is_action_just_pressed("secondary_attack") and not cc_hard:
 		perform_secondary_attack()
 
 	move_and_slide()
