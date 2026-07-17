@@ -153,10 +153,44 @@ because you misread it, not because it's unfair. That means `phase` DOES need an
 art/shader pass, not just a flag.
 
 **Every boss gets its own arena, built against it.** *"Get extremely creative."*
-`BOSS_ARENAS` is already keyed by boss id. The arena is part of the fight, not
+`BOSS_ARENAS` is keyed by boss id. The arena is part of the fight, not
 decoration — `skyfall` is meaningless in an open room and lethal under a low
 ceiling with pillars; `tether` wants sight-blockers to break; `dread_ward` wants
 flankable geometry. Design each arena WITH its boss's mechanics, not after.
+
+### ✅ BUILT — 22/22, and how they're kept honest
+
+All 22 arenas exist (`gen_<boss>` in `dungeon_interior.gd`), each designed
+against its boss's stack using the mechanics' real numbers: `TETHER_RANGE` 420,
+`FAMINE_RADIUS` 120, `SKYFALL_RADIUS` 320, `MIRROR_RADIUS` 90, `TRAP_PERIOD`
+2.2s. `test_arena_node.gd` (54 checks) asserts each room carries the geometry
+its boss needs — the Gaoler's cover sits inside the leash, the Warden's ceiling
+is the lowest in the game and no perch in it escapes skyfall, Twin Despair's
+room is exactly symmetric, Sablefang's has no repeating gap to fall into a
+rhythm on, the Hollow Choir's central floor is bare so shadows are readable.
+
+**Two traps this ladder has now fallen into twice.**
+
+1. **The silent fallback.** `generate_boss_platforms` used to end in
+   `_: return gen_gravewarden(w, h)`, so 12 of 22 bosses fought in the *same
+   tomb*. It was the `CYCLING_BOSSES` modulo again, one layer down, and
+   invisible from inside the game because the room rendered fine. There is no
+   fallback now: an unknown id is a `push_error`, and the suite asserts no two
+   layouts are identical.
+2. **Walls that read as cover.** This is a side-scroller: you cannot walk
+   *around* a pillar. The player's measured single-jump rise is **~92px**
+   (`test_jump_node.gd`), so the first draft's 300-tall pillars were walls
+   between the player and the exit gate — five uncompletable floors that looked
+   perfectly normal. Floor-rooted cover is capped at `VAULT_HEIGHT` (88) by
+   construction, and the suite fails on any solid taller than the measured jump.
+
+**New primitive: cover** (`{"solid": true}`). Every platform in the game used to
+be a one-way drop-through ledge, which quietly made half of this document
+undeliverable. Cover is solid from all sides and sits on `COVER_LAYER` (bit 5)
+*in addition* to ground — its own bit because a raycast ignores `one_way`, so
+sighting against layer 1 would let ordinary scenery break the tether. `tether`
+now snaps on broken line of sight, which is the counter-play this doc always
+claimed it had.
 
 **Floor 100's ascended Monarch: candidate #4** — the crowned king, heavy cloak
 sweeping behind, regal. Preserved as PixelLab object

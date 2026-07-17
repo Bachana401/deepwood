@@ -743,6 +743,14 @@ func tick_tether(delta: float) -> void:
 	if d > TETHER_RANGE:
 		_drop_tether()          # dragged it past breaking: it snaps, you're free
 		return
+	# ...or put something solid between you and it. The chain is a line of
+	# sight, so the Gaoler's pillars are cover in the literal sense: duck behind
+	# one and it cuts. Without this the arena's whole pillar forest would be
+	# scenery and the only counter-play would be running, which the tether is
+	# specifically designed to bill you for.
+	if _sight_to_player_blocked():
+		_drop_tether()
+		return
 	if _tether_line != null and is_instance_valid(_tether_line):
 		_tether_line.points = PackedVector2Array([Vector2.ZERO, to_local(player.global_position)])
 		_tether_line.default_color.a = 0.4 + 0.5 * clampf(d / TETHER_RANGE, 0.0, 1.0)
@@ -755,6 +763,21 @@ func tick_tether(delta: float) -> void:
 			player.take_damage(tick)
 
 var _tether_accum := 0.0
+
+# Is there cover between us? Tested against COVER_LAYER (bit 5) ALONE, never
+# the ground layer: a raycast ignores one_way_collision, so sighting against
+# layer 1 would have every ordinary drop-through ledge break the tether and the
+# mechanic would fall apart on scenery.
+const COVER_MASK := 16
+
+func _sight_to_player_blocked() -> bool:
+	if player == null or not is_instance_valid(player):
+		return false
+	var space := get_world_2d().direct_space_state
+	var q := PhysicsRayQueryParameters2D.create(
+		global_position, player.global_position, COVER_MASK)
+	q.collide_with_areas = false
+	return not space.intersect_ray(q).is_empty()
 
 func _drop_tether() -> void:
 	tether_active = false

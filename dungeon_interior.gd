@@ -147,6 +147,112 @@ const BOSS_ARENAS = {
 		"bg_top": Color(0.04, 0.02, 0.08, 1.0), "bg_bottom": Color(0.1, 0.04, 0.16, 1.0),
 		"accent": Color(0.8, 0.3, 1.0, 1.0),
 	},
+	# ----- THE DEEP (35-90) -- mechanics stack, and so do the arenas -----
+	# The Choir Loft -- false_twin + soulbind. The tell is a SHADOW on the floor,
+	# so this room is built to be LOOKED DOWN INTO: a wide bare floor with no low
+	# clutter to hide feet, ringed by high galleries you climb to pick the real
+	# one out. Lit bone-pale, because you cannot spot a shadow in the dark.
+	"hollow_choir": {
+		"width": 11000.0, "height": -880.0,
+		"bg_top": Color(0.09, 0.1, 0.07, 1.0), "bg_bottom": Color(0.16, 0.17, 0.12, 1.0),
+		"accent": Color(0.85, 0.95, 0.65, 1.0),
+	},
+	# The Prayer Well -- riposte + famine. It barely moves and it wants you to
+	# come to it; famine bills you for standing close. So: a deep NARROW shaft,
+	# the penitent on the floor, and ring-ledges climbing the walls that are the
+	# only mana-safe ground in the room. Every trip down to swing is a decision.
+	"ashen_penitent": {
+		"width": 6200.0, "height": -1250.0,
+		"bg_top": Color(0.1, 0.03, 0.02, 1.0), "bg_bottom": Color(0.2, 0.07, 0.03, 1.0),
+		"accent": Color(1.0, 0.5, 0.12, 1.0),
+	},
+	# The Soul-Pits -- tether + stagger_armour. THE cover arena: a forest of
+	# solid pillars, because the tether is a line of sight and these cut it. Low
+	# and heavy: nowhere to fly away to, so you fight it at the pillars or you
+	# bleed. See COVER_LAYER.
+	"gaoler": {
+		"width": 8600.0, "height": -640.0,
+		"bg_top": Color(0.04, 0.06, 0.09, 1.0), "bg_bottom": Color(0.09, 0.13, 0.18, 1.0),
+		"accent": Color(0.5, 0.8, 1.0, 1.0),
+	},
+	# The Hunting Warren -- sidestep + rhythm_punish. It dodges what you repeat,
+	# so the ROOM refuses to let you find a rhythm: every gap is a different
+	# length, no two ledges the same, nothing periodic anywhere in the layout.
+	# It is the only arena in the game deliberately built without a loop.
+	"sablefang": {
+		"width": 9800.0, "height": -820.0,
+		"bg_top": Color(0.06, 0.05, 0.09, 1.0), "bg_bottom": Color(0.12, 0.1, 0.16, 1.0),
+		"accent": Color(0.8, 0.7, 1.0, 1.0),
+	},
+	# The Wicker Ring -- stagger_armour + afterimage_trap. It sows fire where you
+	# STOOD, so the arena must always offer somewhere to go: an unbroken circuit
+	# with no dead ends and no cul-de-sacs. Keep running the ring and the traps
+	# fall behind you; stop to commit to a heavy hit and they catch up.
+	"effigy": {
+		"width": 9000.0, "height": -860.0,
+		"bg_top": Color(0.11, 0.04, 0.01, 1.0), "bg_bottom": Color(0.2, 0.09, 0.03, 1.0),
+		"accent": Color(1.0, 0.6, 0.15, 1.0),
+	},
+	# The Widow's Barrow -- soulbind + mirror. Your own arrows come back at you,
+	# so the floor is a graveyard of solid headstones at chest height: cover you
+	# duck behind to eat your own shot. Grief reflects; the barrow absorbs.
+	"mourncaller": {
+		"width": 9200.0, "height": -800.0,
+		"bg_top": Color(0.05, 0.06, 0.1, 1.0), "bg_bottom": Color(0.11, 0.12, 0.19, 1.0),
+		"accent": Color(0.55, 0.75, 1.0, 1.0),
+	},
+	# The Hall of Not-There -- phase + afterimage_trap. You cannot hit it and you
+	# cannot stand still: thin catwalks over nothing, at many heights, so every
+	# second you are committed to a direction. No wide platform exists here --
+	# there is nowhere to plant your feet and wait it out.
+	"unseen": {
+		"width": 10000.0, "height": -1000.0,
+		"bg_top": Color(0.02, 0.01, 0.04, 1.0), "bg_bottom": Color(0.06, 0.03, 0.1, 1.0),
+		"accent": Color(0.75, 0.2, 0.95, 1.0),
+	},
+	# The Nail Cage -- skyfall + dread_ward + riposte. This is BOSSES.md's own
+	# worked example: "skyfall is meaningless in an open room and lethal under a
+	# low ceiling with pillars." So it gets the LOWEST ceiling in the game and a
+	# grid of pillars -- the pillars double as the flanking geometry dread_ward
+	# demands, since you get behind it by running the posts, not by out-DPSing.
+	"warden_of_nails": {
+		"width": 8200.0, "height": -520.0,
+		"bg_top": Color(0.09, 0.07, 0.03, 1.0), "bg_bottom": Color(0.17, 0.13, 0.05, 1.0),
+		"accent": Color(0.9, 0.8, 0.35, 1.0),
+	},
+	# The Mirrored Vigil -- covenant + sidestep + phase. Two bodies healing each
+	# other: you must split damage and kill both inside one window. So the room
+	# is exactly symmetric about its centre, with a fast high bridge spanning it
+	# -- the arena hands you the shuttle run the mechanic demands.
+	"twin_despair": {
+		"width": 10600.0, "height": -900.0,
+		"bg_top": Color(0.05, 0.03, 0.1, 1.0), "bg_bottom": Color(0.1, 0.07, 0.18, 1.0),
+		"accent": Color(0.7, 0.3, 1.0, 1.0),
+	},
+	# The Ember Throne -- afterimage_trap + mirror + famine. All three want you
+	# moving, covered, and far: long open fire-lanes to run, sparse solid
+	# braziers to break your returning shots on, and nothing at all to camp.
+	"cinderking": {
+		"width": 11000.0, "height": -880.0,
+		"bg_top": Color(0.12, 0.03, 0.0, 1.0), "bg_bottom": Color(0.24, 0.08, 0.01, 1.0),
+		"accent": Color(1.0, 0.4, 0.05, 1.0),
+	},
+	# The Reliquary of Glass -- mirror + dread_ward + rhythm_punish. Tall solid
+	# panes stand in staggered pairs: they stop your reflected volley AND they
+	# are the only way behind it. Every pane is a door and a shield at once.
+	"glass_saint": {
+		"width": 9400.0, "height": -900.0,
+		"bg_top": Color(0.06, 0.09, 0.11, 1.0), "bg_bottom": Color(0.12, 0.18, 0.22, 1.0),
+		"accent": Color(0.8, 0.95, 1.0, 1.0),
+	},
+	# The Last Redoubt -- rhythm_punish + phase + covenant. He fights like you
+	# do, so he is fought where you live: the silhouette of the village, in
+	# ruins. Roof-lines and doorways for a layout, lit by dying hearth-light.
+	"last_man": {
+		"width": 11500.0, "height": -940.0,
+		"bg_top": Color(0.08, 0.06, 0.06, 1.0), "bg_bottom": Color(0.16, 0.11, 0.09, 1.0),
+		"accent": Color(1.0, 0.72, 0.4, 1.0),
+	},
 	# ----- APEX TIER (levels 35 / 40 / 45) -----
 	# Endgame monsters designed for a player with flight / grapple relics.
 	# The tallest, widest arenas in the game, and the bosses fly or fill them.
@@ -184,6 +290,47 @@ const BOSS_ARENAS = {
 
 const PLATFORM_HEIGHT = 20.0
 const PLATFORM_COLOR = Color(0.3, 0.26, 0.24, 1.0)
+
+# COVER -- a solid block, not a drop-through ledge: it stops you, stops the
+# boss, stops arrows, and BREAKS LINE OF SIGHT (boss.gd tick_tether).
+#
+# Every platform in this game used to be one-way, which quietly made half of
+# BOSSES.md undeliverable: "tether wants sight-blockers to break" and
+# "dread_ward wants flankable geometry" are both impossible when the only
+# building block is a ledge you fall through. Cover is the primitive those
+# arenas are made of.
+#
+# Layers 1/2/4/8 are ground/player/enemy/building, so cover takes bit 5 (16) IN
+# ADDITION to ground. It needs its own bit because a raycast ignores one_way:
+# sighting against layer 1 would let any old ledge block vision, and the tether
+# would snap on scenery. Sight is tested against COVER_LAYER alone.
+const COVER_LAYER = 16
+const COVER_COLOR = Color(0.24, 0.21, 0.2, 1.0)
+
+# A solid pillar/wall. `h` is its full height, and y is its CENTRE (so a pillar
+# standing on the floor sits at y = GROUND_Y - h/2).
+static func cover(x: float, y: float, w: float, h: float) -> Dictionary:
+	return {"x": x, "y": y, "w": w, "h": h, "solid": true}
+
+# THE HARD CEILING ON COVER. The player's measured single-jump rise is ~92px
+# (test_jump_node: JUMP_VELOCITY 400 / GRAVITY 900), and this is a side-scroller
+# -- there is no going *around* a pillar, only over it. So a floor-rooted solid
+# taller than a vault is not cover, it is a WALL between the player and the exit
+# gate, and the floor cannot be finished. The first draft of these arenas had
+# 300-tall pillars: five uncompletable rooms that looked perfectly fine.
+#
+# Chest height is the right answer anyway. Sight is traced centre-to-centre
+# (boss origin ~120 above its feet, player origin 24 above the floor), so the
+# ray runs LOW near the player: a barricade blocks it when you duck behind it,
+# and doesn't when it's over on the boss's side. Cover you have to reach and use
+# beats a wall that just stands there.
+const VAULT_HEIGHT = 88.0
+
+# A pillar rooted on the arena floor, given only how tall it is -- the form
+# nearly every sight-blocker below wants. Height is clamped to a vault: an
+# arena may not quietly build itself a wall.
+static func pillar(x: float, w: float, h: float) -> Dictionary:
+	return cover(x, GROUND_Y - minf(h, VAULT_HEIGHT) / 2.0, w, minf(h, VAULT_HEIGHT))
 
 const MIN_MINES = 8
 const MAX_MINES = 14
@@ -368,11 +515,28 @@ func generate_boss_platforms(boss_id: String, w: float, h: float) -> Array:
 		"weaver": return gen_weaver(w, h)
 		"stormcaller": return gen_stormcaller(w, h)
 		"void_sovereign": return gen_void(w, h)
+		"hollow_choir": return gen_hollow_choir(w, h)
+		"ashen_penitent": return gen_ashen_penitent(w, h)
+		"gaoler": return gen_gaoler(w, h)
+		"sablefang": return gen_sablefang(w, h)
+		"effigy": return gen_effigy(w, h)
+		"mourncaller": return gen_mourncaller(w, h)
+		"unseen": return gen_unseen(w, h)
+		"warden_of_nails": return gen_warden_of_nails(w, h)
+		"twin_despair": return gen_twin_despair(w, h)
+		"cinderking": return gen_cinderking(w, h)
+		"glass_saint": return gen_glass_saint(w, h)
+		"last_man": return gen_last_man(w, h)
 		"seraph": return gen_seraph(w, h)
 		"leviathan": return gen_leviathan(w, h)
 		"eclipse": return gen_eclipse(w, h)
 		"wizard": return gen_wizard(w, h)
-		_: return gen_gravewarden(w, h)
+	# A boss with no arena used to silently fall back to gen_gravewarden, which
+	# meant 12 of the 22 fights were staged in the SAME tomb -- the modulo bug
+	# wearing a different hat, and invisible because the room still looked fine.
+	# Never fall back quietly again: name the gap.
+	push_error("no arena for boss '%s' -- it is fighting in a borrowed room" % boss_id)
+	return gen_gravewarden(w, h)
 
 # A sparse band of high platforms between mid-air and the arena ceiling --
 # stitched onto every boss arena so the vertical space is usable terrain, not
@@ -526,6 +690,315 @@ func gen_void(w: float, h: float) -> Array:
 		x += 980.0
 		i += 1
 	return add_sky_tier(plats, w, h, 1100.0)
+
+# ----- the deep (35-90) -----
+# Every room below is built against its boss's mechanic stack using the real
+# numbers those mechanics run on (boss.gd): TETHER_RANGE 420, FAMINE_RADIUS 120,
+# SKYFALL_RADIUS 320, MIRROR_RADIUS 90, TRAP_PERIOD 2.2s. An arena that ignores
+# them is decoration.
+
+# Hollow Choir -- false_twin + soulbind. The fakes are untinted and identical;
+# the ONLY tell is that the real one casts a shadow. That makes this room's job
+# sightlines: keep the floor bare so shadows are legible, and put the player
+# somewhere high enough to read the whole floor at once. The galleries are the
+# mechanic. Its adds funnel across the open floor, so crossing it is the price.
+func gen_hollow_choir(w: float, h: float) -> Array:
+	var plats: Array = []
+	var c := w / 2.0
+	# the loft galleries: long balcony runs you climb to look DOWN and find the
+	# one with a shadow under it
+	var x := 900.0
+	while x < w - 900.0:
+		plats.append({"x": x, "y": -430.0, "w": 420.0})
+		x += 1500.0
+	x = 1650.0
+	while x < w - 1650.0:
+		plats.append({"x": x, "y": -620.0, "w": 300.0})
+		x += 1500.0
+	# access stacks, kept OUT of the central floor band on purpose: low ledges
+	# there would hide the very feet you are trying to look at
+	for sx in [560.0, w * 0.18, w * 0.82, w - 560.0]:
+		if absf(sx - c) > w * 0.3:
+			plats.append({"x": sx, "y": -155.0, "w": 210.0})
+			plats.append({"x": sx, "y": -295.0, "w": 175.0})
+	return add_sky_tier(plats, w, h)
+
+# Ashen Penitent -- riposte + famine. It stands still at the bottom of a narrow
+# shaft and waits. Famine (radius 120) means the floor costs you mana just to
+# stand on, so the ring-ledges up the walls are the only free ground -- but the
+# boss is DOWN there, so every swing is a paid trip. Riposte punishes hitting
+# the wind-up, and the ledges give you somewhere to retreat and read it.
+func gen_ashen_penitent(w: float, h: float) -> Array:
+	var plats: Array = []
+	var c := w / 2.0
+	# the well's ring-ledges, alternating walls all the way up the shaft. Well
+	# clear of FAMINE_RADIUS from the centre where it prays.
+	var y := -190.0
+	var i := 0
+	while y > h + 170.0:
+		var side := 1.0 if i % 2 == 0 else -1.0
+		plats.append({"x": c + side * (w * 0.28), "y": y, "w": 260.0})
+		# a stepping stone out over the middle every third ring, so you can
+		# actually cross the shaft instead of only ever circling it
+		if i % 3 == 2:
+			plats.append({"x": c - side * (w * 0.08), "y": y - 80.0, "w": 150.0})
+		y -= 165.0
+		i += 1
+	# the prayer dais: a low lip around it, the one bit of ground worth contesting
+	plats.append({"x": c - 330.0, "y": -140.0, "w": 200.0})
+	plats.append({"x": c + 330.0, "y": -140.0, "w": 200.0})
+	return plats
+
+# Gaoler -- tether + stagger_armour. THE cover arena. The tether is a line of
+# sight (boss.gd _sight_to_player_blocked), so this is a forest of solid pillars
+# spaced INSIDE the 420 leash: wherever it chains you, cover is a short dash
+# away. Low ceiling -- you cannot climb out of a soul-pit, you break the chain
+# at the posts or you bleed. Stagger armour means those pillar-breaks are also
+# where you find room to wind up a heavy hit.
+func gen_gaoler(w: float, h: float) -> Array:
+	var plats: Array = []
+	var i := 0
+	var x := 520.0
+	while x < w - 520.0:
+		# alternating pillar heights so the cover reads as a warren, not a fence
+		plats.append(pillar(x, 76.0, 88.0 if i % 2 == 0 else 72.0))
+		# a ledge slung between every other pair: high ground that does NOT
+		# break sight, so taking it is a real trade against the chain
+		if i % 2 == 1:
+			plats.append({"x": x - 190.0, "y": -380.0, "w": 240.0})
+		x += 380.0        # < TETHER_RANGE: cover is always within the leash
+		i += 1
+	return plats
+
+# Sablefang -- sidestep + rhythm_punish. It dodges what you repeat and it
+# punishes your fourth identical beat, so the ROOM refuses to have a rhythm:
+# every gap is a different length and no two ledges match. Nothing here is
+# periodic, deliberately -- it is the only arena in the game with no loop in it.
+# A player who finds a groove here built it themselves, and Sablefang eats it.
+const SABLEFANG_GAPS := [410.0, 655.0, 380.0, 720.0, 495.0, 860.0, 340.0, 615.0,
+	770.0, 445.0, 930.0, 520.0, 690.0, 365.0, 800.0, 585.0, 470.0, 745.0]
+const SABLEFANG_YS := [-135.0, -290.0, -195.0, -365.0, -240.0, -160.0, -320.0,
+	-215.0, -400.0, -175.0, -265.0, -345.0, -145.0, -305.0, -230.0]
+const SABLEFANG_WS := [180.0, 115.0, 145.0, 95.0, 210.0, 130.0, 165.0, 105.0,
+	190.0, 125.0, 150.0, 90.0, 175.0]
+func gen_sablefang(w: float, h: float) -> Array:
+	var plats: Array = []
+	var x := 520.0
+	var i := 0
+	while x < w - 420.0:
+		plats.append({"x": x, "y": SABLEFANG_YS[i % SABLEFANG_YS.size()],
+			"w": SABLEFANG_WS[i % SABLEFANG_WS.size()]})
+		x += SABLEFANG_GAPS[i % SABLEFANG_GAPS.size()]
+		i += 1
+	# the high branches: also irregular, offset from the run below so no column
+	# of platforms ever lines up
+	x = 980.0
+	i = 0
+	while x < w - 700.0:
+		plats.append({"x": x, "y": -480.0 - float(i % 4) * 65.0,
+			"w": SABLEFANG_WS[(i + 5) % SABLEFANG_WS.size()]})
+		x += SABLEFANG_GAPS[(i + 7) % SABLEFANG_GAPS.size()] + 260.0
+		i += 1
+	return plats
+
+# Effigy -- stagger_armour + afterimage_trap. It sows fire where you STOOD and
+# detonates it every 2.2s, so the room's promise is: there is always somewhere
+# to go. An unbroken circuit -- floor, end ramp, upper deck, far ramp, floor --
+# with no dead ends anywhere. Run the ring and the traps fall behind you. But
+# stagger armour only breaks to a committed heavy swing, and committing means
+# standing still, which is exactly what the ring is built to punish.
+func gen_effigy(w: float, h: float) -> Array:
+	var plats: Array = []
+	# the upper deck: long runs (a trap period at speed is ~700-900px, so these
+	# are sized to be outrun, not hopped)
+	var x := 700.0
+	while x < w - 700.0:
+		plats.append({"x": x, "y": -360.0, "w": 620.0})
+		x += 780.0
+	# ramps at BOTH ends and at the quarters -- the rungs that close the loop
+	for rx in [620.0, w * 0.5, w - 620.0]:
+		plats.append({"x": rx, "y": -140.0, "w": 230.0})
+		plats.append({"x": rx, "y": -250.0, "w": 190.0})
+	# the wicker crown: a second, shorter ring above the deck
+	x = 1250.0
+	while x < w - 1250.0:
+		plats.append({"x": x, "y": -560.0, "w": 400.0})
+		x += 1000.0
+	return add_sky_tier(plats, w, h)
+
+# Mourncaller -- soulbind + mirror. It flies, and it turns your own arrows
+# around (MIRROR_RADIUS 90). So the floor is a barrow field of solid headstones
+# at chest height: cover to duck behind when your shot comes home. Its rune adds
+# walk the same field, which makes clearing them a fight through your own cover.
+func gen_mourncaller(w: float, h: float) -> Array:
+	var plats: Array = []
+	var i := 0
+	var x := 480.0
+	while x < w - 480.0:
+		# staggered headstones -- deliberately uneven so cover is real but never
+		# a solid wall you can hide behind forever
+		plats.append(pillar(x, 46.0, 60.0 + float(i % 3) * 14.0))
+		if i % 4 == 1:
+			plats.append(pillar(x + 150.0, 40.0, 62.0))
+		x += 330.0
+		i += 1
+	# it FLIES: perches so the fight is not just you shooting at the ceiling
+	x = 900.0
+	i = 0
+	while x < w - 900.0:
+		plats.append({"x": x, "y": -270.0 - float(i % 3) * 110.0, "w": 200.0})
+		x += 880.0
+		i += 1
+	return add_sky_tier(plats, w, h, 1050.0)
+
+# The Unseen -- phase + afterimage_trap. You cannot hit it and you cannot stand
+# still. Thin catwalks over nothing, at every height: each one is narrow enough
+# that being on it is a commitment to a direction, and there is no wide platform
+# anywhere in this room to plant your feet and wait the phase out. It flies and
+# teleports; you get spans and gaps.
+func gen_unseen(w: float, h: float) -> Array:
+	var plats: Array = []
+	var ys := [-165.0, -310.0, -455.0, -240.0, -600.0, -385.0, -520.0]
+	var i := 0
+	var x := 560.0
+	while x < w - 560.0:
+		# every catwalk is thin -- nowhere in this arena is safe standing room
+		plats.append({"x": x, "y": ys[i % ys.size()], "w": 108.0})
+		# an occasional longer span, still narrow, bridging two heights
+		if i % 3 == 1:
+			plats.append({"x": x + 230.0, "y": ys[(i + 3) % ys.size()], "w": 96.0})
+		x += 430.0
+		i += 1
+	return plats
+
+# Warden of Nails -- skyfall + dread_ward + riposte. BOSSES.md's own worked
+# example, built to the letter: "skyfall is meaningless in an open room and
+# lethal under a low ceiling with pillars." The LOWEST ceiling in the game, so
+# leaving the floor puts you inside SKYFALL_RADIUS (320) with nowhere to climb
+# to -- and a grid of pillars, which is also the flanking geometry dread_ward
+# demands, since you only ever get behind this thing by running the posts.
+func gen_warden_of_nails(w: float, h: float) -> Array:
+	var plats: Array = []
+	var i := 0
+	var x := 460.0
+	while x < w - 460.0:
+		# the nails: a dense grid, close enough that a flank is always one post
+		# away and no lane is ever a straight run
+		plats.append(pillar(x, 62.0, 88.0 if i % 3 != 1 else 60.0))
+		x += 400.0
+		i += 1
+	# a handful of low ledges ONLY -- under this ceiling they are a trap, not an
+	# escape, which is the joke: the room offers you height and height is death
+	x = 860.0
+	while x < w - 860.0:
+		plats.append({"x": x, "y": -330.0, "w": 200.0})
+		x += 1400.0
+	# NO sky tier: the ceiling is the mechanic. Do not give it back.
+	return plats
+
+# Twin Despair -- covenant + sidestep + phase. Two bodies, one soul, healing
+# each other unless BOTH are pressured: the fight is a shuttle run, so the room
+# is exactly symmetric about its centre and hands you a fast high bridge to
+# cross it on. Anything built on one side exists on the other -- if the arena
+# favoured a side, the covenant would resolve itself.
+func gen_twin_despair(w: float, h: float) -> Array:
+	var plats: Array = []
+	var c := w / 2.0
+	# the bridge: the shuttle the mechanic demands
+	plats.append({"x": c, "y": -420.0, "w": 900.0})
+	plats.append({"x": c, "y": -180.0, "w": 300.0})
+	# mirrored pairs -- every entry is emitted on BOTH sides, by construction
+	for pair in [[560.0, -150.0, 220.0], [560.0, -300.0, 170.0],
+			[1180.0, -230.0, 200.0], [1180.0, -560.0, 180.0],
+			[1820.0, -160.0, 210.0], [1820.0, -390.0, 170.0],
+			[2480.0, -280.0, 190.0], [2480.0, -620.0, 160.0],
+			[3150.0, -190.0, 200.0], [3150.0, -470.0, 170.0]]:
+		if c - pair[0] < 320.0:
+			continue
+		plats.append({"x": c - pair[0], "y": pair[1], "w": pair[2]})
+		plats.append({"x": c + pair[0], "y": pair[1], "w": pair[2]})
+	return plats
+
+# Cinderking -- afterimage_trap + mirror + famine. Three mechanics that all say
+# the same thing: do not stand there. Long open fire-lanes to keep running,
+# sparse solid braziers to break your own reflected shots on, and famine
+# (radius 120) making the space around it cost mana. Nothing here is campable.
+func gen_cinderking(w: float, h: float) -> Array:
+	var plats: Array = []
+	# the lanes: long uninterrupted running ground at two heights
+	var x := 780.0
+	var i := 0
+	while x < w - 780.0:
+		plats.append({"x": x, "y": -170.0 if i % 2 == 0 else -330.0, "w": 560.0})
+		x += 700.0
+		i += 1
+	# braziers: sparse cover, far enough apart that reaching one is a real run
+	x = 1300.0
+	while x < w - 1300.0:
+		plats.append(pillar(x, 90.0, 86.0))
+		x += 1300.0
+	# the throne's upper galleries
+	x = 1600.0
+	i = 0
+	while x < w - 1600.0:
+		plats.append({"x": x, "y": -520.0 - float(i % 2) * 130.0, "w": 300.0})
+		x += 1500.0
+		i += 1
+	return add_sky_tier(plats, w, h)
+
+# Glass Saint -- mirror + dread_ward + rhythm_punish. Tall panes in staggered
+# pairs. Each pane is a shield and a door at once: it stops the volley the Saint
+# just turned around on you, AND slipping between the pair is how you get behind
+# something that only takes damage from behind. Offset so no pane is ever a
+# straight-line answer -- reading them IS the fight.
+func gen_glass_saint(w: float, h: float) -> Array:
+	var plats: Array = []
+	var i := 0
+	var x := 560.0
+	while x < w - 560.0:
+		# a staggered PAIR: the gap between them is the flanking route
+		plats.append(pillar(x, 34.0, 88.0))
+		plats.append(pillar(x + 210.0, 34.0, 68.0))
+		# reliquary shelves above the panes, offset from them
+		if i % 2 == 0:
+			plats.append({"x": x + 105.0, "y": -400.0, "w": 260.0})
+		else:
+			plats.append({"x": x + 105.0, "y": -540.0, "w": 220.0})
+		x += 620.0
+		i += 1
+	return add_sky_tier(plats, w, h, 1100.0)
+
+# The Last Man -- rhythm_punish + phase + covenant. He fights like you do, so he
+# is fought where you live: the village, in ruins. The houses are solid (walls
+# you flank around, doorways between them), the roof-lines are the high ground,
+# and it is lit by dying hearth-light. The last floor before the finale should
+# look like home and play like a duel.
+# [width, standing-wall height]. The walls are RUINS -- vaultable, because a
+# house you cannot get over is a wall across the only street (see VAULT_HEIGHT).
+const REDOUBT_HOUSES := [[260.0, 88.0], [200.0, 72.0], [320.0, 84.0],
+	[180.0, 64.0], [280.0, 88.0], [230.0, 76.0], [300.0, 80.0]]
+func gen_last_man(w: float, h: float) -> Array:
+	var plats: Array = []
+	var i := 0
+	var x := 620.0
+	while x < w - 620.0:
+		var house: Array = REDOUBT_HOUSES[i % REDOUBT_HOUSES.size()]
+		var hw: float = house[0]
+		var hh: float = house[1]
+		plats.append(pillar(x, hw, hh))
+		# The roof: the duel's high ground. Hung a jump above the wall top, not
+		# an arbitrary offset -- roofs you cannot reach are scenery.
+		plats.append({"x": x, "y": GROUND_Y - hh - 75.0, "w": hw + 40.0})
+		x += hw + 560.0     # the street between them: the flanking route
+		i += 1
+	# the ruined upper storeys / broken rafters
+	x = 1100.0
+	i = 0
+	while x < w - 1100.0:
+		plats.append({"x": x, "y": -520.0 - float(i % 3) * 120.0, "w": 240.0})
+		x += 1250.0
+		i += 1
+	return add_sky_tier(plats, w, h)
 
 # ----- apex arena generators -----
 
@@ -773,23 +1246,28 @@ func build_wall(x: float) -> void:
 
 func build_platforms(layout: Array) -> void:
 	for plat in layout:
+		var is_solid: bool = plat.get("solid", false)
+		var ph: float = plat.get("h", PLATFORM_HEIGHT)
 		var body = StaticBody2D.new()
 		body.position = Vector2(plat.x, plat.y)
+		if is_solid:
+			body.collision_layer = 1 | COVER_LAYER
 		var shape = CollisionShape2D.new()
 		var rect = RectangleShape2D.new()
-		rect.size = Vector2(plat.w, PLATFORM_HEIGHT)
+		rect.size = Vector2(plat.w, ph)
 		shape.shape = rect
-		shape.one_way_collision = true
+		# cover is solid from every side -- that is the whole point of it
+		shape.one_way_collision = not is_solid
 		body.add_child(shape)
 		var visual = ColorRect.new()
-		visual.size = Vector2(plat.w, PLATFORM_HEIGHT)
-		visual.position = Vector2(-plat.w / 2.0, -PLATFORM_HEIGHT / 2.0)
-		visual.color = PLATFORM_COLOR
+		visual.size = Vector2(plat.w, ph)
+		visual.position = Vector2(-plat.w / 2.0, -ph / 2.0)
+		visual.color = COVER_COLOR if is_solid else PLATFORM_COLOR
 		body.add_child(visual)
 		var edge = ColorRect.new()
 		edge.size = Vector2(plat.w, 4.0)
-		edge.position = Vector2(-plat.w / 2.0, -PLATFORM_HEIGHT / 2.0)
-		edge.color = PLATFORM_COLOR.lightened(0.18)
+		edge.position = Vector2(-plat.w / 2.0, -ph / 2.0)
+		edge.color = (COVER_COLOR if is_solid else PLATFORM_COLOR).lightened(0.18)
 		body.add_child(edge)
 		$LevelContainer.add_child(body)
 
@@ -862,6 +1340,10 @@ func place_mines(boss: bool, layout: Array) -> void:
 			continue
 		place_mine(Vector2(x, GROUND_Y))
 	for plat in layout:
+		# never on cover: a pillar's y is its CENTRE, so a mine would hang in
+		# mid-air halfway up it
+		if plat.get("solid", false):
+			continue
 		if randf() < 0.5:
 			var x = plat.x + randf_range(-plat.w * 0.3, plat.w * 0.3)
 			place_mine(Vector2(x, plat.y))
