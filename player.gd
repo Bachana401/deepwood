@@ -262,6 +262,11 @@ const HURT_SHAKE_TIME = 0.28
 # ever plays movement states. Each jump in the chain gets its own animation.
 const ANIM_DEFS = [
 	{"name": "idle", "fps": 8.0, "loop": true},   # 8-frame fight-stance idle (PixelLab)
+	# the 7/7 god-form's own idle: he stops standing like a brawler with his
+	# fists up and stands like a sovereign. Only the TRUE form uses it (see
+	# current_anim_state) -- 5/7 and 6/7 are still a man hiding, not a god.
+	# Slower, because nothing about him needs to hurry.
+	{"name": "monarchidle", "fps": 6.0, "loop": true},
 	{"name": "walk", "fps": 12.0, "loop": true},  # filled with RUN frames -- A/D reads as running
 	{"name": "jump", "fps": 8.0, "loop": false},  # first jump
 	{"name": "jump2", "fps": 10.0, "loop": false},# double jump (its own animation)
@@ -1111,6 +1116,9 @@ func current_anim_state() -> String:
 		return "land"
 	if absf(velocity.x) > 12.0:
 		return "walk"
+	# the god-form stands its own way, when that art exists
+	if monarch_true_form_active and real_anims.get("monarchidle", false):
+		return "monarchidle"
 	return "idle"
 
 # Node y that puts the CURRENT frame's bottom edge (feet) on the ground line
