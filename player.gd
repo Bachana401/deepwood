@@ -2466,8 +2466,10 @@ var singularity_counter: int = 0
 # relic_power). Cooldown-gated ones track their next-ready time. ---
 var phoenix_ready_at := 0.0   # Phoenix Heart: revive off cooldown
 var aegis_ready_at := 0.0     # Aegis Ward: shield off cooldown
+var gorgon_ready_at := 0.0    # Gorgon's Gaze: petrify-on-hit off cooldown
 const PHOENIX_COOLDOWN = 45.0
 const AEGIS_COOLDOWN = 6.0
+const GORGON_COOLDOWN = 13.0  # long CD -- one big petrify, not a chain
 
 func _now() -> float:
 	return Time.get_ticks_msec() / 1000.0
@@ -2516,6 +2518,20 @@ func apply_melee_skills(target: Node2D, dealt: int) -> void:
 		var po = GameState.get_bonus_total("on_hit_poison")
 		if po > 0.0: target.apply_status("poison", 4.0, po)
 		if GameState.get_bonus_total("on_hit_slow") > 0.0: target.apply_status("slow", 2.5, 0.6)
+	# Gorgon's Gaze: a long-cooldown PETRIFY on hit -- the struck foe turns to
+	# stone (and takes bonus damage while stoned). Apex/undying bosses resist, so
+	# the cooldown is only spent when it actually LANDS.
+	if has_relic_power("petrify") and _now() >= gorgon_ready_at and dealt > 0:
+		var dur = relic_power_value("petrify", 3.0)
+		var landed = false
+		if "boss_id" in target and target.has_method("apply_petrify"):
+			landed = target.apply_petrify(dur)
+		elif target.has_method("apply_status"):
+			target.apply_status("petrify", dur, 0.0)
+			landed = true
+		if landed:
+			gorgon_ready_at = _now() + GORGON_COOLDOWN
+			spawn_shock_ring(target.global_position, 60.0, Color(0.6, 0.6, 0.62, 0.9))
 	var ex = GameState.get_bonus_total("execute_threshold")
 	if ex > 0.0 and not ("boss_id" in target) and "max_health" in target and "health" in target and target.has_method("take_damage"):
 		if float(target.health) <= float(target.max_health) * ex and float(target.health) > 0.0:
