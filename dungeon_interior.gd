@@ -57,7 +57,41 @@ const BOSS_LAYOUT = [
 # Seraphiel at 95, then three back-to-back boss levels 98 / 99 / 100 that
 # escalate to The Fallen Wizard, the hardest fight in the game. Ids MUST match
 # boss.gd's BOSSES and the BOSS_ARENAS keys below.
-const CYCLING_BOSSES = ["gravewarden", "frost_monarch", "cinder_colossus", "weaver", "stormcaller", "void_sovereign"]
+# THE LADDER -- one boss per boss floor, every one of them different.
+#
+# This used to be a 6-boss CYCLING_BOSSES list indexed with a modulo, so each of
+# those six was fought THREE times across the 100 floors (Gravewarden on 5, again
+# on 35, again on 65 -- same moveset, bigger numbers). 12 of the 22 boss fights
+# were reruns. Dev's forever rule: "in this game all bosses must be different in
+# many many ways." So the modulo is gone and every floor names its own boss.
+#
+# Ids MUST match boss.gd's BOSSES and the BOSS_ARENAS keys below. A floor whose
+# boss has no entry yet falls back to the nearest defined one, so the ladder can
+# be filled in a boss at a time without breaking the run.
+const BOSS_LADDER = {
+	# --- the teaching floors: one mechanic each, learn the vocabulary ---
+	5:  "gravewarden",       # pure pattern, no tricks: learn to read a boss
+	10: "frost_monarch",     # stagger_armour -- learn to commit to heavy hits
+	15: "cinder_colossus",   # riposte      -- learn to read a tell
+	20: "weaver",            # soulbind     -- learn to kill the adds first
+	25: "stormcaller",       # skyfall      -- learn the ground is safer
+	30: "void_sovereign",    # sidestep     -- learn to bait
+	# --- the deep: mechanics stack and interact ---
+	35: "hollow_choir",      # false_twin + soulbind
+	40: "ashen_penitent",    # riposte + famine
+	45: "gaoler",            # tether + stagger_armour
+	50: "sablefang",         # sidestep + rhythm_punish
+	55: "effigy",            # stagger_armour + afterimage_trap
+	60: "mourncaller",       # soulbind + mirror
+	65: "unseen",            # phase + afterimage_trap -- can't hit it, can't stand still
+	70: "warden_of_nails",   # skyfall + dread_ward + riposte
+	75: "twin_despair",      # covenant + sidestep + phase
+	80: "cinderking",        # afterimage_trap + mirror + famine
+	85: "glass_saint",       # mirror + dread_ward + rhythm_punish
+	90: "last_man",          # rhythm_punish + phase + covenant -- fights like you do
+	# --- the finale gauntlet ---
+	95: "seraph", 98: "leviathan", 99: "eclipse", 100: "wizard",
+}
 const FINALE_BOSSES = {95: "seraph", 98: "leviathan", 99: "eclipse", 100: "wizard"}
 
 # The deepest N boss levels have NO weapon counter (mastery of every weapon is
@@ -263,11 +297,23 @@ func total_boss_levels() -> int:
 
 # Finale levels (95/98/99/100) use their reserved unique boss; every other
 # boss level cycles the six standard bosses.
+const BOSS_DEFS_SCRIPT = preload("res://boss.gd")
+
 func get_boss_id(level: int) -> String:
-	if FINALE_BOSSES.has(level):
-		return FINALE_BOSSES[level]
-	var n = int(level / 5)
-	return CYCLING_BOSSES[max(0, n - 1) % CYCLING_BOSSES.size()]
+	var defs: Dictionary = BOSS_DEFS_SCRIPT.BOSSES
+	var id: String = BOSS_LADDER.get(level, "")
+	# A ladder entry whose boss isn't built in boss.gd YET must not brick the
+	# floor -- the ladder is filled in one boss at a time, so fall back to the
+	# deepest boss that actually exists at or above this floor.
+	if id != "" and defs.has(id):
+		return id
+	var best := "gravewarden"
+	var best_lv := -1
+	for lv in BOSS_LADDER:
+		if lv <= level and defs.has(BOSS_LADDER[lv]) and lv > best_lv:
+			best_lv = lv
+			best = BOSS_LADDER[lv]
+	return best
 
 # Which weapon (if any) counters the boss on this level. "" for the deep,
 # counter-immune levels. Sequence is precomputed in build_counter_sequence().
