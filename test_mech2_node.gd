@@ -168,5 +168,86 @@ func _ready() -> void:
 	check("covenant: PRESSURING the twin stops the healing (counter-play)",
 		c2.health == held, "%d -> %d" % [held, c2.health])
 
+	# ---------------- FALSE TWIN ----------------
+	# Real boss.tscn from here on, and the flags are NOT set by hand: that is the
+	# point. A mechanic can only be trusted if the boss's own passive list turns
+	# it on -- "soulbind" sat in three passive lists for weeks with nothing
+	# reading the name at all.
+	var BSCN = load("res://boss.tscn")
+	var real = BSCN.instantiate()
+	real.boss_id = "hollow_choir"
+	real.position = p.position + Vector2(900, -400)
+	host.add_child(real)
+	await get_tree().process_frame
+	check("false_twin: the passive list actually switches it on", real.has_false_twin)
+	var split := false
+	for i in range(180):
+		await get_tree().physics_frame
+		if real.living_twins() > 0:
+			split = true
+			break
+	check("false_twin: it splits into copies on its own", split and real.living_twins() == real.TWIN_COUNT,
+		"twins=%d" % real.living_twins())
+	var fake = real._twins[0] if real._twins.size() > 0 else null
+	check("false_twin: a copy is a copy, and cannot split again",
+		fake != null and fake.is_false_copy and not fake.has_false_twin)
+	check("false_twin: the TELL -- only the real one casts a shadow",
+		real.true_shadow != null and fake != null and fake.true_shadow == null)
+	# the whole point: swinging at a fake buys you nothing
+	var rhp: int = real.health
+	fake.take_damage(200)
+	check("false_twin: hurting a copy does NOT hurt the real one", real.health == rhp,
+		"%d -> %d" % [rhp, real.health])
+	check("false_twin: but the copy itself is killable", fake.health < fake.max_health)
+	# clear the floor -> it binds new fakes rather than staying alone
+	for t in real._twins:
+		if is_instance_valid(t):
+			t.take_damage(999999)
+	for i in range(30):
+		await get_tree().physics_frame
+	real.twin_ready_at = 0.0     # skip the real 9s wait, keep the code path
+	var resplit := false
+	for i in range(180):
+		await get_tree().physics_frame
+		if real.living_twins() > 0:
+			resplit = true
+			break
+	check("false_twin: killing every copy just makes it split again", resplit)
+
+	# ---------------- SOULBIND ----------------
+	var sb = BSCN.instantiate()
+	sb.boss_id = "weaver"
+	sb.position = p.position + Vector2(1600, -400)
+	host.add_child(sb)
+	await get_tree().process_frame
+	check("soulbind: the passive list actually switches it on", sb.has_soulbind)
+	var bound := false
+	for i in range(180):
+		await get_tree().physics_frame
+		if sb.living_rune_adds() > 0:
+			bound = true
+			break
+	check("soulbind: it binds rune adds on its own", bound, "adds=%d" % sb.living_rune_adds())
+	sb.health = int(sb.max_health * 0.5)
+	var fed: int = sb.health
+	sb.take_damage(60)
+	check("soulbind: while the runes are lit your hits FEED it", sb.health > fed,
+		"%d -> %d" % [fed, sb.health])
+	# break the runes -> the window opens
+	for rune in sb.rune_adds:
+		if is_instance_valid(rune):
+			rune.take_damage(999999)
+	for i in range(90):
+		await get_tree().physics_frame
+		if sb.living_rune_adds() == 0:
+			break
+	await get_tree().physics_frame
+	var openhp: int = sb.health
+	sb.take_damage(60)
+	check("soulbind: breaking the runes lets damage LAND (counter-play)", sb.health < openhp,
+		"%d -> %d" % [openhp, sb.health])
+	check("soulbind: the burst window is real, not instantly rebound",
+		sb.living_rune_adds() == 0 and sb.soulbind_ready_at > sb._time_now())
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

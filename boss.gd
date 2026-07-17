@@ -603,6 +603,19 @@ var _twins: Array = []
 var twin_ready_at := 0.0
 var true_shadow: Polygon2D = null
 
+# SOULBIND -- your blows FEED it while its rune adds live. Break the runes, then
+# burst it in the window before it binds new ones. This one was sitting on three
+# bosses as a NAME with nothing reading it -- the fights claimed it and the adds
+# were just adds. (Weaver 20, Hollow Choir 35, Mourncaller 60.)
+const SOULBIND_ADDS := 2
+const SOULBIND_HEAL_FRAC := 0.5   # bound, half of every blow is turned into healing
+const SOULBIND_REBIND := 10.0     # the burst window you earn by breaking the runes
+var has_soulbind := false
+var rune_adds: Array = []
+var rune_links: Array = []
+var soulbind_ready_at := 0.0
+var _runes_were_lit := false
+
 # COVENANT -- two bodies, one soul: they share an HP pool and heal each other
 # unless both are pressured. (Twin Despair 75, Last Man 90.)
 const COVENANT_HEAL := 14.0       # hp/sec the partner claws back if left alone
@@ -815,6 +828,139 @@ func tick_mirror(delta: float) -> void:
 			_reflect(pr)
 			return
 
+# FALSE TWIN: it wears its own face. The fakes carry the real kit, so swinging
+# at everything burns the window you needed -- but they cannot split again and
+# they cast no shadow. That absence is the whole puzzle.
+func living_twins() -> int:
+	_twins = _twins.filter(func(t): return is_instance_valid(t) and not (("is_dead" in t) and t.is_dead))
+	return _twins.size()
+
+func tick_false_twin(_delta: float) -> void:
+	if not has_false_twin or is_dead or is_false_copy:
+		return
+	if living_twins() > 0:
+		return
+	if _time_now() < twin_ready_at:
+		return
+	_do_false_split()
+
+func _do_false_split() -> void:
+	twin_ready_at = _time_now() + TWIN_RESPLIT
+	if true_shadow == null:
+		_build_true_shadow()
+	for i in range(TWIN_COUNT):
+		var t = load("res://boss.tscn").instantiate()
+		t.boss_id = boss_id
+		t.is_false_copy = true
+		t.level_hp_mult = level_hp_mult
+		t.damage_multiplier = damage_multiplier
+		t.speed_multiplier = speed_multiplier
+		t.boss_floor = boss_floor
+		t.position = global_position + Vector2(randf_range(-TWIN_SPREAD, TWIN_SPREAD), 0.0)
+		t.add_to_group("dungeon_combatant")
+		get_parent().add_child(t)
+		_twins.append(t)
+		minions.append(t)   # swept away when the real one dies
+	spawn_shockwave(70.0, magic_color)
+
+# The tell. Only the real one owns this.
+func _build_true_shadow() -> void:
+	var body: Vector2 = current_def.get("body", Vector2(160, 220))
+	true_shadow = Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(20):
+		var a := TAU * float(i) / 20.0
+		pts.append(Vector2(cos(a) * body.x * 0.42, sin(a) * 9.0))
+	true_shadow.polygon = pts
+	true_shadow.color = Color(0.0, 0.0, 0.0, 0.45)
+	true_shadow.position = Vector2(0, body.y * 0.5)
+	true_shadow.z_index = -1
+	add_child(true_shadow)
+
+# SOULBIND: while its runes are lit, everything you land is FOOD. The fight is
+# not a damage race -- it is "break the runes, THEN burst", and it rebinds.
+func living_rune_adds() -> int:
+	rune_adds = rune_adds.filter(func(a): return is_instance_valid(a) and not (("is_dead" in a) and a.is_dead))
+	return rune_adds.size()
+
+func tick_soulbind(_delta: float) -> void:
+	if not has_soulbind or is_dead or is_false_copy:
+		return
+	if living_rune_adds() > 0:
+		_runes_were_lit = true
+		_update_rune_links()
+		return
+	if _runes_were_lit:
+		# the runes just went out: this is the window the player bought
+		_runes_were_lit = false
+		soulbind_ready_at = _time_now() + SOULBIND_REBIND
+		_clear_rune_links()
+		var stack = get_tree().get_first_node_in_group("notification_stack")
+		if stack != null and stack.has_method("show_notification"):
+			stack.show_notification("The runes go dark. Hit it NOW.")
+		return
+	if _time_now() >= soulbind_ready_at:
+		_bind_runes()
+
+func _bind_runes() -> void:
+	_clear_rune_links()
+	for i in range(SOULBIND_ADDS):
+		var m = MINION_SCENE.instantiate()
+		m.respawns = false
+		m.instant_aggro = true
+		m.wave_hp_multiplier = 0.5 * level_hp_mult
+		m.wave_damage_multiplier = 0.5 * damage_multiplier
+		m.wave_speed_multiplier = speed_multiplier
+		m.position = global_position + Vector2(randf_range(-180.0, 180.0), -30.0)
+		m.add_to_group("dungeon_combatant")
+		get_parent().add_child(m)
+		m.modulate = magic_color.lerp(Color.WHITE, 0.35)
+		rune_adds.append(m)
+		minions.append(m)
+		var link := Line2D.new()
+		link.width = 2.0
+		link.default_color = Color(magic_color.r, magic_color.g, magic_color.b, 0.7)
+		link.z_index = -2
+		add_child(link)
+		rune_links.append(link)
+	_runes_were_lit = true
+	spawn_shockwave(60.0, magic_color)
+
+# the leash you have to cut, drawn so the mechanic is never invisible
+func _update_rune_links() -> void:
+	for i in range(rune_links.size()):
+		var link = rune_links[i]
+		if not is_instance_valid(link):
+			continue
+		if i >= rune_adds.size() or not is_instance_valid(rune_adds[i]):
+			link.visible = false
+			continue
+		link.visible = true
+		link.points = PackedVector2Array([Vector2.ZERO, to_local(rune_adds[i].global_position)])
+
+func _clear_rune_links() -> void:
+	for link in rune_links:
+		if is_instance_valid(link):
+			link.queue_free()
+	rune_links.clear()
+
+# it drinks the blow instead of taking it
+func _spawn_soulbind_feed() -> void:
+	var glow := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(12):
+		var a := TAU * float(i) / 12.0
+		pts.append(Vector2(cos(a), sin(a)) * 16.0)
+	glow.polygon = pts
+	glow.color = Color(magic_color.r, magic_color.g, magic_color.b, 0.7)
+	glow.z_index = 30
+	get_parent().add_child(glow)
+	glow.global_position = global_position
+	var t = glow.create_tween()
+	t.tween_property(glow, "scale", Vector2(2.2, 2.2), 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	t.parallel().tween_property(glow, "modulate:a", 0.0, 0.3)
+	t.tween_callback(glow.queue_free)
+
 func _reflect(pr: Node2D) -> void:
 	# turn it around: flip whatever it uses to travel, and hand it to the player
 	if "velocity" in pr:
@@ -1020,6 +1166,7 @@ func configure_from_def(def: Dictionary) -> void:
 	has_afterimage_trap = "afterimage_trap" in passives
 	has_dread_ward = "dread_ward" in passives
 	has_false_twin = "false_twin" in passives
+	has_soulbind = "soulbind" in passives
 	has_covenant = "covenant" in passives
 	abilities = (def.get("abilities", ["slam"]) as Array).duplicate()
 	max_health = int(round(float(def.get("hp", 900)) * level_hp_mult))
@@ -1638,6 +1785,8 @@ func _physics_process(delta: float) -> void:
 	tick_mirror(delta)
 	tick_skyfall(delta)
 	tick_covenant(delta)
+	tick_false_twin(delta)
+	tick_soulbind(delta)
 
 	# flying bosses ignore gravity entirely; they steer in full 2D
 	if not flying and not is_on_floor():
@@ -2535,6 +2684,13 @@ func take_damage(amount: int) -> void:
 		if rhythm_streak >= RHYTHM_COUNT:
 			rhythm_streak = 0
 			_do_rhythm_counter()
+	# SOULBIND: while the runes are lit, your blow is FOOD. Nothing you do to the
+	# boss itself counts until the adds are broken -- that IS the lesson.
+	if has_soulbind and living_rune_adds() > 0:
+		health = min(max_health, health + int(round(amount * SOULBIND_HEAL_FRAC)))
+		update_health_bar()
+		_spawn_soulbind_feed()
+		return
 	var dmg := amount
 	# weapon counter: countering weapon hits harder AND fires its mechanic;
 	# every other weapon is guarded (unless an archer has just exposed the boss)
@@ -2621,7 +2777,8 @@ func update_health_bar() -> void:
 
 func die() -> void:
 	# echoes are worth a token amount, not a boss bounty
-	GameState.add_xp(15 if is_clone else int(round(60 * damage_multiplier)))
+	# echoes and false copies are worth a token amount, not a boss bounty
+	GameState.add_xp(15 if (is_clone or is_false_copy) else int(round(60 * damage_multiplier)))
 	is_dead = true
 	is_busy = true
 	$CollisionShape2D.set_deferred("disabled", true)
