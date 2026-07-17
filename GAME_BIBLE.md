@@ -452,11 +452,12 @@ The siege *schedule* is not given to the player — it is **earned.**
 - 🟡 Open (§12): is the Watchtower a **15th building** in the §5.2 roster, or a standalone defensive structure? Warning tiers are locked (none → 1h → 2h → 24h); its build/upgrade costs are a numbers-pass item.
 ### 7.2 The attack — the wall, and what gets in (new canon 2026-07-17) 📋
 
-Sieges come **out of the Deepwood** — the same wild the player can't fight their way out of (§2.4.1) — and break against the village's **defensive wall.**
+Sieges come **out of the Deepwood** — the same wild the player can't fight their way out of (§2.4.1) — and break against the village's **defensive walls.**
 
-- **The wall has HP** (both faces ✅). The wave batters it while defenders fight at and outside the gate. Two outcomes, and they are night-and-day different:
+- **From BOTH flanks (decided 2026-07-17).** The village is besieged from **both sides at once** — a wall/gate at each end. You cannot turtle behind one wall; **your defense must be split across two fronts**, which is the "can't be everywhere" squeeze happening *inside a single siege*, not just dungeon-vs-village. The player can only stand at one gate at a time, so the other front rests entirely on the heroes and warriors you posted there — every siege is a bet on how you divided them.
+- **The walls have HP** (both faces ✅). The wave batters them while defenders fight at and outside the gates. Two outcomes, and they are night-and-day different:
   - **Wall HOLDS → the wave is repelled at the gate.** The ideal: the village itself is never touched, no buildings hurt, no villagers lost. A siege you were ready for is a non-event — that readiness *is* the win.
-  - **Wall BREAKS → the horde pours INTO the village.** Now it attacks **buildings** (damage → that service STOPS until repaired, §5.7) and **villagers** (kill → **death-shock morale crash**, §10). A breach turns a fight into a catastrophe; you (and every defender) must clear the streets before the town is gutted.
+  - **Wall BREAKS → the horde pours INTO the village.** Inside, enemies attack **nearest-first (decided 2026-07-17)** — whatever building or villager is closest, no priority logic — which means **where the wall breaks matters enormously**: a breach beside the cottages or the Hospital is a bloodbath, a breach at a bare edge buys you time. Buildings hit → that service STOPS until repaired (§5.7); villagers hit → **death-shock morale crash** (§10). A breach turns a fight into a catastrophe; you and every defender must clear the streets before the town is gutted.
 - **The wall is rebuilt/reinforced by the Builderhouse** (+ construction materials, §5.7) between sieges. A breach *mid*-siege can't be patched in time — once it's open, you fight in the streets until the wave is dead.
 
 ### 7.3 The defenders — who holds the line (📋 / ✅ v1 live-fight)
@@ -472,8 +473,7 @@ Sieges come **out of the Deepwood** — the same wild the player can't fight the
 The player is usually **deep in the dungeon** when a siege lands. That collision is the whole point of the game (§3), so how an *absent* player's siege resolves is load-bearing:
 
 - **Present (live):** the siege plays out in the village in real time; the player fights beside the heroes and warriors (✅ the live siege exists in `siege_manager`).
-- **Away (recommended: auto-resolve + report):** if the player is in the dungeon, the siege **resolves on its own** as a fair contest of your defense (warrior count × Blacksmith arms × wall HP × the three heroes) vs the wave, and the **outcome is written to the Village Log** (§5.9): *repelled*, or *breached — N dead, M buildings damaged.* You come home to the consequences. The **Watchtower** (§7.1) is how you buy the foresight to time your delves between known sieges; without it, every dungeon run is a gamble against a wall you can't see.
-- 🟡 Fork (§12): is an away-siege **auto-resolved** (recommended — respects "you can't be everywhere"), or does it **force the player home** / **pause the dungeon**? This decision shapes the entire pacing of the two halves.
+- **Away → AUTO-RESOLVE + report (decided 2026-07-17):** if the player is in the dungeon, the siege **resolves on its own** as a fair contest of your defense (warrior count × Blacksmith arms × wall HP × the three heroes) vs the wave, and the **outcome is written to the Village Log** (§5.9): *repelled*, or *breached — N dead, M buildings damaged.* You come home to the consequences — the game **never yanks you out of the dungeon and never pauses it.** That is the squeeze in its purest form: you *chose* to be down here, and the village lived or died on the defense you left behind. The **Watchtower** (§7.1) is how you buy the foresight to time your delves between known sieges; without it, every run is a blind gamble against a wall you can't see.
 
 ### 7.5 Aftermath — and the doom-spiral (📋)
 
@@ -485,7 +485,7 @@ The player is usually **deep in the dungeon** when a siege lands. That collision
 - Siege **size and strength scale with village health/prosperity** (a *living* village insults Despair, §2.5) **and with depth** (how far the player has pushed). The healthier and deeper you are, the worse the nights — *the squeeze is the design, not a bug.*
 - This is the **DEPTH pressure on the dependency ladder** (§5.7.1): rising siege strength is exactly what forces the Barracks→Blacksmith→Mine chain online, then the day/night shifts, then Government automation. **The siege is the clock the whole village races.** It is, in effect, the *boss fight of the village sim* — it tests every chain you've built at once.
 - Numbers live in code (`siege_manager`: BASE_COUNT 3 → MAX_COUNT 12, HP/DMG per tier); the curve is a balance-pass, but the rule never changes: **always winnable for an attentive player, always punishing for a neglectful one.**
-- 🟡 Open (§12): siege **directionality** (one side of the village or both?); on a breach, do enemies prioritise **buildings, villagers, or nearest-first?**; the exact health×depth → siege-tier curve.
+- 🟡 Open (§12): only the **numbers** now — the exact health×depth → siege-tier curve. (Directionality = **both flanks**, breach targeting = **nearest-first**, away resolution = **auto-resolve + Log** are all decided, §7.2/§7.4.)
 
 ---
 
@@ -618,7 +618,7 @@ A quest-reward novelty weapon, *deliberately useless* everywhere, that becomes t
 16. **VILLAGER DEATH — ✅ DECIDED (§10).** A death near others is a **hard morale hit that spreads outward** as a diminishing wave and stacks (~5–6 deaths ≈ a 10/10 → 1–2); it lands regardless of the witness's morale, so it *sets up* corruption — the doom spiral. Corrupted-presence and the dead lying around also drain nearby morale; a broken wall costs a modest morale hit. Only numbers remain (per-death hit, falloff, drain rates).
 17. **WARRIORS & CHILDREN — ✅ DECIDED (§5.8, §10, §5.4).** Warriors: house + pair + eat like anyone, but **cannot corrupt — they die in battle**. Children: **eat ~half**, live in their parents' cottage until adult (then want a pair), and **corrupt far more easily** than adults. Only numbers remain (child drain multiplier).
 18. **The Village Log (§5.9)** — feature DECIDED (press L, timestamped, newest-first, plain-language, new-player-friendly). Open: the exact event taxonomy (what's worth logging vs noise), retention window, and whether critical entries also raise a passive toast.
-19. **The siege loop (§7.2–7.6)** — LOOP shape decided (wall holds = non-event / wall breaks = horde in the streets → buildings + villagers → death-shock; three heroes + warriors + player defend; day/night shifts; Hospital recovery; scales with health × depth). **Two real forks to settle before building:** (a) **away-siege resolution** — auto-resolve + Log report (recommended) vs force-home vs pause-dungeon; (b) **directionality + breach targeting** — one wall side or both, and do enemies hit buildings / villagers / nearest-first. Plus the numbers curve (health×depth → tier).
+19. **The siege loop (§7.2–7.6)** — ✅ DECIDED. Wall holds = non-event / breaks = horde in the streets, **nearest-first**, → buildings + villagers → death-shock; besieged from **both flanks** (split your defense); away-sieges **auto-resolve + report to the Log** (never force-home, never pause the dungeon); three heroes + warriors + player defend; day/night shifts; Hospital recovery; scales with health × depth. Only the numbers curve (health×depth → siege tier, split of the wave between the two flanks) remains.
 
 ---
 
