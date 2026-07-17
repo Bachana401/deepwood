@@ -317,7 +317,7 @@ func _ready() -> void:
 		not g.tether_active)
 
 	di.free()
-	# ---------------- IT ACTUALLY BUILDS (KEEP THIS LAST) ----------------
+	# ---------------- IT ACTUALLY BUILDS + THE BOSS CAN CROSS IT (KEEP LAST) --
 	# Everything above reads generated DATA. This builds all 22 boss floors for
 	# real, because a layout that generates cleanly can still blow up on the way
 	# to being nodes -- and a boss floor that crashes is one the player cannot
@@ -349,6 +349,106 @@ func _ready() -> void:
 	check("all 22 boss floors build for real", built_ok, detail)
 	check("cover reaches the built world on COVER_LAYER", cover_seen > 0,
 		"%d solid bodies" % cover_seen)
+
+	# THE STUCK-BOSS TRAP -- and the surprise underneath it.
+	# boss.gd has GRAVITY but no jump: a WALKING boss that touches a vertical
+	# surface turns away for 0.8s. Drop cover in front of one and it oscillates
+	# forever, never reaching the player. But it turns out the 12 deep bosses are
+	# all COMBO bosses -- they reposition via charge/teleport/ranged steps in
+	# run_combo and NEVER use the walk code -- while the 6 walking bosses have no
+	# cover in their arenas. So the softlock can't happen in the shipped arenas.
+	# It is still an invariant worth holding: a solid pillar must never trap a
+	# walking boss, in case cover is added to a walking boss's arena later.
+	# Building the tree can leave it paused (a spawned boss killed the dummy
+	# player -> game-over) -- unpause or the boss just sits there.
+	get_tree().paused = false
+	GameState.active_dungeon_level = 45          # gaoler dungeon: real ground + width
+	var gd = DSCN.instantiate()
+	get_tree().root.add_child(gd)
+	for i in range(30):
+		await get_tree().physics_frame
+	get_tree().paused = false
+
+	# (1) THE CODE I CHANGED, on the path that uses it. A gravewarden is NOT a
+	# combo boss, so it walks -- drop it into the real arena with a pillar in
+	# front and it must hop over, not oscillate. (Its own arena has no cover; I'm
+	# borrowing the gaoler's ground + width to exercise the walk+hop path.)
+	# boss.tscn, NOT BS.new(): a script-only boss has no CollisionShape2D (that
+	# lives in the scene), so it falls straight through the floor and drifts past
+	# any pillar without ever colliding -- which silently made the first version
+	# of this very check vacuous.
+	var walker = load("res://boss.tscn").instantiate()
+	walker.boss_id = "gravewarden"
+	gd.get_node("LevelContainer").add_child(walker)
+	await get_tree().process_frame
+	walker.abilities = []                        # pure walk, no slam/charge to mask it
+	check("gravewarden is a walking boss (exercises the hop code)",
+		not walker.is_combo_boss())
+	var wpin := Vector2(1600.0, DI.GROUND_Y - 100.0)
+	p.god_mode = true
+	p.global_position = wpin
+	walker.global_position = Vector2(1000.0, DI.GROUND_Y - 60.0)
+	# a single vaultable pillar squarely between them
+	var post := StaticBody2D.new()
+	post.collision_layer = 1 | DI.COVER_LAYER
+	var pcs := CollisionShape2D.new()
+	var prect := RectangleShape2D.new()
+	prect.size = Vector2(70, DI.VAULT_HEIGHT)
+	pcs.shape = prect
+	post.add_child(pcs)
+	gd.get_node("LevelContainer").add_child(post)
+	post.global_position = Vector2(1300.0, DI.GROUND_Y - DI.VAULT_HEIGHT / 2.0)
+	var crossed := false
+	for i in range(360):
+		p.global_position = wpin
+		p.velocity = Vector2.ZERO
+		await get_tree().physics_frame
+		if walker.global_position.x > post.global_position.x + 40.0:
+			crossed = true
+			break
+	check("a walking boss HOPS its cover instead of oscillating (would softlock)",
+		crossed, "gravewarden never got past one knee-high pillar")
+	walker.queue_free()
+	post.queue_free()
+
+	# (2) THE FIGHT IS WINNABLE FROM THE BOSS'S SIDE. Cover breaks the tether
+	# (intended), but it must NOT make the player untouchable: the gaoler's
+	# ranged combo steps (pillars) have to reach a dummy hiding behind a pillar,
+	# or the arena is a stalemate. Full kit, god_mode OFF, measure real damage.
+	var gboss: Node = null
+	for n in gd.get_node("LevelContainer").find_children("*", "", true, false):
+		if "boss_id" in n and n.boss_id == "gaoler":
+			gboss = n
+			break
+	check("the Gaoler spawned in its own arena", gboss != null)
+	if gboss != null:
+		p.god_mode = false
+		p.health = p.get_max_health()
+		var behind := Vector2(gboss.global_position.x + 700.0, DI.GROUND_Y - 100.0)
+		# a pillar right in front of the dummy, between it and the boss
+		var shield := StaticBody2D.new()
+		shield.collision_layer = 1 | DI.COVER_LAYER
+		var scs := CollisionShape2D.new()
+		var srect := RectangleShape2D.new()
+		srect.size = Vector2(70, DI.VAULT_HEIGHT)
+		scs.shape = srect
+		shield.add_child(scs)
+		gd.get_node("LevelContainer").add_child(shield)
+		shield.global_position = Vector2(behind.x - 120.0, DI.GROUND_Y - DI.VAULT_HEIGHT / 2.0)
+		var hp0: int = p.health
+		var hurt := false
+		for i in range(900):                     # up to ~15s of real fight
+			p.global_position = behind           # dummy hides behind the pillar
+			p.velocity = Vector2.ZERO
+			await get_tree().physics_frame
+			if p.health < hp0:
+				hurt = true
+				break
+		check("cover breaks the tether but the boss's ranged kit still reaches (no stalemate)",
+			hurt, "player took no damage behind cover in 15s -- the arena is a standoff")
+		shield.queue_free()
+	gd.queue_free()
+	await get_tree().process_frame
 	GameState.in_dungeon = false
 
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)

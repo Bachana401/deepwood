@@ -19,6 +19,22 @@ const ENRAGE_THRESHOLD = 0.5
 const BUMP_THRESHOLD = 110.0
 const WALL_TURN_DURATION = 0.8
 
+# Bosses have GRAVITY but no jump, and on touching any vertical surface they set
+# wall_turn_timer and walk AWAY for WALL_TURN_DURATION. That was fine when the
+# only terrain was drop-through ledges (a boss never collides sideways with
+# one). It is a disaster next to the new solid COVER: a ground boss walks into a
+# knee-high pillar, turns away, comes back, turns away -- oscillating forever,
+# never reaching the player. Five arenas (gaoler/warden/cinderking/glass_saint/
+# last_man) put cover in front of a ground boss, so without a hop the fight is
+# literally unwinnable: stand behind a pillar and plink it.
+#
+# So a grounded, wall-blocked ground boss HOPS instead of turning. Cover is
+# capped at VAULT_HEIGHT (dungeon_interior), and this clears comfortably more:
+# rise = 480^2 / (2*900) = 128px. Cover slows the boss (it must hop); it never
+# traps it. The turn-away stays only as the airborne/cooldown fallback.
+const BOSS_CLIMB_VELOCITY = -480.0
+const BOSS_CLIMB_COOLDOWN = 0.55
+
 # --- shared ability tuning ---
 # Ranges are deliberately long: boss arenas are 3-5x the regular width, so a
 # boss must be able to threaten across a big gap or it just gets kited.
@@ -482,6 +498,7 @@ var charge_timer := 0.0
 var charge_has_hit := false
 var is_wall_blocked := false
 var wall_turn_timer := 0.0
+var climb_cd := 0.0
 
 # weapon-counter state
 var counter_role := ""        # "sword" | "archer" | "mage"; "" = counter-immune
@@ -1822,6 +1839,8 @@ func _physics_process(delta: float) -> void:
 		wall_turn_timer -= delta
 		if wall_turn_timer <= 0:
 			is_wall_blocked = false
+	if climb_cd > 0:
+		climb_cd -= delta
 	if exposed_timer > 0.0:
 		exposed_timer -= delta
 	if hex_timer > 0.0:
@@ -1879,8 +1898,18 @@ func _physics_process(delta: float) -> void:
 	if not flying and not is_wall_blocked and not is_charging:
 		for i in range(get_slide_collision_count()):
 			if absf(get_slide_collision(i).get_normal().x) > 0.5:
-				is_wall_blocked = true
-				wall_turn_timer = WALL_TURN_DURATION
+				# Grounded and off cooldown: HOP it, keeping the forward drive
+				# (velocity.x already points at the player) so the boss clears
+				# the pillar instead of retreating from it. Only fall back to
+				# the old turn-away when it can't hop -- airborne, or a hop just
+				# failed to clear (climb_cd still ticking = a wall too big, which
+				# VAULT_HEIGHT should make impossible, but fail safe not stuck).
+				if is_on_floor() and climb_cd <= 0.0:
+					velocity.y = BOSS_CLIMB_VELOCITY
+					climb_cd = BOSS_CLIMB_COOLDOWN
+				else:
+					is_wall_blocked = true
+					wall_turn_timer = WALL_TURN_DURATION
 				break
 
 # Cruise toward a point hovering above the player, with a slow wing-beat bob.
