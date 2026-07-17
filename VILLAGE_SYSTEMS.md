@@ -198,7 +198,7 @@ The hero is secretly the **Shadow Monarch**; nobody knows. A **hidden 7-stage pa
 | 2/7 | 15 | growing, faint pallor | +shadow damage, dash trail |
 | 3/7 | 30 | tendrils, pale | **Shadowstep** (dash i-frames) |
 | 4/7 | 45 | tendrils wrap him | **Dread** fear aura (slow/weaken) |
-| 5/7 | 60 | so pale the **hood rises** | 🔥 **Rise, Shade** — kills raise a temporary shade to fight for you |
+| 5/7 | 60 | so pale the **hood rises** — face hidden, no eyes, only dark under the cowl | 🔥 **Rise, Shade** — kills raise a temporary shade to fight for you |
 | 6/7 | 80 | living shadow cloak | 🔥 **The Long Dark** — lethal hit → shadow-form (invuln+heal), not death |
 | 7/7 | 100 | **2× size, shadow armor, god** | 🔥 all amplified: permanent shades, 2× lifesteal, shadow nova |
 
@@ -206,7 +206,7 @@ The hero is secretly the **Shadow Monarch**; nobody knows. A **hidden 7-stage pa
 - **Villagers react at 5–6:** deathly-pale hero → afraid / shy / lost / confused / awed mood lines (`npc.gd`).
 - **Built (v1, commit `2d5da18`):** stage system + `monarch_bonus()` folded into `get_bonus_total` (Shadow Armor 5/7+, +shadow dmg 2/7+, swiftness 3/7+, 7/7 spike), growing shadow-tendril aura + paling shader, ominous per-stage toasts, villager reactions.
 - **Built (v2, commit `28a1726`):** the OP powers — Shadowstep dash i-frames + torn-shadow trail (3/7), 170px dread slow aura (4/7), **Rise-Shade** army (`shade.gd` wraiths, cap 2, 12s — permanent army of 4 at 7/7), **Long-Dark** undying (lethal hit → invulnerable shadow-form, 40% heal, 75s cd), and the **7/7 true form** (1.6× visual scale, aura ×1.7, doubled lifesteal, 5s shadow novas) gated behind `GameState.monarch_true_form()` — no living villager, or the admin P-panel force. Headless suite: `MONARCH_TEST` hook + `test_monarch_node.gd`.
-- **To build 🟡:** the **hooded pale sprite** (5–6) — a PixelLab hero re-gen (hooded variant as an alternate stage-gated skin, base art untouched). ⛔ Needs the dev's go-ahead: the hero's look is under the "don't touch the main character" order.
+- **Built (v3):** the **hooded hero** (5/7+). Dev's brief: *"5/7 6/7 and 7/7 models to have hoodie and eyes covered — he's becoming so pale that he wants to hide himself, especially his face."* From 5/7 the hero wears a separate hooded skin (`art/hooded/player_*`): hood up, face a lightless void, no eyes. Same coat, same palette, same silhouette height — it's a PixelLab **character state** off the shipped hero (`Monarch Hero v2`), so identity is preserved rather than re-invented. **The base art is never touched**; `player.gd refresh_monarch_skin` swaps the skin folder at the 5/7 line and back down again, and if `art/hooded/` is absent he simply stays bare-headed forever. The existing pallor shader still runs on top, so he keeps paling through 6/7 → 7/7, and the true form still scales him 1.6× hood and all.
 
 **Endgame — New Game+ 🔒** — on victory the player finds **time-reversal loot**. **The player and their loot are immune to the rewind** — the world resets but you keep yourself and all your gear. You replay, now able to choose the **Necromancer** (the hidden "???" class already in `skill_tree.gd`). Clean prestige loop; power carries over. *(Finer aftergame detail — e.g. a "true ending" that breaks the cycle — TBD later.)*
 

@@ -227,6 +227,17 @@ var weapon_guard: ColorRect = null
 # art at all -> the placeholder box. All hit-flash/death tint drives body_visual.
 const IDLE_SINGLE_PATHS = ["res://art/player_idle.png", "res://art/player.png"]
 const SPRITE_TARGET_HEIGHT = 56.1   # 66 - 15% (character shrunk to suit the bigger village)
+
+# From 5/7 the hero pulls his hood up and hides his face -- he has gone so
+# corpse-pale that he will not be looked at (the awakening line at that stage is
+# literally "The hood hides what you are becoming"). That's a SEPARATE skin
+# folder: the base hero art is never touched, and if art/hooded/ is absent he
+# simply stays bare-headed at every stage. See refresh_monarch_skin.
+const BASE_ART := "res://art/player_"
+const HOODED_ART := "res://art/hooded/player_"
+const HOOD_STAGE := 5
+var _hooded := false
+var _art_prefix := BASE_ART
 const WALK_BOB_AMP = 2.5
 const WALK_BOB_SPEED = 12.0
 # procedural "juice" tuning (all applied on top of the single idle sprite)
@@ -281,6 +292,9 @@ func _ready() -> void:
 	$BowVisual.z_index = 3
 	$WeaponTip.z_index = 3
 	setup_body_anim()
+	# a save loaded at 5/7+ (or a dungeon re-entry) must come up hooded already,
+	# not spend a frame bare-headed before monarch_tick catches it
+	refresh_monarch_skin()
 	build_shadow_aura()
 	# entering/exiting the dungeon interior is a real scene transition, which
 	# re-instances (and re-_ready()s) a fresh Player -- restore the carried-
@@ -649,6 +663,7 @@ var monarch_scale_mult := 1.0
 
 func monarch_tick(delta: float) -> void:
 	var stage = GameState.monarch_stage()
+	refresh_monarch_skin()   # the hood goes up at 5/7 (no-op unless that changed)
 	# Dread Sovereign (4/7+): proximity to the Monarch is itself a wound --
 	# foes near you move as if wading through the dark.
 	if stage >= 4 and not is_dead:
@@ -884,12 +899,50 @@ func load_frames_for(anim: String) -> Array:
 	var out = []
 	var i = 1
 	while true:
-		var t = load_texture("res://art/player_%s_%d.png" % [anim, i])
+		var t = load_texture("%s%s_%d.png" % [_art_prefix, anim, i])
 		if t == null:
 			break
 		out.append(t)
 		i += 1
 	return out
+
+# Swaps the hero between his bare-headed art and the hooded art as the Monarch
+# rises past 5/7 (and back, if a stage is ever taken away). Rebuilds the frames
+# in place, keeping whatever animation was playing, and re-derives base_scale
+# because the hooded art trims to its own height. A no-op unless the stage
+# actually crossed the line, so it's safe to call every frame.
+func refresh_monarch_skin() -> void:
+	if body_anim == null:
+		return
+	var want: bool = GameState.monarch_stage() >= HOOD_STAGE and _hooded_art_present()
+	if want == _hooded:
+		return
+	_hooded = want
+	_art_prefix = HOODED_ART if want else BASE_ART
+	var sf = build_sprite_frames()
+	if sf == null:                      # art vanished mid-run: keep what we have
+		_hooded = not want
+		_art_prefix = HOODED_ART if _hooded else BASE_ART
+		return
+	var was: String = body_anim.animation
+	var fr: int = body_anim.frame
+	body_anim.sprite_frames = sf
+	# base_scale is deliberately NOT re-derived here. The hooded art trims ~6px
+	# taller than the bare head, so normalising it to SPRITE_TARGET_HEIGHT again
+	# would shrink his BODY to make room for the cowl -- he'd look like he got
+	# smaller when the hood went up. Keeping the base art's scale means the body
+	# stays exactly the size it was and the hood simply adds height, which is
+	# what pulling a hood up actually looks like. feet_anchor_y() re-plants him
+	# per frame, so the taller art still stands on the ground.
+	if sf.has_animation(was):
+		body_anim.play(was)
+		body_anim.frame = mini(fr, maxi(sf.get_frame_count(was) - 1, 0))
+	else:
+		body_anim.play("idle")
+
+func _hooded_art_present() -> bool:
+	return ResourceLoader.exists(HOODED_ART + "idle_1.png") \
+		or FileAccess.file_exists(HOODED_ART + "idle_1.png")
 
 # Accepts an imported resource OR a loose not-yet-imported PNG, and auto-trims
 # transparent margins so the character fills the frame (feet at the bottom) no
