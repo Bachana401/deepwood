@@ -350,6 +350,9 @@ func try_build(player: Node) -> String:
 		return "busy"
 	if build_stage >= GameState.TOTAL_BUILD_STAGES:
 		return "built"
+	# the Forge is a mid-game unlock -- can't be raised until you've gone deep
+	if role_key == "Blacksmith" and not GameState.blacksmith_unlocked():
+		return "locked"
 	if not has_repair_materials(player):
 		return "materials"
 	for mat in REPAIR_MATERIALS:
@@ -661,9 +664,6 @@ func employed_count() -> int:
 			n += 1
 	return min(n, MAX_VISIBLE_WORKERS)
 
-func refresh_workers() -> void:
-	if not workers_layer:
-		return
 # A quick door-swing overlay at the entrance so villager entries/exits read
 # visibly on the facade: the dark doorway shows, the panel swings open, holds
 # a beat while the NPC slips through, then shuts. Self-cleaning.
@@ -691,6 +691,9 @@ func play_door_anim() -> void:
 	t.tween_callback(frame.queue_free)
 	t.tween_callback(door.queue_free)
 
+func refresh_workers() -> void:
+	if not workers_layer:
+		return
 	for c in workers_layer.get_children():
 		workers_layer.remove_child(c)
 		c.queue_free()
@@ -1068,7 +1071,7 @@ func try_upgrade(player: Node) -> String:
 # enrollment slots stay fixed.
 func effective_slots(role_def: Dictionary) -> int:
 	var base = int(role_def.slots)
-	if role_def.get("title", "") in ["Leader", "Principal", "Warchief"] or role_def.get("is_enrollment", false):
+	if role_def.get("leadership", false) or role_def.get("is_enrollment", false):
 		return base
 	return base + (building_level - 1) * SLOTS_PER_LEVEL
 
@@ -1101,9 +1104,6 @@ func refresh_visual() -> void:
 func build_intact(damaged: bool) -> void:
 	var w = eff_w()
 	var h = eff_h()
-	var lit = not damaged
-	draw_named_building(w, h, lit, damaged)
-	if building_level >= 4:
 	# PixelLab facade: stretch the painted front to the level-scaled footprint
 	# with its base on the ground line. Damage dims it and adds cracks/scorch
 	# on top; everything else (labels, torches, bars) is positioned by
@@ -1146,6 +1146,9 @@ func build_intact(damaged: bool) -> void:
 			add_cracks(w, h, 3)
 			add_scorch(w, h, 1, 7.0)
 		return
+	var lit = not damaged
+	draw_named_building(w, h, lit, damaged)
+	if building_level >= 4:
 		add_pennant(w, h)
 	if damaged:
 		add_cracks(w, h, 3)
