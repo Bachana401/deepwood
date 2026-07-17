@@ -80,6 +80,31 @@ func build_visual() -> void:
 	intact_gfx = Node2D.new()
 	add_child(intact_gfx)
 
+	# PixelLab gatehouse facade (art/buildings/wall_gate.png) replaces the flat
+	# stone rig when present; rubble state below stays procedural either way.
+	if ResourceLoader.exists("res://art/buildings/wall_gate.png"):
+		var tex: Texture2D = load("res://art/buildings/wall_gate.png")
+		var img: Image = tex.get_image()
+		if img.is_compressed():
+			img.decompress()
+		var content := Rect2(img.get_used_rect())
+		if content.size.x <= 0:
+			content = Rect2(Vector2.ZERO, Vector2(tex.get_width(), tex.get_height()))
+		var spr := Sprite2D.new()
+		spr.texture = tex
+		spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		spr.centered = false
+		spr.region_enabled = true
+		spr.region_rect = content
+		# a touch wider than the old wall so the gatehouse reads imposing
+		var gw := WALL_WIDTH * 1.6
+		var gh := (WALL_HEIGHT + 8.0) * 1.25
+		spr.scale = Vector2(gw / content.size.x, gh / content.size.y)
+		spr.position = Vector2(-gw / 2.0, -gh)
+		intact_gfx.add_child(spr)
+		_build_rubble()
+		return
+
 	# main stone body (origin at ground, rising upward = negative y)
 	var body = ColorRect.new()
 	body.size = Vector2(WALL_WIDTH, WALL_HEIGHT)
@@ -113,6 +138,9 @@ func build_visual() -> void:
 	gate.color = Color(0.32, 0.22, 0.12, 1.0)
 	intact_gfx.add_child(gate)
 
+	_build_rubble()
+
+func _build_rubble() -> void:
 	# rubble state, hidden until breached
 	rubble_gfx = Node2D.new()
 	rubble_gfx.visible = false
