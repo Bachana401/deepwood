@@ -391,7 +391,7 @@ const ITEM_DEFS = {
 	"exc_shadowblade": {"name": "Shadowblade", "category": "weapon", "weapon_type": "melee", "excellent": true, "max_stack": 1, "color": Color(0.35, 0.28, 0.45, 1.0),
 		"weapon_stats": {"damage": 14, "cooldown": 0.3, "range_offset": 46, "area_size": Vector2(58, 34), "knockback_min": 20.0, "knockback_max": 40.0, "icon_size": Vector2(52, 10), "icon_color": Color(0.55, 0.4, 0.75), "icon_offset": 20.0},
 		"swing_slash": {"damage_mult": 0.45, "speed": 640.0, "range": 300.0},
-		"passive": {"crit_chance": 0.25, "crit_damage": 0.5}, "unique_effect": "radiance", "unique_value": 0.0,
+		"passive": {"crit_chance": 0.25, "crit_damage": 0.5},
 		"unique_desc": "A blade of pure night: sky-high crit, and every swing hurls a shadow-slash that flies onward."},
 	"exc_frostmourne": {"name": "Frostmourne", "category": "weapon", "weapon_type": "melee", "excellent": true, "max_stack": 1, "color": Color(0.55, 0.8, 0.95, 1.0),
 		"weapon_stats": {"damage": 21, "cooldown": 0.45, "range_offset": 50, "area_size": Vector2(66, 38), "knockback_min": 30.0, "knockback_max": 60.0, "icon_size": Vector2(64, 12), "icon_color": Color(0.6, 0.82, 0.98), "icon_offset": 20.0},
