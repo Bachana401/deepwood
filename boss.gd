@@ -1281,6 +1281,14 @@ var _covenant_accum := 0.0
 var _last_hurt_at := 0.0
 
 # STAGGER ARMOUR: a chip hit rings off the guard, and says so.
+# Says WHY a blow did nothing. Each reason gets its own word, because they ask
+# for different things from the player: GUARDED means hit harder, FLANK IT means
+# get behind it, DODGED/PHASED/PARRIED mean wait for a real opening. A silent
+# block just reads as a bug.
+func _spawn_block_label(word: String, tint: Color = Color(0.72, 0.84, 1.0)) -> void:
+	var body: Vector2 = current_def.get("body", Vector2(160, 220))
+	FloatingText.spawn_word(get_parent(), global_position + Vector2(0, -body.y * 0.5), word, tint)
+
 func _spawn_guard_spark() -> void:
 	var p := CPUParticles2D.new()
 	p.one_shot = true
@@ -3616,17 +3624,20 @@ func take_damage(amount: int) -> bool:
 		_parry_consumed = true
 		parry_until = 0.0
 		_do_parry_counter()
+		_spawn_block_label("PARRIED!", Color(1.0, 0.85, 0.45))
 		return false
 	# PHASE (Obito): while intangible the blow passes clean through. Not reduced,
 	# not guarded -- it does not land at all, so there is nothing to out-damage.
 	if is_phased():
 		_spawn_phase_whiff()
+		_spawn_block_label("PHASED", Color(0.72, 0.55, 1.0))
 		return false
 	# SIDESTEP: it reads the swing and isn't there any more. Melee only -- you
 	# can't dodge what's already in the air.
 	if has_sidestep and _time_now() >= sidestep_ready_at and _player_is_meleeing():
 		sidestep_ready_at = _time_now() + SIDESTEP_COOLDOWN
 		_do_sidestep()
+		_spawn_block_label("DODGED", Color(0.8, 0.85, 0.9))
 		return false
 	# STAGGER ARMOUR: chip damage rings off the guard. A heavy blow breaks it
 	# outright -- but light hits are no longer simply deleted. They pack into the
@@ -3639,12 +3650,16 @@ func take_damage(amount: int) -> bool:
 		_guard_chip += amount
 		if _guard_chip < float(max_health) * STAGGER_HEAVY_FRACTION:
 			_spawn_guard_spark()
+			_spawn_block_label("GUARDED", Color(0.72, 0.84, 1.0))
 			return false
 		_guard_chip = 0.0     # packed in enough -- the guard cracks on this blow
 	# DREAD WARD: it can only be hurt from BEHIND. Standing in front of it and
 	# holding attack does nothing at all -- it has to be flanked.
 	if has_dread_ward and not _hit_from_behind():
 		_spawn_guard_spark()
+		# names the ACTION, not the state -- "guarded" would just read as
+		# "hit harder", which is the one thing that will never work here
+		_spawn_block_label("FLANK IT!", Color(1.0, 0.6, 0.55))
 		return false
 	# RIPOSTE: you hit it during the WIND-UP. It was waiting for that.
 	if has_riposte and telegraphing and _time_now() >= riposte_ready_at:
@@ -3665,6 +3680,8 @@ func take_damage(amount: int) -> bool:
 		health = min(max_health, health + int(round(amount * SOULBIND_HEAL_FRAC)))
 		update_health_bar()
 		_spawn_soulbind_feed()
+		# it's HEALING off you -- say so, or this reads as the same flat block
+		_spawn_block_label("FEEDING — KILL THE RUNES", Color(0.6, 1.0, 0.65))
 		return false
 	var dmg := amount
 	# weapon counter: countering weapon hits harder AND fires its mechanic;

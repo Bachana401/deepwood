@@ -13,6 +13,15 @@ extends Node
 # Guards: take_damage reports whether the blow landed, and light hits now pack
 # into the guard until it cracks.
 
+func _count_labels(parent: Node) -> int:
+	if parent == null or not is_instance_valid(parent):
+		return 0
+	var n := 0
+	for c in parent.get_children():
+		if c is Label:
+			n += 1
+	return n
+
 var fails := 0
 func check(name: String, ok: bool, detail := "") -> void:
 	if ok: printerr("PASS  ", name)
@@ -79,6 +88,26 @@ func _ready() -> void:
 	boss.take_damage(heavy + 1)
 	check("a heavy blow still breaks the guard immediately", boss.health < 1000,
 		"hp=%d" % boss.health)
+
+	# ---- a block must SAY why, or it reads as a bug ----
+	check("boss can label a block", boss.has_method("_spawn_block_label"))
+	# (FloatingText is a static utility class -- probe the source, not an instance)
+	var ft := FileAccess.open("res://floating_text.gd", FileAccess.READ)
+	var ft_src := ft.get_as_text() if ft != null else ""
+	if ft != null: ft.close()
+	check("floating text supports words, not just numbers",
+		ft_src.contains("func spawn_word("))
+	# the label must actually appear in the world when a hit is absorbed
+	boss.has_stagger_armour = true
+	boss.health = 1000
+	boss.max_health = 1000
+	boss._guard_chip = 0.0
+	var labels_before := _count_labels(boss.get_parent())
+	boss.take_damage(1)                     # absorbed
+	await get_tree().process_frame
+	check("an absorbed hit spawns a visible label",
+		_count_labels(boss.get_parent()) > labels_before,
+		"%d -> %d" % [labels_before, _count_labels(boss.get_parent())])
 
 	# a dead boss reports nothing landed (so no number prints on a corpse)
 	boss.is_dead = true
