@@ -89,6 +89,33 @@ func _ready() -> void:
 	check("a heavy blow still breaks the guard immediately", boss.health < 1000,
 		"hp=%d" % boss.health)
 
+	# ---- the exact fight that was reported: Frost Monarch, floor 10 ----
+	# base 780 HP x the floor-10 multiplier (1 + 9*0.15 = 2.35) = ~1833, and the
+	# stagger threshold is 6% of THAT -- so landing a hit at all demanded ~110
+	# damage in a single blow. Most mythic weapons swing for well under that, so
+	# every blow was absorbed and the fight was unwinnable by design accident.
+	var floor10_hp: int = int(780 * (1.0 + 9 * 0.15))
+	boss.has_stagger_armour = true
+	boss.is_dead = false
+	boss.max_health = floor10_hp
+	boss.health = floor10_hp
+	boss._guard_chip = 0.0
+	var need_single: int = int(floor10_hp * boss.STAGGER_HEAVY_FRACTION)
+	check("floor-10 stagger demanded a huge single blow (that was the bug)",
+		need_single > 100, "%d damage in ONE hit" % need_single)
+	# a realistic mythic swing -- Ragnarok-ish base 18, skill mults, a crit
+	var mythic_hit := 55
+	check("a realistic mythic swing is BELOW that threshold", mythic_hit < need_single,
+		"%d < %d" % [mythic_hit, need_single])
+	var hits := 0
+	while boss.health == floor10_hp and hits < 30:
+		boss.take_damage(mythic_hit)
+		hits += 1
+	check("but it now cracks the guard in a few swings", boss.health < floor10_hp,
+		"%d swings" % hits)
+	check("and that is a reasonable number, not a war of attrition", hits <= 4,
+		"%d swings to first damage" % hits)
+
 	# ---- a block must SAY why, or it reads as a bug ----
 	check("boss can label a block", boss.has_method("_spawn_block_label"))
 	# (FloatingText is a static utility class -- probe the source, not an instance)
