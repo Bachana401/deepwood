@@ -3720,6 +3720,11 @@ func frenzy() -> void:
 	aura_spin = 1.9   # the ember rings whirl in frenzy
 	aura_last_n = -1  # force the soul-split distribution to recompute
 
+# Deliberately does nothing. Bosses are immovable -- a boss that could be
+# shoved around would let a knockback weapon stunlock it into a corner and
+# trivialise every fight in the game. It still ACCEPTS the call so every
+# knockback source can hit any target without type-checking first. Do not
+# "fix" this into real knockback.
 func apply_knockback(_direction_sign: int, _distance: float) -> void:
 	pass
 

@@ -241,7 +241,6 @@ func cast_meteor_at(target_pos: Vector2) -> Node2D:
 	var impact_pos = Vector2(target_pos.x, target_pos.y)
 	var meteor = Node2D.new()
 	meteor.z_index = 40
-	meteor.add_to_group("wizard_meteor")
 	meteor.global_position = Vector2(impact_pos.x + randf_range(-6.0, 6.0), impact_pos.y - METEOR_FALL_HEIGHT)
 	get_parent().add_child(meteor)
 

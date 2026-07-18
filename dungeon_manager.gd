@@ -10,5 +10,9 @@ extends Node
 var started = false
 var starting = false
 
+# Deliberately empty: in the village there is no dungeon session to leave. This
+# stub exists only so pause_menu's shared "../DungeonManager" lookup resolves in
+# BOTH scenes -- inside a dungeon the interior's own root answers this call with
+# the real implementation.
 func exit_dungeon() -> void:
 	pass

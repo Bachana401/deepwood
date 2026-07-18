@@ -16,7 +16,6 @@ var slot_icons: Array = []
 
 func _ready() -> void:
 	layer = 30
-	add_to_group("hotbar_ui")
 	player = get_tree().get_first_node_in_group("player")
 	build()
 

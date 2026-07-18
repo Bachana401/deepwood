@@ -39,7 +39,6 @@ var lit := false
 var flicker_phase := 0.0
 
 func _ready() -> void:
-	add_to_group("standing_torch")
 	flicker_phase = randf() * TAU
 	_build_visual()
 	_apply_lit(GameState.torches_lit())
