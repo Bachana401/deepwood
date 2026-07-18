@@ -112,5 +112,47 @@ func _ready() -> void:
 					note("item", "'%s' text promises '%s' but nothing implements it" % [id, promise])
 					break
 
+	# ---- 5. can the player actually OBTAIN each item? ----
+	# An item nothing grants is invisible content: it exists, it is balanced, it
+	# shows up in the catalogue, and no player will ever hold one. Loot pools are
+	# plain id lists (GEAR_EXCELLENT_IDS and friends), so an id that appears
+	# nowhere outside inventory.gd is unreachable in real play.
+	printerr("\n== items nothing can grant (unreachable in normal play) ==")
+	var src := _load_grant_sources()
+	var unreachable := {}
+	for id in Inventory.ITEM_DEFS.keys():
+		var d: Dictionary = Inventory.ITEM_DEFS[id]
+		if str(d.get("name", "")).contains("Admin"):
+			continue
+		if not src.contains('"%s"' % id):
+			var cat := str(d.get("category", "misc"))
+			if not unreachable.has(cat):
+				unreachable[cat] = []
+			unreachable[cat].append(id)
+	for cat in unreachable.keys():
+		var list: Array = unreachable[cat]
+		note("loot", "%d %s items nothing grants: %s" % [list.size(), cat,
+			", ".join(list.slice(0, 8)) + ("  ..." if list.size() > 8 else "")])
+
 	printerr("\n== TOTAL GAPS: %d ==" % issues)
 	get_tree().quit(0)
+
+# Every game script EXCEPT the item definitions themselves -- so an id only
+# counts as reachable if something other than its own declaration names it.
+func _load_grant_sources() -> String:
+	var out := ""
+	var dir := DirAccess.open("res://")
+	if dir == null:
+		return out
+	dir.list_dir_begin()
+	var f := dir.get_next()
+	while f != "":
+		if f.ends_with(".gd") and not f.begins_with("tool_") and not f.begins_with("test_") \
+				and f != "inventory.gd":
+			var fh := FileAccess.open("res://" + f, FileAccess.READ)
+			if fh != null:
+				out += fh.get_as_text()
+				fh.close()
+		f = dir.get_next()
+	dir.list_dir_end()
+	return out

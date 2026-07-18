@@ -52,6 +52,47 @@ func _ready() -> void:
 	check("all 18 grade-fill weapons load with a grade + stats", missing.is_empty(), ", ".join(missing))
 
 	# the +15% pass landed (sword 8 -> 9)
+	# Every item must be OBTAINABLE. 21 weapons and a relic once existed, fully
+	# balanced and listed in the catalogue, that no drop pool could ever hand
+	# you -- the class-weapon pool started at rare, so nothing granted a common
+	# or uncommon weapon at all. Invisible content is the quietest kind of gap.
+	var DI = load("res://dungeon_interior.gd")
+	var grantable := {}
+	for pool in [DI.GEAR_EARLY_WEAPON_IDS, DI.GEAR_RELIC_IDS, DI.GEAR_ARMOR_IDS,
+			DI.GEAR_SET_WEAPON_IDS, DI.GEAR_CLASS_WEAPON_IDS, DI.GEAR_EXCELLENT_IDS]:
+		for id in pool:
+			grantable[id] = true
+	# NOTE: drop pools are not the only way to get gear -- leather armour is
+	# starting kit, Heart of the Mountain and the Sylvan Charm are harvesting
+	# finds, and the basic sword/spear/bow are the smithy's base kit. So the bar
+	# here is narrow and exact: the grades that ONLY the dungeon hands out.
+	# tool_gap_audit.gd checks whole-game reachability across every grant path.
+	# the four base-kit weapons are handed over at the start, and the gathering
+	# tools are deliberate Forge purchases -- neither is meant to drop
+	var not_loot := {"wpn_sword": true, "wpn_spear": true, "wpn_bow": true, "wpn_wand": true,
+		"tool_axe": true, "tool_pickaxe": true}
+	var orphans := []
+	for id in defs.keys():
+		var d: Dictionary = defs[id]
+		if d.get("category", "") != "weapon" or str(d.get("name", "")).contains("Admin"):
+			continue
+		if Inventory.ITEM_GRADES.get(id, "") not in ["common", "uncommon"]:
+			continue
+		if not_loot.has(id):
+			continue
+		if not grantable.has(id):
+			orphans.append(id)
+	check("every common/uncommon weapon can actually drop", orphans.is_empty(),
+		"%d unreachable: %s" % [orphans.size(), ", ".join(orphans.slice(0, 6))])
+	check("Gorgon's Gaze is in the relic pool (it was in none)",
+		"relic_gorgon" in DI.GEAR_RELIC_IDS)
+	# and each grade band should actually be represented in the early game
+	var early_grades := {}
+	for id in DI.GEAR_EARLY_WEAPON_IDS:
+		early_grades[Inventory.ITEM_GRADES.get(id, "?")] = true
+	check("the early rack covers common AND uncommon",
+		early_grades.has("common") and early_grades.has("uncommon"), str(early_grades.keys()))
+
 	var sword_dmg = int(defs["wpn_sword"]["weapon_stats"]["damage"])
 	check("+15% pass applied (Sword base 8 -> 9)", sword_dmg == 9, "got %d" % sword_dmg)
 

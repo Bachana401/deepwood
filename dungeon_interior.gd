@@ -1632,7 +1632,16 @@ const GEAR_RELIC_IDS = ["relic_vigor", "relic_swiftness", "relic_greed", "relic_
 	"relic_wings", "relic_feather",
 	"relic_godheart", "relic_warlord", "relic_fortune", "relic_celerity",
 	"relic_phoenix", "relic_thorns", "relic_aegis", "relic_vampire", "relic_juggernaut",
-	"relic_blink", "relic_reaper", "relic_ward", "relic_steward"]
+	"relic_blink", "relic_reaper", "relic_ward", "relic_steward", "relic_gorgon"]
+# The common/uncommon weapon rack. Without this tier every one of these existed,
+# was balanced, appeared in the catalogue -- and could never be found by anyone,
+# because the class-weapon pool below starts at rare. These are what the first
+# ten floors are meant to hand you.
+const GEAR_EARLY_WEAPON_IDS = ["wpn_club", "wpn_shortbow", "wpn_apprentice_wand",
+	"wpn_dagger", "wpn_shortsword", "wpn_rapier", "wpn_cleaver", "wpn_hatchet", "wpn_woodspear",
+	"wpn_slingshot", "wpn_huntingbow", "wpn_sparkwand",
+	"wpn_falchion", "wpn_warpick", "wpn_twinblades", "wpn_saber", "wpn_trident",
+	"wpn_warglaive", "wpn_crossbow", "wpn_flatbow", "wpn_frostwand", "wpn_channelwand"]
 const GEAR_ARMOR_IDS = ["helm_bulwark", "armor_bulwark", "pants_bulwark",
 	"helm_windstalker", "armor_windstalker", "pants_windstalker",
 	"helm_runeweave", "armor_runeweave", "pants_runeweave",
@@ -1661,6 +1670,10 @@ func roll_gear_drop() -> void:
 			_give_gear(player, excellents.pick_random(), true)
 			return
 	var pool = []
+	# the early rack is available from the very first floor, and stops appearing
+	# once the mid-tier weapons open up so it never dilutes later drops
+	if current_level < 12:
+		pool += _gear_unowned(GEAR_EARLY_WEAPON_IDS, player)
 	if current_level >= 3:
 		pool += _gear_unowned(GEAR_RELIC_IDS, player)
 	if current_level >= 6:
