@@ -30,6 +30,7 @@ func _ready() -> void:
 			"area": area,
 			"icon": icon,
 			"acell": area.x * area.y,
+			"override": ws.has("size_override"),
 			"slash": not d.get("swing_slash", {}).is_empty(),
 		})
 	rows.sort_custom(func(a, b): return a["acell"] < b["acell"])
@@ -51,6 +52,11 @@ func _ready() -> void:
 	for a in rows:
 		for b in rows:
 			if a["type"] != b["type"] or not Inventory.SIZE_BANDS.has(a["type"]):
+				continue
+			# a size_override is a DELIBERATE exception someone signed off on
+			# (the rapier: long, fast, and weak to pay for it). This rule exists
+			# to catch accidents, not to forbid intent.
+			if a["override"]:
 				continue
 			if a["acell"] > b["acell"] * 1.05 and a["cd"] < b["cd"] - 0.001:
 				printerr("  %s (area %.0f, cd %.2f) is bigger AND faster than %s (area %.0f, cd %.2f)" % [

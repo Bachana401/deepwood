@@ -172,9 +172,14 @@ func _ready() -> void:
 		swingers.append({"id": id, "type": str(d.get("weapon_type", "")),
 			"cd": float(ws.get("cooldown", 0.0)),
 			"area": ws.get("area_size", Vector2.ZERO).x * ws.get("area_size", Vector2.ZERO).y,
+			"override": ws.has("size_override"),
 			"icon": ws.get("icon_size", Vector2.ZERO).x})
 	var offenders := []
 	for a in swingers:
+		# a size_override is a deliberate, signed-off exception (the rapier is
+		# long AND fast, and carries the lowest damage of its peers to pay for
+		# it). The rule catches accidents; an override is intent.
+		if a["override"]: continue
 		for b in swingers:
 			if a["type"] != b["type"]: continue
 			if a["area"] > b["area"] * 1.05 and a["cd"] < b["cd"] - 0.001:

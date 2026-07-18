@@ -159,10 +159,14 @@ const ITEM_DEFS = {
 	"wpn_claymore": {
 		"name": "Bulwark Claymore", "category": "weapon", "weapon_type": "melee", "set": "bulwark", "max_stack": 1, "color": Color(0.85, 0.45, 0.3, 1.0),
 		"weapon_stats": {"damage": 18, "cooldown": 0.45, "range_offset": 50, "area_size": Vector2(68, 40), "knockback_min": 45.0, "knockback_max": 80.0, "icon_size": Vector2(62, 13), "icon_color": Color(0.85, 0.5, 0.35), "icon_offset": 20.0},
+		"unique_effect": "shockwave", "unique_value": 0.35, "unique_radius": 180.0,
+		"unique_desc": "The Bulwark's own weapon: every blow slams a quake through everything within 180px for 35% of the damage.",
 	},
 	"wpn_recurve": {
 		"name": "Windstalker Recurve", "category": "weapon", "weapon_type": "bow", "set": "windstalker", "max_stack": 1, "color": Color(0.3, 0.6, 0.3, 1.0),
 		"weapon_stats": {"damage": 22, "cooldown": 0.42, "range_offset": 90, "area_size": Vector2(110, 40), "knockback_min": 26.0, "knockback_max": 50.0, "icon_size": Vector2(15, 15), "icon_color": Color(0.3, 0.6, 0.3), "icon_offset": 18.0},
+		"special": {"type": "twin_shot", "count": 2, "spread_deg": 6.0},
+		"unique_desc": "The Windstalker's own bow: looses a tight pair of shafts with every draw.",
 	},
 	"wpn_scepter": {
 		"name": "Runeweave Scepter", "category": "weapon", "weapon_type": "wand", "set": "runeweave", "max_stack": 1, "color": Color(0.52, 0.36, 0.92, 1.0), "mana_cost": 20,
@@ -410,7 +414,12 @@ const ITEM_DEFS = {
 		"weapon_stats": {"damage": 9, "cooldown": 0.24, "range_offset": 44, "area_size": Vector2(46, 30), "knockback_min": 18.0, "knockback_max": 38.0, "icon_size": Vector2(44, 12), "icon_color": Color(0.78, 0.8, 0.85), "icon_offset": 20.0},
 		"unique_desc": "A light, quick blade -- fast jabs, low commitment."},
 	"wpn_rapier": {"name": "Rapier", "category": "weapon", "weapon_type": "melee", "max_stack": 1, "color": Color(0.85, 0.86, 0.9, 1.0),
-		"weapon_stats": {"damage": 8, "cooldown": 0.28, "range_offset": 60, "area_size": Vector2(40, 18), "knockback_min": 8.0, "knockback_max": 20.0, "icon_size": Vector2(58, 8), "icon_color": Color(0.85, 0.86, 0.9), "icon_offset": 22.0},
+		# a rapier is the exception the derivation can't express: LONG and FAST.
+		# Deriving length from swing speed alone would make it one of the
+		# shortest weapons in the game, flatly contradicting its own text, so it
+		# takes the size_override escape hatch -- long reach on a thin, precise
+		# blade, exactly as described.
+		"weapon_stats": {"damage": 8, "cooldown": 0.28, "range_offset": 60, "area_size": Vector2(40, 18), "size_override": Vector2(74, 20), "knockback_min": 8.0, "knockback_max": 20.0, "icon_size": Vector2(58, 8), "icon_color": Color(0.85, 0.86, 0.9), "icon_offset": 22.0},
 		"unique_desc": "A long, thin point -- great reach, a tiny precise hitbox."},
 	"wpn_cleaver": {"name": "Cleaver", "category": "weapon", "weapon_type": "melee", "max_stack": 1, "color": Color(0.7, 0.7, 0.72, 1.0),
 		"weapon_stats": {"damage": 15, "cooldown": 0.55, "range_offset": 46, "area_size": Vector2(76, 46), "knockback_min": 45.0, "knockback_max": 80.0, "icon_size": Vector2(52, 20), "icon_color": Color(0.7, 0.7, 0.72), "icon_offset": 20.0},

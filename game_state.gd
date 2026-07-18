@@ -2078,6 +2078,23 @@ func remove_random_villager() -> void:
 	var removed = rescued_villagers[randi() % rescued_villagers.size()]
 	remove_villager_by_id(removed.get("id"))
 
-# TODO: wire up once the skill material system exists
+# Hard's extra sting on death: you lose a unit of a skill-crafting material.
+# Skill nodes are paid for in these (see unlock_skill), so dying on Hard sets
+# back your TREE as well as your village -- which is the whole point of the
+# difficulty. This sat as an empty `pass` with a stale "wire it up once the
+# material system exists" note long after that system shipped, so Hard and
+# Medium were punishing death identically.
 func remove_one_skill_material() -> void:
-	pass
+	var player = get_tree().get_first_node_in_group("player")
+	if player == null or not ("inventory" in player) or player.inventory == null:
+		return
+	# only take something the player actually has, preferring the cheapest so a
+	# death doesn't wipe a rare drop they were saving for an ultimate
+	var order := ["slime", "iron_shard", "ember_crystal", "void_essence", "ancient_relic"]
+	for mat_id in order:
+		if player.inventory.get_count(mat_id) > 0:
+			player.inventory.remove_item(mat_id, 1)
+			var stack = get_tree().get_first_node_in_group("notification_stack")
+			if stack and stack.has_method("show_notification"):
+				stack.show_notification("Hard: you lost 1 %s." % Inventory.get_display_name(mat_id))
+			return
