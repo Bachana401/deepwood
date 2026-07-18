@@ -124,6 +124,32 @@ func _ready() -> void:
 		check("%s: a plausible swing cracks the guard in <= 4 hits" % spec["name"],
 			boss.health < scaled and hits <= 4, "%d swings (thresh %.0f, swing %d)" % [hits, thresh, spec["swing"]])
 
+	# ---- the OTHER deep gates (floors 65/75/85/90) must not wall you out ----
+	# Phase re-arms on every landed hit, so the worry is a boss that spends its
+	# life intangible. It cannot: after phasing it is locked out of re-phasing
+	# for PHASE_COOLDOWN, and that lockout is longer than the phase itself, so
+	# every phase is followed by a strictly longer window where hits land.
+	boss.has_stagger_armour = false
+	var open_window: float = boss.PHASE_COOLDOWN
+	check("a phase boss is vulnerable longer than it is intangible (%.1fs open vs %.1fs closed)"
+		% [open_window, boss.PHASE_SECONDS], open_window > boss.PHASE_SECONDS)
+	# and phase is a fixed duration -- it must NOT scale with floor level, or it
+	# would repeat the stagger mistake at depth
+	var src := FileAccess.open("res://boss.gd", FileAccess.READ)
+	var boss_src := src.get_as_text() if src != null else ""
+	if src != null: src.close()
+	check("phase duration is a constant, not a function of level or max_health",
+		boss_src.contains("const PHASE_SECONDS") and not boss_src.contains("PHASE_SECONDS *"))
+	# soul ward halves damage at worst -- a multiplier, never a wall
+	check("soul ward only reduces damage, never nullifies it", boss.SOUL_WARD_BASE > 0.0,
+		"base %.2f" % boss.SOUL_WARD_BASE)
+	# the wrong-weapon guard is a penalty, not immunity
+	check("the weapon-counter guard is a penalty, not a block", boss.GUARD_MULT > 0.0,
+		"x%.2f" % boss.GUARD_MULT)
+	# stagger is the ONLY gate measured against a depth-scaled number
+	check("stagger is the only HP-proportional damage gate",
+		boss_src.count("max_health * STAGGER_HEAVY_FRACTION") == 0)
+
 	# ---- a block must SAY why, or it reads as a bug ----
 	check("boss can label a block", boss.has_method("_spawn_block_label"))
 	# (FloatingText is a static utility class -- probe the source, not an instance)
