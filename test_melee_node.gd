@@ -114,5 +114,52 @@ func _ready() -> void:
 		not Inventory.ITEM_DEFS["exc_shadowblade"].get("swing_slash", {}).is_empty())
 	check("player can launch a swing slash", p.has_method("launch_swing_slash"))
 
+	# ---------------- size is derived from swing speed ----------------
+	# the roster rule: within a type that actually swings, a bigger weapon must
+	# never also be a faster one.
+	var swingers := []
+	for id in Inventory.ITEM_DEFS.keys():
+		var d: Dictionary = Inventory.ITEM_DEFS[id]
+		if d.get("category", "") != "weapon":
+			continue
+		if not Inventory.SIZE_BANDS.has(str(d.get("weapon_type", ""))):
+			continue
+		var ws: Dictionary = Inventory.weapon_stats_for(id)
+		swingers.append({"id": id, "type": str(d.get("weapon_type", "")),
+			"cd": float(ws.get("cooldown", 0.0)),
+			"area": ws.get("area_size", Vector2.ZERO).x * ws.get("area_size", Vector2.ZERO).y,
+			"icon": ws.get("icon_size", Vector2.ZERO).x})
+	var offenders := []
+	for a in swingers:
+		for b in swingers:
+			if a["type"] != b["type"]: continue
+			if a["area"] > b["area"] * 1.05 and a["cd"] < b["cd"] - 0.001:
+				offenders.append("%s>%s" % [a["id"], b["id"]])
+	check("no weapon is bigger AND faster than a peer", offenders.is_empty(),
+		"%d offenders e.g. %s" % [offenders.size(), ", ".join(offenders.slice(0, 3))])
+
+	# the drawn weapon IS the hitbox, so length and arc move together
+	var slow := Inventory.weapon_stats_for("wpn_warhammer")
+	var fast := Inventory.weapon_stats_for("wpn_twinblades")
+	check("a slow heavy weapon is drawn longer than a fast light one",
+		slow.icon_size.x > fast.icon_size.x * 1.5,
+		"warhammer=%.0f twinfangs=%.0f" % [slow.icon_size.x, fast.icon_size.x])
+	check("its swing arc is bigger to match", slow.area_size.x > fast.area_size.x)
+	check("and it reaches further", slow.range_offset > fast.range_offset,
+		"%.0f vs %.0f" % [slow.range_offset, fast.range_offset])
+
+	# spears out-reach every melee weapon -- that is their whole identity
+	var longest_melee := 0.0
+	for s in swingers:
+		if s["type"] == "melee":
+			longest_melee = maxf(longest_melee, s["icon"])
+	var shortest_spear := 9999.0
+	for s in swingers:
+		if s["type"] == "spear":
+			shortest_spear = minf(shortest_spear, s["icon"])
+	check("even the shortest spear out-reaches the longest melee weapon",
+		shortest_spear > longest_melee,
+		"spear=%.0f melee=%.0f" % [shortest_spear, longest_melee])
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

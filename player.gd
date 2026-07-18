@@ -1619,7 +1619,9 @@ func wield_weapon(item_id: String) -> bool:
 	var def = Inventory.get_item_def(item_id)
 	if def.get("category", "") != "weapon":
 		return false
-	var stats = def.get("weapon_stats", {})
+	# sizing (blade length, swing arc, reach) is derived from the weapon's swing
+	# speed rather than authored -- see Inventory.weapon_stats_for
+	var stats = Inventory.weapon_stats_for(item_id)
 	if stats.is_empty():
 		return false
 	active_weapon_id = item_id

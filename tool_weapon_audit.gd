@@ -15,7 +15,7 @@ func _ready() -> void:
 		var d: Dictionary = Inventory.ITEM_DEFS[id]
 		if d.get("category", "") != "weapon":
 			continue
-		var ws: Dictionary = d.get("weapon_stats", {})
+		var ws: Dictionary = Inventory.weapon_stats_for(id)
 		if ws.is_empty():
 			continue
 		var area: Vector2 = ws.get("area_size", Vector2.ZERO)
@@ -46,9 +46,11 @@ func _ready() -> void:
 	# swing faster. That is the "big weapons just win" failure mode.
 	printerr("\n== VIOLATIONS: bigger AND faster (same type) ==")
 	var bad := 0
+	# only weapons that actually SWING are judged -- a bow or wand's hitbox never
+	# touches anything (they fire projectiles), so its size is not a rule.
 	for a in rows:
 		for b in rows:
-			if a["type"] != b["type"]:
+			if a["type"] != b["type"] or not Inventory.SIZE_BANDS.has(a["type"]):
 				continue
 			if a["acell"] > b["acell"] * 1.05 and a["cd"] < b["cd"] - 0.001:
 				printerr("  %s (area %.0f, cd %.2f) is bigger AND faster than %s (area %.0f, cd %.2f)" % [
@@ -57,11 +59,13 @@ func _ready() -> void:
 	printerr("  total: %d" % bad)
 
 	# --- strictly-dominant pairs: same type, >= in every dial and > in one.
-	printerr("\n== VIOLATIONS: strictly dominates a peer (same type) ==")
+	# Same GRADE only: a mythic outclassing a rare is the point of grades. The
+	# real fault is two weapons of equal grade where one is free to ignore.
+	printerr("\n== VIOLATIONS: strictly dominates a peer (same type AND grade) ==")
 	var dom := 0
 	for a in rows:
 		for b in rows:
-			if a["id"] == b["id"] or a["type"] != b["type"]:
+			if a["id"] == b["id"] or a["type"] != b["type"] or a["grade"] != b["grade"]:
 				continue
 			if a["dmg"] >= b["dmg"] and a["cd"] <= b["cd"] and a["reach"] >= b["reach"] and a["acell"] >= b["acell"] \
 					and (a["dmg"] > b["dmg"] or a["cd"] < b["cd"] or a["reach"] > b["reach"] or a["acell"] > b["acell"]):

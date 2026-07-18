@@ -768,6 +768,65 @@ static func _effect_line(key: String, val) -> String:
 		return "-%d%% %s" % [int(round(val * 100)), label]
 	return "+%d%% %s" % [int(round(val * 100)), label]
 
+# ---------------------------------------------------------------------------
+# Weapon sizing is DERIVED from swing speed.
+#
+# The roster's rule is "a bigger weapon swings slower". Enforcing that by hand
+# across 66 weapons meant re-tuning every damage number, so instead a weapon's
+# LENGTH is computed from how slowly it swings, and both its hitbox and its
+# drawn sprite follow from that length. Damage and cooldown are never touched --
+# the balance pass stays exactly as tuned -- and the rule now holds by
+# construction: you cannot author a weapon that is bigger AND faster than its
+# peers, because size is not something you author at all.
+#
+# Which dials are real per type:
+#   melee -- icon_size (the drawn blade), area_size (the swing arc) and
+#            range_offset (where that arc sits) all matter.
+#   spear -- thrusts hit with SpearTipArea, parked at icon_size.x, so a longer
+#            spear genuinely reaches further. Spears occupy a length band above
+#            every melee weapon, so a spear always out-reaches a sword.
+#   bow / wand -- these fire projectiles; their hitbox never touches anything,
+#            so nothing is derived and their authored values stand.
+#
+# A weapon may set "size_override": Vector2(length, height) to opt out.
+const SIZE_BANDS = {
+	"melee": {"cd_lo": 0.18, "cd_hi": 0.90, "len_lo": 34.0, "len_hi": 96.0, "h_lo": 22.0, "h_hi": 50.0},
+	"spear": {"cd_lo": 0.65, "cd_hi": 1.00, "len_lo": 96.0, "len_hi": 142.0, "h_lo": 30.0, "h_hi": 46.0},
+}
+
+# The authored stats with size filled in. Everything that wields or inspects a
+# weapon should go through here rather than reading "weapon_stats" raw.
+static func weapon_stats_for(item_id: String) -> Dictionary:
+	var def = get_item_def(item_id)
+	var ws: Dictionary = def.get("weapon_stats", {})
+	if ws.is_empty():
+		return ws
+	var wtype = str(def.get("weapon_type", "melee"))
+	if not SIZE_BANDS.has(wtype):
+		return ws
+	var band: Dictionary = SIZE_BANDS[wtype]
+	var out: Dictionary = ws.duplicate(true)
+	var cd = float(ws.get("cooldown", 0.4))
+	var t = clampf((cd - float(band["cd_lo"])) / maxf(0.01, float(band["cd_hi"]) - float(band["cd_lo"])), 0.0, 1.0)
+	var length = lerpf(float(band["len_lo"]), float(band["len_hi"]), t)
+	var height = lerpf(float(band["h_lo"]), float(band["h_hi"]), t)
+	if ws.has("size_override"):
+		var o: Vector2 = ws["size_override"]
+		length = o.x
+		height = o.y
+	var icon_off = float(ws.get("icon_offset", 20.0))
+	# the drawn blade IS the hitbox: identical length, the arc a little taller
+	# so a swing still connects just above and below the sprite
+	out["icon_size"] = Vector2(length, maxf(8.0, height * 0.32))
+	out["area_size"] = Vector2(length + 8.0, height)
+	if wtype == "spear":
+		# a spear thrusts with SpearTipArea, parked out at icon_size.x, so its
+		# reach already follows its length; range_offset only positions the
+		# shaft and stays as authored.
+		return out
+	out["range_offset"] = icon_off + length * 0.5
+	return out
+
 static func get_category(item_id: String) -> String:
 	return get_item_def(item_id).get("category", "misc")
 
