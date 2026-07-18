@@ -90,5 +90,29 @@ func _ready() -> void:
 	check("stopping the beam resets the ramp", p.beam_connect_time == 0.0)
 	GameState.unlocked_skills = saved_skills
 
+	# ---------------- high-grade blades throw their swing forward ----------------
+	var slashers := []
+	var heavy_got_slash := []
+	for id in Inventory.ITEM_DEFS.keys():
+		var d: Dictionary = Inventory.ITEM_DEFS[id]
+		if not d.get("swing_slash", {}).is_empty():
+			slashers.append(id)
+			# a swing-slash is an EARNED high-grade perk, never a common drop
+			var g: String = Inventory.ITEM_GRADES.get(id, "")
+			check("slash weapon '%s' is legendary/mythic (earned, not free)" % id,
+				g in ["legendary", "mythic"], "grade=%s" % g)
+	check("several blades launch swing slashes", slashers.size() >= 5, "%d" % slashers.size())
+	# the maul is a BIG weapon, not a slasher -- size and slashes are alternatives
+	check("Earthshaker Maul stays big instead of gaining a slash",
+		Inventory.ITEM_DEFS["exc_earthshaker"].get("swing_slash", {}).is_empty())
+	# and the slash must be a fraction of the swing, never a straight upgrade
+	for id in slashers:
+		var m: float = float(Inventory.ITEM_DEFS[id]["swing_slash"].get("damage_mult", 1.0))
+		check("'%s' slash is weaker than its own swing (%.2fx)" % [id, m], m < 1.0, "%.2f" % m)
+	# the Shadowblade's description promised a slash it never had -- now it does
+	check("Shadowblade actually launches the slash its text promises",
+		not Inventory.ITEM_DEFS["exc_shadowblade"].get("swing_slash", {}).is_empty())
+	check("player can launch a swing slash", p.has_method("launch_swing_slash"))
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

@@ -2270,7 +2270,30 @@ func perform_attack() -> void:
 	# the Windcutter's signature: the swing releases a slash that flies onward
 	if special_type == "flying_slash":
 		launch_projectile(special, aim_dir, int(round(special.get("damage", 10) * skill_damage_mult("melee"))))
+	# High-grade blades hurl the swing itself forward as a crescent. This is how
+	# a melee weapon earns ranged comfort -- the replacement for the old
+	# levitation reach, except you EARN it by finding the weapon instead of
+	# everyone having it from level one. It rides on top of the normal swing, so
+	# the blade still hits whatever is standing next to you as well.
+	var swing_slash: Dictionary = active_def.get("swing_slash", {})
+	if not swing_slash.is_empty():
+		launch_swing_slash(swing_slash, aim_dir, stats)
 	animate_sword()
+
+# Throws the swing forward as a flying crescent. Damage is a FRACTION of the
+# weapon's own hit (damage_mult), so the slash extends your reach without ever
+# beating simply walking up and hitting the thing -- the melee weapon stays a
+# melee weapon that happens to reach.
+func launch_swing_slash(cfg: Dictionary, dir: Vector2, stats: Dictionary) -> void:
+	var mult := float(cfg.get("damage_mult", 0.5))
+	var dmg := maxi(1, int(round(float(stats.damage) * mult * skill_damage_mult("melee"))))
+	var cr = roll_crit(dmg)
+	launch_projectile({
+		"type": "flying_slash",
+		"speed": cfg.get("speed", 520.0),
+		"range": cfg.get("range", 300.0),
+		"status": cfg.get("status", {}),
+	}, dir, cr[0], cr[1])
 
 # Spawns a weapon_projectile.gd configured from a weapon's "special" dict.
 # The special's type maps onto the projectile's kind ("flying_slash" flies as
