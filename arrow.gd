@@ -135,8 +135,11 @@ func _on_hit_area_body_entered(body: Node2D) -> void:
 		return
 	pierced_bodies.append(body)
 	if body.has_method("take_damage"):
-		body.take_damage(damage)
-		FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+		# a boss can absorb the shot outright -- don't print a number for a hit
+		# that never landed (void take_damage means "landed")
+		var landed = body.take_damage(damage)
+		if landed == null or landed:
+			FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
 	if slows_player and body.has_method("apply_slow"):
 		body.apply_slow(3.0, 0.55)
 	if body.has_method("apply_status"):

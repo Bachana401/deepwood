@@ -2297,10 +2297,17 @@ func perform_attack() -> void:
 			_last_swing_target = target
 			_last_swing_damage = dealt
 			if target.has_method("take_damage"):
-				target.take_damage(dealt)
-				show_hit(target, dealt, cr[1])
-				apply_omnivamp(dealt)
-				apply_melee_skills(target, dealt)
+				# A boss can absorb a blow outright (parry, phase, sidestep,
+				# stagger guard, soulbind). Printing a damage number anyway was
+				# a lie: you'd hammer a Frost Monarch, watch numbers pour out,
+				# and its bar would never move. Only report what actually landed.
+				var landed = target.take_damage(dealt)
+				if landed == null or landed:
+					show_hit(target, dealt, cr[1])
+					apply_omnivamp(dealt)
+					apply_melee_skills(target, dealt)
+				else:
+					_last_swing_damage = 0
 			if target.has_method("apply_knockback"):
 				# a finisher doesn't just hurt more, it sends them
 				var knockback_distance = randf_range(stats.knockback_min, stats.knockback_max) * (1.6 if is_finisher else 1.0) * grade_force_mult()

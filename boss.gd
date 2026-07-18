@@ -259,6 +259,10 @@ const STANCE_COUNTER_DAMAGE = 26
 const STANCE_COUNTER_STUN = 0.6
 var parry_until := 0.0
 var _parry_consumed := false
+# Light hits that rang off stagger armour, packed into the guard. Once they add
+# up to what a heavy blow would have been, the guard cracks -- so a fast weapon
+# gets there by volume instead of being ignored forever.
+var _guard_chip := 0.0
 # --- apex tier signatures (floors 95-100) ---
 # Seraphiel 95 -- Judgment (full-height light wall SWEEPS across: dodge sideways)
 const JUDGMENT_TELEGRAPH = 0.6
@@ -3602,9 +3606,9 @@ func apply_petrify(dur: float) -> bool:
 	stun_timer = maxf(stun_timer, dur)
 	return true
 
-func take_damage(amount: int) -> void:
+func take_damage(amount: int) -> bool:
 	if is_dead:
-		return
+		return false
 	# RIPOSTE STANCE (Last Man 90 signature): while its guard is up, the first
 	# blow is PARRIED -- no damage -- and answered with a hard counter + stun.
 	# Highest priority: it fights like you, and it was waiting for that swing.
@@ -3612,28 +3616,36 @@ func take_damage(amount: int) -> void:
 		_parry_consumed = true
 		parry_until = 0.0
 		_do_parry_counter()
-		return
+		return false
 	# PHASE (Obito): while intangible the blow passes clean through. Not reduced,
 	# not guarded -- it does not land at all, so there is nothing to out-damage.
 	if is_phased():
 		_spawn_phase_whiff()
-		return
+		return false
 	# SIDESTEP: it reads the swing and isn't there any more. Melee only -- you
 	# can't dodge what's already in the air.
 	if has_sidestep and _time_now() >= sidestep_ready_at and _player_is_meleeing():
 		sidestep_ready_at = _time_now() + SIDESTEP_COOLDOWN
 		_do_sidestep()
-		return
-	# STAGGER ARMOUR: chip damage rings off the guard. Only a heavy blow breaks
-	# it -- you have to commit to slow hits while it's swinging at you.
+		return false
+	# STAGGER ARMOUR: chip damage rings off the guard. A heavy blow breaks it
+	# outright -- but light hits are no longer simply deleted. They pack into the
+	# guard, and once they add up to what a heavy blow would have been, the guard
+	# cracks and THAT hit lands. Without this a fast weapon could never hurt a
+	# stagger boss at all: the threshold is a share of the boss's MAX HP, which
+	# grows with floor level while a dagger's damage does not, so past a certain
+	# depth those bosses were literally immortal to half the roster.
 	if has_stagger_armour and amount < int(max_health * STAGGER_HEAVY_FRACTION):
-		_spawn_guard_spark()
-		return
+		_guard_chip += amount
+		if _guard_chip < float(max_health) * STAGGER_HEAVY_FRACTION:
+			_spawn_guard_spark()
+			return false
+		_guard_chip = 0.0     # packed in enough -- the guard cracks on this blow
 	# DREAD WARD: it can only be hurt from BEHIND. Standing in front of it and
 	# holding attack does nothing at all -- it has to be flanked.
 	if has_dread_ward and not _hit_from_behind():
 		_spawn_guard_spark()
-		return
+		return false
 	# RIPOSTE: you hit it during the WIND-UP. It was waiting for that.
 	if has_riposte and telegraphing and _time_now() >= riposte_ready_at:
 		riposte_ready_at = _time_now() + RIPOSTE_COOLDOWN
@@ -3653,7 +3665,7 @@ func take_damage(amount: int) -> void:
 		health = min(max_health, health + int(round(amount * SOULBIND_HEAL_FRAC)))
 		update_health_bar()
 		_spawn_soulbind_feed()
-		return
+		return false
 	var dmg := amount
 	# weapon counter: countering weapon hits harder AND fires its mechanic;
 	# every other weapon is guarded (unless an archer has just exposed the boss)
@@ -3692,6 +3704,7 @@ func take_damage(amount: int) -> void:
 		# opening to land free hits (he hovers exposed there).
 		if has_blink_on_hit and not is_busy and not is_charging and not is_diving and combo_recovery_timer <= 0.0 and randf() < BLINK_ON_HIT_CHANCE:
 			blink_short()
+	return true    # the blow landed -- callers may show a damage number
 
 func enrage() -> void:
 	is_enraged = true

@@ -138,8 +138,11 @@ func _on_body_entered(body: Node2D) -> void:
 			_pull_to_source(body)
 			queue_free()
 		_:
-			body.take_damage(damage)
-			FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+			# only show a number if the blow actually got through (a boss can
+			# absorb it entirely); void take_damage means "landed"
+			var landed = body.take_damage(damage)
+			if landed == null or landed:
+				FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
 			_apply_status_to(body)
 			if body.has_method("apply_knockback"):
 				body.apply_knockback(1 if direction.x >= 0.0 else -1, knockback)
