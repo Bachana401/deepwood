@@ -94,27 +94,35 @@ func _ready() -> void:
 	# stagger threshold is 6% of THAT -- so landing a hit at all demanded ~110
 	# damage in a single blow. Most mythic weapons swing for well under that, so
 	# every blow was absorbed and the fight was unwinnable by design accident.
-	var floor10_hp: int = int(780 * (1.0 + 9 * 0.15))
-	boss.has_stagger_armour = true
-	boss.is_dead = false
-	boss.max_health = floor10_hp
-	boss.health = floor10_hp
-	boss._guard_chip = 0.0
-	var need_single: int = int(floor10_hp * boss.STAGGER_HEAVY_FRACTION)
-	check("floor-10 stagger demanded a huge single blow (that was the bug)",
-		need_single > 100, "%d damage in ONE hit" % need_single)
-	# a realistic mythic swing -- Ragnarok-ish base 18, skill mults, a crit
-	var mythic_hit := 55
-	check("a realistic mythic swing is BELOW that threshold", mythic_hit < need_single,
-		"%d < %d" % [mythic_hit, need_single])
-	var hits := 0
-	while boss.health == floor10_hp and hits < 30:
-		boss.take_damage(mythic_hit)
-		hits += 1
-	check("but it now cracks the guard in a few swings", boss.health < floor10_hp,
-		"%d swings" % hits)
-	check("and that is a reasonable number, not a war of attrition", hits <= 4,
-		"%d swings to first damage" % hits)
+	# every stagger boss in the game, at the floor it actually appears on, with a
+	# plausible swing for that depth. The old flat 6%-of-scaled-HP asked for a
+	# single blow no weapon could deliver, and got worse the deeper you went.
+	for spec in [
+			{"name": "Frost Monarch", "base": 780,  "floor": 10, "swing": 55},
+			{"name": "Gaoler",        "base": 1500, "floor": 45, "swing": 150},
+			{"name": "Effigy",        "base": 1750, "floor": 55, "swing": 180}]:
+		var lv: int = spec["floor"]
+		var mult: float = (1.0 + (lv - 1) * 0.15) if lv <= 20 else (1.0 + 19 * 0.15 + (lv - 20) * 0.02)
+		var scaled: int = int(round(spec["base"] * mult))
+		boss.has_stagger_armour = true
+		boss.is_dead = false
+		boss.base_max_health = spec["base"]
+		boss.max_health = scaled
+		boss.health = scaled
+		boss._guard_chip = 0.0
+		var thresh: float = boss.stagger_threshold()
+		var old_thresh: float = scaled * boss.STAGGER_HEAVY_FRACTION
+		check("%s: threshold is lower than the old flat 6%% (%.0f -> %.0f)" % [spec["name"], old_thresh, thresh],
+			thresh < old_thresh)
+		# it must still ask MORE of you deeper down -- the mechanic still teaches
+		check("%s: threshold still scales with depth (%.0f > base 6%%)" % [spec["name"], thresh],
+			thresh > spec["base"] * boss.STAGGER_HEAVY_FRACTION)
+		var hits := 0
+		while boss.health == scaled and hits < 40:
+			boss.take_damage(spec["swing"])
+			hits += 1
+		check("%s: a plausible swing cracks the guard in <= 4 hits" % spec["name"],
+			boss.health < scaled and hits <= 4, "%d swings (thresh %.0f, swing %d)" % [hits, thresh, spec["swing"]])
 
 	# ---- a block must SAY why, or it reads as a bug ----
 	check("boss can label a block", boss.has_method("_spawn_block_label"))

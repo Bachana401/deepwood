@@ -263,6 +263,9 @@ var _parry_consumed := false
 # up to what a heavy blow would have been, the guard cracks -- so a fast weapon
 # gets there by volume instead of being ignored forever.
 var _guard_chip := 0.0
+# The boss's HP before floor scaling. Stagger armour is measured against this,
+# not against the inflated pool -- see stagger_threshold().
+var base_max_health := 900
 # --- apex tier signatures (floors 95-100) ---
 # Seraphiel 95 -- Judgment (full-height light wall SWEEPS across: dodge sideways)
 const JUDGMENT_TELEGRAPH = 0.6
@@ -1285,6 +1288,25 @@ var _last_hurt_at := 0.0
 # for different things from the player: GUARDED means hit harder, FLANK IT means
 # get behind it, DODGED/PHASED/PARRIED mean wait for a real opening. A silent
 # block just reads as a bug.
+# What counts as a "heavy" blow against stagger armour.
+#
+# This used to be a flat 6% of max_health, which quietly made the mechanic worse
+# the deeper you went: max_health is multiplied by floor level, while a player's
+# per-hit damage grows far slower. By floor 55 the Effigy demanded 478 damage in
+# a SINGLE blow -- no weapon in the game swings that hard, so the guard could
+# never be broken outright and the fight was a pure war of attrition against the
+# chip meter.
+#
+# Measuring against the geometric mean of the boss's BASE hp and its scaled pool
+# keeps the requirement growing with depth (a floor-55 boss should ask more than
+# a floor-10 one) without compounding the level multiplier twice:
+#
+#   Frost Monarch  f10   110 -> 72
+#   Gaoler         f45   391 -> 188
+#   Effigy         f55   478 -> 224
+func stagger_threshold() -> float:
+	return STAGGER_HEAVY_FRACTION * sqrt(float(base_max_health) * float(max_health))
+
 func _spawn_block_label(word: String, tint: Color = Color(0.72, 0.84, 1.0)) -> void:
 	var body: Vector2 = current_def.get("body", Vector2(160, 220))
 	FloatingText.spawn_word(get_parent(), global_position + Vector2(0, -body.y * 0.5), word, tint)
@@ -1420,7 +1442,8 @@ func configure_from_def(def: Dictionary) -> void:
 	has_covenant = "covenant" in passives
 	profile = def.get("profile", "rusher")
 	abilities = (def.get("abilities", ["slam"]) as Array).duplicate()
-	max_health = int(round(float(def.get("hp", 900)) * level_hp_mult))
+	base_max_health = int(def.get("hp", 900))   # pre-scaling, for stagger maths
+	max_health = int(round(float(base_max_health) * level_hp_mult))
 	health = max_health
 
 	# echoes are weak fakes: sliver HP, restricted kit, no passives -- but each
@@ -3646,9 +3669,9 @@ func take_damage(amount: int) -> bool:
 	# stagger boss at all: the threshold is a share of the boss's MAX HP, which
 	# grows with floor level while a dagger's damage does not, so past a certain
 	# depth those bosses were literally immortal to half the roster.
-	if has_stagger_armour and amount < int(max_health * STAGGER_HEAVY_FRACTION):
+	if has_stagger_armour and float(amount) < stagger_threshold():
 		_guard_chip += amount
-		if _guard_chip < float(max_health) * STAGGER_HEAVY_FRACTION:
+		if _guard_chip < stagger_threshold():
 			_spawn_guard_spark()
 			_spawn_block_label("GUARDED", Color(0.72, 0.84, 1.0))
 			return false
