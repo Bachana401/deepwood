@@ -2251,6 +2251,10 @@ func perform_attack() -> void:
 	# the weapon's own reach in the direction of the cursor. Distance to the
 	# cursor is irrelevant: melee is melee.
 	var is_excellent = active_def.has("unique_effect")
+	# remembered so the swing's charge tick knows where (and how hard) it landed;
+	# both stay null/0 on a clean miss, and the charge still advances
+	_last_swing_target = null
+	_last_swing_damage = 0
 	var aim_dir = get_aim_direction()
 	$AttackArea.position = aim_dir * stats.range_offset
 	$AttackArea.rotation = aim_dir.angle()
@@ -2290,6 +2294,8 @@ func perform_attack() -> void:
 			var mult = 1.0 if is_excellent else skill_damage_mult("melee")
 			var cr = roll_crit(int(round(stats.damage * mult * combo_mult)))
 			var dealt = cr[0]
+			_last_swing_target = target
+			_last_swing_damage = dealt
 			if target.has_method("take_damage"):
 				target.take_damage(dealt)
 				show_hit(target, dealt, cr[1])
@@ -2312,6 +2318,8 @@ func perform_attack() -> void:
 	var swing_slash: Dictionary = swing_slash_config()
 	if not swing_slash.is_empty():
 		launch_swing_slash(swing_slash, aim_dir, stats)
+	# the swing itself winds up any charge-style unique -- a whiff still counts
+	advance_swing_charge(_last_swing_target, _last_swing_damage)
 	animate_sword()
 
 # --- Melee combo strings ---
@@ -2505,11 +2513,36 @@ func swing_slash_config() -> Dictionary:
 	var explicit: Dictionary = active_def.get("swing_slash", {})
 	if rank < SLASH_MIN_RANK and explicit.is_empty():
 		return {}
+	# A weapon that already HAS a signature does not get a second one. Handing
+	# every good weapon the same crescent made the whole top of the roster feel
+	# identical -- an Excellent's identity is its unique effect, so that IS its
+	# thrown thing. Only weapons with nothing of their own get a derived one.
+	if active_def.has("unique_effect") and explicit.is_empty():
+		return {}
+	# ...and the ones that do get it don't all get a crescent. What a weapon
+	# throws follows its archetype: a quick blade flicks a slash, a mid-weight
+	# hurls a point that punches through a line, a heavy weapon lobs a slow
+	# burst that detonates where it lands.
+	var cd := float(active_stats.get("cooldown", 0.4))
+	var kind := "flying_slash"
+	var aoe := 0.0
+	var speed_scale := 1.0
+	# thresholds picked against the ACTUAL roster so all three bands are
+	# populated -- at 0.34/0.60 the middle band held exactly one weapon
+	if cd >= 0.78:
+		kind = "flying_slash"
+		aoe = 120.0 + rank * 14.0     # a detonating shock, not a clean cut
+		speed_scale = 0.72            # you can see it coming
+	elif cd >= 0.45:
+		kind = "javelin_volley"       # a hurled point that punches through a line
+		speed_scale = 1.15
 	var out := {
+		"type": kind,
+		"aoe": aoe,
 		"damage_mult": 0.30 + rank * 0.05,        # rare 0.45 -> mythic 0.60
 		"girth": 1.0 + rank * 0.42,               # rare 2.26 -> mythic 3.52
 		"range": 300.0 + rank * 95.0,             # rare 585  -> mythic 870
-		"speed": 460.0 + rank * 40.0,             # rare 580  -> mythic 700
+		"speed": (460.0 + rank * 40.0) * speed_scale,
 	}
 	# An authored entry contributes FLAVOUR ONLY -- a status rider. Geometry is
 	# always derived, so a hand-written entry can never lag behind a later
@@ -2524,10 +2557,11 @@ func launch_swing_slash(cfg: Dictionary, dir: Vector2, stats: Dictionary) -> voi
 	var dmg := maxi(1, int(round(float(stats.damage) * mult * skill_damage_mult("melee"))))
 	var cr = roll_crit(dmg)
 	launch_projectile({
-		"type": "flying_slash",
+		"type": cfg.get("type", "flying_slash"),
 		"speed": cfg.get("speed", 520.0),
 		"range": cfg.get("range", 300.0),
 		"girth": cfg.get("girth", 1.0),
+		"aoe": cfg.get("aoe", 0.0),
 		"status": cfg.get("status", {}),
 	}, dir, cr[0], cr[1])
 
@@ -2598,6 +2632,10 @@ func cast_wand_projectile(special: Dictionary) -> void:
 	launch_projectile(cast, get_aim_direction(), cr[0], cr[1])
 
 # Echo Rift: counts strikes so every 3rd one repeats its damage.
+# what the current swing connected with, so the swing's charge tick can land its
+# payload there (null + 0 on a miss)
+var _last_swing_target: Node2D = null
+var _last_swing_damage: int = 0
 var echo_hit_counter: int = 0
 # Ragnarok Blade: counts strikes so every Nth one erupts.
 var ragnarok_charge: int = 0
@@ -2844,6 +2882,60 @@ func spawn_shock_ring(center: Vector2, radius: float, col: Color = Color(1.0, 0.
 	t.tween_callback(ring.queue_free)
 
 # The unique effect of the active Excellent weapon, fired on each melee hit.
+# Guards against a unique that launches a projectile whose hit re-triggers the
+# same unique, which would launch another projectile, forever.
+var _in_projectile_unique := false
+
+# Where a charged payload should land: on whatever you hit, or -- if the swing
+# caught nothing but air -- out at the weapon's reach along your aim.
+func _unique_impact_point(target: Node2D) -> Vector2:
+	if is_instance_valid(target):
+		return target.global_position
+	var reach: float = float(active_stats.get("range_offset", 50)) + 40.0
+	return global_position + get_aim_direction() * reach
+
+# A weapon's SLASH (or any projectile it throws) carries its owner's signature.
+# Previously a unique only fired when the blade itself connected, so a weapon
+# whose whole identity is reaching out was strictly worse at the range it was
+# built for. Now a crescent that lands is a hit like any other.
+func on_projectile_hit(target: Node2D, damage_dealt: int) -> void:
+	if _in_projectile_unique or not has_weapon():
+		return
+	_in_projectile_unique = true
+	apply_excellent_effect(target, damage_dealt)
+	apply_melee_skills(target, damage_dealt)
+	_in_projectile_unique = false
+
+# Charge-style uniques wind up on every SWING, hit or miss. Whiffing still
+# counts: what matters is how many times you have swung, so a charged payload
+# can never be denied by a boss stepping out of range on exactly the wrong
+# frame. When the charge completes it fires wherever you were aiming.
+func advance_swing_charge(target: Node2D = null, damage_dealt: int = 0) -> void:
+	if not has_weapon():
+		return
+	var effect := str(active_def.get("unique_effect", ""))
+	match effect:
+		"ragnarok":
+			ragnarok_charge += 1
+			if ragnarok_charge >= int(active_def.get("unique_value", 8)):
+				ragnarok_charge = 0
+				unleash_ragnarok()
+		"singularity":
+			singularity_counter += 1
+			if singularity_counter % int(active_def.get("unique_value", 5)) == 0:
+				collapse_singularity(_unique_impact_point(target),
+					active_def.get("unique_radius", 320.0),
+					damage_dealt if damage_dealt > 0 else int(active_stats.get("damage", 10)))
+		"echo":
+			echo_hit_counter += 1
+			if echo_hit_counter % 3 == 0:
+				var at := _unique_impact_point(target)
+				var extra := int(round(float(damage_dealt if damage_dealt > 0 else int(active_stats.get("damage", 10)))
+					* float(active_def.get("unique_value", 1.0))))
+				if is_instance_valid(target) and target.has_method("take_damage"):
+					target.take_damage(extra)
+				spawn_echo_ring(at)
+
 func apply_excellent_effect(target: Node2D, damage_dealt: int) -> void:
 	# any weapon carrying an on_hit_status (e.g. Frostmourne's chill) applies it
 	var st = active_def.get("on_hit_status", {})
@@ -2859,14 +2951,7 @@ func apply_excellent_effect(target: Node2D, damage_dealt: int) -> void:
 				spawn_gold_sparks(target.global_position, gold)
 		return
 	if effect == "echo":
-		# Echo Rift -- every 3rd strike repeats the full blow
-		echo_hit_counter += 1
-		if echo_hit_counter % 3 == 0 and is_instance_valid(target):
-			var extra = int(round(damage_dealt * active_def.get("unique_value", 1.0)))
-			if target.has_method("take_damage"):
-				target.take_damage(extra)
-			spawn_echo_ring(target.global_position)
-		return
+		return   # charge-driven: see advance_swing_charge
 	if effect == "manasteal":
 		# Soulthirst -- drink the foe's spirit
 		gain_mana(float(active_def.get("unique_value", 0)))
@@ -2889,13 +2974,10 @@ func apply_excellent_effect(target: Node2D, damage_dealt: int) -> void:
 				spawn_bane_flash(target.global_position)
 		return
 	if effect == "ragnarok":
-		# Ragnarok Blade -- every hit throws a slash and stokes the storm;
-		# the Nth hit erupts into a screen-clearing ultimate.
-		launch_projectile({"type": "flying_slash", "speed": 560.0, "range": 470.0}, get_aim_direction(), 14)
-		ragnarok_charge += 1
-		if ragnarok_charge >= int(active_def.get("unique_value", 8)):
-			ragnarok_charge = 0
-			unleash_ragnarok()
+		# the storm is stoked by SWINGING (see advance_swing_charge), not by
+		# connecting -- landing a blow only adds the extra slash
+		if not _in_projectile_unique:
+			launch_projectile({"type": "flying_slash", "speed": 560.0, "range": 470.0}, get_aim_direction(), 14)
 		return
 	if effect == "execute":
 		# Doombringer -- delete low-HP fodder outright; bosses take bonus instead
@@ -2911,11 +2993,7 @@ func apply_excellent_effect(target: Node2D, damage_dealt: int) -> void:
 				target.take_damage(999999)
 		return
 	if effect == "singularity":
-		# Singularity Edge -- every Nth hit collapses a black hole at the target
-		singularity_counter += 1
-		if singularity_counter % int(active_def.get("unique_value", 5)) == 0 and is_instance_valid(target):
-			collapse_singularity(target.global_position, active_def.get("unique_radius", 320.0), damage_dealt)
-		return
+		return   # charge-driven: see advance_swing_charge
 	if effect == "shockwave":
 		# Worldsplitter -- every blow blasts a wide radius around the target
 		if is_instance_valid(target):

@@ -122,6 +122,12 @@ func _on_body_entered(body: Node2D) -> void:
 	if "is_dead" in body and body.is_dead:
 		return
 	hit_bodies.append(body)
+	# A weapon's thrown crescent carries its owner's signature: landing one is a
+	# hit like any other, so lifesteal, gold-touch, execute and the rest all fire.
+	# Without this a weapon built to reach was strictly worse at its own range.
+	# (The player guards against a unique that throws another projectile.)
+	if is_instance_valid(source) and source.has_method("on_projectile_hit"):
+		source.on_projectile_hit(body, damage)
 	match kind:
 		"fireball":
 			explode()

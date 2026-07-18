@@ -158,6 +158,59 @@ func _ready() -> void:
 		a1.get_node("HitArea/HitAreaShape").shape.size.x > plain * 2.0)
 	a1.free(); a2.free()
 
+	# ---------------- uniques fire from swings and from slashes ----------------
+	# a weapon with its OWN signature must not also be handed a generic slash --
+	# that made every good weapon feel the same
+	p.inventory.add_item("exc_midas", 1); p.wield_weapon("exc_midas")
+	check("an Excellent's unique IS its signature (no generic slash bolted on)",
+		p.swing_slash_config().is_empty())
+	# ...while a plain high-grade weapon still throws something
+	p.inventory.add_item("wpn_katana", 1); p.wield_weapon("wpn_katana")
+	check("a plain rare weapon still throws a signature", not p.swing_slash_config().is_empty())
+	# and what it throws varies by archetype rather than always being a crescent
+	var thrown := {}
+	for wid in ["wpn_katana", "wpn_windcutter", "wpn_greatsword", "wpn_warhammer", "wpn_sunderer"]:
+		p.inventory.add_item(wid, 1); p.wield_weapon(wid)
+		var c: Dictionary = p.swing_slash_config()
+		if not c.is_empty():
+			thrown[str(c.get("type", "?"))] = true
+	check("weapons throw MORE THAN ONE kind of thing", thrown.size() >= 2, str(thrown.keys()))
+	# heavy weapons lob something that detonates rather than a clean cut
+	p.wield_weapon("wpn_warhammer")
+	check("a heavy weapon's throw bursts on impact",
+		float(p.swing_slash_config().get("aoe", 0.0)) > 0.0)
+	p.wield_weapon("wpn_katana")
+	check("a quick weapon's throw does not",
+		float(p.swing_slash_config().get("aoe", 0.0)) == 0.0)
+
+	# charge-style uniques advance on the SWING, so a whiff still winds them up
+	p.inventory.add_item("exc_ragnarok", 1); p.wield_weapon("exc_ragnarok")
+	p.ragnarok_charge = 0
+	var need: int = int(Inventory.get_item_def("exc_ragnarok").get("unique_value", 8))
+	for i in range(need - 1):
+		p.advance_swing_charge(null, 0)     # pure misses
+	check("missing still winds up a charged unique", p.ragnarok_charge == need - 1,
+		"charge=%d of %d" % [p.ragnarok_charge, need])
+	p.advance_swing_charge(null, 0)         # the one that completes it
+	check("the charge fires on a miss and resets", p.ragnarok_charge == 0)
+
+	# a slash landing must count as a hit for the wielder's unique
+	check("player exposes a projectile-hit hook", p.has_method("on_projectile_hit"))
+	p.inventory.add_item("exc_soul", 1); p.wield_weapon("exc_soul")   # manasteal
+	p.mana = 0.0
+	var dummy = load("res://dps_dummy.gd").new()
+	p.get_parent().add_child(dummy)
+	await get_tree().process_frame
+	p.on_projectile_hit(dummy, 20)
+	check("a slash hit triggers the weapon's unique (Soulthirst drank mana)", p.mana > 0.0,
+		"mana=%.1f" % p.mana)
+	# and a unique that throws a projectile must not recurse forever
+	p.wield_weapon("exc_ragnarok")
+	p.ragnarok_charge = 0
+	p.on_projectile_hit(dummy, 15)          # would loop if unguarded
+	check("a projectile-thrown unique does not re-trigger itself", not p._in_projectile_unique)
+	dummy.queue_free()
+
 	# ---------------- size is derived from swing speed ----------------
 	# the roster rule: within a type that actually swings, a bigger weapon must
 	# never also be a faster one.
