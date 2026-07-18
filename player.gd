@@ -45,18 +45,21 @@ var was_grounded_fall := true
 var has_touched_ground := false
 
 # --- Flight (Aetherwing relic) ---
-# Hold Space in the air to soar upward; a 10-second budget drains while flying
-# and refills whenever you're on the ground. Releasing Space (or running the
-# budget dry) lets you fall at NORMAL speed -- the wings just cancel the fall
-# damage (via fall_immunity), they don't slow the drop.
-const FLIGHT_MAX_SECONDS = 10.0
-const FLIGHT_RISE_SPEED = -300.0   # brisk ascent while holding Space
+# Hold Space in the air to levitate upward. EVERY class can do this -- it costs
+# MANA, and that cost is the only thing limiting it, so you can't hang in the
+# air for long. A Mage pays a reduced rate AND carries a far deeper pool, so a
+# Mage naturally stays aloft longest; a Sword class gets a short hop and lands.
+# Releasing Space (or running dry) lets you fall at NORMAL speed -- levitation
+# doesn't slow the drop, and only fall_immunity spares you the landing.
+const FLIGHT_RISE_SPEED = -300.0        # brisk ascent while holding Space
+const LEVITATE_MANA_PER_SEC = 16.0      # base mana burned per second aloft
+const LEVITATE_MAGE_DISCOUNT = 0.55     # a Mage's native element -- much cheaper
 # The Monarch does not need feathers. From the first stirring of the shadow
 # (1/7, character level 5) he simply stops obeying the ground -- the Aetherwing
-# is only ever a shortcut to something he was always going to grow into.
+# is only ever a shortcut to something he was always going to grow into. This
+# now gates only the WINGS VISUAL, not the ability.
 const LEVITATE_STAGE = 1
 var is_levitating := false         # airborne under his own power -> levitate clip
-var flight_time_left := FLIGHT_MAX_SECONDS
 var flight_depleted_notified := false
 var wings_left: Polygon2D = null
 var wings_right: Polygon2D = null
@@ -833,7 +836,7 @@ func _make_wing(dir: int) -> Polygon2D:
 func update_wings(flying: bool) -> void:
 	if not wings_left:
 		return
-	var winged = has_flight()
+	var winged = has_wings()
 	wings_left.visible = winged
 	wings_right.visible = winged
 	if not winged:
@@ -2063,10 +2066,25 @@ func _physics_process(delta: float) -> void:
 	monarch_tick(delta)
 
 # --- Flight (Aetherwing) ---
+# Levitation is universal now -- mana is the gate, not a relic or a class.
 func has_flight() -> bool:
+	return true
+
+# The feathered wings are still an EARNED look: the Aetherwing relic, or the
+# Monarch outgrowing the ground. Everyone else levitates bare.
+func has_wings() -> bool:
 	return god_mode \
 		or GameState.monarch_stage() >= LEVITATE_STAGE \
 		or GameState.get_bonus_total("flight") > 0.0
+
+# Mana burned per second aloft. A Mage pays far less; skills may discount it
+# further. Never free -- a floor of 1/sec keeps levitation from becoming
+# permanent flight no matter how it's stacked.
+func levitate_mana_rate() -> float:
+	var rate := LEVITATE_MANA_PER_SEC * (1.0 - GameState.get_skill_total("levitate_cost"))
+	if GameState.chosen_class == "Mage":
+		rate *= LEVITATE_MAGE_DISCOUNT
+	return maxf(1.0, rate)
 
 func has_fall_immunity() -> bool:
 	# god mode flies, so it must not be killed by its own landing
@@ -2077,23 +2095,26 @@ func has_fall_immunity() -> bool:
 # otherwise you glide down gently. Without wings this is a no-op.
 func update_flight(delta: float) -> void:
 	var flying = false
-	if has_flight():
-		if is_on_floor():
-			flight_time_left = FLIGHT_MAX_SECONDS
-			flight_depleted_notified = false
-		elif Input.is_action_pressed("jump") and (flight_time_left > 0.0 or god_mode):
+	if is_on_floor():
+		flight_depleted_notified = false
+	elif Input.is_action_pressed("jump"):
+		if god_mode:
+			# god mode never runs dry -- the point is to cross the map
 			flying = true
-			# god mode never runs out of wing -- the point is to cross the map
-			if not god_mode:
-				flight_time_left = max(0.0, flight_time_left - delta)
 			velocity.y = FLIGHT_RISE_SPEED
-			if flight_time_left == 0.0 and not flight_depleted_notified:
+		else:
+			var cost := levitate_mana_rate() * delta
+			if mana >= cost:
+				spend_mana(cost)
+				flying = true
+				velocity.y = FLIGHT_RISE_SPEED
+			elif not flight_depleted_notified:
 				flight_depleted_notified = true
 				var stack = get_tree().get_first_node_in_group("notification_stack")
 				if stack:
-					stack.show_notification("Wings spent -- touch ground to recharge.")
-		# else: not holding Space (or budget spent) -> plain gravity fall. The
-		# wings don't slow it; fall_immunity just spares you the landing damage.
+					stack.show_notification("Out of mana -- you drop out of the air.")
+	# else: not holding Space (or out of mana) -> plain gravity fall. Levitation
+	# doesn't slow it; fall_immunity just spares you the landing damage.
 	is_levitating = flying
 	update_wings(flying)
 
@@ -2231,6 +2252,9 @@ func perform_attack() -> void:
 	var aim_dir = get_aim_direction()
 	$AttackArea.position = aim_dir * stats.range_offset
 	$AttackArea.rotation = aim_dir.angle()
+	# the swing itself leaves a trail -- fired here, BEFORE anything is hit, so
+	# cutting empty air still draws the arc
+	spawn_swing_trail(aim_dir, stats)
 	# a wielded gathering tool works the harvest nodes inside the swing area
 	# (trees want the axe, rocks the pickaxe -- see harvest_node.gd)
 	var tool_type = str(active_def.get("tool_type", ""))
@@ -2281,6 +2305,45 @@ func perform_attack() -> void:
 	if not swing_slash.is_empty():
 		launch_swing_slash(swing_slash, aim_dir, stats)
 	animate_sword()
+
+# The crescent a swing leaves behind. Drawn on EVERY swing, hit or miss, so the
+# weapon has weight even when you cut empty air. Its sweep, thickness, glow and
+# lifetime all scale with the weapon's grade, so a Mythic blade carves a wide
+# bright arc where a Common one barely smudges the air -- the grade is something
+# you can SEE in the swing rather than only read in a tooltip.
+func spawn_swing_trail(aim_dir: Vector2, stats: Dictionary) -> void:
+	var grade: String = Inventory.ITEM_GRADES.get(active_weapon_id, "common")
+	var rank: int = int(Inventory.GRADE_DEFS.get(grade, {}).get("rank", 1))
+	var col: Color = active_def.get("color", Color(1, 1, 1))
+	var radius := float(stats.range_offset) + float(stats.area_size.y) * 0.5
+	var arc := deg_to_rad(64.0 + rank * 7.0)          # higher grade sweeps wider
+	var thickness := 3.0 + rank * 1.7
+	var steps := 12
+	var pts := PackedVector2Array()
+	for i in range(steps + 1):                         # outer edge
+		var a: float = lerpf(-arc * 0.5, arc * 0.5, float(i) / steps)
+		pts.append(Vector2(cos(a), sin(a)) * radius)
+	for i in range(steps, -1, -1):                     # inner edge, back along the arc
+		var a: float = lerpf(-arc * 0.5, arc * 0.5, float(i) / steps)
+		pts.append(Vector2(cos(a), sin(a)) * (radius - thickness))
+	var poly := Polygon2D.new()
+	poly.polygon = pts
+	poly.color = Color(col.r, col.g, col.b, 0.28 + rank * 0.085)
+	var mat := CanvasItemMaterial.new()
+	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	poly.material = mat
+	poly.rotation = aim_dir.angle()
+	poly.z_index = 6
+	add_child(poly)
+	# the tween belongs to the trail itself, so it dies with it rather than
+	# outliving the node it animates
+	var life := 0.15 + rank * 0.035
+	var tw := poly.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(poly, "modulate:a", 0.0, life)
+	tw.tween_property(poly, "scale", Vector2.ONE * (1.08 + rank * 0.02), life)
+	tw.set_parallel(false)
+	tw.tween_callback(poly.queue_free)
 
 # Throws the swing forward as a flying crescent. Damage is a FRACTION of the
 # weapon's own hit (damage_mult), so the slash extends your reach without ever

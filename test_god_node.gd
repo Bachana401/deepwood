@@ -41,7 +41,10 @@ func _ready() -> void:
 
 	# --- OFF: a mortal player gets none of it ---
 	p.god_mode = false
-	check("off: not flying", not p.has_flight())
+	# levitation is universal now, so the mortal difference is that it is PAID
+	# for in mana rather than being unavailable
+	check("off: levitation is available but costs mana", p.has_flight() and p.levitate_mana_rate() >= 1.0,
+		"rate=%.1f/s" % p.levitate_mana_rate())
 	check("off: no wings", p.wings_left == null or not p.wings_left.visible)
 	var hp0: int = p.health
 	p.invincible = false
@@ -96,9 +99,11 @@ func _ready() -> void:
 	check("on: fall immunity granted (won't die on landing)", p.has_fall_immunity())
 	await get_tree().physics_frame
 	check("on: wings are visible", p.wings_left != null and p.wings_left.visible)
-	# fly: hold Space off the ground and the budget must NOT drain
+	# fly: hold Space off the ground. Levitation costs mana now -- but god mode
+	# must never pay it, the whole point is crossing the map freely.
 	p.global_position.y -= 300.0
-	p.flight_time_left = p.FLIGHT_MAX_SECONDS
+	p.mana = p.get_max_mana()
+	var mana0: float = p.mana
 	Input.action_press("jump")
 	var rose := false
 	var y0: float = p.global_position.y
@@ -108,14 +113,23 @@ func _ready() -> void:
 			rose = true
 	Input.action_release("jump")
 	check("on: holding Space lifts you", rose, "y %.0f -> %.0f" % [y0, p.global_position.y])
-	check("on: flight budget never drains", absf(p.flight_time_left - p.FLIGHT_MAX_SECONDS) < 0.01,
-		"%.2f left of %.1f" % [p.flight_time_left, p.FLIGHT_MAX_SECONDS])
+	check("on: levitating costs god mode no mana", absf(p.mana - mana0) < 0.01,
+		"%.1f -> %.1f" % [mana0, p.mana])
 
 	# --- back off again ---
 	panel._toggle_god()
 	await get_tree().process_frame
 	check("button turns god mode OFF", not p.god_mode)
-	check("off again: flight revoked", not p.has_flight())
+	# and now that god mode is off, the same hold visibly drains the pool
+	p.global_position.y -= 260.0
+	p.mana = p.get_max_mana()
+	var mortal_mana0: float = p.mana
+	Input.action_press("jump")
+	for i in range(20):
+		await get_tree().physics_frame
+	Input.action_release("jump")
+	check("off again: levitating now burns mana", p.mana < mortal_mana0,
+		"%.1f -> %.1f" % [mortal_mana0, p.mana])
 	check("off again: label reads OFF",
 		panel.god_button.text == "GOD MODE: OFF", panel.god_button.text)
 

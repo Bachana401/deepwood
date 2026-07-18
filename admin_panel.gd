@@ -256,7 +256,7 @@ func _toggle_god() -> void:
 		return
 	pl.god_mode = not pl.god_mode
 	if pl.god_mode:
-		pl.flight_time_left = pl.FLIGHT_MAX_SECONDS   # start airborne-ready
+		pl.mana = pl.get_max_mana()   # start airborne-ready (levitation burns mana)
 		_notify("GOD MODE ON — invincible · T = super dash · hold Space = fly")
 	else:
 		_notify("GOD MODE OFF — mortal again")

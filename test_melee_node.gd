@@ -161,5 +161,43 @@ func _ready() -> void:
 		shortest_spear > longest_melee,
 		"spear=%.0f melee=%.0f" % [shortest_spear, longest_melee])
 
+	# ---------------- the swing leaves a trail, hit or miss ----------------
+	# swing at empty air, far from anything, and a trail must still appear
+	p.wield_weapon("wpn_sword")
+	var before_kids := p.get_children().size()
+	p.attack_cooldown_remaining = 0.0
+	p.perform_attack()
+	var after_kids := p.get_children().size()
+	check("swinging at nothing still draws a trail", after_kids > before_kids,
+		"%d -> %d children" % [before_kids, after_kids])
+	# grade drives how much the swing shows: mythic must out-sweep common
+	var common_arc := deg_to_rad(64.0 + int(Inventory.GRADE_DEFS["common"]["rank"]) * 7.0)
+	var mythic_arc := deg_to_rad(64.0 + int(Inventory.GRADE_DEFS["mythic"]["rank"]) * 7.0)
+	check("a mythic weapon sweeps a wider trail than a common one", mythic_arc > common_arc)
+
+	# ---------------- levitation costs mana, for everyone ----------------
+	check("every class can levitate", p.has_flight())
+	check("wings stay an earned visual, separate from the ability", p.has_method("has_wings"))
+	var saved_class = GameState.chosen_class
+	GameState.chosen_class = "Sword"
+	var sword_rate: float = p.levitate_mana_rate()
+	GameState.chosen_class = "Mage"
+	var mage_rate: float = p.levitate_mana_rate()
+	GameState.chosen_class = saved_class
+	check("a Mage levitates cheaper than a Sword", mage_rate < sword_rate,
+		"mage=%.1f/s sword=%.1f/s" % [mage_rate, sword_rate])
+	check("levitation is never free", p.levitate_mana_rate() >= 1.0)
+	# holding Space off the ground must actually drain the pool
+	p.god_mode = false
+	p.global_position.y -= 260.0
+	p.mana = p.get_max_mana()
+	var mana_before: float = p.mana
+	Input.action_press("jump")
+	for i in range(20):
+		await get_tree().physics_frame
+	Input.action_release("jump")
+	check("levitating burns mana", p.mana < mana_before,
+		"%.1f -> %.1f" % [mana_before, p.mana])
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)
