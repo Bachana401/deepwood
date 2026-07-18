@@ -119,58 +119,19 @@ var weapon_anim_tween: Tween = null
 var spear_hit_bodies: Array = []
 var is_attacking = false
 
-# --- Levitation ---
-# The character never physically holds weapons: he's a telekinetic -- his
-# weapons FLOAT beside him wrapped in an arcane aura, moved by magic (that is
-# why the body needs no per-weapon swing frames; the weapon itself moves).
-# The Mage skill tree's "Levitate: Extended Reach/Distant Hand" nodes add
-# levitate_range: the weapon then follows the mouse up to that far from his
-# body and attacks there -- remote telekinetic strikes.
-const LEVITATE_AURA_COLOR = Color(0.62, 0.42, 0.95, 0.28)
-# On every left-click attack the hand flares with telekinetic energy for this
-# long, so it reads as "he levitates/hurls the weapon" each time he strikes.
-const LEVITATE_FLASH_TIME = 0.32
-# How long the aim/levitation pose lingers after the last mouse move before he
-# settles back to idle. Moving the cursor keeps refreshing it.
+# --- Aiming ---
+# Weapons are HELD, not levitated. The cursor sets the DIRECTION of a swing;
+# it never sets the distance. Every bit of reach comes from the weapon's own
+# stats (range_offset / area_size), so melee stays melee: a spear outranges a
+# dagger because a spear is longer, and no skill can drag your blade across
+# the room.
+# How long the aim pose lingers after the last mouse move before he settles
+# back to idle. Moving the cursor keeps refreshing it.
 const MOUSE_AIM_HOLD = 0.35
-# Innate free-float radius everyone has (the basic "Levitate" skill): even a
-# Sword-class player's weapon drifts around him and can be tugged this far
-# toward the cursor. The Mage tree's Levitate nodes add levitate_bonus_range()
-# on top for true long-range telekinetic strikes.
-const BASE_LEVITATE_RANGE = 26.0
-var levitate_time := 0.0
-var levitate_flash := 0.0       # counts down after each attack; drives the hand flare
-var mouse_aim_timer := 0.0      # >0 briefly after the mouse moves -> play the aim/levitation frames
+var mouse_aim_timer := 0.0      # >0 briefly after the mouse moves -> play the aim frames
 var aim_retract_timer := 0.0    # after the mouse stops, play the aim frames in REVERSE (hand retracts)
 var aim_was_forward := false    # was he aiming last frame? (edge-detects the "mouse stopped" moment)
 var aim_reversed := false       # currently playing the aim animation backwards?
-var levitate_glow: Polygon2D = null
-var hand_glow: Polygon2D = null
-var levitate_sparkles: CPUParticles2D = null
-
-func levitate_bonus_range() -> float:
-	return GameState.get_skill_total("levitate_range")
-
-# How far the weapon may float from the body: the innate short range plus any
-# Mage Levitate skill bonus.
-func levitate_max_range() -> float:
-	return BASE_LEVITATE_RANGE + levitate_bonus_range()
-
-# Hover rule (testable): the weapon follows the mouse but is bounded to
-# [base_offset, base_offset + max_range] -- it never clips into the body and
-# never floats past his telekinetic reach.
-func clamped_hover(dist_to_mouse: float, base_offset: float) -> float:
-	return clamp(dist_to_mouse, base_offset, base_offset + levitate_max_range())
-
-func hover_for_mouse(base_offset: float) -> float:
-	return clamped_hover((get_global_mouse_position() - global_position).length(), base_offset)
-
-# A gentle, organic wander so the weapon reads as magically suspended -- it
-# hovers and drifts a few px around its anchor rather than sitting rigidly.
-func levitate_float_offset() -> Vector2:
-	return Vector2(
-		sin(levitate_time * 2.1) * 4.0 + sin(levitate_time * 0.9 + 0.7) * 2.2,
-		cos(levitate_time * 1.7) * 3.6 + sin(levitate_time * 2.9 + 1.3) * 2.0)
 
 func get_weapon_stats() -> Dictionary:
 	return active_stats
@@ -312,7 +273,6 @@ func _ready() -> void:
 	# equip call so equip_weapon/on_equipment_changed can drive them.
 	build_armor_visuals()
 	build_weapon_guard()
-	build_levitate_aura()
 	build_wings_visual()
 	build_mana_bar()
 	# keep the held weapon drawn in front of the body armor
@@ -527,44 +487,6 @@ func build_weapon_guard() -> void:
 	weapon_guard.visible = false
 	weapon_guard.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	$WeaponIcon.add_child(weapon_guard)
-
-# The telekinesis dressing: a soft violet aura that hangs around the floating
-# weapon, faint sparkles drifting off it, and a small glow at the character's
-# hand -- together they read as "he is holding the weapon with magic".
-func build_levitate_aura() -> void:
-	var add_mat = CanvasItemMaterial.new()
-	add_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-
-	levitate_glow = Polygon2D.new()
-	levitate_glow.polygon = _levitate_circle(16.0, 18)
-	levitate_glow.color = LEVITATE_AURA_COLOR
-	levitate_glow.material = add_mat
-	levitate_glow.z_index = 2   # just under the weapon (z 3)
-	levitate_glow.visible = false
-	add_child(levitate_glow)
-
-	hand_glow = Polygon2D.new()
-	hand_glow.polygon = _levitate_circle(5.0, 12)
-	hand_glow.color = Color(0.7, 0.5, 1.0, 0.5)
-	hand_glow.material = add_mat
-	hand_glow.z_index = 4   # over the body, near his hand
-	hand_glow.visible = false
-	add_child(hand_glow)
-
-	levitate_sparkles = CPUParticles2D.new()
-	levitate_sparkles.amount = 8
-	levitate_sparkles.lifetime = 0.7
-	levitate_sparkles.direction = Vector2(0, -1)
-	levitate_sparkles.spread = 180.0
-	levitate_sparkles.gravity = Vector2(0, -26)
-	levitate_sparkles.initial_velocity_min = 4.0
-	levitate_sparkles.initial_velocity_max = 14.0
-	levitate_sparkles.scale_amount_min = 0.8
-	levitate_sparkles.scale_amount_max = 1.8
-	levitate_sparkles.color = Color(0.75, 0.55, 1.0, 0.8)
-	levitate_sparkles.z_index = 2
-	levitate_sparkles.emitting = false
-	add_child(levitate_sparkles)
 
 # --- The Shadow Monarch aura (hidden 7-stage passive, see GameState) ---
 # A real animated shadow aura (PixelLab, art/shadow_aura_N.png) layered BEHIND
@@ -922,16 +844,6 @@ func update_wings(flying: bool) -> void:
 	wings_left.rotation = flap
 	wings_right.rotation = -flap
 
-func _levitate_circle(radius: float, sides: int) -> PackedVector2Array:
-	var pts = PackedVector2Array()
-	for i in range(sides):
-		var ang = TAU * float(i) / sides
-		pts.append(Vector2(cos(ang), sin(ang)) * radius)
-	return pts
-
-# Follows the floating weapon every frame: glow + sparkles wrap the weapon's
-# visual centre, the hand glow sits at his side toward it, and the aura gently
-# pulses. Hidden when unarmed.
 # Duration of one play-through of the aim animation (used to time the retract).
 func _aim_length() -> float:
 	if body_anim and body_anim.sprite_frames.has_animation("aim"):
@@ -940,35 +852,6 @@ func _aim_length() -> float:
 		if fps > 0.0:
 			return float(n) / fps
 	return 0.3
-
-# Left-click "cast": the hand orb flares and a fresh puff of telekinetic
-# sparkles bursts, so every strike reads as him hurling the levitated weapon.
-func trigger_levitate_flash() -> void:
-	levitate_flash = LEVITATE_FLASH_TIME
-	if levitate_sparkles and has_weapon():
-		levitate_sparkles.restart()
-
-func update_levitate_aura(aim_dir: Vector2, hover: float, free_float: Vector2 = Vector2.ZERO) -> void:
-	if not levitate_glow:
-		return
-	var armed = has_weapon()
-	levitate_glow.visible = armed
-	hand_glow.visible = armed
-	levitate_sparkles.emitting = armed
-	if not armed:
-		return
-	var reach = active_stats.icon_size.x if active_weapon_type != "bow" else 0.0
-	var center = aim_dir * (hover + reach * 0.5) + free_float
-	# flash: 1.0 right after a click, decaying to 0 -- the telekinetic "cast" pop
-	var flash = levitate_flash / LEVITATE_FLASH_TIME
-	var pulse = 1.0 + 0.12 * sin(levitate_time * 3.2) + flash * 0.5
-	levitate_glow.position = center
-	levitate_glow.scale = Vector2.ONE * pulse * max(1.0, max(active_stats.icon_size.x, active_stats.icon_size.y) / 22.0)
-	levitate_sparkles.position = center
-	# hand orb sits at the leading hand and swells + brightens as he hurls it
-	hand_glow.position = aim_dir * 10.0 + Vector2(0, -6)
-	hand_glow.scale = Vector2.ONE * (1.0 + 0.2 * sin(levitate_time * 5.1) + flash * 1.7)
-	hand_glow.modulate = Color(1, 1, 1, 1.0 + flash * 1.6)
 
 # Swaps the placeholder box for the pixel-art sprite when the art exists.
 # Scaled by height and feet-aligned to the bottom of the collision body so it
@@ -1799,40 +1682,35 @@ func update_weapon_visual(offset: float) -> void:
 		$WeaponIcon.visible = false
 		$BowVisual.visible = false
 		$WeaponTip.visible = false
-		update_levitate_aura(Vector2.RIGHT, 0.0)
 		return
 	var stats = active_stats
 	var aim_dir = get_aim_direction()
-	# Levitation: the weapon floats toward the mouse, bounded to his reach, and
-	# drifts organically (free_float) + tilts (wobble) so it reads as suspended
-	# by magic rather than rigidly leashed. Visual-only -- hitboxes stay on the
-	# aim line (extended by hover_extra so far-flung strikes land correctly).
-	var hover = hover_for_mouse(offset)
-	var hover_extra = hover - offset
-	var free_float = levitate_float_offset()
-	var wobble = sin(levitate_time * 2.4) * 0.10
+	# The weapon is HELD, not levitated. It sits at a fixed distance from the
+	# body and only ROTATES to point at the cursor: the mouse sets direction,
+	# never distance. All reach comes from the weapon's own stats, so a spear
+	# outranges a dagger because the spear is longer -- not because you can drag
+	# the blade further from your hand.
 	$WeaponTip.visible = false
 	$BowVisual.visible = false
 	if active_weapon_type == "bow":
 		$WeaponIcon.visible = false
 		$BowVisual.visible = true
-		$BowVisual.position = aim_dir * hover + free_float
-		$BowVisual.rotation = aim_dir.angle() + wobble
+		$BowVisual.position = aim_dir * offset
+		$BowVisual.rotation = aim_dir.angle()
 		$BowVisual.scale = Vector2.ONE
 	else:
 		$WeaponIcon.visible = true
-		$WeaponIcon.position = aim_dir * hover + free_float - $WeaponIcon.pivot_offset
-		$WeaponIcon.rotation = aim_dir.angle() + wobble
-		$AttackArea.position = aim_dir * (stats.range_offset + hover_extra)
+		$WeaponIcon.position = aim_dir * offset - $WeaponIcon.pivot_offset
+		$WeaponIcon.rotation = aim_dir.angle()
+		$AttackArea.position = aim_dir * stats.range_offset
 		$AttackArea.rotation = aim_dir.angle()
 		if active_weapon_type == "spear":
 			$WeaponTip.visible = true
-			var tip_pos = aim_dir * (hover + stats.icon_size.x)
-			$WeaponTip.position = tip_pos + free_float
-			$WeaponTip.rotation = aim_dir.angle() + wobble
+			var tip_pos = aim_dir * (offset + stats.icon_size.x)
+			$WeaponTip.position = tip_pos
+			$WeaponTip.rotation = aim_dir.angle()
 			$WeaponTip.scale = Vector2.ONE
 			$SpearTipArea.position = tip_pos
-	update_levitate_aura(aim_dir, hover, free_float)
 
 func add_currency(amount: int) -> void:
 	currency += amount
@@ -2149,9 +2027,6 @@ func _physics_process(delta: float) -> void:
 		direction = -direction                # disorient: your controls betray you
 	if direction:
 		facing_direction = sign(direction)
-	levitate_time += get_physics_process_delta_time()
-	if levitate_flash > 0.0:
-		levitate_flash = max(0.0, levitate_flash - get_physics_process_delta_time())
 	if has_weapon() and not is_attacking:
 		update_weapon_visual(active_stats.icon_offset)
 
@@ -2167,10 +2042,12 @@ func _physics_process(delta: float) -> void:
 	# two-hands-up frame -- isn't wired yet; these frames are now the aim pose.)
 	# Root still lets you swing; only stun/freeze (cc_hard) locks attacks out.
 	if Input.is_action_pressed("attack") and not cc_hard:
-		var was_ready = attack_cooldown_remaining <= 0.0 and has_weapon()
-		perform_attack()
-		if was_ready and attack_cooldown_remaining > 0.0:
-			trigger_levitate_flash()   # per-shot telekinetic pop
+		# a channelling Sage pours a beam instead of firing bolts; everyone
+		# else falls through to the normal per-cooldown attack
+		if not channel_beam(delta):
+			perform_attack()
+	else:
+		stop_beam()
 
 	# right-click = the admin Ruin Wand's no-aim percent burst (see below)
 	if Input.is_action_just_pressed("secondary_attack") and not cc_hard:
@@ -2345,12 +2222,12 @@ func perform_attack() -> void:
 		animate_sword()
 		launch_projectile(special, get_aim_direction(), int(special.get("damage", stats.damage)))
 		return
-	# melee swing (also the swing for an Excellent weapon) -- the strike lands
-	# wherever the levitating blade currently hovers (telekinetic range attack)
+	# melee swing (also the swing for an Excellent weapon) -- the strike lands at
+	# the weapon's own reach in the direction of the cursor. Distance to the
+	# cursor is irrelevant: melee is melee.
 	var is_excellent = active_def.has("unique_effect")
 	var aim_dir = get_aim_direction()
-	var hover_extra = hover_for_mouse(stats.icon_offset) - stats.icon_offset
-	$AttackArea.position = aim_dir * (stats.range_offset + hover_extra)
+	$AttackArea.position = aim_dir * stats.range_offset
 	$AttackArea.rotation = aim_dir.angle()
 	# a wielded gathering tool works the harvest nodes inside the swing area
 	# (trees want the axe, rocks the pickaxe -- see harvest_node.gd)
@@ -2492,6 +2369,99 @@ func relic_power_value(power: String, fallback: float) -> float:
 # --- Relic power effects (see has_relic_power) ---
 
 # Vampire Lord's Signet: heal a share of melee damage dealt this swing.
+# --- Sage: the channelled beam (skill tree mg_s4b "Focusing Lens") ---
+# Hold attack with a wand and instead of firing discrete bolts you pour out a
+# continuous beam. Its damage RAMPS the longer it stays connected to the same
+# target; moving your feet, or letting anything break line of sight, cuts the
+# channel and the ramp falls back to the floor. That's the Sage's trade: stand
+# still in the open (where everything can hit you) and your damage compounds.
+const BEAM_RANGE = 520.0
+const BEAM_RAMP_TIME = 3.0      # seconds of unbroken contact to reach the peak
+const BEAM_BASE_PEAK = 2.5      # 1.0x -> 2.5x before any skill bonuses
+const BEAM_TICK = 0.15          # how often the beam applies damage
+var beam_connect_time := 0.0    # unbroken seconds on target -- drives the ramp
+var beam_tick_timer := 0.0
+var beam_line: Line2D = null
+
+func has_beam() -> bool:
+	return GameState.get_skill_total("beam_channel") > 0.0
+
+func beam_peak_mult() -> float:
+	return BEAM_BASE_PEAK + GameState.get_skill_total("beam_ramp")
+
+# The ramp is a pure function of contact time, so it's directly testable.
+func beam_ramp_mult() -> float:
+	return lerp(1.0, beam_peak_mult(), clamp(beam_connect_time / BEAM_RAMP_TIME, 0.0, 1.0))
+
+func stop_beam() -> void:
+	beam_connect_time = 0.0
+	beam_tick_timer = 0.0
+	if beam_line != null:
+		beam_line.visible = false
+
+func draw_beam(end_point: Vector2) -> void:
+	if beam_line == null:
+		beam_line = Line2D.new()
+		beam_line.width = 5.0
+		beam_line.z_index = 5
+		var mat = CanvasItemMaterial.new()
+		mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		beam_line.material = mat
+		add_child(beam_line)
+	# brighter and fatter as the ramp climbs, so you can SEE it charging
+	var t = clamp((beam_ramp_mult() - 1.0) / max(0.01, beam_peak_mult() - 1.0), 0.0, 1.0)
+	beam_line.visible = true
+	beam_line.width = lerp(4.0, 11.0, t)
+	beam_line.default_color = Color(0.55, 0.75, 1.0).lerp(Color(1.0, 0.95, 0.6), t)
+	beam_line.points = PackedVector2Array([Vector2.ZERO, to_local(end_point)])
+
+# Returns true if the beam handled this frame's attack input (so the caller
+# skips the ordinary attack).
+func channel_beam(delta: float) -> bool:
+	if not has_beam() or not has_weapon() or active_weapon_type != "wand":
+		return false
+	var stats = active_stats
+	# planting your feet is the cost -- any movement cuts the channel
+	if absf(velocity.x) > 1.0 or not is_on_floor():
+		stop_beam()
+		return true
+	var dir = get_aim_direction()
+	var space = get_world_2d().direct_space_state
+	var q = PhysicsRayQueryParameters2D.create(global_position, global_position + dir * BEAM_RANGE)
+	q.collision_mask = 1 | 4        # walls break line of sight; enemies are layer 4
+	q.exclude = [self]
+	var hit = space.intersect_ray(q)
+	var end_point = global_position + dir * BEAM_RANGE
+	var target: Node = null
+	if hit:
+		end_point = hit.position
+		var c = hit.collider
+		if c != null and c.has_method("take_damage") and "is_dead" in c and not c.is_dead:
+			target = c
+	draw_beam(end_point)
+	if target == null:
+		beam_connect_time = 0.0     # contact lost: the ramp resets
+		beam_tick_timer = 0.0
+		return true
+	beam_connect_time += delta
+	# mana drains continuously: the wand's per-shot cost spread over its fire rate
+	var drain = float(active_def.get("mana_cost", 0)) / maxf(0.1, stats.cooldown) * delta
+	if drain > 0.0 and not spend_mana(drain):
+		stop_beam()
+		return true
+	beam_tick_timer += delta
+	while beam_tick_timer >= BEAM_TICK:
+		beam_tick_timer -= BEAM_TICK
+		# at ramp 1.0 the beam matches the wand's ordinary DPS; the ramp is the gain
+		var dps = float(stats.damage) / maxf(0.1, stats.cooldown)
+		var amount = maxi(1, int(round(dps * BEAM_TICK * beam_ramp_mult() * skill_damage_mult("wand"))))
+		var cr = roll_crit(amount)
+		if is_instance_valid(target) and target.has_method("take_damage"):
+			target.take_damage(cr[0])
+			show_hit(target, cr[0], cr[1])
+			apply_omnivamp(cr[0])
+	return true
+
 func apply_omnivamp(total_damage: int) -> void:
 	if total_damage <= 0 or not has_relic_power("omnivamp"):
 		return
@@ -3106,15 +3076,13 @@ func spawn_arrow(stats: Dictionary, aim_dir: Vector2) -> void:
 	var pierce_count = int(GameState.get_bonus_total("arrow_pierce"))
 	var spreads_poison = GameState.get_bonus_total("poison_spread") > 0.0
 	var spread = deg_to_rad(float(special.get("spread_deg", 0.0)))
-	var hover = hover_for_mouse(stats.icon_offset)
 	for i in range(count):
 		var dir = aim_dir
 		if count > 1:
 			dir = aim_dir.rotated(lerp(-spread, spread, float(i) / float(count - 1)))
 		var arrow = ARROW_SCENE.instantiate()
-		# loose from wherever the levitating bow hovers (may be far out with
-		# the Levitate skills), not from the character's body
-		arrow.position = global_position + dir * (hover + 8.0)
+		# loose from the held bow rather than from the middle of his body
+		arrow.position = global_position + dir * (stats.icon_offset + 8.0)
 		var cr = roll_crit(int(round(stats.damage * skill_damage_mult("bow"))))
 		arrow.setup(dir, cr[0], stats.knockback_min, stats.knockback_max, 4)
 		arrow.is_crit = cr[1]

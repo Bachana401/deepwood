@@ -28,7 +28,7 @@ extends RefCounted
 #
 # Effect keys -- STATS: melee_damage/melee_cooldown, bow_damage/bow_cooldown,
 # wand_damage/wand_cooldown, max_health, max_mana, mana_regen, move_speed,
-# crit_chance, crit_damage, damage_reduction, status_resistance, levitate_range.
+# crit_chance, crit_damage, damage_reduction, status_resistance.
 # MECHANICS (player.gd / arrow.gd / weapon_projectile.gd read these):
 #   lifesteal            heal % of melee damage dealt
 #   thorns               reflect % of damage taken to nearby foes
@@ -57,7 +57,6 @@ const BRANCH_NAMES = {
 const TREES = {
 	"Sword": [
 		{"id": "sw_root", "branch": -1, "col": 2.5, "name": "Way of the Blade", "desc": "+5% melee damage", "tier": 0, "cost": 1, "prereq": "", "materials": {}, "effect": {"melee_damage": 0.05}},
-		{"id": "sw_levitate", "branch": -1, "col": 0.0, "name": "Levitate", "desc": "Innate: you levitate any equippable weapon, floating it freely around you by telekinesis.", "tier": 0, "cost": 0, "prereq": "", "materials": {}, "effect": {}, "default_unlocked": true},
 		# === Berserker (0): bloodthirst vs blood-rage, ending in a kill-frenzy ===
 		{"id": "sw_b1", "branch": 0, "col": 0.5, "name": "Reckless Edge", "desc": "+12% melee damage", "tier": 1, "cost": 1, "prereq": "sw_root", "materials": {}, "effect": {"melee_damage": 0.12}},
 		{"id": "sw_b2", "branch": 0, "col": 0.5, "name": "Bloodletting", "desc": "-10% melee cooldown", "tier": 2, "cost": 1, "prereq": "sw_b1", "materials": {}, "effect": {"melee_cooldown": 0.10}},
@@ -88,7 +87,6 @@ const TREES = {
 	],
 	"Archer": [
 		{"id": "ar_root", "branch": -1, "col": 2.5, "name": "Way of the Hunt", "desc": "+5% bow damage", "tier": 0, "cost": 1, "prereq": "", "materials": {}, "effect": {"bow_damage": 0.05}},
-		{"id": "ar_levitate", "branch": -1, "col": 0.0, "name": "Levitate", "desc": "Innate: you levitate any equippable weapon, floating it freely around you by telekinesis.", "tier": 0, "cost": 0, "prereq": "", "materials": {}, "effect": {}, "default_unlocked": true},
 		# === Marksman (0): pierce vs execute, ending in skyfall ===
 		{"id": "ar_m1", "branch": 0, "col": 0.5, "name": "Barbed Arrows", "desc": "+12% bow damage", "tier": 1, "cost": 1, "prereq": "ar_root", "materials": {}, "effect": {"bow_damage": 0.12}},
 		{"id": "ar_m2", "branch": 0, "col": 0.5, "name": "Steady Aim", "desc": "+8% crit chance", "tier": 2, "cost": 1, "prereq": "ar_m1", "materials": {}, "effect": {"crit_chance": 0.08}},
@@ -119,7 +117,6 @@ const TREES = {
 	],
 	"Mage": [
 		{"id": "mg_root", "branch": -1, "col": 2.5, "name": "Way of the Arcane", "desc": "-5% wand cooldown", "tier": 0, "cost": 1, "prereq": "", "materials": {}, "effect": {"wand_cooldown": 0.05}},
-		{"id": "mg_levitate", "branch": -1, "col": 0.0, "name": "Levitate", "desc": "Innate: you levitate any equippable weapon around you. The Sage spec extends its reach far beyond your body.", "tier": 0, "cost": 0, "prereq": "", "materials": {}, "effect": {}, "default_unlocked": true},
 		# === Elementalist (0): overcharge vs wildfire, ending in cataclysm ===
 		{"id": "mg_e1", "branch": 0, "col": 0.5, "name": "Kindling", "desc": "+12% wand damage", "tier": 1, "cost": 1, "prereq": "mg_root", "materials": {}, "effect": {"wand_damage": 0.12}},
 		{"id": "mg_e2", "branch": 0, "col": 0.5, "name": "Focused Mind", "desc": "-10% wand cooldown", "tier": 2, "cost": 1, "prereq": "mg_e1", "materials": {}, "effect": {"wand_cooldown": 0.10}},
@@ -134,10 +131,10 @@ const TREES = {
 		{"id": "mg_s2", "branch": 1, "col": 2.5, "name": "Channeling", "desc": "-12% wand cooldown", "tier": 2, "cost": 1, "prereq": "mg_s1", "materials": {}, "effect": {"wand_cooldown": 0.12}},
 		{"id": "mg_s3", "branch": 1, "col": 2.5, "name": "Mana Flow", "desc": "KEYSTONE: +40 max mana, +40% mana regen", "tier": 3, "cost": 2, "prereq": "mg_s2", "materials": {"slime": 3}, "effect": {"max_mana": 40.0, "mana_regen": 0.40}, "keystone": true},
 		{"id": "mg_s4a", "branch": 1, "col": 2.0, "name": "Overflow", "desc": "FORK: +50 max mana, +18% wand damage — a deep arcane battery", "tier": 4, "cost": 3, "prereq": "mg_s3", "materials": {"ember_crystal": 2}, "effect": {"max_mana": 50.0, "wand_damage": 0.18}, "keystone": true, "exclusive": "mg1"},
-		{"id": "mg_s4b", "branch": 1, "col": 3.0, "name": "Far Hand", "desc": "FORK: +120px Levitate reach — strike from well beyond melee", "tier": 4, "cost": 3, "prereq": "mg_s3", "materials": {"ember_crystal": 2}, "effect": {"levitate_range": 120.0}, "keystone": true, "exclusive": "mg1"},
+		{"id": "mg_s4b", "branch": 1, "col": 3.0, "name": "Focusing Lens", "desc": "FORK: HOLD attack with a wand to channel a beam. Its damage ramps the longer it stays on a target — moving or breaking line of sight cuts it.", "tier": 4, "cost": 3, "prereq": "mg_s3", "materials": {"ember_crystal": 2}, "effect": {"beam_channel": 1.0, "wand_damage": 0.10}, "keystone": true, "exclusive": "mg1"},
 		{"id": "mg_s5", "branch": 1, "col": 2.5, "name": "Time Warp", "desc": "-20% wand cooldown, +50% mana regen", "tier": 5, "cost": 2, "prereq": ["mg_s4a", "mg_s4b"], "materials": {"ember_crystal": 1}, "effect": {"wand_cooldown": 0.20, "mana_regen": 0.50}},
-		{"id": "mg_s6", "branch": 1, "col": 2.5, "name": "Distant Hand", "desc": "KEYSTONE: +160px Levitate reach — snipe from true distance", "tier": 6, "cost": 4, "prereq": "mg_s5", "materials": {"void_essence": 2}, "effect": {"levitate_range": 160.0}, "keystone": true},
-		{"id": "mg_s7", "branch": 1, "col": 2.5, "name": "Transcendence", "desc": "ULTIMATE: +60 max mana, +100% regen, -20% wand cd, +120px reach.", "tier": 7, "cost": 6, "prereq": "mg_s6", "materials": {"void_essence": 3, "ancient_relic": 2}, "effect": {"max_mana": 60.0, "mana_regen": 1.0, "wand_cooldown": 0.20, "levitate_range": 120.0}, "keystone": true},
+		{"id": "mg_s6", "branch": 1, "col": 2.5, "name": "Sustained Focus", "desc": "KEYSTONE: +20% wand damage. If you channel, the beam ramps to a far higher peak (+0.6x).", "tier": 6, "cost": 4, "prereq": "mg_s5", "materials": {"void_essence": 2}, "effect": {"wand_damage": 0.20, "beam_ramp": 0.6}, "keystone": true},
+		{"id": "mg_s7", "branch": 1, "col": 2.5, "name": "Transcendence", "desc": "ULTIMATE: +60 max mana, +100% regen, -20% wand cd, and +0.5x beam peak.", "tier": 7, "cost": 6, "prereq": "mg_s6", "materials": {"void_essence": 3, "ancient_relic": 2}, "effect": {"max_mana": 60.0, "mana_regen": 1.0, "wand_cooldown": 0.20, "beam_ramp": 0.5}, "keystone": true},
 		# === Mystic (2): greater-barrier vs blink, ending in spellblade avatar ===
 		{"id": "mg_m1", "branch": 2, "col": 4.5, "name": "Arcane Ward", "desc": "+20 max health", "tier": 1, "cost": 1, "prereq": "mg_root", "materials": {}, "effect": {"max_health": 20.0}},
 		{"id": "mg_m2", "branch": 2, "col": 4.5, "name": "Mana Shell", "desc": "+25 max mana", "tier": 2, "cost": 1, "prereq": "mg_m1", "materials": {}, "effect": {"max_mana": 25.0}},
@@ -151,7 +148,6 @@ const TREES = {
 	# Unlockable only after finishing the game -- a locked teaser for now.
 	"Shadow Monarch": [
 		{"id": "nc_root", "branch": -1, "col": 2.5, "name": "Shadow's Pact", "desc": "???", "tier": 0, "cost": 1, "prereq": "", "materials": {}, "effect": {}},
-		{"id": "nc_levitate", "branch": -1, "col": 0.0, "name": "Levitate", "desc": "Innate: you levitate any equippable weapon, floating it freely around you by telekinesis.", "tier": 0, "cost": 0, "prereq": "", "materials": {}, "effect": {}, "default_unlocked": true},
 		{"id": "nc_b1", "branch": 0, "col": 0.5, "name": "???", "desc": "???", "tier": 1, "cost": 1, "prereq": "nc_root", "materials": {}, "effect": {}},
 		{"id": "nc_b2", "branch": 1, "col": 2.5, "name": "???", "desc": "???", "tier": 1, "cost": 1, "prereq": "nc_root", "materials": {}, "effect": {}},
 		{"id": "nc_b3", "branch": 2, "col": 4.5, "name": "???", "desc": "???", "tier": 1, "cost": 1, "prereq": "nc_root", "materials": {}, "effect": {}},
