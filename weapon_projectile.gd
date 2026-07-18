@@ -14,6 +14,7 @@ extends Area2D
 # All visuals are procedural polygons, self-cleaning on despawn.
 
 var kind := "slash"
+var girth := 1.0            # scales the visual AND the hitbox together
 var direction := Vector2.RIGHT
 var speed := 500.0
 var damage := 10
@@ -63,11 +64,15 @@ func _ready() -> void:
 	z_index = 40
 	var cs = CollisionShape2D.new()
 	var shape = RectangleShape2D.new()
-	shape.size = Vector2(36, 20)
+	# girth scales the projectile as a whole -- the drawn shape AND what it can
+	# hit -- so a mythic crescent is genuinely a wall of force sweeping the room
+	# rather than a small sprite that merely looks impressive.
+	shape.size = Vector2(36, 20) * girth
 	cs.shape = shape
 	add_child(cs)
 	body_entered.connect(_on_body_entered)
 	visual = Node2D.new()
+	visual.scale = Vector2.ONE * girth
 	add_child(visual)
 	match kind:
 		"slash": _build_slash()

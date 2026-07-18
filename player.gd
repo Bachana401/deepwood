@@ -2280,7 +2280,7 @@ func perform_attack() -> void:
 				apply_melee_skills(body, cr[0])
 				cleave_total += cr[0]
 			if body.has_method("apply_knockback"):
-				var kb = randf_range(stats.knockback_min, stats.knockback_max) * (1.6 if is_finisher else 1.0)
+				var kb = randf_range(stats.knockback_min, stats.knockback_max) * (1.6 if is_finisher else 1.0) * grade_force_mult()
 				body.apply_knockback(knockback_sign_toward(body), kb)
 		apply_omnivamp(cleave_total)
 	else:
@@ -2297,7 +2297,7 @@ func perform_attack() -> void:
 				apply_melee_skills(target, dealt)
 			if target.has_method("apply_knockback"):
 				# a finisher doesn't just hurt more, it sends them
-				var knockback_distance = randf_range(stats.knockback_min, stats.knockback_max) * (1.6 if is_finisher else 1.0)
+				var knockback_distance = randf_range(stats.knockback_min, stats.knockback_max) * (1.6 if is_finisher else 1.0) * grade_force_mult()
 				target.apply_knockback(knockback_sign_toward(target), knockback_distance)
 			if is_excellent:
 				apply_excellent_effect(target, dealt)
@@ -2309,7 +2309,7 @@ func perform_attack() -> void:
 	# levitation reach, except you EARN it by finding the weapon instead of
 	# everyone having it from level one. It rides on top of the normal swing, so
 	# the blade still hits whatever is standing next to you as well.
-	var swing_slash: Dictionary = active_def.get("swing_slash", {})
+	var swing_slash: Dictionary = swing_slash_config()
 	if not swing_slash.is_empty():
 		launch_swing_slash(swing_slash, aim_dir, stats)
 	animate_sword()
@@ -2425,8 +2425,9 @@ func spawn_swing_trail(aim_dir: Vector2, stats: Dictionary, finisher := false) -
 	var rank: int = int(Inventory.GRADE_DEFS.get(grade, {}).get("rank", 1))
 	var col: Color = active_def.get("color", Color(1, 1, 1))
 	var radius := float(stats.range_offset) + float(stats.area_size.y) * 0.5
-	var arc := deg_to_rad(64.0 + rank * 7.0)          # higher grade sweeps wider
-	var thickness := 3.0 + rank * 1.7
+	var arc := deg_to_rad(70.0 + rank * 11.0)         # higher grade sweeps wider
+	var thickness := 4.0 + rank * 2.8
+	radius += rank * 3.0                              # and reaches further out
 	if finisher:
 		# the closing blow of a string reads bigger than the taps before it
 		arc *= 1.5
@@ -2459,10 +2460,56 @@ func spawn_swing_trail(aim_dir: Vector2, stats: Dictionary, finisher := false) -
 	tw.set_parallel(false)
 	tw.tween_callback(poly.queue_free)
 
-# Throws the swing forward as a flying crescent. Damage is a FRACTION of the
-# weapon's own hit (damage_mult), so the slash extends your reach without ever
-# beating simply walking up and hitting the thing -- the melee weapon stays a
-# melee weapon that happens to reach.
+# The slash a weapon throws with its swing. Every melee weapon of RARE or better
+# gets one, derived from its grade -- an explicit "swing_slash" entry only adds
+# flavour (a status rider) on top. Grade drives all three of the things that
+# make a slash feel powerful:
+#
+#   girth  -- how much space the crescent occupies, visual AND hitbox together
+#   reach  -- how far across the room it travels
+#   speed  -- how hard it leaves the blade
+#
+# so a Mythic weapon hurls a huge fast wall of force while a Rare one flicks a
+# modest crescent. Damage stays a FRACTION of the weapon's own hit, so reaching
+# out never beats walking up and swinging -- the power is in the spectacle and
+# the coverage, not in the number.
+const SLASH_MIN_RANK = 3        # rare and up
+
+# How much a weapon's GRADE amplifies its physical presence -- how far it throws
+# what it hits, how much room its arc takes. Kept deliberately separate from
+# damage: a mythic weapon should feel overwhelming to swing, not merely print a
+# bigger number. Every weapon benefits, not just the ones that throw slashes.
+func weapon_grade_rank() -> int:
+	if not has_weapon():
+		return 0
+	var g: String = Inventory.ITEM_GRADES.get(active_weapon_id, "")
+	return int(Inventory.GRADE_DEFS.get(g, {}).get("rank", 0))
+
+func grade_force_mult() -> float:
+	return 1.0 + weapon_grade_rank() * 0.16     # mythic sends them ~2x as far
+
+func swing_slash_config() -> Dictionary:
+	if not has_weapon() or active_weapon_type != "melee":
+		return {}
+	var grade: String = Inventory.ITEM_GRADES.get(active_weapon_id, "")
+	var rank: int = int(Inventory.GRADE_DEFS.get(grade, {}).get("rank", 0))
+	var explicit: Dictionary = active_def.get("swing_slash", {})
+	if rank < SLASH_MIN_RANK and explicit.is_empty():
+		return {}
+	var out := {
+		"damage_mult": 0.30 + rank * 0.05,        # rare 0.45 -> mythic 0.60
+		"girth": 1.0 + rank * 0.42,               # rare 2.26 -> mythic 3.52
+		"range": 300.0 + rank * 95.0,             # rare 585  -> mythic 870
+		"speed": 460.0 + rank * 40.0,             # rare 580  -> mythic 700
+	}
+	# An authored entry contributes FLAVOUR ONLY -- a status rider. Geometry is
+	# always derived, so a hand-written entry can never lag behind a later
+	# tuning pass (which is exactly what happened when the first six carried
+	# their own range and quietly stayed at 340px while everything else grew).
+	if explicit.has("status"):
+		out["status"] = explicit["status"]
+	return out
+
 func launch_swing_slash(cfg: Dictionary, dir: Vector2, stats: Dictionary) -> void:
 	var mult := float(cfg.get("damage_mult", 0.5))
 	var dmg := maxi(1, int(round(float(stats.damage) * mult * skill_damage_mult("melee"))))
@@ -2471,6 +2518,7 @@ func launch_swing_slash(cfg: Dictionary, dir: Vector2, stats: Dictionary) -> voi
 		"type": "flying_slash",
 		"speed": cfg.get("speed", 520.0),
 		"range": cfg.get("range", 300.0),
+		"girth": cfg.get("girth", 1.0),
 		"status": cfg.get("status", {}),
 	}, dir, cr[0], cr[1])
 
@@ -2491,6 +2539,8 @@ func launch_projectile(cfg: Dictionary, dir: Vector2, dmg: int, is_crit: bool = 
 	p.max_distance = float(cfg.get("range", 450.0))
 	p.pierce = bool(cfg.get("pierce", kind in ["slash", "javelin"]))
 	p.aoe_radius = float(cfg.get("aoe", 0.0))
+	# grade-driven scale: bigger crescent, bigger hitbox, same maths everywhere
+	p.girth = maxf(0.4, float(cfg.get("girth", 1.0)))
 	# a weapon's own status wins; otherwise the Elementalist's Ignite skill rides
 	# the cast so a plain wand still burns once you've taken the keystone.
 	var status = cfg.get("status", {})

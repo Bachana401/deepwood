@@ -90,29 +90,44 @@ func _ready() -> void:
 	check("stopping the beam resets the ramp", p.beam_connect_time == 0.0)
 	GameState.unlocked_skills = saved_skills
 
-	# ---------------- high-grade blades throw their swing forward ----------------
-	var slashers := []
-	var heavy_got_slash := []
-	for id in Inventory.ITEM_DEFS.keys():
-		var d: Dictionary = Inventory.ITEM_DEFS[id]
-		if not d.get("swing_slash", {}).is_empty():
-			slashers.append(id)
-			# a swing-slash is an EARNED high-grade perk, never a common drop
-			var g: String = Inventory.ITEM_GRADES.get(id, "")
-			check("slash weapon '%s' is legendary/mythic (earned, not free)" % id,
-				g in ["legendary", "mythic"], "grade=%s" % g)
-	check("several blades launch swing slashes", slashers.size() >= 5, "%d" % slashers.size())
-	# the maul is a BIG weapon, not a slasher -- size and slashes are alternatives
-	check("Earthshaker Maul stays big instead of gaining a slash",
-		Inventory.ITEM_DEFS["exc_earthshaker"].get("swing_slash", {}).is_empty())
-	# and the slash must be a fraction of the swing, never a straight upgrade
-	for id in slashers:
-		var m: float = float(Inventory.ITEM_DEFS[id]["swing_slash"].get("damage_mult", 1.0))
-		check("'%s' slash is weaker than its own swing (%.2fx)" % [id, m], m < 1.0, "%.2f" % m)
-	# the Shadowblade's description promised a slash it never had -- now it does
-	check("Shadowblade actually launches the slash its text promises",
-		not Inventory.ITEM_DEFS["exc_shadowblade"].get("swing_slash", {}).is_empty())
+	# ---------------- slashes: derived from grade, rare and up ----------------
+	# a slash is EARNED -- junk grades swing and nothing flies off the blade
+	p.inventory.add_item("wpn_sword", 1); p.wield_weapon("wpn_sword")     # common
+	check("a common weapon throws no slash", p.swing_slash_config().is_empty())
+	p.inventory.add_item("wpn_katana", 1); p.wield_weapon("wpn_katana")   # rare
+	var rare_cfg: Dictionary = p.swing_slash_config()
+	check("a rare weapon throws a slash", not rare_cfg.is_empty())
+	p.inventory.add_item("exc_ragnarok", 1); p.wield_weapon("exc_ragnarok")  # mythic
+	var myth_cfg: Dictionary = p.swing_slash_config()
+	check("a mythic slash is FATTER than a rare one",
+		float(myth_cfg["girth"]) > float(rare_cfg["girth"]) * 1.3,
+		"mythic=%.2f rare=%.2f" % [myth_cfg["girth"], rare_cfg["girth"]])
+	check("a mythic slash flies FURTHER than a rare one",
+		float(myth_cfg["range"]) > float(rare_cfg["range"]) * 1.3,
+		"mythic=%.0f rare=%.0f" % [myth_cfg["range"], rare_cfg["range"]])
+	check("a mythic slash flies FASTER than a rare one",
+		float(myth_cfg["speed"]) > float(rare_cfg["speed"]))
+	check("slashes got substantially bigger than the old flat 300px",
+		float(myth_cfg["range"]) > 700.0, "%.0f" % myth_cfg["range"])
+	# but it still must never beat just walking up and hitting the thing
+	for cfg_id in ["wpn_katana", "exc_ragnarok", "exc_shadowblade"]:
+		p.inventory.add_item(cfg_id, 1); p.wield_weapon(cfg_id)
+		var c: Dictionary = p.swing_slash_config()
+		check("'%s' slash stays weaker than its own swing (%.2fx)" % [cfg_id, c.get("damage_mult", 9.9)],
+			float(c.get("damage_mult", 9.9)) < 1.0)
+	# an authored entry still wins, so flavour riders survive the derivation
+	p.wield_weapon("exc_ragnarok")
+	check("Ragnarok keeps its authored burn rider",
+		not p.swing_slash_config().get("status", {}).is_empty())
 	check("player can launch a swing slash", p.has_method("launch_swing_slash"))
+
+	# grade also amplifies raw physical force, for EVERY weapon
+	p.wield_weapon("wpn_sword")
+	var common_force: float = p.grade_force_mult()
+	p.wield_weapon("exc_ragnarok")
+	var myth_force: float = p.grade_force_mult()
+	check("a mythic weapon throws enemies far harder than a common one",
+		myth_force > common_force * 1.5, "mythic=%.2f common=%.2f" % [myth_force, common_force])
 
 	# ---------------- size is derived from swing speed ----------------
 	# the roster rule: within a type that actually swings, a bigger weapon must
