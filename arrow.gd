@@ -24,6 +24,7 @@ var pierced_bodies := []   # bodies already struck this flight (so pierce never 
 # (capped turn rate, so point-blank dodges still work). Enabled by the
 # player's spawn_arrow when the wielded bow's special is "homing".
 var homing := false
+var girth := 1.0   # grade-driven scale: a heavier shaft, drawn AND felt
 const HOMING_TURN_RATE = 5.0     # radians/sec of steering authority
 const HOMING_RANGE = 460.0
 const HOMING_GROUPS = ["course_enemy", "dungeon_combatant", "siege_enemy"]
@@ -35,7 +36,27 @@ func _ready() -> void:
 	add_to_group("player_projectile")
 	start_position = global_position
 	rotation = direction.angle()
+	apply_girth()
 	$HitArea.body_entered.connect(_on_hit_area_body_entered)
+
+# Scales the shaft with its bow's grade -- the drawn arrow AND what it can hit,
+# so a mythic bow's shot is genuinely a heavier projectile rather than a
+# same-sized one wearing a bigger sprite.
+func apply_girth() -> void:
+	if is_equal_approx(girth, 1.0):
+		return
+	# NOTE: one RectangleShape2D resource is shared by the body, the hit area,
+	# and every arrow ever fired -- duplicate before touching it or the change
+	# leaks into every other arrow in the game.
+	for cs in [$CollisionShape2D, $HitArea/HitAreaShape]:
+		cs.shape = cs.shape.duplicate()
+		if cs.shape is RectangleShape2D:
+			cs.shape.size *= girth
+	var cr: ColorRect = $ColorRect
+	cr.offset_left *= girth
+	cr.offset_top *= girth
+	cr.offset_right *= girth
+	cr.offset_bottom *= girth
 
 func setup(dir: Vector2, dmg: int, kb_min: float, kb_max: float, target_mask: int = 4, pierce_terrain: bool = false, custom_max_range: float = -1.0) -> void:
 	direction = dir.normalized()

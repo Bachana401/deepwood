@@ -129,6 +129,35 @@ func _ready() -> void:
 	check("a mythic weapon throws enemies far harder than a common one",
 		myth_force > common_force * 1.5, "mythic=%.2f common=%.2f" % [myth_force, common_force])
 
+	# ---------------- ranged weapons get the same grade presence ----------------
+	p.inventory.add_item("wpn_shortbow", 1); p.wield_weapon("wpn_shortbow")   # uncommon
+	var low_g: float = p.grade_projectile_girth()
+	var low_r: float = p.grade_projectile_range()
+	p.inventory.add_item("exc_stormfury", 1); p.wield_weapon("exc_stormfury")  # mythic
+	check("a mythic bow looses a heavier shaft", p.grade_projectile_girth() > low_g * 1.3,
+		"mythic=%.2f uncommon=%.2f" % [p.grade_projectile_girth(), low_g])
+	check("a mythic bow carries further", p.grade_projectile_range() > low_r,
+		"mythic=%.2f uncommon=%.2f" % [p.grade_projectile_range(), low_r])
+
+	# a fat arrow must not leak its size into every other arrow: the shape
+	# resource is shared by the body, the hit area, AND every arrow ever fired
+	# kept OUT of the scene tree on purpose: an arrow dropped at the origin sits
+	# inside the village ground, collides on its first frame and frees itself
+	# before it can be measured. Scaling needs no physics.
+	var a1 = load("res://arrow.tscn").instantiate()
+	a1.girth = 3.0
+	a1.apply_girth()
+	var a2 = load("res://arrow.tscn").instantiate()   # a plain arrow made afterwards
+	var fat: float = a1.get_node("CollisionShape2D").shape.size.x
+	var plain: float = a2.get_node("CollisionShape2D").shape.size.x
+	check("a scaled arrow is genuinely bigger", fat > plain * 2.0, "fat=%.0f plain=%.0f" % [fat, plain])
+	check("scaling one arrow does NOT leak into later arrows", abs(plain - 22.0) < 0.01,
+		"plain arrow is %.1f wide, expected 22" % plain)
+	# and the hit area grew with the body, not just the drawn shaft
+	check("the scaled arrow's HIT AREA grew too",
+		a1.get_node("HitArea/HitAreaShape").shape.size.x > plain * 2.0)
+	a1.free(); a2.free()
+
 	# ---------------- size is derived from swing speed ----------------
 	# the roster rule: within a type that actually swings, a bigger weapon must
 	# never also be a faster one.

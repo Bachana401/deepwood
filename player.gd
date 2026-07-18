@@ -2488,6 +2488,15 @@ func weapon_grade_rank() -> int:
 func grade_force_mult() -> float:
 	return 1.0 + weapon_grade_rank() * 0.16     # mythic sends them ~2x as far
 
+# Ranged weapons earn the same presence melee did: a mythic bow looses a visibly
+# heavier shaft that carries further, a mythic wand throws a fatter bolt. Scaled
+# more gently than a melee slash (which lands once per swing) because ranged
+# weapons put a projectile in the air constantly.
+func grade_projectile_girth() -> float:
+	return 1.0 + weapon_grade_rank() * 0.22     # mythic ~2.3x
+func grade_projectile_range() -> float:
+	return 1.0 + weapon_grade_rank() * 0.13     # mythic ~1.8x
+
 func swing_slash_config() -> Dictionary:
 	if not has_weapon() or active_weapon_type != "melee":
 		return {}
@@ -2582,7 +2591,11 @@ func cast_wand_projectile(special: Dictionary) -> void:
 	weapon_anim_tween.tween_property(icon, "scale", Vector2(1.4, 1.4), 0.08)
 	weapon_anim_tween.tween_property(icon, "scale", Vector2.ONE, 0.15)
 	var cr = roll_crit(int(round(special.get("damage", 10) * skill_damage_mult("wand"))))
-	launch_projectile(special, get_aim_direction(), cr[0], cr[1])
+	# a higher-grade wand throws a visibly fatter bolt that carries further
+	var cast: Dictionary = special.duplicate(true)
+	cast["girth"] = grade_projectile_girth()
+	cast["range"] = float(special.get("range", 450.0)) * grade_projectile_range()
+	launch_projectile(cast, get_aim_direction(), cr[0], cr[1])
 
 # Echo Rift: counts strikes so every 3rd one repeats its damage.
 var echo_hit_counter: int = 0
@@ -3342,6 +3355,10 @@ func spawn_arrow(stats: Dictionary, aim_dir: Vector2) -> void:
 		arrow.enemy_statuses = arrow_statuses
 		arrow.pierce_count = pierce_count
 		arrow.poison_spread = spreads_poison
+		# grade presence: a heavier shaft that carries further (set BEFORE
+		# add_child so the arrow's _ready applies it)
+		arrow.girth = grade_projectile_girth()
+		arrow.max_range = arrow.DEFAULT_MAX_RANGE * grade_projectile_range()
 		get_parent().add_child(arrow)
 
 func cast_wand() -> void:
