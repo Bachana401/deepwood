@@ -35,11 +35,11 @@ func _ready() -> void:
 	rows.sort_custom(func(a, b): return a["acell"] < b["acell"])
 
 	printerr("== WEAPON ROSTER (by hitbox area) ==")
-	printerr("%-22s %-7s %-10s %5s %6s %6s %11s %8s %s" % ["id", "type", "grade", "dmg", "cd", "reach", "area", "dps", "slash"])
+	printerr("%-22s %-7s %-10s %5s %6s %6s %11s %6s %8s %s" % ["id", "type", "grade", "dmg", "cd", "reach", "area", "drawn", "dps", "slash"])
 	for r in rows:
-		printerr("%-22s %-7s %-10s %5d %6.2f %6.0f %5.0fx%-5.0f %8.1f %s" % [
+		printerr("%-22s %-7s %-10s %5d %6.2f %6.0f %5.0fx%-5.0f %6.0f %8.1f %s" % [
 			r["id"], r["type"], r["grade"], int(r["dmg"]), r["cd"], r["reach"],
-			r["area"].x, r["area"].y, r["dmg"] / maxf(0.01, r["cd"]),
+			r["area"].x, r["area"].y, r["icon"].x, r["dmg"] / maxf(0.01, r["cd"]),
 			"slash" if r["slash"] else ""])
 
 	# --- rule violations: within a weapon type, a bigger hitbox must not also
@@ -66,6 +66,10 @@ func _ready() -> void:
 	for a in rows:
 		for b in rows:
 			if a["id"] == b["id"] or a["type"] != b["type"] or a["grade"] != b["grade"]:
+				continue
+			# a weapon with 0 base damage does its work through a projectile
+			# special, so comparing it on the damage dial says nothing
+			if a["dmg"] <= 0.0 or b["dmg"] <= 0.0:
 				continue
 			if a["dmg"] >= b["dmg"] and a["cd"] <= b["cd"] and a["reach"] >= b["reach"] and a["acell"] >= b["acell"] \
 					and (a["dmg"] > b["dmg"] or a["cd"] < b["cd"] or a["reach"] > b["reach"] or a["acell"] > b["acell"]):

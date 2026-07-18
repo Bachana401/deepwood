@@ -243,7 +243,7 @@ const ITEM_DEFS = {
 	# --- Excellent weapons (classless, unique effects, no skill scaling) ---
 	"exc_vampiric": {
 		"name": "Vampiric Fang", "category": "weapon", "weapon_type": "melee", "excellent": true, "max_stack": 1, "color": Color(0.7, 0.1, 0.2, 1.0),
-		"weapon_stats": {"damage": 14, "cooldown": 0.4, "range_offset": 46, "area_size": Vector2(60, 36), "knockback_min": 30.0, "knockback_max": 60.0, "icon_size": Vector2(52, 12), "icon_color": Color(0.7, 0.1, 0.2), "icon_offset": 20.0},
+		"weapon_stats": {"damage": 14, "cooldown": 0.38, "range_offset": 46, "area_size": Vector2(60, 36), "knockback_min": 30.0, "knockback_max": 60.0, "icon_size": Vector2(52, 12), "icon_color": Color(0.7, 0.1, 0.2), "icon_offset": 20.0},
 		"unique_effect": "lifesteal", "unique_value": 0.35,
 		"unique_desc": "Heals you for 35% of the melee damage it deals.",
 	},
@@ -267,7 +267,7 @@ const ITEM_DEFS = {
 	},
 	"exc_soul": {
 		"name": "Soulthirst", "category": "weapon", "weapon_type": "melee", "excellent": true, "max_stack": 1, "color": Color(0.45, 0.3, 0.9, 1.0),
-		"weapon_stats": {"damage": 13, "cooldown": 0.4, "range_offset": 46, "area_size": Vector2(60, 36), "knockback_min": 30.0, "knockback_max": 60.0, "icon_size": Vector2(52, 12), "icon_color": Color(0.55, 0.38, 0.95), "icon_offset": 20.0},
+		"weapon_stats": {"damage": 12, "cooldown": 0.32, "range_offset": 46, "area_size": Vector2(60, 36), "knockback_min": 30.0, "knockback_max": 60.0, "icon_size": Vector2(52, 12), "icon_color": Color(0.55, 0.38, 0.95), "icon_offset": 20.0},
 		"unique_effect": "manasteal", "unique_value": 12,
 		"unique_desc": "Drinks the struck foe's spirit: restores 12 Mana per hit.",
 	},
@@ -338,7 +338,7 @@ const ITEM_DEFS = {
 	},
 	"exc_dawnbreaker": {
 		"name": "Dawnbreaker", "category": "weapon", "weapon_type": "melee", "excellent": true, "max_stack": 1, "color": Color(1.0, 0.95, 0.6, 1.0),
-		"weapon_stats": {"damage": 17, "cooldown": 0.4, "range_offset": 48, "area_size": Vector2(64, 38), "knockback_min": 30.0, "knockback_max": 60.0, "icon_size": Vector2(56, 12), "icon_color": Color(1.0, 0.95, 0.6), "icon_offset": 20.0},
+		"weapon_stats": {"damage": 17, "cooldown": 0.48, "range_offset": 48, "area_size": Vector2(64, 38), "knockback_min": 30.0, "knockback_max": 60.0, "icon_size": Vector2(56, 12), "icon_color": Color(1.0, 0.95, 0.6), "icon_offset": 20.0},
 		"swing_slash": {"damage_mult": 0.50, "speed": 580.0, "range": 320.0},
 		"unique_effect": "radiance", "unique_value": 0.2,
 		"unique_desc": "Blessed light: each swing hurls a piercing sun-slash and heals you for 20% of the damage dealt.",
@@ -794,6 +794,15 @@ const SIZE_BANDS = {
 	"spear": {"cd_lo": 0.65, "cd_hi": 1.00, "len_lo": 96.0, "len_hi": 142.0, "h_lo": 30.0, "h_hi": 46.0},
 }
 
+# Wands fire projectiles, so no hitbox rule binds them -- but they were all drawn
+# at very nearly the same length (46-52px), which made the whole caster rack look
+# like one item. Their DRAWN size now spreads with cast speed: a quick
+# channelling baton is stubby, a slow ceremonial staff is long. Visual only, so
+# this never becomes a balance dial.
+const VISUAL_BANDS = {
+	"wand": {"cd_lo": 0.28, "cd_hi": 1.00, "len_lo": 30.0, "len_hi": 80.0, "h_lo": 6.0, "h_hi": 14.0},
+}
+
 # The authored stats with size filled in. Everything that wields or inspects a
 # weapon should go through here rather than reading "weapon_stats" raw.
 static func weapon_stats_for(item_id: String) -> Dictionary:
@@ -802,6 +811,15 @@ static func weapon_stats_for(item_id: String) -> Dictionary:
 	if ws.is_empty():
 		return ws
 	var wtype = str(def.get("weapon_type", "melee"))
+	if VISUAL_BANDS.has(wtype):
+		# drawn size only -- the hitbox stays exactly as authored
+		var vb: Dictionary = VISUAL_BANDS[wtype]
+		var vout: Dictionary = ws.duplicate(true)
+		var vcd = float(ws.get("cooldown", 0.5))
+		var vt = clampf((vcd - float(vb["cd_lo"])) / maxf(0.01, float(vb["cd_hi"]) - float(vb["cd_lo"])), 0.0, 1.0)
+		vout["icon_size"] = Vector2(lerpf(float(vb["len_lo"]), float(vb["len_hi"]), vt),
+			lerpf(float(vb["h_lo"]), float(vb["h_hi"]), vt))
+		return vout
 	if not SIZE_BANDS.has(wtype):
 		return ws
 	var band: Dictionary = SIZE_BANDS[wtype]
