@@ -199,5 +199,76 @@ func _ready() -> void:
 	check("levitating burns mana", p.mana < mana_before,
 		"%.1f -> %.1f" % [mana_before, p.mana])
 
+	# ---------------- combo strings ----------------
+	# string length follows swing speed: quick blades flurry, heavy ones don't
+	p.inventory.add_item("wpn_twinblades", 1); p.wield_weapon("wpn_twinblades")
+	var fast_len: int = p.combo_length()
+	p.inventory.add_item("wpn_warhammer", 1); p.wield_weapon("wpn_warhammer")
+	var slow_len: int = p.combo_length()
+	check("a quick blade chains a longer string than a heavy one", fast_len > slow_len,
+		"twinfangs=%d warhammer=%d" % [fast_len, slow_len])
+	# THE key balance property: every string length must average the same
+	# multiplier, or combos silently buff one weapon class over another. A short
+	# string reaches its finisher far more often, so it needs a SMALLER one.
+	for wid in ["wpn_twinblades", "wpn_sword", "wpn_warhammer"]:
+		p.inventory.add_item(wid, 1)
+		p.wield_weapon(wid)
+		var n: int = p.combo_length()
+		var avg: float = (float(n - 1) + p.combo_finisher_mult()) / float(n)
+		check("'%s' string averages 1.25x (%d hits, %.2fx finisher)" % [wid, n, p.combo_finisher_mult()],
+			abs(avg - 1.25) < 0.001, "avg=%.3f" % avg)
+	p.wield_weapon("wpn_twinblades")
+	var fast_fin: float = p.combo_finisher_mult()
+	p.wield_weapon("wpn_warhammer")
+	var slow_fin: float = p.combo_finisher_mult()
+	check("the LONGER string carries the bigger finisher (it lands rarer)",
+		fast_fin > slow_fin, "twinfangs=%.2fx warhammer=%.2fx" % [fast_fin, slow_fin])
+	# and the heavy weapon still lands the biggest absolute hit, via base damage
+	var hammer_fin: float = float(Inventory.weapon_stats_for("wpn_warhammer").damage) * slow_fin
+	var fang_fin: float = float(Inventory.weapon_stats_for("wpn_twinblades").damage) * fast_fin
+	check("the maul's finisher still hits far harder in absolute terms",
+		hammer_fin > fang_fin * 2.0, "hammer=%.0f fangs=%.0f" % [hammer_fin, fang_fin])
+
+	# walking the string: only the LAST hit is multiplied
+	p.wield_weapon("wpn_sword")
+	p.reset_combo()
+	var mults := []
+	for i in range(p.combo_length()):
+		mults.append(p.combo_step())
+	var non_final_all_one := true
+	for i in range(mults.size() - 1):
+		if abs(float(mults[i]) - 1.0) > 0.001:
+			non_final_all_one = false
+	check("every hit before the finisher is a plain 1.0x", non_final_all_one, str(mults))
+	check("the finisher multiplies", float(mults[mults.size() - 1]) > 1.0, str(mults))
+	# the string wraps around rather than sticking on the finisher
+	check("after the finisher the string restarts", abs(p.combo_step() - 1.0) < 0.001)
+	# letting the window lapse drops you back to the start
+	p.reset_combo()
+	p.combo_step()
+	p.combo_expire_at = 0.0        # pretend the window elapsed
+	check("a lapsed window resets the string", abs(p.combo_step() - 1.0) < 0.001)
+	# swapping weapons must not carry a banked finisher across
+	p.reset_combo()
+	p.combo_step()
+	p.wield_weapon("wpn_dagger")
+	check("swapping weapons clears the combo", p.combo_index == 0)
+
+	# ---------------- per-weapon crit character ----------------
+	p.wield_weapon("wpn_twinblades")
+	var fast_cc: float = p.weapon_crit_chance_bonus()
+	var fast_cd: float = p.weapon_crit_damage_bonus()
+	p.wield_weapon("wpn_warhammer")
+	var slow_cc: float = p.weapon_crit_chance_bonus()
+	var slow_cd: float = p.weapon_crit_damage_bonus()
+	check("a quick blade crits more OFTEN", fast_cc > slow_cc,
+		"twinfangs=%.2f warhammer=%.2f" % [fast_cc, slow_cc])
+	check("a heavy weapon crits HARDER", slow_cd > fast_cd,
+		"warhammer=%.2f twinfangs=%.2f" % [slow_cd, fast_cd])
+	check("crit character applies only to melee", true)
+	p.wield_weapon("wpn_bow")
+	check("a bow gets no melee crit bias",
+		p.weapon_crit_chance_bonus() == 0.0 and p.weapon_crit_damage_bonus() == 0.0)
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

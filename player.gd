@@ -1261,10 +1261,10 @@ const BASE_CRIT_CHANCE = 0.05
 const BASE_CRIT_DAMAGE = 0.5
 
 func get_crit_chance() -> float:
-	return clamp(BASE_CRIT_CHANCE + GameState.get_bonus_total("crit_chance") + buff_bonus("crit_chance"), 0.0, 1.0)
+	return clamp(BASE_CRIT_CHANCE + GameState.get_bonus_total("crit_chance") + buff_bonus("crit_chance") + weapon_crit_chance_bonus(), 0.0, 1.0)
 
 func get_crit_damage() -> float:
-	return BASE_CRIT_DAMAGE + GameState.get_bonus_total("crit_damage")
+	return BASE_CRIT_DAMAGE + GameState.get_bonus_total("crit_damage") + weapon_crit_damage_bonus()
 
 # Rolls a crit against a base amount. Returns [final_amount, is_crit].
 func roll_crit(base: int) -> Array:
@@ -1631,6 +1631,7 @@ func wield_weapon(item_id: String) -> bool:
 	active_def = def
 	active_stats = stats
 	active_weapon_type = def.get("weapon_type", "melee")
+	reset_combo()   # a string belongs to the weapon that started it
 	$AttackArea/CollisionShape2D.shape.size = stats.area_size
 	if weapon_anim_tween:
 		weapon_anim_tween.kill()
@@ -2034,6 +2035,7 @@ func _physics_process(delta: float) -> void:
 		facing_direction = sign(direction)
 	if has_weapon() and not is_attacking:
 		update_weapon_visual(active_stats.icon_offset)
+	update_combo_label()
 
 	if not is_dashing and not is_knocked_back:
 		velocity.x = direction * SPEED * skill_move_speed_mult()
@@ -2252,9 +2254,13 @@ func perform_attack() -> void:
 	var aim_dir = get_aim_direction()
 	$AttackArea.position = aim_dir * stats.range_offset
 	$AttackArea.rotation = aim_dir.angle()
+	# advance the combo string for this swing; the multiplier it returns is >1
+	# only on the finisher
+	var combo_mult := combo_step()
+	var is_finisher: bool = combo_mult > 1.0
 	# the swing itself leaves a trail -- fired here, BEFORE anything is hit, so
-	# cutting empty air still draws the arc
-	spawn_swing_trail(aim_dir, stats)
+	# cutting empty air still draws the arc. A finisher carves a bigger one.
+	spawn_swing_trail(aim_dir, stats, is_finisher)
 	# a wielded gathering tool works the harvest nodes inside the swing area
 	# (trees want the axe, rocks the pickaxe -- see harvest_node.gd)
 	var tool_type = str(active_def.get("tool_type", ""))
@@ -2268,20 +2274,21 @@ func perform_attack() -> void:
 		var cleave_total = 0
 		for body in bodies:
 			if body.has_method("take_damage"):
-				var cr = roll_crit(int(round(stats.damage * skill_damage_mult("melee"))))
+				var cr = roll_crit(int(round(stats.damage * skill_damage_mult("melee") * combo_mult)))
 				body.take_damage(cr[0])
 				show_hit(body, cr[0], cr[1])
 				apply_melee_skills(body, cr[0])
 				cleave_total += cr[0]
 			if body.has_method("apply_knockback"):
-				body.apply_knockback(knockback_sign_toward(body), randf_range(stats.knockback_min, stats.knockback_max))
+				var kb = randf_range(stats.knockback_min, stats.knockback_max) * (1.6 if is_finisher else 1.0)
+				body.apply_knockback(knockback_sign_toward(body), kb)
 		apply_omnivamp(cleave_total)
 	else:
 		var target = closest_body(bodies)
 		if target:
 			# Excellent weapons are classless -- no skill-tree damage scaling.
 			var mult = 1.0 if is_excellent else skill_damage_mult("melee")
-			var cr = roll_crit(int(round(stats.damage * mult)))
+			var cr = roll_crit(int(round(stats.damage * mult * combo_mult)))
 			var dealt = cr[0]
 			if target.has_method("take_damage"):
 				target.take_damage(dealt)
@@ -2289,7 +2296,8 @@ func perform_attack() -> void:
 				apply_omnivamp(dealt)
 				apply_melee_skills(target, dealt)
 			if target.has_method("apply_knockback"):
-				var knockback_distance = randf_range(stats.knockback_min, stats.knockback_max)
+				# a finisher doesn't just hurt more, it sends them
+				var knockback_distance = randf_range(stats.knockback_min, stats.knockback_max) * (1.6 if is_finisher else 1.0)
 				target.apply_knockback(knockback_sign_toward(target), knockback_distance)
 			if is_excellent:
 				apply_excellent_effect(target, dealt)
@@ -2306,18 +2314,124 @@ func perform_attack() -> void:
 		launch_swing_slash(swing_slash, aim_dir, stats)
 	animate_sword()
 
+# --- Melee combo strings ---
+# Consecutive swings chain into a string ending in a heavier finisher. How LONG
+# that string runs is derived from swing speed, exactly as size is: a light
+# quick blade flurries through four hits for a modest payoff, a ponderous maul
+# gets only two but the second lands like a truck. So "combo" becomes another
+# dial that separates weapons without anyone hand-authoring it per weapon, and
+# it cannot contradict the roster's other rules.
+const COMBO_WINDOW_MULT = 2.2      # how long after a swing the chain stays live
+var combo_index := 0               # hits into the current string
+var combo_expire_at := 0.0
+var combo_label: Label = null
+
+func combo_length() -> int:
+	if not has_weapon() or active_weapon_type != "melee":
+		return 1
+	var cd := float(active_stats.get("cooldown", 0.4))
+	if cd <= 0.30:
+		return 4        # flurry
+	if cd <= 0.50:
+		return 3
+	return 2            # wind up, SLAM
+
+# Every string averages the SAME multiplier (1.25x) over its length, so combos
+# reward maintaining a chain without quietly rebalancing the roster.
+#
+# The sizing of these is counterintuitive on purpose. A SHORT string reaches its
+# finisher far more often -- a 2-hit string finishes every other swing, a 4-hit
+# string only every fourth -- so the short string needs the SMALLER finisher to
+# come out even. Giving the maul the big multiplier "because it's heavy" handed
+# heavy weapons a ~51% damage buff over light ones by accident.
+#
+# The felt difference between a dagger tap and a maul slam comes from base
+# damage instead (Warhammer 35 vs Twin Fangs 6), which is where it belongs: the
+# maul's finisher is still by far the biggest number on screen.
+func combo_finisher_mult() -> float:
+	match combo_length():
+		4: return 2.0      # (1 + 1 + 1 + 2.00) / 4 = 1.25
+		3: return 1.75     # (1 + 1 + 1.75)     / 3 = 1.25
+		_: return 1.5      # (1 + 1.50)         / 2 = 1.25
+
+func combo_is_live() -> bool:
+	return combo_index > 0 and _now() <= combo_expire_at
+
+# Advances the combo for THIS swing and returns the damage multiplier it earns.
+# Let the window lapse and the string resets -- you cannot bank a finisher and
+# wander off with it.
+func combo_step() -> float:
+	if not has_weapon() or active_weapon_type != "melee":
+		return 1.0
+	var now := _now()
+	if now > combo_expire_at:
+		combo_index = 0
+	var finisher: bool = combo_index >= combo_length() - 1
+	combo_expire_at = now + float(active_stats.get("cooldown", 0.4)) * COMBO_WINDOW_MULT
+	combo_index = (combo_index + 1) % combo_length()
+	return combo_finisher_mult() if finisher else 1.0
+
+func reset_combo() -> void:
+	combo_index = 0
+	combo_expire_at = 0.0
+
+# A small readout so the string is legible while you swing -- without it a combo
+# is invisible and the finisher just feels like a random big hit.
+func update_combo_label() -> void:
+	if combo_label == null:
+		combo_label = Label.new()
+		combo_label.add_theme_font_size_override("font_size", 13)
+		combo_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+		combo_label.add_theme_constant_override("outline_size", 4)
+		combo_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		combo_label.position = Vector2(-50, -104)
+		combo_label.size = Vector2(100, 18)
+		combo_label.z_index = 40
+		combo_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(combo_label)
+	if not combo_is_live():
+		combo_label.visible = false
+		return
+	combo_label.visible = true
+	# the step about to land is the one worth flagging
+	var next_is_finisher: bool = combo_index >= combo_length() - 1
+	combo_label.text = ("FINISHER!" if next_is_finisher else "COMBO x%d" % combo_index)
+	combo_label.add_theme_color_override("font_color",
+		Color(1.0, 0.85, 0.35) if next_is_finisher else Color(0.85, 0.9, 1.0))
+
+# --- Per-weapon crit character ---
+# Derived from speed, so it never contradicts the size/combo rules: quick blades
+# find gaps often (crit CHANCE), heavy weapons crit rarely but devastate when
+# they land (crit DAMAGE). This rides on top of whatever gear and skills give.
+func weapon_crit_chance_bonus() -> float:
+	if not has_weapon() or active_weapon_type != "melee":
+		return 0.0
+	var t := clampf((float(active_stats.get("cooldown", 0.4)) - 0.18) / 0.72, 0.0, 1.0)
+	return lerpf(0.10, 0.0, t)
+
+func weapon_crit_damage_bonus() -> float:
+	if not has_weapon() or active_weapon_type != "melee":
+		return 0.0
+	var t := clampf((float(active_stats.get("cooldown", 0.4)) - 0.18) / 0.72, 0.0, 1.0)
+	return lerpf(0.0, 0.60, t)
+
 # The crescent a swing leaves behind. Drawn on EVERY swing, hit or miss, so the
 # weapon has weight even when you cut empty air. Its sweep, thickness, glow and
 # lifetime all scale with the weapon's grade, so a Mythic blade carves a wide
 # bright arc where a Common one barely smudges the air -- the grade is something
 # you can SEE in the swing rather than only read in a tooltip.
-func spawn_swing_trail(aim_dir: Vector2, stats: Dictionary) -> void:
+func spawn_swing_trail(aim_dir: Vector2, stats: Dictionary, finisher := false) -> void:
 	var grade: String = Inventory.ITEM_GRADES.get(active_weapon_id, "common")
 	var rank: int = int(Inventory.GRADE_DEFS.get(grade, {}).get("rank", 1))
 	var col: Color = active_def.get("color", Color(1, 1, 1))
 	var radius := float(stats.range_offset) + float(stats.area_size.y) * 0.5
 	var arc := deg_to_rad(64.0 + rank * 7.0)          # higher grade sweeps wider
 	var thickness := 3.0 + rank * 1.7
+	if finisher:
+		# the closing blow of a string reads bigger than the taps before it
+		arc *= 1.5
+		thickness *= 1.8
+		radius += 6.0
 	var steps := 12
 	var pts := PackedVector2Array()
 	for i in range(steps + 1):                         # outer edge
