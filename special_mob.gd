@@ -98,6 +98,58 @@ var accent_color: Color
 var is_dead := false
 var is_knocked_back := false
 var facing := 1
+
+# --- Statuses. Special mobs used to have NO apply_status, so every burn/poison/
+# slow silently vanished against them -- the DoT specs' whole kit did nothing to
+# elites. DoT lands in full; slow lands in full; freeze is a hard slow rather
+# than a stop, because their scripted behaviours (teleports, dives, charges)
+# were never written to be interrupted mid-move.
+var status_burn_until := 0.0
+var status_burn_dps := 0.0
+var status_poison_until := 0.0
+var status_poison_dps := 0.0
+var status_slow_until := 0.0
+var status_slow_factor := 1.0
+var _dot_accum := 0.0
+
+func apply_status(status_kind: String, dur: float, mag: float) -> void:
+	if is_dead:
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	match status_kind:
+		"burn":
+			status_burn_until = now + dur
+			status_burn_dps = maxf(status_burn_dps if now < status_burn_until else 0.0, mag)
+		"poison":
+			status_poison_until = now + dur
+			status_poison_dps = maxf(status_poison_dps if now < status_poison_until else 0.0, mag)
+		"slow":
+			status_slow_until = now + dur
+			status_slow_factor = clampf(1.0 - mag, 0.2, 1.0)
+		"freeze":
+			status_slow_until = now + dur
+			status_slow_factor = 0.25
+
+func status_slow_mult() -> float:
+	return status_slow_factor if Time.get_ticks_msec() / 1000.0 < status_slow_until else 1.0
+
+func tick_statuses(delta: float) -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	var dps := 0.0
+	if now < status_burn_until:
+		dps += status_burn_dps
+	if now < status_poison_until:
+		dps += status_poison_dps
+	if dps <= 0.0:
+		return
+	_dot_accum += dps * delta
+	if _dot_accum >= 1.0:
+		var chunk := int(_dot_accum)
+		_dot_accum -= float(chunk)
+		health -= chunk
+		update_health_bar()
+		if health <= 0:
+			die()
 var attack_cooldown := 0.0
 
 # flyer
@@ -219,6 +271,7 @@ func build_collision() -> void:
 func _physics_process(delta: float) -> void:
 	if is_dead:
 		return
+	tick_statuses(delta)
 	if kind != "flyer" and not is_on_floor():
 		velocity.y += GRAVITY * delta
 	if attack_cooldown > 0.0:
@@ -253,6 +306,13 @@ func _physics_process(delta: float) -> void:
 		visual.scale.x = facing
 	_update_mob_anim()
 	bob_time += delta
+	# chill drags the whole mob: x always, y only for flyers (scaling y on a
+	# grounded mob would slow its FALL, which reads as floating, not frozen)
+	var _sm := status_slow_mult()
+	if _sm < 1.0:
+		velocity.x *= _sm
+		if kind == "flyer":
+			velocity.y *= _sm
 	move_and_slide()
 	# hard containment: no mob (flyer, teleporter, or otherwise) ever ends a
 	# frame outside the level walls

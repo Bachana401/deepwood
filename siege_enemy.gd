@@ -26,6 +26,57 @@ var attack_damage = 11
 var reward = 6
 
 var is_dead = false
+
+# --- Statuses. Siege enemies had NO apply_status, so a DoT build's whole kit
+# silently did nothing during sieges. Same substrate as special mobs: DoT in
+# full, slow in full, freeze = hard slow (their march was never written to be
+# stopped dead).
+var status_burn_until := 0.0
+var status_burn_dps := 0.0
+var status_poison_until := 0.0
+var status_poison_dps := 0.0
+var status_slow_until := 0.0
+var status_slow_factor := 1.0
+var _dot_accum := 0.0
+
+func apply_status(kind: String, dur: float, mag: float) -> void:
+	if is_dead:
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	match kind:
+		"burn":
+			status_burn_until = now + dur
+			status_burn_dps = maxf(status_burn_dps if now < status_burn_until else 0.0, mag)
+		"poison":
+			status_poison_until = now + dur
+			status_poison_dps = maxf(status_poison_dps if now < status_poison_until else 0.0, mag)
+		"slow":
+			status_slow_until = now + dur
+			status_slow_factor = clampf(1.0 - mag, 0.2, 1.0)
+		"freeze":
+			status_slow_until = now + dur
+			status_slow_factor = 0.25
+
+func status_slow_mult() -> float:
+	return status_slow_factor if Time.get_ticks_msec() / 1000.0 < status_slow_until else 1.0
+
+func tick_statuses(delta: float) -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	var dps := 0.0
+	if now < status_burn_until:
+		dps += status_burn_dps
+	if now < status_poison_until:
+		dps += status_poison_dps
+	if dps <= 0.0:
+		return
+	_dot_accum += dps * delta
+	if _dot_accum >= 1.0:
+		var chunk := int(_dot_accum)
+		_dot_accum -= float(chunk)
+		health -= chunk
+		update_health_bar_fill()
+		if health <= 0:
+			die()
 var is_knocked_back = false
 var wall: Node2D = null
 var attack_cooldown_remaining = 0.0
@@ -80,6 +131,7 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if is_dead:
 		return
+	tick_statuses(delta)
 	if not is_on_floor():
 		velocity.y += GRAVITY * delta
 	if attack_cooldown_remaining > 0.0:
@@ -96,12 +148,12 @@ func _physics_process(delta: float) -> void:
 	if target == null:
 		# nothing to hit yet -> raiders push into the village (+x), soldiers march
 		# out to meet them (-x)
-		velocity.x = SPEED if faction == "raider" else -SPEED
+		velocity.x = (SPEED if faction == "raider" else -SPEED) * status_slow_mult()
 	else:
 		# approach the target from whichever side we're on, then attack
 		var stop_x = target_stop_x(target)
 		if absf(stop_x - global_position.x) > 2.0:
-			velocity.x = signf(stop_x - global_position.x) * SPEED
+			velocity.x = signf(stop_x - global_position.x) * SPEED * status_slow_mult()
 		else:
 			velocity.x = 0.0
 			try_attack(target)

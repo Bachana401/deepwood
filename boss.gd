@@ -263,6 +263,65 @@ var _parry_consumed := false
 # up to what a heavy blow would have been, the guard cracks -- so a fast weapon
 # gets there by volume instead of being ignored forever.
 var _guard_chip := 0.0
+
+# --- Statuses on bosses: DoT yes, hard CC no. ---
+# Every status used to vanish against a boss (no apply_status at all, and every
+# thrower guards with has_method) -- which silently killed two whole class specs
+# at every boss fight: the Warden is PURE DoT and the Elementalist's keystone is
+# Ignite. But full status handling would let freeze-lock trivialise fights, so
+# the line is drawn where apply_petrify already drew it: damage-over-time works
+# in full, control is resisted -- slow lands at half strength (capped), freeze
+# becomes that same brief slow.
+const BOSS_SLOW_FLOOR := 0.55       # a boss never moves slower than this factor
+var status_burn_until := 0.0
+var status_burn_dps := 0.0
+var status_poison_until := 0.0
+var status_poison_dps := 0.0
+var status_slow_until := 0.0
+var status_slow_factor := 1.0
+var _dot_accum := 0.0
+
+func apply_status(kind: String, dur: float, mag: float) -> void:
+	if is_dead:
+		return
+	match kind:
+		"burn":
+			status_burn_until = _time_now() + dur
+			status_burn_dps = maxf(status_burn_dps if _time_now() < status_burn_until else 0.0, mag)
+		"poison":
+			status_poison_until = _time_now() + dur
+			status_poison_dps = maxf(status_poison_dps if _time_now() < status_poison_until else 0.0, mag)
+		"slow", "freeze":
+			# freeze on a boss is just a hard slow -- it never stops acting
+			var factor := maxf(BOSS_SLOW_FLOOR, 1.0 - (1.0 - (mag if kind == "slow" else 0.5)) * 0.5)
+			status_slow_until = _time_now() + (dur if kind == "slow" else minf(dur, 1.2))
+			status_slow_factor = factor
+		"petrify":
+			apply_petrify(dur)
+
+func boss_status_slow_mult() -> float:
+	return status_slow_factor if _time_now() < status_slow_until else 1.0
+
+# DoT ticks bypass take_damage ON PURPOSE: routing them through it would fire
+# the reactive phase (and eat guard chips) every tick, leaving the boss
+# permanently intangible. Burn and poison are the slow chip that works while
+# everything else is being dodged -- that is the whole identity of a DoT spec.
+func tick_statuses(delta: float) -> void:
+	var dps := 0.0
+	if _time_now() < status_burn_until:
+		dps += status_burn_dps
+	if _time_now() < status_poison_until:
+		dps += status_poison_dps
+	if dps <= 0.0:
+		return
+	_dot_accum += dps * delta
+	if _dot_accum >= 1.0:
+		var chunk := int(_dot_accum)
+		_dot_accum -= float(chunk)
+		health -= chunk
+		update_health_bar()
+		if health <= 0:
+			die()
 # The boss's HP before floor scaling. Stagger armour is measured against this,
 # not against the inflated pool -- see stagger_threshold().
 var base_max_health := 900
@@ -2053,6 +2112,7 @@ func _physics_process(delta: float) -> void:
 		return
 
 	tick_phase()   # drop back to solid when the ghost window closes
+	tick_statuses(delta)   # burn/poison chip -- the DoT specs' anti-boss tool
 	tick_tether(delta)
 	tick_famine(delta)
 	tick_traps(delta)
@@ -2165,7 +2225,7 @@ func arena_width() -> float:
 
 # Movement speed after the mage-counter's hex slow (and level scaling).
 func effective_speed() -> float:
-	var s = base_move_speed * speed_multiplier
+	var s = base_move_speed * speed_multiplier * boss_status_slow_mult()
 	if hex_timer > 0.0:
 		s *= HEX_SPEED_MULT
 	return s
