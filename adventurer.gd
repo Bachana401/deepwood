@@ -45,6 +45,26 @@ var _daybreak_used := false   # Daybreak Pact: once per siege
 var _block_ready_at := 0.0    # Shield Wall: one free block on a cooldown
 var _hp_bg: ColorRect = null
 var _hp_fill: ColorRect = null
+var _bark_cooldown := 0.0
+
+# Idle flavour by station, so the corps reads as people keeping a watch rather
+# than statues with abilities. Their own rescue line mixes in as the rare one.
+const STATION_BARKS = {
+	"wall": [
+		"Nothing on the treeline. Yet.",
+		"They test the wall every night. So do I.",
+		"Go on, hunter. This stretch is held.",
+	],
+	"city": [
+		"Streets are quiet. I keep them that way.",
+		"I walk the rounds. The rounds walk me back.",
+		"Any of the taken come home today?",
+	],
+	"house": [
+		"Patching up. I'll be no use to anyone dead.",
+		"A roof. Forgot what one sounded like in the rain.",
+	],
+}
 const SHIELD_WALL_CD := 6.0
 const FIFTH_BLADE_RADIUS := 130.0
 const EXECUTE_FRAC := 0.20    # Bottom-Seen finishes raiders under this
@@ -179,7 +199,22 @@ func _physics_process(delta: float) -> void:
 	else:
 		_hold_station(delta)
 	_update_hp_bar()
+	_tick_bark(delta, target != null)
 	move_and_slide()
+
+# A line now and then, when the player is close and nothing is trying to kill
+# anyone. Long random gaps so twelve of them never turn into a crowd scene.
+func _tick_bark(delta: float, in_combat: bool) -> void:
+	_bark_cooldown -= delta
+	if _bark_cooldown > 0.0 or in_combat or not player_near:
+		return
+	_bark_cooldown = randf_range(45.0, 90.0)
+	var pool: Array = STATION_BARKS.get(station, [])
+	if pool.is_empty():
+		return
+	# their own rescue line is the rare one -- who they are, resurfacing
+	var line: String = str(def.get("line", "")) if (randf() < 0.15 and str(def.get("line", "")) != "") else str(pool[randi() % pool.size()])
+	SpeechText.spawn(self, line)
 
 func _update_hp_bar() -> void:
 	if _hp_fill == null:
