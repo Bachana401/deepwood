@@ -237,7 +237,12 @@ func show_away_report() -> void:
 	if report.villagers_lost > 0:
 		stack.show_notification("The raids claimed %d villager%s!" % [report.villagers_lost, "" if report.villagers_lost == 1 else "s"])
 	if int(report.get("adventurers_lost", 0)) > 0:
-		stack.show_notification("%d adventurer%s died holding the line. They will not return." % [report.adventurers_lost, "" if int(report.adventurers_lost) == 1 else "s"])
+		var names: Array = report.get("fallen_names", [])
+		if names.is_empty():
+			stack.show_notification("%d adventurer%s died holding the line. They will not return." % [report.adventurers_lost, "" if int(report.adventurers_lost) == 1 else "s"])
+		else:
+			stack.show_notification("%s died holding the line. %s will not return." % [
+				", ".join(names), "They" if names.size() > 1 else str(names[0]).split(" ")[0]])
 
 func generate_village() -> void:
 	# Place buildings left-to-right. Each reserves its FULLY-UPGRADED width plus a

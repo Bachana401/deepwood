@@ -1022,6 +1022,10 @@ func resolve_siege_offline(tier: int) -> void:
 		if shield_id != "":
 			adventurers[shield_id]["dead"] = true
 			away_report.adventurers_lost = int(away_report.get("adventurers_lost", 0)) + 1
+			# a permadeath deserves a NAME in the report, not a tally mark
+			if not away_report.has("fallen_names"):
+				away_report["fallen_names"] = []
+			away_report["fallen_names"].append(str(Adventurers.get_def(shield_id).get("name", "an adventurer")))
 			continue
 		if rescued_villagers.is_empty():
 			break
@@ -2205,6 +2209,12 @@ func quest_event(kind: String, key: String, amount: int) -> void:
 			"reunite":
 				if key == str(def.get("key", "")):
 					v["quest_progress"] = int(def.get("count", 1))
+					# the reunion itself gets a voice at the moment it happens --
+					# the freed sister knows who waited for her
+					var stack = get_tree().get_first_node_in_group("notification_stack")
+					if stack:
+						var giver_name := str(v.get("name", "someone"))
+						stack.show_notification("\"%s — she's alive? Take me home.\" (Return to %s.)" % [giver_name, giver_name])
 
 func find_villager_by_id(villager_id: String) -> Dictionary:
 	for v in rescued_villagers:
