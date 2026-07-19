@@ -818,6 +818,12 @@ func info_fields() -> Array:
 	# so the player should never need to press E just to learn the cost
 	if data.get("healer", false):
 		fields.append("[E] Heal — %dg" % GameState.doctor_heal_price())
+	# a trained HERO is one villager in a crowd of dozens -- wear the title, so
+	# the 0.5% miracle is findable at a glance
+	if data.get("hero_trained", false):
+		fields.append("★ HERO of the %s" % GameState.HERO_POWERS.get(str(data.get("hero_power", "")), "Vanguard"))
+	elif data.get("hero", false):
+		fields.append("★ HERO-BORN — the Barracks awaits")
 	fields.append_array(bond_fields(data))
 	return fields
 

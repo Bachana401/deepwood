@@ -214,6 +214,7 @@ func _ready() -> void:
 	spawn_adventurers()
 	announce_orin_arrival()
 	build_escape_ward()
+	warn_wounded_corps()
 	if GameState.returning_from_dungeon:
 		GameState.returning_from_dungeon = false
 		# only restore a real recorded spot -- the default (0,0) is below the
@@ -319,6 +320,24 @@ func spawn_existing_villager_avatars() -> void:
 		npc.villager_id = villager_id
 		npc.global_position = find_avatar_spawn_position(villager.get("role_key", ""))
 		$Village.add_child(npc)
+
+# Triage warning: adventurer wounds persist between sieges and their deaths are
+# permanent, so a player coming home should hear at once if the corps is in
+# danger -- housing a wounded defender is the whole point of the house station.
+func warn_wounded_corps() -> void:
+	GameState.ensure_adventurers()
+	var wounded := 0
+	for id in GameState.adventurers.keys():
+		var a: Dictionary = GameState.adventurers[id]
+		if not a["rescued"] or a["dead"] or a["station"] == "house":
+			continue
+		var max_hp := maxf(1.0, float(Adventurers.get_def(id).get("hp", 100.0)))
+		if float(a.get("hp", max_hp)) < max_hp * 0.5:
+			wounded += 1
+	if wounded > 0:
+		var stack = get_tree().get_first_node_in_group("notification_stack")
+		if stack:
+			stack.show_notification("⚠ %d adventurer%s badly wounded and still on duty — house them before the next siege, or lose them for good." % [wounded, " is" if wounded == 1 else "s are"])
 
 # GAME_BIBLE 2.4.1 beat 3 -- THE FAILED ESCAPE. The way out of Deepwood is not
 # blocked; it is BAITED: the Despair Army swells to meet anyone who tries.
