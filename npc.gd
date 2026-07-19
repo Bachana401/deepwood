@@ -560,6 +560,13 @@ func try_doctor_heal() -> bool:
 	var player = get_tree().get_first_node_in_group("player")
 	if player == null:
 		return true
+	# her first real talk is the ACCOUNT (2.4.1/2.5.1): the Law of Despair from
+	# a survivor's mouth, and the rumour of the lost wizard. Healing starts on
+	# the next press.
+	if not GameState.seen_doctor_account:
+		GameState.seen_doctor_account = true
+		DialogueBox.play(get_tree().current_scene, Story.DOCTOR_ACCOUNT)
+		return true
 	var stack = get_tree().get_first_node_in_group("notification_stack")
 	if player.health >= player.get_max_health():
 		if stack:

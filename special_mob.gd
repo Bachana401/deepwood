@@ -80,6 +80,25 @@ const KINDS = {
 # injected before _ready
 var kind := "flyer"
 var elite := false            # bigger, tougher, glowing, double reward
+
+# --- Elite affixes ---
+# An elite is not just a bigger mob: each rolls ONE affix at spawn, worn as a
+# title over its head, and each affix is a different mechanic (the creative
+# directive: distinct in kind, not in numbers):
+#   Thorned   -- striking it up close bites back (reflects a fifth to the player)
+#   Frenzied  -- below half health it moves half again as fast
+#   Blinking  -- struck, it flickers a short step away (cooldown)
+#   Bulwark   -- a fifth of every blow rings off its hide
+const ELITE_AFFIXES = {
+	"thorned": "Thorned", "frenzied": "Frenzied", "blinking": "Blinking", "bulwark": "Bulwark",
+}
+var affix := ""
+var _blink_ready_at := 0.0
+const BLINK_CD := 2.5
+const THORN_FRAC := 0.2
+const THORN_RANGE := 140.0
+const BULWARK_FRAC := 0.2
+const FRENZY_MULT := 1.5
 var wave_hp_multiplier := 1.0
 var wave_damage_multiplier := 1.0
 var wave_speed_multiplier := 1.0
@@ -246,6 +265,8 @@ func _ready() -> void:
 		reward *= 2
 		xp_reward *= 2
 		scale = Vector2(1.35, 1.35)
+		# and its rolled identity: one affix, worn as a title
+		affix = ELITE_AFFIXES.keys()[randi() % ELITE_AFFIXES.size()]
 	hover_offset = Vector2(randf_range(-70.0, 70.0), -randf_range(150.0, 240.0))
 	player = get_tree().get_first_node_in_group("player")
 	build_collision()
@@ -253,6 +274,17 @@ func _ready() -> void:
 	build_health_bar()
 	if elite:
 		build_elite_glow()
+		var al := Label.new()
+		al.text = ELITE_AFFIXES.get(affix, "Elite")
+		al.position = Vector2(-50, -74)
+		al.size = Vector2(100, 14)
+		al.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		al.add_theme_font_size_override("font_size", 9)
+		al.add_theme_color_override("font_color", Color(1.0, 0.6, 0.9))
+		al.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+		al.add_theme_constant_override("outline_size", 3)
+		al.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(al)
 
 func build_collision() -> void:
 	var shape = CollisionShape2D.new()
@@ -311,7 +343,10 @@ func _physics_process(delta: float) -> void:
 	# chill drags the whole mob: x always, y only for flyers (scaling y on a
 	# grounded mob would slow its FALL, which reads as floating, not frozen)
 	var _sm := status_slow_mult()
-	if _sm < 1.0:
+	# Frenzied: wounded past half, it stops pacing itself
+	if affix == "frenzied" and health < max_health / 2:
+		_sm *= FRENZY_MULT
+	if not is_equal_approx(_sm, 1.0):
 		velocity.x *= _sm
 		if kind == "flyer":
 			velocity.y *= _sm
@@ -651,11 +686,25 @@ func fire_projectile(dir: Vector2, dmg: int) -> void:
 func take_damage(amount: int) -> void:
 	if is_dead:
 		return
+	# Bulwark: a fifth of every blow rings off its hide
+	if affix == "bulwark":
+		amount = maxi(1, int(round(amount * (1.0 - BULWARK_FRAC))))
 	health -= amount
 	update_health_bar()
+	# Thorned: striking it up close bites back
+	if affix == "thorned" and is_instance_valid(player) and not ("is_dead" in player and player.is_dead) \
+			and global_position.distance_to(player.global_position) <= THORN_RANGE \
+			and player.has_method("take_damage"):
+		player.take_damage(maxi(1, int(round(amount * THORN_FRAC))))
 	if health <= 0:
 		die()
 	else:
+		# Blinking: struck, it flickers a short step away
+		var now := Time.get_ticks_msec() / 1000.0
+		if affix == "blinking" and now >= _blink_ready_at:
+			_blink_ready_at = now + BLINK_CD
+			var away := 1.0 if (not is_instance_valid(player) or global_position.x <= player.global_position.x) else -1.0
+			global_position.x += -away * 140.0 if randf() < 0.5 else away * 140.0
 		set_flash(Color(1, 1, 1))
 		get_tree().create_timer(0.12).timeout.connect(clear_flash)
 		play_sfx(SFX_HIT)

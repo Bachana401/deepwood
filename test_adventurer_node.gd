@@ -335,6 +335,46 @@ func _ready() -> void:
 		prey2.status_slow_mult() < 1.0, "%.2f" % prey2.status_slow_mult())
 	cryer.queue_free(); prey2.queue_free()
 
+	# ---------------- the Doctor's account + elite affixes ----------------
+	var story_src := FileAccess.open("res://story.gd", FileAccess.READ).get_as_text()
+	check("the Doctor's account exists as a story beat", story_src.contains("DOCTOR_ACCOUNT"))
+	check("...and it carries the lost-wizard rumour (2.5.1 beat 1)",
+		story_src.contains("wizard") and story_src.contains("candle"))
+	check("the opening no longer claims Orin defends nightly (2.5.1: he is absent)",
+		not story_src.contains("He dies for us and rises with the dawn"))
+	var npc_src := FileAccess.open("res://npc.gd", FileAccess.READ).get_as_text()
+	check("her first talk plays the account before any healing",
+		npc_src.contains("seen_doctor_account") and npc_src.contains("DOCTOR_ACCOUNT"))
+
+	# elites roll ONE affix and every affix is implemented
+	var em = load("res://special_mob.gd").new()
+	em.kind = "charger"
+	em.elite = true
+	get_tree().root.add_child(em)
+	await get_tree().process_frame
+	check("an elite rolls an affix at spawn", em.ELITE_AFFIXES.has(em.affix), em.affix)
+	var sm_src := FileAccess.open("res://special_mob.gd", FileAccess.READ).get_as_text()
+	for ax in em.ELITE_AFFIXES.keys():
+		check("elite affix '%s' is implemented" % ax, sm_src.count('"%s"' % ax) >= 2)
+	# bulwark functionally: a fifth rings off
+	em.affix = "bulwark"
+	em.max_health = 100
+	em.health = 100
+	em.take_damage(50)
+	check("Bulwark: a fifth of the blow rings off (50 -> 40 taken)", em.health == 60,
+		"hp=%d" % em.health)
+	# frenzied functionally: past half it stops pacing itself
+	em.affix = "frenzied"
+	em.health = 30
+	check("Frenzied kicks in below half health", em.health < em.max_health / 2)
+	em.queue_free()
+	var plain_mob = load("res://special_mob.gd").new()
+	plain_mob.kind = "charger"
+	get_tree().root.add_child(plain_mob)
+	await get_tree().process_frame
+	check("a non-elite has no affix", plain_mob.affix == "")
+	plain_mob.queue_free()
+
 	# ---------------- Orin's entrance (GAME_BIBLE 2.5.1) ----------------
 	var saved_depth: int = GameState.deepest_level_reached
 	var saved_dev: bool = GameState.dev_mode

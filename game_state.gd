@@ -927,6 +927,7 @@ func current_siege_tier() -> int:
 # and never came back. (--dev keeps him for the sandbox.)
 const ORIN_ARRIVAL_DEPTH := 15
 var seen_orin_arrival := false
+var seen_doctor_account := false
 
 func orin_arrived() -> bool:
 	return dev_mode or deepest_level_reached >= ORIN_ARRIVAL_DEPTH
@@ -2038,6 +2039,7 @@ func save_game(player: Node) -> void:
 		"adventurers": adventurers,
 		"doctor_heals_bought": doctor_heals_bought,
 		"seen_orin_arrival": seen_orin_arrival,
+		"seen_doctor_account": seen_doctor_account,
 		"chest_contents": chest_contents,
 		"mating_houses": mating_houses,
 		"pregnancies": pregnancies,
@@ -2091,6 +2093,7 @@ func load_game() -> Dictionary:
 			ensure_adventurers()   # a newer build may know MORE adventurers than the save
 		doctor_heals_bought = int(parsed.get("doctor_heals_bought", 0))
 		seen_orin_arrival = bool(parsed.get("seen_orin_arrival", false))
+		seen_doctor_account = bool(parsed.get("seen_doctor_account", false))
 		if parsed.has("chest_contents"):
 			chest_contents = parsed["chest_contents"]
 		if parsed.has("mating_houses"):
