@@ -212,6 +212,7 @@ func _ready() -> void:
 		apply_save_data()
 	spawn_existing_villager_avatars()
 	spawn_adventurers()
+	announce_orin_arrival()
 	if GameState.returning_from_dungeon:
 		GameState.returning_from_dungeon = false
 		# only restore a real recorded spot -- the default (0,0) is below the
@@ -317,6 +318,18 @@ func spawn_existing_villager_avatars() -> void:
 		npc.villager_id = villager_id
 		npc.global_position = find_avatar_spawn_position(villager.get("role_key", ""))
 		$Village.add_child(npc)
+
+# GAME_BIBLE 2.5.1 beat 2: the first village visit after carving to floor 15,
+# Orin stands at the wall as though returning from a long walk -- the wandering
+# mage of the Doctor's rumour, back from the dungeon that "kept him stuck".
+# (Every word a lie shaped to mirror the player's own arrival.)
+func announce_orin_arrival() -> void:
+	if not GameState.orin_arrived() or GameState.seen_orin_arrival or GameState.dev_mode:
+		return
+	GameState.seen_orin_arrival = true
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if stack:
+		stack.show_notification("A stranger stands at the wall — Orin, the wandering mage. \"I cleared one of their levels... then got stuck. I'll hold the nights from here.\"")
 
 # The living adventurers (GAME_BIBLE 2.4.1): every rescued one that hasn't
 # fallen walks the village at its chosen station. The dead are simply absent --

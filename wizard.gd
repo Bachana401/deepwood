@@ -130,6 +130,14 @@ const INFO_FIELDS = [
 const SPEECH_LINE = "Two winters I've been stranded here. The evil outside is too thick to cross alone -- so I'll guard these walls till you clear me a path."
 
 func _ready() -> void:
+	# GAME_BIBLE 2.5.1: Orin is ABSENT from the village at the start. He is a
+	# rumour from the Doctor first, and only appears -- "whole and unshattered,
+	# as though returning from a long walk" -- once the player has carved down
+	# to ~floor 15. Until then this node removes itself. (--dev keeps him, the
+	# sandbox needs its meteor turret.)
+	if not GameState.orin_arrived():
+		queue_free()
+		return
 	add_to_group("village_defender")
 	# layer 0 = the player's weapons/arrows can never hit him (he's friendly);
 	# mask 1 so he still rests on the ground. Future siege enemies will hurt him

@@ -183,5 +183,23 @@ func _ready() -> void:
 		gs_src.contains('"doctor_heals_bought": doctor_heals_bought'))
 	check("npc offers the heal on E", load("res://npc.gd").new().has_method("try_doctor_heal"))
 
+	# ---------------- Orin's entrance (GAME_BIBLE 2.5.1) ----------------
+	var saved_depth: int = GameState.deepest_level_reached
+	var saved_dev: bool = GameState.dev_mode
+	GameState.dev_mode = false
+	GameState.deepest_level_reached = 3
+	check("Orin is ABSENT before floor 15 (a rumour, not a resident)", not GameState.orin_arrived())
+	var shallow_def: float = GameState.village_defense_power()
+	GameState.deepest_level_reached = 15
+	check("carving to floor 15 brings him home", GameState.orin_arrived())
+	check("his meteors only defend a village he's actually in",
+		GameState.village_defense_power() > shallow_def)
+	GameState.deepest_level_reached = saved_depth
+	GameState.dev_mode = saved_dev
+	var wiz_src := FileAccess.open("res://wizard.gd", FileAccess.READ)
+	var wtxt := wiz_src.get_as_text() if wiz_src != null else ""
+	if wiz_src != null: wiz_src.close()
+	check("the village wizard node removes itself pre-arrival", wtxt.contains("orin_arrived()"))
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

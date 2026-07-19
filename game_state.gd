@@ -922,8 +922,19 @@ func current_siege_tier() -> int:
 	return 1 + int(game_hours / 24.0)
 
 # Standing defense strength of the village right now (wizard + warriors).
+# GAME_BIBLE 2.5.1: Orin enters the story only once the player has carved to
+# ~floor 15. Before that he is the Doctor's rumour -- a wizard who went down
+# and never came back. (--dev keeps him for the sandbox.)
+const ORIN_ARRIVAL_DEPTH := 15
+var seen_orin_arrival := false
+
+func orin_arrived() -> bool:
+	return dev_mode or deepest_level_reached >= ORIN_ARRIVAL_DEPTH
+
 func village_defense_power() -> float:
-	var power = SIEGE_DEF_WIZARD
+	# no Orin, no meteors: until he walks out of the dungeon the village's
+	# nightly defense is the adventurers and whatever warriors it has raised
+	var power = SIEGE_DEF_WIZARD if orin_arrived() else 0.0
 	for v in rescued_villagers:
 		if v.get("stat_name", "") == "Warrior" or v.get("role_key", "") == "Barracks":
 			power += SIEGE_DEF_PER_WARRIOR
@@ -2010,6 +2021,7 @@ func save_game(player: Node) -> void:
 		"rescued_villagers": rescued_villagers,
 		"adventurers": adventurers,
 		"doctor_heals_bought": doctor_heals_bought,
+		"seen_orin_arrival": seen_orin_arrival,
 		"chest_contents": chest_contents,
 		"mating_houses": mating_houses,
 		"pregnancies": pregnancies,
@@ -2062,7 +2074,7 @@ func load_game() -> Dictionary:
 			adventurers = parsed["adventurers"]
 			ensure_adventurers()   # a newer build may know MORE adventurers than the save
 		doctor_heals_bought = int(parsed.get("doctor_heals_bought", 0))
-		doctor_heals_bought = int(parsed.get("doctor_heals_bought", 0))
+		seen_orin_arrival = bool(parsed.get("seen_orin_arrival", false))
 		if parsed.has("chest_contents"):
 			chest_contents = parsed["chest_contents"]
 		if parsed.has("mating_houses"):
