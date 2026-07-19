@@ -92,6 +92,23 @@ func _ready() -> void:
 			if refs > 0:
 				note("noop", "%s() in %s does nothing, is undocumented, and is referenced %d time(s)" % [fname, path.get_file(), refs])
 
+	# ---------- 3b. group PROTOCOL conformance ----------
+	# Joining a group is only half a contract. Some groups have an interface the
+	# searcher calls guarded by has_method(), so a member that joins without
+	# implementing it doesn't error -- it just silently ignores the call. The
+	# admin panel sat in esc_window for its whole life without esc_is_open, so
+	# ESC never closed it and nothing ever said so.
+	printerr("\n== group members missing their group's protocol ==")
+	var protocols := {"esc_window": ["esc_is_open", "esc_close"]}
+	for group_name in protocols.keys():
+		for path in files.keys():
+			if not files[path].contains('add_to_group("%s")' % group_name):
+				continue
+			for method in protocols[group_name]:
+				if not files[path].contains("func %s(" % method):
+					note("protocol", "%s joins '%s' but lacks %s() -- the group's calls silently skip it" % [
+						path.get_file(), group_name, method])
+
 	# ---------- 4. hardcoded cross-scene node paths ----------
 	# This repo's nastiest shipped bug was pause_menu reaching for
 	# "../DungeonManager", which existed in the village and NOT inside a

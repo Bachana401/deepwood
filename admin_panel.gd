@@ -30,8 +30,17 @@ func _unhandled_input(event: InputEvent) -> void:
 			refresh()
 		get_viewport().set_input_as_handled()
 
-func close() -> void:   # lets ESC/esc_window logic hide it too
+func close() -> void:
 	panel.visible = false
+
+# The esc_window contract: pause_menu's ESC sweep calls these on every member.
+# The panel JOINED the group since day one but never implemented the protocol,
+# so ESC silently did nothing to it -- the comment claimed otherwise.
+func esc_is_open() -> bool:
+	return panel != null and panel.visible
+
+func esc_close() -> void:
+	close()
 
 func _process(_delta: float) -> void:
 	if panel.visible:

@@ -107,6 +107,32 @@ func _ready() -> void:
 					note("item", "'%s' text promises '%s' but nothing implements it" % [id, promise])
 					break
 
+	# ---- 4b. every villager quest must have a spawnable giver AND target ----
+	# Bram and Sena had full quest defs -- dialogue, rewards, the game's only
+	# reunite bond -- and neither spawned anywhere: two dead quests nobody could
+	# ever see. A quest def id must be a hand-placed main.tscn villager or an
+	# IMPORTANT_FIGURES dungeon rescue, and a reunite target must be spawnable
+	# too, or the chain is broken at the far end instead.
+	printerr("\n== villager quests whose giver or target can never spawn ==")
+	var spawnable := {}
+	for lv in VillagerQuests.IMPORTANT_FIGURES.keys():
+		spawnable[str(VillagerQuests.IMPORTANT_FIGURES[lv].get("villager_id", ""))] = true
+	var scene := FileAccess.open("res://main.tscn", FileAccess.READ)
+	if scene != null:
+		var re_v := RegEx.new()
+		re_v.compile("villager_id = \"([a-z_0-9]+)\"")
+		for m in re_v.search_all(scene.get_as_text()):
+			spawnable[m.get_string(1)] = true
+		scene.close()
+	for qid in VillagerQuests.QUEST_DEFS.keys():
+		if not spawnable.has(qid):
+			note("quest", "'%s' has a quest def but no spawn anywhere -- the quest can never activate" % qid)
+		var qdef: Dictionary = VillagerQuests.QUEST_DEFS[qid]
+		if str(qdef.get("kind", "")) == "reunite":
+			var target := str(qdef.get("key", ""))
+			if not spawnable.has(target):
+				note("quest", "reunite quest '%s' targets '%s', who can never be rescued" % [qid, target])
+
 	# ---- 5. can the player actually OBTAIN each item? ----
 	# An item nothing grants is invisible content: it exists, it is balanced, it
 	# shows up in the catalogue, and no player will ever hold one. Loot pools are

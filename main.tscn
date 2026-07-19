@@ -393,6 +393,17 @@ role_title = "Fisherman"
 backstory = "Milo worked the fishing dock. He flinches at running water now, but something in his eyes says he still remembers how to cast a line."
 sex = "Male"
 
+[node name="Villager3" parent="." instance=ExtResource("16_villager")]
+position = Vector2(2240, -59)
+villager_id = "sena_ward"
+villager_name = "Sena"
+stat_name = "Hospital"
+stat_value = 3
+role_key = "Hospital"
+role_title = "Doctors"
+backstory = "Sena tended the sick before the fall. She watches the treeline every dusk -- her sister Bram was dragged into the deep the same night she was taken."
+sex = "Female"
+
 [node name="Wall" parent="." groups=["village_wall"] instance=ExtResource("27_wall")]
 position = Vector2(4700, -39)
 

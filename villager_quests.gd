@@ -177,6 +177,12 @@ const QUEST_DEFS = {
 # backstories seed the fallen-world lore WITHOUT canonising the still-undecided
 # way to stop the undying Wizard. Keyed by rescue level.
 const IMPORTANT_FIGURES = {
+	# Not a VIP -- Sena's sister, the target of the game's one "reunite" bond.
+	# She sat in this registry as a quest def with NO spawn anywhere, so Sena's
+	# quest could never even be attempted. Level 8: shallow enough to find her
+	# while Sena's plea is still fresh. (spawn_deep_rescue runs on EVERY level,
+	# not just boss floors, so a non-multiple-of-5 slot is fine.)
+	8:  {"villager_id": "bram_hollow",     "villager_name": "Bram Hollow",             "stat_name": "Warrior",         "stat_value": 4, "role_key": "Barracks",     "role_title": "Warrior",         "sex": "Female", "backstory": "They dragged me down here the night the village fell. My sister Sena -- is she alive?"},
 	5:  {"villager_id": "maeve_harvest",   "villager_name": "Maeve Greenhollow",       "stat_name": "Harvestmaster",   "stat_value": 5, "role_key": "Farm",         "role_title": "Harvestmaster",   "sex": "Female", "backstory": "I fed a province once, before the blight. Give me soil and I'll do it again."},
 	10: {"villager_id": "doran_tide",      "villager_name": "Captain Doran Tide",      "stat_name": "Harbormaster",    "stat_value": 5, "role_key": "Fishing Dock", "role_title": "Harbormaster",    "sex": "Male",   "backstory": "Every ship in this harbor was mine to command. The sea still answers me."},
 	15: {"villager_id": "bess_ironcask",   "villager_name": "Bess Ironcask",           "stat_name": "Tavernkeeper",    "stat_value": 5, "role_key": "Tavern",       "role_title": "Tavernkeeper",    "sex": "Female", "backstory": "A village with no tavern has already lost. Let me give them somewhere to laugh."},
