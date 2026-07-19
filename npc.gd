@@ -814,6 +814,10 @@ func info_fields() -> Array:
 	var fields = [data.get("name", "?"), age_text + ", " + data.get("sex", "?"), stat_text]
 	if data.get("role_title", "") != "":
 		fields.append("Works: " + data.get("role_title"))
+	# the Doctor quotes her price up front -- the escalation is the mechanic,
+	# so the player should never need to press E just to learn the cost
+	if data.get("healer", false):
+		fields.append("[E] Heal — %dg" % GameState.doctor_heal_price())
 	fields.append_array(bond_fields(data))
 	return fields
 
