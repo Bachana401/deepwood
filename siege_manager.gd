@@ -72,6 +72,29 @@ func start_live_siege(tier: int) -> void:
 # body with faction "village" + the soldier sprite skin.
 func _spawn_barracks_soldiers(tier: int, face_x: float, wall) -> void:
 	soldiers.clear()
+	# Barracks-forged HEROES sally first: one unit each, on top of the soldier
+	# cap, at triple a soldier's strength -- the 0.5% birth paying off in force.
+	var heroes := 0
+	for v in GameState.rescued_villagers:
+		if v.get("hero_trained", false):
+			heroes += 1
+	var hero_hp = int(round(SOLDIER_BASE_HP * 3.0 * (1.0 + (tier - 1) * HP_PER_TIER)))
+	var hero_dmg = int(round(SOLDIER_BASE_DMG * 3.0 * (1.0 + (tier - 1) * DMG_PER_TIER)))
+	for i in range(heroes):
+		var h = SIEGE_ENEMY_SCENE.instantiate()
+		h.faction = "village"
+		h.skin = "soldier"
+		h.max_health = hero_hp
+		h.attack_damage = hero_dmg
+		h.wall = wall
+		h.facing = -1
+		h.global_position = Vector2(face_x - SOLDIER_SALLY_OFFSET - 40.0 - i * 46.0, SPAWN_Y)
+		h.died.connect(_on_soldier_died.bind(h))
+		get_parent().add_child(h)
+		h.scale = Vector2(1.25, 1.25)   # a hero reads bigger on the field
+		soldiers.append(h)
+	if heroes > 0:
+		notify("★ %d HERO%s take%s the field!" % [heroes, "" if heroes == 1 else "ES", "s" if heroes == 1 else ""])
 	var n = min(GameState.warrior_count(), MAX_SOLDIERS)
 	if n <= 0:
 		return

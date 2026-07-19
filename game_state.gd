@@ -527,6 +527,64 @@ var rescued_villagers: Array = []
 # chest.gd. Written whenever a chest's UI is closed.
 var chest_contents: Dictionary = {}
 
+# --- Adventurers (GAME_BIBLE 2.4.1) ---
+# Live state per adventurer id: {"rescued", "dead", "station", "hp"}. The
+# registry (names/stats/rescue levels) is Adventurers.ROSTER; this dict is what
+# saves. The opening trio starts rescued; the deep nine flip when freed.
+# Stations: "wall" (front line), "city" (patrol), "house" (safe, no defense).
+# Death is PERMANENT -- a dead adventurer never respawns and never returns.
+var adventurers: Dictionary = {}
+
+func ensure_adventurers() -> void:
+	for id in Adventurers.ids():
+		if not adventurers.has(id):
+			var def = Adventurers.get_def(id)
+			adventurers[id] = {
+				"rescued": int(def.get("level", 0)) == 0,
+				"dead": false,
+				"station": "city",
+				"hp": float(def.get("hp", 100.0)),
+			}
+
+func adventurer_state(id: String) -> Dictionary:
+	ensure_adventurers()
+	return adventurers.get(id, {})
+
+func rescue_adventurer(id: String) -> void:
+	ensure_adventurers()
+	if not adventurers.has(id) or adventurers[id]["rescued"]:
+		return
+	adventurers[id]["rescued"] = true
+	adventurers[id]["hp"] = float(Adventurers.get_def(id).get("hp", 100.0))
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if stack:
+		stack.show_notification("%s is free -- another blade for Deepwood's wall!" % Adventurers.get_def(id).get("name", "An adventurer"))
+
+func kill_adventurer(id: String) -> void:
+	ensure_adventurers()
+	if not adventurers.has(id) or adventurers[id]["dead"]:
+		return
+	adventurers[id]["dead"] = true
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if stack:
+		stack.show_notification("%s has fallen. The dead do not re-enlist." % Adventurers.get_def(id).get("name", "An adventurer"))
+
+func set_adventurer_station(id: String, station: String) -> void:
+	ensure_adventurers()
+	if adventurers.has(id) and station in Adventurers.STATIONS:
+		adventurers[id]["station"] = station
+
+# Living, rescued adventurers at fighting stations (wall/city). House-sheltered
+# ones are alive but contribute nothing -- that is the trade the player makes.
+func fighting_adventurers() -> Array:
+	ensure_adventurers()
+	var out := []
+	for id in adventurers.keys():
+		var a: Dictionary = adventurers[id]
+		if a["rescued"] and not a["dead"] and a["station"] != "house":
+			out.append(id)
+	return out
+
 # Rescued villagers assigned to a functioning role passively generate
 # currency over time (see the vision doc: "roles generate resources over
 # time, which the player spends on gear and skill tree upgrades"). Each of
@@ -610,7 +668,7 @@ const SIEGE_DEF_PER_WARRIOR = 1.0
 var hours_until_next_siege = SIEGE_FIRST_HOURS
 var live_siege_active = false
 # Tally of what happened while the player was away, shown on their return.
-var away_report = {"sieges": 0, "repelled": 0, "villagers_lost": 0}
+var away_report = {"sieges": 0, "repelled": 0, "villagers_lost": 0, "adventurers_lost": 0}
 
 # --- Village mage (Orin) downed/respawn state ---
 # When Orin falls he doesn't die for good -- he collapses into a small fireball
@@ -868,6 +926,20 @@ func village_defense_power() -> float:
 	for v in rescued_villagers:
 		if v.get("stat_name", "") == "Warrior" or v.get("role_key", "") == "Barracks":
 			power += SIEGE_DEF_PER_WARRIOR
+		# a barracks-forged HERO is a one-person garrison
+		if v.get("hero_trained", false):
+			power += SIEGE_DEF_PER_WARRIOR * 3.0
+	# adventurers hold the line by station: the wall is worth more than a
+	# patrol, and a sheltered adventurer is worth nothing (but cannot die)
+	ensure_adventurers()
+	for id in adventurers.keys():
+		var a: Dictionary = adventurers[id]
+		if not a["rescued"] or a["dead"]:
+			continue
+		if a["station"] == "wall":
+			power += 1.5
+		elif a["station"] == "city":
+			power += 1.0
 	# warriors ARMED from the Barracks armory hit far above their weight
 	power += ARMED_WARRIOR_BONUS * float(armed_warriors())
 	# a seated Warchief is a standing army in themselves -- auto-repels far more
@@ -921,6 +993,21 @@ func resolve_siege_offline(tier: int) -> void:
 		return
 	var casualties = int(ceil(float(tier) - village_defense_power()))
 	for i in range(casualties):
+		# the adventurers are the shield: a fighting one (wall first, then city)
+		# falls IN PLACE of a villager. That is their job, and their risk -- one
+		# sheltered in a house is never touched. The dead never re-enlist.
+		var shield_id := ""
+		for station in ["wall", "city"]:
+			for id in fighting_adventurers():
+				if adventurers[id]["station"] == station:
+					shield_id = id
+					break
+			if shield_id != "":
+				break
+		if shield_id != "":
+			adventurers[shield_id]["dead"] = true
+			away_report.adventurers_lost = int(away_report.get("adventurers_lost", 0)) + 1
+			continue
 		if rescued_villagers.is_empty():
 			break
 		remove_random_villager()
@@ -930,11 +1017,21 @@ func resolve_siege_offline(tier: int) -> void:
 func on_live_siege_ended() -> void:
 	live_siege_active = false
 	hours_until_next_siege = SIEGE_INTERVAL_HOURS
+	# the survivors bind their wounds: every adventurer still standing recovers
+	# to full between sieges, so attrition never quietly executes them across a
+	# dozen fights -- only a battle that actually kills one removes them
+	ensure_adventurers()
+	for id in adventurers.keys():
+		if adventurers[id]["rescued"] and not adventurers[id]["dead"]:
+			adventurers[id]["hp"] = float(Adventurers.get_def(id).get("hp", 100.0))
+	for a in get_tree().get_nodes_in_group("adventurer"):
+		if is_instance_valid(a) and not a.is_dead and a.body_rect:
+			a.body_rect.color = Color(0.32, 0.36, 0.46)   # wounds bound, colour restored
 
 # Read + clear the away tally (main.gd shows it when the player returns).
 func consume_away_report() -> Dictionary:
 	var report = away_report.duplicate()
-	away_report = {"sieges": 0, "repelled": 0, "villagers_lost": 0}
+	away_report = {"sieges": 0, "repelled": 0, "villagers_lost": 0, "adventurers_lost": 0}
 	return report
 
 # A building generates income / functions only once it is FULLY built (all 3
@@ -1680,10 +1777,19 @@ func produce_child(pregnancy_id: String) -> void:
 	var child_sex = "Male" if randi() % 2 == 0 else "Female"
 	var child_name = CHILD_NAMES[randi() % CHILD_NAMES.size()]
 	var child_id = "child_%d_%d" % [Time.get_ticks_msec(), randi() % 100000]
-	rescued_villagers.append({
+	var child := {
 		"id": child_id, "name": child_name, "sex": child_sex, "is_kid": true,
 		"stat_name": "", "stat_value": 0, "role_key": "", "role_title": "", "paired": false,
-	})
+	}
+	# One in two hundred is born a HERO: a once-a-playthrough (if that) event.
+	# A hero child cannot be schooled -- only the Barracks can shape what they
+	# are -- and they emerge from training a full ADULT and terrifyingly strong.
+	if randf() < HERO_BIRTH_CHANCE:
+		child["hero"] = true
+		var stack = get_tree().get_first_node_in_group("notification_stack")
+		if stack:
+			stack.show_notification("★ %s is born a HERO — the Barracks awaits them." % child_name)
+	rescued_villagers.append(child)
 	register_villagers_added(1)   # a new life eases the town's grief
 	child_produced.emit(child_id)
 
@@ -1697,7 +1803,18 @@ func remove_npc_avatar(villager_id: String) -> void:
 
 # --- School / Barracks enrollment ---
 
+const HERO_BIRTH_CHANCE := 0.005   # 0.5% of newborns
+
 func enroll_villager(villager_id: String, role_key: String, role_title: String, grants_stat: String) -> void:
+	# A hero child refuses the School outright -- books cannot hold what they
+	# are. Only the Barracks can. (The UI filters them out too; this guard is
+	# for any other path that reaches enrollment.)
+	var v = find_villager_by_id(villager_id)
+	if v.get("hero", false) and role_key == "School":
+		var stack = get_tree().get_first_node_in_group("notification_stack")
+		if stack:
+			stack.show_notification("%s was born a HERO — the School cannot teach them. Send them to the Barracks." % v.get("name", "The child"))
+		return
 	for villager in rescued_villagers:
 		if villager.get("id") == villager_id:
 			villager["role_key"] = role_key
@@ -1732,6 +1849,16 @@ func graduate_villager(villager_id: String) -> void:
 			villager["stat_value"] = 3
 			villager["role_key"] = ""
 			villager["role_title"] = ""
+			# A HERO leaves the Barracks a finished weapon: a full adult with a
+			# Warrior stat no school could grant, counted at triple weight in
+			# the defense maths and fielded as a hero soldier in live sieges.
+			if villager.get("hero", false):
+				villager["stat_name"] = "Warrior"
+				villager["stat_value"] = 10
+				villager["hero_trained"] = true
+				var stack = get_tree().get_first_node_in_group("notification_stack")
+				if stack:
+					stack.show_notification("★ %s completes their training — a HERO stands among you." % villager.get("name", "?"))
 
 func load_deepest_level() -> void:
 	if FileAccess.file_exists(DEEPEST_LEVEL_PATH):
@@ -1761,7 +1888,7 @@ func reset_for_new_game() -> void:
 	game_hours = 0.0
 	hours_until_next_siege = SIEGE_FIRST_HOURS
 	live_siege_active = false
-	away_report = {"sieges": 0, "repelled": 0, "villagers_lost": 0}
+	away_report = {"sieges": 0, "repelled": 0, "villagers_lost": 0, "adventurers_lost": 0}
 	# The village starts in ruins -- every building begins destroyed (health 0)
 	# and must be repaired before its roles work.
 	building_health = {}
@@ -1829,6 +1956,7 @@ func save_game(player: Node) -> void:
 		"mana": player.mana,
 		"difficulty": difficulty,
 		"rescued_villagers": rescued_villagers,
+		"adventurers": adventurers,
 		"chest_contents": chest_contents,
 		"mating_houses": mating_houses,
 		"pregnancies": pregnancies,
@@ -1877,6 +2005,9 @@ func load_game() -> Dictionary:
 			difficulty = parsed["difficulty"]
 		if parsed.has("rescued_villagers"):
 			rescued_villagers = parsed["rescued_villagers"]
+		if parsed.has("adventurers"):
+			adventurers = parsed["adventurers"]
+			ensure_adventurers()   # a newer build may know MORE adventurers than the save
 		if parsed.has("chest_contents"):
 			chest_contents = parsed["chest_contents"]
 		if parsed.has("mating_houses"):

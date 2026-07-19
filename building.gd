@@ -2016,6 +2016,9 @@ func get_eligible_villagers(role_def: Dictionary) -> Array:
 			continue
 		if role_def.get("requires_kid", false) and not villager.get("is_kid", false):
 			continue
+		# a hero child never appears on the School's roll -- Barracks only
+		if villager.get("hero", false) and building_name == "School":
+			continue
 		if not role_def.get("requires_kid", false) and not role_def.get("is_enrollment", false) and villager.get("is_kid", false):
 			continue
 		eligible.append(villager)

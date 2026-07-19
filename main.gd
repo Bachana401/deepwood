@@ -211,6 +211,7 @@ func _ready() -> void:
 	if GameState.pending_load:
 		apply_save_data()
 	spawn_existing_villager_avatars()
+	spawn_adventurers()
 	if GameState.returning_from_dungeon:
 		GameState.returning_from_dungeon = false
 		# only restore a real recorded spot -- the default (0,0) is below the
@@ -232,6 +233,8 @@ func show_away_report() -> void:
 	stack.show_notification("While you were away: %d siege%s -- %d repelled." % [report.sieges, "" if report.sieges == 1 else "s", report.repelled])
 	if report.villagers_lost > 0:
 		stack.show_notification("The raids claimed %d villager%s!" % [report.villagers_lost, "" if report.villagers_lost == 1 else "s"])
+	if int(report.get("adventurers_lost", 0)) > 0:
+		stack.show_notification("%d adventurer%s died holding the line. They will not return." % [report.adventurers_lost, "" if int(report.adventurers_lost) == 1 else "s"])
 
 func generate_village() -> void:
 	# Place buildings left-to-right. Each reserves its FULLY-UPGRADED width plus a
@@ -314,6 +317,23 @@ func spawn_existing_villager_avatars() -> void:
 		npc.villager_id = villager_id
 		npc.global_position = find_avatar_spawn_position(villager.get("role_key", ""))
 		$Village.add_child(npc)
+
+# The living adventurers (GAME_BIBLE 2.4.1): every rescued one that hasn't
+# fallen walks the village at its chosen station. The dead are simply absent --
+# permadeath means no node to spawn.
+const ADVENTURER_SCRIPT = preload("res://adventurer.gd")
+func spawn_adventurers() -> void:
+	GameState.ensure_adventurers()
+	var i := 0
+	for id in GameState.adventurers.keys():
+		var a: Dictionary = GameState.adventurers[id]
+		if not a["rescued"] or a["dead"]:
+			continue
+		var adv = ADVENTURER_SCRIPT.new()
+		adv.adventurer_id = id
+		adv.global_position = Vector2(1900.0 + i * 90.0, GROUND_Y - 30.0)
+		$Village.add_child(adv)
+		i += 1
 
 func is_villager_busy_mating(villager_id: String) -> bool:
 	for pairing in GameState.mating_houses.values():

@@ -1419,7 +1419,19 @@ func play_final_victory() -> void:
 # levels 85/90/95) is chained up in this level to be freed with E. Skipped once
 # they've been rescued (the roster dedupes, same as village hostages). They add
 # to the roster on rescue and their walking avatar appears back in the village.
+const ADVENTURER_RESCUE = preload("res://adventurer_rescue.gd")
+
 func spawn_deep_rescue() -> void:
+	# a chained adventurer of the deep nine (GAME_BIBLE 2.4.1) may be held here
+	var adv = Adventurers.for_level(current_level)
+	if not adv.is_empty():
+		var a_state = GameState.adventurer_state(str(adv.get("id", "")))
+		if not a_state.get("rescued", true):
+			var ar = ADVENTURER_RESCUE.new()
+			ar.adventurer_id = str(adv.get("id", ""))
+			ar.position = Vector2(current_width * 0.35, GROUND_Y - 40.0)
+			$LevelContainer.add_child(ar)
+			show_notification("An adventurer is chained in this level — free them!")
 	var figure = VillagerQuests.figure_for_level(current_level)
 	if figure.is_empty() or GameState.is_villager_rescued(str(figure.get("villager_id", ""))):
 		return
