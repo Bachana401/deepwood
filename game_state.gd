@@ -1037,8 +1037,11 @@ func on_live_siege_ended() -> void:
 		if adventurers[id]["rescued"] and not adventurers[id]["dead"]:
 			adventurers[id]["hp"] = float(Adventurers.get_def(id).get("hp", 100.0))
 	for a in get_tree().get_nodes_in_group("adventurer"):
-		if is_instance_valid(a) and not a.is_dead and a.body_rect:
-			a.body_rect.color = Color(0.32, 0.36, 0.46)   # wounds bound, colour restored
+		if is_instance_valid(a) and not a.is_dead:
+			if a.body_rect:
+				a.body_rect.color = Color(0.32, 0.36, 0.46)   # wounds bound, colour restored
+			if a.has_method("on_siege_ended"):
+				a.on_siege_ended()   # once-per-siege pacts (Daybreak) renew
 
 # Read + clear the away tally (main.gd shows it when the player returns).
 func consume_away_report() -> Dictionary:

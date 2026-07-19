@@ -36,6 +36,17 @@ var weapon_rect: ColorRect = null
 var name_label: Label = null
 var prompt: Label = null
 
+# --- signature ability state (each adventurer runs a DIFFERENT mechanic) ---
+var ability := ""
+var _shot_count := 0          # Twin Nock: every 3rd draw doubles
+var _swing_count := 0         # The Fifth Blade: every 5th swing erupts
+var _grudge_armed := false    # Grudgekeeper: struck -> next hit lands double
+var _daybreak_used := false   # Daybreak Pact: once per siege
+var _block_ready_at := 0.0    # Shield Wall: one free block on a cooldown
+const SHIELD_WALL_CD := 6.0
+const FIFTH_BLADE_RADIUS := 130.0
+const EXECUTE_FRAC := 0.20    # Bottom-Seen finishes raiders under this
+
 const WEAPON_COLORS = {
 	"blade": Color(0.82, 0.84, 0.9),
 	"bow": Color(0.45, 0.3, 0.14),
@@ -44,6 +55,7 @@ const WEAPON_COLORS = {
 
 func _ready() -> void:
 	def = Adventurers.get_def(adventurer_id)
+	ability = str(def.get("ability", ""))
 	var st = GameState.adventurer_state(adventurer_id)
 	station = str(st.get("station", "city"))
 	collision_mask = 1
@@ -95,6 +107,18 @@ func _build_visual() -> void:
 	name_label.add_theme_constant_override("outline_size", 3)
 	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(name_label)
+	# the signature ability, worn like a title -- gold, under the name
+	var abl := Label.new()
+	abl.text = "« %s »" % str(def.get("ability_name", ""))
+	abl.position = Vector2(-60, -55)
+	abl.size = Vector2(120, 14)
+	abl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	abl.add_theme_font_size_override("font_size", 8)
+	abl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.45))
+	abl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	abl.add_theme_constant_override("outline_size", 2)
+	abl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(abl)
 	prompt = Label.new()
 	prompt.position = Vector2(-90, -84)
 	prompt.size = Vector2(180, 16)
@@ -188,6 +212,47 @@ func _nearest_raider() -> Node2D:
 			best = r
 	return best
 
+# The attack this swing will land, after the signature riders that scale it:
+# Jorun's Ledger counts the fallen, Kessa's Grudge doubles a struck answer.
+func _attack_damage() -> int:
+	var dmg := float(def.get("dmg", 12))
+	if ability == "ledger":
+		var fallen := 0
+		for id in GameState.adventurers.keys():
+			if GameState.adventurers[id]["dead"]:
+				fallen += 1
+		dmg *= 1.0 + 0.25 * float(fallen)
+	if ability == "grudge" and _grudge_armed:
+		_grudge_armed = false
+		dmg *= 2.0
+		FloatingText.spawn_word(get_parent(), global_position + Vector2(0, -60), "GRUDGE!", Color(1.0, 0.6, 0.4))
+	return int(round(dmg))
+
+func _loose_arrow(at: Node2D, dmg: int) -> void:
+	var arrow = ARROW_SCENE.instantiate()
+	var dir = (at.global_position + Vector2(0, -14) - global_position).normalized()
+	arrow.position = global_position + Vector2(0, -30) + dir * 16.0
+	arrow.setup(dir, dmg, 20.0, 40.0, 4)
+	# Essa's shafts punch through a rank; Liselle's carry the venom they fed her
+	if ability == "eyeshot":
+		arrow.pierce_count = 3
+	if ability == "baited":
+		arrow.enemy_statuses = [{"kind": "poison", "dur": 4.0, "mag": 6.0}]
+	get_parent().add_child(arrow)
+
+# The second-nearest raider, for Wren's Twin Nock.
+func _second_raider(first: Node2D) -> Node2D:
+	var best: Node2D = null
+	var best_d := SEEK_RANGE
+	for r in get_tree().get_nodes_in_group("siege_enemy"):
+		if r == first or not is_instance_valid(r) or ("is_dead" in r and r.is_dead):
+			continue
+		var d: float = global_position.distance_to(r.global_position)
+		if d < best_d:
+			best_d = d
+			best = r
+	return best
+
 func _fight(target: Node2D) -> void:
 	var dist := global_position.distance_to(target.global_position)
 	var is_bow := str(def.get("weapon", "blade")) == "bow"
@@ -199,14 +264,49 @@ func _fight(target: Node2D) -> void:
 	if attack_cd > 0.0:
 		return
 	attack_cd = ATTACK_COOLDOWN * (1.4 if is_bow else 1.0)
+	var dmg := _attack_damage()
 	if is_bow:
-		var arrow = ARROW_SCENE.instantiate()
-		var dir = (target.global_position + Vector2(0, -14) - global_position).normalized()
-		arrow.position = global_position + Vector2(0, -30) + dir * 16.0
-		arrow.setup(dir, int(def.get("dmg", 12)), 20.0, 40.0, 4)
-		get_parent().add_child(arrow)
+		_loose_arrow(target, dmg)
+		# Twin Nock: every third draw looses a second shaft at a second raider
+		if ability == "twin_nock":
+			_shot_count += 1
+			if _shot_count % 3 == 0:
+				var second := _second_raider(target)
+				if second != null:
+					_loose_arrow(second, dmg)
 	elif target.has_method("take_damage"):
-		target.take_damage(int(def.get("dmg", 12)))
+		# Bottom-Seen: a wounded raider is not fought, it is FINISHED
+		if ability == "bottom_seen" and "health" in target and "max_health" in target \
+				and float(target.health) <= float(target.max_health) * EXECUTE_FRAC:
+			target.take_damage(999999)
+			FloatingText.spawn_word(get_parent(), target.global_position + Vector2(0, -40), "EXECUTED", Color(0.9, 0.3, 0.4))
+		else:
+			var was_alive: bool = not ("is_dead" in target and target.is_dead)
+			target.take_damage(dmg)
+			# Frostbrand chills; Phalanx hurls and staggers
+			if ability == "frostbrand" and target.has_method("apply_status"):
+				target.apply_status("slow", 2.5, 0.5)
+			if ability == "phalanx":
+				if target.has_method("apply_knockback"):
+					target.apply_knockback(1 if target.global_position.x >= global_position.x else -1, 180.0)
+				if target.has_method("apply_status"):
+					target.apply_status("slow", 1.5, 0.4)
+			# The Fifth Blade: every fifth swing erupts around the mark
+			if ability == "fifth_blade":
+				_swing_count += 1
+				if _swing_count % 5 == 0:
+					var burst := int(round(dmg * 0.6))
+					for r in get_tree().get_nodes_in_group("siege_enemy"):
+						if r != target and is_instance_valid(r) and r.has_method("take_damage") \
+								and not ("is_dead" in r and r.is_dead) \
+								and target.global_position.distance_to(r.global_position) <= FIFTH_BLADE_RADIUS:
+							r.take_damage(burst)
+					FloatingText.spawn_word(get_parent(), target.global_position + Vector2(0, -50), "THE FIFTH BLADE", Color(0.95, 0.85, 0.5))
+			# Last Watch: a felled raider knits the guard's own wounds
+			if ability == "last_watch" and was_alive and "is_dead" in target and target.is_dead:
+				var st = GameState.adventurer_state(adventurer_id)
+				var max_hp := float(def.get("hp", 100.0))
+				GameState.adventurers[adventurer_id]["hp"] = minf(max_hp, float(st.get("hp", max_hp)) + 20.0)
 		if weapon_rect:
 			var t = create_tween()
 			t.tween_property(weapon_rect, "rotation_degrees", 70.0 * body_rect.scale.x, 0.08)
@@ -215,8 +315,24 @@ func _fight(target: Node2D) -> void:
 func take_damage(amount: int) -> void:
 	if is_dead or station == "house":
 		return
+	var now := Time.get_ticks_msec() / 1000.0
+	# Shield Wall: Roland reads the blow and takes it on the boss -- one free
+	# block, then the rhythm has to reset
+	if ability == "shield_wall" and now >= _block_ready_at:
+		_block_ready_at = now + SHIELD_WALL_CD
+		FloatingText.spawn_word(get_parent(), global_position + Vector2(0, -50), "BLOCKED", Color(0.7, 0.85, 1.0))
+		return
+	# Grudgekeeper: the blow lands, and the answer is armed
+	if ability == "grudge":
+		_grudge_armed = true
 	var st = GameState.adventurer_state(adventurer_id)
 	var hp := float(st.get("hp", 100.0)) - float(amount)
+	# Daybreak Pact: once per siege, brought to the brink, Hakon rises to FULL
+	var max_hp := float(def.get("hp", 100.0))
+	if ability == "daybreak" and not _daybreak_used and hp > 0.0 and hp <= max_hp * 0.3:
+		_daybreak_used = true
+		hp = max_hp
+		FloatingText.spawn_word(get_parent(), global_position + Vector2(0, -56), "DAYBREAK", Color(1.0, 0.95, 0.6))
 	GameState.adventurers[adventurer_id]["hp"] = hp
 	FloatingText.spawn(get_parent(), global_position + Vector2(0, -40), amount)
 	if body_rect:
@@ -225,6 +341,11 @@ func take_damage(amount: int) -> void:
 		t.tween_property(body_rect, "color", Color(0.32, 0.36, 0.46), 0.25)
 	if hp <= 0.0:
 		die()
+
+# The pact renews between sieges (called via the adventurer group when a live
+# siege ends -- the same sweep that binds everyone's wounds).
+func on_siege_ended() -> void:
+	_daybreak_used = false
 
 func die() -> void:
 	if is_dead:

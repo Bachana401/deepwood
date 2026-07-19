@@ -183,6 +183,104 @@ func _ready() -> void:
 		gs_src.contains('"doctor_heals_bought": doctor_heals_bought'))
 	check("npc offers the heal on E", load("res://npc.gd").new().has_method("try_doctor_heal"))
 
+	# ---------------- signature abilities: 12 adventurers, 12 mechanics ----------------
+	var abilities := {}
+	for aid in Adventurers.ids():
+		var adef = Adventurers.get_def(aid)
+		check("'%s' carries a named ability" % aid,
+			str(adef.get("ability", "")) != "" and str(adef.get("ability_name", "")) != ""
+			and str(adef.get("ability_desc", "")) != "")
+		abilities[str(adef.get("ability", ""))] = true
+	check("all twelve abilities are DISTINCT mechanics", abilities.size() == 12, "%d unique" % abilities.size())
+	# every declared ability id must have a handler in adventurer.gd -- the
+	# repo's cardinal sin is a promise nothing reads
+	var af := FileAccess.open("res://adventurer.gd", FileAccess.READ)
+	var asrc := af.get_as_text() if af != null else ""
+	if af != null: af.close()
+	for ab in abilities.keys():
+		check("ability '%s' is actually implemented" % ab, asrc.contains('"%s"' % ab))
+
+	# functional spot-checks on the ones that need no live raiders
+	var hero_a = load("res://adventurer.gd").new()
+	hero_a.adventurer_id = "adv_roland"
+	get_tree().root.add_child(hero_a)
+	await get_tree().process_frame
+	hero_a.station = "wall"
+	GameState.adventurers["adv_roland"]["dead"] = false
+	GameState.adventurers["adv_roland"]["hp"] = 100.0
+	hero_a.take_damage(40)
+	check("Shield Wall: the first blow is BLOCKED outright",
+		float(GameState.adventurers["adv_roland"]["hp"]) == 100.0)
+	hero_a.take_damage(40)
+	check("...but the rhythm has a cooldown -- the second lands",
+		float(GameState.adventurers["adv_roland"]["hp"]) == 60.0,
+		"%.0f" % GameState.adventurers["adv_roland"]["hp"])
+	hero_a.free()
+
+	var kessa = load("res://adventurer.gd").new()
+	kessa.adventurer_id = "adv_kessa"
+	get_tree().root.add_child(kessa)
+	await get_tree().process_frame
+	kessa.station = "wall"
+	GameState.adventurers["adv_kessa"] = {"rescued": true, "dead": false, "station": "wall", "hp": 200.0}
+	var base_hit: int = kessa._attack_damage()
+	kessa.take_damage(10)
+	var grudge_hit: int = kessa._attack_damage()
+	check("Grudgekeeper: struck, her answer lands DOUBLE", grudge_hit == base_hit * 2,
+		"%d -> %d" % [base_hit, grudge_hit])
+	check("...and the grudge is spent on that answer", kessa._attack_damage() == base_hit)
+	kessa.free()
+
+	var jorun = load("res://adventurer.gd").new()
+	jorun.adventurer_id = "adv_jorun"
+	get_tree().root.add_child(jorun)
+	await get_tree().process_frame
+	var all_alive_dmg: int
+	for id in GameState.adventurers.keys():
+		GameState.adventurers[id]["dead"] = false
+	all_alive_dmg = jorun._attack_damage()
+	GameState.adventurers["adv_mira"]["dead"] = true
+	GameState.adventurers["adv_essa"]["dead"] = true
+	check("Ledger of the Lost: every fallen comrade sharpens Jorun (+25%% each)",
+		jorun._attack_damage() > all_alive_dmg,
+		"%d -> %d" % [all_alive_dmg, jorun._attack_damage()])
+	GameState.adventurers["adv_mira"]["dead"] = false
+	GameState.adventurers["adv_essa"]["dead"] = false
+	jorun.free()
+
+	var hakon = load("res://adventurer.gd").new()
+	hakon.adventurer_id = "adv_hakon"
+	get_tree().root.add_child(hakon)
+	await get_tree().process_frame
+	hakon.station = "wall"
+	GameState.adventurers["adv_hakon"] = {"rescued": true, "dead": false, "station": "wall", "hp": 330.0}
+	hakon.take_damage(250)   # would leave him at 80 -- under 30% of 330
+	check("Daybreak Pact: brought to the brink, he rises to FULL",
+		float(GameState.adventurers["adv_hakon"]["hp"]) == 330.0,
+		"%.0f" % GameState.adventurers["adv_hakon"]["hp"])
+	check("...once per siege only", hakon._daybreak_used)
+	hakon.on_siege_ended()
+	check("...and the pact renews when the siege ends", not hakon._daybreak_used)
+	hakon.free()
+
+	# Bottom-Seen: a wounded raider is finished, not fought
+	var sorrel = load("res://adventurer.gd").new()
+	sorrel.adventurer_id = "adv_sorrel"
+	get_tree().root.add_child(sorrel)
+	await get_tree().process_frame
+	GameState.adventurers["adv_sorrel"] = {"rescued": true, "dead": false, "station": "wall", "hp": 380.0}
+	var prey = load("res://siege_enemy.gd").new()
+	get_tree().root.add_child(prey)
+	await get_tree().process_frame
+	prey.max_health = 500
+	prey.health = 90    # 18% -- under the 20% line
+	prey.global_position = sorrel.global_position + Vector2(30, 0)
+	sorrel.attack_cd = 0.0
+	sorrel._fight(prey)
+	check("Bottom-Seen: a raider under 20%% is EXECUTED outright", prey.is_dead)
+	prey.queue_free()
+	sorrel.free()
+
 	# ---------------- Orin's entrance (GAME_BIBLE 2.5.1) ----------------
 	var saved_depth: int = GameState.deepest_level_reached
 	var saved_dev: bool = GameState.dev_mode
