@@ -45,11 +45,13 @@ func apply_status(kind: String, dur: float, mag: float) -> void:
 	var now := Time.get_ticks_msec() / 1000.0
 	match kind:
 		"burn":
+			var burn_live := now < status_burn_until
 			status_burn_until = now + dur
-			status_burn_dps = maxf(status_burn_dps if now < status_burn_until else 0.0, mag)
+			status_burn_dps = maxf(status_burn_dps if burn_live else 0.0, mag)
 		"poison":
+			var poison_live := now < status_poison_until
 			status_poison_until = now + dur
-			status_poison_dps = maxf(status_poison_dps if now < status_poison_until else 0.0, mag)
+			status_poison_dps = maxf(status_poison_dps if poison_live else 0.0, mag)
 		"slow":
 			status_slow_until = now + dur
 			status_slow_factor = clampf(1.0 - mag, 0.2, 1.0)

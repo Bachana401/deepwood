@@ -286,11 +286,13 @@ func apply_status(kind: String, dur: float, mag: float) -> void:
 		return
 	match kind:
 		"burn":
+			var burn_live := _time_now() < status_burn_until
 			status_burn_until = _time_now() + dur
-			status_burn_dps = maxf(status_burn_dps if _time_now() < status_burn_until else 0.0, mag)
+			status_burn_dps = maxf(status_burn_dps if burn_live else 0.0, mag)
 		"poison":
+			var poison_live := _time_now() < status_poison_until
 			status_poison_until = _time_now() + dur
-			status_poison_dps = maxf(status_poison_dps if _time_now() < status_poison_until else 0.0, mag)
+			status_poison_dps = maxf(status_poison_dps if poison_live else 0.0, mag)
 		"slow", "freeze":
 			# freeze on a boss is just a hard slow -- it never stops acting
 			var factor := maxf(BOSS_SLOW_FLOOR, 1.0 - (1.0 - (mag if kind == "slow" else 0.5)) * 0.5)

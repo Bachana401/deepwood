@@ -44,6 +44,21 @@ func _ready() -> void:
 		boss.health < hp0, "hp %d -> %d" % [hp0, boss.health])
 	# DoT must not trigger the reactive phase -- that would leave it intangible
 	check("DoT does not trip the reactive phase", not boss.is_phased())
+	# an EXPIRED stronger burn must not be resurrected by a later weak one.
+	# (The first cut refreshed the expiry window before checking it, so the
+	# liveness test was always true and stale DPS survived forever.)
+	boss.status_burn_until = 0.0             # long expired
+	boss.status_burn_dps = 999.0             # stale monster value
+	boss.apply_status("burn", 2.0, 5.0)      # a modest fresh burn
+	check("a fresh burn does NOT resurrect an expired stronger one",
+		abs(boss.status_burn_dps - 5.0) < 0.001, "dps=%.1f" % boss.status_burn_dps)
+	# ...while stacking onto a LIVE burn keeps the stronger of the two
+	boss.apply_status("burn", 2.0, 3.0)
+	check("a weaker burn on a live one keeps the stronger DPS",
+		abs(boss.status_burn_dps - 5.0) < 0.001, "dps=%.1f" % boss.status_burn_dps)
+	boss.status_burn_until = 0.0
+	boss.status_burn_dps = 0.0
+
 	# slow lands, but capped -- a boss never crawls below the floor
 	boss.apply_status("slow", 3.0, 0.9)      # a 90% slow request
 	check("a boss slow is capped at the floor (never below %.2fx)" % boss.BOSS_SLOW_FLOOR,
