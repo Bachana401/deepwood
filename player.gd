@@ -700,11 +700,22 @@ func monarch_tick(delta: float) -> void:
 	if tf != monarch_true_form_active:
 		monarch_true_form_active = tf
 		_apply_true_form(tf)
-	if tf and not is_dead:
+	# the true form novas on its own; Dominion's "Deadly Presence" grants the
+	# same periodic detonation to the mortal Monarch, faster the more power taken
+	if (tf or GameState.get_skill_total("nova_passive") > 0.0) and not is_dead:
 		monarch_nova_accum += delta
-		if monarch_nova_accum >= NOVA_PERIOD:
+		var period := NOVA_PERIOD * (0.7 if not tf else 1.0)
+		if monarch_nova_accum >= period:
 			monarch_nova_accum = 0.0
 			fire_shadow_nova()
+	# Dominion's "Sovereign's Dread": a standing aura that saps the will of
+	# everything near the Monarch -- a periodic slow, no button to press
+	var fear := GameState.get_skill_total("fear_aura")
+	if fear > 0.0 and not is_dead:
+		fear_aura_accum += delta
+		if fear_aura_accum >= FEAR_AURA_PERIOD:
+			fear_aura_accum = 0.0
+			apply_fear_aura(fear)
 
 func _apply_true_form(on: bool) -> void:
 	# The god-form is VISUAL scale only (collision untouched, so gameplay stays
@@ -735,16 +746,28 @@ func _apply_true_form(on: bool) -> void:
 
 # Rise, Shade (5/7+): the slain foe's shadow tears free of the ground and
 # serves. Temporary soldiers below 7/7; the true form keeps a standing army.
+# A Shadow Monarch may RAISE shades from the skill tree, not only from reaching
+# monarch stage 5 by levelling. The Legion spec is built entirely on these keys.
+func can_raise_shades() -> bool:
+	return GameState.monarch_stage() >= 5 or GameState.get_skill_total("shade_unlock") > 0.0
+
 func raise_shade() -> void:
 	monarch_shades = monarch_shades.filter(func(s): return is_instance_valid(s))
 	var true_form: bool = GameState.monarch_true_form()
-	var cap: int = 4 if true_form else 2
+	# Legion's "Growing Host" nodes add to the cap; the true form's own +2 stacks
+	var cap: int = (4 if true_form else 2) + int(GameState.get_skill_total("shade_cap"))
 	if monarch_shades.size() >= cap:
 		return
 	var shade = load("res://shade.gd").new()
 	shade.owner_player = self
-	shade.damage = int(round((8.0 + GameState.player_level * 0.55) * (1.6 if true_form else 1.0)))
-	shade.expires_at = 0.0 if true_form else (_now() + SHADE_LIFETIME)
+	# Legion's "Deathless Legion" makes shades hit far harder
+	var dmg_mult := (1.6 if true_form else 1.0) * (1.0 + GameState.get_skill_total("shade_damage"))
+	shade.damage = int(round((8.0 + GameState.player_level * 0.55) * dmg_mult))
+	# a shade bursts when it falls if the tree grants it
+	shade.explode_frac = GameState.get_skill_total("shade_explode")
+	# permanent in the true form OR once the Legion keystone is taken
+	var permanent := true_form or GameState.get_skill_total("shade_permanent") > 0.0
+	shade.expires_at = 0.0 if permanent else (_now() + SHADE_LIFETIME)
 	get_parent().add_child(shade)
 	shade.global_position = global_position + Vector2(randf_range(-26.0, 26.0), 0.0)
 	monarch_shades.append(shade)
@@ -772,7 +795,10 @@ func shade_defend_share() -> float:
 # The true form's heartbeat: every few seconds the dark detonates outward.
 # Only rings visibly when it actually catches someone -- no spam in the village.
 func fire_shadow_nova() -> void:
-	var dmg = 30 + GameState.player_level
+	# Dominion's "Crown of Ruin" nodes swell the blast's damage and reach
+	var power := 1.0 + GameState.get_skill_total("nova_power")
+	var dmg = int(round((30 + GameState.player_level) * power))
+	var radius := NOVA_RADIUS * (1.0 + GameState.get_skill_total("nova_power") * 0.5)
 	var hit := 0
 	for group_name in HOSTILE_GROUPS:
 		for e in get_tree().get_nodes_in_group(group_name):
@@ -780,11 +806,30 @@ func fire_shadow_nova() -> void:
 				continue
 			if "is_dead" in e and e.is_dead:
 				continue
-			if global_position.distance_to(e.global_position) <= NOVA_RADIUS:
+			if global_position.distance_to(e.global_position) <= radius:
 				e.take_damage(dmg)
 				hit += 1
 	if hit > 0:
-		spawn_shock_ring(global_position, NOVA_RADIUS, Color(0.5, 0.15, 0.95, 0.9))
+		spawn_shock_ring(global_position, radius, Color(0.5, 0.15, 0.95, 0.9))
+
+# The dread aura: everything within reach is slowed, its will sapped. Magnitude
+# is how deep the slow bites (Sovereign's Dread stacks it toward a hard chill).
+const FEAR_AURA_PERIOD := 1.0
+const FEAR_AURA_RADIUS := 240.0
+var fear_aura_accum := 0.0
+func apply_fear_aura(magnitude: float) -> void:
+	var slowed := false
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not is_instance_valid(e) or ("is_dead" in e and e.is_dead):
+				continue
+			if global_position.distance_to(e.global_position) > FEAR_AURA_RADIUS:
+				continue
+			if e.has_method("apply_slow"):
+				e.apply_slow(FEAR_AURA_PERIOD + 0.4, clampf(magnitude, 0.1, 0.85))
+				slowed = true
+	if slowed and randf() < 0.25:
+		spawn_shock_ring(global_position, FEAR_AURA_RADIUS, Color(0.35, 0.1, 0.6, 0.35))
 
 # The Long Dark (6/7+): death reached for you and closed on shadow. The body
 # melts into living dark -- unkillable while it knits itself back together.
@@ -1409,8 +1454,9 @@ func on_enemy_killed() -> void:
 			rampage_stacks = 0
 		rampage_stacks = mini(RAMPAGE_MAX_STACKS, rampage_stacks + 1)
 		rampage_until = _now() + RAMPAGE_DURATION
-	# Rise, Shade (5/7+): the slain foe's shadow tears free and serves
-	if GameState.monarch_stage() >= 5:
+	# Rise, Shade: the slain foe's shadow tears free and serves -- from monarch
+	# stage 5, OR from the Legion skill line the moment it's taken
+	if can_raise_shades():
 		raise_shade()
 	# advance any "slay N foes" villager bonds
 	GameState.quest_event("slay", "", 1)

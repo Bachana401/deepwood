@@ -59,11 +59,6 @@ func _ready() -> void:
 	# ---- 3. skill trees: dead nodes and broken links ----
 	printerr("\n== skill trees ==")
 	for cls in SkillTreeData.TREES.keys():
-		# The Shadow Monarch tree is a deliberate post-game teaser: every node is
-		# "???" with no effect until the game is finished. Flagging it as empty
-		# would bury the real findings under four permanent false alarms.
-		if cls == "Shadow Monarch":
-			continue
 		var ids := {}
 		for node in SkillTreeData.TREES[cls]:
 			ids[node.get("id", "")] = true

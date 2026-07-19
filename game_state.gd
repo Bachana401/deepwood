@@ -408,6 +408,10 @@ func announce_monarch_awakening() -> void:
 var monarch_true_form_forced := false
 
 func monarch_true_form() -> bool:
+	# the Ascendant ultimate ("Sovereign of the Dead") grants the god-form as a
+	# skill, so a post-game Monarch can reach it without emptying the village
+	if get_skill_total("true_form_unlock") > 0.0:
+		return true
 	if monarch_stage() < 7:
 		return false
 	return monarch_true_form_forced or rescued_villagers.is_empty()

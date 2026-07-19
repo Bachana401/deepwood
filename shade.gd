@@ -40,6 +40,7 @@ const GUARD_ORBIT := 54.0     # how far out front the guards hold station
 const PROJECTILE_GROUPS = ["enemy_projectile", "boss_projectile", "hostile_projectile"]
 
 var damage := 10
+var explode_frac := 0.0       # Legion "Volatile Dead": burst on death for this x damage
 var expires_at := 0.0         # ticks-seconds; 0 = permanent (true form)
 var owner_player: Node2D = null
 
@@ -318,10 +319,38 @@ func _slash(target: Node2D) -> void:
 	t.tween_property(arc, "modulate:a", 0.0, 0.2)
 	t.tween_callback(arc.queue_free)
 
+func spawn_burst() -> void:
+	var burst_fx := CPUParticles2D.new()
+	burst_fx.one_shot = true
+	burst_fx.explosiveness = 1.0
+	burst_fx.amount = 14
+	burst_fx.lifetime = 0.35
+	burst_fx.spread = 180.0
+	burst_fx.initial_velocity_min = 80.0
+	burst_fx.initial_velocity_max = 180.0
+	burst_fx.color = Color(0.55, 0.2, 1.0)
+	burst_fx.z_index = 30
+	get_parent().add_child(burst_fx)
+	burst_fx.global_position = global_position
+	burst_fx.emitting = true
+	burst_fx.finished.connect(burst_fx.queue_free)
+
 func dissolve() -> void:
 	if _dying:
 		return
 	_dying = true
+	# Volatile Dead: a falling shade erupts, harming everything around where it
+	# stood -- so the Legion keeps working even as it's whittled down
+	if explode_frac > 0.0:
+		var burst := int(round(float(damage) * explode_frac))
+		if burst > 0:
+			for group_name in ["course_enemy", "dungeon_combatant", "siege_enemy"]:
+				for e in get_tree().get_nodes_in_group(group_name):
+					if is_instance_valid(e) and e.has_method("take_damage") \
+							and not ("is_dead" in e and e.is_dead) \
+							and global_position.distance_to(e.global_position) <= 130.0:
+						e.take_damage(burst)
+			spawn_burst()
 	var t = create_tween()
 	t.tween_property(self, "modulate:a", 0.0, 0.3)
 	t.parallel().tween_property(self, "scale", Vector2(1.2, 0.05), 0.3)

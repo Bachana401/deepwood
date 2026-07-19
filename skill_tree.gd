@@ -51,7 +51,7 @@ const BRANCH_NAMES = {
 	"Sword": ["Berserker", "Guardian", "Warlord"],
 	"Archer": ["Marksman", "Ranger", "Warden"],
 	"Mage": ["Elementalist", "Sage", "Mystic"],
-	"Shadow Monarch": ["???", "???", "???"],
+	"Shadow Monarch": ["Legion", "Dominion", "Ascendant"],
 }
 
 const TREES = {
@@ -147,10 +147,34 @@ const TREES = {
 	],
 	# Unlockable only after finishing the game -- a locked teaser for now.
 	"Shadow Monarch": [
-		{"id": "nc_root", "branch": -1, "col": 2.5, "name": "Shadow's Pact", "desc": "???", "tier": 0, "cost": 1, "prereq": "", "materials": {}, "effect": {}},
-		{"id": "nc_b1", "branch": 0, "col": 0.5, "name": "???", "desc": "???", "tier": 1, "cost": 1, "prereq": "nc_root", "materials": {}, "effect": {}},
-		{"id": "nc_b2", "branch": 1, "col": 2.5, "name": "???", "desc": "???", "tier": 1, "cost": 1, "prereq": "nc_root", "materials": {}, "effect": {}},
-		{"id": "nc_b3", "branch": 2, "col": 4.5, "name": "???", "desc": "???", "tier": 1, "cost": 1, "prereq": "nc_root", "materials": {}, "effect": {}},
+		{"id": "nc_root", "branch": -1, "col": 2.5, "name": "Shadow's Pact", "desc": "The dead answer you. Slain foes may rise as shades, and +8% all damage.", "tier": 0, "cost": 1, "prereq": "", "materials": {}, "effect": {"shade_unlock": 1.0, "melee_damage": 0.08, "bow_damage": 0.08, "wand_damage": 0.08}},
+		# === Legion (0): a growing army of the dead, ending in a deathless host ===
+		{"id": "nc_l1", "branch": 0, "col": 0.5, "name": "Growing Host", "desc": "+1 shade -- a bigger army stands with you", "tier": 1, "cost": 1, "prereq": "nc_root", "materials": {}, "effect": {"shade_cap": 1.0}},
+		{"id": "nc_l2", "branch": 0, "col": 0.5, "name": "Sharpened Dead", "desc": "+25% shade damage", "tier": 2, "cost": 1, "prereq": "nc_l1", "materials": {}, "effect": {"shade_damage": 0.25}},
+		{"id": "nc_l3", "branch": 0, "col": 0.5, "name": "Standing Army", "desc": "KEYSTONE: your shades no longer fade -- they serve until they fall", "tier": 3, "cost": 2, "prereq": "nc_l2", "materials": {"slime": 3}, "effect": {"shade_permanent": 1.0}, "keystone": true},
+		{"id": "nc_l4a", "branch": 0, "col": 0.0, "name": "Endless Ranks", "desc": "FORK: +2 shades -- overwhelm with numbers", "tier": 4, "cost": 3, "prereq": "nc_l3", "materials": {"iron_shard": 2}, "effect": {"shade_cap": 2.0}, "keystone": true, "exclusive": "nc0"},
+		{"id": "nc_l4b", "branch": 0, "col": 1.0, "name": "Volatile Dead", "desc": "FORK: +40% shade damage, and a falling shade erupts for 80% of its damage", "tier": 4, "cost": 3, "prereq": "nc_l3", "materials": {"iron_shard": 2}, "effect": {"shade_damage": 0.40, "shade_explode": 0.8}, "keystone": true, "exclusive": "nc0"},
+		{"id": "nc_l5", "branch": 0, "col": 0.5, "name": "Grave Bond", "desc": "+35% shade damage, +30 max health", "tier": 5, "cost": 2, "prereq": ["nc_l4a", "nc_l4b"], "materials": {"ember_crystal": 1}, "effect": {"shade_damage": 0.35, "max_health": 30.0}},
+		{"id": "nc_l6", "branch": 0, "col": 0.5, "name": "Warhost", "desc": "KEYSTONE: +1 shade, +30% shade damage", "tier": 6, "cost": 4, "prereq": "nc_l5", "materials": {"void_essence": 2}, "effect": {"shade_cap": 1.0, "shade_damage": 0.30}, "keystone": true},
+		{"id": "nc_l7", "branch": 0, "col": 0.5, "name": "Deathless Legion", "desc": "ULTIMATE: +2 shades, +60% shade damage, and every fallen shade erupts. An army that never ends.", "tier": 7, "cost": 6, "prereq": "nc_l6", "materials": {"void_essence": 3, "ancient_relic": 2}, "effect": {"shade_cap": 2.0, "shade_damage": 0.60, "shade_explode": 1.0, "max_health": 40.0}, "keystone": true},
+		# === Dominion (1): auras and detonations that bend the fight ===
+		{"id": "nc_d1", "branch": 1, "col": 2.5, "name": "Dread Presence", "desc": "+10% all damage -- your very presence cows them", "tier": 1, "cost": 1, "prereq": "nc_root", "materials": {}, "effect": {"melee_damage": 0.10, "bow_damage": 0.10, "wand_damage": 0.10}},
+		{"id": "nc_d2", "branch": 1, "col": 2.5, "name": "Sovereign's Dread", "desc": "KEYSTONE: enemies near you are steadily slowed -- a standing aura of fear", "tier": 2, "cost": 1, "prereq": "nc_d1", "materials": {}, "effect": {"fear_aura": 0.35}},
+		{"id": "nc_d3", "branch": 1, "col": 2.5, "name": "Deadly Presence", "desc": "KEYSTONE: the dark around you detonates on its own, again and again", "tier": 3, "cost": 2, "prereq": "nc_d2", "materials": {"slime": 3}, "effect": {"nova_passive": 1.0}, "keystone": true},
+		{"id": "nc_d4a", "branch": 1, "col": 2.0, "name": "Crown of Ruin", "desc": "FORK: +50% nova damage and reach -- a wider, deadlier blast", "tier": 4, "cost": 3, "prereq": "nc_d3", "materials": {"ember_crystal": 2}, "effect": {"nova_power": 0.5}, "keystone": true, "exclusive": "nc1"},
+		{"id": "nc_d4b", "branch": 1, "col": 3.0, "name": "Withering Command", "desc": "FORK: your fear aura bites far deeper (heavy slow), +40 max mana", "tier": 4, "cost": 3, "prereq": "nc_d3", "materials": {"ember_crystal": 2}, "effect": {"fear_aura": 0.35, "max_mana": 40.0}, "keystone": true, "exclusive": "nc1"},
+		{"id": "nc_d5", "branch": 1, "col": 2.5, "name": "Tyrant's Will", "desc": "+15% all damage, +40 max health", "tier": 5, "cost": 2, "prereq": ["nc_d4a", "nc_d4b"], "materials": {"ember_crystal": 1}, "effect": {"melee_damage": 0.15, "bow_damage": 0.15, "wand_damage": 0.15, "max_health": 40.0}},
+		{"id": "nc_d6", "branch": 1, "col": 2.5, "name": "Reign of Terror", "desc": "KEYSTONE: +40% nova power, +12% damage reduction", "tier": 6, "cost": 4, "prereq": "nc_d5", "materials": {"void_essence": 2}, "effect": {"nova_power": 0.4, "damage_reduction": 0.12}, "keystone": true},
+		{"id": "nc_d7", "branch": 1, "col": 2.5, "name": "Absolute Dominion", "desc": "ULTIMATE: +80% nova power, a crushing fear aura, +25% all damage. The battlefield is yours.", "tier": 7, "cost": 6, "prereq": "nc_d6", "materials": {"void_essence": 3, "ancient_relic": 2}, "effect": {"nova_power": 0.8, "fear_aura": 0.5, "melee_damage": 0.25, "bow_damage": 0.25, "wand_damage": 0.25}, "keystone": true},
+		# === Ascendant (2): the god-king body, ending in the true form ===
+		{"id": "nc_a1", "branch": 2, "col": 4.5, "name": "Undying Flesh", "desc": "+35 max health", "tier": 1, "cost": 1, "prereq": "nc_root", "materials": {}, "effect": {"max_health": 35.0}},
+		{"id": "nc_a2", "branch": 2, "col": 4.5, "name": "Shadowhide", "desc": "+8% damage reduction", "tier": 2, "cost": 1, "prereq": "nc_a1", "materials": {}, "effect": {"damage_reduction": 0.08}},
+		{"id": "nc_a3", "branch": 2, "col": 4.5, "name": "Feast of Shadows", "desc": "KEYSTONE: your hits heal you for 10% of the damage dealt", "tier": 3, "cost": 2, "prereq": "nc_a2", "materials": {"slime": 3}, "effect": {"lifesteal": 0.10}, "keystone": true},
+		{"id": "nc_a4a", "branch": 2, "col": 4.0, "name": "Immortal Sovereign", "desc": "FORK: survive one lethal hit per life (revive at 25% HP), +60 HP", "tier": 4, "cost": 3, "prereq": "nc_a3", "materials": {"ember_crystal": 2}, "effect": {"undying": 1.0, "max_health": 60.0}, "keystone": true, "exclusive": "nc2"},
+		{"id": "nc_a4b", "branch": 2, "col": 5.0, "name": "Wrath Incarnate", "desc": "FORK: +30% all damage, +15% crit -- overwhelming force", "tier": 4, "cost": 3, "prereq": "nc_a3", "materials": {"ember_crystal": 2}, "effect": {"melee_damage": 0.30, "bow_damage": 0.30, "wand_damage": 0.30, "crit_chance": 0.15}, "keystone": true, "exclusive": "nc2"},
+		{"id": "nc_a5", "branch": 2, "col": 4.5, "name": "Dread Vitality", "desc": "+80 max health, +6% damage reduction", "tier": 5, "cost": 2, "prereq": ["nc_a4a", "nc_a4b"], "materials": {"ember_crystal": 1}, "effect": {"max_health": 80.0, "damage_reduction": 0.06}},
+		{"id": "nc_a6", "branch": 2, "col": 4.5, "name": "Eternal Monarch", "desc": "KEYSTONE: +120 max HP, +15% lifesteal", "tier": 6, "cost": 4, "prereq": "nc_a5", "materials": {"void_essence": 2}, "effect": {"max_health": 120.0, "lifesteal": 0.15}, "keystone": true},
+		{"id": "nc_a7", "branch": 2, "col": 4.5, "name": "Sovereign of the Dead", "desc": "ULTIMATE: ASSUME THE TRUE FORM at will -- the god-king rises: permanent army, shadow novas, +150 HP, +20% damage.", "tier": 7, "cost": 6, "prereq": "nc_a6", "materials": {"void_essence": 3, "ancient_relic": 2}, "effect": {"true_form_unlock": 1.0, "max_health": 150.0, "melee_damage": 0.20, "bow_damage": 0.20, "wand_damage": 0.20}, "keystone": true},
 	],
 }
 
