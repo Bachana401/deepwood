@@ -21,6 +21,15 @@ const OPENING = [
 	{"speaker": "A Frozen Villager", "text": "Please. We are all that is left. Deepwood is worth saving — even now."},
 ]
 
+# THE FAILED ESCAPE (2.4.1 beat 3) -- the player tries the road out himself and
+# barely survives it. The lesson lands as gameplay first (mauled to the brink,
+# hurled back); these lines land the meaning. One-shot.
+const FAILED_ESCAPE = [
+	{"speaker": "", "text": "The moment you turn for the open road, the treeline MOVES. Not a patrol. Not a wave. The whole dark rises to meet you — twice as many for every step you take."},
+	{"speaker": "You", "text": "...The three weren't cowards. The way out isn't blocked. It's bait."},
+	{"speaker": "", "text": "You crawl back inside the ruin of Deepwood with your life and nothing else. The exit is not an option. The only way out is THROUGH — down, to the root of it."},
+]
+
 # THE DOCTOR'S ACCOUNT (2.4.1 beat 5 + 2.5.1 beat 1) -- her first real talk.
 # The Law of Despair told by a survivor, and the rumour of the lost wizard --
 # dramatic irony's opening move: she mourns Orin as another dead hero, and

@@ -375,6 +375,16 @@ func _ready() -> void:
 	check("a non-elite has no affix", plain_mob.affix == "")
 	plain_mob.queue_free()
 
+	# ---------------- the failed escape (GAME_BIBLE 2.4.1 beat 3) ----------------
+	var main_src := FileAccess.open("res://main.gd", FileAccess.READ).get_as_text()
+	check("the west road carries the escape ward", main_src.contains("build_escape_ward"))
+	check("the ward respects a WON game (roads reopen)", main_src.contains("game_completed"))
+	var story_src2 := FileAccess.open("res://story.gd", FileAccess.READ).get_as_text()
+	check("the failed-escape beat exists and names the bait",
+		story_src2.contains("FAILED_ESCAPE") and story_src2.contains("bait"))
+	check("the beat is one-shot and saved",
+		main_src.contains("seen_failed_escape") and GameState.get("seen_failed_escape") != null)
+
 	# ---------------- Orin's entrance (GAME_BIBLE 2.5.1) ----------------
 	var saved_depth: int = GameState.deepest_level_reached
 	var saved_dev: bool = GameState.dev_mode

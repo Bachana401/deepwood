@@ -213,6 +213,7 @@ func _ready() -> void:
 	spawn_existing_villager_avatars()
 	spawn_adventurers()
 	announce_orin_arrival()
+	build_escape_ward()
 	if GameState.returning_from_dungeon:
 		GameState.returning_from_dungeon = false
 		# only restore a real recorded spot -- the default (0,0) is below the
@@ -318,6 +319,43 @@ func spawn_existing_villager_avatars() -> void:
 		npc.villager_id = villager_id
 		npc.global_position = find_avatar_spawn_position(villager.get("role_key", ""))
 		$Village.add_child(npc)
+
+# GAME_BIBLE 2.4.1 beat 3 -- THE FAILED ESCAPE. The way out of Deepwood is not
+# blocked; it is BAITED: the Despair Army swells to meet anyone who tries.
+# Walking off the west edge triggers the lesson as gameplay: the horde rises,
+# you are mauled to the brink and thrown back. The first attempt is the story
+# beat (near-death + the line); every later attempt costs the same -- the edge
+# stays a soft wall the fiction owns, until the game is won.
+func build_escape_ward() -> void:
+	if GameState.game_completed:
+		return              # the root is dead; the roads are roads again
+	var ward := Area2D.new()
+	ward.collision_layer = 0
+	ward.collision_mask = 2
+	var cs := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = Vector2(60, 600)
+	cs.shape = rect
+	ward.add_child(cs)
+	ward.position = Vector2(GROUND_SPAN_START + 20.0, GROUND_Y - 200.0)
+	add_child(ward)
+	ward.body_entered.connect(func(b):
+		if not b.is_in_group("player") or b.god_mode:
+			return
+		# the horde swells: mauled to the brink, hurled back east
+		b.health = maxi(1, int(b.get_max_health() * 0.2))
+		if b.has_method("update_health_display"):
+			b.update_health_display()
+		b.global_position.x = GROUND_SPAN_START + 260.0
+		b.velocity = Vector2(420.0, -160.0)
+		if b.has_method("apply_knockback"):
+			b.apply_knockback(1, 120.0)
+		var stack = get_tree().get_first_node_in_group("notification_stack")
+		if stack:
+			stack.show_notification("The road out DROWNS in the horde — it swells to meet you. You barely crawl back.")
+		if not GameState.seen_failed_escape:
+			GameState.seen_failed_escape = true
+			DialogueBox.play(self, Story.FAILED_ESCAPE))
 
 # GAME_BIBLE 2.5.1 beat 2: the first village visit after carving to floor 15,
 # Orin stands at the wall as though returning from a long walk -- the wandering
