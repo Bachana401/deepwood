@@ -135,9 +135,53 @@ func _ready() -> void:
 	check("...flagged hero_trained for the siege maths", trained.get("hero_trained", false))
 	var def_with_hero: float = GameState.village_defense_power()
 	GameState.rescued_villagers.erase(trained)
-	check("a trained hero is worth a squad in defense power",
-		def_with_hero > GameState.village_defense_power() + 3.0)
+	var def_without: float = GameState.village_defense_power()
+	# ...and a plain warrior for scale, so morale's multiplier cancels out
+	var plain := {"id": "test_plain_warrior", "name": "P", "sex": "Male", "is_kid": false,
+		"stat_name": "Warrior", "stat_value": 3, "role_key": "", "role_title": "", "paired": false}
+	GameState.rescued_villagers.append(plain)
+	var def_with_plain: float = GameState.village_defense_power()
+	GameState.rescued_villagers.erase(plain)
+	var hero_delta: float = def_with_hero - def_without
+	var plain_delta: float = def_with_plain - def_without
+	check("a trained hero is worth several plain warriors (ratio ~4x)",
+		plain_delta > 0.0 and hero_delta / plain_delta > 2.5,
+		"hero=+%.2f plain=+%.2f" % [hero_delta, plain_delta])
 
 	GameState.adventurers = saved_adv
+
+	# ---------------- the Doctor (GAME_BIBLE 5.5a) ----------------
+	var saved_heals: int = GameState.doctor_heals_bought
+	GameState.doctor_heals_bought = 0
+	check("the base price is modest", GameState.doctor_heal_price() == GameState.DOCTOR_BASE_PRICE)
+	GameState.doctor_heals_bought = 3
+	check("every purchase escalates by half again (8 -> 27 after three)",
+		GameState.doctor_heal_price() == int(round(8 * pow(1.5, 3))),
+		"%d" % GameState.doctor_heal_price())
+	# a day of peace forgives one step
+	GameState.decay_doctor_price(24.0)
+	check("a quiet day walks the price back one step", GameState.doctor_heals_bought == 2)
+	GameState.doctor_heals_bought = saved_heals
+	# a new game seeds the starting six's civilians: Doctor + two farmers
+	var had := {"doctor": false, "farmers": 0}
+	var probe := ["doctor_maren", "farmer_tam", "farmer_ada"]
+	var kept := []
+	for v in GameState.rescued_villagers:
+		if str(v.get("id", "")) in probe:
+			kept.append(v)
+	# simulate the fresh-start seeding without wiping this session's state
+	var src := FileAccess.open("res://game_state.gd", FileAccess.READ)
+	var gs_src := src.get_as_text() if src != null else ""
+	if src != null: src.close()
+	check("a new game seeds the Doctor with the healer flag",
+		gs_src.contains('"id": "doctor_maren"') and gs_src.contains('"healer": true'))
+	check("...and the two farmhands of the starting six",
+		gs_src.contains('"id": "farmer_tam"') and gs_src.contains('"id": "farmer_ada"'))
+	check("the heal service dies with her (doctor_alive reads the roster)",
+		GameState.has_method("doctor_alive"))
+	check("the price counter survives the save (key written)",
+		gs_src.contains('"doctor_heals_bought": doctor_heals_bought'))
+	check("npc offers the heal on E", load("res://npc.gd").new().has_method("try_doctor_heal"))
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

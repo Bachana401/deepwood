@@ -545,9 +545,40 @@ func _process(delta: float) -> void:
 			hover_panel.visible = false
 		return
 	if player_inside and Input.is_action_just_pressed("interact"):
-		if not try_bond_interaction():
+		if not try_doctor_heal() and not try_bond_interaction():
 			show_info()
 	tick_mood_talk(delta)
+
+# E on the Doctor (GAME_BIBLE 5.5a): a full heal at an escalating price. Every
+# purchase raises the next by half again; a day of peace forgives one step.
+# This is the early game's lifeline before potions flow -- and it dies with
+# her, because she is an ordinary villager a siege can take.
+func try_doctor_heal() -> bool:
+	var data = find_villager_data()
+	if data.is_empty() or not data.get("healer", false):
+		return false
+	var player = get_tree().get_first_node_in_group("player")
+	if player == null:
+		return true
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if player.health >= player.get_max_health():
+		if stack:
+			stack.show_notification("Doctor: \"Not a scratch on you. Don't waste my thread.\"")
+		return true
+	var price: int = GameState.doctor_heal_price()
+	if player.currency < price:
+		if stack:
+			stack.show_notification("Doctor: \"Healing costs %d gold. Come back when you have it.\"" % price)
+		return true
+	player.currency -= price
+	player.update_currency_display()
+	player.health = player.get_max_health()
+	if player.has_method("update_health_display"):
+		player.update_health_display()
+	GameState.doctor_heals_bought += 1
+	if stack:
+		stack.show_notification("The Doctor stitches you whole (-%d gold). Next visit: %d." % [price, GameState.doctor_heal_price()])
+	return true
 
 # E on a villager with a bond: claim it if ready (reveal + reward + their line),
 # otherwise voice the quest giver/objective. Returns true if the bond handled the

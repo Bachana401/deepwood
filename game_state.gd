@@ -907,6 +907,7 @@ func tick_village_clock() -> void:
 	update_pregnancies(hours_passed)
 	update_mating_houses(hours_passed)
 	update_school_enrollments(hours_passed)
+	decay_doctor_price(hours_passed)
 	if hours_passed > 0.0:
 		# grief heals with time -- the forgiving half of the death-shock system
 		morale_death_shock = maxf(0.0, morale_death_shock - hours_passed * DEATH_SHOCK_DECAY_PER_HOUR)
@@ -1805,6 +1806,34 @@ func remove_npc_avatar(villager_id: String) -> void:
 
 const HERO_BIRTH_CHANCE := 0.005   # 0.5% of newborns
 
+# --- The Doctor's escalating heal (GAME_BIBLE 5.5a) ---
+# The early game's lifeline: full heal on demand, but every purchase raises the
+# next price by half again, and only rest (in-game days) walks it back down.
+# "Every avoidable wound bleeds your economy" -- and if she dies in a siege,
+# the service dies with her.
+const DOCTOR_BASE_PRICE := 8
+const DOCTOR_PRICE_GROWTH := 1.5
+const DOCTOR_DECAY_HOURS := 24.0   # one price step forgiven per in-game day
+var doctor_heals_bought := 0
+var _doctor_decay_accum := 0.0
+
+func doctor_heal_price() -> int:
+	return int(round(DOCTOR_BASE_PRICE * pow(DOCTOR_PRICE_GROWTH, doctor_heals_bought)))
+
+func doctor_alive() -> bool:
+	for v in rescued_villagers:
+		if v.get("healer", false):
+			return true
+	return false
+
+func decay_doctor_price(hours_passed: float) -> void:
+	if doctor_heals_bought <= 0:
+		return
+	_doctor_decay_accum += hours_passed
+	while _doctor_decay_accum >= DOCTOR_DECAY_HOURS and doctor_heals_bought > 0:
+		_doctor_decay_accum -= DOCTOR_DECAY_HOURS
+		doctor_heals_bought -= 1
+
 func enroll_villager(villager_id: String, role_key: String, role_title: String, grants_stat: String) -> void:
 	# A hero child refuses the School outright -- books cannot hold what they
 	# are. Only the Barracks can. (The UI filters them out too; this guard is
@@ -1879,6 +1908,29 @@ func record_level_reached(level: int) -> void:
 # mating state, and unlocked dungeon levels instead of starting clean.
 func reset_for_new_game() -> void:
 	rescued_villagers = []
+	adventurers = {}
+	ensure_adventurers()                       # the opening trio stands ready
+	doctor_heals_bought = 0
+	# The Doctor (GAME_BIBLE 2.4.1 / 5.5a): the woman found tending the three
+	# wounded defenders, Deepwood's physician before it fell. She is WITH you
+	# from the first breath -- the early game's only reliable healing -- and she
+	# is an ordinary mortal villager: a siege can take her like anyone else,
+	# and with her dies the service.
+	rescued_villagers.append({
+		"id": "doctor_maren", "name": "Doctor Maren Hollis", "sex": "Female", "is_kid": false,
+		"stat_name": "Hospital", "stat_value": 4, "role_key": "", "role_title": "", "paired": false,
+		"healer": true,
+	})
+	# ...and the two farmhands of the starting six (2.5.1's roster: 3 heroes,
+	# 1 Doctor, 2 Farmers). First food, first hands.
+	rescued_villagers.append({
+		"id": "farmer_tam", "name": "Tam Beckett", "sex": "Male", "is_kid": false,
+		"stat_name": "Farm", "stat_value": 2, "role_key": "", "role_title": "", "paired": false,
+	})
+	rescued_villagers.append({
+		"id": "farmer_ada", "name": "Ada Brook", "sex": "Female", "is_kid": false,
+		"stat_name": "Farm", "stat_value": 2, "role_key": "", "role_title": "", "paired": false,
+	})
 	chest_contents = {}
 	mating_houses = {}
 	pregnancies = {}
@@ -1957,6 +2009,7 @@ func save_game(player: Node) -> void:
 		"difficulty": difficulty,
 		"rescued_villagers": rescued_villagers,
 		"adventurers": adventurers,
+		"doctor_heals_bought": doctor_heals_bought,
 		"chest_contents": chest_contents,
 		"mating_houses": mating_houses,
 		"pregnancies": pregnancies,
@@ -2008,6 +2061,8 @@ func load_game() -> Dictionary:
 		if parsed.has("adventurers"):
 			adventurers = parsed["adventurers"]
 			ensure_adventurers()   # a newer build may know MORE adventurers than the save
+		doctor_heals_bought = int(parsed.get("doctor_heals_bought", 0))
+		doctor_heals_bought = int(parsed.get("doctor_heals_bought", 0))
 		if parsed.has("chest_contents"):
 			chest_contents = parsed["chest_contents"]
 		if parsed.has("mating_houses"):
