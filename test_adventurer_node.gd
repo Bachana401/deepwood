@@ -385,6 +385,35 @@ func _ready() -> void:
 	check("the beat is one-shot and saved",
 		main_src.contains("seen_failed_escape") and GameState.get("seen_failed_escape") != null)
 
+	# ---------------- the reunite chain, end to end ----------------
+	# Sena waits at home; Bram is freed on floor 8; the bond must complete and
+	# pay out. This is the chain that was entirely unreachable before the
+	# spawn fix -- prove every link.
+	var sena = GameState.find_villager_by_id("sena_ward")
+	var sena_added := false
+	if sena.is_empty():
+		sena = {"id": "sena_ward", "name": "Sena", "sex": "Female", "is_kid": false,
+			"stat_name": "Hospital", "stat_value": 3, "role_key": "", "role_title": "", "paired": false}
+		GameState.rescued_villagers.append(sena)
+		sena_added = true
+	sena["quest_state"] = "active"
+	sena["quest_progress"] = 0
+	GameState.rescue_villager({"id": "bram_hollow", "name": "Bram Hollow", "sex": "Female",
+		"is_kid": false, "stat_name": "Warrior", "stat_value": 4, "role_key": "", "role_title": "", "paired": false})
+	check("freeing Bram advances Sena's bond", int(sena.get("quest_progress", 0)) >= 1)
+	check("...and the bond reads READY", GameState.villager_quest_ready(sena, p))
+	var gold_before: int = p.currency
+	var sena_line: String = GameState.turn_in_villager_quest("sena_ward", p)
+	check("turn-in speaks Sena's reward line", sena_line.contains("brought her back"))
+	check("...pays her gold", p.currency > gold_before)
+	check("...and the bond is DONE", sena.get("quest_state", "") == "done")
+	# clean up the roster we touched
+	var bram_v = GameState.find_villager_by_id("bram_hollow")
+	if not bram_v.is_empty():
+		GameState.rescued_villagers.erase(bram_v)
+	if sena_added:
+		GameState.rescued_villagers.erase(sena)
+
 	# ---------------- the pact scene (GAME_BIBLE 2.5.1 beats 2+3) ----------------
 	check("the pact scene exists with a full cast", Story.ORIN_PACT.size() >= 8)
 	var speakers := {}
