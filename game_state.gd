@@ -1855,6 +1855,31 @@ func doctor_alive() -> bool:
 			return true
 	return false
 
+# Saves made before the starting-six existed have no Doctor and no farmhands --
+# and nothing else can ever create them, so an old playthrough would simply
+# lack the 5.5a healing lifeline forever. Called ONLY for saves fingerprinted
+# as pre-Doctor (no doctor_heals_bought key), so a newer save that lost her to
+# a siege keeps its dead -- migration never resurrects anyone.
+func _migrate_starting_civilians() -> void:
+	var has_healer := false
+	var have_ids := {}
+	for v in rescued_villagers:
+		if v.get("healer", false):
+			has_healer = true
+		have_ids[str(v.get("id", ""))] = true
+	if not has_healer and not have_ids.has("doctor_maren"):
+		rescued_villagers.append({
+			"id": "doctor_maren", "name": "Doctor Maren Hollis", "sex": "Female", "is_kid": false,
+			"stat_name": "Hospital", "stat_value": 4, "role_key": "", "role_title": "", "paired": false,
+			"healer": true,
+		})
+	for farmer in [["farmer_tam", "Tam Beckett", "Male"], ["farmer_ada", "Ada Brook", "Female"]]:
+		if not have_ids.has(farmer[0]):
+			rescued_villagers.append({
+				"id": farmer[0], "name": farmer[1], "sex": farmer[2], "is_kid": false,
+				"stat_name": "Farm", "stat_value": 2, "role_key": "", "role_title": "", "paired": false,
+			})
+
 func decay_doctor_price(hours_passed: float) -> void:
 	if doctor_heals_bought <= 0:
 		return
@@ -2096,6 +2121,12 @@ func load_game() -> Dictionary:
 			difficulty = parsed["difficulty"]
 		if parsed.has("rescued_villagers"):
 			rescued_villagers = parsed["rescued_villagers"]
+			# only saves from BEFORE the Doctor existed get her seeded -- a
+			# newer save that lost her to a siege keeps its dead. The
+			# doctor_heals_bought key shipped in the same commit she did, so
+			# its absence is the exact fingerprint of a pre-Doctor save.
+			if not parsed.has("doctor_heals_bought"):
+				_migrate_starting_civilians()
 		if parsed.has("adventurers"):
 			adventurers = parsed["adventurers"]
 			ensure_adventurers()   # a newer build may know MORE adventurers than the save

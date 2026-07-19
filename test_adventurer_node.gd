@@ -385,6 +385,25 @@ func _ready() -> void:
 	check("the beat is one-shot and saved",
 		main_src.contains("seen_failed_escape") and GameState.get("seen_failed_escape") != null)
 
+	# ---------------- old-save migration: the Doctor arrives, the dead stay dead ----------------
+	# a pre-Doctor save (no doctor_heals_bought key) must gain the civilians...
+	var saved_roster: Array = GameState.rescued_villagers
+	GameState.rescued_villagers = [{"id": "old_villager", "name": "Old", "sex": "Male", "is_kid": false,
+		"stat_name": "Farm", "stat_value": 1, "role_key": "", "role_title": "", "paired": false}]
+	GameState._migrate_starting_civilians()
+	check("an old save gains its Doctor on load", GameState.doctor_alive())
+	check("...and the two farmhands",
+		not GameState.find_villager_by_id("farmer_tam").is_empty()
+		and not GameState.find_villager_by_id("farmer_ada").is_empty())
+	check("...without touching its own villagers",
+		not GameState.find_villager_by_id("old_villager").is_empty())
+	# ...but the load path only migrates when the fingerprint says PRE-Doctor,
+	# so a newer save that lost her to a siege keeps its dead
+	var gs_load := FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text()
+	check("migration is fingerprint-gated -- the dead are never resurrected",
+		gs_load.contains('if not parsed.has("doctor_heals_bought"):'))
+	GameState.rescued_villagers = saved_roster
+
 	# ---------------- the reunite chain, end to end ----------------
 	# Sena waits at home; Bram is freed on floor 8; the bond must complete and
 	# pay out. This is the chain that was entirely unreachable before the
