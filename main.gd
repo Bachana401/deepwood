@@ -365,9 +365,13 @@ func announce_orin_arrival() -> void:
 	if not GameState.orin_arrived() or GameState.seen_orin_arrival or GameState.dev_mode:
 		return
 	GameState.seen_orin_arrival = true
-	var stack = get_tree().get_first_node_in_group("notification_stack")
-	if stack:
-		stack.show_notification("A stranger stands at the wall — Orin, the wandering mage. \"I cleared one of their levels... then got stuck. I'll hold the nights from here.\"")
+	# the full introductions-and-pact scene (2.5.1 beat 3): the Doctor presents
+	# him, the three defenders size him up, everyone commits to the same plan --
+	# and Orin plants the game's central lie in plain sight.
+	DialogueBox.play(self, Story.ORIN_PACT, func():
+		var stack = get_tree().get_first_node_in_group("notification_stack")
+		if stack:
+			stack.show_notification("★ Orin holds the nightly watch from now on."))
 
 # The living adventurers (GAME_BIBLE 2.4.1): every rescued one that hasn't
 # fallen walks the village at its chosen station. The dead are simply absent --

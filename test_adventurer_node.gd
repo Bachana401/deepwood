@@ -385,6 +385,34 @@ func _ready() -> void:
 	check("the beat is one-shot and saved",
 		main_src.contains("seen_failed_escape") and GameState.get("seen_failed_escape") != null)
 
+	# ---------------- the pact scene (GAME_BIBLE 2.5.1 beats 2+3) ----------------
+	check("the pact scene exists with a full cast", Story.ORIN_PACT.size() >= 8)
+	var speakers := {}
+	var pact_text := ""
+	for line in Story.ORIN_PACT:
+		speakers[str(line.get("speaker", ""))] = true
+		pact_text += str(line.get("text", "")) + "\n"
+	check("the Doctor makes the introduction (she met him days earlier)",
+		speakers.has("Doctor Maren Hollis"))
+	check("a defender sizes him up", speakers.has("Roland Ashmark"))
+	check("the player commits to the plan aloud", speakers.has("You"))
+	check("Orin plants the game's central lie -- he wants the village at its PEAK",
+		pact_text.contains("peak"))
+	check("...and repeats his cover story (cleared a level, got stuck)",
+		pact_text.contains("cleared one of their levels"))
+	check("the pact commits to the whole plan: rebuild, free, grow strong",
+		pact_text.contains("Rebuild Deepwood") and pact_text.contains("Free the taken"))
+	# the dungeon half: the glimpse after the floor-15 boss
+	check("the glimpse beat exists", Story.ORIN_GLIMPSE.size() >= 1)
+	var di_src := FileAccess.open("res://dungeon_interior.gd", FileAccess.READ).get_as_text()
+	check("the floor-15 boss kill triggers the glimpse",
+		di_src.contains("ORIN_ARRIVAL_DEPTH") and di_src.contains("play_orin_glimpse"))
+	var main_src2 := FileAccess.open("res://main.gd", FileAccess.READ).get_as_text()
+	check("the village visit plays the full PACT scene, not a mere notification",
+		main_src2.contains("Story.ORIN_PACT"))
+	check("the glimpse flag survives the save",
+		GameState.get("seen_orin_glimpse") != null)
+
 	# ---------------- Orin's entrance (GAME_BIBLE 2.5.1) ----------------
 	var saved_depth: int = GameState.deepest_level_reached
 	var saved_dev: bool = GameState.dev_mode

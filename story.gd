@@ -30,6 +30,30 @@ const FAILED_ESCAPE = [
 	{"speaker": "", "text": "You crawl back inside the ruin of Deepwood with your life and nothing else. The exit is not an option. The only way out is THROUGH — down, to the root of it."},
 ]
 
+# THE PACT (2.5.1 beats 2+3) -- Orin's return and the introductions. Plays on
+# the first village visit after carving to floor 15. Every word of his is a lie
+# shaped to mirror the player's own arrival -- and his last line is the game's
+# whole betrayal hidden in plain sight: he wants Deepwood at its PEAK because
+# he intends to turn everything you built against you.
+const ORIN_PACT = [
+	{"speaker": "", "text": "At the wall stands a stranger in a traveler's robe — whole, unhurried, as though returning from a long walk. The Doctor waves you over."},
+	{"speaker": "Doctor Maren Hollis", "text": "Hunter — this is Orin. The wizard I set a candle for. Four days ago he walked out of the deep, alive. I have checked him twice for wounds. There are none."},
+	{"speaker": "Orin", "text": "A wandering mage, nothing grander. I chased the same rumour you all did — a brilliant village, a haven at the edge of the dark. I came, found it emptied... and went down after its people."},
+	{"speaker": "Orin", "text": "I cleared one of their levels. Then the dark closed the way, and it cost me weeks to climb back out. Believe me, hunter — I know exactly how deep you've gotten. I keep count."},
+	{"speaker": "Roland Ashmark", "text": "We held the wall while you were down there, stranger. If you can throw fire, the nights are where we bleed."},
+	{"speaker": "Orin", "text": "Then the nights are mine. Meteors ask less of me than climbing does."},
+	{"speaker": "Doctor Maren Hollis", "text": "Then say it plain, all of us. The world beyond is ash. This village — its tools, its people — is the only way anyone here outlasts what is coming."},
+	{"speaker": "You", "text": "Rebuild Deepwood. Free the taken. Grow strong enough to reach the root."},
+	{"speaker": "Orin", "text": "...To the root. Yes. Build it all back, hunter — the forges, the walls, the people. I want to see this village at its very peak."},
+	{"speaker": "", "text": "(He smiles like a man who has already read the ending. The pact is struck — from tonight, Orin holds the watch.)"},
+]
+
+# The GLIMPSE (2.5.1 beat 2, the dungeon half): his return lands "right after a
+# boss". The floor-15 boss falls, and for one breath he is simply THERE.
+const ORIN_GLIMPSE = [
+	{"speaker": "", "text": "The boss falls — and at the far gate, for one breath, a robed figure stands watching. Unhurried. Unhurt. When you blink, the gate is empty."},
+]
+
 # THE DOCTOR'S ACCOUNT (2.4.1 beat 5 + 2.5.1 beat 1) -- her first real talk.
 # The Law of Despair told by a survivor, and the rumour of the lost wizard --
 # dramatic irony's opening move: she mourns Orin as another dead hero, and

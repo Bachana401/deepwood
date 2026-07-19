@@ -1733,7 +1733,17 @@ func _on_combatant_died() -> void:
 		# beating Level 100 = beating Orin = the ending
 		if current_level >= MAX_LEVEL:
 			call_deferred("play_final_victory")
+		# 2.5.1 beat 2: his return lands "right after a boss" -- the floor-15
+		# boss falls and for one breath he is simply THERE. The full pact scene
+		# then plays on the next village visit.
+		if current_level == GameState.ORIN_ARRIVAL_DEPTH and not GameState.seen_orin_glimpse and not GameState.seen_orin_arrival and not GameState.dev_mode:
+			GameState.seen_orin_glimpse = true
+			call_deferred("play_orin_glimpse")
 		show_notification("Level " + str(current_level) + " cleared! The far gate is open.")
+
+
+func play_orin_glimpse() -> void:
+	DialogueBox.play(self, Story.ORIN_GLIMPSE)
 
 # ===================== PROVING GROUNDS (admin test arena) =====================
 const DPS_DUMMY = preload("res://dps_dummy.gd")
