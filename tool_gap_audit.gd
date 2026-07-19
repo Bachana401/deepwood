@@ -133,6 +133,39 @@ func _ready() -> void:
 			if not spawnable.has(target):
 				note("quest", "reunite quest '%s' targets '%s', who can never be rescued" % [qid, target])
 
+	# ---- 4c. every role must be FILLABLE and every recipe CRAFTABLE ----
+	# A role whose required_stat nothing can ever grant is a permanently empty
+	# slot in the assign UI; a recipe with an unobtainable ingredient is a
+	# button that can never be pressed. Stat sources: the School's random roll
+	# (REGULAR_STATS), the Barracks ("Warrior"), VIP rescues (IMPORTANT_FIGURES
+	# stat_names) and hand-seeded starting villagers.
+	printerr("\n== roles nothing can staff / recipes nothing can craft ==")
+	var stat_sources := {}
+	for s in GameState.REGULAR_STATS:
+		stat_sources[s] = true
+	stat_sources["Warrior"] = true
+	for lv in VillagerQuests.IMPORTANT_FIGURES.keys():
+		stat_sources[str(VillagerQuests.IMPORTANT_FIGURES[lv].get("stat_name", ""))] = true
+	var roles_src := FileAccess.open("res://building_roles.gd", FileAccess.READ)
+	if roles_src != null:
+		var rtxt := roles_src.get_as_text()
+		roles_src.close()
+		var rre := RegEx.new()
+		rre.compile("\"required_stat\": \"([A-Za-z ]+)\"")
+		var seen := {}
+		for m in rre.search_all(rtxt):
+			var stat := m.get_string(1)
+			if seen.has(stat):
+				continue
+			seen[stat] = true
+			if not stat_sources.has(stat):
+				note("role", "roles require stat '%s', which nothing can ever grant" % stat)
+	var grant_src := _load_grant_sources()
+	for recipe_id in Inventory.CRAFT_RECIPES.keys():
+		for ing in Inventory.CRAFT_RECIPES[recipe_id].keys():
+			if not grant_src.contains('"%s"' % ing):
+				note("recipe", "'%s' needs '%s', which nothing grants -- the recipe is dead" % [recipe_id, ing])
+
 	# ---- 5. can the player actually OBTAIN each item? ----
 	# An item nothing grants is invisible content: it exists, it is balanced, it
 	# shows up in the catalogue, and no player will ever hold one. Loot pools are

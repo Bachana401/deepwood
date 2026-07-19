@@ -43,6 +43,8 @@ var _swing_count := 0         # The Fifth Blade: every 5th swing erupts
 var _grudge_armed := false    # Grudgekeeper: struck -> next hit lands double
 var _daybreak_used := false   # Daybreak Pact: once per siege
 var _block_ready_at := 0.0    # Shield Wall: one free block on a cooldown
+var _hp_bg: ColorRect = null
+var _hp_fill: ColorRect = null
 const SHIELD_WALL_CD := 6.0
 const FIFTH_BLADE_RADIUS := 130.0
 const EXECUTE_FRAC := 0.20    # Bottom-Seen finishes raiders under this
@@ -129,6 +131,20 @@ func _build_visual() -> void:
 	prompt.add_theme_constant_override("outline_size", 3)
 	prompt.visible = false
 	add_child(prompt)
+	# a slim health bar: wounds persist between sieges, so the player needs to
+	# SEE who is hurt to decide who gets housed before the next wave
+	_hp_bg = ColorRect.new()
+	_hp_bg.size = Vector2(30, 4)
+	_hp_bg.position = Vector2(-15, -50)
+	_hp_bg.color = Color(0.1, 0.08, 0.08, 0.85)
+	_hp_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_hp_bg)
+	_hp_fill = ColorRect.new()
+	_hp_fill.size = Vector2(30, 4)
+	_hp_fill.position = Vector2(-15, -50)
+	_hp_fill.color = Color(0.3, 0.85, 0.4)
+	_hp_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_hp_fill)
 
 func _refresh_prompt() -> void:
 	if prompt == null:
@@ -162,7 +178,20 @@ func _physics_process(delta: float) -> void:
 		_fight(target)
 	else:
 		_hold_station(delta)
+	_update_hp_bar()
 	move_and_slide()
+
+func _update_hp_bar() -> void:
+	if _hp_fill == null:
+		return
+	var max_hp := maxf(1.0, float(def.get("hp", 100.0)))
+	var hp := clampf(float(GameState.adventurer_state(adventurer_id).get("hp", max_hp)), 0.0, max_hp)
+	var frac := hp / max_hp
+	_hp_fill.size.x = 30.0 * frac
+	_hp_fill.color = Color(0.3, 0.85, 0.4) if frac > 0.5 else (Color(0.9, 0.75, 0.25) if frac > 0.25 else Color(0.9, 0.3, 0.25))
+	# full and safe reads clean: hide the bar entirely when untouched
+	_hp_bg.visible = frac < 0.999
+	_hp_fill.visible = _hp_bg.visible
 
 func _cycle_station() -> void:
 	var idx = Adventurers.STATIONS.find(station)
