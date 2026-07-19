@@ -138,8 +138,36 @@ func _ready() -> void:
 						note("path", "%s reaches for '../%s' but scene %s has no node named '%s'" % [
 							script_path.get_file(), w, scene.get_file(), segment])
 
+	# ---------- 5. input actions used but never defined ----------
+	# A typo'd action name never errors -- is_action_just_pressed("atack") just
+	# returns false forever, and the feature it guards silently never fires.
+	# Only this direction is checked: defined-but-unused actions turned out to be
+	# noise (dash fires from a double-tap; hotbar_1..10 are read via "hotbar_%d"
+	# interpolation a literal scan can't see).
+	printerr("\n== input actions used in code but missing from project.godot ==")
+	var proj := _read_file("res://project.godot")
+	var act_re := RegEx.new()
+	act_re.compile("is_action_(?:just_)?(?:pressed|released)\\(\"([a-z_0-9]+)\"")
+	var used_actions := {}
+	for path in files.keys():
+		for m in act_re.search_all(files[path]):
+			used_actions[m.get_string(1)] = path.get_file()
+	for act in used_actions.keys():
+		if act.begins_with("ui_"):
+			continue        # engine built-ins
+		if not proj.contains("\n%s=" % act):
+			note("input", "'%s' is checked in %s but not defined in project.godot -- it can never fire" % [act, used_actions[act]])
+
 	printerr("\n== TOTAL WIRING ISSUES: %d ==" % issues)
 	get_tree().quit(0)
+
+func _read_file(path: String) -> String:
+	var fh := FileAccess.open(path, FileAccess.READ)
+	if fh == null:
+		return ""
+	var s := fh.get_as_text()
+	fh.close()
+	return s
 
 # scene path -> {nodes: {name:true}, scripts: {res://x.gd: true}}
 func _scene_index() -> Dictionary:
