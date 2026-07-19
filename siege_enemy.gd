@@ -160,7 +160,16 @@ func _ready() -> void:
 		if hero_power == "warcry":
 			call_deferred("_do_warcry")
 
+const SFX_WARCRY = preload("res://audio/explosion.wav")
+
 func _do_warcry() -> void:
+	var sp = AudioStreamPlayer2D.new()
+	sp.stream = SFX_WARCRY
+	sp.pitch_scale = 0.6   # slowed into a roar rather than a blast
+	sp.global_position = global_position
+	get_parent().add_child(sp)
+	sp.play()
+	sp.finished.connect(sp.queue_free)
 	var caught := false
 	for r in get_tree().get_nodes_in_group("siege_enemy"):
 		if is_instance_valid(r) and r.has_method("apply_status") \

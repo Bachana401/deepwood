@@ -26,6 +26,7 @@ const SFX_HIT = preload("res://audio/hit.wav")
 const SFX_DEATH = preload("res://audio/enemy_death.wav")
 const SFX_EXPLOSION = preload("res://audio/explosion.wav")
 const MAGIC_ORB = preload("res://magic_orb.gd")
+const SFX_BLINK = preload("res://audio/dash.wav")
 
 # Base statline per kind (before level scaling multipliers).
 # Undead/evil monsters. "main" = body, "accent" = glow (eyes/pustules/etc).
@@ -705,6 +706,7 @@ func take_damage(amount: int) -> void:
 			_blink_ready_at = now + BLINK_CD
 			var away := 1.0 if (not is_instance_valid(player) or global_position.x <= player.global_position.x) else -1.0
 			global_position.x += -away * 140.0 if randf() < 0.5 else away * 140.0
+			play_sfx(SFX_BLINK)
 		set_flash(Color(1, 1, 1))
 		get_tree().create_timer(0.12).timeout.connect(clear_flash)
 		play_sfx(SFX_HIT)

@@ -576,9 +576,11 @@ func try_doctor_heal() -> bool:
 	if player.currency < price:
 		if stack:
 			stack.show_notification("Doctor: \"Healing costs %d gold. Come back when you have it.\"" % price)
+		_play_doctor_sfx(preload("res://audio/purchase_denied.wav"))
 		return true
 	player.currency -= price
 	player.update_currency_display()
+	_play_doctor_sfx(preload("res://audio/purchase.wav"))
 	player.health = player.get_max_health()
 	if player.has_method("update_health_display"):
 		player.update_health_display()
@@ -586,6 +588,14 @@ func try_doctor_heal() -> bool:
 	if stack:
 		stack.show_notification("The Doctor stitches you whole (-%d gold). Next visit: %d." % [price, GameState.doctor_heal_price()])
 	return true
+
+func _play_doctor_sfx(stream: AudioStream) -> void:
+	var sp = AudioStreamPlayer2D.new()
+	sp.stream = stream
+	sp.global_position = global_position
+	get_parent().add_child(sp)
+	sp.play()
+	sp.finished.connect(sp.queue_free)
 
 # E on a villager with a bond: claim it if ready (reveal + reward + their line),
 # otherwise voice the quest giver/objective. Returns true if the bond handled the

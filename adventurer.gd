@@ -20,6 +20,19 @@ const BOW_RANGE = 420.0
 const ATTACK_COOLDOWN = 1.0
 const SEEK_RANGE = 760.0
 const ARROW_SCENE = preload("res://arrow.tscn")
+const SFX_SWORD = preload("res://audio/sword_swing.wav")
+const SFX_SPEAR = preload("res://audio/spear_thrust.wav")
+const SFX_BOW = preload("res://audio/bow_shot.wav")
+const SFX_BLOCK = preload("res://audio/arrow_deflect.wav")
+const SFX_BURST = preload("res://audio/explosion.wav")
+
+func play_sfx(stream: AudioStream) -> void:
+	var sp = AudioStreamPlayer2D.new()
+	sp.stream = stream
+	sp.global_position = global_position
+	get_parent().add_child(sp)
+	sp.play()
+	sp.finished.connect(sp.queue_free)
 
 var adventurer_id := ""
 var def: Dictionary = {}
@@ -330,6 +343,7 @@ func _fight(target: Node2D) -> void:
 	attack_cd = ATTACK_COOLDOWN * (1.4 if is_bow else 1.0)
 	var dmg := _attack_damage()
 	if is_bow:
+		play_sfx(SFX_BOW)
 		_loose_arrow(target, dmg)
 		# Twin Nock: every third draw looses a second shaft at a second raider
 		if ability == "twin_nock":
@@ -339,6 +353,7 @@ func _fight(target: Node2D) -> void:
 				if second != null:
 					_loose_arrow(second, dmg)
 	elif target.has_method("take_damage"):
+		play_sfx(SFX_SPEAR if str(def.get("weapon", "blade")) == "spear" else SFX_SWORD)
 		# Bottom-Seen: a wounded raider is not fought, it is FINISHED
 		if ability == "bottom_seen" and "health" in target and "max_health" in target \
 				and float(target.health) <= float(target.max_health) * EXECUTE_FRAC:
@@ -359,6 +374,7 @@ func _fight(target: Node2D) -> void:
 			if ability == "fifth_blade":
 				_swing_count += 1
 				if _swing_count % 5 == 0:
+					play_sfx(SFX_BURST)
 					var burst := int(round(dmg * 0.6))
 					for r in get_tree().get_nodes_in_group("siege_enemy"):
 						if r != target and is_instance_valid(r) and r.has_method("take_damage") \
@@ -384,6 +400,7 @@ func take_damage(amount: int) -> void:
 	# block, then the rhythm has to reset
 	if ability == "shield_wall" and now >= _block_ready_at:
 		_block_ready_at = now + SHIELD_WALL_CD
+		play_sfx(SFX_BLOCK)
 		FloatingText.spawn_word(get_parent(), global_position + Vector2(0, -50), "BLOCKED", Color(0.7, 0.85, 1.0))
 		return
 	# Grudgekeeper: the blow lands, and the answer is armed
