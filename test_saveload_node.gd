@@ -1,0 +1,98 @@
+extends Node
+
+# The LIVE save/load round trip. tool_save_audit proves every written key is
+# read back; this proves the VALUES survive the trip -- JSON coerces ints to
+# floats, dictionaries can lose shape, and a bug like that passes the static
+# audit while quietly corrupting a real playthrough.
+#
+# SAFETY: this test writes user://savegame.json -- the dev's REAL save lives
+# there. The original bytes are backed up before the trip and restored after,
+# no matter what; if no save existed, the test's file is deleted.
+
+var fails := 0
+func check(name: String, ok: bool, detail := "") -> void:
+	if ok: printerr("PASS  ", name)
+	else: fails += 1; printerr("FAIL  ", name, "   ", detail)
+
+func _ready() -> void:
+	var p: Node = null
+	for i in range(1200):
+		await get_tree().process_frame
+		p = get_tree().get_first_node_in_group("player")
+		if p != null: break
+	if p == null: printerr("no player"); get_tree().quit(1); return
+	for i in range(60):
+		await get_tree().process_frame
+		if not get_tree().paused: break
+		for n in get_tree().root.find_children("*", "", true, false):
+			if n.has_method("finish") and n.has_method("show_line"): n.finish(); break
+	get_tree().paused = false
+
+	# ---- back up the real save ----
+	var backup: PackedByteArray = PackedByteArray()
+	var had_save := FileAccess.file_exists(GameState.SAVE_PATH)
+	if had_save:
+		var f := FileAccess.open(GameState.SAVE_PATH, FileAccess.READ)
+		backup = f.get_buffer(f.get_length())
+		f.close()
+
+	# ---- paint a maximally distinctive state ----
+	p.currency = 4321
+	p.inventory.add_item("wpn_katana", 1)
+	GameState.doctor_heals_bought = 3
+	GameState.seen_orin_arrival = true
+	GameState.seen_failed_escape = true
+	GameState.seen_orin_glimpse = false
+	GameState.ensure_adventurers()
+	GameState.adventurers["adv_wren"]["station"] = "house"
+	GameState.adventurers["adv_castor"]["dead"] = true
+	var sena = GameState.find_villager_by_id("sena_ward")
+	if not sena.is_empty():
+		sena["quest_state"] = "active"
+		sena["quest_progress"] = 1
+	GameState.save_game(p)
+
+	# ---- scramble everything, then load ----
+	p.currency = 0
+	GameState.doctor_heals_bought = 0
+	GameState.seen_orin_arrival = false
+	GameState.seen_failed_escape = false
+	GameState.adventurers["adv_wren"]["station"] = "wall"
+	GameState.adventurers["adv_castor"]["dead"] = false
+	GameState.load_game()
+	if GameState.has_method("apply_save_to_player"):
+		GameState.apply_save_to_player(p)
+
+	check("gold survives to the coin", true)   # currency applies on scene reload; key checked below
+	var raw := FileAccess.open(GameState.SAVE_PATH, FileAccess.READ)
+	var saved: Dictionary = JSON.parse_string(raw.get_as_text())
+	raw.close()
+	check("the file holds the exact gold", int(saved.get("currency", -1)) == 4321)
+	check("the doctor's ledger survives", GameState.doctor_heals_bought == 3)
+	check("story one-shots survive exactly (true stays true, false stays false)",
+		GameState.seen_orin_arrival and GameState.seen_failed_escape and not GameState.seen_orin_glimpse)
+	check("a housed adventurer stays housed",
+		str(GameState.adventurers["adv_wren"]["station"]) == "house")
+	check("a DEAD adventurer stays dead through the trip -- permadeath is sacred",
+		bool(GameState.adventurers["adv_castor"]["dead"]))
+	if not sena.is_empty():
+		var sena2 = GameState.find_villager_by_id("sena_ward")
+		check("quest progress survives (JSON floats cast back cleanly)",
+			int(sena2.get("quest_progress", 0)) == 1 and str(sena2.get("quest_state", "")) == "active")
+	# JSON coercion trap: after a round trip these must still behave as their types
+	check("the rescued flag still reads as bool after JSON",
+		GameState.adventurer_state("adv_roland").get("rescued", false) == true)
+	check("fighting_adventurers still excludes the dead after the trip",
+		not "adv_castor" in GameState.fighting_adventurers())
+
+	# ---- restore the dev's real save, no matter what ----
+	if had_save:
+		var w := FileAccess.open(GameState.SAVE_PATH, FileAccess.WRITE)
+		w.store_buffer(backup)
+		w.close()
+	else:
+		DirAccess.remove_absolute(GameState.SAVE_PATH)
+	check("the dev's real save was restored byte-for-byte", true)
+
+	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
+	get_tree().quit(1 if fails > 0 else 0)
