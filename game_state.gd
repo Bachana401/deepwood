@@ -1819,6 +1819,14 @@ func remove_npc_avatar(villager_id: String) -> void:
 # --- School / Barracks enrollment ---
 
 const HERO_BIRTH_CHANCE := 0.005   # 0.5% of newborns
+# The powers a hero may graduate with (rolled once, kept for life). Each is a
+# different mechanic on their siege unit -- see siege_enemy.gd's hero hooks.
+const HERO_POWERS = {
+	"warcry": "Warcry",         # arrival staggers every raider near them slow
+	"stormhand": "Stormhand",   # every blow chains a shock into a second raider
+	"unbroken": "Unbroken",     # the first death each siege doesn't take
+	"rally": "Rally",           # every soldier beside them marches with +50% HP
+}
 
 # --- The Doctor's escalating heal (GAME_BIBLE 5.5a) ---
 # The early game's lifeline: full heal on demand, but every purchase raises the
@@ -1899,9 +1907,14 @@ func graduate_villager(villager_id: String) -> void:
 				villager["stat_name"] = "Warrior"
 				villager["stat_value"] = 10
 				villager["hero_trained"] = true
+				# each hero graduates with a PERSONAL power, rolled once and
+				# carried for life -- no two playthroughs' heroes fight alike
+				var power: String = HERO_POWERS.keys()[randi() % HERO_POWERS.size()]
+				villager["hero_power"] = power
 				var stack = get_tree().get_first_node_in_group("notification_stack")
 				if stack:
-					stack.show_notification("★ %s completes their training — a HERO stands among you." % villager.get("name", "?"))
+					stack.show_notification("★ %s completes their training — a HERO of the %s stands among you." % [
+						villager.get("name", "?"), HERO_POWERS[power]])
 
 func load_deepest_level() -> void:
 	if FileAccess.file_exists(DEEPEST_LEVEL_PATH):

@@ -281,6 +281,60 @@ func _ready() -> void:
 	prey.queue_free()
 	sorrel.free()
 
+	# ---------------- hero powers: a miracle never fights generic ----------------
+	# graduation rolls a personal power and keeps it for life
+	var hero_kid2 := {"id": "test_hero_kid2", "name": "Brenna", "sex": "Female", "is_kid": true,
+		"stat_name": "", "stat_value": 0, "role_key": "", "role_title": "", "paired": false, "hero": true}
+	GameState.rescued_villagers.append(hero_kid2)
+	GameState.enroll_villager("test_hero_kid2", "Barracks", "Recruit", "Warrior")
+	GameState.graduate_villager("test_hero_kid2")
+	var brenna = GameState.find_villager_by_id("test_hero_kid2")
+	check("a hero graduates with a PERSONAL power",
+		GameState.HERO_POWERS.has(str(brenna.get("hero_power", ""))),
+		str(brenna.get("hero_power", "(none)")))
+	# every rollable power must be handled by the siege unit -- no dead promises
+	# rally is a spawn-time banner (siege_manager); the rest live on the unit
+	var ssrc := ""
+	for path in ["res://siege_enemy.gd", "res://siege_manager.gd"]:
+		var sf := FileAccess.open(path, FileAccess.READ)
+		if sf != null:
+			ssrc += sf.get_as_text()
+			sf.close()
+	for pw in GameState.HERO_POWERS.keys():
+		check("hero power '%s' is implemented on the field" % pw,
+			ssrc.contains('"%s"' % pw))
+	GameState.rescued_villagers.erase(brenna)
+	# Unbroken, functionally: the first death each siege doesn't take
+	var unb = load("res://siege_enemy.gd").new()
+	unb.faction = "village"
+	unb.hero_power = "unbroken"
+	unb.hero_name = "Test"
+	get_tree().root.add_child(unb)
+	await get_tree().process_frame
+	unb.max_health = 100
+	unb.health = 100
+	unb.take_damage(150)
+	check("Unbroken: the first killing blow leaves them standing at half",
+		not unb.is_dead and unb.health == 50, "hp=%d dead=%s" % [unb.health, unb.is_dead])
+	unb.take_damage(150)
+	check("...the second death is real", unb.is_dead)
+	unb.queue_free()
+	# Warcry, functionally: arrival staggers a raider slow
+	var cryer = load("res://siege_enemy.gd").new()
+	cryer.faction = "village"
+	cryer.hero_power = "warcry"
+	cryer.hero_name = "Test"
+	var prey2 = load("res://siege_enemy.gd").new()   # a raider in range
+	get_tree().root.add_child(prey2)
+	await get_tree().process_frame
+	get_tree().root.add_child(cryer)
+	cryer.global_position = prey2.global_position + Vector2(100, 0)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	check("Warcry: taking the field staggers nearby raiders slow",
+		prey2.status_slow_mult() < 1.0, "%.2f" % prey2.status_slow_mult())
+	cryer.queue_free(); prey2.queue_free()
+
 	# ---------------- Orin's entrance (GAME_BIBLE 2.5.1) ----------------
 	var saved_depth: int = GameState.deepest_level_reached
 	var saved_dev: bool = GameState.dev_mode

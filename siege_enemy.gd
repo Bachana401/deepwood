@@ -89,6 +89,22 @@ var facing = 1
 # an optional sprite skin from art/enemies/) before add_child.
 var faction := "raider"
 var skin := ""
+
+# --- Hero powers (village units only) ---
+# A Barracks-forged HERO doesn't fight like a big soldier -- at graduation each
+# rolls a personal power (see GameState.graduate_villager), and their siege
+# unit expresses it on the field:
+#   warcry    -- taking the field, all raiders nearby stagger slow in dread
+#   stormhand -- every blow chains a shock into a second raider
+#   unbroken  -- the first death each siege doesn't take: stands back up at half
+#   rally     -- their presence hardens every soldier who marches beside them
+#                (applied at spawn by siege_manager: +50% soldier HP)
+var hero_power := ""
+var hero_name := ""
+var _unbroken_spent := false
+const WARCRY_RADIUS := 300.0
+const STORMHAND_RADIUS := 150.0
+const STORMHAND_FRAC := 0.4
 const MELEE_ENGAGE_RANGE := 66.0   # a raider fights an in-its-face soldier over the wall
 
 var body: Node2D = null
@@ -129,6 +145,31 @@ func _ready() -> void:
 	else:
 		build_visual()
 	build_health_bar()
+	# a hero announces themselves: name overhead, and Warcry lands on arrival
+	if hero_power != "":
+		var hl := Label.new()
+		hl.text = "★ %s" % hero_name
+		hl.position = Vector2(-60, -64)
+		hl.size = Vector2(120, 14)
+		hl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		hl.add_theme_font_size_override("font_size", 10)
+		hl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+		hl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+		hl.add_theme_constant_override("outline_size", 3)
+		add_child(hl)
+		if hero_power == "warcry":
+			call_deferred("_do_warcry")
+
+func _do_warcry() -> void:
+	var caught := false
+	for r in get_tree().get_nodes_in_group("siege_enemy"):
+		if is_instance_valid(r) and r.has_method("apply_status") \
+				and not ("is_dead" in r and r.is_dead) \
+				and global_position.distance_to(r.global_position) <= WARCRY_RADIUS:
+			r.apply_status("slow", 3.0, 0.5)
+			caught = true
+	if caught:
+		FloatingText.spawn_word(get_parent(), global_position + Vector2(0, -70), "WARCRY!", Color(1.0, 0.75, 0.3))
 
 func _physics_process(delta: float) -> void:
 	if is_dead:
@@ -227,6 +268,14 @@ func try_attack(target: Node2D) -> void:
 	attack_cooldown_remaining = ATTACK_COOLDOWN
 	if target.has_method("take_damage"):
 		target.take_damage(attack_damage)
+		# Stormhand: the blow arcs on into a second raider nearby
+		if hero_power == "stormhand":
+			for r in get_tree().get_nodes_in_group("siege_enemy"):
+				if r != target and is_instance_valid(r) and r.has_method("take_damage") \
+						and not ("is_dead" in r and r.is_dead) \
+						and target.global_position.distance_to(r.global_position) <= STORMHAND_RADIUS:
+					r.take_damage(int(round(attack_damage * STORMHAND_FRAC)))
+					break
 	skin_attack_timer = 0.4
 	animate_attack()
 
@@ -243,6 +292,13 @@ func take_damage(amount: int) -> void:
 	health -= amount
 	update_health_bar_fill()
 	if health <= 0:
+		# Unbroken: the first death each siege doesn't take
+		if hero_power == "unbroken" and not _unbroken_spent:
+			_unbroken_spent = true
+			health = int(max_health / 2.0)
+			update_health_bar_fill()
+			FloatingText.spawn_word(get_parent(), global_position + Vector2(0, -60), "UNBROKEN", Color(1.0, 0.95, 0.6))
+			return
 		die()
 	else:
 		flash_hit()
