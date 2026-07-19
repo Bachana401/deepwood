@@ -19,6 +19,25 @@ func build_level_grid() -> void:
 func open() -> void:
 	refresh_lock_states()
 	visible = true
+	warn_if_village_exposed()
+
+# The Watchtower's SPIRIT until the Watchtower exists (GAME_BIBLE 7.1 -- the
+# warning is the designed mitigation for siege chaos, and the building itself
+# waits on art). At the moment the player chooses to leave, tell them what
+# their absence will cost: when is the next siege due, and will the village
+# hold it without them. Deaths while away are permanent -- nobody should learn
+# that from the away report.
+func warn_if_village_exposed() -> void:
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if stack == null:
+		return
+	var hours: float = GameState.hours_until_next_siege
+	var tier: int = GameState.current_siege_tier()
+	var defense: float = GameState.village_defense_power()
+	if defense < float(tier):
+		stack.show_notification("⚠ A tier-%d siege lands in ~%dh — defense %.1f will NOT hold. Every loss while you're away is forever." % [tier, int(ceil(hours)), defense])
+	elif hours < 6.0:
+		stack.show_notification("A siege is due in ~%dh. Defense %.1f should hold — but the deep keeps its own time." % [int(ceil(hours)), defense])
 
 # Only levels up to GameState.highest_unlocked_level are pressable -- clearing
 # a level unlocks the next one (see DungeonManager._on_combatant_died).
