@@ -356,6 +356,19 @@ func generate_houses() -> void:
 	var tower = preload("res://watchtower.gd").new()
 	tower.position = Vector2(4800.0, VILLAGE_Y)
 	$Village.add_child(tower)
+	# THE ROAD MARKERS: village gate <-> the pit, ~5,200px apart. Two
+	# signposts and an E, because the walk was never the game.
+	const ROAD_MARKER = preload("res://road_marker.gd")
+	var village_road = ROAD_MARKER.new()
+	village_road.partner_x = -180.0
+	village_road.marker_label = "the pit"
+	village_road.position = Vector2(4600.0, VILLAGE_Y)
+	$Village.add_child(village_road)
+	var pit_road = ROAD_MARKER.new()
+	pit_road.partner_x = 4600.0
+	pit_road.marker_label = "the village"
+	pit_road.position = Vector2(-180.0, VILLAGE_Y)
+	add_child(pit_road)
 	# 7.2: the EAST rampart -- the village is besieged from BOTH ends, and the
 	# cottage row's far end is the second gate. Placed past the last lot the
 	# plot can ever fill (cottage_plot caps at 15 raised), so homes never

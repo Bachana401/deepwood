@@ -25,6 +25,7 @@ const SECTIONS = [
 		["Relocate", "every building can move: its panel packs it up, then walk to new ground and press H to plant it (25g + 4 wood, charged at the plant)"],
 		["Chests", "SHIFT-CLICK any stack to flick it across instantly; buttons for Take All / Deposit All / Match (restock what the chest already holds) and the gold pair"],
 		["Pause menu", "THE PEOPLE lists every villager sorted by who needs you most (spirit, work, home, bond); THE CHRONICLE tracks 100% completion"],
+		["Road markers", "a signpost stands at the village gate and another by the pit — press E at either to take the old road to the other, instantly"],
 	]],
 	["THE DEEP", [
 		["F at the red zone", "the level select -- clearing a floor unlocks the next; every 5th is a boss"],

@@ -128,6 +128,32 @@ func _ready() -> void:
 		FileAccess.open("res://house.gd", FileAccess.READ).get_as_text().contains("village_structure")
 		and FileAccess.open("res://watchtower.gd", FileAccess.READ).get_as_text().contains("village_structure"))
 
+	# ---- the road markers: the walk was never the game ----
+	var markers := []
+	for n in get_tree().root.find_children("*", "Area2D", true, false):
+		if "partner_x" in n:
+			markers.append(n)
+	check("a marker stands at BOTH ends of the road", markers.size() == 2)
+	if markers.size() == 2:
+		check("each points at the other",
+			absf(markers[0].global_position.x - markers[1].partner_x) < 1.0
+			and absf(markers[1].global_position.x - markers[0].partner_x) < 1.0)
+		check("the road is LONG enough to be worth skipping (>4000px)",
+			absf(markers[0].global_position.x - markers[1].global_position.x) > 4000.0)
+		var road_p = get_tree().get_first_node_in_group("player")
+		var road_saved: Vector2 = road_p.global_position
+		road_p.global_position = markers[0].global_position
+		markers[0].travel()
+		check("taking the road puts you at the other marker",
+			absf(road_p.global_position.x - markers[0].partner_x) < 1.0)
+		road_p.global_position = road_saved
+		var clash := false
+		for m in markers:
+			for b4 in get_tree().get_nodes_in_group("building"):
+				if absf(b4.global_position.x - m.global_position.x) < 120.0:
+					clash = true
+		check("neither marker fights a building for the E key", not clash)
+
 	# ---- irreversible choices must be CONFIRMED, never one-click ----
 	var stsrc := FileAccess.open("res://skill_tree_ui.gd", FileAccess.READ).get_as_text()
 	check("a skill FORK warns before it locks its sibling forever",
