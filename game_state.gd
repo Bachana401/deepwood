@@ -1990,6 +1990,96 @@ func rewind_world_keep_player() -> void:
 	ng_plus_cycles = keep_cycles
 	just_rewound = true
 
+# --- THE CHRONICLE (GAME_BIBLE 11): the 100% ledger ---
+# "100% completion = every villager rescued, every bond quest done, all Ten
+# freed, full skill graph explored, village fully restored, Despair destroyed,
+# Shadow Army raised." Seven lines, one book, per-run -- NG+ opens a blank one.
+var seen_chronicle_100 := false
+
+func chronicle() -> Array:
+	var out := []
+	# 1. every named soul: the chained figures of the deep + the 12 adventurers
+	var fig_total: int = VillagerQuests.IMPORTANT_FIGURES.size()
+	var fig_home := 0
+	for fd in VillagerQuests.IMPORTANT_FIGURES.values():
+		var fid := str(fd.get("villager_id", ""))
+		for v in rescued_villagers:
+			if str(v.get("id", "")) == fid:
+				fig_home += 1
+				break
+	var adv_total: int = Adventurers.ids().size()
+	var adv_found := 0
+	for id in Adventurers.ids():
+		if bool(adventurer_state(id).get("rescued", false)):
+			adv_found += 1
+	out.append({"line": "Every taken soul brought home",
+		"done": fig_home == fig_total and adv_found == adv_total,
+		"detail": "%d/%d figures of the deep, %d/%d adventurers" % [fig_home, fig_total, adv_found, adv_total]})
+	# 2. every bond honored
+	var bond_total: int = VillagerQuests.QUEST_DEFS.size()
+	var bond_done := 0
+	for v in rescued_villagers:
+		if str(v.get("quest_state", "")) == "done":
+			bond_done += 1
+	out.append({"line": "Every bond honored",
+		"done": bond_done >= bond_total,
+		"detail": "%d/%d bonds fulfilled" % [bond_done, bond_total]})
+	# 3. the Ten
+	out.append({"line": "The Ten walk free",
+		"done": all_ten_freed(),
+		"detail": "%d/10 freed from Orin's vaults" % count_ten_freed()})
+	# 4. the skill graph -- exclusive forks mean one path per crossroads, so
+	# "fully explored" is every node a single build can lawfully hold
+	var sk_done := false
+	var sk_detail := "no calling chosen yet"
+	if chosen_class != "":
+		var tree: Array = SkillTreeData.TREES.get(chosen_class, [])
+		var groups := {}
+		var achievable := 0
+		var have := 0
+		for n in tree:
+			var grp := str(n.get("exclusive", ""))
+			if grp == "":
+				achievable += 1
+			else:
+				groups[grp] = true
+			if is_skill_unlocked(str(n.id)):
+				have += 1
+		achievable += groups.size()
+		sk_done = have >= achievable
+		sk_detail = "%d/%d nodes (one path per crossroads)" % [have, achievable]
+	out.append({"line": "The skill graph fully explored", "done": sk_done, "detail": sk_detail})
+	# 5. the village at its peak (the same three stones the finale gate weighs)
+	var ruined := count_ruined_buildings()
+	var empty := count_empty_role_slots()
+	var peak: bool = village_morale() >= 100
+	out.append({"line": "Deepwood restored to its peak",
+		"done": ruined == 0 and empty == 0 and peak,
+		"detail": "whole, staffed, spirits high" if (ruined == 0 and empty == 0 and peak)
+			else "%d ruins, %d empty posts, morale %.1f/10" % [ruined, empty, village_morale_10()]})
+	# 6. Despair destroyed
+	out.append({"line": "Despair destroyed",
+		"done": despair_dead,
+		"detail": "the apparatus is dust" if despair_dead else "the Monarch still reigns below"})
+	# 7. the Shadow Army
+	var army_up: bool = despair_dead and harvested_villagers.is_empty()
+	out.append({"line": "The Shadow Army raised",
+		"done": army_up,
+		"detail": "themselves, continued" if army_up else "the fallen still wait"})
+	return out
+
+# One-shot per run: the moment all seven lines hold at once, the book closes.
+func chronicle_check_complete() -> void:
+	if seen_chronicle_100:
+		return
+	for row in chronicle():
+		if not bool(row.get("done", false)):
+			return
+	seen_chronicle_100 = true
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if stack:
+		stack.show_notification("⭐ THE CHRONICLE CLOSES COMPLETE — 100%. Every soul home, every bond kept, every stone raised. Deepwood will remember.")
+
 func new_game_plus(player: Node) -> void:
 	rewind_world_keep_player()
 	# the turn knits you whole, and you wake at the village gate of a world
@@ -2006,15 +2096,15 @@ func new_game_plus(player: Node) -> void:
 # what Orin has been patiently farming all game. He needs the peak to reap it.
 # Four conditions; unmet ones are listed at the door so the player always knows
 # what the gate still wants.
-func finale_gate_missing() -> Array:
-	var missing := []
+func count_ruined_buildings() -> int:
 	var ruined := 0
 	for b in STARTING_BUILDINGS:
 		if not is_building_operational(b):
 			ruined += 1
-	if ruined > 0:
-		missing.append("%d building%s still in ruins" % [ruined, "" if ruined == 1 else "s"])
-	# full employment: every base role slot of every working building staffed
+	return ruined
+
+# full employment: every base role slot of every working building staffed
+func count_empty_role_slots() -> int:
 	var empty_slots := 0
 	for b in STARTING_BUILDINGS:
 		if not is_building_operational(b):
@@ -2027,6 +2117,14 @@ func finale_gate_missing() -> Array:
 				if str(v.get("role_key", "")) == b and str(v.get("role_title", "")) == str(rd.get("title", "")):
 					holders += 1
 			empty_slots += maxi(0, int(rd.get("slots", 0)) - holders)
+	return empty_slots
+
+func finale_gate_missing() -> Array:
+	var missing := []
+	var ruined := count_ruined_buildings()
+	if ruined > 0:
+		missing.append("%d building%s still in ruins" % [ruined, "" if ruined == 1 else "s"])
+	var empty_slots := count_empty_role_slots()
 	if empty_slots > 0:
 		missing.append("%d role slot%s stand empty" % [empty_slots, "" if empty_slots == 1 else "s"])
 	if village_morale() < 100:
@@ -2301,6 +2399,7 @@ func reset_for_new_game() -> void:
 	harvested_villagers = []
 	despair_dead = false
 	ng_plus_cycles = 0
+	seen_chronicle_100 = false
 	maera_stabilized_this_siege = false
 	_deep_catch_accum = 0.0
 	morale_admin_offset = 0
@@ -2359,6 +2458,7 @@ func save_game(player: Node) -> void:
 		"harvest_done": harvest_done,
 		"despair_dead": despair_dead,
 		"ng_plus_cycles": ng_plus_cycles,
+		"seen_chronicle_100": seen_chronicle_100,
 		"harvested_villagers": harvested_villagers,
 		"seen_orin_arrival": seen_orin_arrival,
 		"seen_doctor_account": seen_doctor_account,
@@ -2430,6 +2530,7 @@ func load_game() -> Dictionary:
 		harvest_done = bool(parsed.get("harvest_done", false))
 		despair_dead = bool(parsed.get("despair_dead", false))
 		ng_plus_cycles = int(parsed.get("ng_plus_cycles", 0))
+		seen_chronicle_100 = bool(parsed.get("seen_chronicle_100", false))
 		harvested_villagers = parsed.get("harvested_villagers", [])
 		seen_orin_arrival = bool(parsed.get("seen_orin_arrival", false))
 		seen_doctor_account = bool(parsed.get("seen_doctor_account", false))

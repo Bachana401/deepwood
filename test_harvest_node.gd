@@ -178,6 +178,33 @@ func _ready() -> void:
 	check("the worlds-walked count survives the save",
 		gs.contains('"ng_plus_cycles": ng_plus_cycles'))
 
+	# ---- THE CHRONICLE (GAME_BIBLE 11): the 100% ledger ----
+	var book: Array = GameState.chronicle()
+	check("the Chronicle holds the seven canon lines", book.size() == 7)
+	var shaped := true
+	for row in book:
+		if not (row.has("line") and row.has("done") and row.has("detail")):
+			shaped = false
+	check("every line carries deed, verdict and tally", shaped)
+	check("the Ten's line reads the live cages",
+		str(book[2].get("line", "")) == "The Ten walk free"
+		and bool(book[2].get("done", true)) == GameState.all_ten_freed())
+	var was_despair: bool = GameState.despair_dead
+	GameState.despair_dead = true
+	check("Despair's line turns with the kill",
+		bool(GameState.chronicle()[5].get("done", false)))
+	GameState.despair_dead = was_despair
+	check("the gate and the book weigh the same stones",
+		gs.contains("count_ruined_buildings()") and gs.contains("count_empty_role_slots()")
+		and gs.count("count_ruined_buildings()") >= 2)
+	check("the closed book survives the save",
+		gs.contains('"seen_chronicle_100": seen_chronicle_100'))
+	check("the closing is a one-shot",
+		gs.contains("if seen_chronicle_100:") and gs.contains("seen_chronicle_100 = true"))
+	var pm := FileAccess.open("res://pause_menu.gd", FileAccess.READ).get_as_text()
+	check("the pause menu carries the book into both scenes",
+		pm.contains("ChronicleButton") and pm.contains("GameState.chronicle()"))
+
 	# restore
 	GameState.rescued_villagers = saved_roster
 	GameState.harvested_villagers = saved_harvested

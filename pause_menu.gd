@@ -9,6 +9,7 @@ func _ready() -> void:
 	$Panel/VBox/QuitMenuButton.pressed.connect(_on_quit_to_menu)
 	$Panel/VBox/QuitGameButton.pressed.connect(_on_quit_game)
 	$Panel/SettingsPanel.visible = false
+	_build_chronicle()
 	$Panel/SettingsPanel/VolumeSlider.value = GameState.master_volume
 	$Panel/SettingsPanel/VolumeSlider.value_changed.connect(_on_volume_changed)
 	if $Panel/SettingsPanel.has_node("MusicSlider"):
@@ -58,6 +59,8 @@ func toggle_pause() -> void:
 		var dm = dungeon_manager()
 		$Panel/VBox/ExitDungeonButton.visible = dm != null and dm.started
 		$Panel/SettingsPanel.visible = false
+		if chron_panel:
+			chron_panel.visible = false
 
 func _on_resume() -> void:
 	toggle_pause()
@@ -70,6 +73,83 @@ func _on_exit_dungeon() -> void:
 
 func _on_toggle_settings() -> void:
 	$Panel/SettingsPanel.visible = not $Panel/SettingsPanel.visible
+	if chron_panel and $Panel/SettingsPanel.visible:
+		chron_panel.visible = false
+
+# --- THE CHRONICLE (GAME_BIBLE 11): the run's 100% ledger ---
+# Seven canon lines in one book, readable any time from pause. Built in code
+# so both scenes that embed this menu (village and dungeon) get it for free.
+var chron_panel: Panel = null
+var chron_rows: VBoxContainer = null
+
+func _build_chronicle() -> void:
+	var btn := Button.new()
+	btn.name = "ChronicleButton"
+	btn.text = "Chronicle"
+	btn.custom_minimum_size = Vector2(0, 36)
+	var vbox = $Panel/VBox
+	vbox.add_child(btn)
+	vbox.move_child(btn, $Panel/VBox/SettingsButton.get_index() + 1)
+	btn.pressed.connect(_on_toggle_chronicle)
+	chron_panel = Panel.new()
+	chron_panel.name = "ChroniclePanel"
+	chron_panel.visible = false
+	chron_panel.position = Vector2(290, 0)
+	chron_panel.size = Vector2(520, 360)
+	$Panel.add_child(chron_panel)
+	var title := Label.new()
+	title.text = "THE CHRONICLE OF DEEPWOOD"
+	title.add_theme_font_size_override("font_size", 18)
+	title.position = Vector2(16, 10)
+	chron_panel.add_child(title)
+	chron_rows = VBoxContainer.new()
+	chron_rows.position = Vector2(16, 44)
+	chron_rows.custom_minimum_size = Vector2(488, 0)
+	chron_rows.add_theme_constant_override("separation", 8)
+	chron_panel.add_child(chron_rows)
+
+func _on_toggle_chronicle() -> void:
+	chron_panel.visible = not chron_panel.visible
+	$Panel/SettingsPanel.visible = false
+	if not chron_panel.visible:
+		return
+	GameState.chronicle_check_complete()
+	for c in chron_rows.get_children():
+		c.queue_free()
+	var entries: Array = GameState.chronicle()
+	var done_count := 0
+	for e in entries:
+		var done: bool = bool(e.get("done", false))
+		if done:
+			done_count += 1
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		var mark := Label.new()
+		mark.text = "✔" if done else "—"
+		mark.add_theme_color_override("font_color",
+			Color(0.45, 0.9, 0.45, 1.0) if done else Color(0.55, 0.5, 0.45, 1.0))
+		mark.custom_minimum_size = Vector2(18, 0)
+		row.add_child(mark)
+		var line := Label.new()
+		line.text = str(e.get("line", ""))
+		if not done:
+			line.add_theme_color_override("font_color", Color(0.75, 0.72, 0.68, 1.0))
+		row.add_child(line)
+		var detail := Label.new()
+		detail.text = "  " + str(e.get("detail", ""))
+		detail.add_theme_font_size_override("font_size", 12)
+		detail.add_theme_color_override("font_color", Color(0.55, 0.55, 0.6, 1.0))
+		row.add_child(detail)
+		chron_rows.add_child(row)
+	var footer := Label.new()
+	if done_count < entries.size():
+		footer.text = "%d / %d — the book closes at 100%%" % [done_count, entries.size()]
+	else:
+		footer.text = "★ 100% — the book is closed. Deepwood will remember."
+	footer.add_theme_font_size_override("font_size", 13)
+	footer.add_theme_color_override("font_color",
+		Color(0.95, 0.85, 0.4, 1.0) if done_count == entries.size() else Color(0.7, 0.68, 0.62, 1.0))
+	chron_rows.add_child(footer)
 
 func _on_volume_changed(value: float) -> void:
 	GameState.set_master_volume(value)

@@ -219,6 +219,8 @@ func _ready() -> void:
 	# a coronation interrupted by a quit finishes here, at home
 	GameState.settle_shadow_court()
 	stamp_rewound_arrival()
+	# the book notices the moment all seven lines hold at once
+	GameState.chronicle_check_complete()
 	if GameState.returning_from_dungeon:
 		GameState.returning_from_dungeon = false
 		# only restore a real recorded spot -- the default (0,0) is below the
