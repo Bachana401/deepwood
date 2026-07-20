@@ -332,14 +332,25 @@ func depth_reward_mult() -> float:
 func add_xp(amount: int) -> void:
 	var boosted = int(round(amount * (1.0 + get_bonus_total("xp_gain"))))
 	player_xp += boosted
+	var leveled := false
 	while player_xp >= xp_to_next_level():
 		player_xp -= xp_to_next_level()
 		player_level += 1
 		skill_points += 1
-		var player = get_tree().get_first_node_in_group("player")
+		leveled = true
 		var notif = get_tree().get_first_node_in_group("notification_stack")
 		if notif:
 			notif.show_notification("Level up! You are now level %d (+1 skill point)" % player_level)
+	# the level-up MOMENT: levels are the reward engine now (the depth
+	# pays), so the beat gets a bell and a word, not only a beige toast
+	if leveled:
+		play_sfx(SFX_CHIME, 1.9)
+		var player = get_tree().get_first_node_in_group("player")
+		if player != null:
+			FloatingText.spawn_word(player.get_parent(), player.global_position + Vector2(0, -70),
+				"LEVEL %d" % player_level, Color(1.0, 0.9, 0.4))
+		if player != null and player.has_method("update_currency_display"):
+			player.update_currency_display()
 	announce_monarch_awakening()
 
 # --- The Shadow Monarch (hidden 7-stage passive, tied to character level) ---

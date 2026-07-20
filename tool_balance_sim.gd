@@ -279,6 +279,35 @@ func _ready() -> void:
 	check("S6c: village kills still pay flat (the fog of home rates)",
 		not saved_dungeon or true)   # depth_reward_mult returns 1.0 outside
 
+	# ============ S6d: THE POINT LEDGER ============
+	# One ladder lands ~L58 = ~57 points. Each class's BUYABLE point total
+	# (all nodes minus the fork sides you cannot take) must stay within
+	# reach of that landing -- otherwise someone adds nodes one day and a
+	# tree silently becomes uncompletable in a run. Mage runs ~10 higher on
+	# purpose: it carries two extra UTILITY systems (rifts, telepathy).
+	say("\n== S6d: what a full tree costs in points ==")
+	for cls in SkillTreeData.TREES:
+		var total_pts := 0
+		var forks := {}
+		for node in SkillTreeData.TREES[cls]:
+			total_pts += int(node.get("cost", 1))
+			var grp := str(node.get("exclusive", ""))
+			if grp != "":
+				if not forks.has(grp): forks[grp] = []
+				forks[grp].append(int(node.get("cost", 1)))
+		var locked := 0
+		for grp in forks:
+			var arr: Array = forks[grp]
+			arr.sort()
+			for i in range(1, arr.size()):
+				locked += arr[i]
+		var buyable := total_pts - locked
+		say("  %-16s buyable=%d (of %d, %d locked behind forks)" % [cls, buyable, total_pts, locked])
+		check("S6d: %s tree is completable within the journey (<=70 pts)" % cls,
+			buyable <= 70, "%d" % buyable)
+		check("S6d: %s tree is not trivially maxed mid-game (>=45 pts)" % cls,
+			buyable >= 45, "%d" % buyable)
+
 	# ============ S7: WAGE PRESSURE ============
 	say("\n== S7: the daily bill at scale ==")
 	fresh_world()

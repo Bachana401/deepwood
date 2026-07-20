@@ -2114,7 +2114,10 @@ func apply_difficulty_death_penalty() -> void:
 			GameState.remove_one_skill_material()
 
 func update_currency_display() -> void:
-	$"../CanvasLayer/CurrencyLabel".text = "Currency: " + str(currency)
+	# levels are the game's reward engine (the depth pays) -- the current
+	# level and the road to the next live on the HUD, not only inside K
+	$"../CanvasLayer/CurrencyLabel".text = "Lv %d  (%d/%d)   •   %dg" % [
+		GameState.player_level, GameState.player_xp, GameState.xp_to_next_level(), currency]
 
 func perform_dash(dash_direction: int) -> void:
 	if not has_dash or is_dashing:
