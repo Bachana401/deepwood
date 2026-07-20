@@ -90,6 +90,17 @@ const ROLE_DEFS = {
 		{"title": "Foreman", "slots": 1, "required_stat": "Foreman", "leadership": true},
 		{"title": "Worker", "slots": 20, "required_stat": ""},
 	],
+	# The Mine (5.7, decided delegated): the delegated form of hand-mining --
+	# staffed Miners haul stone + iron shards into the player's bag daily.
+	"Mine": [
+		{"title": "Miner", "slots": 3, "required_stat": "Mine"},
+	],
+	# The Shrine (10, decided delegated): corruption's only mercy. Healing at
+	# its apex, so its keepers carry the HOSPITAL stat -- and its name honors
+	# the one who boosts it, Seraphel the Lightkeeper.
+	"Shrine": [
+		{"title": "Lightkeeper", "slots": 2, "required_stat": "Hospital"},
+	],
 }
 
 const DEFAULT_ROLES = [

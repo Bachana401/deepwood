@@ -135,6 +135,13 @@ func rescue() -> void:
 		"stats_hidden": true,
 	})
 	shatter_crystal()
+	# the crystal's payout (4.2a): crystallized despair, pried loose -- the
+	# stronger the soul it failed to break, the denser what's left behind
+	var pl = get_tree().get_first_node_in_group("player")
+	if pl and "inventory" in pl and pl.inventory:
+		var shards := 2 if stat_value >= 5 else 1
+		pl.inventory.add_item("sorrowshard", shards)
+		SpeechText.spawn(self, "+%d Sorrowshard" % shards)
 	spawn_world_avatar()
 	# the backstory is the villager SPEAKING -- floating text at their body,
 	# not a corner notification. The mechanical reward stays WRAPPED (4.2a):

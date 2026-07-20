@@ -158,6 +158,10 @@ const VILLAGE_BUILDINGS = [
 	{"name": "Bar", "role_key": "Bar", "width": 130.0, "height": 78.0, "scale": 2.2, "color": Color(0.3, 0.24, 0.22, 1)},
 	{"name": "Marketplace", "role_key": "Marketplace", "width": 145.0, "height": 65.0, "scale": 2.5, "color": Color(0.6, 0.5, 0.35, 1)},
 	{"name": "Builderhouse", "role_key": "Builderhouse", "width": 142.0, "height": 90.0, "scale": 2.5, "color": Color(0.42, 0.38, 0.3, 1)},
+	# roster 14-15 (5.2, decided 2026-07-20 delegated): the Mine feeds the war
+	# machine its metal; the Shrine gives corruption its only mercy
+	{"name": "Mine", "role_key": "Mine", "width": 120.0, "height": 70.0, "scale": 2.4, "color": Color(0.36, 0.34, 0.38, 1)},
+	{"name": "Shrine", "role_key": "Shrine", "width": 95.0, "height": 92.0, "scale": 2.2, "color": Color(0.72, 0.7, 0.6, 1)},
 ]
 # Right edge of the last building, set by generate_village -- the houses start
 # past it so the enlarged village never overruns the cottages.

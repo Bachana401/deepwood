@@ -778,6 +778,7 @@ func building_build_stage(name: String) -> int:
 const STARTING_BUILDINGS = [
 	"Government", "School", "Farm", "Hospital", "Barracks", "Fishing Dock",
 	"Science Lab", "Bank", "Blacksmith", "Tavern", "Bar", "Marketplace", "Builderhouse",
+	"Mine", "Shrine",
 ]
 
 # Admin/debug helper (M key): flag every known building as fully repaired.
@@ -908,7 +909,7 @@ const EDUCATION_DURATION_HOURS = 24.0
 # The 8 "regular" professions a School graduate can come out with.
 # Leadership titles (Leader/Principal/Warchief) are deliberately never
 # taught here -- see building_roles.gd for why.
-const REGULAR_STATS = ["Farm", "Hospital", "Fishing", "Scientist", "Financist", "Blacksmith", "Tavern", "Marketplace"]
+const REGULAR_STATS = ["Farm", "Hospital", "Fishing", "Scientist", "Financist", "Blacksmith", "Tavern", "Marketplace", "Mine"]
 # THE ROLE ROLL (GAME_BIBLE 5.4, revised canon): a graduate does not pick --
 # they ROLL from a table weighted INVERSE to the role's value. Anyone can
 # tend a field or pour a drink; a banker, a scholar, a surgeon is a rare
@@ -918,7 +919,7 @@ const REGULAR_STATS = ["Farm", "Hospital", "Fishing", "Scientist", "Financist", 
 # is 12.9-open and NOT built; the default table below is the whole game.)
 const ROLE_ROLL_WEIGHTS = {
 	"Farm": 25, "Fishing": 20, "Tavern": 20,        # food & fun: common hands
-	"Blacksmith": 8, "Marketplace": 8,               # skilled trades: uncommon
+	"Blacksmith": 8, "Marketplace": 8, "Mine": 8,    # skilled trades: uncommon
 	"Hospital": 7, "Scientist": 6, "Financist": 6,   # rare minds
 }
 
@@ -1032,6 +1033,7 @@ func tick_village_clock() -> void:
 	tick_wages(hours_passed)
 	tick_wanderers(hours_passed)
 	tick_watchtower_warning()
+	tick_mine_yield(hours_passed)
 	if hours_passed > 0.0:
 		# grief heals with time -- the forgiving half of the death-shock system
 		morale_death_shock = maxf(0.0, morale_death_shock - hours_passed * DEATH_SHOCK_DECAY_PER_HOUR * (2.0 if ten_freed("ten_seraphel") else 1.0))
@@ -1839,6 +1841,13 @@ func tick_morale_effects(hours_passed: float) -> void:
 # there's no village to spawn into -- the villager is simply lost to corruption.
 func transform_villager_to_demon(villager_id: String) -> void:
 	log_event("people", "%s's hope broke — they turned, and the thing they became walks the streets." % villager_name(villager_id))
+	# remember who they WERE -- the Shrine's mercy needs the person, not the
+	# monster (10)
+	var snapshot := {}
+	for v in rescued_villagers:
+		if str(v.get("id", "")) == villager_id:
+			snapshot = v.duplicate(true)
+			break
 	var pos = Vector2.ZERO
 	var parent: Node = null
 	for npc in get_tree().get_nodes_in_group("npc"):
@@ -1847,7 +1856,7 @@ func transform_villager_to_demon(villager_id: String) -> void:
 			parent = npc.get_parent()
 			break
 	if parent != null and not in_dungeon:
-		_spawn_demon_at(pos, parent)
+		_spawn_demon_at(pos, parent, snapshot)
 	remove_villager_by_id(villager_id)   # roster + mating/school cleanup + avatar + grief
 	# each turning deepens the whole town's dread -> a miserable village chains
 	morale_death_shock = minf(morale_death_shock + CORRUPTION_MORALE_SHOCK, DEATH_SHOCK_MAX)
@@ -1858,10 +1867,11 @@ func transform_villager_to_demon(villager_id: String) -> void:
 # Spawn one demon at a world position, hunting the town. Wears the downloaded
 # demon sprite (art/enemies/demon) so a corrupted villager visibly becomes a
 # DEMON -- not a lookalike of the hooded siege raiders.
-func _spawn_demon_at(pos: Vector2, parent: Node) -> void:
+func _spawn_demon_at(pos: Vector2, parent: Node, was: Dictionary = {}) -> void:
 	var tier = current_siege_tier()
 	var demon = SIEGE_ENEMY_SCENE.instantiate()
 	demon.skin = "demon"
+	demon.was_villager = was
 	demon.max_health = int(round(DEMON_BASE_HP * (1.0 + (tier - 1) * DEMON_HP_PER_TIER)))
 	demon.attack_damage = int(round(DEMON_BASE_DMG * (1.0 + (tier - 1) * DEMON_DMG_PER_TIER)))
 	demon.reward = 4 + tier
@@ -1969,6 +1979,63 @@ func generate_passive_income() -> void:
 	# a happy village is a taxable village (0.75x .. 1.25x)
 	total *= village_morale_multiplier()
 	player.add_currency(int(round(total)))
+
+# --- THE MINE (GAME_BIBLE 5.7, decided 2026-07-20 delegated) ---
+# The delegated form of hand-mining: staffed Miners haul the SAME materials
+# the pickaxe does -- stone and iron shards -- into the player's bag, one
+# haul per Miner per in-game day. No new resource ids: the Blacksmith and
+# Builderhouse chains simply connect.
+var _mine_accum := 0.0
+
+func tick_mine_yield(hours_passed: float) -> void:
+	if not is_building_operational("Mine"):
+		return
+	var miners := count_workers("Mine")
+	if miners == 0:
+		return
+	_mine_accum += hours_passed
+	while _mine_accum >= 24.0:
+		_mine_accum -= 24.0
+		var player = get_tree().get_first_node_in_group("player")
+		if player and "inventory" in player and player.inventory:
+			player.inventory.add_item("stone", 2 * miners)
+			player.inventory.add_item("iron_shard", 1 * miners)
+			log_event("economy", "The Mine's haul came up: %d stone, %d iron." % [2 * miners, miners])
+
+# --- THE SHRINE (GAME_BIBLE 10, decided 2026-07-20 delegated) ---
+# Corruption's only mercy, unlocked at depth 30: a put-down demon that was
+# once a villager can be CLEANSED back to life -- if the Shrine stands, its
+# Lightkeepers are at their posts, and the player carries 3 SORROWSHARDS
+# (despair, captured and inverted, is the reagent that undoes despair).
+# Away-losses stay losses: the Shrine only cleanses what you catch.
+const SHRINE_UNLOCK_DEPTH := 30
+const SHRINE_CLEANSE_SHARDS := 3
+
+func shrine_unlocked() -> bool:
+	return highest_unlocked_level >= SHRINE_UNLOCK_DEPTH
+
+func shrine_ready() -> bool:
+	return shrine_unlocked() and is_building_operational("Shrine") and count_workers("Shrine") > 0
+
+func try_cleanse(was_villager: Dictionary) -> bool:
+	if was_villager.is_empty() or not shrine_ready():
+		return false
+	var player = get_tree().get_first_node_in_group("player")
+	if player == null or not "inventory" in player or player.inventory == null:
+		return false
+	if not player.inventory.remove_item("sorrowshard", SHRINE_CLEANSE_SHARDS):
+		notify("The Shrine could cleanse them — but it needs %d Sorrowshards." % SHRINE_CLEANSE_SHARDS)
+		return false
+	var v: Dictionary = was_villager.duplicate(true)
+	# they come back THEMSELVES -- shaken, but alive. Seraphel, the
+	# Lightkeeper (the Ten): under her light they return steadier.
+	v["morale"] = 5.0 if ten_freed("ten_seraphel") else 3.0
+	v.erase("shadow")
+	rescued_villagers.append(v)
+	villager_hp[str(v.get("id", ""))] = 60.0
+	log_event("people", "★ %s was cleansed at the Shrine — despair could not keep them." % str(v.get("name", "?")))
+	notify("★ The Shrine burns three Sorrowshards — %s returns to the living." % str(v.get("name", "?")))
+	return true
 
 # --- THE WATCHTOWER (GAME_BIBLE 7.1, decided 2026-07-20 delegated) ---
 # Foresight is EARNED. Act I is true chaos: no wave indicator exists at all.
@@ -2953,6 +3020,7 @@ func reset_for_new_game() -> void:
 	wanderers_seen = 0
 	watchtower_tier = 0
 	_tower_bell_armed = true
+	_mine_accum = 0.0
 	pregnancies = {}
 	school_enrollments = {}
 	highest_unlocked_level = 999 if TEST_UNLOCK_ALL_LEVELS else 1

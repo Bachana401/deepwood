@@ -124,6 +124,67 @@ func _ready() -> void:
 	check("the rot clock survives the save", gs.contains('"villager_rot": villager_rot'))
 	check("a turning infects by proximity", gs.contains("_spread_infection(pos"))
 
+	# ---- THE MINE + THE SHRINE (5.7 / 10, decided delegated) ----
+	var p = get_tree().get_first_node_in_group("player")
+	check("the roster carries the Mine and the Shrine",
+		"Mine" in GameState.STARTING_BUILDINGS and "Shrine" in GameState.STARTING_BUILDINGS)
+	var shrine_roles: Array = BuildingRoles.get_roles("Shrine")
+	check("the Shrine's keepers are HEALERS — Lightkeepers with the Hospital stat",
+		not shrine_roles.is_empty()
+		and str(shrine_roles[0].get("title", "")) == "Lightkeeper"
+		and str(shrine_roles[0].get("required_stat", "")) == "Hospital")
+	check("a Miner can be schooled (uncommon, on the weighted table)",
+		GameState.ROLE_ROLL_WEIGHTS.has("Mine") and "Mine" in GameState.REGULAR_STATS)
+	# the Mine's daily haul
+	var saved_stage2: Dictionary = GameState.building_stage.duplicate(true)
+	var saved_slot0b = p.inventory.slots[0]
+	var saved_slot1b = p.inventory.slots[1]
+	p.inventory.slots[0] = null
+	p.inventory.slots[1] = null
+	GameState.building_stage["Mine"] = GameState.TOTAL_BUILD_STAGES
+	GameState.rescued_villagers = [
+		{"id": "mn_1", "name": "Digger", "sex": "Male", "is_kid": false,
+			"stat_name": "Mine", "stat_value": 3, "role_key": "Mine", "role_title": "Miner"}]
+	GameState._mine_accum = 0.0
+	var stone_before: int = p.inventory.get_count("stone")
+	var iron_before: int = p.inventory.get_count("iron_shard")
+	GameState.tick_mine_yield(24.5)
+	check("the Mine's daily haul is the SAME mats the pickaxe earns",
+		p.inventory.get_count("stone") == stone_before + 2
+		and p.inventory.get_count("iron_shard") == iron_before + 1)
+	p.inventory.remove_item("stone", 2)
+	p.inventory.remove_item("iron_shard", 1)
+	# the Shrine's mercy
+	check("the Sorrowshard exists: epic, material, the crystal's payout",
+		Inventory.get_grade("sorrowshard") == "epic"
+		and FileAccess.open("res://villager.gd", FileAccess.READ).get_as_text().contains('add_item("sorrowshard"'))
+	var saved_depth3: int = GameState.highest_unlocked_level
+	GameState.highest_unlocked_level = 30
+	GameState.building_stage["Shrine"] = GameState.TOTAL_BUILD_STAGES
+	GameState.rescued_villagers.append({"id": "lk_1", "name": "Keeper", "sex": "Female", "is_kid": false,
+		"stat_name": "Hospital", "stat_value": 4, "role_key": "Shrine", "role_title": "Lightkeeper"})
+	var lost := {"id": "cl_soul", "name": "Edda Returned", "sex": "Female", "is_kid": false,
+		"stat_name": "Farm", "stat_value": 3, "role_key": "", "role_title": ""}
+	check("no shards, no mercy", not GameState.try_cleanse(lost))
+	p.inventory.add_item("sorrowshard", 3)
+	check("three Sorrowshards buy a soul back",
+		GameState.try_cleanse(lost)
+		and GameState.is_villager_rescued("cl_soul")
+		and p.inventory.get_count("sorrowshard") == 0)
+	var cleansed: Dictionary = {}
+	for v2 in GameState.rescued_villagers:
+		if str(v2.get("id", "")) == "cl_soul":
+			cleansed = v2
+	check("the cleansed return shaken, not broken",
+		absf(float(cleansed.get("morale", 0.0)) - 3.0) < 0.01)
+	check("the demon REMEMBERS who it was, and dying gives them back",
+		FileAccess.open("res://siege_enemy.gd", FileAccess.READ).get_as_text().contains("was_villager")
+		and gs.contains("_spawn_demon_at(pos, parent, snapshot)"))
+	p.inventory.slots[0] = saved_slot0b
+	p.inventory.slots[1] = saved_slot1b
+	GameState.building_stage = saved_stage2
+	GameState.highest_unlocked_level = saved_depth3
+
 	GameState.rescued_villagers = saved_roster
 	GameState.villager_rot = saved_rot
 	GameState.game_hours = saved_hours

@@ -81,6 +81,9 @@ func tick_statuses(delta: float) -> void:
 			die()
 var is_knocked_back = false
 var wall: Node2D = null
+# 10 (Shrine, decided delegated): a corruption demon REMEMBERS who it was --
+# the villager snapshot rides along so putting it down can become a cleansing
+var was_villager: Dictionary = {}
 var attack_cooldown_remaining = 0.0
 var facing = 1
 
@@ -337,6 +340,12 @@ func flash_hit() -> void:
 
 func die() -> void:
 	is_dead = true
+	# THE CLEANSING (10): if this thing was once a villager and the Shrine
+	# stands ready with its shards, putting it down gives them BACK -- the
+	# only mercy corruption has. Otherwise, the loss is what it always was.
+	if not was_villager.is_empty():
+		GameState.try_cleanse(was_villager)
+		was_villager = {}
 	# FORESHADOWING (GAME_BIBLE 9.8): once, mid-game, a single dying raider
 	# turns and BOWS -- not to you, to the horizon, the way the whole horde
 	# will kneel at the gate of 100. No notification, no fanfare: blink and

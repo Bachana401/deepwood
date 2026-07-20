@@ -132,6 +132,10 @@ const ITEM_DEFS = {
 	# Crafting ingredients (gathered): Herb from chopping trees, Raw Meat from
 	# enemies. Plainly named like construction mats.
 	"herb": {"name": "Wild Herb", "category": "material", "max_stack": 99, "color": Color(0.4, 0.72, 0.35, 1.0), "is_ingredient": true},
+	# 4.2a (decided delegated): crystallized despair, left behind when a
+	# Sorrow-Crystal shatters. The Shrine burns 3 to cleanse a fallen villager
+	# -- despair inverted into the reagent that undoes it.
+	"sorrowshard": {"name": "Sorrowshard", "category": "material", "max_stack": 20, "color": Color(0.62, 0.55, 0.9, 1.0), "is_ingredient": true},
 	"raw_meat": {"name": "Raw Meat", "category": "material", "max_stack": 99, "color": Color(0.82, 0.4, 0.42, 1.0), "is_ingredient": true},
 	# --- Weapons. Every weapon is an inventory item now; you wield one by
 	# selecting its inventory slot with the hotbar keys (1-9, 0). "weapon_type"
@@ -564,6 +568,7 @@ const ITEM_GRADES = {
 	"wpn_frostwand": "uncommon", "wpn_channelwand": "uncommon",
 	"wpn_soulsplit": "mythic",
 	"relic_rewound_hour": "mythic",
+	"sorrowshard": "epic",
 }
 
 # Crafting recipes: item_id -> {ingredient_id: count}. Food + the Reset Potion
