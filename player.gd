@@ -1344,12 +1344,18 @@ var portal_b: Node2D = null
 var _portal_immune_until := 0.0
 
 func has_portal_skill() -> bool:
-	return GameState.get_bonus_total("portal_unlock") > 0.0
+	# god mode carries the doors free (dev request): Z works everywhere,
+	# no skill, no cost, no drain -- pure testing convenience
+	return god_mode or GameState.get_bonus_total("portal_unlock") > 0.0
 
 func portal_open_cost() -> float:
+	if god_mode:
+		return 0.0
 	return PORTAL_OPEN_COST * (1.0 - GameState.get_bonus_total("portal_open_cut"))
 
 func portal_drain_per_second() -> float:
+	if god_mode:
+		return 0.0
 	return PORTAL_DRAIN_PER_SEC * maxf(0.15, 1.0 - GameState.get_bonus_total("portal_drain_cut"))
 
 func try_weave_portal() -> void:

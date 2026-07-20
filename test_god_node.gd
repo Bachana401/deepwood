@@ -133,5 +133,17 @@ func _ready() -> void:
 	check("off again: label reads OFF",
 		panel.god_button.text == "GOD MODE: OFF", panel.god_button.text)
 
+	# ---- the console rides everywhere + god mode carries the doors ----
+	check("the admin console is instanced in the dungeon scene too",
+		FileAccess.open("res://dungeon_interior.gd", FileAccess.READ).get_as_text().contains("admin_panel.gd"))
+	var g_saved_skills = GameState.unlocked_skills.duplicate(true)
+	GameState.unlocked_skills = []
+	p.god_mode = true
+	check("god mode grants Z: the doors, free, drainless",
+		p.has_portal_skill() and p.portal_open_cost() == 0.0 and p.portal_drain_per_second() == 0.0)
+	p.god_mode = false
+	check("mortals still need the skill", not p.has_portal_skill())
+	GameState.unlocked_skills = g_saved_skills
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)
