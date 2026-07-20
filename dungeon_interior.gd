@@ -436,7 +436,28 @@ func start_music() -> void:
 	music.loop_end = DUNGEON_MUSIC_LOOP_SAMPLES
 	$MusicPlayer.stream = music
 	$MusicPlayer.bus = "Music"   # controlled by the Music volume slider
+	$MusicPlayer.pitch_scale = music_pitch_for(current_level)
 	$MusicPlayer.play()
+
+# THE SOUND OF DEPTH (polish 2026-07-20): every one of the 100 floors --
+# every boss, and the Harvest itself -- played the SAME loop at the SAME
+# pitch, so floor 3 and the end of the world sounded identical. The art
+# freeze forbids new assets, but the one track can still carry the
+# descent: it sags a little lower the deeper you go, drops hard on a boss
+# floor, and sits at its heaviest at the gate of 100.
+const MUSIC_PITCH_SURFACE := 1.0
+const MUSIC_PITCH_DEEPEST := 0.90     # by floor 99, from the depth slide alone
+const MUSIC_PITCH_BOSS_DROP := 0.07   # a boss floor sits under its neighbours
+const MUSIC_PITCH_FINALE := 0.74      # the gate of 100: heaviest in the game
+
+func music_pitch_for(level: int) -> float:
+	if level >= MAX_LEVEL:
+		return MUSIC_PITCH_FINALE
+	var t: float = clampf(float(level) / float(MAX_LEVEL), 0.0, 1.0)
+	var pitch: float = lerpf(MUSIC_PITCH_SURFACE, MUSIC_PITCH_DEEPEST, t)
+	if is_boss_level(level):
+		pitch -= MUSIC_PITCH_BOSS_DROP
+	return clampf(pitch, 0.6, 1.0)
 
 # --- layout selection ---
 
@@ -1937,6 +1958,9 @@ func _on_combatant_died() -> void:
 	if alive_count <= 0 and level_in_progress:
 		level_in_progress = false
 		level_cleared = true
+		# a cleared floor deserves a SOUND, not only a line of text -- and a
+		# felled boss rings brighter than a cleared corridor
+		GameState.play_sfx(GameState.SFX_CHIME, 1.6 if is_boss_level(current_level) else 1.15)
 		GameState.highest_unlocked_level = max(GameState.highest_unlocked_level, current_level + 1)
 		# a cleared floor is a milestone worth banking (autosave)
 		GameState.autosave("floor %d cleared" % current_level, true)

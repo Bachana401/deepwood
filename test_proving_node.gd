@@ -96,5 +96,23 @@ func _ready() -> void:
 	check("a cleared floor says the way on is open",
 		dsrc2.contains("the way on is open"))
 
+	# ---- the sound of depth: one track, but not one mood ----
+	var DID = load("res://dungeon_interior.gd")
+	var did = DID.new()
+	var p1: float = did.music_pitch_for(1)
+	var p50: float = did.music_pitch_for(49)
+	var p_boss: float = did.music_pitch_for(50)
+	var p_fin: float = did.music_pitch_for(100)
+	check("the deeper you go, the lower the world sounds", p50 < p1, "%.3f -> %.3f" % [p1, p50])
+	check("a BOSS floor drops under its own neighbours", p_boss < p50,
+		"boss %.3f vs %.3f" % [p_boss, p50])
+	check("the gate of 100 is the heaviest sound in the game",
+		p_fin < p_boss and p_fin < p1, "%.3f" % p_fin)
+	check("...and nothing ever pitches into a growl", p_fin >= 0.6 and p1 <= 1.0)
+	check("the music actually uses it, and a clear rings out",
+		dsrc2.contains("pitch_scale = music_pitch_for(current_level)")
+		and dsrc2.contains("a cleared floor deserves a SOUND"))
+	did.free()
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)
