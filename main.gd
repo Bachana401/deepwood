@@ -447,10 +447,14 @@ func begin_arrival_battle() -> void:
 	for i in range(4):
 		var e = SIEGE_ENEMY_FOR_ARRIVAL.instantiate()
 		e.skin = "raider"
-		e.max_health = 26          # a LEARNING fight: mean-looking, killable
+		e.max_health = 60          # a LEARNING fight: lasts long enough for the
+		                           # player to WALK OVER and land real hits (the
+		                           # trio alone fells 26hp raiders in ~8 seconds,
+		                           # before the student even arrives)
 		e.attack_damage = 4
 		e.reward = 3
 		e.wall = null              # they fight the defenders, not the stone
+		e.arrival_mode = true      # ...and ONLY the defenders -- never a building 4km east
 		e.global_position = Vector2(road_x + 170.0 + i * 55.0, -70.0)
 		e.died.connect(_on_arrival_raider_died)
 		add_child(e)

@@ -120,6 +120,13 @@ var health_bar_fill: ColorRect = null
 # After breaching the wall, besiegers go for whatever's nearest: the wizard,
 # villagers, the player, AND the buildings themselves (to raze the village).
 const DEFENDER_GROUPS = ["village_defender", "npc", "player", "building"]
+# THE ARRIVAL FIGHT (2.4.1, fixed 2026-07-21 from live playtest): with
+# wall=null the road raiders fell through to the post-breach list above and
+# marched 4km EAST toward the nearest BUILDING -- dragging the trio with
+# them, so the player fought nobody, heard Wren's bow forever, and the
+# "beside Roland" dialogue played to an empty road. Arrival raiders fight
+# the people in front of them, and nothing else.
+var arrival_mode := false
 
 func _ready() -> void:
 	if faction == "village":
@@ -140,7 +147,9 @@ func _ready() -> void:
 	shape.position = Vector2(0, -20.0)
 	add_child(shape)
 
-	if wall == null:
+	# arrival raiders fight PEOPLE, never stone -- the auto-acquire here was
+	# silently overriding wall=null and sending them marching at the village
+	if wall == null and not arrival_mode:
 		wall = get_tree().get_first_node_in_group("village_wall")
 
 	if skin != "":
@@ -238,7 +247,8 @@ func current_target() -> Node2D:
 func nearest_defender() -> Node2D:
 	var best: Node2D = null
 	var best_d = DEFENDER_SEEK_RANGE
-	for group_name in DEFENDER_GROUPS:
+	var groups: Array = ["adventurer", "player"] if arrival_mode else DEFENDER_GROUPS
+	for group_name in groups:
 		for d in get_tree().get_nodes_in_group(group_name):
 			if not is_instance_valid(d) or not d.has_method("take_damage"):
 				continue

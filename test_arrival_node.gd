@@ -85,6 +85,17 @@ func _ready() -> void:
 	# nobody dies in the teaching wave -- Roland especially (12.6: he is the
 	# eleventh ally at the gate of 100, and losing him at minute one would
 	# quietly break that beat forever)
+	# LIVE PLAYTEST FIX (2026-07-21): arrival raiders must fight the PEOPLE
+	# in front of them -- wall=null used to silently re-acquire the village
+	# wall and march the whole battle 4km east, off-screen
+	check("arrival raiders never re-acquire a wall",
+		FileAccess.open("res://siege_enemy.gd", FileAccess.READ).get_as_text().contains("wall == null and not arrival_mode"))
+	check("...and hunt only the defenders and the player",
+		FileAccess.open("res://siege_enemy.gd", FileAccess.READ).get_as_text().contains('["adventurer", "player"] if arrival_mode'))
+	check("...and the wave is set to arrival_mode at spawn",
+		msrc.contains("e.arrival_mode = true"))
+	check("the teaching fight lasts long enough to reach on foot",
+		msrc.contains("e.max_health = 60"))
 	check("the trio is shielded FOR THE ARRIVAL ONLY",
 		FileAccess.open("res://adventurer.gd", FileAccess.READ).get_as_text().contains("GameState.arrival_shield_on()")
 		and msrc.contains("begin_arrival_shield()")
