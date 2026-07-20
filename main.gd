@@ -216,6 +216,8 @@ func _ready() -> void:
 	build_escape_ward()
 	warn_wounded_corps()
 	orin_midgame_taunt()
+	# a coronation interrupted by a quit finishes here, at home
+	GameState.settle_shadow_court()
 	if GameState.returning_from_dungeon:
 		GameState.returning_from_dungeon = false
 		# only restore a real recorded spot -- the default (0,0) is below the

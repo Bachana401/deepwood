@@ -28,6 +28,9 @@ func open() -> void:
 # hold it without them. Deaths while away are permanent -- nobody should learn
 # that from the away report.
 func warn_if_village_exposed() -> void:
+	# post-game there is nothing left to warn about -- the sieges died with Orin
+	if GameState.despair_dead:
+		return
 	var stack = get_tree().get_first_node_in_group("notification_stack")
 	if stack == null:
 		return

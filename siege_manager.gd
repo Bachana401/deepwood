@@ -172,7 +172,9 @@ func build_label() -> void:
 func update_label() -> void:
 	if not label:
 		return
-	if GameState.live_siege_active:
+	if GameState.despair_dead:
+		label.text = "☾ The nights are quiet — Despair is dead. Deepwood is yours."
+	elif GameState.live_siege_active:
 		label.text = "⚔ SIEGE  -  %d attacker%s left" % [alive_count, "" if alive_count == 1 else "s"]
 	else:
 		label.text = "Next siege in %.0fh  (tier %d)" % [max(GameState.hours_until_next_siege, 0.0), GameState.current_siege_tier()]

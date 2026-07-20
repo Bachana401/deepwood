@@ -985,6 +985,9 @@ func warrior_count() -> int:
 	return n
 
 func tick_sieges(hours_passed: float) -> void:
+	# The Shadow Court (GAME_BIBLE 11): the raids die with their master.
+	if despair_dead:
+		return
 	# Leaving for a dungeon abandons any in-progress live battle -- from here on
 	# sieges resolve abstractly until the player is back in the village.
 	if in_dungeon:
@@ -1001,6 +1004,8 @@ func tick_sieges(hours_passed: float) -> void:
 			break  # a live battle just started; stop scheduling until it ends
 
 func trigger_siege() -> void:
+	if despair_dead:
+		return
 	var tier = current_siege_tier()
 	if not in_dungeon:
 		var mgr = get_tree().get_first_node_in_group("siege_manager")
@@ -1905,6 +1910,12 @@ var the_ten: Dictionary = {}
 var harvest_done := false
 var harvested_villagers: Array = []
 
+# --- THE SHADOW COURT (GAME_BIBLE 11) ---
+# "Sieges are over -- Despair is dead." Set at the final victory, per-run,
+# saved: the raiders were never random monsters, they were Orin's farming
+# apparatus, and the apparatus dies with the farmer.
+var despair_dead := false
+
 func begin_harvest() -> void:
 	if harvest_done:
 		return
@@ -1933,6 +1944,13 @@ func raise_shadow_army() -> void:
 	var stack = get_tree().get_first_node_in_group("notification_stack")
 	if stack and raised > 0:
 		stack.show_notification("★ SHADOW ARMY: %d souls rise — themselves, continued. Deepwood stands, and it is yours." % raised)
+
+# If the player quit during the ending dialogue, the army never rose -- the
+# debt is settled the moment they next stand in their village. Never fires
+# mid-Harvest: despair_dead only becomes true at the final victory.
+func settle_shadow_court() -> void:
+	if despair_dead and harvested_villagers.size() > 0:
+		raise_shadow_army()
 
 # --- THE FINALE GATE (GAME_BIBLE 9.1) ---
 # Level 100 opens only to a PERFECT village -- because a perfect village is
@@ -2232,6 +2250,7 @@ func reset_for_new_game() -> void:
 	ensure_the_ten()
 	harvest_done = false
 	harvested_villagers = []
+	despair_dead = false
 	maera_stabilized_this_siege = false
 	_deep_catch_accum = 0.0
 	morale_admin_offset = 0
@@ -2288,6 +2307,7 @@ func save_game(player: Node) -> void:
 		"doctor_heals_bought": doctor_heals_bought,
 		"the_ten": the_ten,
 		"harvest_done": harvest_done,
+		"despair_dead": despair_dead,
 		"harvested_villagers": harvested_villagers,
 		"seen_orin_arrival": seen_orin_arrival,
 		"seen_doctor_account": seen_doctor_account,
@@ -2357,6 +2377,7 @@ func load_game() -> Dictionary:
 			the_ten = parsed["the_ten"]
 			ensure_the_ten()
 		harvest_done = bool(parsed.get("harvest_done", false))
+		despair_dead = bool(parsed.get("despair_dead", false))
 		harvested_villagers = parsed.get("harvested_villagers", [])
 		seen_orin_arrival = bool(parsed.get("seen_orin_arrival", false))
 		seen_doctor_account = bool(parsed.get("seen_doctor_account", false))

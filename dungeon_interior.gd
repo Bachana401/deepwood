@@ -1441,6 +1441,11 @@ func play_final_victory() -> void:
 			t.tween_property(a, "modulate:a", 0.0, 2.0)
 			t.tween_callback(a.queue_free)
 	GameState.mark_game_completed()
+	# The Shadow Court (11): the raiders were the farmer's apparatus, and the
+	# apparatus dies with the farmer. Per-run and saved -- if the player quits
+	# during the dialogue below, settle_shadow_court() finishes the coronation
+	# the next time they stand in their village.
+	GameState.despair_dead = true
 	DialogueBox.play(self, Story.ENDING, func():
 		# the first royal act (9.6): every fallen villager rises as a shadow of
 		# themselves -- names, homes, jobs and bonds kept. The village Orin

@@ -85,6 +85,39 @@ func _ready() -> void:
 	check("the harvest survives save/load",
 		gs.contains('"harvest_done": harvest_done') and gs.contains('"harvested_villagers": harvested_villagers'))
 
+	# ---- the Shadow Court (GAME_BIBLE 11) ----
+	var saved_despair: bool = GameState.despair_dead
+	var saved_hours: float = GameState.hours_until_next_siege
+	# "sieges are over -- Despair is dead": a dead Despair schedules nothing
+	GameState.despair_dead = true
+	GameState.hours_until_next_siege = 0.5
+	GameState.tick_sieges(9999.0)
+	check("Despair dead: the siege clock stops forever",
+		GameState.hours_until_next_siege == 0.5)
+	# a quit during the ending dialogue still owes the village its army --
+	# settled the next time the player stands at home
+	GameState.harvested_villagers = [{"name": "Owed Soul"}]
+	var before_roster: int = GameState.rescued_villagers.size()
+	GameState.settle_shadow_court()
+	check("an interrupted coronation is settled at home",
+		GameState.harvested_villagers.is_empty()
+		and GameState.rescued_villagers.size() == before_roster + 1
+		and bool(GameState.rescued_villagers[-1].get("shadow", false)))
+	# ...but NEVER fires mid-Harvest (despair_dead is only set at victory)
+	GameState.despair_dead = false
+	GameState.harvested_villagers = [{"name": "Still Taken"}]
+	GameState.settle_shadow_court()
+	check("the court never settles while the Harvest still rages",
+		GameState.harvested_villagers.size() == 1)
+	check("despair_dead is set at the final victory", di.contains("GameState.despair_dead = true"))
+	check("despair_dead survives the save",
+		gs.contains('"despair_dead": despair_dead'))
+	var sm := FileAccess.open("res://siege_manager.gd", FileAccess.READ).get_as_text()
+	check("the siege banner becomes the quiet-nights line",
+		sm.contains("Despair is dead"))
+	GameState.despair_dead = saved_despair
+	GameState.hours_until_next_siege = saved_hours
+
 	# restore
 	GameState.rescued_villagers = saved_roster
 	GameState.harvested_villagers = saved_harvested
