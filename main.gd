@@ -472,6 +472,17 @@ func _on_arrival_raider_died() -> void:
 	GameState.log_event("combat", "Your first wave broke at the gate — you fought it beside Roland, Wren and Castor.")
 	var pl = get_tree().get_first_node_in_group("player")
 	if pl:
+		# the SPEAKER MUST HAVE A BODY (live-playtest lesson): the frightened
+		# survivor "creeps from the wreckage" -- so a real villager avatar
+		# walks up beside the player for the reveal, then drifts home on his
+		# own wander logic afterwards.
+		var survivor: Node = null
+		for n in get_tree().get_nodes_in_group("npc"):
+			if n.has_method("find_villager_data"):
+				survivor = n
+				break
+		if survivor != null:
+			survivor.global_position = pl.global_position + Vector2(140.0, 0.0)
 		# the full arrival chain (new canon): the trap named -> the ruin
 		# REVEALED as Deepwood itself (the 180-degree reality check) -> the
 		# oath the whole game executes, sworn aloud once

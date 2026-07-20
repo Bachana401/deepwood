@@ -121,13 +121,16 @@ var hover_panel: Panel = null
 var hover_label: Label = null
 var player_inside = false
 
+# (Canon sync 2026-07-21: his card told the OLD story -- "trapped 2 years"
+# -- while the Doctor and the pact say he came weeks ago chasing the rumour
+# and went down after the taken. His cover story must match itself.)
 const INFO_FIELDS = [
-	"Orin, Stranded Mage",
-	"Adventurer, trapped 2 years",
-	"Defends the walls with meteors",
+	"Orin, Wandering Mage",
+	"Came chasing the same rumour",
+	"Holds the nights with meteors",
 	"Cannot be given a village job",
 ]
-const SPEECH_LINE = "Two winters I've been stranded here. The evil outside is too thick to cross alone -- so I'll guard these walls till you clear me a path."
+const SPEECH_LINE = "I went down after this village's people, and the deep kept me for weeks. Now I hold the nights -- until you clear the path to the root of it."
 
 func _ready() -> void:
 	# GAME_BIBLE 2.5.1: Orin is ABSENT from the village at the start. He is a

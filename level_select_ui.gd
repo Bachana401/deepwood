@@ -65,8 +65,10 @@ func refresh_lock_states() -> void:
 		# them blind would be a scavenger hunt with no map -- the village
 		# remembers roughly where its things were dragged.
 		if GameState.BLUEPRINT_FLOORS.has(level) and not GameState.has_blueprint(str(GameState.BLUEPRINT_FLOORS[level])):
+			# DEV CALL (2026-07-21): no blueprint spoilers -- the scroll says
+			# SOMETHING waits here, never WHAT. Discovery stays discovery.
 			button.text = "%d\n📜" % level
-			button.tooltip_text = "The %s's blueprint lies on this floor" % str(GameState.BLUEPRINT_FLOORS[level])
+			button.tooltip_text = "Something of Deepwood's lies lost on this floor"
 			button.add_theme_color_override("font_color", Color(0.95, 0.88, 0.55))
 		else:
 			button.text = str(level)

@@ -264,8 +264,13 @@ func rebuild_geometry() -> void:
 	health_bar_fill.position = Vector2(-bw / 2.0, -h - 50.0)
 	name_label.position = Vector2(-w / 2.0, -h - 34.0)
 	name_label.size = Vector2(w, 20.0)
-	prompt_label.position = Vector2(-w / 2.0, -h - 14.0)
-	prompt_label.size = Vector2(w, 18.0)
+	# prompts grew into sentences ("📜 Blueprint lost — ...") but the label
+	# stayed one building-width line -- long text spilled past narrow
+	# buildings' edges. Give every prompt a wide two-line home.
+	var pw: float = maxf(w, 400.0)
+	prompt_label.position = Vector2(-pw / 2.0, -h - 30.0)
+	prompt_label.size = Vector2(pw, 34.0)
+	prompt_label.autowrap_mode = TextServer.AUTOWRAP_WORD
 	position_torches()
 	update_health_bar()
 	refresh_visual()
