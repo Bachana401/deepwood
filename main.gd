@@ -284,6 +284,9 @@ func generate_village() -> void:
 		building.height = h
 		building.body_color = def.color
 		building.position = Vector2(cursor + reserve / 2.0, VILLAGE_Y)
+		# MOVABLE BUILDINGS (5.2): a player-chosen spot outlives the layout
+		if GameState.building_positions.has(def.name):
+			building.position.x = float(GameState.building_positions[def.name])
 		$Village.add_child(building)
 		# walkable stairs->bridge->stairs crossing over the dock's water
 		if def.name == "Fishing Dock":

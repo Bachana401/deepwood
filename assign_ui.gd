@@ -32,9 +32,11 @@ func refresh() -> void:
 	$Panel/TitleLabel.text = "%s  (Lv %d)" % [current_building.building_name, current_building.building_level]
 
 	# A ruined building can't be used or upgraded -- only repaired. Show just the
-	# repair prompt until it's back on its feet.
+	# repair prompt until it's back on its feet. (It CAN still be relocated --
+	# plan the town before you raise it.)
 	if current_building.is_ruined():
 		add_repair_section(list)
+		add_relocate_section(list)
 		return
 
 	add_upgrade_section(list)
@@ -46,6 +48,26 @@ func refresh() -> void:
 		add_smithy_section(list)
 	if current_building.role_key == "Barracks":
 		add_armory_section(list)
+	add_relocate_section(list)
+
+# MOVABLE BUILDINGS (5.2, dev decision): pack the building up, walk to the
+# new ground, press H to plant it. Costs charge at the PLANT, so changing
+# your mind is free.
+func add_relocate_section(list: VBoxContainer) -> void:
+	var btn = Button.new()
+	btn.custom_minimum_size = Vector2(0, 28)
+	if GameState.moving_building == current_building.building_name:
+		btn.text = "📦 Packed up — walk to the new ground and press H"
+		btn.disabled = true
+	else:
+		btn.text = "📦 Relocate (%dg + %d wood at the plant)" % [GameState.RELOCATE_GOLD, GameState.RELOCATE_WOOD]
+		btn.pressed.connect(func():
+			GameState.moving_building = current_building.building_name
+			close()
+			var stack = get_tree().get_first_node_in_group("notification_stack")
+			if stack:
+				stack.show_notification("📦 The %s is packed. Walk to the new ground and press H to plant it." % current_building.building_name))
+	list.add_child(btn)
 
 # Shown while a building is being raised: it takes several construction stages,
 # each costing one material bundle and playing a build animation.

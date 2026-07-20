@@ -14,6 +14,7 @@ var player_inside = false
 func _ready() -> void:
 	collision_layer = 0
 	collision_mask = 2
+	add_to_group("village_structure")
 	body_entered.connect(_on_body_entered)
 	body_exited.connect(_on_body_exited)
 	GameState.couple_departed.connect(_on_couple_departed)

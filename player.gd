@@ -1403,6 +1403,61 @@ func close_portals(msg := "") -> void:
 		if stack:
 			stack.show_notification(msg)
 
+# MOVABLE BUILDINGS (5.2): plant the packed building where the player
+# stands -- spacing and the two ramparts respected, costs charged HERE so
+# changing your mind was free.
+func try_plant_building() -> void:
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	var name := GameState.moving_building
+	var mover: Node = null
+	for b in get_tree().get_nodes_in_group("building"):
+		if str(b.building_name) == name:
+			mover = b
+			break
+	if mover == null:
+		GameState.moving_building = ""
+		return
+	var x := global_position.x
+	# inside the ramparts, with breathing room
+	var west_x := 4700.0
+	var east_x := 999999.0
+	for w in get_tree().get_nodes_in_group("village_wall"):
+		if "flank" in w and w.flank == "east":
+			east_x = w.global_position.x
+		else:
+			west_x = w.global_position.x
+	if x < west_x + 160.0 or x > east_x - 160.0:
+		if stack:
+			stack.show_notification("The %s must stand INSIDE the ramparts." % name)
+		return
+	# clear of every other structure: buildings, cottages, the tower
+	var my_half: float = float(mover.width) / 2.0
+	for other in get_tree().get_nodes_in_group("building"):
+		if other == mover:
+			continue
+		if absf(x - other.global_position.x) < my_half + float(other.width) / 2.0 + GameState.RELOCATE_CLEARANCE:
+			if stack:
+				stack.show_notification("Too close to the %s — find clearer ground." % other.building_name)
+			return
+	for node in get_tree().get_nodes_in_group("village_structure"):
+		if absf(x - node.global_position.x) < my_half + 60.0 + GameState.RELOCATE_CLEARANCE:
+			if stack:
+				stack.show_notification("Too close to a structure — find clearer ground.")
+			return
+	# the price, at the plant
+	if currency < GameState.RELOCATE_GOLD or inventory.get_count("wood") < GameState.RELOCATE_WOOD:
+		if stack:
+			stack.show_notification("Planting the %s needs %dg + %d wood." % [name, GameState.RELOCATE_GOLD, GameState.RELOCATE_WOOD])
+		return
+	add_currency(-GameState.RELOCATE_GOLD)
+	inventory.remove_item("wood", GameState.RELOCATE_WOOD)
+	mover.global_position.x = x
+	GameState.building_positions[name] = x
+	GameState.moving_building = ""
+	GameState.log_event("village", "The %s was moved to new ground." % name)
+	if stack:
+		stack.show_notification("🏗 The %s stands on its new ground." % name)
+
 # Called DEFERRED by the door the player stepped into (never mid-flush).
 func do_portal_teleport(from: Node2D) -> void:
 	var to: Node2D = portal_b if from == portal_a else portal_a
@@ -2161,6 +2216,10 @@ func _physics_process(delta: float) -> void:
 	# Riftweaving (Mage): Z weaves the doors -- see try_weave_portal
 	if Input.is_action_just_pressed("portal") and has_portal_skill():
 		try_weave_portal()
+
+	# MOVABLE BUILDINGS (5.2): a packed building plants where you stand on H
+	if Input.is_action_just_pressed("harvest") and GameState.moving_building != "" and not GameState.in_dungeon:
+		try_plant_building()
 
 	if Input.is_action_just_pressed("move_left"):
 		var now = Time.get_ticks_msec() / 1000.0

@@ -12,6 +12,7 @@ var player_inside := false
 var gfx: Node2D = null
 
 func _ready() -> void:
+	add_to_group("village_structure")
 	collision_layer = 0
 	collision_mask = 2
 	body_entered.connect(func(b): if b.is_in_group("player"): player_inside = true; $Prompt.visible = true; _refresh_prompt())

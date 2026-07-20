@@ -18,6 +18,7 @@ const HOUSE_COLORS = [
 var player_inside := false
 
 func _ready() -> void:
+	add_to_group("village_structure")
 	collision_layer = 0
 	collision_mask = 2
 	body_entered.connect(func(b): if b.is_in_group("player"): player_inside = true; $Prompt.visible = true)

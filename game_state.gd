@@ -2062,6 +2062,44 @@ func generate_passive_income() -> void:
 
 var _gold_accum := 0.0
 
+# --- BLUEPRINTS (GAME_BIBLE 5.2, dev decision 2026-07-20) ---
+# A ruin cannot be RAISED until its blueprint is found in the deep. The
+# survival basics are known from the start; the other twelve lie at fixed
+# floors paced by the dependency ladder (5.7.1), everything in hand by
+# floor 30 -- deliberately early, so no building arrives too late to
+# matter. Old saves know everything (additive default).
+const BLUEPRINT_STARTERS = ["Farm", "Tavern", "Builderhouse"]
+const BLUEPRINT_FLOORS = {
+	2: "Hospital", 4: "School", 6: "Fishing Dock", 8: "Barracks",
+	10: "Science Lab", 11: "Bar", 13: "Mine", 16: "Blacksmith",
+	19: "Marketplace", 22: "Bank", 26: "Government", 30: "Shrine",
+}
+var blueprints: Array = []
+
+func has_blueprint(building_name: String) -> bool:
+	return building_name in blueprints
+
+func grant_blueprint(building_name: String) -> void:
+	if building_name in blueprints:
+		return
+	blueprints.append(building_name)
+	log_event("village", "The %s blueprint was recovered from the deep." % building_name)
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if stack:
+		stack.show_notification("📜 BLUEPRINT: the %s can be raised now." % building_name)
+
+# --- MOVABLE BUILDINGS (GAME_BIBLE 5.2, dev decision 2026-07-20) ---
+# Every roster building can be RELOCATED: the assign panel packs it up
+# (25g + 4 wood), you walk to the new ground and press H to plant it.
+# Positions persist and rebuild with the scene. Cottages, the walls and
+# the Watchtower keep their ground -- the row, the flanks and the plot
+# ARE their identity.
+const RELOCATE_GOLD := 25
+const RELOCATE_WOOD := 4
+const RELOCATE_CLEARANCE := 40.0
+var building_positions: Dictionary = {}   # building_name -> x, player-chosen
+var moving_building := ""                 # transient: the building packed up
+
 # --- THE MINE (GAME_BIBLE 5.7, decided 2026-07-20 delegated) ---
 # The delegated form of hand-mining: staffed Miners haul the SAME materials
 # the pickaxe does -- stone and iron shards -- into the player's bag, one
@@ -3111,6 +3149,9 @@ func reset_for_new_game() -> void:
 	watchtower_tier = 0
 	_tower_bell_armed = true
 	_mine_accum = 0.0
+	blueprints = BLUEPRINT_STARTERS.duplicate()
+	building_positions = {}
+	moving_building = ""
 	pregnancies = {}
 	school_enrollments = {}
 	highest_unlocked_level = 999 if TEST_UNLOCK_ALL_LEVELS else 1
@@ -3239,6 +3280,8 @@ func save_game(player: Node) -> void:
 		"wanderer_next_at_hours": wanderer_next_at_hours,
 		"wanderers_seen": wanderers_seen,
 		"watchtower_tier": watchtower_tier,
+		"blueprints": blueprints,
+		"building_positions": building_positions,
 		"pregnancies": pregnancies,
 		"school_enrollments": school_enrollments,
 		"highest_unlocked_level": highest_unlocked_level,
@@ -3330,6 +3373,15 @@ func load_game() -> Dictionary:
 		wanderer_next_at_hours = float(parsed.get("wanderer_next_at_hours", 8.0))
 		wanderers_seen = int(parsed.get("wanderers_seen", 0))
 		watchtower_tier = int(parsed.get("watchtower_tier", 0))
+		# old saves know every blueprint -- never brick a mid-run town
+		if parsed.has("blueprints") and parsed["blueprints"] is Array:
+			blueprints = parsed["blueprints"]
+		else:
+			blueprints = STARTING_BUILDINGS.duplicate()
+		building_positions = {}
+		if parsed.has("building_positions") and parsed["building_positions"] is Dictionary:
+			for k in parsed["building_positions"].keys():
+				building_positions[k] = float(parsed["building_positions"][k])
 		if parsed.has("pregnancies"):
 			pregnancies = parsed["pregnancies"]
 		if parsed.has("school_enrollments"):

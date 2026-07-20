@@ -1497,6 +1497,17 @@ const ADVENTURER_RESCUE = preload("res://adventurer_rescue.gd")
 const TROPHY_VAULT = preload("res://trophy_vault.gd")
 
 func spawn_deep_rescue() -> void:
+	# a BLUEPRINT satchel (5.2) may lie at this floor -- the plans for one
+	# village building, lost when Deepwood fell, paced by the dependency
+	# ladder so everything is in hand by floor 30
+	if GameState.BLUEPRINT_FLOORS.has(current_level):
+		var bp_name: String = GameState.BLUEPRINT_FLOORS[current_level]
+		if not GameState.has_blueprint(bp_name):
+			var bp = preload("res://blueprint_pickup.gd").new()
+			bp.building_name = bp_name
+			bp.position = Vector2(current_width * 0.62, GROUND_Y)
+			$LevelContainer.add_child(bp)
+			show_notification("Something papery glints in the gloom — plans, maybe...")
 	# a Trophy Vault of the Ten (GAME_BIBLE §8) may hang hidden in this floor --
 	# deep past the fighting, at the far reaches, a discovery rather than loot
 	var ten = TheTen.for_level(current_level)

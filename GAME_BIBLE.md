@@ -228,6 +228,9 @@ What the player is actually *doing and worrying about* at every stage. This is t
 
 All buildings start **visually destroyed** and non-functional; repair costs gold + materials in stages (✅ built, incl. siege damage/repair). **How they interlock into one system is §5.7.**
 
+> ✅ DECIDED (2026-07-20, dev): **BLUEPRINTS** — a ruin cannot be raised until its blueprint is FOUND in the deep. The survival basics (Farm, Tavern, Builderhouse) are known from the start; the other twelve lie at fixed floors paced by the dependency ladder — Hospital 2, School 4, Dock 6, Barracks 8, Bar 11, Mine 13, Blacksmith 16, Marketplace 19, Bank 22, Government 26, Shrine 30 (matching its own service depth). Everything is in hand by floor 30 — deliberately EARLIER than the floated ~40, so no building ever arrives too late to matter. Old saves know everything.
+> ✅ DECIDED (2026-07-20, dev): **BUILDINGS ARE MOVABLE** — the assign panel offers Relocate (25g + 4 wood): the building packs up, you walk to the new ground and press H to plant it. Spacing and the two ramparts are respected; positions persist. Cottages, walls and the Watchtower keep their ground (the row, the flanks and the plot ARE their identity).
+
 ### 5.3 Professions ✅ decided
 One profession stat per building (Farmer, Fisher, Doctor/Nurse, Smith, Builder, **Miner**, Scholar, Merchant, Banker, Official, Teacher, Innkeeper, Barkeep) + **Warrior** (Barracks — deletes all other stats, permanent, one-way sacrifice). Leadership roles (Leader / Principal / Warchief) can **never** be taught — only rescued hostages who already carry them qualify. Leader bonuses (+15% class-appropriate boosts) ✅.
 

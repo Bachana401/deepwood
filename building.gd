@@ -431,6 +431,12 @@ func attempt_field_build() -> void:
 	if not player:
 		return
 	var notif = get_tree().get_first_node_in_group("notification_stack")
+	# BLUEPRINTS (5.2): a ruin cannot be raised until its plans are found in
+	# the deep -- the survival basics are known, the rest lie at fixed floors
+	if not GameState.has_blueprint(building_name):
+		if notif:
+			notif.show_notification("📜 The %s's blueprint is lost — seek it in the deep." % building_name)
+		return
 	var result = try_build(player)
 	if result == "ok" and notif:
 		if build_stage >= GameState.TOTAL_BUILD_STAGES:
@@ -451,6 +457,8 @@ func update_prompt() -> void:
 		return
 	if constructing:
 		prompt_label.text = "Building..."
+	elif is_ruined() and not GameState.has_blueprint(building_name):
+		prompt_label.text = "📜 Blueprint lost — its plans lie somewhere in the deep"
 	elif is_ruined():
 		prompt_label.text = "Press F to Build (%s)  —  stage %d/%d" % [repair_requirement_text(), build_stage, GameState.TOTAL_BUILD_STAGES]
 	elif building_name == "Farm":
@@ -1982,7 +1990,7 @@ func _process(delta: float) -> void:
 		# Hospital (5.5 Health): the hands-on key checks the PLAYER in for
 		# treatment -- a flat mid-game price once the ward is staffed, the
 		# successor to the Doctor's escalating early-game lifeline.
-		if building_name == "Hospital" and is_operational() and Input.is_action_just_pressed("harvest"):
+		if building_name == "Hospital" and is_operational() and Input.is_action_just_pressed("harvest") and GameState.moving_building == "":
 			var pl = get_tree().get_first_node_in_group("player")
 			if pl != null and GameState.count_workers("Hospital") > 0:
 				var notif2 = get_node_or_null("../CanvasLayer/NotificationStack")
@@ -1998,7 +2006,7 @@ func _process(delta: float) -> void:
 		# School (5.4 favour-a-calling): from level 2, the hands-on key cycles
 		# which calling the curriculum leans toward -- capped at 40%, so the
 		# dice never fully leave
-		if building_name == "School" and is_operational() and Input.is_action_just_pressed("harvest"):
+		if building_name == "School" and is_operational() and Input.is_action_just_pressed("harvest") and GameState.moving_building == "":
 			var notif4 = get_node_or_null("../CanvasLayer/NotificationStack")
 			if GameState.building_level("School") < 2:
 				if notif4:
@@ -2020,7 +2028,7 @@ func _process(delta: float) -> void:
 							GameState.school_favoured_stat, int(round(share / tot * 100.0))])
 		# Marketplace (5.6a): the hands-on key opens the Wanderer's Post counter
 		# while a seller is in town -- and says so plainly when the stall is bare.
-		if building_name == "Marketplace" and is_operational() and Input.is_action_just_pressed("harvest"):
+		if building_name == "Marketplace" and is_operational() and Input.is_action_just_pressed("harvest") and GameState.moving_building == "":
 			if GameState.wanderer.is_empty():
 				var notif3 = get_node_or_null("../CanvasLayer/NotificationStack")
 				if notif3:
