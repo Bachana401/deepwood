@@ -21,7 +21,89 @@ func _ready() -> void:
 	player = get_tree().get_first_node_in_group("player")
 	build_slots()
 	build_close_button()
+	build_craft_panel()
 	DragState.register_panel(self)
+
+# --- THE CRAFTING BENCH (polish 2026-07-20) ---
+# GameState.try_craft, CRAFT_RECIPES and even Toren's cost discount all
+# existed and worked -- with NO way in. Four recipes (three foods and the
+# Reset Potion) were unreachable for the whole game; the comment in
+# inventory.gd literally referred to "the crafting popup in inventory_ui"
+# that was never built. Here it is: a bench beside the bag, showing every
+# recipe, what it needs, and what you have.
+var craft_panel: Panel = null
+var craft_rows: VBoxContainer = null
+
+func build_craft_panel() -> void:
+	var btn := Button.new()
+	btn.position = Vector2(304 - 34, 36)
+	btn.size = Vector2(26, 22)
+	btn.add_theme_font_size_override("font_size", 13)
+	btn.text = "⚒"
+	btn.tooltip_text = "Crafting"
+	btn.focus_mode = Control.FOCUS_NONE
+	btn.pressed.connect(func():
+		craft_panel.visible = not craft_panel.visible
+		if craft_panel.visible:
+			refresh_craft())
+	$Panel.add_child(btn)
+	craft_panel = Panel.new()
+	craft_panel.visible = false
+	craft_panel.position = Vector2(316, 0)
+	craft_panel.size = Vector2(330, 250)
+	$Panel.add_child(craft_panel)
+	var title := Label.new()
+	title.text = "CRAFTING"
+	title.add_theme_font_size_override("font_size", 15)
+	title.position = Vector2(12, 6)
+	craft_panel.add_child(title)
+	craft_rows = VBoxContainer.new()
+	craft_rows.position = Vector2(12, 30)
+	craft_rows.custom_minimum_size = Vector2(306, 0)
+	craft_rows.add_theme_constant_override("separation", 6)
+	craft_panel.add_child(craft_rows)
+
+func refresh_craft() -> void:
+	if craft_rows == null or player == null:
+		return
+	for c in craft_rows.get_children():
+		c.queue_free()
+	for item_id in Inventory.CRAFT_RECIPES:
+		var recipe: Dictionary = Inventory.CRAFT_RECIPES[item_id]
+		var row := VBoxContainer.new()
+		row.add_theme_constant_override("separation", 1)
+		var can_make := true
+		var parts := []
+		for ing in recipe:
+			var need: int = maxi(1, int(ceil(float(recipe[ing]) * (0.75 if GameState.ten_freed("ten_toren") else 1.0))))
+			var have: int = player.inventory.get_count(ing)
+			if have < need:
+				can_make = false
+			parts.append("%s %d/%d" % [Inventory.get_display_name(ing), have, need])
+		var make := Button.new()
+		make.text = "⚒ %s" % Inventory.get_display_name(item_id)
+		make.custom_minimum_size = Vector2(300, 26)
+		make.disabled = not can_make
+		make.pressed.connect(_on_craft.bind(item_id))
+		row.add_child(make)
+		var need_l := Label.new()
+		need_l.text = "     " + ", ".join(parts)
+		need_l.add_theme_font_size_override("font_size", 11)
+		need_l.add_theme_color_override("font_color",
+			Color(0.65, 0.8, 0.65) if can_make else Color(0.75, 0.6, 0.55))
+		row.add_child(need_l)
+		craft_rows.add_child(row)
+
+func _on_craft(item_id: String) -> void:
+	# try_craft returns "" on success, or the reason it refused
+	var result: String = GameState.try_craft(item_id, player)
+	if result == "":
+		notify("Crafted " + Inventory.get_display_name(item_id) + "!")
+		GameState.play_sfx(GameState.SFX_YES, 1.1)
+	else:
+		notify(result)
+	refresh()
+	refresh_craft()
 
 # A visible ✕ in the panel corner so the inventory can always be dismissed by
 # click, not only with the Tab key.

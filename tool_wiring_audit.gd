@@ -158,6 +158,41 @@ func _ready() -> void:
 		if not proj.contains("\n%s=" % act):
 			note("input", "'%s' is checked in %s but not defined in project.godot -- it can never fire" % [act, used_actions[act]])
 
+	# --- PLAYER-FACING SYSTEMS NOTHING CAN REACH (added 2026-07-20) ---
+	# Crafting hid for the ENTIRE project: CRAFT_RECIPES, try_craft and even
+	# Toren's discount all worked, and no UI anywhere called them -- a whole
+	# system the player could never touch, invisible to every other audit
+	# (the code was live, the promises were kept, the recipes were valid).
+	# Each entry below is a player-facing verb that must have a caller
+	# OUTSIDE the file that defines it.
+	printerr("\n== player-facing systems with no way in ==")
+	var reachable := {
+		"try_craft": "the crafting bench",
+		"try_cleanse": "the Shrine's mercy",
+		"buy_from_wanderer": "the Wanderer's Post",
+		"new_game_plus": "the Rewound Hour",
+		"try_plant_building": "relocation",
+		"grant_blueprint": "blueprint satchels",
+		"next_objective": "the what-now advisor",
+		"chronicle": "the Chronicle panel",
+		"try_weave_portal": "Riftweaving",
+		"open_page": "the Roster / How to Play",
+	}
+	# A verb counts as reachable if ANYTHING calls it -- including its own
+	# file, since player.gd legitimately defines AND invokes its own input
+	# verbs (Z weaves a rift, H plants a building). What must never happen
+	# is what crafting did: zero call sites anywhere in the project.
+	for fn in reachable.keys():
+		var call_sites := 0
+		for path in files.keys():
+			var src: String = files[path]
+			var hits := src.count(fn + "(")
+			if src.contains("func " + fn + "("):
+				hits -= src.count("func " + fn + "(")   # the definition is not a call
+			call_sites += maxi(hits, 0)
+		if call_sites == 0:
+			note("unreachable", "'%s()' (%s) is defined but NOTHING anywhere calls it -- the player can never reach it" % [fn, reachable[fn]])
+
 	printerr("\n== TOTAL WIRING ISSUES: %d ==" % issues)
 	get_tree().quit(0)
 

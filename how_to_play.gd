@@ -11,6 +11,7 @@ const SECTIONS = [
 		["Mouse", "your cursor AIMS: left-click swings/shoots toward it (combos chain, finishers hit harder)"],
 		["Right-click", "your weapon's special attack, when it has one"],
 		["1 – 0", "the hotbar: weapons and potions"],
+		["In the bag", "RIGHT-CLICK an item to use it: a weapon is wielded, armour and relics are worn, a potion or food is drunk. The ⚒ button opens crafting."],
 		["Z", "Mage only, with Riftweaving: open the orange rift, then the blue one elsewhere; step in one, exit the other. Mana drains while both stand."],
 	]],
 	["THE VILLAGE", [

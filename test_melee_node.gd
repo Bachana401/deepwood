@@ -372,6 +372,31 @@ func _ready() -> void:
 	check("a bow gets no melee crit bias",
 		p.weapon_crit_chance_bonus() == 0.0 and p.weapon_crit_damage_bonus() == 0.0)
 
+	# ---- CRAFTING: recipes existed all game with no way to reach them ----
+	var inv_ui = get_tree().get_first_node_in_group("inventory_ui")
+	check("the bag has a crafting bench at all",
+		inv_ui != null and inv_ui.craft_panel != null)
+	if inv_ui != null and inv_ui.craft_panel != null:
+		inv_ui.refresh_craft()
+		check("every recipe is listed, not only the affordable ones",
+			inv_ui.craft_rows.get_child_count() == Inventory.CRAFT_RECIPES.size(),
+			"%d rows vs %d recipes" % [inv_ui.craft_rows.get_child_count(), Inventory.CRAFT_RECIPES.size()])
+		var stew_before: int = p.inventory.get_count("food_stew")
+		var herb_before: int = p.inventory.get_count("herb")
+		var meat_before: int = p.inventory.get_count("raw_meat")
+		p.inventory.add_item("herb", 2)
+		p.inventory.add_item("raw_meat", 1)
+		inv_ui._on_craft("food_stew")
+		check("crafting consumes the ingredients and yields the food",
+			p.inventory.get_count("food_stew") == stew_before + 1
+			and p.inventory.get_count("herb") == herb_before
+			and p.inventory.get_count("raw_meat") == meat_before)
+		var reset_before: int = p.inventory.get_count("potion_reset")
+		inv_ui._on_craft("potion_reset")
+		check("a recipe you cannot afford refuses instead of half-charging",
+			p.inventory.get_count("potion_reset") == reset_before)
+		p.inventory.remove_item("food_stew", 1)
+
 	# ---- RIFTWEAVING (Mage mg_p1..p3): the two doors, Z to weave ----
 	var rift_ids := ["mg_p1", "mg_p2", "mg_p3"]
 	var tree_ok := true
