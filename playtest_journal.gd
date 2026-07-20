@@ -20,7 +20,6 @@ var hint: Label = null
 func _ready() -> void:
 	layer = 90                      # above every other UI, incl. pause
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	add_to_group("playtest_journal")
 	panel = Panel.new()
 	panel.visible = false
 	panel.position = Vector2(200, 220)

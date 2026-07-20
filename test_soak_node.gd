@@ -96,14 +96,18 @@ func _ready() -> void:
 		GameState.village_log.size() <= GameState.LOG_MAX_ENTRIES)
 
 	# ---------- 3. THE JOURNAL RIDES IN BOTH SCENES ----------
-	check("the F8 field journal is mounted in the village",
-		get_tree().get_first_node_in_group("playtest_journal") != null)
+	var journal_node: Node = null
+	for jn in get_tree().root.find_children("*", "", true, false):
+		if jn.get_script() != null and str(jn.get_script().resource_path).contains("playtest_journal"):
+			journal_node = jn
+			break
+	check("the F8 field journal is mounted in the village", journal_node != null)
 	check("...and in the dungeon scene's source",
 		FileAccess.open("res://dungeon_interior.gd", FileAccess.READ).get_as_text().contains("playtest_journal.gd"))
 	check("crash file-logging is armed for the marathon",
 		FileAccess.open("res://project.godot", FileAccess.READ).get_as_text().contains("enable_file_logging=true"))
 	# a note actually lands on disk, context attached
-	var journal = get_tree().get_first_node_in_group("playtest_journal")
+	var journal = journal_node
 	if journal != null:
 		var had_file: bool = FileAccess.file_exists(journal.NOTES_PATH)
 		var before_txt := ""
