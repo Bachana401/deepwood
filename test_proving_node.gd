@@ -84,5 +84,17 @@ func _ready() -> void:
 	GameState.in_dungeon = false
 	await get_tree().process_frame
 
+	# ---- the straggler problem: the exit needs a CLEAR floor ----
+	var dsrc2 := FileAccess.open("res://dungeon_interior.gd", FileAccess.READ).get_as_text()
+	check("the floor shows how many foes are left",
+		dsrc2.contains('"   ⚔ %d left"'))
+	check("...and points the way when only a few remain",
+		dsrc2.contains("func _straggler_hint") and dsrc2.contains("◀ west"))
+	check("the tally updates on every kill, and the hint tracks the player",
+		dsrc2.contains("update_level_label()   # the tally is live")
+		and dsrc2.contains("_hint_timer"))
+	check("a cleared floor says the way on is open",
+		dsrc2.contains("the way on is open"))
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

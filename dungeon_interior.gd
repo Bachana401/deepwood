@@ -379,6 +379,7 @@ var started = true
 var starting = false
 var current_level = 1
 var alive_count = 0
+var _hint_timer := 0.0   # throttles the straggler direction refresh
 var level_in_progress = false
 # set once the current level's combat is fully cleared -- this is what arms
 # the forward gate (advancing is a manual walk through it now, never automatic)
@@ -1651,6 +1652,13 @@ var _devoured := 0
 var _monarch: Node = null
 
 func _physics_process(delta: float) -> void:
+	# the straggler hint tracks the player, so refresh it a few times a
+	# second while the hunt is down to the last few
+	if level_in_progress and alive_count > 0 and alive_count <= 3:
+		_hint_timer -= delta
+		if _hint_timer <= 0.0:
+			_hint_timer = 0.35
+			update_level_label()
 	if _monarch == null or not is_instance_valid(_monarch) or _monarch.is_dead:
 		return
 	# stream the town in, wave by named wave
@@ -1925,6 +1933,7 @@ func _on_combatant_died() -> void:
 	if is_boss_level(current_level):
 		roll_gear_drop()
 	alive_count -= 1
+	update_level_label()   # the tally is live, every kill
 	if alive_count <= 0 and level_in_progress:
 		level_in_progress = false
 		level_cleared = true
@@ -2031,9 +2040,46 @@ func exit_dungeon() -> void:
 
 func update_level_label() -> void:
 	var label = get_node_or_null("CanvasLayer/LevelLabel")
-	if label:
-		label.text = "Level: " + str(current_level) + " / " + str(MAX_LEVEL) + "  (Unlocked: " + str(GameState.highest_unlocked_level) + ")"
-		label.visible = true
+	if label == null:
+		return
+	var text := "Level: " + str(current_level) + " / " + str(MAX_LEVEL) + "  (Unlocked: " + str(GameState.highest_unlocked_level) + ")"
+	# THE STRAGGLER PROBLEM (polish 2026-07-20): the exit only opens on a
+	# CLEARED floor, and alive_count was tracked but never shown -- so one
+	# mob stuck behind a pillar at the far edge meant blind searching a
+	# level wider than a screen. Show the tally, and when the hunt is down
+	# to a handful, say which way they are.
+	if level_in_progress and alive_count > 0:
+		text += "   ⚔ %d left" % alive_count
+		if alive_count <= 3:
+			var hint := _straggler_hint()
+			if hint != "":
+				text += "  " + hint
+	elif level_cleared:
+		text += "   ✔ cleared — the way on is open"
+	label.text = text
+	label.visible = true
+
+# Which way the nearest living foe lies, for the last few of a floor.
+func _straggler_hint() -> String:
+	var player = get_tree().get_first_node_in_group("player")
+	if player == null:
+		return ""
+	var best: Node2D = null
+	var best_d := INF
+	for e in get_tree().get_nodes_in_group("dungeon_combatant"):
+		if not is_instance_valid(e) or e.is_in_group("player"):
+			continue
+		if "is_dead" in e and e.is_dead:
+			continue
+		var d: float = absf(e.global_position.x - player.global_position.x)
+		if d < best_d:
+			best_d = d
+			best = e
+	if best == null:
+		return ""
+	if best_d < 260.0:
+		return "(close)"
+	return "◀ west" if best.global_position.x < player.global_position.x else "east ▶"
 
 func show_notification(text: String) -> void:
 	var stack = get_node_or_null("CanvasLayer/NotificationStack")
