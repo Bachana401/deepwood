@@ -465,11 +465,14 @@ func try_craft(item_id: String, player: Node) -> String:
 	if not Inventory.CRAFT_RECIPES.has(item_id):
 		return "That can't be crafted."
 	var recipe = Inventory.CRAFT_RECIPES[item_id]
+	# Toren Ashvale, the Forgefather (the Ten): crafting costs a quarter less
+	var cost_mult := 0.75 if ten_freed("ten_toren") else 1.0
 	for ing in recipe.keys():
-		if player.inventory.get_count(ing) < recipe[ing]:
-			return "Missing %dx %s." % [recipe[ing], Inventory.get_display_name(ing)]
+		var need: int = maxi(1, int(ceil(recipe[ing] * cost_mult)))
+		if player.inventory.get_count(ing) < need:
+			return "Missing %dx %s." % [need, Inventory.get_display_name(ing)]
 	for ing in recipe.keys():
-		player.inventory.remove_item(ing, recipe[ing])
+		player.inventory.remove_item(ing, maxi(1, int(ceil(recipe[ing] * cost_mult))))
 	player.inventory.add_item(item_id, 1)
 	return ""
 
@@ -908,9 +911,10 @@ func tick_village_clock() -> void:
 	update_mating_houses(hours_passed)
 	update_school_enrollments(hours_passed)
 	decay_doctor_price(hours_passed)
+	tick_deep_catches(hours_passed)
 	if hours_passed > 0.0:
 		# grief heals with time -- the forgiving half of the death-shock system
-		morale_death_shock = maxf(0.0, morale_death_shock - hours_passed * DEATH_SHOCK_DECAY_PER_HOUR)
+		morale_death_shock = maxf(0.0, morale_death_shock - hours_passed * DEATH_SHOCK_DECAY_PER_HOUR * (2.0 if ten_freed("ten_seraphel") else 1.0))
 		tick_food(hours_passed)          # eat/produce first, so hunger drain sees fresh state
 		tick_morale_effects(hours_passed)
 		tick_village_tribute(hours_passed)
@@ -1000,9 +1004,35 @@ func trigger_siege() -> void:
 			return
 	resolve_siege_offline(tier)
 
+# Kaldos, the Tidecaller (the Ten): the Dock's deep-catches haul MATERIALS as
+# well as food -- one basic material per in-game day per staffed dock, dropped
+# into the player's bag. (The dock has no food loop of its own yet, so this is
+# the boon's material half wired to the real hook that exists.)
+var _deep_catch_accum := 0.0
+const DEEP_CATCH_MATERIALS = ["iron_shard", "slime", "resin"]
+
+func tick_deep_catches(hours_passed: float) -> void:
+	if not ten_freed("ten_kaldos"):
+		return
+	var dock_hands := 0
+	for v in rescued_villagers:
+		if str(v.get("role_key", "")) == "Fishing Dock":
+			dock_hands += 1
+	if dock_hands == 0:
+		return
+	_deep_catch_accum += hours_passed
+	while _deep_catch_accum >= 24.0:
+		_deep_catch_accum -= 24.0
+		var player = get_tree().get_first_node_in_group("player")
+		if player and "inventory" in player and player.inventory:
+			player.inventory.add_item(DEEP_CATCH_MATERIALS[randi() % DEEP_CATCH_MATERIALS.size()], 1)
+
 # Abstract off-screen resolution used while the player is away.
+var maera_stabilized_this_siege := false
+
 func resolve_siege_offline(tier: int) -> void:
 	away_report.sieges += 1
+	maera_stabilized_this_siege = false
 	if village_defense_power() >= float(tier):
 		away_report.repelled += 1
 		return
@@ -1026,6 +1056,12 @@ func resolve_siege_offline(tier: int) -> void:
 			if not away_report.has("fallen_names"):
 				away_report["fallen_names"] = []
 			away_report["fallen_names"].append(str(Adventurers.get_def(shield_id).get("name", "an adventurer")))
+			continue
+		# Maera, the Last Lightmender (the Ten): once per siege she pulls someone
+		# back from the brink -- one villager who would have died, does not
+		if ten_freed("ten_maera") and not maera_stabilized_this_siege:
+			maera_stabilized_this_siege = true
+			away_report["stabilized"] = int(away_report.get("stabilized", 0)) + 1
 			continue
 		if rescued_villagers.is_empty():
 			break
@@ -1114,7 +1150,7 @@ func farm_worker_count() -> int:
 # Passive food produced per in-game hour by a staffed farm (0 if unstaffed).
 # A seated Harvestmaster drives the fields far harder (auto-feeds the town).
 func food_production_per_hour() -> float:
-	return float(farm_worker_count()) * FOOD_PER_FARMER_PER_DAY / 24.0 * (1.0 + HARVESTMASTER_FOOD_BONUS * seated_leaders("Farm"))
+	return float(farm_worker_count()) * FOOD_PER_FARMER_PER_DAY / 24.0 * (1.0 + HARVESTMASTER_FOOD_BONUS * seated_leaders("Farm")) * (2.0 if ten_freed("ten_sylvara") else 1.0)
 
 # Days of food left at the current population's burn rate (for the HUD readout).
 func food_days_remaining() -> float:
@@ -1257,6 +1293,9 @@ func village_morale() -> int:
 	score += 10.0 if is_building_operational("Bar") else 0.0         # social life
 	score += 10.0 * clampf(float(pop) / MORALE_POP_TARGET, 0.0, 1.0) # numbers alive
 	score += LEADER_MORALE_EACH * (seated_leaders("Tavern") + seated_leaders("Bar"))  # a good host keeps spirits up
+	# Ilo, the Nameless Bard (the Ten): his songs lift the whole village
+	if ten_freed("ten_ilo"):
+		score += 10.0
 	score -= morale_death_shock                                      # grief from losses
 	# morale_admin_offset is a dev-panel nudge (0 in normal play)
 	return clampi(int(round(score)) + morale_admin_offset, 0, 100)
@@ -1542,7 +1581,7 @@ func count_leader_holders(role_key: String, title: String) -> int:
 	return count
 
 func get_village_income_multiplier() -> float:
-	return 1.0 + count_leader_holders("Government", "Chancellor") * LEADER_BONUS_PER_HOLDER
+	return 1.0 + count_leader_holders("Government", "Chancellor") * LEADER_BONUS_PER_HOLDER * (2.0 if ten_freed("ten_mirielle") else 1.0)
 
 func get_farm_income_multiplier() -> float:
 	return 1.0 + count_leader_holders("Farm", "Harvestmaster") * LEADER_BONUS_PER_HOLDER
@@ -1555,7 +1594,9 @@ func get_school_graduation_speed_multiplier() -> float:
 	return 1.0 + count_leader_holders("School", "Principal") * LEADER_BONUS_PER_HOLDER
 
 func get_barracks_graduation_speed_multiplier() -> float:
-	return 1.0 + count_leader_holders("Barracks", "Warchief") * LEADER_BONUS_PER_HOLDER
+	# Brannoc, the Wall That Stood (the Ten): warriors train twice as fast
+	var ten_mult := 2.0 if ten_freed("ten_brannoc") else 1.0
+	return (1.0 + count_leader_holders("Barracks", "Warchief") * LEADER_BONUS_PER_HOLDER) * ten_mult
 
 # ============================ LEADERSHIP AUTOMATION ============================
 # The rescued VIP leaders don't just buff numbers -- they RUN the village so it
@@ -1629,7 +1670,8 @@ func apply_leadership_automation() -> void:
 	if seated_leaders("Government") > 0:            # Chancellor: staff the town
 		auto_staff_villagers()
 	if player and player.has_method("add_currency") and seated_leaders("Bank") > 0:
-		var interest = clampi(int(player.currency * BANK_INTEREST_RATE), 0, BANK_INTEREST_CAP)
+		# Dorian Vail, the Coinbinder (the Ten): interest runs double
+		var interest = clampi(int(player.currency * BANK_INTEREST_RATE * (2.0 if ten_freed("ten_dorian") else 1.0)), 0, BANK_INTEREST_CAP)
 		if interest > 0:
 			player.add_currency(interest)               # Treasurer: interest
 	var researchers = seated_leaders("Science Lab")
@@ -1825,6 +1867,54 @@ func remove_npc_avatar(villager_id: String) -> void:
 
 # --- School / Barracks enrollment ---
 
+# --- THE TEN (GAME_BIBLE §8) ---
+# Live state per capstone hostage: {"freed": bool}. Freeing one grants its
+# permanent village boon (checked via ten_freed at each system's hook) and the
+# legend joins the roster as a walking villager. All ten freed is part of the
+# finale gate (§9.1): floor 100 will not open while any still hangs.
+var the_ten: Dictionary = {}
+
+func ensure_the_ten() -> void:
+	for id in TheTen.ids():
+		if not the_ten.has(id):
+			the_ten[id] = {"freed": false}
+
+func ten_freed(id: String) -> bool:
+	ensure_the_ten()
+	return bool(the_ten.get(id, {}).get("freed", false))
+
+func count_ten_freed() -> int:
+	ensure_the_ten()
+	var n := 0
+	for id in the_ten.keys():
+		if the_ten[id]["freed"]:
+			n += 1
+	return n
+
+func all_ten_freed() -> bool:
+	return count_ten_freed() >= TheTen.ids().size()
+
+func free_one_of_the_ten(id: String) -> void:
+	ensure_the_ten()
+	if not the_ten.has(id) or the_ten[id]["freed"]:
+		return
+	the_ten[id]["freed"] = true
+	var def = TheTen.get_def(id)
+	# the legend walks the village from now on -- unbreakable, and visibly so
+	rescued_villagers.append({
+		"id": id, "name": "%s, %s" % [def.get("name", "?"), def.get("title", "")],
+		"sex": "Female" if id in ["ten_maera", "ten_sylvara", "ten_elenwe", "ten_mirielle", "ten_seraphel"] else "Male",
+		"is_kid": false, "stat_name": "Legend", "stat_value": 10,
+		"role_key": "", "role_title": "", "paired": false, "unbreakable": true,
+	})
+	# Elenwe's boon lands the moment she is freed: everything unknown, understood
+	if id == "ten_elenwe":
+		research_all_materials()
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if stack:
+		stack.show_notification("★ %s, %s is FREE. %s (%d of the Ten stand with Deepwood.)" % [
+			def.get("name", "?"), def.get("title", ""), def.get("boon", ""), count_ten_freed()])
+
 const HERO_BIRTH_CHANCE := 0.005   # 0.5% of newborns
 # The powers a hero may graduate with (rolled once, kept for life). Each is a
 # different mechanic on their siege unit -- see siege_enemy.gd's hero hooks.
@@ -1884,8 +1974,10 @@ func decay_doctor_price(hours_passed: float) -> void:
 	if doctor_heals_bought <= 0:
 		return
 	_doctor_decay_accum += hours_passed
-	while _doctor_decay_accum >= DOCTOR_DECAY_HOURS and doctor_heals_bought > 0:
-		_doctor_decay_accum -= DOCTOR_DECAY_HOURS
+	# Maera, the Last Lightmender (the Ten): the price mends twice as fast
+	var step: float = DOCTOR_DECAY_HOURS * (0.5 if ten_freed("ten_maera") else 1.0)
+	while _doctor_decay_accum >= step and doctor_heals_bought > 0:
+		_doctor_decay_accum -= step
 		doctor_heals_bought -= 1
 
 func enroll_villager(villager_id: String, role_key: String, role_title: String, grants_stat: String) -> void:
@@ -2069,6 +2161,7 @@ func save_game(player: Node) -> void:
 		"rescued_villagers": rescued_villagers,
 		"adventurers": adventurers,
 		"doctor_heals_bought": doctor_heals_bought,
+		"the_ten": the_ten,
 		"seen_orin_arrival": seen_orin_arrival,
 		"seen_doctor_account": seen_doctor_account,
 		"seen_failed_escape": seen_failed_escape,
@@ -2131,6 +2224,9 @@ func load_game() -> Dictionary:
 			adventurers = parsed["adventurers"]
 			ensure_adventurers()   # a newer build may know MORE adventurers than the save
 		doctor_heals_bought = int(parsed.get("doctor_heals_bought", 0))
+		if parsed.has("the_ten"):
+			the_ten = parsed["the_ten"]
+			ensure_the_ten()
 		seen_orin_arrival = bool(parsed.get("seen_orin_arrival", false))
 		seen_doctor_account = bool(parsed.get("seen_doctor_account", false))
 		seen_failed_escape = bool(parsed.get("seen_failed_escape", false))

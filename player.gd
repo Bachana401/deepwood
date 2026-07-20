@@ -1919,7 +1919,10 @@ func die() -> void:
 # as a pickup (see currency_pickup.gd) for a full in-game day before it
 # despawns, rather than being lost outright.
 func drop_currency_on_death() -> void:
-	var drop_amount = int(round(currency * CURRENCY_DROP_FRACTION))
+	# Dorian Vail, the Coinbinder (the Ten): half of any gold dropped in death
+	# is insured -- it simply never leaves your purse
+	var frac := CURRENCY_DROP_FRACTION * (0.5 if GameState.ten_freed("ten_dorian") else 1.0)
+	var drop_amount = int(round(currency * frac))
 	if drop_amount <= 0:
 		return
 	currency -= drop_amount

@@ -1406,7 +1406,13 @@ func spawn_level_combat() -> void:
 		call_deferred("play_l100_reveal")
 
 func play_l100_reveal() -> void:
-	DialogueBox.play(self, Story.L100_REVEAL)
+	# Ilo, the Nameless Bard (the Ten, §8): at the gate of 100, he is the one
+	# who names what stirs in you -- his line leads the reveal when he's free.
+	var lines: Array = Story.L100_REVEAL
+	if GameState.ten_freed("ten_ilo"):
+		lines = [{"speaker": "Ilo, the Nameless Bard",
+			"text": "(His voice reaches you from the world above, the way only a song can.) Hunter... whatever wakes in you down there — I have sung its name before. Thrones do not stay empty. FINISH IT."}] + lines
+	DialogueBox.play(self, lines)
 
 # Orin is down -- the deathless made mortal for one instant, and the blow landed.
 # Play the ending, permanently unlock the Shadow Monarch, and salute the win.
@@ -1420,8 +1426,18 @@ func play_final_victory() -> void:
 # they've been rescued (the roster dedupes, same as village hostages). They add
 # to the roster on rescue and their walking avatar appears back in the village.
 const ADVENTURER_RESCUE = preload("res://adventurer_rescue.gd")
+const TROPHY_VAULT = preload("res://trophy_vault.gd")
 
 func spawn_deep_rescue() -> void:
+	# a Trophy Vault of the Ten (GAME_BIBLE §8) may hang hidden in this floor --
+	# deep past the fighting, at the far reaches, a discovery rather than loot
+	var ten = TheTen.for_level(current_level)
+	if not ten.is_empty() and not GameState.ten_freed(str(ten.get("id", ""))):
+		var tv = TROPHY_VAULT.new()
+		tv.ten_id = str(ten.get("id", ""))
+		tv.position = Vector2(current_width * 0.82, GROUND_Y)
+		$LevelContainer.add_child(tv)
+		show_notification("Something gilded glints deep in this level — one of Orin's trophies...")
 	# a chained adventurer of the deep nine (GAME_BIBLE 2.4.1) may be held here
 	var adv = Adventurers.for_level(current_level)
 	if not adv.is_empty():

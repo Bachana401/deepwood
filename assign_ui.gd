@@ -208,6 +208,11 @@ const SMITHY_MAX_RANK = 3   # rare (see Inventory.GRADE_DEFS ranks)
 
 # Every equippable item at or below the Forge's tier cap, tidy-sorted (grade,
 # then name). Base starter kit + admin + all OP tiers are excluded by design.
+# Toren Ashvale, the Forgefather (the Ten): with him at the anvil the Forge
+# sells one grade higher -- Epic joins the rack.
+func smithy_max_rank() -> int:
+	return SMITHY_MAX_RANK + 1 if GameState.ten_freed("ten_toren") else SMITHY_MAX_RANK
+
 func smithy_stock() -> Array:
 	var base_kit = {"wpn_sword": true, "wpn_spear": true, "wpn_bow": true, "wpn_wand": true}
 	var out := []
@@ -219,7 +224,7 @@ func smithy_stock() -> Array:
 		if base_kit.has(id) or id == "wpn_admin_ruin" or def.get("excellent", false):
 			continue
 		var grade = Inventory.get_grade(id)
-		if not Inventory.GRADE_DEFS.has(grade) or int(Inventory.GRADE_DEFS[grade].rank) > SMITHY_MAX_RANK:
+		if not Inventory.GRADE_DEFS.has(grade) or int(Inventory.GRADE_DEFS[grade].rank) > smithy_max_rank():
 			continue
 		out.append(id)
 	out.sort_custom(func(a, b):
@@ -237,7 +242,7 @@ func add_smithy_section(list: VBoxContainer) -> void:
 	var header = Label.new()
 	header.add_theme_font_size_override("font_size", 14)
 	header.add_theme_color_override("font_color", Color(0.95, 0.7, 0.4, 1))
-	header.text = "The Forge — buy gear (up to Rare)"
+	header.text = "The Forge — buy gear (up to %s)" % ("Epic" if GameState.ten_freed("ten_toren") else "Rare")
 	list.add_child(header)
 	var player = get_tree().get_first_node_in_group("player")
 	if not player:

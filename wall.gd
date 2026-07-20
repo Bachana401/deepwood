@@ -17,6 +17,8 @@ const STONE_RUBBLE = Color(0.34, 0.33, 0.36, 1.0)
 const HEALTH_BAR_WIDTH = 64.0
 const HEALTH_BAR_HEIGHT = 6.0
 
+# Brannoc, the Wall That Stood (the Ten): the wall stands half again as strong
+var max_health := MAX_HEALTH
 var health = MAX_HEALTH
 var breached = false
 
@@ -26,13 +28,16 @@ var health_bar_bg: ColorRect = null
 var health_bar_fill: ColorRect = null
 
 func _ready() -> void:
+	if GameState.ten_freed("ten_brannoc"):
+		max_health = int(MAX_HEALTH * 1.5)
+		health = max_health
 	add_to_group("village_wall")
 	build_visual()
 	build_health_bar()
 
 func _process(_delta: float) -> void:
 	# the bar only matters once the wall is hurt or down
-	var show_bar = breached or health < MAX_HEALTH
+	var show_bar = breached or health < max_health
 	if health_bar_bg:
 		health_bar_bg.visible = show_bar
 	if health_bar_fill:
@@ -64,7 +69,7 @@ func breach() -> void:
 # Called by the SiegeManager once a siege is fully repelled -- the villagers
 # patch the rampart back up before the next assault.
 func repair_fully() -> void:
-	health = MAX_HEALTH
+	health = max_health
 	breached = false
 	if intact_gfx:
 		intact_gfx.visible = true
@@ -74,7 +79,7 @@ func repair_fully() -> void:
 
 func update_health_bar_fill() -> void:
 	if health_bar_fill:
-		health_bar_fill.size.x = HEALTH_BAR_WIDTH * clamp(float(health) / MAX_HEALTH, 0.0, 1.0)
+		health_bar_fill.size.x = HEALTH_BAR_WIDTH * clamp(float(health) / max_health, 0.0, 1.0)
 
 func build_visual() -> void:
 	intact_gfx = Node2D.new()
