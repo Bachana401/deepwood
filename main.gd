@@ -203,6 +203,8 @@ var music: AudioStreamWAV = preload("res://audio/ambient_music.wav")
 func _ready() -> void:
 	# the village diary rides along in every scene (5.9, press L)
 	add_child(preload("res://village_log_ui.gd").new())
+	# F8 field journal: bug notes with context attached (marathon playtest)
+	add_child(preload("res://playtest_journal.gd").new())
 	# the Wanderer's Post counter (5.6a) -- village only, where the stall is
 	add_child(preload("res://wanderer_ui.gd").new())
 	generate_mountains()

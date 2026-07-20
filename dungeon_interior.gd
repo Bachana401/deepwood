@@ -402,6 +402,7 @@ func _ready() -> void:
 	# test arenas included -- P opens it, same as the village. It is fully
 	# group-based, so village-only actions simply no-op down here.
 	add_child(preload("res://admin_panel.gd").new())
+	add_child(preload("res://playtest_journal.gd").new())   # F8 field notes, everywhere
 	GameState.in_dungeon = true
 	if GameState.proving_grounds:
 		build_proving_grounds()

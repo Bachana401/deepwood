@@ -27,6 +27,7 @@ const SECTIONS = [
 		["Chests", "SHIFT-CLICK any stack to flick it across instantly; buttons for Take All / Deposit All / Match (restock what the chest already holds) and the gold pair"],
 		["Pause menu", "THE PEOPLE lists every villager sorted by who needs you most (spirit, work, home, bond); THE CHRONICLE tracks 100% completion"],
 		["Road markers", "a signpost stands at the village gate and another by the pit — press E at either to take the old road to the other, instantly"],
+		["F8", "the field journal: type any problem you notice and Enter — it lands in PLAYTEST_NOTES.md stamped with where and when"],
 	]],
 	["THE DEEP", [
 		["F at the red zone", "the level select -- clearing a floor unlocks the next; every 5th is a boss"],
