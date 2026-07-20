@@ -211,6 +211,28 @@ func _ready() -> void:
 		say("           neglected mirror: tier %2d vs defense %5.1f  -> %s" % [
 			tier, lazy_power, "holds" if lazy_power >= float(tier) else "breaches"])
 
+	# ============ S6b: UPGRADES MUST COST SOMETHING ============
+	say("\n== S6b: what it costs to grow a building ==")
+	var BLD = load("res://building.gd")
+	var bld = BLD.new()
+	var ladder_total := 0
+	var rungs := []
+	for lvl in range(1, BLD.MAX_LEVEL):
+		bld.building_level = lvl
+		var c: int = bld.upgrade_cost()
+		ladder_total += c
+		rungs.append("L%d->%d %dg" % [lvl, lvl + 1, c])
+	say("  " + ",  ".join(rungs))
+	say("  one building maxed: %dg   whole town (15): %dg" % [ladder_total, ladder_total * 15])
+	bld.building_level = 1
+	check("S6b: the FIRST upgrade is an early, reachable purchase",
+		bld.upgrade_cost() <= 60, "%dg" % bld.upgrade_cost())
+	check("S6b: upgrades escalate, they don't stay flat",
+		ladder_total >= 800, "%dg to max one building" % ladder_total)
+	check("S6b: maxing the town is a playthrough-long sink, not pocket change",
+		ladder_total * 15 >= 10000, "%dg" % (ladder_total * 15))
+	bld.free()
+
 	# ============ S7: WAGE PRESSURE ============
 	say("\n== S7: the daily bill at scale ==")
 	fresh_world()

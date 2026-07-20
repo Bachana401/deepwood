@@ -18,9 +18,19 @@ enum State { PRISTINE, SLIGHT, HALF, DESTROYED }
 # Every building levels 1..MAX_LEVEL (so MAX_LEVEL-1 = 5 upgrades). Each level
 # makes the building bigger, better-looking (more windows, a pennant, roof
 # trim), employ more workers (effective_slots) and produce more (see
-# GameState.building_output_multiplier). Cost is a flat 1 gold for now (test).
+# GameState.building_output_multiplier).
+#
+# NUMBERS PASS (2026-07-20): the cost was a flat 1 gold and the comment said
+# so -- "for now (test)" -- a leftover that had outlived the whole economy.
+# Maxing a building cost FIVE gold; maxing all fifteen cost seventy-five,
+# about one floor's takings, for +125% output and +10 worker slots each.
+# That one line made taxes, wages and the Wanderer's prices decorative.
+# The curve now squares with the level, so the first upgrade is a happy
+# early purchase and a maxed village is the work of a playthrough:
+#   L1->2  30g    L2->3 120g    L3->4 270g    L4->5 480g    L5->6 750g
+#   (1,650g per building; ~25,000g to max the whole town)
 const MAX_LEVEL = 6
-const UPGRADE_COST_GOLD = 1
+const UPGRADE_COST_BASE = 30
 
 # --- Build / repair ---
 # Buildings start in ruins and are raised over GameState.TOTAL_BUILD_STAGES (3)
@@ -1074,7 +1084,7 @@ func can_upgrade() -> bool:
 	return building_level < MAX_LEVEL and not is_ruined()
 
 func upgrade_cost() -> int:
-	return UPGRADE_COST_GOLD
+	return UPGRADE_COST_BASE * building_level * building_level
 
 # Spend gold, bump the level, and grow/redecorate. Returns why it failed.
 func try_upgrade(player: Node) -> String:
