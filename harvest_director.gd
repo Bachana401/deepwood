@@ -74,6 +74,7 @@ func resume_fight() -> void:
 		_harvest_pool.append(str(v.get("name", "a villager")))
 	_harvest_pool.shuffle()
 	_harvest_total = maxi(1, _harvest_pool.size())
+	_clear_taken_avatars()
 	_spawn_monarch()
 	for t in TheTen.ids():
 		_spawn_ally(t, "")
@@ -134,6 +135,7 @@ func begin_fight() -> void:
 			_notify("%s walks in the horde — turned against the village they held." % aname)
 	_harvest_pool.shuffle()
 	_harvest_total = maxi(1, _harvest_pool.size())
+	_clear_taken_avatars()
 	_spawn_monarch()
 	for t in TheTen.ids():
 		_spawn_ally(t, "")
@@ -143,6 +145,18 @@ func begin_fight() -> void:
 		_notify("Roland plants his shield at your side: \"We hold. Same as always.\"")
 	_harvest_wave_timer = 2.0
 	_fight_on = true
+
+# The turned cannot ALSO stroll the streets as civilians: when the roster
+# wipes, every walking avatar whose villager is gone fades out (taken by the
+# turning). The Ten's avatars survive -- their people are still in the roster.
+func _clear_taken_avatars() -> void:
+	for n in get_tree().get_nodes_in_group("npc"):
+		if not n.has_method("find_villager_data"):
+			continue
+		if n.find_villager_data().is_empty():
+			var tw = n.create_tween()
+			tw.tween_property(n, "modulate:a", 0.0, 1.2)
+			tw.tween_callback(n.queue_free)
 
 func _spawn_monarch() -> void:
 	var boss = BOSS_SCENE.instantiate()
