@@ -889,13 +889,18 @@ func die() -> void:
 	var mat = GameState.roll_construction_drop(player, 1.0 + 0.15 * generation)
 	if mat != "":
 		spawn_material_popup(mat)
-	# raw meat (cooking ingredient) + rare potion drops
+	# raw meat (cooking ingredient)
 	if randf() < 0.25:
 		player.inventory.add_item("raw_meat", 1)
-	if randf() < 0.05:
-		player.inventory.add_item("potion_health", 1)
-	if randf() < 0.04:
-		player.inventory.add_item("potion_mana", 1)
+	# THE POTIONS RULE (5.5): HP/mana potions drop ONLY from the pre-boss
+	# floors (positions 4-5 of each block) -- the player enters every boss
+	# stocked, and can't potion-spam ordinary floors. Scarcer source, richer
+	# rolls, so the boss-eve larder still fills.
+	if (GameState.active_dungeon_level - 1) % 5 + 1 >= 4:
+		if randf() < 0.16:
+			player.inventory.add_item("potion_health", 1)
+		if randf() < 0.12:
+			player.inventory.add_item("potion_mana", 1)
 	is_dead = true
 	is_attacking = false
 	$CollisionShape2D.set_deferred("disabled", true)

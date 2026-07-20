@@ -107,5 +107,12 @@ func _ready() -> void:
 		weapon_count, cnt.get("common",0), cnt.get("uncommon",0), cnt.get("rare",0),
 		cnt.get("epic",0), cnt.get("legendary",0), cnt.get("mythic",0)])
 
+	# THE POTIONS RULE (5.5): potions only from pre-boss floors + boss caches
+	var esrc := FileAccess.open("res://enemy.gd", FileAccess.READ).get_as_text()
+	check("ordinary floors drop NO potions (positions 4-5 of a block only)",
+		esrc.contains("% 5 + 1 >= 4") and not esrc.contains("if randf() < 0.05:\n\t\tplayer.inventory.add_item(\"potion_health\""))
+	check("a felled boss always restocks the belt",
+		FileAccess.open("res://dungeon_interior.gd", FileAccess.READ).get_as_text().contains("The boss's cache"))
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

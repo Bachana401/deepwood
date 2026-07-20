@@ -1857,6 +1857,11 @@ func roll_gear_drop() -> void:
 	var player = get_tree().get_first_node_in_group("player")
 	if not player:
 		return
+	# THE POTIONS RULE (5.5): a felled boss always restocks the belt -- you
+	# leave every boss fight provisioned for the next block's climb
+	player.inventory.add_item("potion_health", 2)
+	player.inventory.add_item("potion_mana", 1)
+	show_notification("The boss's cache: 2 health potions, 1 mana potion.")
 	if current_level >= EXCELLENT_MIN_LEVEL and randf() < EXCELLENT_DROP_CHANCE:
 		var excellents = _gear_unowned(GEAR_EXCELLENT_IDS, player)
 		if not excellents.is_empty():

@@ -73,7 +73,7 @@ The trail ends at Deepwood.
 ### 2.4 Deepwood
 A once-thriving village, now almost empty. Buildings broken and ruined — farm fallow, dock rotted, bank and school silent. A handful of survivors starve in the wreckage. Scattered through the ruins and the dungeon below are **the taken**: villagers frozen mid-motion, pulsing faintly like a held breath — the people whose hope would not die when Deepwood fell, imprisoned mid-breaking and force-fed sorrow until it does. A rescue doesn't just free a body; it **interrupts a breaking**. One still has enough of himself left to beg you for help. *(This plea is the game's opening — ✅ wired via `Story.OPENING`.)*
 
-### 2.4.1 The Arrival — the opening sequence (new canon 2026-07-17) 📋
+### 2.4.1 The Arrival — the opening sequence ✅ built (all five beats)
 
 The plea (§2.4) is the first beat. The rest of the arrival, in order, is what teaches the player *where they are and why they can't just leave*:
 
@@ -94,7 +94,7 @@ It is a mask. **Orin is the Monarch of Despair.** The horde is his; the "defense
 - **Why he can't die:** *an undivided soul cannot be destroyed.* This is the lock on the entire game — and its key.
 - **Why he waits (the full truth):** Orin has been **waiting for you to build the village to its maximum.** The tribute, the breathing room between sieges, the survivable nights — all calculated generosity. He wants Deepwood at its peak so that, with one sweep of his hand, he can turn *everything you built* against you. It isn't just harvest. **He wants to play with his food** — to watch the builder's face as the built thing turns. Despair is his nature; manufacturing the *perfect* despair is his art.
 
-### 2.5.1 How Orin enters the game (new canon 2026-07-17) 📋
+### 2.5.1 How Orin enters the game ✅ built (rumour → return → pact)
 
 Orin is **absent from the village at the start.** He is *foreshadowed*, then *arrives*, then *becomes the beloved defender* the rest of the canon describes — a three-step reveal that makes his eventual betrayal land.
 
@@ -131,7 +131,7 @@ What the player is actually *doing and worrying about* at every stage. This is t
 - **Sieges begin and scale** — walls, warriors, the day/night shift rhythm.
 - **The corruption threat becomes real:** neglect starves villagers → morale 0 → they turn demonic *inside the walls* (§10). The player learns the Law of Despair firsthand: *morale is hope, and hope is the thing you are actually defending.*
 - **Blacksmith Forge unlocks at depth 35** (✅) — first purchasable full-slot gear up to Rare.
-- **Shrine unlocks at depth 30** (📋) — corruption stops being always-fatal.
+- **Shrine unlocks at depth 30** ✅ — corruption stops being always-fatal.
 - **Responsibility:** build an economy; keep morale up; balance dungeon time vs. defense time.
 
 ### Act III — The Squeeze (floors ~50–95)
@@ -139,7 +139,7 @@ What the player is actually *doing and worrying about* at every stage. This is t
 - **Automation is the reward:** Government scales chore-automation (kids route to school → jobs; wall shifts auto-assigned; taxes collected) — earned relief from Act I–II's manual grind.
 - **The Ten** (§8) — the capstone rescue arc: one legendary hostage hidden in a vault every ~5 floors from 52 to 99, each permanently transforming one village system.
 - **Keystone skills, exclusive specs, ultimates; Excellent-grade weapons; full set bonuses.** The player becomes a monster — and pales, literally, as the hidden Shadow Monarch passive stages tick up (§6).
-- **Foreshadowing beats** (📋): Orin's suspiciously generous tribute; cryptic dungeon notes; a taunt that he *wants* you to grow; Ilo the Bard's fragments of the Age of Monarchs.
+- **Foreshadowing beats** ✅ planted: Orin's suspiciously generous tribute; cryptic dungeon notes; a taunt that he *wants* you to grow; Ilo the Bard's fragments of the Age of Monarchs.
 - **Responsibility:** perfect the village (the finale gate demands it) while surviving the worst the dungeon has.
 
 ### Act IV — The Harvest (the gate + floor 100)
@@ -163,9 +163,9 @@ What the player is actually *doing and worrying about* at every stage. This is t
 - **100 sequential floors** under Deepwood; unlock one at a time; boss every 5th floor with unique arenas; enemy stats scale with depth; mines, twin gates (blue retreat / green advance), exit button anytime.
 - **Enemy identity — SETTLED:** undead/evil/deepwood-themed across all mobs and bosses; **archetypes + elites** with distinct behaviors; **all apex bosses have combo AI** (multi-skill chains with punish windows — the L100 Fallen Wizard's five-combo brain is the template).
 - **Lore layer on the same enemies:** they are *fallen humans* — people whose hope died (morale 0 → hopeless → despair → evil; the Law of Despair, §2.2; §10 makes it mechanical, not just flavor).
-- **Rescues inside the dungeon** ✅ v1 / 📋 reworked below: 19 leadership VIPs freed at bosses 5–95, + the earlier deep figures. **The Ten (§8) are separate and deeper.**
+- **Rescues inside the dungeon** ✅ (Sorrow-Crystal rework built, 4.2a): 19 leadership VIPs freed at bosses 5–95, + the earlier deep figures. **The Ten (§8) are separate and deeper.**
 
-### 4.2a The Rescue — the Sorrow-Crystals 📋 (new canon 2026-07-17)
+### 4.2a The Rescue — the Sorrow-Crystals ✅ built (guard-gated shatter, wrapped stats, Sorrowshard)
 
 *How a taken person is actually freed — the mechanic behind Pillar #2 and the fuel for the whole village flywheel (§5.7 chain E).*
 
@@ -188,7 +188,7 @@ What the player is actually *doing and worrying about* at every stage. This is t
 - **Loot rules:** bosses drop level-gated gear (relics L3+, set armor L6+, set weapons L15+, Excellents rare L25+), always something unowned. Set/variant gear is never granted at start.
 - **Blacksmith Forge** ✅: gated to depth 35, vendors every slot up to **Rare** only (loot stays king above that).
 - **Standing rule:** every item's inventory icon must closely match its in-hand/equipped appearance.
-- 📋 Still to do: **Reset Potion becomes a real inventory item** (currently a UI button); **1g Magic Wand stays admin-only** (label/gate it — it is a test tool, never a real spell).
+- ✅ Both closed: the Reset Potion is a real consumable item, and the admin wand is unobtainable in honest play (excluded from the starter kit, the Forge, the shop, and the Wanderer's Post — only --dev grants it).
 
 ### 4.4 Skill tree & classes ✅ (redesigned as a graph)
 - Three main classes — **Sword, Archer, Mage** — each tree a **branching graph**: at tier 4 every spec **forks into mutually-exclusive keystones** (exclusive groups, enforced everywhere), keystones **evolve**, ultimates are **triggered actives**. Warden spec = pure DoT.
@@ -214,7 +214,7 @@ What the player is actually *doing and worrying about* at every stage. This is t
 | **Fishing Dock** | food #2 — **premium food** (more morale, sates longer than Farm) | no backup food; the morale/longevity food edge lost |
 | **Hospital** | healing + births | wounds kill; no new children |
 | **Barracks** | defense — day/night shifts (§7.5) | every siege is on the player |
-| **Mine** 📋 (new 2026-07-17) | ore/metal + stone — the delegated form of hand-mining | Blacksmith & Builderhouse starve for raw materials |
+| **Mine** ✅ | ore/metal + stone — the delegated form of hand-mining | Blacksmith & Builderhouse starve for raw materials |
 | **Blacksmith** | arms & tools + the depth-35 Forge; **arms the Barracks** (§5.7) | weak defense, slow workers |
 | **Builderhouse** | repair/construction | rebuild everything by hand |
 | **Science Lab** | research (materials, upgrades) | no progression |
@@ -223,8 +223,8 @@ What the player is actually *doing and worrying about* at every stage. This is t
 | **Government** | the management brain; global automation scaler | back to manual chores |
 | **Tavern** (inn) | lodging — newcomers arrive here until housed | newcomers have nowhere to be |
 | **Bar** | drink, music, fun → morale | despair comes faster |
-| **Shrine** 📋 | *redemption* — capture & cleanse a transformed demon back into a villager; unlocks at depth 30 | despair is always a death sentence |
-| **Watchtower** 📋 (§7.1) | siege foresight (none → 1h → 2h → 24h warning) | you never know when the wave hits |
+| **Shrine** ✅ | *redemption* — capture & cleanse a transformed demon back into a villager; unlocks at depth 30 | despair is always a death sentence |
+| **Watchtower** ✅ (§7.1; standalone structure, not roster) | siege foresight (none → 1h → 2h → 24h warning) | you never know when the wave hits |
 
 All buildings start **visually destroyed** and non-functional; repair costs gold + materials in stages (✅ built, incl. siege damage/repair). **How they interlock into one system is §5.7.**
 
@@ -238,7 +238,7 @@ One profession stat per building (Farmer, Fisher, Doctor/Nurse, Smith, Builder, 
 - **Statless NPCs** slowly become depressed → fix via School (roll a role) or Barracks (become a Warrior).
 - **Re-education, up to 3 total:** each re-schooling grants one **new** profession (no repeats), **rolled the same weighted way**; 2nd stat 5× time, 3rd stat 10× time; **hard cap 3 via School.** So an NPC is up to three weighted rolls — more shots at a rare role, at growing time cost. Natural 4–5-stat *rescues* stay elite finds.
 - **Rescues bypass the roll:** rescued villagers arrive with their **real** professions intact — the only *guaranteed* source of rare and leadership roles. This is a major reason rescuing (and the Ten, §8) matters.
-- **School weight-tuning — a *progressive* mid-game payoff (📋):** early game you live with the dice (no adjustment). **Each School upgrade grants incrementally more room to hand-adjust the role weights** — a little comfort at first, growing as you invest, until a **fully-upgraded School gives a large but still-capped bias.** The cap is the whole point: **never 100%.** Even maxed, the player might push a chosen role to something like **~40%** (illustrative — balance later) — huge, but not a guarantee, so RNG never fully leaves and the player still **picks which role to favour based on what the village needs right now.** Steerable RNG as a mastery reward (§5.1 automation spirit) and the pressure-valve for the luck economy. *(A mid-game feature that keeps deepening, not a single unlock.)*
+- **School weight-tuning — a *progressive* mid-game payoff ✅ built (favour-a-calling, capped 40%):** early game you live with the dice (no adjustment). **Each School upgrade grants incrementally more room to hand-adjust the role weights** — a little comfort at first, growing as you invest, until a **fully-upgraded School gives a large but still-capped bias.** The cap is the whole point: **never 100%.** Even maxed, the player might push a chosen role to something like **~40%** (illustrative — balance later) — huge, but not a guarantee, so RNG never fully leaves and the player still **picks which role to favour based on what the village needs right now.** Steerable RNG as a mastery reward (§5.1 automation spirit) and the pressure-valve for the luck economy. *(A mid-game feature that keeps deepening, not a single unlock.)*
 - **Lifecycle pipeline:** pair at cottage → ~25h → child (lives in the parents' cottage, eats ~half, **corrupts easily** §10) → enroll → ~24h → adult who **rolls a stat** → employ, and who then **slowly wants a pair** of their own (you pair + house them, §5.8). Manual early (deliberately tedious); **Government automates the whole chain** (kids self-route to school → straight to a job).
 - **Villager bonds** ✅: per-villager personal quests (gather/slay/reach-level/reunite) that reveal a hidden stat + reward + 1.5× income from that villager.
 - 🟡 Open (§12): the default weight table; whether re-education stays weighted-random or may *target* a role at higher cost; the weight-tuning budget/cap; any pity/floor to soften rare-role droughts.
@@ -247,15 +247,15 @@ One profession stat per building (Farmer, Fisher, Doctor/Nurse, Smith, Builder, 
 | Need | Filled by | Empty → | Status |
 |---|---|---|---|
 | **Hunger** | Farm/Dock visible food (walk-up eating) — **everyone eats; a child eats ~half an adult's share** | morale drop → death in ~2–3 days | ✅ v1 |
-| **Housing** | a **Cottage** (§5.8); Tavern lodges the unhoused temporarily | unhoused → morale drain → corruption risk; caps population | 📋 |
-| **Health** | Hospital nurses (roaming, ranged heals); player heals there for gold | wounds/illness kill | 📋 |
-| **Wages** | player income; manual early, Bank/Govt later | workers quit → services stop | 📋 |
+| **Housing** | a **Cottage** (§5.8); Tavern lodges the unhoused temporarily | unhoused → morale drain → corruption risk; caps population | ✅ |
+| **Health** | Hospital nurses (roaming, ranged heals); player heals there for gold | wounds/illness kill | ✅ |
+| **Wages** | player income; manual early, Bank/Govt later | workers quit → services stop | ✅ |
 | **Mood** | Bar / village fun | low mood | 📋 later |
 | **Mating-depression** | cottage pairing | long-single villagers sadden | 📋 later |
 
-**Potions rule** 📋: HP/mana potions drop **only** from pre-boss waves and boss fights — the player enters every boss stocked, and can't potion-spam normal floors.
+**Potions rule** ✅ built: HP/mana potions drop **only** from pre-boss waves and boss fights — the player enters every boss stocked, and can't potion-spam normal floors.
 
-### 5.5a The Doctor — the early-game lifeline 📋 (new canon 2026-07-17)
+### 5.5a The Doctor — the early-game lifeline ✅ built
 
 Before the Hospital is repaired and staffed (§5.2), the player's *only* reliable healing is **the Doctor** — the raid-survivor who healed the player on arrival (§2.4.1). She bridges story and system: she is the first Doctor/Nurse, working out of the ruined Hospital, and the game's answer to "no passive HP regen" (§4.1) in Act I.
 
@@ -276,7 +276,7 @@ Resolves the old ambiguity (morale was read two ways). There are **two layers, a
 
 - The finale gate's "10/10 morale" therefore means **every villager at max** (an average of 10 requires no one below it) — which is why it's a *perfect*-village gate (§9.1).
 
-### 5.6 Economy — gold has exactly two makers (revised 2026-07-17) 📋
+### 5.6 Economy — gold has exactly two makers ✅ built (taxes + interest + wages; per-worker gold removed)
 
 **The rule:** **only the Government and the Bank generate gold.** Every other building produces **goods and services, not money** — Farm makes food, Mine makes ore, Blacksmith makes arms, School makes skilled hands. The **Bar** is the one small exception: patrons pay for drinks, so it trickles a *little* gold on the side. *(This changes current code, which pays passive per-worker gold from every staffed role — that is removed; buildings now pay out in their own resource, not coin.)*
 
@@ -291,7 +291,7 @@ Resolves the old ambiguity (morale was read two ways). There are **two layers, a
 - Morale meter ✅ (unlocks once every building has been repaired). Leader bonuses / tribute / morale rewards still apply.
 - 🟡 Open (§12): exact tax / interest / wage numbers. *(The Marketplace question is now answered — §5.6a.)*
 
-### 5.6a The Marketplace — the Wanderer's Post 📋 (new canon 2026-07-17)
+### 5.6a The Marketplace — the Wanderer's Post ✅ built (morale-priced sellers, live counter)
 
 The Marketplace makes **no gold**. It is the town's **guest-stall**: a stop for **wandering treasure-sellers** who drift in, set up, and sell **random loot** — and how well they treat you is a *direct function of how nice your village is to be in.* This is what turns morale from a defensive stat into an **economic lever.**
 
@@ -303,7 +303,7 @@ The Marketplace makes **no gold**. It is the town's **guest-stall**: a stop for 
 - **Purely a gold SINK** (you spend to buy) — consistent with §5.6's "only Gov + Bank make gold." Its deeper role: the Bar, Tavern, food, and decorations you keep up for corruption-defense (§10) *also* buy you cheaper, rarer loot here. One more strand tying the web together.
 - 🟡 Open (§12): the exact morale → (dwell-time, discount) curve; the loot tables + escalation; whether a **Merchant** staffer improves wanderer frequency/quality/haggling (recommendation: yes — gives the Merchant profession its purpose); whether "**decorations**" are a real sub-system or just fold into morale.
 
-### 5.7 The Building Web — one connected system (new canon 2026-07-17) 📋
+### 5.7 The Building Web — one connected system ✅ built (Mine + Shrine in the roster; ladder numbers = balance pass)
 
 The village is **not a menu of independent buildings** — it is one machine whose parts feed each other, and the whole point is that *the connections become mandatory exactly when the difficulty demands them.*
 
@@ -314,7 +314,7 @@ The village is **not a menu of independent buildings** — it is one machine who
 |---|---|---|
 | **Food** | Farm, Fishing Dock | every villager (starve → morale → §10) |
 | **Construction** (wood/stone/resin) | gathering + **Mine** (stone) | Builderhouse (repairs, walls) |
-| **Ore/metal** 📋 | **Mine** | Blacksmith (arms & tools) |
+| **Ore/metal** ✅ (stone + iron shards) | **Mine** | Blacksmith (arms & tools) |
 | **Skill materials** (slime→ancient_relic) | dungeon only | Science Lab research → the player's skill tree |
 | **Gold** | **only** the dungeon (player loot), Government (taxes), Bank (interest), + a Bar trickle | wages, purchases, repairs |
 | **Knowledge** (profession stats) | School (role roll §5.4) | staffs *every* building |
@@ -334,20 +334,20 @@ The village is **not a menu of independent buildings** — it is one machine who
 |---|---|---|---|---|
 | **Farm** | food #1 | Farmer | Food → everyone | more mouths (rescues, births) demand more Farmers/Sylvara (§8) |
 | **Fishing Dock** | food #2 — **premium food** (fish gives more morale on eating and sates *longer* than Farm food); deep-catch → (Kaldos) materials | Fisher | premium food, morale, materials | backup food security + the quality-food edge is lost without it |
-| **Mine** 📋 | raw ore/metal + stone | Miner | Blacksmith (metal), Builderhouse (stone) | **Blacksmith & repairs stall without it** once you stop hand-mining |
+| **Mine** ✅ | raw ore/metal + stone | Miner | Blacksmith (metal), Builderhouse (stone) | **Blacksmith & repairs stall without it** once you stop hand-mining |
 | **Blacksmith** | forge/upgrade **warrior weapons**, player gear (depth-35 Forge), gathering tools | Smith + **ore (Mine)** | Barracks arms, player gear, tools | **Barracks can't out-arm scaling waves without it**; it can't run without Mine metal |
 | **Barracks** | train Warriors → fight waves + man walls | villagers → Warrior | Defense | self-sufficient early; **needs Blacksmith weapons** as waves scale; **needs Hospital** to recover the wounded |
 | **Hospital** | heal wounded warriors + player (§5.5a) + births | Doctor/Nurse | fighting-fit warriors, player HP, new children | every siege leaves wounded who **don't recover without it** (no passive regen, §4.1) |
 | **Builderhouse** | repair/build (incl. walls) | Builder + **construction mats** | standing buildings & walls | sieges break walls faster than you can hand-repair |
 | **School** (keystone) | teach stats — the role roll (§5.4) | Teacher | the workforce for **every** building | if it falls, **nothing else can be staffed** long-term |
 | **Science Lab** | research materials + building upgrades | Scholar | skill-tree access, upgrades (incl. School weight-tuning §5.4) | progression **freezes** without it |
-| **Marketplace** 📋 | *(§5.6a)* the **Wanderer's Post** — hosts rotating treasure-sellers; **morale sets their prices & how long they stay.** No passive gold. | Merchant (haggling/quality) | a gold *sink*; better loot the nicer your town | without it, no wandering merchants, no loot market |
+| **Marketplace** ✅ | *(§5.6a)* the **Wanderer's Post** — hosts rotating treasure-sellers; **morale sets their prices & how long they stay.** No passive gold. | Merchant (haggling/quality) | a gold *sink*; better loot the nicer your town | without it, no wandering merchants, no loot market |
 | **Bank** | **one of only two gold makers** — treasury, **interest**, payroll (pays wages), death-insurance | Banker | gold, wage automation, safe treasury | the Money Loop (C) has no payroll or growth without it |
 | **Government** | **the other gold maker** — **taxes** village prosperity — AND the management brain that scales **automation** of the player's chores | Official + a rescued **Leader** | gold (taxes) + less micro across *all* systems | no passive village income, and the grown village drowns you in manual tasks |
 | **Tavern** (inn) | housing — rescued/newcomers live here until homed | Innkeeper | housing → morale floor | **unhoused villagers lose morale → corruption risk (§10)** |
 | **Bar** | drink/music/fun → morale (+ a **small gold trickle** from drink sales) | Barkeep | morale buffer (hope) + minor gold | the morale cushion that makes the Cascade (F) *survivable* |
-| **Shrine** 📋 | cleanse a corrupted demon back to a villager (depth 30) | (Seraphel §8 boosts) | recovered villagers | before it, every corruption is a permanent loss |
-| **Watchtower** 📋 | siege foresight (§7.1) | build + upgrades | warning time → planning | without it, defense is pure reaction |
+| **Shrine** ✅ | cleanse a corrupted demon back to a villager (depth 30) | (Seraphel §8 boosts) | recovered villagers | before it, every corruption is a permanent loss |
+| **Watchtower** ✅ (standalone) | siege foresight (§7.1) | build + upgrades | warning time → planning | without it, defense is pure reaction |
 
 **Government is the meta-connector:** it doesn't make a resource — it **automates the links** so the player isn't hand-carrying every hand-off (kids auto-route School→job, wall shifts auto-fill, taxes auto-collect). Early game you *are* the connective tissue, by hand; Government is how you earn your way out of that.
 
@@ -373,7 +373,7 @@ The web's pacing spine. Every dependency is **dormant until a pressure crosses a
 
 - ✅ DECIDED (2026-07-20, delegated): **Mine ore reuses the existing ids** — staffed Miners haul **stone + iron shards** (the mats the Blacksmith and Builderhouse already eat; no new resource, the chains just connect). The Mine is **hand-buildable from Act I** like every ruin (it's the delegated form of hand-mining; its cost is the gate). **The Shrine is staffed by the Hospital stat** — its keepers are called **Lightkeepers** — because cleansing a broken soul is healing at its apex, and it is Seraphel the *Lightkeeper* who boosts it. Ladder threshold **numbers** remain a balance-later pass.
 
-### 5.8 Housing & Cottages — where villagers live (decided 2026-07-17) 📋
+### 5.8 Housing & Cottages — where villagers live ✅ built (pair-homes for life, the plot, widowhood)
 
 Housing was the biggest hole in the village loop: "unhoused" drives corruption (§2.2) but nothing gave villagers a home. Fixed.
 
@@ -386,7 +386,7 @@ Housing was the biggest hole in the village loop: "unhoused" drives corruption (
 - **Warriors house like anyone** — a Barracks Warrior is still a person who pairs and needs a cottage (and eats), and suffers the −2 single penalty; they are only special in that they **cannot corrupt** (§10, they die in battle instead).
 - 🟡 Open (§12): whether a cottage visibly shows its couple + kids; the exact single/widow morale numbers are set (−2 / −3 / 48h) but the decay rate is a numbers-pass.
 
-### 5.9 The Village Log — press **L** (new feature 2026-07-17) 📋
+### 5.9 The Village Log — press **L** ✅ built
 
 A running, **timestamped journal of everything that matters in the village**, opened with **L**. The village runs on background simulation (births, deaths, rescues arriving, a villager corrupting, a wanderer showing up, a building finishing, a siege hitting) — much of it while the player is down in the dungeon. The Log is how the player *catches up on what happened while they were away* without having to watch it live.
 
@@ -441,7 +441,7 @@ A **7-stage hidden passive** — never shown in the skill tree, it just *happens
 
 - **Sieges** scale in size with village health — a *living* village is an insult to the Monarch of Despair; prosperity literally raises the pressure (the squeeze is the design, not a bug).
 
-### 7.1 The Watchtower — earning foresight (new canon 2026-07-17) 📋
+### 7.1 The Watchtower — earning foresight ✅ built (standalone, three paid tiers, true-chaos tier 0)
 
 The siege *schedule* is not given to the player — it is **earned.**
 
@@ -450,7 +450,7 @@ The siege *schedule* is not given to the player — it is **earned.**
 - **Upgrade it → 2-hour warning.** **Upgrade again → a full 24-hour warning** — you can now schedule your dungeon runs around known siege windows, the Act III "can't be everywhere" squeeze (§3) becomes a *planned* juggling act instead of a gamble.
 - **Design intent:** foresight is a reward, not a default. The progression turns defense from "react to chaos" → "manage a schedule," pacing the player's growing mastery. It also gives the day/night Barracks-shift system (§7 above) something concrete to plan against.
 - ✅ DECIDED (2026-07-20, delegated): the Watchtower is a **standalone defensive structure**, not a roster building — the roster's Grammar is NEED→STAFF→SERVICE and the tower has neither staff nor need; it is built infrastructure like the walls and the cottage plots. It rises from a staked plot beside the west rampart in three paid tiers (wood 10 + stone 8 → 1h warning & the visible schedule; + iron 6 + wood 8 → 2h; + ember crystal 2 + stone 12 → 24h). Until tier 1, **no countdown exists anywhere** — the siege banner keeps its own counsel and the pre-descent warning can only say "you cannot know when."
-### 7.2 The attack — the wall, and what gets in (new canon 2026-07-17) 📋
+### 7.2 The attack — the wall, and what gets in ✅ built (both flanks, east rampart)
 
 Sieges come **out of the Deepwood** — the same wild the player can't fight their way out of (§2.4.1) — and break against the village's **defensive walls.**
 
@@ -460,22 +460,22 @@ Sieges come **out of the Deepwood** — the same wild the player can't fight the
   - **Wall BREAKS → the horde pours INTO the village.** Inside, enemies attack **nearest-first (decided 2026-07-17)** — whatever building or villager is closest, no priority logic — which means **where the wall breaks matters enormously**: a breach beside the cottages or the Hospital is a bloodbath, a breach at a bare edge buys you time. Buildings hit → that service STOPS until repaired (§5.7); villagers hit → **death-shock morale crash** (§10). A breach turns a fight into a catastrophe; you and every defender must clear the streets before the town is gutted.
 - **The wall is rebuilt/reinforced by the Builderhouse** (+ construction materials, §5.7) between sieges. A breach *mid*-siege can't be patched in time — once it's open, you fight in the streets until the wave is dead.
 
-### 7.3 The defenders — who holds the line (📋 / ✅ v1 live-fight)
+### 7.3 The defenders — who holds the line ✅ built (dawn/dusk watches, on-shift no-regen)
 
 - **The three heroes** (§2.5.1) — your **starting elite defenders**, strong and always available. They are the backbone of Act I defense *before* you can field warriors, and the reason a fresh village can survive its first nights at all.
 - **Barracks Warriors** (§5.3) — villagers drafted to Warrior (one-way, deletes other stats). They sally from the wall as visible units (✅ v1, up to 6 in code) and hold the line. **Their strength rides on the Blacksmith** (§5.7 War Machine chain): bare-fisted warriors fall behind as sieges scale, so the Mine→Blacksmith→arms chain is what keeps them lethal.
 - **The player** — the strongest single defender when home… but usually *not* home (the squeeze, §7.4).
-- **Day/night shifts** 📋: warriors split into two 12h shifts — the on-shift mans the wall, the off-shift **sleeps and is healed at the Hospital** (no passive regen, §4.1). Night sieges therefore hit the *tired/other* shift, and a **mid-siege shift change** is a deliberate vulnerability window. Manual wall-assignment early → **Government automates** it (§5.1).
+- **Day/night shifts** ✅: warriors split into two 12h shifts — the on-shift mans the wall, the off-shift **sleeps and is healed at the Hospital** (no passive regen, §4.1). Night sieges therefore hit the *tired/other* shift, and a **mid-siege shift change** is a deliberate vulnerability window. Manual wall-assignment early → **Government automates** it (§5.1).
 - **The Hospital is the recovery half of defense** (§5.2): wounded warriors **stay wounded until healed**, so a siege's cost lingers into your readiness for the *next* one. No Hospital → your warrior pool bleeds down permanently, siege after siege.
 
-### 7.4 Home vs away — the squeeze, made mechanical (📋 — key fork)
+### 7.4 Home vs away — the squeeze, made mechanical ✅ built (auto-resolve + the Log)
 
 The player is usually **deep in the dungeon** when a siege lands. That collision is the whole point of the game (§3), so how an *absent* player's siege resolves is load-bearing:
 
 - **Present (live):** the siege plays out in the village in real time; the player fights beside the heroes and warriors (✅ the live siege exists in `siege_manager`).
 - **Away → AUTO-RESOLVE + report (decided 2026-07-17):** if the player is in the dungeon, the siege **resolves on its own** as a fair contest of your defense (warrior count × Blacksmith arms × wall HP × the three heroes) vs the wave, and the **outcome is written to the Village Log** (§5.9): *repelled*, or *breached — N dead, M buildings damaged.* You come home to the consequences — the game **never yanks you out of the dungeon and never pauses it.** That is the squeeze in its purest form: you *chose* to be down here, and the village lived or died on the defense you left behind. The **Watchtower** (§7.1) is how you buy the foresight to time your delves between known sieges; without it, every run is a blind gamble against a wall you can't see.
 
-### 7.5 Aftermath — and the doom-spiral (📋)
+### 7.5 Aftermath — and the doom-spiral ✅ built (death-shock waves + corruption live)
 
 - **Repelled:** repair any wall damage (Builderhouse), heal the wounded (Hospital), pay the small morale cost of any losses, and you're back to the loop stronger.
 - **Breached:** deaths trigger the **death-shock morale crash** (§10) across the survivors → the shaken may **corrupt** → the loss compounds into the **corruption cascade**. A catastrophic siege can tip a stressed town over the edge and unravel real, hours-earned progress. **This failure state is the reason the entire village machine exists** — every chain in §5.7 is ultimately about making sure the wall holds and, when it doesn't, that the town is healthy enough to absorb the blow rather than eat itself.
@@ -510,7 +510,7 @@ Each is found in a hidden **Trophy Vault** on a non-boss floor (so they're disco
 | 9 | **Seraphel, the Lightkeeper** | 94 | Shrine cleansing faster & cheaper; her aura slows corruption HP-drain village-wide |
 | 10 | **Ilo, the Nameless Bard** | 99 | Bar/Tavern morale way up — and he *sings fragments of the Age of Monarchs*, the game's clearest foreshadowing; at the gate of 100, he is the one who names what stirs in you |
 
-Status: 📋 all ten (names/floors/boons canonized here; nothing built). Rescuing **all Ten is part of the finale gate** (§9.1).
+Status: ✅ ALL TEN BUILT (vaults on canon floors, boons live at real hooks). Rescuing **all Ten is part of the finale gate** (§9.1).
 
 ---
 
@@ -529,17 +529,17 @@ Only a *perfect* village opens the final floor — because a perfect village is 
 ### 9.2 The shiver (at the gate)
 Every enemy in the dungeon stops fighting *you* and turns to kneel before Orin — the horde re-forms as *his* army, the mask falls: the beloved defender is the Monarch of Despair. And in that instant your sealed memory *flashes* — not facts, a feeling: *you have faced this power before. You have lost to it before.* A short exchange passes — quiet, almost courteous, two monarchs recognizing each other at last. Ilo, if he stands near, whispers the old name he could never finish singing. *(✅ the L100 reveal dialogue is wired via `Story.L100_REVEAL`; it will need updating to this fuller sequence.)*
 
-### 9.3 The turn — the Harvest 📋
+### 9.3 The turn — the Harvest ✅ built
 This was never just harvest — it's theater, staged for an audience of one. Orin wanted you to build it *so it would hurt.* And the weapon is not brute force — **it is the truth.** In one instant the village learns that the hero who bled for them every night IS the thing that took their families; the story that kept them standing collapses, and Orin's magic rides that collapse, driving every heart's hope to **0 at once** — the Law of Despair (§2.2) executed on a whole town in a single breath. Everyone — farmers you fed, children you raised, soldiers you trained — becomes hopeless, falls into despair, and transforms into strong, level-100-tier evil that attacks you. **No survivors, no loyal holdouts... except the Ten**, whose hope not even this can kill. They stand with you — ten lights in a town gone dark.
 - Population at full staffing realistically **~150–200+** (computed from role slots at build time). **Never spawn them at once — stream as waves.** You *feel* the whole town turning; the engine stays smooth.
 
-### 9.4 The Devourer race 📋
+### 9.4 The Devourer race ✅ built
 Orin's final form — the **Monarch of Despair unmasked** — starts *weak* (nerfed personal attacks). His power is **earned by eating the horde**: he devours the *living* transformed over time; every **5% of the population consumed = +1 power tier** (bigger, more HP, more damage; ~20 tiers possible).
 - **Your kills deny him fuel** — every transformed villager you cut down is one he can't eat. Rush the horde and you starve his growth but drown in bodies; turtle and he becomes a titan. Pure player agency; tuned so a strong player downs him at ~30–50% absorbed, a slow one faces a monster — **but it stays winnable.**
 - **The Ten hold lanes** — each fights in character (Brannoc anchors, Maera keeps you standing, Seraphel slows the tide...). They are help, not a solution.
 - **Theme:** the bigger the village you built, the bigger the monster it can become. *You built your own final boss.*
 
-### 9.5 The kill — divide the soul 📋 (mechanic partially ✅ in the L100 boss)
+### 9.5 The kill — divide the soul ✅ built (the wand, the window, the reform)
 *An undivided soul cannot be destroyed* — so you divide it. The **Soul Split Wand** (§9.7) — the joke item that splits anything into 7 harmless mini-clones for 4 seconds — is useless against every creature in the game except one: **the Monarch of Despair's 7 fragments ARE damageable.** Splitting him opens a 4-second burst window where the deathless thing is, for the first and only time, mortal. You strike the soul itself. **Despair ends.**
 
 ### 9.6 The return — and the Shadow Army (new canon 2026-07-15)
@@ -549,14 +549,14 @@ Then the Shadow Monarch's **final ability unlocks — SHADOW ARMY:** you raise *
 
 Deepwood stands, and it is yours to lead — a god-king with a mortal's heart, ruling the first city of the dead that is still, stubbornly, *alive*. One Monarch is destroyed. Somewhere beyond this world, the **Monarch of War** waits. *(That reckoning is another story — a future game.)*
 
-### 9.7 Signature item — the Soul Split Wand 📋 (design locked)
+### 9.7 Signature item — the Soul Split Wand ✅ built (gifted by the Ten; §12.2 quest placement open)
 A quest-reward novelty weapon, *deliberately useless* everywhere, that becomes the answer to the one fight it was made for.
 - Fires a bolt; the target **splits into 7 mini-clones** (~0.38× scale) that scatter, spin, and **snap back together after 4 seconds**. While split, normal targets are **invulnerable** — on every regular mob it's purely visual, a disco-split joke.
 - **The sole exception:** the Monarch of Despair — his fragments are damageable (§9.5).
 - Single-target on hit; `duplicate()` the procedural node tree ×7 (works on every enemy since all visuals are polygon trees); 20s cooldown, ~15 mana.
 - 🟡 Where the quest that awards it lives → §12.
 
-### 9.8 Foreshadowing checklist 📋 (plant all of these so the twist feels planned)
+### 9.8 Foreshadowing checklist ✅ planted (kneel echo, the taunt, songs, lore, pallor, the candle)
 - Orin's tribute is suspiciously generous; his "defense" never quite ends the threat.
 - Cryptic dungeon notes in the deep floors.
 - A taunt (mid-game) that Orin *wants* you to grow.
@@ -566,7 +566,7 @@ A quest-reward novelty weapon, *deliberately useless* everywhere, that becomes t
 
 ---
 
-## 10. Corruption — despair made mechanical ✅ v1 (currently disabled by flag)
+## 10. Corruption — despair made mechanical ✅ v2 ENABLED (2026-07-19: two fates, the rot window, infection firewalls, witness waves)
 
 **Lore (the Law of Despair, §2.2):** no one is born evil — evil is a broken person, and **morale is hope.** A villager whose morale hits **0** becomes hopeless, falls into despair, and turns **demonic** — the same kind of creature as the dungeon's — attacking the village from within. Every rescued villager already resisted the fall of Deepwood once (§2.2), but hope that survived a catastrophe can still be *eroded* by neglect — hunger, homelessness, joylessness. The dungeon and the village share one villain: *untended despair.* (And the finale, §9.3, is this same law executed on the whole town at once — the corruption system IS the foreshadowing of the ending.)
 
@@ -579,8 +579,8 @@ A quest-reward novelty weapon, *deliberately useless* everywhere, that becomes t
 - **Children corrupt far more easily than adults:** they scare easier and feel harder, so a child's morale drains faster under neglect/shock and they hit 0 (corrupt) sooner. Raising kids is powerful (§5.4) but they are the **fragile** hearts a careless siege breaks first.
 - **Warriors cannot corrupt** — they don't break, they **die in battle.** A Barracks Warrior is exempt from the corruption path entirely; their failure state is a soldier's death (which then death-shocks the town, above).
 - 🟡 Open (§12): exact infection radius + "already low" threshold + spread rate; the per-death morale hit and its outward-falloff; the corrupted-presence drain rate; the wall-break morale cost; how much faster children drain — all numbers-pass; the mechanic shapes are decided.
-- **Shrine redemption** 📋: from depth 30, a turned demon can be captured & cleansed back into a living villager.
-- ⏸ Currently behind `GameState.CORRUPTION_ENABLED = false` (testing) — villager HP floors at 1. Flip to reactivate.
+- **Shrine redemption** ✅ built: from depth 30, a put-down demon that was once a villager is cleansed back by staffed Lightkeepers for 3 Sorrowshards (Seraphel: they return steadier).
+- ✅ `CORRUPTION_ENABLED = true` since 2026-07-19 — every support system it needed (needs, personal morale, nurses, the Log) shipped first.
 
 ---
 
@@ -588,7 +588,7 @@ A quest-reward novelty weapon, *deliberately useless* everywhere, that becomes t
 
 - **The world continues after victory:** the shadow-village functions (shadow villagers work their old jobs), the Ten live on, sieges are over — Despair is dead. The player leads Deepwood as its Monarch. *(Peaceful sandbox; remaining bonds/quests completable.)*
 - **The Shadow Monarch class unlocks permanently** (`game_completed`, own save file ✅ wired) — "the most OP class," playable from a fresh run: you, finally unmasked from floor 1.
-- **NG+ (📋, framing kept from earlier design):** among the victory spoils is **time-reversal loot** — the world rewinds for a new run but **the player and their gear are immune**: you keep yourself and everything you carry. Clean prestige loop.
+- **NG+ ✅ built (THE REWOUND HOUR):** among the victory spoils is **time-reversal loot** — the world rewinds for a new run but **the player and their gear are immune**: you keep yourself and everything you carry. Clean prestige loop.
 - **100% completion** = every villager rescued, every bond quest done, all Ten freed, full skill graph explored, village fully restored, Despair destroyed, Shadow Army raised.
 - 🟡 A "true ending" that breaks the NG+ cycle — deliberately TBD (see §12).
 
