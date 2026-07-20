@@ -3,8 +3,11 @@ extends CharacterBody2D
 const SPEED = 200.0
 const JUMP_VELOCITY = -400.0
 const GRAVITY = 900.0
-const DASH_SPEED = 600.0
-const DASH_DURATION = 0.15
+# DEV CALL (2026-07-20): the old dash covered 600*0.15 = 90px -- barely
+# half a body length, a shuffle pretending to be a dash. Doubled to 180px
+# the right way: FASTER (not floatier) and a touch longer.
+const DASH_SPEED = 900.0
+const DASH_DURATION = 0.2
 const DOUBLE_TAP_WINDOW = 0.3
 const DASH_COOLDOWN = 0.5
 
@@ -2306,9 +2309,16 @@ func has_flight() -> bool:
 
 # The feathered wings are still an EARNED look: the Aetherwing relic, or the
 # Monarch outgrowing the ground. Everyone else levitates bare.
+# DEV CALL (2026-07-20): no wings in the beginning. They used to sprout at
+# monarch stage 1 -- character level FIVE, minutes into a run, feathers on
+# a shadow. The ability (levitation, mana-priced) is untouched; the VISUAL
+# now waits for the Veiled stage (5/7, level 60), where what emerges reads
+# as the Monarch's own shadow made shape -- or for the Aetherwing relic,
+# whose whole identity is "bought wings you can see".
+const WINGS_STAGE = 5
 func has_wings() -> bool:
 	return god_mode \
-		or GameState.monarch_stage() >= LEVITATE_STAGE \
+		or GameState.monarch_stage() >= WINGS_STAGE \
 		or GameState.get_bonus_total("flight") > 0.0
 
 # Mana burned per second aloft. A Mage pays far less; skills may discount it

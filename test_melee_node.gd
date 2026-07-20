@@ -280,6 +280,21 @@ func _ready() -> void:
 	# ---------------- levitation costs mana, for everyone ----------------
 	check("every class can levitate", p.has_flight())
 	check("wings stay an earned visual, separate from the ability", p.has_method("has_wings"))
+	# DEV CALLS (2026-07-20): no wings in the beginning + a dash that GOES
+	check("the dash covers a real distance (>=180px, doubled by dev call)",
+		p.DASH_SPEED * p.DASH_DURATION >= 179.0,
+		"%.0fpx" % (p.DASH_SPEED * p.DASH_DURATION))
+	var wings_saved_stage_lvl: int = GameState.player_level
+	var wings_saved_god: bool = p.god_mode
+	p.god_mode = false
+	GameState.player_level = 5          # monarch stage 1 -- where they USED to sprout
+	check("level 5 grows NO wings any more", not p.has_wings())
+	GameState.player_level = 60         # the Veiled (5/7)
+	check("the Veiled stage finally earns them", p.has_wings())
+	GameState.player_level = wings_saved_stage_lvl
+	p.god_mode = wings_saved_god
+	check("...and the Aetherwing relic still shows what you bought",
+		FileAccess.open("res://player.gd", FileAccess.READ).get_as_text().contains('get_bonus_total("flight") > 0.0'))
 	var saved_class = GameState.chosen_class
 	GameState.chosen_class = "Sword"
 	var sword_rate: float = p.levitate_mana_rate()
