@@ -334,6 +334,15 @@ func flash_hit() -> void:
 
 func die() -> void:
 	is_dead = true
+	# FORESHADOWING (GAME_BIBLE 9.8): once, mid-game, a single dying raider
+	# turns and BOWS -- not to you, to the horizon, the way the whole horde
+	# will kneel at the gate of 100. No notification, no fanfare: blink and
+	# you miss it, remember it forever at the reveal.
+	if faction == "raider" and not GameState.seen_kneel_echo and GameState.deepest_level_reached >= 35:
+		GameState.seen_kneel_echo = true
+		if body:
+			var t = body.create_tween()
+			t.tween_property(body, "rotation_degrees", 24.0, 0.5)
 	if faction == "village":
 		# a fallen soldier is the town's loss, not a payout to the player
 		var stack = get_tree().get_first_node_in_group("notification_stack")

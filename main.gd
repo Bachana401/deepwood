@@ -215,6 +215,7 @@ func _ready() -> void:
 	announce_orin_arrival()
 	build_escape_ward()
 	warn_wounded_corps()
+	orin_midgame_taunt()
 	if GameState.returning_from_dungeon:
 		GameState.returning_from_dungeon = false
 		# only restore a real recorded spot -- the default (0,0) is below the
@@ -325,6 +326,20 @@ func spawn_existing_villager_avatars() -> void:
 		npc.villager_id = villager_id
 		npc.global_position = find_avatar_spawn_position(villager.get("role_key", ""))
 		$Village.add_child(npc)
+
+# FORESHADOWING (GAME_BIBLE 9.8): the mid-game taunt -- Orin WANTS you to grow,
+# and once, around the halfway mark, he says so almost plainly. Reads as a
+# mentor's pride the first time; reads as the farmer admiring the crop forever
+# after. One-shot, saved.
+func orin_midgame_taunt() -> void:
+	if GameState.seen_orin_taunt or not GameState.orin_arrived() or GameState.dev_mode:
+		return
+	if GameState.deepest_level_reached < 40:
+		return
+	GameState.seen_orin_taunt = true
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if stack:
+		stack.show_notification("Orin, watching you return from the deep: \"Stronger again. Good. GOOD. Bring every scrap of it home, hunter — build this place to its peak. I find I very much want to see that.\"")
 
 # Triage warning: adventurer wounds persist between sieges and their deaths are
 # permanent, so a player coming home should hear at once if the corps is in

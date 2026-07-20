@@ -934,6 +934,8 @@ var seen_orin_arrival := false
 var seen_doctor_account := false
 var seen_failed_escape := false
 var seen_orin_glimpse := false
+var seen_kneel_echo := false
+var seen_orin_taunt := false
 
 func orin_arrived() -> bool:
 	return dev_mode or deepest_level_reached >= ORIN_ARRIVAL_DEPTH
@@ -2269,6 +2271,8 @@ func save_game(player: Node) -> void:
 		"seen_doctor_account": seen_doctor_account,
 		"seen_failed_escape": seen_failed_escape,
 		"seen_orin_glimpse": seen_orin_glimpse,
+		"seen_kneel_echo": seen_kneel_echo,
+		"seen_orin_taunt": seen_orin_taunt,
 		"chest_contents": chest_contents,
 		"mating_houses": mating_houses,
 		"pregnancies": pregnancies,
@@ -2336,6 +2340,8 @@ func load_game() -> Dictionary:
 		seen_doctor_account = bool(parsed.get("seen_doctor_account", false))
 		seen_failed_escape = bool(parsed.get("seen_failed_escape", false))
 		seen_orin_glimpse = bool(parsed.get("seen_orin_glimpse", false))
+		seen_kneel_echo = bool(parsed.get("seen_kneel_echo", false))
+		seen_orin_taunt = bool(parsed.get("seen_orin_taunt", false))
 		if parsed.has("chest_contents"):
 			chest_contents = parsed["chest_contents"]
 		if parsed.has("mating_houses"):
