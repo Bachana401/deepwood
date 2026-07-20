@@ -724,9 +724,10 @@ func die() -> void:
 		return
 	is_dead = true
 	var p = get_tree().get_first_node_in_group("player")
+	var depth: float = GameState.depth_reward_mult()
 	if p and p.has_method("add_currency"):
-		p.add_currency(int(round(reward * (1.0 + GameState.get_bonus_total("gold_gain")))))
-	GameState.add_xp(xp_reward)
+		p.add_currency(int(round(reward * depth * (1.0 + GameState.get_bonus_total("gold_gain")))))
+	GameState.add_xp(int(round(xp_reward * depth)))
 	spawn_death_particles()
 	died.emit()
 	queue_free()

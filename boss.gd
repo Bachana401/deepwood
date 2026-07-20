@@ -3923,7 +3923,7 @@ func update_health_bar() -> void:
 func die() -> void:
 	# echoes are worth a token amount, not a boss bounty
 	# echoes and false copies are worth a token amount, not a boss bounty
-	GameState.add_xp(15 if (is_clone or is_false_copy) else int(round(60 * damage_multiplier)))
+	GameState.add_xp(15 if (is_clone or is_false_copy) else int(round(60 * damage_multiplier * GameState.depth_reward_mult())))
 	is_dead = true
 	is_busy = true
 	$CollisionShape2D.set_deferred("disabled", true)

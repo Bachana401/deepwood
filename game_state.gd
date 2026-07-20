@@ -314,6 +314,21 @@ func load_equipment(data: Dictionary) -> void:
 func xp_to_next_level() -> int:
 	return 50 + (player_level - 1) * 30
 
+# THE DEPTH PAYS (numbers pass 2026-07-20): every dungeon kill paid the
+# same XP and GOLD as a floor-1 rat -- the "* damage_multiplier" in the
+# death rewards reads the VILLAGE respawn-generation scaler, which is
+# always 1.0 in the deep. So a floor-90 horror paid 8 XP and 5 gold,
+# reaching a full skill tree (~level 55, ~45,000 XP) took ~560 floor
+# clears, and the new upgrade ladder (~24,750g for a maxed town) had
+# nothing to feed it. Depth now multiplies both: floor 1 pays ~9 XP a
+# kill, floor 50 ~48, floor 99 ~87 -- clearing the whole ladder once
+# lands a player in the mid-50s (a full class tree plus change), and the
+# gold keeps pace with the buildings it is meant to buy.
+func depth_reward_mult() -> float:
+	if not in_dungeon:
+		return 1.0
+	return 1.0 + 0.10 * float(active_dungeon_level)
+
 func add_xp(amount: int) -> void:
 	var boosted = int(round(amount * (1.0 + get_bonus_total("xp_gain"))))
 	player_xp += boosted

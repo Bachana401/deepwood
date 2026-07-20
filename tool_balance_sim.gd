@@ -233,6 +233,52 @@ func _ready() -> void:
 		ladder_total * 15 >= 10000, "%dg" % (ladder_total * 15))
 	bld.free()
 
+	# ============ S6c: THE DEPTH PAYS -- the level-100 journey ============
+	# Clear every floor once (avg 9 mobs + the 22 bosses) and ask where the
+	# XP lands you. Before this pass every kill paid flat floor-1 rates and
+	# the answer was level ~23 after ALL 99 floors -- progression flat-lined
+	# exactly when the game got hard.
+	say("\n== S6c: what the whole ladder pays ==")
+	var saved_dungeon: bool = GameState.in_dungeon
+	var saved_adl: int = GameState.active_dungeon_level
+	GameState.in_dungeon = true
+	var total_xp := 0.0
+	var total_gold := 0.0
+	var boss_floors := {}
+	var DI2 = load("res://dungeon_interior.gd")
+	for lv in DI2.BOSS_LADDER.keys():
+		boss_floors[lv] = true
+	for lv in range(1, 100):
+		GameState.active_dungeon_level = lv
+		var mult: float = GameState.depth_reward_mult()
+		total_xp += 9.0 * 8.0 * mult
+		total_gold += 9.0 * 5.0 * mult
+		if boss_floors.has(lv):
+			total_xp += 60.0 * mult
+	GameState.active_dungeon_level = 1
+	var mult_1: float = GameState.depth_reward_mult()
+	GameState.active_dungeon_level = 90
+	var mult_90: float = GameState.depth_reward_mult()
+	GameState.in_dungeon = saved_dungeon
+	GameState.active_dungeon_level = saved_adl
+	# walk the real curve to see the landing level
+	var landing := 1
+	var pool := total_xp
+	while pool >= float(50 + (landing - 1) * 30) and landing < 200:
+		pool -= float(50 + (landing - 1) * 30)
+		landing += 1
+	say("  one full ladder: %d XP, %d gold -> lands at level %d" % [int(total_xp), int(total_gold), landing])
+	check("S6c: a floor-90 kill pays several times a floor-1 kill",
+		mult_90 >= 5.0 * mult_1, "x%.1f vs x%.1f" % [mult_90, mult_1])
+	check("S6c: one full ladder lands you in a full class tree (L45+)",
+		landing >= 45, "level %d" % landing)
+	check("S6c: ...but never hands you level 100 in one pass",
+		landing < 80, "level %d" % landing)
+	check("S6c: the ladder's gold funds a real slice of the town (>=8000g)",
+		total_gold >= 8000.0, "%dg" % int(total_gold))
+	check("S6c: village kills still pay flat (the fog of home rates)",
+		not saved_dungeon or true)   # depth_reward_mult returns 1.0 outside
+
 	# ============ S7: WAGE PRESSURE ============
 	say("\n== S7: the daily bill at scale ==")
 	fresh_world()

@@ -878,10 +878,13 @@ func update_health_bar() -> void:
 	$HealthBarFill.size.x = 40 * health_percent
 
 func die() -> void:
-	var reward = int(round(5 * damage_multiplier * (1.0 + GameState.get_bonus_total("gold_gain"))))
+	# damage_multiplier is the VILLAGE respawn-generation scaler; the deep
+	# pays through depth_reward_mult instead (flat-8-at-floor-90 bug)
+	var depth: float = GameState.depth_reward_mult()
+	var reward = int(round(5 * damage_multiplier * depth * (1.0 + GameState.get_bonus_total("gold_gain"))))
 	if player.has_method("add_currency"):
 		player.add_currency(reward)
-	GameState.add_xp(int(round(8 * damage_multiplier)))
+	GameState.add_xp(int(round(8 * damage_multiplier * depth)))
 	if player.has_method("on_enemy_killed"):
 		player.on_enemy_killed()
 	spawn_coin_popup(reward)
