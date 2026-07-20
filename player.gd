@@ -2339,10 +2339,15 @@ func has_fall_immunity() -> bool:
 # the flight budget; in the air, holding Space soars (draining the budget) and
 # otherwise you glide down gently. Without wings this is a no-op.
 func update_flight(delta: float) -> void:
+	# DEV CALL (2026-07-21, live playtest): "my character is still able to
+	# fly, idk why." The ABILITY now shares the wings' own gate -- the soul
+	# is too weak to lift you until the Veiled stage (5/7, level 60), or
+	# until the Aetherwing relic does the lifting for you. Early mobility is
+	# the double jump and the dash, as it should be.
 	var flying = false
 	if is_on_floor():
 		flight_depleted_notified = false
-	elif Input.is_action_pressed("jump"):
+	elif Input.is_action_pressed("jump") and has_wings():
 		if god_mode:
 			# god mode never runs dry -- the point is to cross the map
 			flying = true

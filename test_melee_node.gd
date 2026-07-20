@@ -304,8 +304,11 @@ func _ready() -> void:
 	check("a Mage levitates cheaper than a Sword", mage_rate < sword_rate,
 		"mage=%.1f/s sword=%.1f/s" % [mage_rate, sword_rate])
 	check("levitation is never free", p.levitate_mana_rate() >= 1.0)
-	# holding Space off the ground must actually drain the pool
+	# holding Space off the ground drains the pool -- but ONLY once the soul
+	# can lift you (the Veiled stage, dev call 2026-07-21: no early flight)
 	p.god_mode = false
+	var lev_lvl: int = GameState.player_level
+	GameState.player_level = 60
 	p.global_position.y -= 260.0
 	p.mana = p.get_max_mana()
 	var mana_before: float = p.mana
@@ -313,8 +316,11 @@ func _ready() -> void:
 	for i in range(20):
 		await get_tree().physics_frame
 	Input.action_release("jump")
-	check("levitating burns mana", p.mana < mana_before,
+	check("levitating burns mana (at the Veiled stage)", p.mana < mana_before,
 		"%.1f -> %.1f" % [mana_before, p.mana])
+	GameState.player_level = lev_lvl
+	check("the flight gate IS the wings gate (one rule)",
+		FileAccess.open("res://player.gd", FileAccess.READ).get_as_text().contains('Input.is_action_pressed("jump") and has_wings()'))
 
 	# ---------------- combo strings ----------------
 	# string length follows swing speed: quick blades flurry, heavy ones don't

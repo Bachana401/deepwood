@@ -120,7 +120,8 @@ func _ready() -> void:
 	panel._toggle_god()
 	await get_tree().process_frame
 	check("button turns god mode OFF", not p.god_mode)
-	# and now that god mode is off, the same hold visibly drains the pool
+	# god mode off + no wings (dev call 2026-07-21): a mortal at low level
+	# CANNOT fly at all -- the same hold does nothing and burns nothing
 	p.global_position.y -= 260.0
 	p.mana = p.get_max_mana()
 	var mortal_mana0: float = p.mana
@@ -128,8 +129,22 @@ func _ready() -> void:
 	for i in range(20):
 		await get_tree().physics_frame
 	Input.action_release("jump")
-	check("off again: levitating now burns mana", p.mana < mortal_mana0,
+	check("off again: a wingless mortal cannot fly (no mana burned, no lift)",
+		p.mana == mortal_mana0 and not p.is_levitating,
 		"%.1f -> %.1f" % [mortal_mana0, p.mana])
+	# ...but at the Veiled stage the soul lifts him, and it COSTS
+	var glvl: int = GameState.player_level
+	GameState.player_level = 60
+	p.global_position.y -= 260.0
+	p.mana = p.get_max_mana()
+	var veiled_mana0: float = p.mana
+	Input.action_press("jump")
+	for i in range(20):
+		await get_tree().physics_frame
+	Input.action_release("jump")
+	check("at the Veiled stage levitating burns mana", p.mana < veiled_mana0,
+		"%.1f -> %.1f" % [veiled_mana0, p.mana])
+	GameState.player_level = glvl
 	check("off again: label reads OFF",
 		panel.god_button.text == "GOD MODE: OFF", panel.god_button.text)
 

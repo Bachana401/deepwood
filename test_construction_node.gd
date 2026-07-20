@@ -62,8 +62,12 @@ func _ready() -> void:
 		dsrc.contains("BLUEPRINT_FLOORS.has(current_level)")
 		and ResourceLoader.exists("res://blueprint_pickup.gd"))
 	# ---- blueprints must be FINDABLE, not a blind scavenger hunt ----
-	check("the ruin names the floor its plans lie on",
-		bsrc.contains("the plans lie on dungeon floor %d"))
+	# DEV CALL (2026-07-21, live playtest): the ruin does NOT name floors --
+	# plans are FOUND, not pointed at. The level-select scrolls stay as the
+	# subtle map for anyone who goes looking.
+	check("the ruin never names the floor its plans lie on",
+		not bsrc.contains("the plans lie on dungeon floor")
+		and bsrc.contains("its plans lie somewhere in the deep"))
 	check("the level select marks floors holding unclaimed plans",
 		FileAccess.open("res://level_select_ui.gd", FileAccess.READ).get_as_text().contains("blueprint lies on this floor")
 		or FileAccess.open("res://level_select_ui.gd", FileAccess.READ).get_as_text().contains("blueprint lies on"))

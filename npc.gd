@@ -838,7 +838,11 @@ func info_fields() -> Array:
 	if data.is_empty():
 		return []
 	var age_text = "Kid" if data.get("is_kid", false) else "Adult"
-	var stat_text = data.get("stat_name", "") if data.get("stat_name", "") != "" else "no stat yet"
+	# the stat with its VALUE -- "Farm 4", not just "Farm" (live playtest:
+	# "they don't really show their stats")
+	var stat_text := "no talent yet"
+	if str(data.get("stat_name", "")) != "":
+		stat_text = "%s %d" % [str(data.get("stat_name")), int(data.get("stat_value", 0))]
 	# 4.2a: a crystal-freed hostage stays WRAPPED until the thaw at home
 	if data.get("stats_hidden", false):
 		stat_text = "— still thawing —"
@@ -918,6 +922,15 @@ func update_hover_panel(mouse_world_pos: Vector2) -> void:
 			hover_panel.visible = false
 			return
 		hover_label.text = "\n".join(fields)
+		# the card GREW (spirit, home, watch, bond...) but the panel stayed
+		# 156x82 -- everything past the fourth line was silently clipped
+		# (live playtest: "they don't really show their stats"). Size the
+		# panel to the card, and keep it floating above the head.
+		var line_h := 15.0
+		var panel_h: float = 12.0 + float(fields.size()) * line_h
+		hover_panel.size = Vector2(182.0, panel_h)
+		hover_panel.position = Vector2(-91.0, -(panel_h + 30.0))
+		hover_label.size = Vector2(166.0, panel_h - 10.0)
 		hover_panel.visible = true
 	else:
 		hover_panel.visible = false

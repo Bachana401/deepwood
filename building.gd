@@ -468,16 +468,10 @@ func update_prompt() -> void:
 	if constructing:
 		prompt_label.text = "Building..."
 	elif is_ruined() and not GameState.has_blueprint(building_name):
-		# the ruin names its own floor: the village remembers where its
-		# things were dragged, and a blind hunt would just be busywork
-		var bp_floor := 0
-		for f in GameState.BLUEPRINT_FLOORS:
-			if str(GameState.BLUEPRINT_FLOORS[f]) == building_name:
-				bp_floor = int(f)
-		if bp_floor > 0:
-			prompt_label.text = "📜 Blueprint lost — the plans lie on dungeon floor %d" % bp_floor
-		else:
-			prompt_label.text = "📜 Blueprint lost — its plans lie somewhere in the deep"
+		# DEV CALL (2026-07-21, live playtest): no floor numbers on the ruin --
+		# the plans are FOUND, not pointed at. (The level-select scroll marks
+		# remain the subtle map for anyone who goes looking.)
+		prompt_label.text = "📜 Blueprint lost — its plans lie somewhere in the deep"
 	elif is_ruined():
 		prompt_label.text = "Press F to Build (%s)  —  stage %d/%d" % [repair_requirement_text(), build_stage, GameState.TOTAL_BUILD_STAGES]
 	elif building_name == "Farm":
