@@ -331,6 +331,14 @@ func update_health_bar_fill() -> void:
 func apply_despair_visual() -> void:
 	if health_bar_fill == null or health_bar_bg == null:
 		return
+	# THE ROT (10): a villager whose own hope sits at zero greys out and
+	# flickers -- the telegraph that says "mend their life NOW or lose them".
+	# Distinct from the village-wide wasting below: this one is personal.
+	if GameState.villager_rot.has(villager_id):
+		if body_gfx:
+			var pulse := 0.55 + 0.15 * sin(Time.get_ticks_msec() / 180.0)
+			body_gfx.modulate = Color(pulse, pulse, pulse)
+		return
 	if GameState.village_in_despair():
 		var frac = clampf(GameState.get_villager_hp(villager_id) / 100.0, 0.0, 1.0)
 		health_bar_bg.visible = true

@@ -48,6 +48,12 @@ func _ready() -> void:
 	GameState.adventurers["adv_roland"]["rescued"] = true
 	GameState.set_adventurer_station("adv_roland", "wall")
 	GameState.hours_until_next_siege = 9999.0
+	# 5. a FED, un-despairing town -- corruption is live now (10), and 120
+	# unfed hours would rightly rot this painted roster to zero mid-skip.
+	# The clocks are the subject here, so the larder stays full for the ride.
+	GameState.village_food = 100000.0
+	GameState.morale_death_shock = 0.0
+	GameState.low_morale_hours = 0.0
 	var roster_before: int = GameState.rescued_villagers.size()
 
 	# ---- PHASE A: 120 quiet hours -- the civic clocks ----

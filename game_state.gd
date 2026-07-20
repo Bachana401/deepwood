@@ -1533,15 +1533,41 @@ func village_morale_10() -> float:
 # Villagers killed (siege waves, the death penalty) pile onto the death shock;
 # new villagers (births, spawned troops) repay it. Both are clamped so a wipe
 # can't bottom morale out instantly and over-healing can't push shock negative.
-func register_villager_deaths(n: int) -> void:
+# 10, decided: death-shock is a hard hit that spreads OUTWARD from the body
+# as a diminishing wave, lands regardless of the witness's current morale,
+# and stacks -- ~5-6 close deaths take a 10/10 witness to 1-2. Children feel
+# it half again as hard. With no epicenter (an away resolution, an abstract
+# loss) the news lands as a flat, smaller weight instead.
+const DEATH_SHOCK_CLOSE := 1.5         # within the near ring, per death
+const DEATH_SHOCK_NEAR_RADIUS := 260.0
+const DEATH_SHOCK_FAR_RADIUS := 520.0
+const DEATH_SHOCK_ABSTRACT := 0.4      # unwitnessed news, per death
+
+func register_villager_deaths(n: int, epicenter: Vector2 = Vector2(INF, INF)) -> void:
 	if n <= 0:
 		return
 	morale_death_shock = minf(morale_death_shock + float(n) * DEATH_SHOCK_PER_KILL, DEATH_SHOCK_MAX)
-	# grief lands NOW, not on the next drift tick: every living villager feels
-	# the deaths at once. (The per-witness outward wave is 10's corruption
-	# pass; this is the town-wide floor of it.)
+	var witnessed: bool = epicenter.x != INF and not in_dungeon
+	var npc_pos := {}
+	if witnessed:
+		for npc in get_tree().get_nodes_in_group("npc"):
+			if "villager_id" in npc:
+				npc_pos[str(npc.villager_id)] = npc.global_position
 	for v in rescued_villagers:
-		v["morale"] = clampf(get_personal_morale(v) - float(n) * DEATH_SHOCK_PER_KILL / 10.0, 0.0, 10.0)
+		var hit := DEATH_SHOCK_ABSTRACT
+		if witnessed:
+			var vid := str(v.get("id", ""))
+			if npc_pos.has(vid):
+				var d: float = npc_pos[vid].distance_to(epicenter)
+				if d <= DEATH_SHOCK_NEAR_RADIUS:
+					hit = DEATH_SHOCK_CLOSE
+				elif d <= DEATH_SHOCK_FAR_RADIUS:
+					hit = DEATH_SHOCK_CLOSE * 0.5
+				else:
+					hit = 0.2
+		if v.get("is_kid", false):
+			hit *= 1.5   # the fragile hearts a careless siege breaks first (10)
+		v["morale"] = clampf(get_personal_morale(v) - float(n) * hit, 0.0, 10.0)
 
 func register_villagers_added(n: int) -> void:
 	if n <= 0:
@@ -1572,22 +1598,29 @@ func village_morale_multiplier() -> float:
 # faster births, and (see generate_passive_income) up to 1.25x gold.
 const DESPAIR_MORALE := 20               # below 2/10 == the village is in crisis
 const DESPAIR_GRACE_HOURS := 18.0        # crisis must persist this long before it bites
-const DESPAIR_HP_DRAIN_PER_HOUR := 6.0   # then despair grinds the villager down...
-const DESPAIR_HP_REGEN_PER_HOUR := 12.0  # ...but a recovered village pulls them back
+const DESPAIR_HP_REGEN_PER_HOUR := 12.0  # a recovered village pulls the sick back up
 const VILLAGER_MAX_HP := 100.0
 
-# --- Corruption (Step 2): neglect doesn't just kill, it turns villagers evil ---
-# A villager ground all the way down by untended despair (empty larder or
-# rock-bottom morale) doesn't quietly die -- their hope hits zero and they turn
-# DEMONIC, spawning as a siege_enemy that attacks the town from the inside. Each
-# turning heaps extra dread on the whole village (the domino), so a broadly
-# miserable town chains into a powder keg. The player can still save a rotting
-# villager by fixing food/morale before the drain finishes (redemption).
-# TEMP KILL-SWITCH (2026-07-13, developer request): while false, misery can't
-# finish a villager off -- their HP floors at 1 (sick, grey, but alive) and
-# NOBODY dies or turns demonic from despair/hunger. Flip back to true to
-# reactivate the corruption transformation.
-const CORRUPTION_ENABLED := false
+# --- CORRUPTION (GAME_BIBLE 10): despair made mechanical, v2 ---
+# The Law of Despair executed locally on the personal-morale layer (5.5b):
+# a villager whose OWN morale sits at zero begins to ROT -- a grey telegraph
+# with a real window in which mending their life (food, a home, a job,
+# company) REDEEMS them; nobody turns whose needs are fixed in time. If the
+# window closes, they become an evil thing loose INSIDE the walls. Two
+# separate fates, per canon: an empty larder KILLS (starvation is a death);
+# a broken hope CORRUPTS (morale 0 is a turning). Warriors are exempt --
+# they don't break, they die in battle. Children rot in half the time.
+# ENABLED 2026-07-19: every support system canon wanted first (needs,
+# personal morale, nurses, the Log) is now built.
+const CORRUPTION_ENABLED := true
+const ROT_HOURS := 6.0                 # the redeem window at morale 0
+const ROT_CHILD_MULT := 0.5            # children corrupt far more easily (10)
+const INFECT_RADIUS := 240.0           # a turning drags NEIGHBOURS this close
+const INFECT_LOW_MORALE := 3.0         # "already low" -> dragged under, rot begins
+const INFECT_STRAINED_TARGET := 5.5    # healthy-but-strained -> pushed, not turned
+const INFECT_PUSH := 2.0
+const FALLEN_PRESENCE_DRAIN := 0.05    # per loose demon per hour -- a trickle by design
+const WALL_BREAK_MORALE_HIT := 0.5     # a bad omen, not a catastrophe
 const SIEGE_ENEMY_SCENE := preload("res://siege_enemy.tscn")
 const DEMON_BASE_HP := 40.0
 const DEMON_BASE_DMG := 9.0
@@ -1597,7 +1630,74 @@ const CORRUPTION_MORALE_SHOCK := 4.0     # extra town-wide dread per turning (do
 
 var low_morale_hours := 0.0
 var villager_hp: Dictionary = {}         # id -> current hp (0..100); absent == full health
+var villager_rot: Dictionary = {}        # id -> game_hours the rot began (10)
 var morale_admin_offset := 0             # dev-panel morale nudge (0 in normal play)
+
+func is_warrior_villager(v: Dictionary) -> bool:
+	return v.get("stat_name", "") == "Warrior" or v.get("role_key", "") == "Barracks"
+
+# The rot clock (10): morale 0 opens the window, mending closes it, and
+# only the window running out turns a person. The Log narrates both edges.
+func tick_rot(_hours_passed: float) -> void:
+	if not CORRUPTION_ENABLED:
+		return
+	var turned := []
+	for v in rescued_villagers:
+		var id := str(v.get("id", ""))
+		if is_warrior_villager(v):
+			villager_rot.erase(id)
+			continue
+		var m := get_personal_morale(v)
+		if m <= 0.05:
+			if not villager_rot.has(id):
+				villager_rot[id] = game_hours
+				log_event("people", "%s is slipping — despair has them by the throat." % str(v.get("name", "?")))
+				notify("⚠ %s is at the edge — mend their life before the dark takes them!" % str(v.get("name", "?")))
+			var window := ROT_HOURS * (ROT_CHILD_MULT if v.get("is_kid", false) else 1.0)
+			if game_hours - float(villager_rot[id]) >= window:
+				turned.append(id)
+		elif villager_rot.has(id) and m > 0.5:
+			villager_rot.erase(id)
+			log_event("people", "%s was pulled back from the edge — hope held." % str(v.get("name", "?")))
+	for id in turned:
+		villager_rot.erase(id)
+		transform_villager_to_demon(id)
+
+# The chain reaction (10): a turning infects by each neighbour's OWN state.
+# Already-low neighbours are dragged under (their rot window opens -- the
+# spreading powder keg); healthy-but-strained ones take a hard push; a
+# well-kept neighbour RESISTS outright. Healthy villagers are the firewall,
+# which is exactly why the whole village must be cared for. Away from the
+# live scene the dread finds two at random instead of by distance.
+func _spread_infection(epicenter: Vector2) -> void:
+	var near_ids := []
+	if epicenter.x != INF and not in_dungeon:
+		for npc in get_tree().get_nodes_in_group("npc"):
+			if "villager_id" in npc and npc.global_position.distance_to(epicenter) <= INFECT_RADIUS:
+				near_ids.append(str(npc.villager_id))
+	if near_ids.is_empty():
+		var pool := []
+		for v in rescued_villagers:
+			if not is_warrior_villager(v):
+				pool.append(str(v.get("id", "")))
+		pool.shuffle()
+		near_ids = pool.slice(0, 2)
+	for v in rescued_villagers:
+		var vid := str(v.get("id", ""))
+		if not near_ids.has(vid) or is_warrior_villager(v):
+			continue
+		var m := get_personal_morale(v)
+		if m < INFECT_LOW_MORALE:
+			v["morale"] = 0.0
+		elif personal_morale_target(v) < INFECT_STRAINED_TARGET:
+			v["morale"] = clampf(m - INFECT_PUSH, 0.0, 10.0)
+
+# 7.5/10: a rampart falling is a bad omen for everyone -- but only an omen;
+# the real morale damage is the deaths a breach then lets happen.
+func on_wall_broken(flank: String) -> void:
+	for v in rescued_villagers:
+		v["morale"] = clampf(get_personal_morale(v) - WALL_BREAK_MORALE_HIT, 0.0, 10.0)
+	log_event("combat", "The %s rampart has fallen — the horde is in the streets!" % flank)
 
 func get_villager_hp(id: String) -> float:
 	return float(villager_hp.get(id, VILLAGER_MAX_HP))
@@ -1624,6 +1724,16 @@ func tick_morale_effects(hours_passed: float) -> void:
 	# the simulation's real layer: every villager's own spirit drifts toward
 	# what their life currently deserves (5.5b)
 	tick_personal_morale(hours_passed)
+	# the rot clock (10): personal zeros open windows, mending closes them
+	tick_rot(hours_passed)
+	# the presence of the fallen (10): every demon loose among the living saps
+	# nearby hope -- deliberately a trickle, never an accelerant
+	if not in_dungeon:
+		var demons: int = get_tree().get_nodes_in_group("village_demon").size()
+		if demons > 0:
+			var sap: float = minf(FALLEN_PRESENCE_DRAIN * float(demons), 0.15) * hours_passed
+			for v in rescued_villagers:
+				v["morale"] = clampf(get_personal_morale(v) - sap, 0.0, 10.0)
 	var m = village_morale()
 	var in_crisis = m < DESPAIR_MORALE
 	if in_crisis:
@@ -1648,13 +1758,14 @@ func tick_morale_effects(hours_passed: float) -> void:
 	# grace (hunger, tracked in tick_food). Whichever cause is worse sets the
 	# drain rate; the moment the player fixes EITHER, the dying stops and -- while
 	# the no-regen rule isn't in yet (Step 3) -- HP heals back.
-	var morale_starving = in_crisis and low_morale_hours >= DESPAIR_GRACE_HOURS
+	# 10, two fates kept separate: only an EMPTY LARDER withers bodies now --
+	# broken hope ROTS instead (tick_rot above turns it, per-villager). The
+	# crisis meter still warns, halts births and saps defense; it just no
+	# longer runs a second, parallel death machine.
 	var drain_rate := 0.0
-	if morale_starving:
-		# Seraphel, the Lightkeeper (the Ten): her aura slows the withering
-		drain_rate = DESPAIR_HP_DRAIN_PER_HOUR * (0.5 if ten_freed("ten_seraphel") else 1.0)
 	if village_is_starving():
-		drain_rate = maxf(drain_rate, FOOD_STARVE_HP_DRAIN_PER_HOUR)
+		# Seraphel, the Lightkeeper (the Ten): her aura slows the withering
+		drain_rate = FOOD_STARVE_HP_DRAIN_PER_HOUR * (0.5 if ten_freed("ten_seraphel") else 1.0)
 	# HEALTH (5.5): a staffed Hospital's doctors fight the withering and, in
 	# the regen branch below, speed every recovery -- wounds linger without it
 	var doctors := count_workers("Hospital") if is_building_operational("Hospital") else 0
@@ -1671,7 +1782,7 @@ func tick_morale_effects(hours_passed: float) -> void:
 				if CORRUPTION_ENABLED:
 					dead.append(id)
 				else:
-					# corruption disabled: misery sickens but can't finish them
+					# kill-switch: misery sickens but can't finish them
 					villager_hp[id] = 1.0
 			else:
 				villager_hp[id] = hp
@@ -1682,16 +1793,19 @@ func tick_morale_effects(hours_passed: float) -> void:
 			if is_warrior and warrior_on_duty(v):
 				continue
 			villager_hp[id] = minf(VILLAGER_MAX_HP, hp + hours_passed * DESPAIR_HP_REGEN_PER_HOUR * (1.0 + 0.5 * float(doctors)))
+	# 10: two SEPARATE fates. An empty larder / withered body KILLS -- a death,
+	# with death-shock and a grave. A broken hope CORRUPTS -- that is tick_rot's
+	# morale-zero window above, never this HP path.
 	for id in dead:
 		villager_hp.erase(id)
-		transform_villager_to_demon(id)   # despair consumes them -> they turn demonic
-	# toast the turning, flavouring by what finally broke them
+		var starved_name := villager_name(id)
+		remove_villager_by_id(id)
+		log_event("people", "%s starved to death. The town buried them at dawn." % starved_name)
 	if dead.size() > 0:
-		var cause = "A starving villager" if village_is_starving() else "A despairing villager"
 		if dead.size() == 1:
-			notify(cause + " has turned into a demon and attacks the village!")
+			notify("A villager has starved to death.")
 		else:
-			notify("%d villagers have been consumed by despair and turned demonic!" % dead.size())
+			notify("%d villagers have starved to death." % dead.size())
 
 # A neglected villager's descent completes: spawn a demon where their avatar
 # stands (so it attacks the town from within), then purge the villager and heap
@@ -1711,6 +1825,9 @@ func transform_villager_to_demon(villager_id: String) -> void:
 	remove_villager_by_id(villager_id)   # roster + mating/school cleanup + avatar + grief
 	# each turning deepens the whole town's dread -> a miserable village chains
 	morale_death_shock = minf(morale_death_shock + CORRUPTION_MORALE_SHOCK, DEATH_SHOCK_MAX)
+	# ...and infects by proximity (10): the already-low are dragged under, the
+	# strained are pushed, the well-kept RESIST
+	_spread_infection(pos if parent != null else Vector2(INF, INF))
 
 # Spawn one demon at a world position, hunting the town. Wears the downloaded
 # demon sprite (art/enemies/demon) so a corrupted villager visibly becomes a
@@ -1724,6 +1841,7 @@ func _spawn_demon_at(pos: Vector2, parent: Node) -> void:
 	demon.reward = 4 + tier
 	demon.global_position = pos
 	parent.add_child(demon)
+	demon.add_to_group("village_demon")   # its lingering presence saps hope (10)
 	# _ready() defaulted wall to the village wall; clear it so the demon skips the
 	# wall and immediately hunts the nearest villager/player/building (from within)
 	demon.wall = null
@@ -2644,6 +2762,7 @@ func reset_for_new_game() -> void:
 	_family_cycle_accum = 0.0
 	village_log = []
 	wage_accum_hours = 0.0
+	villager_rot = {}
 	pregnancies = {}
 	school_enrollments = {}
 	highest_unlocked_level = 999 if TEST_UNLOCK_ALL_LEVELS else 1
@@ -2760,6 +2879,7 @@ func save_game(player: Node) -> void:
 		"extra_cottages": extra_cottages,
 		"village_log": village_log,
 		"wage_accum_hours": wage_accum_hours,
+		"villager_rot": villager_rot,
 		"pregnancies": pregnancies,
 		"school_enrollments": school_enrollments,
 		"highest_unlocked_level": highest_unlocked_level,
@@ -2840,6 +2960,10 @@ func load_game() -> Dictionary:
 		if parsed.has("village_log") and parsed["village_log"] is Array:
 			village_log = parsed["village_log"]
 		wage_accum_hours = float(parsed.get("wage_accum_hours", 0.0))
+		villager_rot = {}
+		if parsed.has("villager_rot") and parsed["villager_rot"] is Dictionary:
+			for k in parsed["villager_rot"].keys():
+				villager_rot[k] = float(parsed["villager_rot"][k])
 		if parsed.has("pregnancies"):
 			pregnancies = parsed["pregnancies"]
 		if parsed.has("school_enrollments"):
@@ -3024,10 +3148,17 @@ func assign_villager_to_role(villager_id: String, role_key: String, role_title: 
 # the death-penalty path (remove_random_villager) and villager death (an NPC
 # whose HP hit 0 -- see npc.gd's die()).
 func remove_villager_by_id(villager_id: String) -> void:
+	# where the body fell decides who WITNESSED it (10's outward shock wave)
+	var death_pos := Vector2(INF, INF)
+	for npc in get_tree().get_nodes_in_group("npc"):
+		if "villager_id" in npc and str(npc.villager_id) == villager_id:
+			death_pos = npc.global_position
+			break
+	villager_rot.erase(villager_id)
 	for entry in rescued_villagers:
 		if entry.get("id") == villager_id:
 			rescued_villagers.erase(entry)
-			register_villager_deaths(1)   # every villager lost grieves the town
+			register_villager_deaths(1, death_pos)   # every villager lost grieves the town
 			log_event("people", "%s is gone. Deepwood grieves." % str(entry.get("name", "Someone")))
 			break
 	# 5.8: widowhood. The survivor's partner-link breaks, the -3 grief lands

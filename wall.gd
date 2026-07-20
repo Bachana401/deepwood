@@ -76,7 +76,9 @@ func breach() -> void:
 		rubble_gfx.visible = true
 	var notif = get_tree().get_first_node_in_group("notification_stack")
 	if notif:
-		notif.show_notification("The wall is breached! Defend the village!")
+		notif.show_notification("The %s wall is breached! Defend the village!" % flank)
+	# a fallen rampart is a bad omen for every spirit -- but only an omen (10)
+	GameState.on_wall_broken(flank)
 
 # Called by the SiegeManager once a siege is fully repelled -- the villagers
 # patch the rampart back up before the next assault.

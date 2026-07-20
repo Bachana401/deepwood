@@ -100,9 +100,10 @@ func _ready() -> void:
 	var gs_src := FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text()
 	check("the Dock is a real food source (FOOD_PER_FISHER exists and is summed)",
 		gs_src.contains("FOOD_PER_FISHER_PER_DAY") and gs_src.contains("dock_worker_count()"))
-	# Seraphel near-literal: her aura halves the despair HP-drain village-wide
+	# Seraphel near-literal: her aura halves the withering (hunger's HP drain --
+	# the only body-killer left now that broken hope ROTS instead, 10)
 	check("Seraphel: her light halves the withering",
-		gs_src.contains('DESPAIR_HP_DRAIN_PER_HOUR * (0.5 if ten_freed("ten_seraphel")'))
+		gs_src.contains('FOOD_STARVE_HP_DRAIN_PER_HOUR * (0.5 if ten_freed("ten_seraphel")'))
 	# Ilo: his line leads the L100 reveal
 	var di_src := FileAccess.open("res://dungeon_interior.gd", FileAccess.READ).get_as_text()
 	check("Ilo: at the gate of 100 he names what stirs", di_src.contains("ten_ilo") and di_src.contains("Thrones do not stay empty"))
