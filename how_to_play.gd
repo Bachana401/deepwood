@@ -24,6 +24,7 @@ const SECTIONS = [
 		["Blueprints", "a ruin cannot be raised until its plans are FOUND in the deep (satchels at fixed floors, all by floor 30). Farm, Tavern and Builderhouse are known from the start."],
 		["Relocate", "every building can move: its panel packs it up, then walk to new ground and press H to plant it (25g + 4 wood, charged at the plant)"],
 		["Chests", "SHIFT-CLICK any stack to flick it across instantly; buttons for Take All / Deposit All / Match (restock what the chest already holds) and the gold pair"],
+		["Pause menu", "THE PEOPLE lists every villager sorted by who needs you most (spirit, work, home, bond); THE CHRONICLE tracks 100% completion"],
 	]],
 	["THE DEEP", [
 		["F at the red zone", "the level select -- clearing a floor unlocks the next; every 5th is a boss"],

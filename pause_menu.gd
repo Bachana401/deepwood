@@ -98,13 +98,26 @@ func _build_chronicle() -> void:
 			page = preload("res://how_to_play.gd").new()
 			get_tree().root.add_child(page)
 		page.open_page())
+	# The Roster: every soul on one page, sorted by who needs you most
+	var roster := Button.new()
+	roster.name = "RosterButton"
+	roster.text = "The People"
+	roster.custom_minimum_size = Vector2(0, 36)
+	vbox0.add_child(roster)
+	vbox0.move_child(roster, $Panel/VBox/SettingsButton.get_index() + 2)
+	roster.pressed.connect(func():
+		var page = get_tree().get_first_node_in_group("roster_ui")
+		if page == null:
+			page = preload("res://roster_ui.gd").new()
+			get_tree().root.add_child(page)
+		page.open_page())
 	var btn := Button.new()
 	btn.name = "ChronicleButton"
 	btn.text = "Chronicle"
 	btn.custom_minimum_size = Vector2(0, 36)
 	var vbox = $Panel/VBox
 	vbox.add_child(btn)
-	vbox.move_child(btn, $Panel/VBox/SettingsButton.get_index() + 2)
+	vbox.move_child(btn, $Panel/VBox/SettingsButton.get_index() + 3)
 	btn.pressed.connect(_on_toggle_chronicle)
 	chron_panel = Panel.new()
 	chron_panel.name = "ChroniclePanel"

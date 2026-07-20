@@ -199,6 +199,45 @@ func _ready() -> void:
 	check("the advisor always says SOMETHING true", GameState.next_objective().length() > 5)
 	check("chests can never be buried under a relocated building",
 		FileAccess.open("res://chest.gd", FileAccess.READ).get_as_text().contains("village_structure"))
+
+	# ---- THE ROSTER: every soul on one page, trouble first ----
+	var roster_page = preload("res://roster_ui.gd").new()
+	get_tree().root.add_child(roster_page)
+	await get_tree().process_frame
+	var r_saved: Array = GameState.rescued_villagers
+	var r_saved_rot: Dictionary = GameState.villager_rot.duplicate(true)
+	var r_saved_dev: bool = GameState.dev_mode
+	GameState.dev_mode = true              # the fog would otherwise refuse
+	GameState.rescued_villagers = [
+		{"id": "r_ok", "name": "Content", "sex": "Male", "is_kid": false, "stat_name": "Farm",
+			"stat_value": 4, "role_key": "Farm", "role_title": "Farmer", "morale": 9.0},
+		{"id": "r_idle", "name": "Idle", "sex": "Female", "is_kid": false, "stat_name": "Farm",
+			"stat_value": 3, "role_key": "", "role_title": "", "morale": 8.0},
+		{"id": "r_rot", "name": "Slipping", "sex": "Male", "is_kid": false, "stat_name": "",
+			"stat_value": 0, "role_key": "", "role_title": "", "morale": 0.0},
+	]
+	GameState.villager_rot = {"r_rot": 0.0}
+	roster_page.open_page()
+	check("the roster opens and lists every soul",
+		roster_page.esc_is_open() and roster_page.rows.get_child_count() >= 3)
+	check("the one in the dark is sorted to the TOP, never buried",
+		roster_page.rows.get_child(0).get_child(1).text.contains("Slipping"),
+		roster_page.rows.get_child(0).get_child(1).text)
+	check("the header counts the trouble at a glance",
+		roster_page.header.text.contains("without work") and roster_page.header.text.contains("in the dark"))
+	GameState.dev_mode = false
+	GameState.in_dungeon = true
+	roster_page.esc_close()
+	roster_page.open_page()
+	check("the fog rules the roster too -- you cannot count unseen souls",
+		not roster_page.esc_is_open())
+	GameState.in_dungeon = false
+	GameState.dev_mode = r_saved_dev
+	GameState.rescued_villagers = r_saved
+	GameState.villager_rot = r_saved_rot
+	roster_page.queue_free()
+	check("the pause menu carries the roster",
+		FileAccess.open("res://pause_menu.gd", FileAccess.READ).get_as_text().contains("RosterButton"))
 	if mm != null:
 		mm._refresh_glance()
 		var txt: String = str(mm.glance.text)
