@@ -118,6 +118,66 @@ func _ready() -> void:
 	GameState.despair_dead = saved_despair
 	GameState.hours_until_next_siege = saved_hours
 
+	# ---- NG+: THE REWOUND HOUR (GAME_BIBLE 11) ----
+	var hd: Dictionary = Inventory.get_item_def("relic_rewound_hour")
+	check("the spoil exists: mythic consumable, one per world",
+		hd.get("category", "") == "consumable"
+		and Inventory.get_grade("relic_rewound_hour") == "mythic"
+		and int(hd.get("max_stack", 0)) == 1
+		and bool(hd.get("use_effect", {}).get("rewind_world", false)))
+	# the pure turn: paint a veteran in a spent world, rewind, and check both
+	# halves -- the character carried, the world unhappened
+	var k_level: int = GameState.player_level
+	var k_xp: int = GameState.player_xp
+	var k_points: int = GameState.skill_points
+	var k_class: String = GameState.chosen_class
+	var k_skills = GameState.unlocked_skills.duplicate(true)
+	var k_research = GameState.researched_materials.duplicate(true)
+	var k_equip = GameState.equipment.duplicate(true)
+	var k_stage: int = GameState.monarch_stage_announced
+	var k_cycles: int = GameState.ng_plus_cycles
+	GameState.player_level = 77
+	GameState.chosen_class = "Mage"
+	GameState.unlocked_skills = ["probe_skill"]
+	GameState.ng_plus_cycles = 0
+	GameState.the_ten["ten_brannoc"] = {"freed": true}
+	GameState.harvest_done = true
+	GameState.despair_dead = true
+	GameState.seen_orin_arrival = true
+	GameState.rewind_world_keep_player()
+	check("the turn keeps YOU: level, class, skills",
+		GameState.player_level == 77 and GameState.chosen_class == "Mage"
+		and GameState.unlocked_skills == ["probe_skill"])
+	check("the turn counts the worlds walked", GameState.ng_plus_cycles == 1)
+	check("the turn rewinds the WORLD: Ten caged, Harvest unhappened, Despair alive, story fresh",
+		GameState.count_ten_freed() == 0 and not GameState.harvest_done
+		and not GameState.despair_dead and not GameState.seen_orin_arrival)
+	check("the rewound player wakes to a full siege clock",
+		GameState.hours_until_next_siege == GameState.SIEGE_FIRST_HOURS)
+	check("the arrival is stamped exactly once", GameState.just_rewound)
+	GameState.just_rewound = false
+	GameState.player_level = k_level
+	GameState.player_xp = k_xp
+	GameState.skill_points = k_points
+	GameState.chosen_class = k_class
+	GameState.unlocked_skills = k_skills
+	GameState.researched_materials = k_research
+	GameState.equipment = k_equip
+	GameState.monarch_stage_announced = k_stage
+	GameState.ng_plus_cycles = k_cycles
+	# the ceremony and its wiring
+	var pl := FileAccess.open("res://player.gd", FileAccess.READ).get_as_text()
+	check("two uses to end a world, never one",
+		pl.contains("_rewind_armed_until") and pl.contains("GameState.new_game_plus(self)"))
+	check("the ceremony saves the carried life and reloads home",
+		gs.contains("func new_game_plus") and gs.contains("save_game(player)")
+		and gs.contains("pending_load = true"))
+	check("victory grants the hourglass -- once per world",
+		di.contains('add_item("relic_rewound_hour"')
+		and di.contains('get_count("relic_rewound_hour") == 0'))
+	check("the worlds-walked count survives the save",
+		gs.contains('"ng_plus_cycles": ng_plus_cycles'))
+
 	# restore
 	GameState.rescued_villagers = saved_roster
 	GameState.harvested_villagers = saved_harvested

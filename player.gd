@@ -1324,6 +1324,7 @@ func show_hit(target: Node2D, amount: int, is_crit: bool) -> void:
 
 # --- Timed buffs (from food). active_buffs[key] = {"v": amount, "until": t}. ---
 var active_buffs: Dictionary = {}
+var _rewind_armed_until := 0.0   # THE REWOUND HOUR's two-use confirm window
 
 func add_buff(key: String, value: float, duration: float) -> void:
 	active_buffs[key] = {"v": value, "until": _now() + duration}
@@ -1336,6 +1337,22 @@ func use_item(item_id: String) -> bool:
 		return false
 	var eff = def.get("use_effect", {})
 	var stack = get_tree().get_first_node_in_group("notification_stack")
+	# THE REWOUND HOUR (GAME_BIBLE 11): a world must not end on a misclick,
+	# so the turn takes two uses -- arm, then confirm inside five seconds.
+	if eff.get("rewind_world", false):
+		if GameState.harvested_villagers.size() > 0 and not GameState.despair_dead:
+			# insurance for future flows: no rewinding out of a raging Harvest
+			if stack:
+				stack.show_notification("The sands refuse to turn while the Harvest rages.")
+			return false
+		if _now() < _rewind_armed_until:
+			inventory.remove_item(item_id, 1)
+			GameState.new_game_plus(self)
+			return true
+		_rewind_armed_until = _now() + 5.0
+		if stack:
+			stack.show_notification("⌛ The sands begin to turn... use THE REWOUND HOUR again within 5s and the world rewinds. You keep yourself and everything you carry.")
+		return true
 	if eff.has("heal_hp"):
 		health = min(get_max_health(), health + int(eff.heal_hp))
 		update_health_display()

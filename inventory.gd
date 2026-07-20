@@ -125,6 +125,10 @@ const ITEM_DEFS = {
 	"food_feast": {"name": "Warrior's Feast", "category": "consumable", "max_stack": 20, "color": Color(0.75, 0.35, 0.2, 1.0), "use_effect": {"buff": "all_damage", "value": 0.20, "duration": 45.0}, "use_desc": "+20% ALL weapon damage for 45s."},
 	"food_sage": {"name": "Sage's Supper", "category": "consumable", "max_stack": 20, "color": Color(0.5, 0.7, 0.4, 1.0), "use_effect": {"buff": "crit_chance", "value": 0.20, "duration": 45.0}, "use_desc": "+20% Crit Chance for 45s."},
 	"potion_reset": {"name": "Reset Potion", "category": "consumable", "max_stack": 5, "color": Color(0.7, 0.4, 0.9, 1.0), "use_effect": {"reset_skills": true}, "use_desc": "Refund all skill points and re-pick your class."},
+	# NG+ (GAME_BIBLE 11): among the victory spoils. The world rewinds for a
+	# new run; the player and everything they carry are immune. Two uses to
+	# confirm -- a world should not end on a misclick.
+	"relic_rewound_hour": {"name": "The Rewound Hour", "category": "consumable", "max_stack": 1, "color": Color(0.95, 0.85, 0.35, 1.0), "use_effect": {"rewind_world": true}, "use_desc": "Turn the hourglass: the whole world rewinds for a new run. You, your gear, and everything you carry are immune. Use twice within 5s to confirm."},
 	# Crafting ingredients (gathered): Herb from chopping trees, Raw Meat from
 	# enemies. Plainly named like construction mats.
 	"herb": {"name": "Wild Herb", "category": "material", "max_stack": 99, "color": Color(0.4, 0.72, 0.35, 1.0), "is_ingredient": true},
@@ -559,6 +563,7 @@ const ITEM_GRADES = {
 	"wpn_trident": "uncommon", "wpn_warglaive": "uncommon", "wpn_crossbow": "uncommon", "wpn_flatbow": "uncommon",
 	"wpn_frostwand": "uncommon", "wpn_channelwand": "uncommon",
 	"wpn_soulsplit": "mythic",
+	"relic_rewound_hour": "mythic",
 }
 
 # Crafting recipes: item_id -> {ingredient_id: count}. Food + the Reset Potion

@@ -1952,6 +1952,55 @@ func settle_shadow_court() -> void:
 	if despair_dead and harvested_villagers.size() > 0:
 		raise_shadow_army()
 
+# --- NG+ (GAME_BIBLE 11): THE REWOUND HOUR ---
+# Among the victory spoils is time-reversal loot: the world rewinds for a new
+# run but the player and their gear are immune -- you keep yourself and
+# everything you carry. Clean prestige loop.
+var ng_plus_cycles := 0
+var just_rewound := false      # transient: stamps one arrival line, never saved
+
+# the Player node's position in main.tscn -- the rewound player wakes where
+# every first arrival begins
+const VILLAGE_SPAWN = Vector2(-300, -150)
+
+# The pure state turn, separated from the ceremony below so a test can run it
+# without touching the save file or the scene tree. "Yourself" is the
+# character: level, class, skills, craft-knowledge, worn gear -- and the count
+# of worlds walked. Carried gear lives on the player node, which the ceremony
+# writes into the save untouched.
+func rewind_world_keep_player() -> void:
+	var keep_xp = player_xp
+	var keep_level = player_level
+	var keep_points = skill_points
+	var keep_class = chosen_class
+	var keep_skills = unlocked_skills.duplicate(true)
+	var keep_research = researched_materials.duplicate(true)
+	var keep_equipment = equipment.duplicate(true)
+	var keep_stage = monarch_stage_announced
+	var keep_cycles = ng_plus_cycles + 1
+	reset_for_new_game()
+	player_xp = keep_xp
+	player_level = keep_level
+	skill_points = keep_points
+	chosen_class = keep_class
+	unlocked_skills = keep_skills
+	researched_materials = keep_research
+	equipment = keep_equipment
+	monarch_stage_announced = keep_stage
+	ng_plus_cycles = keep_cycles
+	just_rewound = true
+
+func new_game_plus(player: Node) -> void:
+	rewind_world_keep_player()
+	# the turn knits you whole, and you wake at the village gate of a world
+	# that has never met you
+	player.health = player.get_max_health()
+	player.mana = player.get_max_mana()
+	player.global_position = VILLAGE_SPAWN
+	save_game(player)
+	pending_load = true
+	get_tree().change_scene_to_file.call_deferred("res://main.tscn")
+
 # --- THE FINALE GATE (GAME_BIBLE 9.1) ---
 # Level 100 opens only to a PERFECT village -- because a perfect village is
 # what Orin has been patiently farming all game. He needs the peak to reap it.
@@ -2251,6 +2300,7 @@ func reset_for_new_game() -> void:
 	harvest_done = false
 	harvested_villagers = []
 	despair_dead = false
+	ng_plus_cycles = 0
 	maera_stabilized_this_siege = false
 	_deep_catch_accum = 0.0
 	morale_admin_offset = 0
@@ -2308,6 +2358,7 @@ func save_game(player: Node) -> void:
 		"the_ten": the_ten,
 		"harvest_done": harvest_done,
 		"despair_dead": despair_dead,
+		"ng_plus_cycles": ng_plus_cycles,
 		"harvested_villagers": harvested_villagers,
 		"seen_orin_arrival": seen_orin_arrival,
 		"seen_doctor_account": seen_doctor_account,
@@ -2378,6 +2429,7 @@ func load_game() -> Dictionary:
 			ensure_the_ten()
 		harvest_done = bool(parsed.get("harvest_done", false))
 		despair_dead = bool(parsed.get("despair_dead", false))
+		ng_plus_cycles = int(parsed.get("ng_plus_cycles", 0))
 		harvested_villagers = parsed.get("harvested_villagers", [])
 		seen_orin_arrival = bool(parsed.get("seen_orin_arrival", false))
 		seen_doctor_account = bool(parsed.get("seen_doctor_account", false))

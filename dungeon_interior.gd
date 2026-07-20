@@ -1451,6 +1451,12 @@ func play_final_victory() -> void:
 		# themselves -- names, homes, jobs and bonds kept. The village Orin
 		# murdered gets back up, as the Shadow Monarch's people.
 		GameState.raise_shadow_army()
+		# NG+ (11): the time-reversal spoil. Re-granted on a later victory only
+		# if the last one was spent -- one hourglass per world.
+		var p = get_tree().get_first_node_in_group("player")
+		if p and "inventory" in p and p.inventory and p.inventory.get_count("relic_rewound_hour") == 0:
+			p.inventory.add_item("relic_rewound_hour", 1)
+			show_notification("Among the spoils: ⌛ THE REWOUND HOUR. The world can be made to start again — and you would be immune.")
 		show_notification("Deepwood stands. The Shadow Monarch has returned — a new class awaits your next journey."))
 
 # Deep-level rescues: a reserved important figure (VillagerQuests.IMPORTANT_FIGURES,

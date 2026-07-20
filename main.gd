@@ -218,6 +218,7 @@ func _ready() -> void:
 	orin_midgame_taunt()
 	# a coronation interrupted by a quit finishes here, at home
 	GameState.settle_shadow_court()
+	stamp_rewound_arrival()
 	if GameState.returning_from_dungeon:
 		GameState.returning_from_dungeon = false
 		# only restore a real recorded spot -- the default (0,0) is below the
@@ -332,6 +333,17 @@ func spawn_existing_villager_avatars() -> void:
 # FORESHADOWING (GAME_BIBLE 9.8): the mid-game taunt -- Orin WANTS you to grow,
 # and once, around the halfway mark, he says so almost plainly. Reads as a
 # mentor's pride the first time; reads as the farmer admiring the crop forever
+# NG+ arrival: one line the moment the rewound player wakes, then the world
+# treats them like any first arrival. Transient flag -- never saved, so a
+# reload mid-run stays silent.
+func stamp_rewound_arrival() -> void:
+	if not GameState.just_rewound:
+		return
+	GameState.just_rewound = false
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if stack:
+		stack.show_notification("⌛ The world has rewound (cycle %d). You remember everything. It remembers nothing." % GameState.ng_plus_cycles)
+
 # after. One-shot, saved.
 func orin_midgame_taunt() -> void:
 	if GameState.seen_orin_taunt or not GameState.orin_arrived() or GameState.dev_mode:
