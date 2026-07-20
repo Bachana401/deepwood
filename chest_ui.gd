@@ -16,15 +16,30 @@ var slot_bgs: Array = []
 var slot_icons: Array = []
 var slot_counts: Array = []
 
+var item_buttons: Array = []
+
 func _ready() -> void:
 	visible = false
 	add_to_group("esc_window")
 	add_to_group("chest_ui")   # so vault chests can find the shared UI by group
 	player = get_tree().get_first_node_in_group("player")
 	build_slots(COLUMNS * ROWS)
+	$Panel/TakeButton.text = "Take Gold"
+	$Panel/DepositButton.text = "Deposit Gold"
 	$Panel/TakeButton.pressed.connect(_on_take_coins)
 	$Panel/DepositButton.pressed.connect(_on_deposit_coins)
 	$Panel/CloseButton.pressed.connect(close)
+	# QoL (dev request): whole-container ITEM transfers on their own row --
+	# plus SHIFT-CLICK on any stack to flick it across instantly
+	for def in [["⇈ Take All", _on_take_all], ["⇊ Deposit All", _on_deposit_all], ["⇄ Match", _on_deposit_matching]]:
+		var b := Button.new()
+		b.text = def[0]
+		b.custom_minimum_size = Vector2(96, BUTTON_H)
+		b.pressed.connect(def[1])
+		if str(def[0]).contains("Match"):
+			b.tooltip_text = "Deposit only what the chest already holds — restock its stores"
+		$Panel.add_child(b)
+		item_buttons.append(b)
 	DragState.register_panel(self)
 
 # Rebuild the slot grid to hold exactly `count` slots (6 per row, growing
@@ -44,12 +59,17 @@ func _ensure_grid(count: int) -> void:
 func _layout_panel(count: int) -> void:
 	var rows: int = int(ceil(float(count) / float(COLUMNS)))
 	var btn_y: float = GRID_ORIGIN.y + rows * (SLOT_SIZE + SLOT_GAP) + 16.0
-	var panel_h: float = btn_y + BUTTON_H + 12.0
+	# two button rows now: items above, gold + close below
+	var item_y: float = btn_y
+	var gold_y: float = btn_y + BUTTON_H + 8.0
+	var panel_h: float = gold_y + BUTTON_H + 12.0
 	var half: float = panel_h / 2.0
 	$Panel.offset_top = -half
 	$Panel.offset_bottom = half
+	for i in range(item_buttons.size()):
+		item_buttons[i].position = Vector2(16.0 + i * 104.0, item_y)
 	for btn in [$Panel/TakeButton, $Panel/DepositButton, $Panel/CloseButton]:
-		btn.position.y = btn_y
+		btn.position.y = gold_y
 
 func build_slots(count: int) -> void:
 	for i in range(count):
@@ -107,7 +127,9 @@ func _on_slot_gui_input(event: InputEvent, index: int) -> void:
 	if not (event is InputEventMouseButton) or not event.pressed:
 		return
 	if event.button_index == MOUSE_BUTTON_LEFT:
-		if DragState.split_mode:
+		if Input.is_key_pressed(KEY_SHIFT):
+			quick_transfer_from_chest(index)   # flick the stack to your bag
+		elif DragState.split_mode:
 			DragState.deposit_split(current_chest.inventory, index)
 		else:
 			DragState.start_drag(current_chest.inventory, index)
@@ -173,6 +195,59 @@ func refresh() -> void:
 		$Panel/TitleLabel.text = current_chest.ui_title
 	else:
 		$Panel/TitleLabel.text = "Chest (" + str(inv.get_count("coin_gold")) + "g coins)"
+
+# --- whole-container ITEM transfers (dev request) ---
+# transfer_to handles stacking and space honestly: what doesn't fit stays
+# where it was, and the toast says exactly what moved.
+
+func _bulk_transfer(src: Inventory, dst: Inventory, keep_wielded: bool, matching_only := false) -> void:
+	var moved_total := 0
+	var stacks: Array = []
+	for slot in src.slots:
+		if slot != null:
+			stacks.append({"id": str(slot.item_id), "count": int(slot.count)})
+	for s in stacks:
+		# never strand the weapon in your hand inside a box
+		if keep_wielded and player and s.id == str(player.active_weapon_id):
+			continue
+		if matching_only and dst.get_count(s.id) <= 0:
+			continue
+		moved_total += src.transfer_to(dst, s.id, s.count)
+	refresh()
+	var inv_ui = get_tree().get_first_node_in_group("inventory_ui")
+	if inv_ui and inv_ui.has_method("refresh"):
+		inv_ui.refresh()
+	var stack_node = get_tree().get_first_node_in_group("notification_stack")
+	if stack_node:
+		if moved_total > 0:
+			stack_node.show_notification("Moved %d item%s." % [moved_total, "" if moved_total == 1 else "s"])
+		else:
+			stack_node.show_notification("Nothing to move — or no room for it.")
+
+func _on_take_all() -> void:
+	if current_chest and player:
+		_bulk_transfer(current_chest.inventory, player.inventory, false)
+
+func _on_deposit_all() -> void:
+	if current_chest and player:
+		_bulk_transfer(player.inventory, current_chest.inventory, true)
+
+func _on_deposit_matching() -> void:
+	if current_chest and player:
+		_bulk_transfer(player.inventory, current_chest.inventory, true, true)
+
+# SHIFT-CLICK: flick one whole stack across without dragging.
+func quick_transfer_from_chest(index: int) -> void:
+	if not current_chest or index >= current_chest.inventory.slots.size():
+		return
+	var slot = current_chest.inventory.slots[index]
+	if slot == null:
+		return
+	current_chest.inventory.transfer_to(player.inventory, str(slot.item_id), int(slot.count))
+	refresh()
+	var inv_ui = get_tree().get_first_node_in_group("inventory_ui")
+	if inv_ui and inv_ui.has_method("refresh"):
+		inv_ui.refresh()
 
 func _on_take_coins() -> void:
 	if not current_chest or not player:

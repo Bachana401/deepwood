@@ -107,6 +107,32 @@ func _ready() -> void:
 		weapon_count, cnt.get("common",0), cnt.get("uncommon",0), cnt.get("rare",0),
 		cnt.get("epic",0), cnt.get("legendary",0), cnt.get("mythic",0)])
 
+	# ---- chest QoL (dev request): bulk moves + shift-click ----
+	var a := Inventory.new(6)
+	var b := Inventory.new(2)
+	a.add_item("wood", 30)
+	a.add_item("stone", 20)
+	a.add_item("potion_health", 5)
+	var stacks := []
+	for s in a.slots:
+		if s != null:
+			stacks.append({"id": str(s.item_id), "count": int(s.count)})
+	var moved := 0
+	for s2 in stacks:
+		moved += a.transfer_to(b, s2.id, s2.count)
+	check("bulk transfer moves what FITS and leaves the rest honestly",
+		moved > 0 and b.get_count("wood") == 30 and a.get_count("potion_health") == 5,
+		"moved=%d" % moved)
+	var csrc := FileAccess.open("res://chest_ui.gd", FileAccess.READ).get_as_text()
+	check("the chest offers Take All / Deposit All / Match on their own row",
+		csrc.contains("_on_take_all") and csrc.contains("_on_deposit_all")
+		and csrc.contains("_on_deposit_matching") and csrc.contains("restock its stores"))
+	check("Deposit All never strands the weapon in your hand",
+		csrc.contains("active_weapon_id"))
+	check("shift-click flicks stacks BOTH directions",
+		csrc.contains("KEY_SHIFT")
+		and FileAccess.open("res://inventory_ui.gd", FileAccess.READ).get_as_text().contains("KEY_SHIFT"))
+
 	# THE POTIONS RULE (5.5): potions only from pre-boss floors + boss caches
 	var esrc := FileAccess.open("res://enemy.gd", FileAccess.READ).get_as_text()
 	check("ordinary floors drop NO potions (positions 4-5 of a block only)",

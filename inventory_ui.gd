@@ -110,6 +110,16 @@ func _on_slot_gui_input(event: InputEvent, index: int) -> void:
 	if not (event is InputEventMouseButton) or not event.pressed:
 		return
 	if event.button_index == MOUSE_BUTTON_LEFT:
+		# SHIFT-CLICK with a chest open: flick the whole stack into the chest
+		if Input.is_key_pressed(KEY_SHIFT):
+			var cui = get_tree().get_first_node_in_group("chest_ui")
+			if cui and cui.visible and cui.current_chest != null:
+				var slot0 = player.inventory.slots[index]
+				if slot0 != null:
+					player.inventory.transfer_to(cui.current_chest.inventory, str(slot0.item_id), int(slot0.count))
+					refresh()
+					cui.refresh()
+				return
 		if DragState.split_mode:
 			DragState.deposit_split(player.inventory, index)
 		else:
