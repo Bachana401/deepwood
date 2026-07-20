@@ -56,7 +56,23 @@ func _ready() -> void:
 	check("the harvest pool empties into the town", GameState.harvested_villagers.is_empty())
 
 	# ---------------- the Devourer machinery (9.4) ----------------
-	var di := FileAccess.open("res://dungeon_interior.gd", FileAccess.READ).get_as_text()
+	# THE VENUE MOVED (canon rework 2026-07-20): the Harvest is fought AT HOME.
+	# The fight machinery lives in harvest_director.gd now; the dungeon's floor
+	# 100 is the EMPTY THRONE that sets the false victory in motion.
+	var di := FileAccess.open("res://harvest_director.gd", FileAccess.READ).get_as_text()
+	var dgn := FileAccess.open("res://dungeon_interior.gd", FileAccess.READ).get_as_text()
+	check("floor 100 stands EMPTY in a real run (the trap's final move)",
+		dgn.contains("seen_empty_throne = true") and dgn.contains("the deep is SILENT"))
+	check("the false victory -> feast -> reveal chain exists at home",
+		di.contains("begin_false_victory") and di.contains("FEAST_SECONDS")
+		and di.contains("Story.REVEAL_AT_FEAST"))
+	check("the feast fires only when the deep is TRULY empty (Ten included)",
+		FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text().contains("func deep_truly_empty")
+		and FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text().contains("highest_unlocked_level >= 100 and all_ten_freed()"))
+	check("the village mounts the director when the feast is ready",
+		FileAccess.open("res://main.gd", FileAccess.READ).get_as_text().contains("GameState.feast_ready()"))
+	check("nobody descends mid-Harvest (you cannot run from this)",
+		FileAccess.open("res://level_select_ui.gd", FileAccess.READ).get_as_text().contains("GameState.harvest_at_home"))
 	check("the town streams in as waves, never all at once",
 		di.contains("HARVEST_WAVE_GAP") and di.contains("HARVEST_LIVE_CAP"))
 	check("every transformed wears a villager's NAME", di.contains("_spawn_transformed"))
@@ -64,7 +80,7 @@ func _ready() -> void:
 		di.contains("attack_damage * 0.5"))
 	check("he eats the LIVING transformed on a clock", di.contains("DEVOUR_INTERVAL"))
 	check("+1 tier per 5%% consumed, ~20 tiers", di.contains("DEVOUR_TIERS := 20"))
-	check("the Ten hold lanes as allies", di.contains("_spawn_ten_ally") and ResourceLoader.exists("res://ten_ally.gd"))
+	check("the Ten hold lanes as allies", di.contains("_spawn_ally") and ResourceLoader.exists("res://ten_ally.gd"))
 	# a legend cannot be killed at the Harvest -- beaten down, they fall back
 	var ally = load("res://ten_ally.gd").new()
 	ally.ten_id = "ten_brannoc"
@@ -205,36 +221,19 @@ func _ready() -> void:
 	check("the pause menu carries the book into both scenes",
 		pm.contains("ChronicleButton") and pm.contains("GameState.chronicle()"))
 
-	# ---- the softlock guard: you cannot walk into 100 unarmed ----
-	var lsrc := FileAccess.open("res://level_select_ui.gd", FileAccess.READ).get_as_text()
-	check("the gate hands the wand back if you left it behind",
-		lsrc.contains('get_count("wpn_soulsplit") == 0')
-		and lsrc.contains('add_item("wpn_soulsplit", 1)'))
+	# ---- the softlock guard: the wand returns AT THE FEAST ----
+	check("the reveal hands the wand back if you left it behind",
+		di.contains('get_count("wpn_soulsplit") == 0')
+		and di.contains('add_item("wpn_soulsplit", 1)'))
 	check("...and says WHY, in Elenwe's voice",
-		lsrc.contains("An undivided soul cannot be destroyed"))
-	# prove it live: strip the wand, run the gate's guard, get it back
-	var pl_g = get_tree().get_first_node_in_group("player")
-	if pl_g != null:
-		var had_wand: int = pl_g.inventory.get_count("wpn_soulsplit")
-		if had_wand > 0:
-			pl_g.inventory.remove_item("wpn_soulsplit", had_wand)
-		var lsel = get_tree().get_first_node_in_group("level_select_ui")
-		if lsel != null and lsel.has_method("_on_level_selected"):
-			var saved_dev2: bool = GameState.dev_mode
-			GameState.dev_mode = false
-			lsel._on_level_selected(100)   # gate refuses (village imperfect) OR re-arms
-			GameState.dev_mode = saved_dev2
-		check("a player who dumped the wand is never left unable to win",
-			pl_g.inventory.get_count("wpn_soulsplit") >= 0)   # no crash, no strand
-		if had_wand > 0 and pl_g.inventory.get_count("wpn_soulsplit") == 0:
-			pl_g.inventory.add_item("wpn_soulsplit", had_wand)
+		di.contains("An undivided soul cannot be destroyed"))
 
 	# ---- the defenders' fate (12.6, decided delegated) ----
 	check("Wren and Castor walk in the horde, and their deaths are real",
 		di.contains('for aid in ["adv_wren", "adv_castor"]')
 		and di.contains("walks in the horde"))
 	check("Roland alone holds -- the eleventh, mortal, standing anyway",
-		di.contains('r.override_name = "Roland"') and di.contains("We hold. Same as always."))
+		di.contains('_spawn_ally("", "Roland")') and di.contains("We hold. Same as always."))
 	var ta := FileAccess.open("res://ten_ally.gd", FileAccess.READ).get_as_text()
 	check("the ally body carries a mortal's name and scale",
 		ta.contains("var override_name") and ta.contains("power_scale"))
@@ -243,5 +242,101 @@ func _ready() -> void:
 	GameState.rescued_villagers = saved_roster
 	GameState.harvested_villagers = saved_harvested
 	GameState.harvest_done = saved_done
+	# ================================================================
+	# THE NEW FINALE, WALKED LIVE (canon rework 2026-07-20): empty throne
+	# -> false victory -> feast -> reveal -> the Harvest in the STREETS ->
+	# the kill -> the return -> the Shadow Army. In the real village scene.
+	# ================================================================
+	var was_completed: bool = GameState.game_completed
+	GameState.reset_for_new_game()
+	# the dev's machine may carry the LIFETIME completion unlock -- baseline it
+	# off so the victory chain is actually observable (restored below)
+	GameState.game_completed = false
+	GameState.highest_unlocked_level = 100
+	for tid in TheTen.ids():
+		GameState.free_one_of_the_ten(tid)
+	for i in range(4):
+		GameState.rescue_villager({"id": "feast_%d" % i, "name": "Feastgoer %d" % i,
+			"sex": "Male", "is_kid": false, "stat_name": "Farm", "stat_value": 3,
+			"role_key": "", "role_title": ""})
+	GameState.seen_empty_throne = true
+	check("LIVE: the feast is ready when the deep is truly empty", GameState.feast_ready())
+	var main_scene = get_tree().current_scene
+	var director = preload("res://harvest_director.gd").new()
+	main_scene.add_child(director)
+	# drive the dialogue chain through. NB the feast interlude is a REAL-time
+	# timer and headless frames run uncapped, so wait in wall-clock slices --
+	# and once the glow is up, call the reveal directly (the double-trigger
+	# guard makes the later real timer a no-op).
+	var guard := 0
+	while guard < 120 and not director._fight_on:
+		guard += 1
+		await get_tree().create_timer(0.15).timeout
+		if GameState.feast_glow and not director._revealed:
+			director.begin_reveal()
+		if get_tree().paused:
+			for n in get_tree().root.find_children("*", "", true, false):
+				if n.has_method("finish") and n.has_method("show_line"):
+					n.finish()
+					break
+	check("LIVE: the fight begins in the village", director._fight_on, "after %d frames" % guard)
+	check("LIVE: the Monarch stands in the streets",
+		director._monarch != null and is_instance_valid(director._monarch))
+	check("LIVE: the town turned -- only the unbreakable remain",
+		GameState.rescued_villagers.size() == 10 and GameState.harvested_villagers.size() >= 4)
+	check("LIVE: the feast glow died with the reveal", not GameState.feast_glow)
+	check("LIVE: the wand is in hand at the only fight that needs it",
+		p.inventory.get_count("wpn_soulsplit") > 0)
+	for i in range(240):
+		await get_tree().physics_frame
+		if not get_tree().get_nodes_in_group("transformed").is_empty():
+			break
+	check("LIVE: the transformed stream into their own streets",
+		not get_tree().get_nodes_in_group("transformed").is_empty())
+	check("LIVE: the deep is sealed mid-Harvest", GameState.harvest_at_home)
+	# the kill (the wand window is boss.gd's own tested machinery -- here we
+	# fell the monarch directly to walk the VICTORY chain)
+	director._monarch.is_dead = true
+	guard = 0
+	while guard < 120 and not GameState.despair_dead:
+		guard += 1
+		await get_tree().create_timer(0.15).timeout
+		if get_tree().paused:
+			for n in get_tree().root.find_children("*", "", true, false):
+				if n.has_method("finish") and n.has_method("show_line"):
+					n.finish()
+					break
+	check("LIVE: victory marks the game complete", GameState.game_completed)
+	check("LIVE: Despair is dead -- the nights are over", GameState.despair_dead)
+	# let the ENDING's on_finished (shadow army + spoils) settle
+	guard = 0
+	while guard < 60 and GameState.harvest_at_home:
+		guard += 1
+		await get_tree().create_timer(0.1).timeout
+		if get_tree().paused:
+			for n in get_tree().root.find_children("*", "", true, false):
+				if n.has_method("finish") and n.has_method("show_line"):
+					n.finish()
+					break
+	for i in range(30):
+		await get_tree().process_frame
+	var shadows := 0
+	for v in GameState.rescued_villagers:
+		if v.get("shadow", false):
+			shadows += 1
+	check("LIVE: the Shadow Army raised the fallen as themselves",
+		shadows >= 4 and GameState.harvested_villagers.is_empty(),
+		"%d shadows" % shadows)
+	check("LIVE: the Rewound Hour lies among the spoils",
+		p.inventory.get_count("relic_rewound_hour") > 0)
+	check("LIVE: the director leaves the stage", not GameState.harvest_at_home)
+	# leave no permanent trace: the completion file belongs to the dev's real runs
+	if not was_completed:
+		GameState.game_completed = false
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(GameState.GAME_COMPLETED_PATH))
+	else:
+		GameState.game_completed = true
+	GameState.reset_for_new_game()
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

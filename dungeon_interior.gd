@@ -1417,6 +1417,22 @@ func spawn_level_combat() -> void:
 	level_cleared = false
 	alive_count = 0
 	GameState.record_level_reached(current_level)
+	# THE EMPTY THRONE (new finale, 2026-07-20): floor 100 holds NOTHING.
+	# The silence is the trap's final move -- the false victory is carried
+	# home, and Orin springs the Harvest at the feast, in the village.
+	# (dev_mode keeps a plain Orin here for arena testing.)
+	if current_level >= MAX_LEVEL and not GameState.dev_mode:
+		level_in_progress = false
+		level_cleared = true
+		GameState.seen_empty_throne = true
+		update_level_label()
+		var label = get_node_or_null("CanvasLayer/LevelLabel")
+		if label:
+			label.text = "Level: 100 / 100   —   the deep is SILENT"
+		if not GameState.seen_l100_reveal:
+			GameState.seen_l100_reveal = true
+			call_deferred("play_empty_throne")
+		return
 	if is_boss_level(current_level):
 		var b = spawn_boss()
 		var intro = "Level %d - %s awakens!" % [current_level, b.get_display_name()]
@@ -1424,63 +1440,22 @@ func spawn_level_combat() -> void:
 		if counter != "":
 			intro += "  (weak to %s)" % counter
 		show_notification(intro)
-		# THE HARVEST (9.3/9.4): at the gate of 100 the whole village turns.
-		# Streamed as waves bearing their NAMES -- never spawned at once -- and
-		# every living transformed is fuel the Devourer can eat.
-		if current_level >= MAX_LEVEL and not GameState.dev_mode:
-			GameState.begin_harvest()
-			_harvest_pool = []
-			for v in GameState.harvested_villagers:
-				_harvest_pool.append(str(v.get("name", "a villager")))
-			# THE DEFENDERS' FATE (12.6, decided delegated): the two who named
-			# the cage become its proof -- Wren and Castor, if they still
-			# stand, walk IN the horde as outsized turned, and their deaths
-			# are real. Roland alone holds (spawned below, beside the Ten).
-			for aid in ["adv_wren", "adv_castor"]:
-				var ast: Dictionary = GameState.adventurer_state(aid)
-				if ast.get("rescued", false) and not ast.get("dead", false):
-					GameState.adventurers[aid]["dead"] = true
-					var aname := str(Adventurers.get_def(aid).get("name", aid))
-					_harvest_pool.append(aname)
-					GameState.log_event("combat", "%s was taken by the turning at the gate of 100." % aname)
-					show_notification("%s walks in the horde — turned against the gate they held." % aname)
-			_harvest_pool.shuffle()
-			_harvest_total = maxi(1, _harvest_pool.size())
-			_monarch = b
-			_harvest_wave_timer = 2.0
-			# the Devourer starts WEAK (9.4): his power must be EATEN, not given
-			b.attack_damage = int(round(b.attack_damage * 0.5))
-			for t in TheTen.ids():
-				_spawn_ten_ally(t)
-			# ...and the eleventh: Roland, mortal and outmatched and standing
-			# anyway -- proof that hope can be FORGED (12.6)
-			var rst: Dictionary = GameState.adventurer_state("adv_roland")
-			if rst.get("rescued", false) and not rst.get("dead", false):
-				var r = load("res://ten_ally.gd").new()
-				r.ten_id = ""
-				r.override_name = "Roland"
-				r.power_scale = 0.7
-				r.position = Vector2(ENTRY_X + 140.0, GROUND_Y - 40.0)
-				$LevelContainer.add_child(r)
-				show_notification("Roland plants his shield at your side: \"We hold. Same as always.\"")
+		# (The Harvest moved HOME -- see harvest_director.gd. Floor 100 in a
+		# real run is the empty throne above; in dev_mode the wizard spawns
+		# here plain, for arena testing.)
 	else:
 		spawn_level_mobs()
 		show_notification("Level " + str(current_level))
 	spawn_deep_rescue()
 	update_level_label()
-	# Level 100: the mask falls. Play the reveal once, at the gate, before the
-	# fight (the DialogueBox pauses the tree, so Orin waits until it's done).
-	if current_level >= MAX_LEVEL and not GameState.seen_l100_reveal:
-		GameState.seen_l100_reveal = true
-		call_deferred("play_l100_reveal")
 
-func play_l100_reveal() -> void:
-	# Ilo, the Nameless Bard (the Ten, §8): at the gate of 100, he is the one
-	# who names what stirs in you -- his line leads the reveal when he's free.
-	var lines: Array = Story.L100_REVEAL
+func play_empty_throne() -> void:
+	# the silent hall: the search, the false conclusion, the walk home. Ilo's
+	# unease leads it when he's free -- he alone hears that the song isn't over.
+	var lines: Array = Story.EMPTY_THRONE
 	if GameState.ten_freed("ten_ilo"):
-		lines = [{"speaker": "Ilo, the Nameless Bard",
-			"text": "(His voice reaches you from the world above, the way only a song can.) Hunter... whatever wakes in you down there — I have sung its name before. Thrones do not stay empty. FINISH IT."}] + lines
+		lines = lines + [{"speaker": "Ilo, the Nameless Bard",
+			"text": "(His voice reaches you from the world above, the way only a song can.) Hunter... the deep has gone quiet, and I cannot finish the song. Silence is not the same as an ending. Come home — but come home CAREFUL."}]
 	DialogueBox.play(self, lines)
 
 # Orin is down -- the deathless made mortal for one instant, and the blow landed.

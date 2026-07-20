@@ -1142,6 +1142,28 @@ var seen_orin_glimpse := false
 var seen_kneel_echo := false
 var seen_orin_taunt := false
 var seen_arrival_battle := false
+# THE NEW FINALE (canon rework 2026-07-20): floor 100 is EMPTY. The false
+# victory is carried home, the feast pumps the village to its peak, and Orin
+# reveals himself AT THE FEAST -- the Harvest is fought in the village.
+var seen_empty_throne := false     # the player has stood in the silent hall (saved)
+var harvest_at_home := false       # the feast->reveal->fight sequence is LIVE (transient)
+var feast_glow := false            # the false victory's joy (transient, morale reads 100)
+
+# The feast (and Orin) fire only when the deep is TRULY empty: floors cleared
+# AND every one of the Ten home. Nobody celebrates "the evil is defeated"
+# while their brother still hangs frozen below -- and this guarantees the
+# Soul Split Wand (gifted on the tenth rescue) is in hand for the only fight
+# that needs it.
+func deep_truly_empty() -> bool:
+	return highest_unlocked_level >= 100 and all_ten_freed()
+
+func feast_ready() -> bool:
+	# NB gated on per-run despair_dead, NEVER on lifetime game_completed --
+	# game_completed survives into NG+ forever, and the Rewound Hour's whole
+	# promise is that the world (and its finale) happens AGAIN.
+	return seen_empty_throne and deep_truly_empty() \
+		and not harvest_done and not despair_dead \
+		and not harvest_at_home and not dev_mode and not in_dungeon
 # The opening wave is a TEACHING fight, not a trial: the three defenders
 # are scripted to survive it (Roland in particular is canon at the gate of
 # 100, §12.6). Transient -- never saved; a real siege can still take them.
@@ -1678,6 +1700,9 @@ func tick_personal_morale(hours_passed: float) -> void:
 # The meter: the plain average of every personal value, on the 0-100 scale
 # the HUD/shop/gate already speak. Nothing separate -- just the mean.
 func village_morale() -> int:
+	# the false victory (new finale): for one evening, hope is COMPLETE
+	if feast_glow:
+		return 100
 	if rescued_villagers.is_empty():
 		return 0
 	var total := 0.0
@@ -2188,14 +2213,16 @@ func next_objective() -> String:
 		return "The Government makes the village's own gold — raise it when you can"
 	var ruined := count_ruined_buildings()
 	if ruined > 0:
-		return "%d building%s still in ruins — the gate of 100 wants them ALL" % [ruined, "" if ruined == 1 else "s"]
+		return "%d building%s still in ruins — Deepwood deserves to stand whole" % [ruined, "" if ruined == 1 else "s"]
 	if count_empty_role_slots() > 0:
 		return "Staff every post — %d stand empty" % count_empty_role_slots()
 	if not all_ten_freed():
-		return "Free the Ten from Orin's vaults — %d still hang below" % (10 - count_ten_freed())
-	if village_morale() < 100:
-		return "Perfect the village: every soul at 10/10 opens the gate of 100"
-	return "The gate of 100 is open. Deepwood is ready — are you?"
+		return "Free the Ten from the vaults below — %d still hang in the dark" % (10 - count_ten_freed())
+	if seen_empty_throne and deep_truly_empty():
+		return "Carry the news home — Deepwood deserves to hear it"
+	if highest_unlocked_level >= 100:
+		return "Descend to 100 — the deep has gone strangely QUIET"
+	return "Clear the way to the root — floor %d waits" % highest_unlocked_level
 
 # --- ONE-SHOT SFX (polish pass 2026-07-20) ---
 # Every system built this week spoke only in toasts -- silent portals,
@@ -3359,6 +3386,9 @@ func reset_for_new_game() -> void:
 	seen_kneel_echo = false
 	seen_orin_taunt = false
 	seen_arrival_battle = false
+	seen_empty_throne = false
+	harvest_at_home = false
+	feast_glow = false
 	escape_attempts = 0
 	school_favoured_stat = ""
 	# The Ten wait in their cages again, and the Harvest has not happened --
@@ -3439,6 +3469,7 @@ func save_game(player: Node) -> void:
 		"seen_kneel_echo": seen_kneel_echo,
 		"seen_orin_taunt": seen_orin_taunt,
 		"seen_arrival_battle": seen_arrival_battle,
+		"seen_empty_throne": seen_empty_throne,
 		"escape_attempts": escape_attempts,
 		"school_favoured_stat": school_favoured_stat,
 		"chest_contents": chest_contents,
@@ -3526,6 +3557,7 @@ func load_game() -> Dictionary:
 		seen_kneel_echo = bool(parsed.get("seen_kneel_echo", false))
 		seen_orin_taunt = bool(parsed.get("seen_orin_taunt", false))
 		seen_arrival_battle = bool(parsed.get("seen_arrival_battle", true))   # old saves: don't replay
+		seen_empty_throne = bool(parsed.get("seen_empty_throne", false))
 		escape_attempts = int(parsed.get("escape_attempts", 0))
 		school_favoured_stat = str(parsed.get("school_favoured_stat", ""))
 		if parsed.has("chest_contents"):

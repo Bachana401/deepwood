@@ -79,31 +79,17 @@ func close() -> void:
 func _on_level_selected(level: int) -> void:
 	if level > GameState.highest_unlocked_level:
 		return
-	# THE FINALE GATE (GAME_BIBLE 9.1): only a PERFECT village opens floor 100 --
-	# every building standing, every role filled, 10/10 morale, all Ten freed.
-	# A perfect village is what Orin has been farming all game: he needs the
-	# peak to reap it.
-	if level >= 100 and not GameState.dev_mode:
-		var missing: Array = GameState.finale_gate_missing()
-		if not missing.is_empty():
-			var stack = get_tree().get_first_node_in_group("notification_stack")
-			if stack:
-				stack.show_notification("⛔ The gate of 100 stays sealed. It wants a PERFECT Deepwood — still missing: %s." % "; ".join(missing))
-			return
-		# THE SOFTLOCK GUARD (polish 2026-07-20): Orin is unkillable without
-		# the Soul Split Wand -- and the wand is a 0-damage "joke" item that
-		# any player tidying their bag would happily dump in a chest. Walk in
-		# without it and the fight is literally unwinnable, with nothing on
-		# screen explaining why. The Ten notice: Elenwe presses it back into
-		# your hand at the door.
-		var pl = get_tree().get_first_node_in_group("player")
-		if pl != null and "inventory" in pl and pl.inventory != null \
-				and pl.inventory.get_count("wpn_soulsplit") == 0:
-			pl.inventory.add_item("wpn_soulsplit", 1)
-			var stack2 = get_tree().get_first_node_in_group("notification_stack")
-			if stack2:
-				stack2.show_notification("Elenwe presses the Soul Split Wand back into your hand: \"An undivided soul cannot be destroyed. You will need this.\"")
-			GameState.log_event("people", "Elenwe returned the Soul Split Wand before the descent to 100.")
+	# THE NEW FINALE (canon rework 2026-07-20): floor 100 opens like any other
+	# floor once 99 is cleared -- and stands EMPTY. The old perfect-village
+	# gate is gone; the peak is now created dramatically (the false victory ->
+	# the feast), and the wand guard lives at the feast (harvest_director),
+	# the moment it is about to matter.
+	# One door stays shut: nobody descends mid-Harvest. You cannot run from this.
+	if GameState.harvest_at_home:
+		var stack = get_tree().get_first_node_in_group("notification_stack")
+		if stack:
+			stack.show_notification("⛔ The village is TURNING behind you. There is nothing below anymore — the fight is HERE.")
+		return
 	close()
 	var player = get_tree().get_first_node_in_group("player")
 	if not player:

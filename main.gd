@@ -233,6 +233,13 @@ func _ready() -> void:
 	# coming home is the other milestone worth banking (autosave); deferred
 	# so the arriving player's state is fully restored before it's written
 	call_deferred("_autosave_on_arrival")
+	# THE NEW FINALE: if the deep stood silent and everyone is home, the
+	# false victory is waiting to be spoken -- and Orin is waiting for it
+	call_deferred("_maybe_begin_feast")
+
+func _maybe_begin_feast() -> void:
+	if GameState.feast_ready():
+		add_child(preload("res://harvest_director.gd").new())
 	# the book notices the moment all seven lines hold at once
 	GameState.chronicle_check_complete()
 	if GameState.returning_from_dungeon:
@@ -454,7 +461,12 @@ func _on_arrival_raider_died() -> void:
 	GameState.log_event("combat", "Your first wave broke at the gate — you fought it beside Roland, Wren and Castor.")
 	var pl = get_tree().get_first_node_in_group("player")
 	if pl:
-		DialogueBox.play(pl, Story.ARRIVAL_TRAP)
+		# the full arrival chain (new canon): the trap named -> the ruin
+		# REVEALED as Deepwood itself (the 180-degree reality check) -> the
+		# oath the whole game executes, sworn aloud once
+		DialogueBox.play(pl, Story.ARRIVAL_TRAP, func():
+			DialogueBox.play(pl, Story.DEEPWOOD_REVEAL, func():
+				DialogueBox.play(pl, Story.THE_OATH)))
 
 # NG+ arrival: one line the moment the rewound player wakes, then the world
 # treats them like any first arrival. Transient flag -- never saved, so a

@@ -525,16 +525,13 @@ Status: ✅ ALL TEN BUILT (vaults on canon floors, boons live at real hooks). Re
 
 *This section replaces every earlier ending draft, including STORY.md's "the village corners Orin" climax. The developer's decision: the Harvest happens — and the Shadow Army answers it.*
 
-### 9.1 The gate — Level 100 stays locked until:
-1. **100% of all buildings** repaired,
-2. **every role slot in the village filled** (full employment),
-3. **10/10 morale**, and
-4. **all Ten rescued** (§8).
+### 9.1 The trigger — the empty throne and the feast ✅ REBUILT (canon rework 2026-07-20, dev decision)
+*The old perfect-village checklist gate is gone.* Floor 100 opens like any floor once 99 is cleared — **and stands EMPTY.** No horde, no throne-guard; the player searches the silent hall and carries the only possible conclusion home: *the evil is finished.*
 
-Only a *perfect* village opens the final floor — because a perfect village is what Orin has been patiently farming all game. The gate is why the Harvest is total: **he needs the peak to reap it.**
+The **false victory** is the trigger, and it is Orin's final move of theater: the village erupts, tables drag into the square, and hope hits its true peak — **the feast fires only when the deep is truly empty: floors cleared AND all Ten home** (nobody celebrates while their brother still hangs below — and this guarantees the Soul Split Wand, gifted on the tenth rescue, is in hand; Elenwe returns it at the reveal if it was ever set down). The peak is no longer demanded by a menu — **Orin engineers it, because the higher the hope, the harder the fall.**
 
-### 9.2 The shiver (at the gate)
-Every enemy in the dungeon stops fighting *you* and turns to kneel before Orin — the horde re-forms as *his* army, the mask falls: the beloved defender is the Monarch of Despair. And in that instant your sealed memory *flashes* — not facts, a feeling: *you have faced this power before. You have lost to it before.* A short exchange passes — quiet, almost courteous, two monarchs recognizing each other at last. Ilo, if he stands near, whispers the old name he could never finish singing. *(✅ the L100 reveal dialogue is wired via `Story.L100_REVEAL`; it will need updating to this fuller sequence.)*
+### 9.2 The reveal — at the feast ✅ built (`Story.REVEAL_AT_FEAST`, harvest_director.gd)
+Lightning kills the lanterns at the height of the joy. Orin, the only figure still smiling, names himself — the Monarch of Despair, the harvest, the whole patient theater. Your bond *flashes* — not facts, a feeling: *you have faced this power before. You have lost to it before.* A short exchange passes — quiet, almost courteous, two monarchs recognizing each other at last. And around you, the people of Deepwood **kneel to him as their hope dies** — and begin to turn. **The Harvest is fought in the village: through your own streets, past your own buildings.** (Mid-Harvest, the dungeon refuses entry — you cannot run from this.)
 
 ### 9.3 The turn — the Harvest ✅ built
 This was never just harvest — it's theater, staged for an audience of one. Orin wanted you to build it *so it would hurt.* And the weapon is not brute force — **it is the truth.** In one instant the village learns that the hero who bled for them every night IS the thing that took their families; the story that kept them standing collapses, and Orin's magic rides that collapse, driving every heart's hope to **0 at once** — the Law of Despair (§2.2) executed on a whole town in a single breath. Everyone — farmers you fed, children you raised, soldiers you trained — becomes hopeless, falls into despair, and transforms into strong, level-100-tier evil that attacks you. **No survivors, no loyal holdouts... except the Ten**, whose hope not even this can kill. They stand with you — ten lights in a town gone dark.

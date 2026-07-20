@@ -130,10 +130,13 @@ func _ready() -> void:
 		gs_src.contains('FOOD_STARVE_HP_DRAIN_PER_HOUR * (0.5 if ten_freed("ten_seraphel")'))
 	# Ilo: his line leads the L100 reveal
 	var di_src := FileAccess.open("res://dungeon_interior.gd", FileAccess.READ).get_as_text()
-	check("Ilo: at the gate of 100 he names what stirs", di_src.contains("ten_ilo") and di_src.contains("Thrones do not stay empty"))
+	check("Ilo: at the empty throne, he alone hears the song is not over",
+		di_src.contains("ten_ilo") and di_src.contains("Silence is not the same as an ending"))
 	# the gate itself is enforced at the door -- now the FULL 9.1 gate
 	var ls_src := FileAccess.open("res://level_select_ui.gd", FileAccess.READ).get_as_text()
-	check("the finale gate is enforced at level select", ls_src.contains("finale_gate_missing"))
+	check("the old perfect-village gate is GONE (the feast is the trigger now)",
+		not ls_src.contains("finale_gate_missing")
+		and ls_src.contains("GameState.harvest_at_home"))
 	# and the gate demands all four conditions of the canon
 	var missing: Array = GameState.finale_gate_missing()
 	check("the gate reports what a non-perfect village still lacks", missing.size() >= 1,
