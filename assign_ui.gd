@@ -136,7 +136,9 @@ func _on_repair() -> void:
 	refresh()
 
 # Level + upgrade control. Upgrading grows the building, adds worker slots, and
-# boosts its output. Flat 1 gold for now (test values).
+# boosts its output. The price squares with the level (30g for the first rung
+# up to 750g for the last -- see building.upgrade_cost), so which building you
+# grow, and when, is a real decision rather than a formality.
 func add_upgrade_section(list: VBoxContainer) -> void:
 	var b = current_building
 	var header = Label.new()
