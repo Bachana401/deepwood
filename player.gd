@@ -2104,11 +2104,13 @@ func drop_currency_on_death() -> void:
 # death. Both hooks are stubs until the villager/skill-material systems
 # exist -- this just guarantees they fire correctly once they do.
 func apply_difficulty_death_penalty() -> void:
+	# the cost is NAMED (see report_death_toll) -- a silent permanent loss
+	# is the cruellest way to teach a rule
 	match GameState.difficulty:
 		"Medium":
-			GameState.remove_random_villager()
+			GameState.report_death_toll("Medium")
 		"Hard":
-			GameState.remove_random_villager()
+			GameState.report_death_toll("Hard")
 			GameState.remove_one_skill_material()
 
 func update_currency_display() -> void:

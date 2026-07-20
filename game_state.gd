@@ -3748,8 +3748,37 @@ func remove_villager_by_id(villager_id: String) -> void:
 func remove_random_villager() -> void:
 	if rescued_villagers.is_empty():
 		return
-	var removed = rescued_villagers[randi() % rescued_villagers.size()]
+	# 5.8: the Ten cannot be taken by anything -- not despair, not your death
+	var takeable := []
+	for v in rescued_villagers:
+		if not v.get("unbreakable", false):
+			takeable.append(v)
+	if takeable.is_empty():
+		return
+	var removed = takeable[randi() % takeable.size()]
 	remove_villager_by_id(removed.get("id"))
+
+# THE DEATH TOLL (polish 2026-07-20): on Medium a death costs a villager
+# and on Hard a skill material too -- the harshest mechanic in the game,
+# and it happened in complete SILENCE. The player respawned, and hours
+# later noticed someone missing with no idea their own death had done it.
+# Name the cost, out loud, at the moment it is paid.
+func report_death_toll(difficulty_name: String) -> void:
+	if rescued_villagers.is_empty():
+		return
+	var takeable := []
+	for v in rescued_villagers:
+		if not v.get("unbreakable", false):
+			takeable.append(v)
+	if takeable.is_empty():
+		return
+	var doomed: Dictionary = takeable[randi() % takeable.size()]
+	var who := str(doomed.get("name", "Someone"))
+	remove_villager_by_id(str(doomed.get("id", "")))
+	log_event("people", "%s was lost while you lay dying in the deep." % who)
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if stack:
+		stack.show_notification("💀 Your death cost Deepwood a life: %s is gone. (%s difficulty)" % [who, difficulty_name])
 
 # Hard's extra sting on death: you lose a unit of a skill-crafting material.
 # Skill nodes are paid for in these (see unlock_skill), so dying on Hard sets
