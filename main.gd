@@ -334,7 +334,7 @@ func spawn_existing_villager_avatars() -> void:
 func orin_midgame_taunt() -> void:
 	if GameState.seen_orin_taunt or not GameState.orin_arrived() or GameState.dev_mode:
 		return
-	if GameState.deepest_level_reached < 40:
+	if GameState.highest_unlocked_level < 40:
 		return
 	GameState.seen_orin_taunt = true
 	var stack = get_tree().get_first_node_in_group("notification_stack")

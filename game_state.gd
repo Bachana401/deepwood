@@ -759,7 +759,9 @@ var building_stage: Dictionary = {}
 const BLACKSMITH_UNLOCK_DEPTH = 35
 
 func blacksmith_unlocked() -> bool:
-	return deepest_level_reached >= BLACKSMITH_UNLOCK_DEPTH
+	# Gated on THIS run's progression, not the lifetime record -- a veteran
+	# starting over earns the Forge again like everyone else.
+	return highest_unlocked_level >= BLACKSMITH_UNLOCK_DEPTH
 
 func building_build_stage(name: String) -> int:
 	return int(building_stage.get(name, 0))
@@ -938,7 +940,9 @@ var seen_kneel_echo := false
 var seen_orin_taunt := false
 
 func orin_arrived() -> bool:
-	return dev_mode or deepest_level_reached >= ORIN_ARRIVAL_DEPTH
+	# Per-run: in a fresh world Orin has not "walked back out" yet, no matter
+	# how deep some earlier life of this install once went.
+	return dev_mode or highest_unlocked_level >= ORIN_ARRIVAL_DEPTH
 
 func village_defense_power() -> float:
 	# no Orin, no meteors: until he walks out of the dungeon the village's
@@ -2212,6 +2216,24 @@ func reset_for_new_game() -> void:
 	barracks_arms = 0
 	seen_intro = false
 	seen_l100_reveal = false
+	# Every per-run story one-shot must rewind with the world, or a second
+	# playthrough plays mute: Orin never introduces himself, the Doctor never
+	# tells her account, the plants never plant.
+	seen_orin_arrival = false
+	seen_doctor_account = false
+	seen_failed_escape = false
+	seen_orin_glimpse = false
+	seen_kneel_echo = false
+	seen_orin_taunt = false
+	# The Ten wait in their cages again, and the Harvest has not happened --
+	# without these a second run starts with every boon active, no vaults to
+	# find, and a finale that begin_harvest() refuses to start.
+	the_ten = {}
+	ensure_the_ten()
+	harvest_done = false
+	harvested_villagers = []
+	maera_stabilized_this_siege = false
+	_deep_catch_accum = 0.0
 	morale_admin_offset = 0
 	if TEST_POPULATE_VILLAGE:
 		test_populate_village()

@@ -85,6 +85,26 @@ func _ready() -> void:
 	check("fighting_adventurers still excludes the dead after the trip",
 		not "adv_castor" in GameState.fighting_adventurers())
 
+	# ---- a New Game must be a NEW game ----
+	# The state is still maximally dirty from the round trip: freed legends,
+	# a finished harvest, spent story beats. One reset must rewind all of it
+	# (the static tool_reset_audit names missing keys; this proves the values).
+	GameState.the_ten["ten_brannoc"] = {"freed": true}
+	GameState.harvest_done = true
+	GameState.harvested_villagers = [{"name": "Ghost"}]
+	GameState.seen_orin_arrival = true
+	GameState.seen_kneel_echo = true
+	GameState.reset_for_new_game()
+	check("new game re-cages the Ten", GameState.count_ten_freed() == 0)
+	check("new game un-happens the Harvest",
+		not GameState.harvest_done and GameState.harvested_villagers.is_empty())
+	check("new game rewinds the story one-shots",
+		not GameState.seen_orin_arrival and not GameState.seen_kneel_echo)
+	check("new game: Orin has not yet walked out of the dungeon",
+		not GameState.orin_arrived())
+	check("new game: the Forge is locked again",
+		not GameState.blacksmith_unlocked())
+
 	# ---- restore the dev's real save, no matter what ----
 	if had_save:
 		var w := FileAccess.open(GameState.SAVE_PATH, FileAccess.WRITE)

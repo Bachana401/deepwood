@@ -80,7 +80,7 @@ func add_repair_section(list: VBoxContainer) -> void:
 		lock.add_theme_color_override("font_color", Color(0.95, 0.5, 0.45, 1))
 		lock.autowrap_mode = TextServer.AUTOWRAP_WORD
 		lock.custom_minimum_size = Vector2(300, 0)
-		lock.text = "  🔒 The Forge can only be raised once you've braved the deep — reach dungeon Lv %d (deepest so far: %d)." % [GameState.BLACKSMITH_UNLOCK_DEPTH, GameState.deepest_level_reached]
+		lock.text = "  🔒 The Forge can only be raised once you've braved the deep — clear your way to dungeon Lv %d (open to you now: Lv %d)." % [GameState.BLACKSMITH_UNLOCK_DEPTH, GameState.highest_unlocked_level]
 		list.add_child(lock)
 
 	var btn = Button.new()

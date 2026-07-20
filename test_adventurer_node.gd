@@ -462,17 +462,24 @@ func _ready() -> void:
 		GameState.get("seen_orin_glimpse") != null)
 
 	# ---------------- Orin's entrance (GAME_BIBLE 2.5.1) ----------------
-	var saved_depth: int = GameState.deepest_level_reached
+	# Gated on THIS run's carving (highest_unlocked_level), not the lifetime
+	# depth record -- otherwise Orin is "home" at hour zero of a second life.
+	var saved_depth: int = GameState.highest_unlocked_level
 	var saved_dev: bool = GameState.dev_mode
 	GameState.dev_mode = false
-	GameState.deepest_level_reached = 3
+	GameState.highest_unlocked_level = 3
 	check("Orin is ABSENT before floor 15 (a rumour, not a resident)", not GameState.orin_arrived())
 	var shallow_def: float = GameState.village_defense_power()
-	GameState.deepest_level_reached = 15
+	GameState.highest_unlocked_level = 15
 	check("carving to floor 15 brings him home", GameState.orin_arrived())
 	check("his meteors only defend a village he's actually in",
 		GameState.village_defense_power() > shallow_def)
-	GameState.deepest_level_reached = saved_depth
+	check("a fresh world does not inherit his arrival from a past life",
+		not (func():
+			GameState.highest_unlocked_level = 15
+			GameState.reset_for_new_game()
+			return GameState.orin_arrived()).call())
+	GameState.highest_unlocked_level = saved_depth
 	GameState.dev_mode = saved_dev
 	var wiz_src := FileAccess.open("res://wizard.gd", FileAccess.READ)
 	var wtxt := wiz_src.get_as_text() if wiz_src != null else ""

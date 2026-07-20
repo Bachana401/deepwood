@@ -338,7 +338,7 @@ func die() -> void:
 	# turns and BOWS -- not to you, to the horizon, the way the whole horde
 	# will kneel at the gate of 100. No notification, no fanfare: blink and
 	# you miss it, remember it forever at the reveal.
-	if faction == "raider" and not GameState.seen_kneel_echo and GameState.deepest_level_reached >= 35:
+	if faction == "raider" and not GameState.seen_kneel_echo and GameState.highest_unlocked_level >= 35:
 		GameState.seen_kneel_echo = true
 		if body:
 			var t = body.create_tween()
