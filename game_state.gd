@@ -830,6 +830,11 @@ var pregnancies: Dictionary = {}
 # first, only things worth surfacing. It reads like the town wrote it.
 const LOG_MAX_ENTRIES := 120
 var village_log: Array = []   # {"day", "hour", "cat", "text"}, newest first
+# Entries written while the player could NOT see the village (the fog).
+# The homecoming reports the count -- otherwise a player returns from a
+# delve with no idea anything happened and never thinks to press L.
+# With Telepathy nothing accumulates: you watched it all live.
+var log_unread := 0
 
 func log_event(cat: String, text: String) -> void:
 	village_log.push_front({
@@ -837,6 +842,8 @@ func log_event(cat: String, text: String) -> void:
 		"hour": int(game_hours) % 24,
 		"cat": cat, "text": text,
 	})
+	if not village_info_available():
+		log_unread += 1
 	if village_log.size() > LOG_MAX_ENTRIES:
 		village_log.resize(LOG_MAX_ENTRIES)
 
@@ -3250,6 +3257,7 @@ func reset_for_new_game() -> void:
 	extra_cottages = 0
 	_family_cycle_accum = 0.0
 	village_log = []
+	log_unread = 0
 	wage_accum_hours = 0.0
 	villager_rot = {}
 	wanderer = {}
@@ -3383,6 +3391,7 @@ func save_game(player: Node) -> void:
 		"cottage_homes": cottage_homes,
 		"extra_cottages": extra_cottages,
 		"village_log": village_log,
+		"log_unread": log_unread,
 		"wage_accum_hours": wage_accum_hours,
 		"villager_rot": villager_rot,
 		"wanderer": wanderer,
@@ -3473,6 +3482,7 @@ func load_game() -> Dictionary:
 		extra_cottages = int(parsed.get("extra_cottages", 0))
 		if parsed.has("village_log") and parsed["village_log"] is Array:
 			village_log = parsed["village_log"]
+		log_unread = int(parsed.get("log_unread", 0))
 		wage_accum_hours = float(parsed.get("wage_accum_hours", 0.0))
 		villager_rot = {}
 		if parsed.has("villager_rot") and parsed["villager_rot"] is Dictionary:

@@ -81,6 +81,7 @@ func toggle() -> void:
 		return
 	panel.visible = not panel.visible
 	if panel.visible:
+		GameState.log_unread = 0   # read is read
 		refresh()
 
 func _on_filter(f: String) -> void:

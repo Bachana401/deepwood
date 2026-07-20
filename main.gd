@@ -246,10 +246,18 @@ func _ready() -> void:
 # dungeon (see GameState.resolve_siege_offline) and clears the tally.
 func show_away_report() -> void:
 	var report = GameState.consume_away_report()
-	if report.sieges <= 0:
-		return
 	var stack = get_tree().get_first_node_in_group("notification_stack")
 	if not stack:
+		return
+	# THE HOMECOMING (the fog's other half): the village lived without you
+	# and you saw NONE of it. Say how much happened and point at the diary
+	# -- otherwise a returning player never thinks to press L. (With
+	# Telepathy nothing accumulates: you watched it all as it happened.)
+	if GameState.log_unread > 0:
+		stack.show_notification("📖 While you were away, %d thing%s happened in Deepwood — press L to read the diary." % [
+			GameState.log_unread, "" if GameState.log_unread == 1 else "s"])
+		GameState.log_unread = 0
+	if report.sieges <= 0:
 		return
 	stack.show_notification("While you were away: %d siege%s -- %d repelled." % [report.sieges, "" if report.sieges == 1 else "s", report.repelled])
 	if report.villagers_lost > 0:

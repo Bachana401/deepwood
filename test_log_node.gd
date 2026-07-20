@@ -77,6 +77,40 @@ func _ready() -> void:
 			found_log_ui = true
 	check("the log UI is alive in the running scene", found_log_ui)
 
+	# ---- THE HOMECOMING: unseen entries are COUNTED and pointed at ----
+	var saved_unread: int = GameState.log_unread
+	var saved_dungeon2: bool = GameState.in_dungeon
+	var saved_skills2 = GameState.unlocked_skills.duplicate(true)
+	var log_p = get_tree().get_first_node_in_group("player")
+	var saved_pos2: Vector2 = log_p.global_position
+	GameState.unlocked_skills = []
+	GameState.log_unread = 0
+	GameState.in_dungeon = true               # the fog is down
+	GameState.log_event("people", "something happened while away")
+	check("what you cannot see is counted as unread", GameState.log_unread == 1)
+	# NB the world spawn sits ~5000px WEST of the village, so "not in the
+	# dungeon" is not the same as "at home" -- stand in the village itself
+	GameState.in_dungeon = false
+	log_p.global_position = Vector2(5000.0, -100.0)
+	GameState.log_event("people", "something you witnessed")
+	check("what you witness at home is NOT unread", GameState.log_unread == 1)
+	GameState.unlocked_skills = ["mg_t1"]     # Telepathy
+	GameState.in_dungeon = true
+	log_p.global_position = saved_pos2
+	GameState.log_event("people", "watched live by telepathy")
+	check("with Telepathy nothing accumulates -- you saw it all live",
+		GameState.log_unread == 1)
+	check("the homecoming points at the diary",
+		FileAccess.open("res://main.gd", FileAccess.READ).get_as_text().contains("press L to read the diary"))
+	check("opening the diary marks it read",
+		FileAccess.open("res://village_log_ui.gd", FileAccess.READ).get_as_text().contains("log_unread = 0"))
+	check("the unread count survives the save",
+		gs.contains('"log_unread": log_unread'))
+	GameState.unlocked_skills = saved_skills2
+	GameState.in_dungeon = saved_dungeon2
+	GameState.log_unread = saved_unread
+	log_p.global_position = saved_pos2
+
 	GameState.village_log = saved_log
 	GameState.game_hours = saved_hours
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
