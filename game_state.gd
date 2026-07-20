@@ -1891,6 +1891,43 @@ func remove_npc_avatar(villager_id: String) -> void:
 # finale gate (§9.1): floor 100 will not open while any still hangs.
 var the_ten: Dictionary = {}
 
+# --- THE FINALE GATE (GAME_BIBLE 9.1) ---
+# Level 100 opens only to a PERFECT village -- because a perfect village is
+# what Orin has been patiently farming all game. He needs the peak to reap it.
+# Four conditions; unmet ones are listed at the door so the player always knows
+# what the gate still wants.
+func finale_gate_missing() -> Array:
+	var missing := []
+	var ruined := 0
+	for b in STARTING_BUILDINGS:
+		if not is_building_operational(b):
+			ruined += 1
+	if ruined > 0:
+		missing.append("%d building%s still in ruins" % [ruined, "" if ruined == 1 else "s"])
+	# full employment: every base role slot of every working building staffed
+	var empty_slots := 0
+	for b in STARTING_BUILDINGS:
+		if not is_building_operational(b):
+			continue
+		for rd in BuildingRoles.get_roles(b):
+			if rd.get("is_enrollment", false):
+				continue
+			var holders := 0
+			for v in rescued_villagers:
+				if str(v.get("role_key", "")) == b and str(v.get("role_title", "")) == str(rd.get("title", "")):
+					holders += 1
+			empty_slots += maxi(0, int(rd.get("slots", 0)) - holders)
+	if empty_slots > 0:
+		missing.append("%d role slot%s stand empty" % [empty_slots, "" if empty_slots == 1 else "s"])
+	if village_morale() < 100:
+		missing.append("the village is not at perfect morale (%.1f / 10)" % village_morale_10())
+	if not all_ten_freed():
+		missing.append("%d of the Ten still hang in Orin's vaults" % (10 - count_ten_freed()))
+	return missing
+
+func finale_gate_open() -> bool:
+	return finale_gate_missing().is_empty()
+
 func ensure_the_ten() -> void:
 	for id in TheTen.ids():
 		if not the_ten.has(id):

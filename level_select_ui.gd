@@ -53,15 +53,17 @@ func close() -> void:
 func _on_level_selected(level: int) -> void:
 	if level > GameState.highest_unlocked_level:
 		return
-	# THE FINALE GATE (GAME_BIBLE 9.1): the door to floor 100 does not open
-	# while any of the Ten still hangs in Orin's vaults. They are the ones who
-	# stand with you when the Harvest comes -- go without them and there is no
-	# ending to have.
-	if level >= 100 and not GameState.all_ten_freed() and not GameState.dev_mode:
-		var stack = get_tree().get_first_node_in_group("notification_stack")
-		if stack:
-			stack.show_notification("⛔ The gate of 100 stays sealed — %d of the Ten still hang in Orin's trophy vaults. Free them ALL: they are the ones who will stand with you." % (10 - GameState.count_ten_freed()))
-		return
+	# THE FINALE GATE (GAME_BIBLE 9.1): only a PERFECT village opens floor 100 --
+	# every building standing, every role filled, 10/10 morale, all Ten freed.
+	# A perfect village is what Orin has been farming all game: he needs the
+	# peak to reap it.
+	if level >= 100 and not GameState.dev_mode:
+		var missing: Array = GameState.finale_gate_missing()
+		if not missing.is_empty():
+			var stack = get_tree().get_first_node_in_group("notification_stack")
+			if stack:
+				stack.show_notification("⛔ The gate of 100 stays sealed. It wants a PERFECT Deepwood — still missing: %s." % "; ".join(missing))
+			return
 	close()
 	var player = get_tree().get_first_node_in_group("player")
 	if not player:
