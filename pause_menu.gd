@@ -83,13 +83,28 @@ var chron_panel: Panel = null
 var chron_rows: VBoxContainer = null
 
 func _build_chronicle() -> void:
+	# How to Play rides beside the Chronicle: the game grew deep, and toasts
+	# alone can't teach fog, watches, wages, rot and rifts
+	var help := Button.new()
+	help.name = "HowToPlayButton"
+	help.text = "How to Play"
+	help.custom_minimum_size = Vector2(0, 36)
+	var vbox0 = $Panel/VBox
+	vbox0.add_child(help)
+	vbox0.move_child(help, $Panel/VBox/SettingsButton.get_index() + 1)
+	help.pressed.connect(func():
+		var page = get_tree().get_first_node_in_group("how_to_play")
+		if page == null:
+			page = preload("res://how_to_play.gd").new()
+			get_tree().root.add_child(page)
+		page.open_page())
 	var btn := Button.new()
 	btn.name = "ChronicleButton"
 	btn.text = "Chronicle"
 	btn.custom_minimum_size = Vector2(0, 36)
 	var vbox = $Panel/VBox
 	vbox.add_child(btn)
-	vbox.move_child(btn, $Panel/VBox/SettingsButton.get_index() + 1)
+	vbox.move_child(btn, $Panel/VBox/SettingsButton.get_index() + 2)
 	btn.pressed.connect(_on_toggle_chronicle)
 	chron_panel = Panel.new()
 	chron_panel.name = "ChroniclePanel"

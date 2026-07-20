@@ -145,5 +145,16 @@ func _ready() -> void:
 	check("mortals still need the skill", not p.has_portal_skill())
 	GameState.unlocked_skills = g_saved_skills
 
+	# ---- How to Play: the deep game, taught ----
+	var htp := FileAccess.open("res://how_to_play.gd", FileAccess.READ).get_as_text()
+	check("How to Play exists, teaches the laws, and closes like any window",
+		htp.contains("Distance is ignorance") and htp.contains("Hope is the resource")
+		and htp.contains("esc_window") and htp.contains("func esc_close"))
+	check("...and the pause menu carries it in both scenes",
+		FileAccess.open("res://pause_menu.gd", FileAccess.READ).get_as_text().contains("HowToPlayButton"))
+	check("...its keys are the REAL bindings (Z rifts, L log, H hands-on, P console)",
+		htp.contains("[\"Z\",") == false and htp.contains("Riftweaving") and htp.contains("VILLAGE LOG")
+		and htp.contains("hands-on key"))
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)
