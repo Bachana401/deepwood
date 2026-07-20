@@ -133,6 +133,15 @@ func _ready() -> void:
 		after > before and after - before <= GameState.MORALE_DRIFT_PER_HOUR + 0.01,
 		"%f -> %f" % [before, after])
 
+	# ---- alignment (5.7): every building's staffing is load-bearing ----
+	var gsrc2 := FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text()
+	check("a staffed Builder crew rebuilds WITHOUT a leader (half pace)",
+		gsrc2.contains('count_workers("Builderhouse") > 0') and gsrc2.contains("_builder_half_tick"))
+	check("the Dock's premium food lifts every spirit (slack, never gate-required)",
+		gsrc2.contains('count_workers("Fishing Dock") > 0'))
+	check("the Lab's service is the SCHOLAR, not the bench",
+		FileAccess.open("res://assign_ui.gd", FileAccess.READ).get_as_text().contains("The bench sits cold"))
+
 	# ---- the meter still speaks the old contract ----
 	GameState.morale_admin_offset = -20
 	check("the admin nudge still lands on the meter",

@@ -193,8 +193,14 @@ func add_research_section(list: VBoxContainer) -> void:
 		list.add_child(none_label)
 
 func _on_research(item_id: String) -> void:
-	GameState.researched_materials.append(item_id)
+	# Grammar (5.1): the Lab's SERVICE is the scholar, not the bench -- an
+	# empty lab identifies nothing (leaders auto-research on their own tick)
 	var notif = get_tree().get_first_node_in_group("notification_stack")
+	if GameState.count_workers("Science Lab") == 0 and GameState.seated_leaders("Science Lab") == 0:
+		if notif:
+			notif.show_notification("The bench sits cold — staff a Scientist at the Lab to identify materials.")
+		return
+	GameState.researched_materials.append(item_id)
 	if notif:
 		notif.show_notification("Research complete: it's " + Inventory.ITEM_DEFS[item_id].name + "! Usable in the skill tree now.")
 	refresh()

@@ -1540,6 +1540,10 @@ func personal_morale_target(v: Dictionary) -> float:
 				t -= WIDOW_MORALE_HIT * (mourn_left / WIDOW_MOURN_HOURS)
 	t += 1.4 if is_building_operational("Blacksmith") else 0.0   # an armed town sleeps better
 	t += 1.0 if is_building_operational("Bar") else 0.0          # somewhere to laugh
+	# the Dock's PREMIUM food (5.7): fish on the table lifts every spirit --
+	# the quality-food edge, slack on top like the boons (never gate-required)
+	if has_food() and is_building_operational("Fishing Dock") and count_workers("Fishing Dock") > 0:
+		t += 0.3
 	t += 0.4 * clampf(float(rescued_villagers.size()) / MORALE_POP_TARGET, 0.0, 1.0)
 	t += (LEADER_MORALE_EACH / 10.0) * (seated_leaders("Tavern") + seated_leaders("Bar"))
 	# Ilo, the Nameless Bard (the Ten): his songs lift the whole village
@@ -2368,8 +2372,14 @@ func apply_leadership_automation() -> void:
 		auto_heal_villagers(physicians)             # Chief Physician: heal the hurt
 	if seated_leaders("School") > 0:
 		auto_enroll_children(seated_leaders("School"))  # Principal: school the kids
+	# Grammar (5.1): a staffed Worker crew rebuilds on its own -- delegated,
+	# at half the leaders' pace; Master Builder/Foreman run it every tick
 	if seated_leaders("Builderhouse") > 0:
-		auto_repair_one()                           # Builders: rebuild the ruins
+		auto_repair_one()                           # leaders: rebuild the ruins
+	elif count_workers("Builderhouse") > 0:
+		_builder_half_tick = not _builder_half_tick
+		if _builder_half_tick:
+			auto_repair_one()                       # the crew alone: slower, but real
 	if forgemaster_supplying() and barracks_arms < BARRACKS_ARMS_CAP:
 		barracks_arms = min(BARRACKS_ARMS_CAP, barracks_arms + FORGE_ARMS_PER_TICK)  # Forgemaster: arm the barracks
 
@@ -2446,6 +2456,8 @@ func auto_enroll_children(principals: int) -> void:
 
 # Builderhouse: advance the single most-ruined building one construction stage
 # each tick, for free -- the crew slowly rebuilds Deepwood on its own.
+var _builder_half_tick := false
+
 func auto_repair_one() -> void:
 	var worst := ""
 	var worst_stage := TOTAL_BUILD_STAGES
