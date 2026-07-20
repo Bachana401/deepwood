@@ -542,5 +542,48 @@ func _ready() -> void:
 	GameState.game_hours = saved_hours2
 	GameState.rescued_villagers = saved_roster2
 
+	# ---------------- the Watchtower (GAME_BIBLE 7.1) ----------------
+	var saved_tier: int = GameState.watchtower_tier
+	var saved_dev2: bool = GameState.dev_mode
+	var saved_siege_hours: float = GameState.hours_until_next_siege
+	var saved_log2: Array = GameState.village_log
+	GameState.village_log = []
+	GameState.dev_mode = false
+	GameState.watchtower_tier = 0
+	check("Act I is TRUE CHAOS: no clock without a tower",
+		not GameState.siege_clock_visible())
+	GameState.watchtower_tier = 1
+	check("tier 1 makes the siege clock readable",
+		GameState.siege_clock_visible())
+	check("the warning ladder is canon-locked: none, 1h, 2h, 24h",
+		GameState.WATCHTOWER_WARNING_HOURS == [0.0, 1.0, 2.0, 24.0])
+	GameState.hours_until_next_siege = 0.5
+	GameState._tower_bell_armed = true
+	GameState.tick_watchtower_warning()
+	var rang := false
+	for e3 in GameState.village_log:
+		if str(e3.get("text", "")).contains("Watchtower rang"):
+			rang = true
+	check("the bell tolls inside the warning window", rang)
+	var log_n: int = GameState.village_log.size()
+	GameState.tick_watchtower_warning()
+	check("...and tolls ONCE per siege, not every tick",
+		GameState.village_log.size() == log_n)
+	var sm2 := FileAccess.open("res://siege_manager.gd", FileAccess.READ).get_as_text()
+	check("the banner keeps its own counsel at tier 0",
+		sm2.contains("keeps its own counsel"))
+	check("the pre-descent warning cannot name hours it cannot know",
+		FileAccess.open("res://level_select_ui.gd", FileAccess.READ).get_as_text().contains("cannot know when"))
+	check("the tower stands as a paid, growing structure",
+		ResourceLoader.exists("res://watchtower.gd")
+		and FileAccess.open("res://watchtower.gd", FileAccess.READ).get_as_text().contains("remove_item")
+		and FileAccess.open("res://main.gd", FileAccess.READ).get_as_text().contains("watchtower.gd"))
+	check("the tower's tier survives the save",
+		FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text().contains('"watchtower_tier": watchtower_tier'))
+	GameState.watchtower_tier = saved_tier
+	GameState.dev_mode = saved_dev2
+	GameState.hours_until_next_siege = saved_siege_hours
+	GameState.village_log = saved_log2
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

@@ -34,9 +34,15 @@ func warn_if_village_exposed() -> void:
 	var stack = get_tree().get_first_node_in_group("notification_stack")
 	if stack == null:
 		return
-	var hours: float = GameState.hours_until_next_siege
 	var tier: int = GameState.current_siege_tier()
 	var defense: float = GameState.village_defense_power()
+	# 7.1: without the Watchtower the WHEN is unknowable -- the warning can
+	# only speak to whether the village would hold, not to any clock
+	if not GameState.siege_clock_visible():
+		if defense < float(tier):
+			stack.show_notification("⚠ The village stands exposed — and without a Watchtower, you cannot know when the next wave comes. Every loss while you're away is forever.")
+		return
+	var hours: float = GameState.hours_until_next_siege
 	if defense < float(tier):
 		stack.show_notification("⚠ A tier-%d siege lands in ~%dh — defense %.1f will NOT hold. Every loss while you're away is forever." % [tier, int(ceil(hours)), defense])
 	elif hours < 6.0:

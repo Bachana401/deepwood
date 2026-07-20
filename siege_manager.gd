@@ -221,5 +221,9 @@ func update_label() -> void:
 		label.text = "☾ The nights are quiet — Despair is dead. Deepwood is yours."
 	elif GameState.live_siege_active:
 		label.text = "⚔ SIEGE  -  %d attacker%s left" % [alive_count, "" if alive_count == 1 else "s"]
+	elif not GameState.siege_clock_visible():
+		# 7.1: Act I is TRUE CHAOS -- until the Watchtower stands there is no
+		# indicator at all. You cannot plan; you can only stay ready.
+		label.text = "The night keeps its own counsel. (Raise the Watchtower to read it.)"
 	else:
-		label.text = "Next siege in %.0fh  (tier %d)" % [max(GameState.hours_until_next_siege, 0.0), GameState.current_siege_tier()]
+		label.text = "🗼 Next siege in %.0fh  (tier %d)" % [max(GameState.hours_until_next_siege, 0.0), GameState.current_siege_tier()]

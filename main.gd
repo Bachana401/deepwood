@@ -333,6 +333,11 @@ func generate_houses() -> void:
 	var plot = preload("res://cottage_plot.gd").new()
 	plot.position = Vector2(start_x + (HOUSE_COUNT + GameState.extra_cottages) * HOUSE_SPACING, VILLAGE_Y)
 	$Village.add_child(plot)
+	# 7.1: the Watchtower's plot stands just inside the west gate -- the first
+	# thing a returning delver passes, asking to be raised
+	var tower = preload("res://watchtower.gd").new()
+	tower.position = Vector2(4800.0, VILLAGE_Y)
+	$Village.add_child(tower)
 	# 7.2: the EAST rampart -- the village is besieged from BOTH ends, and the
 	# cottage row's far end is the second gate. Placed past the last lot the
 	# plot can ever fill (cottage_plot caps at 15 raised), so homes never

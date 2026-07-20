@@ -1031,6 +1031,7 @@ func tick_village_clock() -> void:
 	tick_deep_catches(hours_passed)
 	tick_wages(hours_passed)
 	tick_wanderers(hours_passed)
+	tick_watchtower_warning()
 	if hours_passed > 0.0:
 		# grief heals with time -- the forgiving half of the death-shock system
 		morale_death_shock = maxf(0.0, morale_death_shock - hours_passed * DEATH_SHOCK_DECAY_PER_HOUR * (2.0 if ten_freed("ten_seraphel") else 1.0))
@@ -1968,6 +1969,40 @@ func generate_passive_income() -> void:
 	# a happy village is a taxable village (0.75x .. 1.25x)
 	total *= village_morale_multiplier()
 	player.add_currency(int(round(total)))
+
+# --- THE WATCHTOWER (GAME_BIBLE 7.1, decided 2026-07-20 delegated) ---
+# Foresight is EARNED. Act I is true chaos: no wave indicator exists at all.
+# A standalone structure (not roster -- it has no staff and no need) rises
+# in three paid tiers beside the west rampart; each tier buys a longer
+# warning, and tier 1 is what makes the siege clock VISIBLE at all.
+const WATCHTOWER_WARNING_HOURS = [0.0, 1.0, 2.0, 24.0]   # by tier
+const WATCHTOWER_COSTS = [
+	{"wood": 10, "stone": 8},          # tier 1: eyes on the road
+	{"iron_shard": 6, "wood": 8},      # tier 2: a bell and a brazier
+	{"ember_crystal": 2, "stone": 12}, # tier 3: the far-seeing flame
+]
+var watchtower_tier := 0
+var _tower_bell_armed := true          # transient: one toll per incoming siege
+
+func watchtower_warning_hours() -> float:
+	return WATCHTOWER_WARNING_HOURS[clampi(watchtower_tier, 0, 3)]
+
+# tier 0 = the night keeps its own counsel (dev sandbox sees everything)
+func siege_clock_visible() -> bool:
+	return dev_mode or watchtower_tier >= 1
+
+# The tower's bell: tolls ONCE per incoming siege, as early as the tier
+# allows. Called from the hourly tick.
+func tick_watchtower_warning() -> void:
+	if watchtower_tier < 1 or despair_dead or live_siege_active:
+		return
+	var lead := watchtower_warning_hours()
+	if hours_until_next_siege > lead:
+		_tower_bell_armed = true       # quiet road: re-arm for the next wave
+	elif _tower_bell_armed:
+		_tower_bell_armed = false
+		notify("🔔 The Watchtower bell — a tier-%d wave lands in ~%dh!" % [current_siege_tier(), int(ceil(hours_until_next_siege))])
+		log_event("combat", "The Watchtower rang: a wave is coming.")
 
 # --- THE WANDERER'S POST (GAME_BIBLE 5.6a) ---
 # The Marketplace makes no gold. It is the town's guest-stall: wandering
@@ -2916,6 +2951,8 @@ func reset_for_new_game() -> void:
 	wanderer = {}
 	wanderer_next_at_hours = 8.0
 	wanderers_seen = 0
+	watchtower_tier = 0
+	_tower_bell_armed = true
 	pregnancies = {}
 	school_enrollments = {}
 	highest_unlocked_level = 999 if TEST_UNLOCK_ALL_LEVELS else 1
@@ -3038,6 +3075,7 @@ func save_game(player: Node) -> void:
 		"wanderer": wanderer,
 		"wanderer_next_at_hours": wanderer_next_at_hours,
 		"wanderers_seen": wanderers_seen,
+		"watchtower_tier": watchtower_tier,
 		"pregnancies": pregnancies,
 		"school_enrollments": school_enrollments,
 		"highest_unlocked_level": highest_unlocked_level,
@@ -3126,6 +3164,7 @@ func load_game() -> Dictionary:
 		wanderer = parsed.get("wanderer", {}) if parsed.get("wanderer", {}) is Dictionary else {}
 		wanderer_next_at_hours = float(parsed.get("wanderer_next_at_hours", 8.0))
 		wanderers_seen = int(parsed.get("wanderers_seen", 0))
+		watchtower_tier = int(parsed.get("watchtower_tier", 0))
 		if parsed.has("pregnancies"):
 			pregnancies = parsed["pregnancies"]
 		if parsed.has("school_enrollments"):
