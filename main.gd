@@ -427,7 +427,7 @@ func begin_arrival_battle() -> void:
 	# stations on their own once the wave is dead.
 	var road_x := 520.0
 	_arrival_left = 4
-	GameState.arrival_battle_active = true   # nobody dies in the teaching wave
+	GameState.begin_arrival_shield()   # nobody dies in the teaching wave
 	for i in range(4):
 		var e = SIEGE_ENEMY_FOR_ARRIVAL.instantiate()
 		e.skin = "raider"

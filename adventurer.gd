@@ -404,7 +404,7 @@ func take_damage(amount: int) -> void:
 		return
 	# the arrival (2.4.1) is where the player LEARNS to fight, in company --
 	# nobody is allowed to die in the tutorial wave
-	if GameState.arrival_battle_active:
+	if GameState.arrival_shield_on():
 		return
 	var now := Time.get_ticks_msec() / 1000.0
 	# Shield Wall: Roland reads the blow and takes it on the boss -- one free

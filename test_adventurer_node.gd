@@ -200,7 +200,11 @@ func _ready() -> void:
 	for ab in abilities.keys():
 		check("ability '%s' is actually implemented" % ab, asrc.contains('"%s"' % ab))
 
-	# functional spot-checks on the ones that need no live raiders
+	# functional spot-checks on the ones that need no live raiders.
+	# NB the fresh boot may still be inside the ARRIVAL wave, where the corps
+	# is deliberately unkillable -- these checks are about real siege combat,
+	# so stand the shield down first.
+	GameState.arrival_battle_active = false
 	var hero_a = load("res://adventurer.gd").new()
 	hero_a.adventurer_id = "adv_roland"
 	get_tree().root.add_child(hero_a)

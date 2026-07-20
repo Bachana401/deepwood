@@ -1112,6 +1112,23 @@ var seen_arrival_battle := false
 # are scripted to survive it (Roland in particular is canon at the gate of
 # 100, §12.6). Transient -- never saved; a real siege can still take them.
 var arrival_battle_active := false
+var _arrival_shield_until := 0.0     # hard deadline, so it can never stick
+
+# The shield must be impossible to leave ON: if the player walks into the
+# dungeon mid-arrival, or a raider gets stuck and the wave never finishes,
+# an un-expiring flag would make the corps IMMORTAL for the rest of the
+# run. It dies on a timer, on entering the deep, and when the wave breaks.
+func arrival_shield_on() -> bool:
+	if not arrival_battle_active:
+		return false
+	if in_dungeon or Time.get_ticks_msec() / 1000.0 > _arrival_shield_until:
+		arrival_battle_active = false
+		return false
+	return true
+
+func begin_arrival_shield(seconds := 150.0) -> void:
+	arrival_battle_active = true
+	_arrival_shield_until = Time.get_ticks_msec() / 1000.0 + seconds
 var escape_attempts := 0    # 12.7: the road out, tested -- each retry doubles the answer
 
 func orin_arrived() -> bool:

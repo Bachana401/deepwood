@@ -86,8 +86,8 @@ func _ready() -> void:
 	# eleventh ally at the gate of 100, and losing him at minute one would
 	# quietly break that beat forever)
 	check("the trio is shielded FOR THE ARRIVAL ONLY",
-		FileAccess.open("res://adventurer.gd", FileAccess.READ).get_as_text().contains("GameState.arrival_battle_active")
-		and msrc.contains("arrival_battle_active = true")
+		FileAccess.open("res://adventurer.gd", FileAccess.READ).get_as_text().contains("GameState.arrival_shield_on()")
+		and msrc.contains("begin_arrival_shield()")
 		and msrc.contains("arrival_battle_active = false"))
 	check("...and the shield is transient, never saved (a real siege still kills)",
 		not gsrc.contains('"arrival_battle_active"'))
@@ -96,11 +96,18 @@ func _ready() -> void:
 		var a0 = adv_shield[0]
 		var st0: Dictionary = GameState.adventurer_state(str(a0.adventurer_id))
 		var hp_before: float = float(st0.get("hp", 100.0))
-		GameState.arrival_battle_active = true
+		GameState.begin_arrival_shield()
 		a0.take_damage(9999)
 		check("a live blow in the arrival cannot even scratch them",
 			not a0.is_dead
 			and float(GameState.adventurer_state(str(a0.adventurer_id)).get("hp", 100.0)) == hp_before)
+		# the shield can NEVER stick: walking into the deep drops it, and so
+		# does its own deadline (an unfinished wave must not grant immortality)
+		GameState.in_dungeon = true
+		check("entering the deep stands the shield down", not GameState.arrival_shield_on())
+		GameState.in_dungeon = false
+		GameState.begin_arrival_shield(-1.0)
+		check("and it expires on its own deadline", not GameState.arrival_shield_on())
 		GameState.arrival_battle_active = false
 
 	# ---- the road out, testable (12.7, decided delegated) ----
