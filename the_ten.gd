@@ -38,9 +38,9 @@ const ROSTER = {
 		"boon": "The Government runs itself a step further; its leaders' hands are worth double.",
 		"line": "Crowns fall. Order doesn't. Show me the ledgers -- we have a village to run."},
 	"ten_seraphel": {"floor": 94, "name": "Seraphel", "title": "the Lightkeeper",
-		"boon": "Grief passes through the village twice as fast beneath her light.",
+		"boon": "Her light halves the withering of despair village-wide, and grief passes twice as fast.",
 		"line": "He built me a night that never ended. I lit a candle in it and waited."},
-	"ten_ilo": {"floor": 99, "name": "Ilo", "title": "the Nameless Bard",
+	"ten_ilo": {"floor": 97, "name": "Ilo", "title": "the Nameless Bard",
 		"boon": "The tavern's spirit lifts the whole village -- and Ilo sings of the Age of Monarchs.",
 		"line": "He took my name so no song would keep me. But I remember all the OTHER names. Shall I sing you one about a throne of shadow?"},
 }

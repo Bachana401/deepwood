@@ -28,10 +28,10 @@ func _ready() -> void:
 	check("ten of the Ten", TheTen.ids().size() == 10)
 	var canon_floors := {52: "ten_brannoc", 58: "ten_maera", 63: "ten_toren", 69: "ten_sylvara",
 		74: "ten_kaldos", 79: "ten_elenwe", 84: "ten_dorian", 89: "ten_mirielle",
-		94: "ten_seraphel", 99: "ten_ilo"}
+		94: "ten_seraphel", 97: "ten_ilo"}
 	for fl in canon_floors.keys():
 		var d = TheTen.for_level(fl)
-		check("floor %d holds %s (canon table)" % [fl, canon_floors[fl]],
+		check("floor %d holds %s (canon, Ilo moved 99->97 off the Eclipse: vaults are discoveries, not boss loot)" % [fl, canon_floors[fl]],
 			str(d.get("id", "")) == canon_floors[fl], str(d.get("id", "(none)")))
 	# every one has a boon and a line -- no silent trophies
 	for id in TheTen.ids():
@@ -95,6 +95,14 @@ func _ready() -> void:
 	GameState.the_ten["ten_sylvara"]["freed"] = true
 	check("Sylvara: farm output doubled",
 		abs(GameState.food_production_per_hour() - base_food * 2.0) < 0.001 or base_food == 0.0)
+	# Kaldos made honest end to end: the Dock genuinely FEEDS (premium food),
+	# so "materials as well as food" is true in both halves
+	var gs_src := FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text()
+	check("the Dock is a real food source (FOOD_PER_FISHER exists and is summed)",
+		gs_src.contains("FOOD_PER_FISHER_PER_DAY") and gs_src.contains("dock_worker_count()"))
+	# Seraphel near-literal: her aura halves the despair HP-drain village-wide
+	check("Seraphel: her light halves the withering",
+		gs_src.contains('DESPAIR_HP_DRAIN_PER_HOUR * (0.5 if ten_freed("ten_seraphel")'))
 	# Ilo: his line leads the L100 reveal
 	var di_src := FileAccess.open("res://dungeon_interior.gd", FileAccess.READ).get_as_text()
 	check("Ilo: at the gate of 100 he names what stirs", di_src.contains("ten_ilo") and di_src.contains("Thrones do not stay empty"))

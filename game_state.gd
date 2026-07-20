@@ -1111,6 +1111,7 @@ func is_building_operational(building_key: String) -> bool:
 # built?" check.
 const FOOD_PER_VILLAGER_PER_DAY := 1.0       # everyone eats this much per in-game day
 const FOOD_PER_FARMER_PER_DAY := 6.0         # each farm worker feeds this many villagers
+const FOOD_PER_FISHER_PER_DAY := 4.0        # the sea never has a bad harvest, but feeds fewer per hand
 const FOOD_DAYS_CAP := 4.0                   # the larder holds at most this many days of food
 const FOOD_MANUAL_HARVEST_YIELD := 4.0       # food produced by one hand-harvest action
 const FOOD_STARVE_GRACE_HOURS := 30.0        # empty larder must persist this long before HP drains
@@ -1150,7 +1151,22 @@ func farm_worker_count() -> int:
 # Passive food produced per in-game hour by a staffed farm (0 if unstaffed).
 # A seated Harvestmaster drives the fields far harder (auto-feeds the town).
 func food_production_per_hour() -> float:
-	return float(farm_worker_count()) * FOOD_PER_FARMER_PER_DAY / 24.0 * (1.0 + HARVESTMASTER_FOOD_BONUS * seated_leaders("Farm")) * (2.0 if ten_freed("ten_sylvara") else 1.0)
+	var farm := float(farm_worker_count()) * FOOD_PER_FARMER_PER_DAY / 24.0 * (1.0 + HARVESTMASTER_FOOD_BONUS * seated_leaders("Farm")) * (2.0 if ten_freed("ten_sylvara") else 1.0)
+	# The Fishing Dock is the economy's PREMIUM food source (its fish feed
+	# fewer mouths per worker than the Farm's grain, but the sea never has a
+	# bad harvest). This also makes Kaldos' boon honest end to end: the Dock
+	# genuinely yields food, and with the Tidecaller freed, materials as well.
+	var dock := float(dock_worker_count()) * FOOD_PER_FISHER_PER_DAY / 24.0 * (1.0 + HARVESTMASTER_FOOD_BONUS * seated_leaders("Fishing Dock"))
+	return farm + dock
+
+func dock_worker_count() -> int:
+	if not is_building_operational("Fishing Dock"):
+		return 0
+	var n := 0
+	for v in rescued_villagers:
+		if str(v.get("role_key", "")) == "Fishing Dock" and str(v.get("role_title", "")) == "Fisherman":
+			n += 1
+	return n
 
 # Days of food left at the current population's burn rate (for the HUD readout).
 func food_days_remaining() -> float:
@@ -1418,7 +1434,8 @@ func tick_morale_effects(hours_passed: float) -> void:
 	var morale_starving = in_crisis and low_morale_hours >= DESPAIR_GRACE_HOURS
 	var drain_rate := 0.0
 	if morale_starving:
-		drain_rate = DESPAIR_HP_DRAIN_PER_HOUR
+		# Seraphel, the Lightkeeper (the Ten): her aura slows the withering
+		drain_rate = DESPAIR_HP_DRAIN_PER_HOUR * (0.5 if ten_freed("ten_seraphel") else 1.0)
 	if village_is_starving():
 		drain_rate = maxf(drain_rate, FOOD_STARVE_HP_DRAIN_PER_HOUR)
 	var starving = drain_rate > 0.0
