@@ -486,5 +486,61 @@ func _ready() -> void:
 	if wiz_src != null: wiz_src.close()
 	check("the village wizard node removes itself pre-arrival", wtxt.contains("orin_arrived()"))
 
+	# ---------------- day/night shifts (GAME_BIBLE 7.3) ----------------
+	var saved_hours2: float = GameState.game_hours
+	var saved_roster2: Array = GameState.rescued_villagers
+	var corps := []
+	for i in range(8):
+		corps.append({"id": "w_%d" % i, "name": "W%d" % i, "sex": "Male", "is_kid": false,
+			"stat_name": "Warrior", "stat_value": 5, "role_key": "Barracks", "role_title": "Warrior"})
+	GameState.rescued_villagers = corps
+	var dawn := 0
+	for v in corps:
+		if GameState.warrior_shift(str(v["id"])) == "dawn":
+			dawn += 1
+	check("the corps splits into two watches, neither empty",
+		dawn > 0 and dawn < corps.size(), str(dawn))
+	GameState.game_hours = 12.0   # noon -> dawn watch on duty
+	var noon_duty: int = GameState.on_duty_warrior_count()
+	GameState.game_hours = 23.0   # night -> dusk watch
+	var night_duty: int = GameState.on_duty_warrior_count()
+	check("noon and midnight field DIFFERENT watches, together the whole corps",
+		noon_duty + night_duty == corps.size() and noon_duty > 0 and night_duty > 0)
+	GameState.game_hours = 12.0
+	var day_power: float = GameState.village_defense_power()
+	GameState.game_hours = 17.5
+	check("the changeover hour is a real, detectable weak window",
+		GameState.in_shift_change_window())
+	GameState.game_hours = 12.0
+	check("noon is not a weak window", not GameState.in_shift_change_window())
+	check("the off-shift still counts, at half worth (they scramble from bed)",
+		day_power > 0.0)
+	var sm := FileAccess.open("res://siege_manager.gd", FileAccess.READ).get_as_text()
+	check("live sieges field only the watch on duty",
+		sm.contains("on_duty_warrior_count()"))
+	check("the horn at changeover fields HALF the watch, announced",
+		sm.contains("in_shift_change_window()") and sm.contains("caught the shift change"))
+	var gsrc := FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text()
+	check("a warrior on shift heals NOTHING until relieved",
+		gsrc.contains("warrior_on_duty(v):\n\t\t\t\tcontinue"))
+
+	# ---------------- both flanks (GAME_BIBLE 7.2) ----------------
+	var wl := FileAccess.open("res://wall.gd", FileAccess.READ).get_as_text()
+	check("the wall knows its flank and its outer face",
+		wl.contains("@export var flank") and wl.contains("func east_face_x") and wl.contains("func outer_face_x"))
+	check("the siege splits across BOTH ramparts",
+		sm.contains("wall_for_flank(\"east\")") and sm.contains("BOTH flanks"))
+	check("raiders plant on the OUTSIDE face of their rampart",
+		FileAccess.open("res://siege_enemy.gd", FileAccess.READ).get_as_text().contains("east_face_x() + ATTACK_STOP_GAP"))
+	check("both ramparts get patched between assaults",
+		sm.contains("for wall in get_tree().get_nodes_in_group(\"village_wall\")"))
+	check("the east rampart rises past the last cottage lot",
+		FileAccess.open("res://main.gd", FileAccess.READ).get_as_text().contains("east_wall.flank = \"east\"")
+		and FileAccess.open("res://cottage_plot.gd", FileAccess.READ).get_as_text().contains("MAX_RAISED"))
+	check("wall-stationed adventurers split between the two ramparts",
+		FileAccess.open("res://adventurer.gd", FileAccess.READ).get_as_text().contains("hash(adventurer_id) % walls.size()"))
+	GameState.game_hours = saved_hours2
+	GameState.rescued_villagers = saved_roster2
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

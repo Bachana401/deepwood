@@ -1043,8 +1043,11 @@ func village_defense_power() -> float:
 	var power = SIEGE_DEF_WIZARD if orin_arrived() else 0.0
 	for v in rescued_villagers:
 		if v.get("stat_name", "") == "Warrior" or v.get("role_key", "") == "Barracks":
-			power += SIEGE_DEF_PER_WARRIOR
-		# a barracks-forged HERO is a one-person garrison
+			# 7.3: the on-shift holds the wall at full worth; the off-shift
+			# scrambles from their bunks at half
+			power += SIEGE_DEF_PER_WARRIOR * (1.0 if warrior_on_duty(v) else 0.5)
+		# a barracks-forged HERO is a one-person garrison (and never sleeps
+		# through a horn)
 		if v.get("hero_trained", false):
 			power += SIEGE_DEF_PER_WARRIOR * 3.0
 	# adventurers hold the line by station: the wall is worth more than a
@@ -1076,6 +1079,44 @@ func warrior_count() -> int:
 		if v.get("stat_name", "") == "Warrior" or v.get("role_key", "") == "Barracks":
 			n += 1
 	return n
+
+# --- DAY/NIGHT SHIFTS (GAME_BIBLE 7.3) ---
+# The corps splits into two 12h shifts by a coin flip that never changes
+# (the id's hash): DAWN mans the wall 6:00-18:00, DUSK holds the night.
+# The off-shift sleeps -- and only a rested body heals (see the regen
+# branch in tick_morale_effects). A siege landing within an hour of the
+# changeover catches the wall HALF-manned: the deliberate weak window.
+const SHIFT_CHANGE_HOURS = [6.0, 18.0]
+const SHIFT_CHANGE_WINDOW := 1.0
+
+func hour_of_day() -> float:
+	return fmod(game_hours, 24.0)
+
+func warrior_shift(vid: String) -> String:
+	return "dawn" if hash(vid) % 2 == 0 else "dusk"
+
+func on_duty_shift() -> String:
+	var h := hour_of_day()
+	return "dawn" if h >= 6.0 and h < 18.0 else "dusk"
+
+func warrior_on_duty(v: Dictionary) -> bool:
+	return warrior_shift(str(v.get("id", ""))) == on_duty_shift()
+
+func on_duty_warrior_count() -> int:
+	var n := 0
+	for v in rescued_villagers:
+		if v.get("role_title", "") == "Recruit":
+			continue
+		if (v.get("stat_name", "") == "Warrior" or v.get("role_key", "") == "Barracks") and warrior_on_duty(v):
+			n += 1
+	return n
+
+func in_shift_change_window() -> bool:
+	var h := hour_of_day()
+	for c in SHIFT_CHANGE_HOURS:
+		if absf(h - float(c)) <= SHIFT_CHANGE_WINDOW:
+			return true
+	return false
 
 func tick_sieges(hours_passed: float) -> void:
 	# The Shadow Court (GAME_BIBLE 11): the raids die with their master.
@@ -1635,6 +1676,11 @@ func tick_morale_effects(hours_passed: float) -> void:
 			else:
 				villager_hp[id] = hp
 		elif hp < VILLAGER_MAX_HP:
+			# 7.3: only a rested body heals -- a warrior ON SHIFT stands the
+			# wall and recovers nothing until their relief comes
+			var is_warrior: bool = v.get("stat_name", "") == "Warrior" or v.get("role_key", "") == "Barracks"
+			if is_warrior and warrior_on_duty(v):
+				continue
 			villager_hp[id] = minf(VILLAGER_MAX_HP, hp + hours_passed * DESPAIR_HP_REGEN_PER_HOUR * (1.0 + 0.5 * float(doctors)))
 	for id in dead:
 		villager_hp.erase(id)

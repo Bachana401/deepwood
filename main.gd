@@ -330,6 +330,14 @@ func generate_houses() -> void:
 	var plot = preload("res://cottage_plot.gd").new()
 	plot.position = Vector2(start_x + (HOUSE_COUNT + GameState.extra_cottages) * HOUSE_SPACING, VILLAGE_Y)
 	$Village.add_child(plot)
+	# 7.2: the EAST rampart -- the village is besieged from BOTH ends, and the
+	# cottage row's far end is the second gate. Placed past the last lot the
+	# plot can ever fill (cottage_plot caps at 15 raised), so homes never
+	# outgrow their wall.
+	var east_wall = preload("res://wall.tscn").instantiate()
+	east_wall.flank = "east"
+	east_wall.position = Vector2(start_x + (HOUSE_COUNT + 16) * HOUSE_SPACING + 60.0, VILLAGE_Y)
+	add_child(east_wall)
 
 # NPC world avatars are runtime-only nodes -- nothing about them is written
 # to the save file, so a fresh scene boot (New Game OR Continue) starts with

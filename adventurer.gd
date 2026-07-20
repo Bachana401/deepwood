@@ -256,8 +256,15 @@ func _cycle_station() -> void:
 func _station_anchor_x() -> float:
 	match station:
 		"wall":
-			var wall = get_tree().get_first_node_in_group("village_wall")
-			return (wall.global_position.x - 160.0) if wall else global_position.x
+			# 7.2: two ramparts now -- wall-stationed adventurers split between
+			# them by a coin that never changes (their id's hash), so both
+			# flanks always have someone if you posted anyone at all
+			var walls := get_tree().get_nodes_in_group("village_wall")
+			if walls.is_empty():
+				return global_position.x
+			var wall = walls[hash(adventurer_id) % walls.size()]
+			var inward := 160.0 if (not "flank" in wall or wall.flank == "west") else -160.0
+			return wall.global_position.x - inward
 		"house":
 			return 1050.0        # by the cottages
 		_:

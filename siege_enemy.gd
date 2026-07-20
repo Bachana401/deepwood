@@ -262,6 +262,9 @@ func nearest_raider() -> Node2D:
 
 func target_stop_x(target: Node2D) -> float:
 	if target == wall and is_instance_valid(wall):
+		# 7.2: plant on the OUTSIDE face of whichever rampart this wave besieges
+		if "flank" in wall and wall.flank == "east":
+			return wall.east_face_x() + ATTACK_STOP_GAP
 		return wall.west_face_x() - ATTACK_STOP_GAP
 	# plant on whichever side we're approaching from
 	if global_position.x <= target.global_position.x:

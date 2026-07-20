@@ -17,6 +17,11 @@ const STONE_RUBBLE = Color(0.34, 0.33, 0.36, 1.0)
 const HEALTH_BAR_WIDTH = 64.0
 const HEALTH_BAR_HEIGHT = 6.0
 
+# 7.2: the village is besieged from BOTH ends -- a rampart at each. "west"
+# is the original gatehouse the wild road breaks against; "east" guards the
+# cottage row's far end. Attackers plant on the OUTSIDE face of their wall.
+@export var flank := "west"
+
 # Brannoc, the Wall That Stood (the Ten): the wall stands half again as strong
 var max_health := MAX_HEALTH
 var health = MAX_HEALTH
@@ -46,6 +51,13 @@ func _process(_delta: float) -> void:
 # West face x -- besiegers stop just short of this to attack.
 func west_face_x() -> float:
 	return global_position.x - WALL_WIDTH / 2.0
+
+func east_face_x() -> float:
+	return global_position.x + WALL_WIDTH / 2.0
+
+# The face the enemy hammers: the OUTSIDE of whichever end this wall guards.
+func outer_face_x() -> float:
+	return west_face_x() if flank == "west" else east_face_x()
 
 func take_damage(amount: int) -> void:
 	if breached:

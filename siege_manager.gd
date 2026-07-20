@@ -39,43 +39,79 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	update_label()
 
+# Both ramparts, by flank. Scenes without an east wall (old layouts, test
+# rigs) degrade gracefully to a single-front siege.
+func wall_for_flank(flank: String) -> Node:
+	var fallback: Node = null
+	for w in get_tree().get_nodes_in_group("village_wall"):
+		if "flank" in w and w.flank == flank:
+			return w
+		fallback = w
+	return fallback if flank == "west" else null
+
 # Called by GameState.trigger_siege() when a scheduled siege lands while the
-# player is here in the village.
+# player is here in the village. 7.2: the wave comes out of the Deepwood on
+# BOTH flanks at once -- you can stand at one gate; the other one is a bet
+# on the defense you posted there.
 func start_live_siege(tier: int) -> void:
 	siege_number += 1
 	var count = min(BASE_COUNT + tier, MAX_COUNT)
 	var hp = int(round(BASE_HP * (1.0 + (tier - 1) * HP_PER_TIER)))
 	var dmg = int(round(BASE_DMG * (1.0 + (tier - 1) * DMG_PER_TIER)))
 
-	var wall = get_tree().get_first_node_in_group("village_wall")
-	var face_x = wall.west_face_x() if wall else DEFAULT_WALL_X
-	var base_x = face_x - SPAWN_STANDOFF
+	var west_wall = wall_for_flank("west")
+	var east_wall = wall_for_flank("east")
+	var west_count: int = int(ceil(count / 2.0)) if east_wall != null else count
+	var east_count: int = count - west_count if east_wall != null else 0
 
 	alive_count = 0
-	for i in range(count):
-		var e = SIEGE_ENEMY_SCENE.instantiate()
-		e.skin = "raider"          # PixelLab goblin marauder art
-		e.max_health = hp
-		e.attack_damage = dmg
-		e.reward = 5 + tier
-		e.wall = wall
-		e.global_position = Vector2(base_x - i * randf_range(34.0, 70.0), SPAWN_Y)
-		e.died.connect(_on_enemy_died)
-		get_parent().add_child(e)
-		alive_count += 1
+	for i in range(west_count):
+		var face_x = west_wall.west_face_x() if west_wall else DEFAULT_WALL_X
+		_spawn_raider(hp, dmg, tier, west_wall,
+			Vector2(face_x - SPAWN_STANDOFF - i * randf_range(34.0, 70.0), SPAWN_Y))
+	for i in range(east_count):
+		_spawn_raider(hp, dmg, tier, east_wall,
+			Vector2(east_wall.east_face_x() + SPAWN_STANDOFF + i * randf_range(34.0, 70.0), SPAWN_Y))
 
-	notify("A siege begins! Wave %d -- %d attackers (tier %d)." % [siege_number, count, tier])
-	_spawn_barracks_soldiers(tier, face_x, wall)
+	if east_count > 0:
+		notify("A siege from BOTH flanks! Wave %d -- %d west, %d east (tier %d)." % [siege_number, west_count, east_count, tier])
+	else:
+		notify("A siege begins! Wave %d -- %d attackers (tier %d)." % [siege_number, count, tier])
+	_spawn_barracks_soldiers(tier, west_wall, east_wall)
+
+func _spawn_raider(hp: int, dmg: int, tier: int, wall, pos: Vector2) -> void:
+	var e = SIEGE_ENEMY_SCENE.instantiate()
+	e.skin = "raider"          # PixelLab goblin marauder art
+	e.max_health = hp
+	e.attack_damage = dmg
+	e.reward = 5 + tier
+	e.wall = wall
+	e.global_position = pos
+	e.died.connect(_on_enemy_died)
+	get_parent().add_child(e)
+	alive_count += 1
 
 # The Barracks answers the horn: trained warriors sally out (just west of the
 # wall) as visible Soldier units and charge the raiders. Reuses the siege_enemy
 # body with faction "village" + the soldier sprite skin.
-func _spawn_barracks_soldiers(tier: int, face_x: float, wall) -> void:
+# One soldier/hero body, posted to a flank: west defenders sally just east
+# of the west rampart facing the wild; east defenders mirror it.
+func _post_for_flank(west_wall, east_wall, index: int) -> Dictionary:
+	var to_east: bool = east_wall != null and index % 2 == 1
+	if to_east:
+		return {"wall": east_wall, "facing": 1,
+			"x": east_wall.west_face_x() + SOLDIER_SALLY_OFFSET + (index / 2) * randf_range(30.0, 55.0)}
+	var face_x = west_wall.west_face_x() if west_wall else DEFAULT_WALL_X
+	return {"wall": west_wall, "facing": -1,
+		"x": face_x - SOLDIER_SALLY_OFFSET - (index / 2) * randf_range(30.0, 55.0)}
+
+func _spawn_barracks_soldiers(tier: int, west_wall, east_wall) -> void:
 	soldiers.clear()
 	# Barracks-forged HEROES sally first: one unit each, on top of the soldier
 	# cap, at triple a soldier's strength -- the 0.5% birth paying off in force.
 	# Each hero marches under their OWN name and power (rolled at graduation) --
-	# a 0.5% miracle never fights like a big generic soldier.
+	# a 0.5% miracle never fights like a big generic soldier. Heroes alternate
+	# flanks: legends stand where the line is thinnest.
 	var hero_villagers := []
 	for v in GameState.rescued_villagers:
 		if v.get("hero_trained", false):
@@ -85,6 +121,7 @@ func _spawn_barracks_soldiers(tier: int, face_x: float, wall) -> void:
 	var rally_present := false
 	for i in range(hero_villagers.size()):
 		var hv: Dictionary = hero_villagers[i]
+		var post := _post_for_flank(west_wall, east_wall, i)
 		var h = SIEGE_ENEMY_SCENE.instantiate()
 		h.faction = "village"
 		h.skin = "soldier"
@@ -94,16 +131,22 @@ func _spawn_barracks_soldiers(tier: int, face_x: float, wall) -> void:
 		h.hero_name = str(hv.get("name", "Hero"))
 		if h.hero_power == "rally":
 			rally_present = true
-		h.wall = wall
-		h.facing = -1
-		h.global_position = Vector2(face_x - SOLDIER_SALLY_OFFSET - 40.0 - i * 46.0, SPAWN_Y)
+		h.wall = post.wall
+		h.facing = post.facing
+		h.global_position = Vector2(post.x - 40.0 * post.facing, SPAWN_Y)
 		h.died.connect(_on_soldier_died.bind(h))
 		get_parent().add_child(h)
 		h.scale = Vector2(1.25, 1.25)   # a hero reads bigger on the field
 		soldiers.append(h)
 	if not hero_villagers.is_empty():
 		notify("★ %d HERO%s take%s the field!" % [hero_villagers.size(), "" if hero_villagers.size() == 1 else "ES", "s" if hero_villagers.size() == 1 else ""])
-	var n = min(GameState.warrior_count(), MAX_SOLDIERS)
+	# 7.3: only the ON-SHIFT half answers the horn -- and a siege landing at
+	# the changeover catches the wall between watches, half of THOSE still
+	# pulling their boots on. The weak window is deliberate, and announced.
+	var n = min(GameState.on_duty_warrior_count(), MAX_SOLDIERS)
+	if GameState.in_shift_change_window() and n > 1:
+		n = int(ceil(n / 2.0))
+		notify("⚠ The horn caught the shift change — only half the watch stands ready!")
 	if n <= 0:
 		return
 	var hp = int(round(SOLDIER_BASE_HP * (1.0 + (tier - 1) * HP_PER_TIER)))
@@ -113,18 +156,19 @@ func _spawn_barracks_soldiers(tier: int, face_x: float, wall) -> void:
 		hp = int(round(hp * 1.5))
 	var dmg = int(round(SOLDIER_BASE_DMG * (1.0 + (tier - 1) * DMG_PER_TIER)))
 	for i in range(n):
+		var post := _post_for_flank(west_wall, east_wall, i)
 		var s = SIEGE_ENEMY_SCENE.instantiate()
 		s.faction = "village"
 		s.skin = "soldier"
 		s.max_health = hp
 		s.attack_damage = dmg
-		s.wall = wall
-		s.facing = -1
-		s.global_position = Vector2(face_x - SOLDIER_SALLY_OFFSET - i * randf_range(30.0, 55.0), SPAWN_Y)
+		s.wall = post.wall
+		s.facing = post.facing
+		s.global_position = Vector2(post.x, SPAWN_Y)
 		s.died.connect(_on_soldier_died.bind(s))
 		get_parent().add_child(s)
 		soldiers.append(s)
-	notify("%d soldier%s march out from the Barracks!" % [n, "" if n == 1 else "s"])
+	notify("%d soldier%s march out — the %s watch holds the line!" % [n, "" if n == 1 else "s", GameState.on_duty_shift().to_upper()])
 
 func _on_soldier_died(s) -> void:
 	soldiers.erase(s)
@@ -136,9 +180,10 @@ func _on_enemy_died() -> void:
 
 func end_siege() -> void:
 	alive_count = 0
-	var wall = get_tree().get_first_node_in_group("village_wall")
-	if wall and wall.has_method("repair_fully"):
-		wall.repair_fully()
+	# both ramparts get patched between assaults (7.2)
+	for wall in get_tree().get_nodes_in_group("village_wall"):
+		if wall.has_method("repair_fully"):
+			wall.repair_fully()
 	# surviving soldiers march back to the Barracks
 	for s in soldiers:
 		if is_instance_valid(s):

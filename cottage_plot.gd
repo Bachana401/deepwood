@@ -70,10 +70,16 @@ func _process(_delta: float) -> void:
 	if player_inside and Input.is_action_just_pressed("interact"):
 		try_raise()
 
+const MAX_RAISED := 15   # the east rampart (7.2) stands past the last possible lot
+
 func try_raise() -> void:
 	var notif = get_node_or_null("../../CanvasLayer/NotificationStack")
 	var player = get_tree().get_first_node_in_group("player")
 	if player == null or not "inventory" in player or player.inventory == null:
+		return
+	if GameState.extra_cottages >= MAX_RAISED:
+		if notif:
+			notif.show_notification("The row ends here — the east rampart guards this ground.")
 		return
 	var missing := []
 	for mat in COST:

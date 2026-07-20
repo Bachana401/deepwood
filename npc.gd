@@ -851,6 +851,10 @@ func info_fields() -> Array:
 			fields.append("⚠ Sleeps in the street")
 	if data.get("role_title", "") != "":
 		fields.append("Works: " + data.get("role_title"))
+	# 7.3: a warrior wears their watch -- and whether they're on it right now
+	if data.get("stat_name", "") == "Warrior" or data.get("role_key", "") == "Barracks":
+		var shift: String = GameState.warrior_shift(str(data.get("id", "")))
+		fields.append("⚔ %s watch%s" % [shift.capitalize(), " — ON DUTY" if GameState.warrior_on_duty(data) else " — resting"])
 	# the Doctor quotes her price up front -- the escalation is the mechanic,
 	# so the player should never need to press E just to learn the cost
 	if data.get("healer", false):
