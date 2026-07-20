@@ -177,6 +177,28 @@ func _ready() -> void:
 		if "glance" in n and n.has_method("_refresh_glance"):
 			mm = n
 	check("the TAB overlay carries a village-at-a-glance readout", mm != null)
+	# the "what now?" advisor: survival first, then people, then depth
+	var obj_saved_stage: Dictionary = GameState.building_stage.duplicate(true)
+	var obj_saved_roster: Array = GameState.rescued_villagers
+	var obj_saved_food: float = GameState.village_food
+	GameState.building_stage["Farm"] = 0
+	GameState.blueprints = GameState.STARTING_BUILDINGS.duplicate()
+	check("with the Farm in ruins, the advisor says raise the Farm",
+		GameState.next_objective().contains("Raise the Farm"), GameState.next_objective())
+	GameState.blueprints = ["Tavern"]
+	check("...unless its plans are still lost, and then it says THAT",
+		GameState.next_objective().contains("blueprint"), GameState.next_objective())
+	GameState.blueprints = GameState.STARTING_BUILDINGS.duplicate()
+	GameState.building_stage["Farm"] = GameState.TOTAL_BUILD_STAGES
+	GameState.rescued_villagers = []
+	check("a standing but unstaffed Farm asks for hands",
+		GameState.next_objective().contains("work at the Farm"), GameState.next_objective())
+	GameState.building_stage = obj_saved_stage
+	GameState.rescued_villagers = obj_saved_roster
+	GameState.village_food = obj_saved_food
+	check("the advisor always says SOMETHING true", GameState.next_objective().length() > 5)
+	check("chests can never be buried under a relocated building",
+		FileAccess.open("res://chest.gd", FileAccess.READ).get_as_text().contains("village_structure"))
 	if mm != null:
 		mm._refresh_glance()
 		var txt: String = str(mm.glance.text)

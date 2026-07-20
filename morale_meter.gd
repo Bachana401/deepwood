@@ -114,6 +114,8 @@ func _refresh_glance() -> void:
 	if GameState.is_building_operational("Bank") and GameState.count_workers("Bank") > 0:
 		wage *= GameState.BANK_PAYROLL_DISCOUNT
 	var lines := []
+	# the one sentence that is always true and always useful
+	lines.append("▶ NEXT: " + GameState.next_objective())
 	lines.append(food_line)
 	lines.append("Souls %d  (%d working, %d idle)" % [GameState.rescued_villagers.size(), employed, jobless])
 	lines.append("Wages %.0fg/day%s" % [wage, "   ⚠ %d unhoused" % homeless if homeless > 0 else ""])

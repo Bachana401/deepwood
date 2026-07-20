@@ -2062,6 +2062,48 @@ func generate_passive_income() -> void:
 
 var _gold_accum := 0.0
 
+# --- "WHAT NOW?" (polish 2026-07-20) ---
+# The game is deep and its opening is quiet: a new player lands in ruins
+# with no idea which of a dozen systems to touch first. This reads the
+# village's actual state and names the single most useful next act --
+# survival first, then the people, then the depth. Shown in the TAB
+# glance; never a quest system, just a sentence that is always true.
+func next_objective() -> String:
+	if not is_building_operational("Farm"):
+		if not has_blueprint("Farm"):
+			return "Find the Farm's blueprint below"
+		return "Raise the Farm — stand at its ruins and press F"
+	if farm_worker_count() == 0 and dock_worker_count() == 0:
+		return "Put someone to work at the Farm (E → assign) so food grows itself"
+	if village_food <= 0.0:
+		return "The larder is EMPTY — tend the Farm by hand (hold H) now"
+	var homeless := 0
+	for v in rescued_villagers:
+		if not v.get("is_kid", false) and villager_home_id(str(v.get("id", ""))) == "":
+			homeless += 1
+	if not is_building_operational("Hospital") and has_blueprint("Hospital"):
+		return "Raise the Hospital — wounds do not heal on their own here"
+	if homeless >= 4:
+		return "Raise a cottage at the staked plot — %d sleep rough" % homeless
+	if rescued_villagers.size() < 8:
+		return "Descend and free the taken — every soul is a pair of hands"
+	if not is_building_operational("Barracks") and has_blueprint("Barracks"):
+		return "Raise the Barracks — the nights are getting worse"
+	if watchtower_tier < 1:
+		return "Raise the Watchtower — you cannot plan around a siege you can't see"
+	if not is_building_operational("Government"):
+		return "The Government makes the village's own gold — raise it when you can"
+	var ruined := count_ruined_buildings()
+	if ruined > 0:
+		return "%d building%s still in ruins — the gate of 100 wants them ALL" % [ruined, "" if ruined == 1 else "s"]
+	if count_empty_role_slots() > 0:
+		return "Staff every post — %d stand empty" % count_empty_role_slots()
+	if not all_ten_freed():
+		return "Free the Ten from Orin's vaults — %d still hang below" % (10 - count_ten_freed())
+	if village_morale() < 100:
+		return "Perfect the village: every soul at 10/10 opens the gate of 100"
+	return "The gate of 100 is open. Deepwood is ready — are you?"
+
 # --- ONE-SHOT SFX (polish pass 2026-07-20) ---
 # Every system built this week spoke only in toasts -- silent portals,
 # silent blueprints, a silent Watchtower bell. One helper, so a moment

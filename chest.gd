@@ -9,6 +9,8 @@ var inventory: Inventory
 var player_inside = false
 
 func _ready() -> void:
+	# a relocated building must never be planted on top of your storage
+	add_to_group("village_structure")
 	inventory = Inventory.new(capacity)
 	if GameState.chest_contents.has(chest_id):
 		inventory.from_save_data(GameState.chest_contents[chest_id])
