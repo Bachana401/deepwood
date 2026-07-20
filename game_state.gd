@@ -329,7 +329,15 @@ func depth_reward_mult() -> float:
 		return 1.0
 	return 1.0 + 0.10 * float(active_dungeon_level)
 
+const PLAYER_LEVEL_CAP := 100   # the seventh gate: 7/7 IS the ceiling
+
 func add_xp(amount: int) -> void:
+	# the Monarch fiction has always said "cap 100" -- the code never did.
+	# Level 100 is the full 2x god-form; there is nothing past the seventh
+	# gate, so the counter must not tick past it either.
+	if player_level >= PLAYER_LEVEL_CAP:
+		player_xp = 0
+		return
 	var boosted = int(round(amount * (1.0 + get_bonus_total("xp_gain"))))
 	player_xp += boosted
 	var leveled := false

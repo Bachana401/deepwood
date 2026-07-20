@@ -209,6 +209,50 @@ func _ready() -> void:
 	GameState.morale_admin_offset = saved_admin2
 	GameState.game_hours = saved_hours3
 
+	# ---- THE MARKET STALL: gear can finally be SOLD ----
+	var asrc := FileAccess.open("res://assign_ui.gd", FileAccess.READ).get_as_text()
+	check("the Marketplace has a stall section at all",
+		asrc.contains("add_market_stall_section"))
+	check("...gated on a staffed Trader, with the reason said aloud",
+		asrc.contains("The stalls stand empty"))
+	check("...and some things are never for sale (the wand!)",
+		asrc.contains("GameState.WANDERER_NEVER_SOLD") and asrc.contains("active_weapon_id"))
+	# the sale itself, live: one spare sword becomes gold
+	var stall_ui = get_tree().get_first_node_in_group("assign_ui")
+	if stall_ui == null:
+		for n in get_tree().root.find_children("*", "", true, false):
+			if n.get_script() != null and str(n.get_script().resource_path).contains("assign_ui"):
+				stall_ui = n
+				break
+	if stall_ui != null:
+		# the bag may be FULL after everything this suite has done -- sell
+		# whatever the bag actually holds if the club cannot fit
+		var sell_id := "wpn_club"
+		if p.inventory.add_item("wpn_club", 1) > 0:
+			for s in p.inventory.slots:
+				if s != null:
+					sell_id = str(s.item_id)
+					break
+		var gold_before_sale: int = p.currency
+		var count_before: int = p.inventory.get_count(sell_id)
+		stall_ui._on_stall_sell(sell_id, 15)
+		check("selling at the stall trades the item for the gold",
+			p.currency == gold_before_sale + 15
+			and p.inventory.get_count(sell_id) == count_before - 1,
+			"%s: %dg->%dg" % [sell_id, gold_before_sale, p.currency])
+	else:
+		check("assign_ui reachable for the stall's live check", false)
+
+	# ---- THE SEVENTH GATE: level 100 is the ceiling, as the fiction says ----
+	var cap_level: int = GameState.player_level
+	var cap_xp: int = GameState.player_xp
+	GameState.player_level = GameState.PLAYER_LEVEL_CAP
+	GameState.add_xp(999999)
+	check("nothing ticks past the seventh gate",
+		GameState.player_level == GameState.PLAYER_LEVEL_CAP and GameState.player_xp == 0)
+	GameState.player_level = cap_level
+	GameState.player_xp = cap_xp
+
 	# ---- restore ----
 	GameState.rescued_villagers = saved_roster
 	GameState.building_stage = saved_stage

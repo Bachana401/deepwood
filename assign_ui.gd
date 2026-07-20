@@ -49,7 +49,77 @@ func refresh() -> void:
 		add_smithy_section(list)
 	if current_building.role_key == "Barracks":
 		add_armory_section(list)
+	if current_building.role_key == "Marketplace":
+		add_market_stall_section(list)
 	add_relocate_section(list)
+
+# THE MARKET STALL (numbers pass 2026-07-20): gear could never be SOLD --
+# anywhere, by anyone. The Merchant Prince's boon auto-sells surplus
+# MATERIALS only, so every outgrown sword and second pair of boots just
+# clogged the bags and chests forever. The Marketplace is literally a
+# market: staff a trader and the stalls buy your old gear at grade prices.
+# The wielded weapon, worn gear, and the never-sold relics are not listed.
+const STALL_PRICES = {"": 4, "Common": 6, "Uncommon": 15, "Rare": 40,
+	"Epic": 100, "Legendary": 250, "Mythic": 600}
+
+func add_market_stall_section(list: VBoxContainer) -> void:
+	var header = Label.new()
+	header.add_theme_font_size_override("font_size", 14)
+	header.add_theme_color_override("font_color", Color(0.95, 0.85, 0.5, 1))
+	header.text = "The Stalls — they buy what you've outgrown"
+	list.add_child(header)
+	var player = get_tree().get_first_node_in_group("player")
+	if not player:
+		return
+	if GameState.count_workers("Marketplace") == 0:
+		var idle = Label.new()
+		idle.text = "  The stalls stand empty — staff a Trader and they will buy."
+		idle.add_theme_font_size_override("font_size", 12)
+		idle.add_theme_color_override("font_color", Color(0.7, 0.65, 0.6, 1))
+		list.add_child(idle)
+		return
+	var listed := 0
+	for slot in player.inventory.slots:
+		if slot == null:
+			continue
+		var item_id := str(slot.item_id)
+		var cat: String = Inventory.get_item_def(item_id).get("category", "")
+		if not (cat in ["weapon", "armor", "relic"]):
+			continue
+		if item_id in GameState.WANDERER_NEVER_SOLD:
+			continue          # some things are not for sale, ever
+		# worn gear lives in GameState.equipment, outside the bag -- so a
+		# bag copy is a true duplicate; only the blade in your hand is held
+		if item_id == str(player.active_weapon_id):
+			continue
+		var price: int = STALL_PRICES.get(Inventory.get_grade(item_id), 4)
+		var row = Button.new()
+		row.text = "  Sell %s  [%s]  —  %dg" % [Inventory.get_display_name(item_id), Inventory.get_grade_name(item_id), price]
+		row.custom_minimum_size = Vector2(0, 26)
+		row.pressed.connect(_on_stall_sell.bind(item_id, price))
+		list.add_child(row)
+		listed += 1
+	if listed == 0:
+		var bare = Label.new()
+		bare.text = "  Nothing in your bag the traders want today."
+		bare.add_theme_font_size_override("font_size", 12)
+		bare.add_theme_color_override("font_color", Color(0.7, 0.65, 0.6, 1))
+		list.add_child(bare)
+
+func _on_stall_sell(item_id: String, price: int) -> void:
+	var player = get_tree().get_first_node_in_group("player")
+	var notif = get_node_or_null("../CanvasLayer/NotificationStack")
+	if player == null:
+		return
+	if player.inventory.get_count(item_id) <= 0:
+		refresh()
+		return
+	player.inventory.remove_item(item_id, 1)
+	player.add_currency(price)
+	GameState.play_sfx(GameState.SFX_YES, 1.0)
+	if notif:
+		notif.show_notification("Sold %s for %dg." % [Inventory.get_display_name(item_id), price])
+	refresh()
 
 # MOVABLE BUILDINGS (5.2, dev decision): pack the building up, walk to the
 # new ground, press H to plant it. Costs charge at the PLANT, so changing
