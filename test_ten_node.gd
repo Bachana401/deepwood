@@ -26,13 +26,37 @@ func _ready() -> void:
 
 	# ---------------- the registry holds to the canon table ----------------
 	check("ten of the Ten", TheTen.ids().size() == 10)
-	var canon_floors := {52: "ten_brannoc", 58: "ten_maera", 63: "ten_toren", 69: "ten_sylvara",
-		74: "ten_kaldos", 79: "ten_elenwe", 84: "ten_dorian", 89: "ten_mirielle",
-		94: "ten_seraphel", 97: "ten_ilo"}
+	# DEV CALL (2026-07-20): the Ten moved EARLIER (22-63, was 52-97) so the
+	# automated village is ENJOYED, not unwrapped at the door of the finale.
+	# Balance-first order: defense/healing first (sieges scale), Toren right
+	# after the Forge unlocks at 35, the gold engines in the 40s, Mirielle's
+	# automation at 47 with half the game left to savour it, and Ilo still
+	# LAST -- his unfinished songs stay the foreshadowing nearest the reveal.
+	var canon_floors := {22: "ten_brannoc", 26: "ten_maera", 31: "ten_sylvara",
+		34: "ten_kaldos", 38: "ten_toren", 43: "ten_dorian", 47: "ten_mirielle",
+		53: "ten_elenwe", 58: "ten_seraphel", 63: "ten_ilo"}
 	for fl in canon_floors.keys():
 		var d = TheTen.for_level(fl)
-		check("floor %d holds %s (canon, Ilo moved 99->97 off the Eclipse: vaults are discoveries, not boss loot)" % [fl, canon_floors[fl]],
+		check("floor %d holds %s (vaults are discoveries, not boss loot)" % [fl, canon_floors[fl]],
 			str(d.get("id", "")) == canon_floors[fl], str(d.get("id", "(none)")))
+	# the re-spread must never land a vault on a boss floor
+	var DIB = load("res://dungeon_interior.gd")
+	for fl2 in canon_floors.keys():
+		check("floor %d is not a boss floor" % fl2, not DIB.BOSS_LADDER.has(fl2))
+	check("Ilo remains the LAST of the Ten",
+		(func():
+			for id2 in TheTen.ids():
+				if id2 != "ten_ilo" and int(TheTen.get_def(id2).get("floor", 0)) >= int(TheTen.get_def("ten_ilo").get("floor", 0)):
+					return false
+			return true).call())
+	check("all Ten walk free by floor 63 (the automation is ENJOYED)",
+		(func():
+			for id3 in TheTen.ids():
+				if int(TheTen.get_def(id3).get("floor", 0)) > 63:
+					return false
+			return true).call())
+	check("Toren never precedes his own Forge (depth 35)",
+		int(TheTen.get_def("ten_toren").get("floor", 0)) >= 35)
 	# every one has a boon and a line -- no silent trophies
 	for id in TheTen.ids():
 		var d = TheTen.get_def(id)

@@ -137,7 +137,7 @@ What the player is actually *doing and worrying about* at every stage. This is t
 ### Act III — The Squeeze (floors ~50–95)
 - **Escalation on both ends:** deep floors are brutal; sieges are brutal; the player *cannot* be everywhere.
 - **Automation is the reward:** Government scales chore-automation (kids route to school → jobs; wall shifts auto-assigned; taxes collected) — earned relief from Act I–II's manual grind.
-- **The Ten** (§8) — the capstone rescue arc: one legendary hostage hidden in a vault every ~5 floors from 52 to 99, each permanently transforming one village system.
+- **The Ten** (§8) — the capstone rescue arc: one legendary hostage hidden in a vault across floors 22–63 (moved earlier 2026-07-20, dev call: the automated village must be *enjoyed*, not unwrapped at the finale's door), each permanently transforming one village system.
 - **Keystone skills, exclusive specs, ultimates; Excellent-grade weapons; full set bonuses.** The player becomes a monster — and pales, literally, as the hidden Shadow Monarch passive stages tick up (§6).
 - **Foreshadowing beats** ✅ planted: Orin's suspiciously generous tribute; cryptic dungeon notes; a taunt that he *wants* you to grow; Ilo the Bard's fragments of the Age of Monarchs.
 - **Responsibility:** perfect the village (the finale gate demands it) while surviving the worst the dungeon has.
@@ -500,20 +500,22 @@ Every frozen hostage is someone whose hope refused to die (§2.2) — but hope h
 
 **That immunity is the point:** when the Harvest comes and every soul in Deepwood turns, **the Ten do not turn.** They are the heroes who stand with you at the end.
 
-Each is found in a hidden **Trophy Vault** on a non-boss floor (so they're discoveries, not boss loot), one every ~5 floors from 52 to 99. Each rescue permanently transforms one village system — these are the "unusually impactful once freed" rescues the vision always promised.
+Each is found in a hidden **Trophy Vault** on a non-boss floor (so they're discoveries, not boss loot), spread across **floors 22–63**. *(Moved earlier from 52–99, dev decision 2026-07-20: boons that automate and transform the village must arrive with half the game left to enjoy them. Balance-first order: defense and healing first, Toren right after his Forge unlocks at depth 35, the gold engines in the 40s, Mirielle's automation at 47, and Ilo still LAST — his unfinished songs remain the foreshadowing nearest the reveal.)* Each rescue permanently transforms one village system — these are the "unusually impactful once freed" rescues the vision always promised.
+
+> **Why Orin keeps his trophies this shallow:** leaving them findable is part of the calculated generosity (§2.5). The Ten are village-peak fuel — he *wants* them found.
 
 | # | Name & title | Vault floor | Village boon (permanent) |
 |---|---|---|---|
-| 1 | **Brannoc, the Wall That Stood** — last Warchief of the old realm | 52 | Warriors train 2× faster; walls +50% max HP; he personally leads the night shift |
-| 2 | **Maera, the Last Lightmender** | 58 | Nurse heal range/speed doubled; once per siege she stabilizes a villager who would have died |
-| 3 | **Toren Ashvale, the Forgefather** | 63 | Blacksmith can forge **Epic**-grade (one above the Rare cap); crafting costs −25% |
-| 4 | **Sylvara, Warden of the Old Groves** | 69 | Farm output doubled; rare herbs begin growing in the overworld |
-| 5 | **Kaldos, the Tidecaller** | 74 | Dock deep-catches yield materials as well as food; food-variety morale bonus |
-| 6 | **Elenwe, Archivist of the Broken Age** | 79 | All unknown materials auto-researched; Lab research 2× ; she speaks lore of the Monarchs |
-| 7 | **Dorian Vail, the Coinbinder** | 84 | Bank interest doubled; on player death, half the dropped gold is insured (returned) |
-| 8 | **Mirielle, Voice of the Old Crown** | 89 | Government automation takes a major leap; taxes no longer cost morale |
-| 9 | **Seraphel, the Lightkeeper** | 94 | Shrine cleansing faster & cheaper; her aura slows corruption HP-drain village-wide |
-| 10 | **Ilo, the Nameless Bard** | 99 | Bar/Tavern morale way up — and he *sings fragments of the Age of Monarchs*, the game's clearest foreshadowing; at the gate of 100, he is the one who names what stirs in you |
+| 1 | **Brannoc, the Wall That Stood** — last Warchief of the old realm | 22 | Warriors train 2× faster; walls +50% max HP; he personally leads the night shift |
+| 2 | **Maera, the Last Lightmender** | 26 | Nurse heal range/speed doubled; once per siege she stabilizes a villager who would have died |
+| 3 | **Toren Ashvale, the Forgefather** | 38 | Blacksmith can forge **Epic**-grade (one above the Rare cap); crafting costs −25% |
+| 4 | **Sylvara, Warden of the Old Groves** | 31 | Farm output doubled; rare herbs begin growing in the overworld |
+| 5 | **Kaldos, the Tidecaller** | 34 | Dock deep-catches yield materials as well as food; food-variety morale bonus |
+| 6 | **Elenwe, Archivist of the Broken Age** | 53 | All unknown materials auto-researched; Lab research 2× ; she speaks lore of the Monarchs |
+| 7 | **Dorian Vail, the Coinbinder** | 43 | Bank interest doubled; on player death, half the dropped gold is insured (returned) |
+| 8 | **Mirielle, Voice of the Old Crown** | 47 | Government automation takes a major leap; taxes no longer cost morale |
+| 9 | **Seraphel, the Lightkeeper** | 58 | Shrine cleansing faster & cheaper; her aura slows corruption HP-drain village-wide |
+| 10 | **Ilo, the Nameless Bard** | 63 | Bar/Tavern morale way up — and he *sings fragments of the Age of Monarchs*, the game's clearest foreshadowing; at the gate of 100, he is the one who names what stirs in you |
 
 Status: ✅ ALL TEN BUILT (vaults on canon floors, boons live at real hooks). Rescuing **all Ten is part of the finale gate** (§9.1).
 
