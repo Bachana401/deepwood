@@ -427,6 +427,7 @@ func begin_arrival_battle() -> void:
 	# stations on their own once the wave is dead.
 	var road_x := 520.0
 	_arrival_left = 4
+	GameState.arrival_battle_active = true   # nobody dies in the teaching wave
 	for i in range(4):
 		var e = SIEGE_ENEMY_FOR_ARRIVAL.instantiate()
 		e.skin = "raider"
@@ -447,6 +448,7 @@ func _on_arrival_raider_died() -> void:
 	if _arrival_left > 0 or GameState.seen_arrival_battle:
 		return
 	GameState.seen_arrival_battle = true
+	GameState.arrival_battle_active = false   # from here on, they are mortal
 	GameState.log_event("combat", "Your first wave broke at the gate — you fought it beside Roland, Wren and Castor.")
 	var pl = get_tree().get_first_node_in_group("player")
 	if pl:

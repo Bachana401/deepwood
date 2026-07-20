@@ -1108,6 +1108,10 @@ var seen_orin_glimpse := false
 var seen_kneel_echo := false
 var seen_orin_taunt := false
 var seen_arrival_battle := false
+# The opening wave is a TEACHING fight, not a trial: the three defenders
+# are scripted to survive it (Roland in particular is canon at the gate of
+# 100, §12.6). Transient -- never saved; a real siege can still take them.
+var arrival_battle_active := false
 var escape_attempts := 0    # 12.7: the road out, tested -- each retry doubles the answer
 
 func orin_arrived() -> bool:

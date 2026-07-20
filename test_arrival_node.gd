@@ -82,6 +82,26 @@ func _ready() -> void:
 	check("the arrival is one-shot, saved, and OLD saves never replay it",
 		gsrc.contains('"seen_arrival_battle": seen_arrival_battle')
 		and gsrc.contains('parsed.get("seen_arrival_battle", true)'))
+	# nobody dies in the teaching wave -- Roland especially (12.6: he is the
+	# eleventh ally at the gate of 100, and losing him at minute one would
+	# quietly break that beat forever)
+	check("the trio is shielded FOR THE ARRIVAL ONLY",
+		FileAccess.open("res://adventurer.gd", FileAccess.READ).get_as_text().contains("GameState.arrival_battle_active")
+		and msrc.contains("arrival_battle_active = true")
+		and msrc.contains("arrival_battle_active = false"))
+	check("...and the shield is transient, never saved (a real siege still kills)",
+		not gsrc.contains('"arrival_battle_active"'))
+	var adv_shield := get_tree().get_nodes_in_group("adventurer")
+	if not adv_shield.is_empty():
+		var a0 = adv_shield[0]
+		var st0: Dictionary = GameState.adventurer_state(str(a0.adventurer_id))
+		var hp_before: float = float(st0.get("hp", 100.0))
+		GameState.arrival_battle_active = true
+		a0.take_damage(9999)
+		check("a live blow in the arrival cannot even scratch them",
+			not a0.is_dead
+			and float(GameState.adventurer_state(str(a0.adventurer_id)).get("hp", 100.0)) == hp_before)
+		GameState.arrival_battle_active = false
 
 	# ---- the road out, testable (12.7, decided delegated) ----
 	var mn2 := FileAccess.open("res://main.gd", FileAccess.READ).get_as_text()
