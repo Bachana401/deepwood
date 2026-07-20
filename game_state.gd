@@ -606,11 +606,16 @@ var income_timer = 0.0
 # haul. No other building prints money: they pay out in their own resource
 # (food, arms, repairs, knowledge). Early game the dungeon subsidizes the
 # village; as Government and Bank come online, it approaches self-funding.
-const TAX_PER_EMPLOYED := 0.5          # Government skims a working village, per tick
-const BARKEEP_TRICKLE := 0.5           # drink sales per staffed Barkeep, per tick
+# Numbers pass (2026-07-20, balance sim): income ticks fire ~30x per game
+# day, so per-tick rates are set for PER-DAY sanity -- a worker's tax take
+# (~1.8/day) barely clears their wage (1.5/day): the village approaches
+# self-funding, it never becomes a mint. Fractions accrue (see _gold_accum)
+# so a small town still earns its coins, just slowly.
+const TAX_PER_EMPLOYED := 0.06         # ~1.8 gold per worker per day
+const BARKEEP_TRICKLE := 0.08          # ~2.4 gold per staffed Barkeep per day
 const WAGE_PER_WORKER_PER_DAY := 1.5   # 5.5: staff draw a daily wage from the purse
 const BANK_PAYROLL_DISCOUNT := 0.85    # a staffed Bank runs payroll leaner
-const PARTY_MEMBER_INCOME = 1.0
+const PARTY_MEMBER_INCOME = 0.15       # per tick -- ~4.5/day per Party member
 # A villager whose personal bond (VillagerQuests) is complete works with unlocked
 # potential -- their role income is multiplied by this. See turn_in_villager_quest.
 const BOND_INCOME_MULT = 1.5
@@ -1071,7 +1076,14 @@ func tick_village_clock() -> void:
 # --- Siege scheduling + resolution (runs in every scene) ---
 
 func current_siege_tier() -> int:
-	return 1 + int(game_hours / 24.0)
+	# 7.6, numbers pass (2026-07-20, balance sim): PROSPERITY x DEPTH, never
+	# the calendar. The old clock-only tier (+1 per day, unbounded) was a
+	# guaranteed roster wipe by day 40 -- a player who took their time was
+	# executed for it. Depth is the main screw (you brought this on the
+	# village by digging); a living town adds the prosperity surcharge.
+	var depth_part: float = float(highest_unlocked_level) * 0.30
+	var prosperity: float = float(rescued_villagers.size()) * 0.08 + float(village_morale()) * 0.02
+	return maxi(1, int(round(1.0 + depth_part + prosperity)))
 
 # Standing defense strength of the village right now (wizard + warriors).
 # GAME_BIBLE 2.5.1: Orin enters the story only once the player has carved to
@@ -2040,7 +2052,15 @@ func generate_passive_income() -> void:
 		return
 	# a happy village is a taxable village (0.75x .. 1.25x)
 	total *= village_morale_multiplier()
-	player.add_currency(int(round(total)))
+	# fractions accrue: a six-soul town earns a coin every few ticks instead
+	# of rounding forever to zero
+	_gold_accum += total
+	if _gold_accum >= 1.0:
+		var pay := int(_gold_accum)
+		_gold_accum -= float(pay)
+		player.add_currency(pay)
+
+var _gold_accum := 0.0
 
 # --- THE MINE (GAME_BIBLE 5.7, decided 2026-07-20 delegated) ---
 # The delegated form of hand-mining: staffed Miners haul the SAME materials
@@ -2328,8 +2348,8 @@ func get_barracks_graduation_speed_multiplier() -> float:
 # that building's leadership seat(s) being FILLED and scales with how many are
 # seated (Science Lab 4, Barracks/School/Builderhouse 2). Leaders keep working
 # even while the player is off in the dungeon -- the town runs itself.
-const BANK_INTEREST_RATE := 0.03        # Treasurer: treasury grows this fraction per tick
-const BANK_INTEREST_CAP := 60           # ...capped per tick so wealth can't run away
+const BANK_INTEREST_RATE := 0.0008      # ~2.4%/day at full rate (numbers pass 2026-07-20)
+const BANK_INTEREST_CAP := 5            # ...capped per tick so wealth can never run away
 const AUTO_HEAL_PER_PHYSICIAN := 18.0   # Chief Physician: injured-villager HP restored per tick
 const AUTO_SELL_KEEP := 12              # Merchant Prince: keep this many of each material
 const AUTO_SELL_PRICE := 4              # ...and sell the surplus at this gold each
@@ -3136,6 +3156,7 @@ func reset_for_new_game() -> void:
 	harvest_done = false
 	harvested_villagers = []
 	despair_dead = false
+	_gold_accum = 0.0
 	ng_plus_cycles = 0
 	seen_chronicle_100 = false
 	maera_stabilized_this_siege = false

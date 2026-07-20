@@ -52,14 +52,18 @@ func _ready() -> void:
 	roster.append({"id": "ec_gov", "name": "Official", "sex": "Male", "is_kid": false,
 		"stat_name": "Financist", "stat_value": 5, "role_key": "Government", "role_title": "Official"})
 	GameState.building_stage["Farm"] = GameState.TOTAL_BUILD_STAGES
-	GameState.generate_passive_income()
-	check("a staffed Government taxes the working village",
+	# per-day-sane rates accrue fractionally -- a small town earns its coins
+	# over several ticks, never a flood per tick (numbers pass 2026-07-20)
+	for i2 in range(30):
+		GameState.generate_passive_income()
+	check("a staffed Government taxes the working village (a day's ticks)",
 		p.currency > 100, str(p.currency))
 	var taxed: int = p.currency
 	GameState.building_stage["Bar"] = GameState.TOTAL_BUILD_STAGES
 	roster.append({"id": "ec_bar", "name": "Keep", "sex": "Female", "is_kid": false,
 		"stat_name": "Tavern", "stat_value": 4, "role_key": "Bar", "role_title": "Barkeep"})
-	GameState.generate_passive_income()
+	for i3 in range(30):
+		GameState.generate_passive_income()
 	check("the Bar trickles drink money on the side",
 		p.currency > taxed, str(p.currency))
 	check("the old per-worker printing press is GONE",
