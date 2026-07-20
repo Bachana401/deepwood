@@ -2059,6 +2059,7 @@ func die() -> void:
 		var topple = create_tween()
 		topple.tween_property(body_anim, "rotation", deg_to_rad(82.0 * facing_direction), 0.5).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
+	GameState.last_death_toll = ""       # Easy deaths cost gold only
 	drop_currency_on_death()
 	apply_difficulty_death_penalty()
 

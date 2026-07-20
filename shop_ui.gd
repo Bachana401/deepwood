@@ -78,7 +78,7 @@ func try_buy_dash() -> void:
 	player.currency -= DASH_COST
 	player.has_dash = true
 	player.update_currency_display()
-	show_notification("Dashing purchased succesfully ! (Double press A or D to use)")
+	show_notification("Dash purchased! Double-tap A or D to use it.")
 	print("Dash unlocked!")
 
 func try_buy_double_jump() -> void:
@@ -91,7 +91,7 @@ func try_buy_double_jump() -> void:
 	player.currency -= DOUBLE_JUMP_COST
 	player.has_double_jump = true
 	player.update_currency_display()
-	show_notification("Double Jump purchased successfully (so creative right ?!)")
+	show_notification("Double Jump purchased! Press SPACE again mid-air.")
 	print("Double jump unlocked!")
 
 # Weapons are inventory items now -- buying one drops it in your bag; wield it

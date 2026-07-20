@@ -3829,6 +3829,10 @@ func remove_random_villager() -> void:
 # and it happened in complete SILENCE. The player respawned, and hours
 # later noticed someone missing with no idea their own death had done it.
 # Name the cost, out loud, at the moment it is paid.
+# What the latest death cost, for the death screen itself -- the toast
+# alone played BEHIND the death overlay, so the harshest news went unseen.
+var last_death_toll := ""
+
 func report_death_toll(difficulty_name: String) -> void:
 	if rescued_villagers.is_empty():
 		return
@@ -3841,6 +3845,7 @@ func report_death_toll(difficulty_name: String) -> void:
 	var doomed: Dictionary = takeable[randi() % takeable.size()]
 	var who := str(doomed.get("name", "Someone"))
 	remove_villager_by_id(str(doomed.get("id", "")))
+	last_death_toll = "%s is gone — the price of your death. (%s)" % [who, difficulty_name]
 	log_event("people", "%s was lost while you lay dying in the deep." % who)
 	var stack = get_tree().get_first_node_in_group("notification_stack")
 	if stack:
