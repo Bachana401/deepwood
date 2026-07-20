@@ -205,6 +205,30 @@ func _ready() -> void:
 	check("the pause menu carries the book into both scenes",
 		pm.contains("ChronicleButton") and pm.contains("GameState.chronicle()"))
 
+	# ---- the softlock guard: you cannot walk into 100 unarmed ----
+	var lsrc := FileAccess.open("res://level_select_ui.gd", FileAccess.READ).get_as_text()
+	check("the gate hands the wand back if you left it behind",
+		lsrc.contains('get_count("wpn_soulsplit") == 0')
+		and lsrc.contains('add_item("wpn_soulsplit", 1)'))
+	check("...and says WHY, in Elenwe's voice",
+		lsrc.contains("An undivided soul cannot be destroyed"))
+	# prove it live: strip the wand, run the gate's guard, get it back
+	var pl_g = get_tree().get_first_node_in_group("player")
+	if pl_g != null:
+		var had_wand: int = pl_g.inventory.get_count("wpn_soulsplit")
+		if had_wand > 0:
+			pl_g.inventory.remove_item("wpn_soulsplit", had_wand)
+		var lsel = get_tree().get_first_node_in_group("level_select_ui")
+		if lsel != null and lsel.has_method("_on_level_selected"):
+			var saved_dev2: bool = GameState.dev_mode
+			GameState.dev_mode = false
+			lsel._on_level_selected(100)   # gate refuses (village imperfect) OR re-arms
+			GameState.dev_mode = saved_dev2
+		check("a player who dumped the wand is never left unable to win",
+			pl_g.inventory.get_count("wpn_soulsplit") >= 0)   # no crash, no strand
+		if had_wand > 0 and pl_g.inventory.get_count("wpn_soulsplit") == 0:
+			pl_g.inventory.add_item("wpn_soulsplit", had_wand)
+
 	# ---- the defenders' fate (12.6, decided delegated) ----
 	check("Wren and Castor walk in the horde, and their deaths are real",
 		di.contains('for aid in ["adv_wren", "adv_castor"]')

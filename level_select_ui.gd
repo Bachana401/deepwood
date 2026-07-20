@@ -90,6 +90,20 @@ func _on_level_selected(level: int) -> void:
 			if stack:
 				stack.show_notification("⛔ The gate of 100 stays sealed. It wants a PERFECT Deepwood — still missing: %s." % "; ".join(missing))
 			return
+		# THE SOFTLOCK GUARD (polish 2026-07-20): Orin is unkillable without
+		# the Soul Split Wand -- and the wand is a 0-damage "joke" item that
+		# any player tidying their bag would happily dump in a chest. Walk in
+		# without it and the fight is literally unwinnable, with nothing on
+		# screen explaining why. The Ten notice: Elenwe presses it back into
+		# your hand at the door.
+		var pl = get_tree().get_first_node_in_group("player")
+		if pl != null and "inventory" in pl and pl.inventory != null \
+				and pl.inventory.get_count("wpn_soulsplit") == 0:
+			pl.inventory.add_item("wpn_soulsplit", 1)
+			var stack2 = get_tree().get_first_node_in_group("notification_stack")
+			if stack2:
+				stack2.show_notification("Elenwe presses the Soul Split Wand back into your hand: \"An undivided soul cannot be destroyed. You will need this.\"")
+			GameState.log_event("people", "Elenwe returned the Soul Split Wand before the descent to 100.")
 	close()
 	var player = get_tree().get_first_node_in_group("player")
 	if not player:
