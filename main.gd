@@ -393,11 +393,12 @@ var _arrival_left := 0
 func begin_arrival_battle() -> void:
 	if GameState.seen_arrival_battle or GameState.dev_mode:
 		return
-	var wall = null
-	for w in get_tree().get_nodes_in_group("village_wall"):
-		if not "flank" in w or w.flank == "west":
-			wall = w
-	var gate_x: float = wall.global_position.x if wall else 4700.0
+	# The fight happens ON THE ROAD IN -- right where the player is walking,
+	# a few steps east of the spawn. Canon (2.4.1): you FIND the three
+	# defenders mid-battle; a fight staged at the far gate would be over,
+	# off-screen, before you ever arrived. The trio drift back to their
+	# stations on their own once the wave is dead.
+	var road_x := 520.0
 	_arrival_left = 4
 	for i in range(4):
 		var e = SIEGE_ENEMY_FOR_ARRIVAL.instantiate()
@@ -406,13 +407,13 @@ func begin_arrival_battle() -> void:
 		e.attack_damage = 4
 		e.reward = 3
 		e.wall = null              # they fight the defenders, not the stone
-		e.global_position = Vector2(gate_x - 420.0 - i * 55.0, -70.0)
+		e.global_position = Vector2(road_x + 170.0 + i * 55.0, -70.0)
 		e.died.connect(_on_arrival_raider_died)
 		add_child(e)
 	# beat 1: the trio is ALREADY in the fight when the player walks up
 	for a in get_tree().get_nodes_in_group("adventurer"):
-		a.global_position = Vector2(gate_x - 300.0 + randf_range(-50.0, 50.0), -70.0)
-	GameState.notify("⚔ Fighting at the west gate — the defenders are engaged!")
+		a.global_position = Vector2(road_x + randf_range(-60.0, 20.0), -70.0)
+	GameState.notify("⚔ Fighting on the road ahead — the defenders are engaged!")
 
 func _on_arrival_raider_died() -> void:
 	_arrival_left -= 1
@@ -723,7 +724,13 @@ func generate_mountains() -> void:
 	#
 	# Height is deliberate -- see BACKDROP_SCALE: the canopy tops out at -440, low
 	# enough that the sun/moon arc (-540 to -760) always rides clear above it.
-	if ResourceLoader.exists(BACKDROP_PLATES[0]):
+	#
+	# DEV CALL (2026-07-20): the painted PixelLab backdrop is RETIRED for now --
+	# its busy plates swallowed the small NPC sprites ("i don't see any npc at
+	# all") and the dev wants something better made later. Files stay on disk
+	# (no-deletion rule); flip this to bring it back for comparison.
+	const USE_PAINTED_BACKDROP := false
+	if USE_PAINTED_BACKDROP and ResourceLoader.exists(BACKDROP_PLATES[0]):
 		var texs: Array[Texture2D] = []
 		for path in BACKDROP_PLATES:
 			if ResourceLoader.exists(path):

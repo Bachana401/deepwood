@@ -1800,7 +1800,10 @@ func tick_morale_effects(hours_passed: float) -> void:
 	# warn ONCE when morale hits rock bottom (re-arms only after it recovers past
 	# 3/10, so a village hovering at the threshold doesn't spam the toast)
 	if m < DESPAIR_MORALE:
-		if not _warned_low_morale:
+		# day one is understood to be ashes -- a fresh village of three
+		# unhoused, jobless souls IS miserable, and saying so in the player's
+		# first minute is noise, not news. The warning waits out the first day.
+		if not _warned_low_morale and game_hours > 24.0:
 			_warned_low_morale = true
 			notify("Your villagers are miserable — morale is critically low!")
 			log_event("village", "The village's spirit is failing — despair gathers in the streets.")
