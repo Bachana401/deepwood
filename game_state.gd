@@ -809,6 +809,23 @@ const CHILD_NAMES = ["Tomi", "Sasha", "Luca", "Mira", "Finn", "Ari", "Noa", "Ren
 var mating_houses: Dictionary = {}
 var pregnancies: Dictionary = {}
 
+# --- THE VILLAGE LOG (GAME_BIBLE 5.9) ---
+# The village's diary, opened with L: a timestamped journal of everything
+# that mattered -- much of it while the player was down in the dark. Plain
+# language ("Milo and Elin had a child", never a system code), newest
+# first, only things worth surfacing. It reads like the town wrote it.
+const LOG_MAX_ENTRIES := 120
+var village_log: Array = []   # {"day", "hour", "cat", "text"}, newest first
+
+func log_event(cat: String, text: String) -> void:
+	village_log.push_front({
+		"day": int(game_hours / 24.0) + 1,
+		"hour": int(game_hours) % 24,
+		"cat": cat, "text": text,
+	})
+	if village_log.size() > LOG_MAX_ENTRIES:
+		village_log.resize(LOG_MAX_ENTRIES)
+
 # --- HOUSING (GAME_BIBLE 5.8) ---
 # The cradle IS the home: the cottage a pair unites in becomes THEIRS for
 # life -- only death parts a pair or frees their cottage. Housing is the
@@ -1116,7 +1133,9 @@ func resolve_siege_offline(tier: int) -> void:
 	maera_stabilized_this_siege = false
 	if village_defense_power() >= float(tier):
 		away_report.repelled += 1
+		log_event("combat", "A tier-%d siege struck while you were away — the defense held. Nobody was lost." % tier)
 		return
+	log_event("combat", "A tier-%d siege struck while you were away — the wall could not hold it all." % tier)
 	var casualties = int(ceil(float(tier) - village_defense_power()))
 	for i in range(casualties):
 		# the adventurers are the shield: a fighting one (wall first, then city)
@@ -1136,13 +1155,16 @@ func resolve_siege_offline(tier: int) -> void:
 			# a permadeath deserves a NAME in the report, not a tally mark
 			if not away_report.has("fallen_names"):
 				away_report["fallen_names"] = []
-			away_report["fallen_names"].append(str(Adventurers.get_def(shield_id).get("name", "an adventurer")))
+			var fallen_name := str(Adventurers.get_def(shield_id).get("name", "an adventurer"))
+			away_report["fallen_names"].append(fallen_name)
+			log_event("combat", "%s fell holding the line. They will not re-enlist." % fallen_name)
 			continue
 		# Maera, the Last Lightmender (the Ten): once per siege she pulls someone
 		# back from the brink -- one villager who would have died, does not
 		if ten_freed("ten_maera") and not maera_stabilized_this_siege:
 			maera_stabilized_this_siege = true
 			away_report["stabilized"] = int(away_report.get("stabilized", 0)) + 1
+			log_event("combat", "Maera pulled someone back from the brink — one villager who should have died, did not.")
 			continue
 		if rescued_villagers.is_empty():
 			break
@@ -1153,6 +1175,7 @@ func resolve_siege_offline(tier: int) -> void:
 func on_live_siege_ended() -> void:
 	live_siege_active = false
 	hours_until_next_siege = SIEGE_INTERVAL_HOURS
+	log_event("combat", "The wave broke against the wall — Deepwood held.")
 	# the survivors bind their wounds: every adventurer still standing recovers
 	# to full between sieges, so attrition never quietly executes them across a
 	# dozen fights -- only a battle that actually kills one removes them
@@ -1567,7 +1590,10 @@ func tick_morale_effects(hours_passed: float) -> void:
 		if not _warned_low_morale:
 			_warned_low_morale = true
 			notify("Your villagers are miserable — morale is critically low!")
+			log_event("village", "The village's spirit is failing — despair gathers in the streets.")
 	elif m >= 30:
+		if _warned_low_morale:
+			log_event("village", "Hope returns to Deepwood — the worst has passed.")
 		_warned_low_morale = false
 	# Villagers lose HP from TWO causes that share this one drain path (so there
 	# is never a second, parallel death system): rock-bottom morale that has
@@ -1615,6 +1641,7 @@ func tick_morale_effects(hours_passed: float) -> void:
 # extra dread on the town (the domino). If the player is away in the dungeon
 # there's no village to spawn into -- the villager is simply lost to corruption.
 func transform_villager_to_demon(villager_id: String) -> void:
+	log_event("people", "%s's hope broke — they turned, and the thing they became walks the streets." % villager_name(villager_id))
 	var pos = Vector2.ZERO
 	var parent: Node = null
 	for npc in get_tree().get_nodes_in_group("npc"):
@@ -1936,6 +1963,7 @@ func auto_repair_one() -> void:
 	building_stage[worst] = worst_stage + 1
 	if int(building_stage[worst]) >= TOTAL_BUILD_STAGES:
 		building_health[worst] = BUILDING_MAX_HEALTH
+		log_event("village", "The builders finished the %s — it stands again." % worst)
 	for node in get_tree().get_nodes_in_group("building"):
 		if "role_key" in node and str(node.role_key) == worst and node.has_method("refresh_visual"):
 			node.refresh_visual()
@@ -1985,6 +2013,7 @@ func update_mating_houses(hours_passed: float) -> void:
 		# 5.8: the cradle IS the home. The cottage they united in is theirs
 		# for life -- it never returns to the free pool while both live.
 		cottage_homes[house_id] = {"a": pairing.male_id, "b": pairing.female_id}
+		log_event("people", "%s and %s made a cottage their home." % [villager_name(pairing.male_id), villager_name(pairing.female_id)])
 		var pregnancy_id = "preg_%d_%d" % [Time.get_ticks_msec(), randi() % 100000]
 		pregnancies[pregnancy_id] = {"male_id": pairing.male_id, "female_id": pairing.female_id, "remaining_hours": GESTATION_DURATION_HOURS}
 		couple_departed.emit(house_id, pairing.male_id, pairing.female_id)
@@ -2025,6 +2054,10 @@ func produce_child(pregnancy_id: String) -> void:
 		if stack:
 			stack.show_notification("★ %s is born a HERO — the Barracks awaits them." % child_name)
 	rescued_villagers.append(child)
+	if child.get("hero", false):
+		log_event("people", "★ %s was born a HERO — the Barracks awaits them." % child_name)
+	else:
+		log_event("people", "%s and %s had a child — welcome, %s." % [villager_name(str(pairing.male_id)), villager_name(str(pairing.female_id)), child_name])
 	register_villagers_added(1)   # a new life eases the town's grief
 	child_produced.emit(child_id)
 
@@ -2305,6 +2338,7 @@ func free_one_of_the_ten(id: String) -> void:
 		return
 	the_ten[id]["freed"] = true
 	var def = TheTen.get_def(id)
+	log_event("people", "★ %s, %s, walks free of Orin's vaults." % [def.get("name", "?"), def.get("title", "")])
 	# the legend walks the village from now on -- unbreakable, and visibly so
 	rescued_villagers.append({
 		"id": id, "name": "%s, %s" % [def.get("name", "?"), def.get("title", "")],
@@ -2454,6 +2488,10 @@ func graduate_villager(villager_id: String) -> void:
 				if stack:
 					stack.show_notification("★ %s completes their training — a HERO of the %s stands among you." % [
 						villager.get("name", "?"), HERO_POWERS[power]])
+				log_event("people", "★ %s finished barracks training — a HERO of the %s stands among you." % [
+					villager.get("name", "?"), HERO_POWERS[power]])
+			else:
+				log_event("people", "%s finished school — a %s now." % [villager.get("name", "?"), granted_stat])
 
 func load_deepest_level() -> void:
 	if FileAccess.file_exists(DEEPEST_LEVEL_PATH):
@@ -2502,6 +2540,7 @@ func reset_for_new_game() -> void:
 	cottage_homes = {}
 	extra_cottages = 0
 	_family_cycle_accum = 0.0
+	village_log = []
 	pregnancies = {}
 	school_enrollments = {}
 	highest_unlocked_level = 999 if TEST_UNLOCK_ALL_LEVELS else 1
@@ -2616,6 +2655,7 @@ func save_game(player: Node) -> void:
 		"mating_houses": mating_houses,
 		"cottage_homes": cottage_homes,
 		"extra_cottages": extra_cottages,
+		"village_log": village_log,
 		"pregnancies": pregnancies,
 		"school_enrollments": school_enrollments,
 		"highest_unlocked_level": highest_unlocked_level,
@@ -2693,6 +2733,8 @@ func load_game() -> Dictionary:
 		if parsed.has("cottage_homes"):
 			cottage_homes = parsed["cottage_homes"]
 		extra_cottages = int(parsed.get("extra_cottages", 0))
+		if parsed.has("village_log") and parsed["village_log"] is Array:
+			village_log = parsed["village_log"]
 		if parsed.has("pregnancies"):
 			pregnancies = parsed["pregnancies"]
 		if parsed.has("school_enrollments"):
@@ -2771,6 +2813,7 @@ func rescue_villager(data: Dictionary) -> void:
 		data["quest_state"] = "active"
 		data["quest_progress"] = 0
 	rescued_villagers.append(data)
+	log_event("people", "%s, freed from the dark, reached the village." % str(data.get("name", "A stranger")))
 	# rescuing someone can be the objective of a "reunite" bond on ANOTHER villager
 	quest_event("reunite", str(data.get("id", "")), 1)
 
@@ -2880,6 +2923,7 @@ func remove_villager_by_id(villager_id: String) -> void:
 		if entry.get("id") == villager_id:
 			rescued_villagers.erase(entry)
 			register_villager_deaths(1)   # every villager lost grieves the town
+			log_event("people", "%s is gone. Deepwood grieves." % str(entry.get("name", "Someone")))
 			break
 	# 5.8: widowhood. The survivor's partner-link breaks, the -3 grief lands
 	# now and decays across the mourning window, and only after ~48h can they

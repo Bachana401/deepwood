@@ -367,6 +367,7 @@ func advance_build_stage() -> void:
 	if build_stage >= GameState.TOTAL_BUILD_STAGES:
 		health = MAX_HEALTH
 		GameState.building_health[building_name] = health
+		GameState.log_event("village", "The %s stands again." % building_name)
 	current_state = compute_visual_state()
 	update_health_bar()
 	refresh_visual()

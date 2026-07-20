@@ -196,6 +196,8 @@ const VILLAGE_FALLBACK_POS = Vector2(4900.0, -100.0)
 var music: AudioStreamWAV = preload("res://audio/ambient_music.wav")
 
 func _ready() -> void:
+	# the village diary rides along in every scene (5.9, press L)
+	add_child(preload("res://village_log_ui.gd").new())
 	generate_mountains()
 	generate_grass()
 	generate_traps()

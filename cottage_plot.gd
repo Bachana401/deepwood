@@ -96,5 +96,6 @@ func try_raise() -> void:
 	house.position = position
 	get_parent().add_child(house)
 	position.x += HOUSE_SPACING
+	GameState.log_event("village", "A new cottage was raised — room for one more pair.")
 	if notif:
 		notif.show_notification("A new cottage stands — room for one more pair to call Deepwood home.")

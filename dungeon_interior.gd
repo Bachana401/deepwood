@@ -394,6 +394,9 @@ var current_ceiling := CEILING_Y
 const GATE_SCRIPT = preload("res://dungeon_gate.gd")
 
 func _ready() -> void:
+	# the village diary is readable even down here -- what happened up top
+	# while you delved is exactly what it exists to answer (5.9)
+	add_child(preload("res://village_log_ui.gd").new())
 	GameState.in_dungeon = true
 	if GameState.proving_grounds:
 		build_proving_grounds()
