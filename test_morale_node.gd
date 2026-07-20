@@ -171,6 +171,32 @@ func _ready() -> void:
 	check("the monarch's awakening is about YOU — never fog-gated",
 		gfog.contains("never gated by the village fog"))
 
+	# ---- polish: the village at a glance + a game that speaks ----
+	var mm: Node = null
+	for n in get_tree().root.find_children("*", "", true, false):
+		if "glance" in n and n.has_method("_refresh_glance"):
+			mm = n
+	check("the TAB overlay carries a village-at-a-glance readout", mm != null)
+	if mm != null:
+		mm._refresh_glance()
+		var txt: String = str(mm.glance.text)
+		check("...it answers food, souls and the wage bill without walking the town",
+			txt.contains("Food") and txt.contains("Souls") and txt.contains("Wages"), txt)
+		check("...and warns about lost blueprints while any remain",
+			(GameState.blueprints.size() >= GameState.STARTING_BUILDINGS.size())
+			or txt.contains("blueprint"), txt)
+	var gsnd := FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text()
+	check("one shared one-shot sfx helper exists (positional + flat)",
+		gsnd.contains("func play_sfx(stream: AudioStream"))
+	check("the week's new systems SPEAK: bell, cleansing, quits",
+		gsnd.contains("play_sfx(SFX_CHIME, 0.7)") and gsnd.contains("play_sfx(SFX_YES, 1.15)")
+		and gsnd.contains("play_sfx(SFX_NO, 0.8)"))
+	check("...as do rifts, relocation, blueprints, the tower and cottages",
+		FileAccess.open("res://player.gd", FileAccess.READ).get_as_text().contains("GameState.play_sfx")
+		and FileAccess.open("res://blueprint_pickup.gd", FileAccess.READ).get_as_text().contains("play_sfx")
+		and FileAccess.open("res://watchtower.gd", FileAccess.READ).get_as_text().contains("play_sfx")
+		and FileAccess.open("res://cottage_plot.gd", FileAccess.READ).get_as_text().contains("play_sfx"))
+
 	# ---- alignment (5.7): every building's staffing is load-bearing ----
 	var gsrc2 := FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text()
 	check("a staffed Builder crew rebuilds WITHOUT a leader (half pace)",

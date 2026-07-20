@@ -1375,6 +1375,7 @@ func try_weave_portal() -> void:
 	p.is_orange = portal_a == null
 	get_parent().add_child(p)
 	p.global_position = global_position
+	GameState.play_sfx(GameState.SFX_CHIME, 1.5 if portal_a == null else 0.9, global_position)
 	if portal_a == null:
 		portal_a = p
 	else:
@@ -1393,6 +1394,8 @@ func tick_portals(delta: float) -> void:
 	update_mana_display()
 
 func close_portals(msg := "") -> void:
+	if portal_a != null or portal_b != null:
+		GameState.play_sfx(GameState.SFX_CHIME, 0.55, global_position)
 	for p in [portal_a, portal_b]:
 		if p != null and is_instance_valid(p):
 			p.collapse()
@@ -1451,6 +1454,7 @@ func try_plant_building() -> void:
 		return
 	add_currency(-GameState.RELOCATE_GOLD)
 	inventory.remove_item("wood", GameState.RELOCATE_WOOD)
+	GameState.play_sfx(GameState.SFX_THUD, 1.4, Vector2(x, global_position.y))
 	mover.global_position.x = x
 	GameState.building_positions[name] = x
 	GameState.moving_building = ""

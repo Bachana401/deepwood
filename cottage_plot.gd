@@ -93,6 +93,7 @@ func try_raise() -> void:
 	for mat in COST:
 		player.inventory.remove_item(mat, int(COST[mat]))
 	GameState.extra_cottages += 1
+	GameState.play_sfx(GameState.SFX_THUD, 1.6, global_position)
 	var idx: int = GameState.extra_cottages
 	var house = HOUSE_SCRIPT.new()
 	var palette: Dictionary = HOUSE_COLORS[idx % HOUSE_COLORS.size()]

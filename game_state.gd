@@ -2062,6 +2062,39 @@ func generate_passive_income() -> void:
 
 var _gold_accum := 0.0
 
+# --- ONE-SHOT SFX (polish pass 2026-07-20) ---
+# Every system built this week spoke only in toasts -- silent portals,
+# silent blueprints, a silent Watchtower bell. One helper, so a moment
+# that matters is HEARD as well as read. Positional when a place is
+# given, flat UI otherwise; pitch shifts let one sample wear many hats.
+const SFX_YES = preload("res://audio/purchase.wav")
+const SFX_NO = preload("res://audio/purchase_denied.wav")
+const SFX_THUD = preload("res://audio/explosion.wav")
+const SFX_CHIME = preload("res://audio/arrow_deflect.wav")
+
+func play_sfx(stream: AudioStream, pitch := 1.0, at = null) -> void:
+	var tree := get_tree()
+	if tree == null or stream == null:
+		return
+	var host: Node = tree.current_scene
+	if host == null:
+		return
+	if at != null:
+		var sp := AudioStreamPlayer2D.new()
+		sp.stream = stream
+		sp.pitch_scale = pitch
+		host.add_child(sp)
+		sp.global_position = at
+		sp.play()
+		sp.finished.connect(sp.queue_free)
+		return
+	var up := AudioStreamPlayer.new()
+	up.stream = stream
+	up.pitch_scale = pitch
+	host.add_child(up)
+	up.play()
+	up.finished.connect(up.queue_free)
+
 # --- BLUEPRINTS (GAME_BIBLE 5.2, dev decision 2026-07-20) ---
 # A ruin cannot be RAISED until its blueprint is found in the deep. The
 # survival basics are known from the start; the other twelve lie at fixed
@@ -2153,6 +2186,7 @@ func try_cleanse(was_villager: Dictionary) -> bool:
 	v.erase("shadow")
 	rescued_villagers.append(v)
 	villager_hp[str(v.get("id", ""))] = 60.0
+	play_sfx(SFX_YES, 1.15)
 	log_event("people", "★ %s was cleansed at the Shrine — despair could not keep them." % str(v.get("name", "?")))
 	notify("★ The Shrine burns three Sorrowshards — %s returns to the living." % str(v.get("name", "?")))
 	return true
@@ -2188,6 +2222,7 @@ func tick_watchtower_warning() -> void:
 		_tower_bell_armed = true       # quiet road: re-arm for the next wave
 	elif _tower_bell_armed:
 		_tower_bell_armed = false
+		play_sfx(SFX_CHIME, 0.7)
 		notify("🔔 The Watchtower bell — a tier-%d wave lands in ~%dh!" % [current_siege_tier(), int(ceil(hours_until_next_siege))])
 		log_event("combat", "The Watchtower rang: a wave is coming.")
 
@@ -2354,6 +2389,7 @@ func tick_wages(hours_passed: float) -> void:
 			v["role_key"] = ""
 			v["role_title"] = ""
 			v["morale"] = clampf(get_personal_morale(v) - 1.5, 0.0, 10.0)
+		play_sfx(SFX_NO, 0.8)
 		notify("%d worker%s quit unpaid — the treasury ran dry." % [unpaid, "" if unpaid == 1 else "s"])
 
 func count_leader_holders(role_key: String, title: String) -> int:

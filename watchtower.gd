@@ -71,12 +71,14 @@ func try_upgrade() -> void:
 		if player.inventory.get_count(mat) < int(cost[mat]):
 			missing.append("%s %d/%d" % [str(mat).replace("_", " "), player.inventory.get_count(mat), int(cost[mat])])
 	if not missing.is_empty():
+		GameState.play_sfx(GameState.SFX_NO)
 		if notif:
 			notif.show_notification("The tower needs: " + ", ".join(missing))
 		return
 	for mat in cost:
 		player.inventory.remove_item(mat, int(cost[mat]))
 	GameState.watchtower_tier = tier + 1
+	GameState.play_sfx(GameState.SFX_YES, 0.85, global_position)
 	build_visual()
 	_refresh_prompt()
 	var lines = [

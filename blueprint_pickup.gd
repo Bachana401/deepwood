@@ -52,5 +52,6 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	if player_inside and Input.is_action_just_pressed("interact"):
+		GameState.play_sfx(GameState.SFX_CHIME, 1.25, global_position)
 		GameState.grant_blueprint(building_name)
 		queue_free()

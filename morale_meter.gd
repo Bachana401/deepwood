@@ -17,6 +17,7 @@ const BAR_H := 12.0
 
 var fill: ColorRect = null
 var label: Label = null
+var glance: Label = null
 var tab_open := false
 var cur_morale := 50
 
@@ -43,6 +44,18 @@ func _ready() -> void:
 	label.add_theme_constant_override("outline_size", 4)
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(label)
+	# THE VILLAGE AT A GLANCE (polish 2026-07-20): the meter answered "are
+	# they happy" and nothing else -- you had to walk the whole town to
+	# learn the food runway, the wage bill, or how many souls sleep rough.
+	# Four lines under the bar, same fog rule as the meter.
+	glance = Label.new()
+	glance.position = Vector2(BAR_X, BAR_Y + BAR_H + 8.0)
+	glance.add_theme_font_size_override("font_size", 12)
+	glance.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9))
+	glance.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	glance.add_theme_constant_override("outline_size", 4)
+	glance.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(glance)
 	visible = false
 
 # Toggle alongside the inventory/equipment panels on TAB.
@@ -68,7 +81,49 @@ func refresh() -> void:
 	fill.size.x = BAR_W * float(cur_morale) / 100.0
 	fill.color = _mood_color(cur_morale)
 	label.text = "Morale %.1f/10" % (float(cur_morale) / 10.0)
+	_refresh_glance()
 	queue_redraw()
+
+# Four lines the player would otherwise have to walk the town to learn:
+# how long the larder lasts, what the payroll costs, who sleeps rough or
+# jobless, and how many blueprints are still lost in the deep.
+func _refresh_glance() -> void:
+	if glance == null:
+		return
+	var eaten: float = GameState.food_consumption_per_hour()
+	var made: float = GameState.food_production_per_hour()
+	var net: float = made - eaten
+	var food_line := "Food %.0f" % GameState.village_food
+	if net < -0.001:
+		food_line += "  (%.0fh left)" % (GameState.village_food / -net)
+	elif net > 0.001:
+		food_line += "  (+%.1f/day)" % (net * 24.0)
+	else:
+		food_line += "  (holding)"
+	var employed := 0
+	var homeless := 0
+	var jobless := 0
+	for v in GameState.rescued_villagers:
+		if str(v.get("role_key", "")) != "":
+			employed += 1
+		elif not v.get("is_kid", false):
+			jobless += 1
+		if not v.get("is_kid", false) and GameState.villager_home_id(str(v.get("id", ""))) == "":
+			homeless += 1
+	var wage: float = float(employed) * GameState.WAGE_PER_WORKER_PER_DAY
+	if GameState.is_building_operational("Bank") and GameState.count_workers("Bank") > 0:
+		wage *= GameState.BANK_PAYROLL_DISCOUNT
+	var lines := []
+	lines.append(food_line)
+	lines.append("Souls %d  (%d working, %d idle)" % [GameState.rescued_villagers.size(), employed, jobless])
+	lines.append("Wages %.0fg/day%s" % [wage, "   ⚠ %d unhoused" % homeless if homeless > 0 else ""])
+	var rotting: int = GameState.villager_rot.size()
+	if rotting > 0:
+		lines.append("⚠ %d SLIPPING — mend their lives now" % rotting)
+	var missing_bp: int = GameState.STARTING_BUILDINGS.size() - GameState.blueprints.size()
+	if missing_bp > 0:
+		lines.append("📜 %d blueprint%s still lost below" % [missing_bp, "" if missing_bp == 1 else "s"])
+	glance.text = "\n".join(lines)
 
 # The face: a coloured disc riding at the fill tip, with a mouth that bends from
 # a frown (low morale) through flat to a grin (high morale). Eyes droop when sad.
