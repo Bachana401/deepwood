@@ -597,11 +597,16 @@ func fighting_adventurers() -> Array:
 # boost income -- see the leader-bonus section below.
 const INCOME_INTERVAL_SECONDS = 20.0
 var income_timer = 0.0
-const INCOME_ROLES = {
-	"Farm": "Farmer", "Hospital": "Doctors", "Fishing Dock": "Fisherman",
-	"Science Lab": "Scientist", "Bank": "Financist", "Blacksmith": "Blacksmith",
-	"Tavern": "Barman", "Marketplace": "Trader",
-}
+# --- THE GOLD FAUCETS (GAME_BIBLE 5.6, revised canon 2026-07-17) ---
+# Only the GOVERNMENT (taxes) and the BANK (interest) make village gold --
+# plus the Bar's small drink-sales trickle and the player's own dungeon
+# haul. No other building prints money: they pay out in their own resource
+# (food, arms, repairs, knowledge). Early game the dungeon subsidizes the
+# village; as Government and Bank come online, it approaches self-funding.
+const TAX_PER_EMPLOYED := 0.5          # Government skims a working village, per tick
+const BARKEEP_TRICKLE := 0.5           # drink sales per staffed Barkeep, per tick
+const WAGE_PER_WORKER_PER_DAY := 1.5   # 5.5: staff draw a daily wage from the purse
+const BANK_PAYROLL_DISCOUNT := 0.85    # a staffed Bank runs payroll leaner
 const PARTY_MEMBER_INCOME = 1.0
 # A villager whose personal bond (VillagerQuests) is complete works with unlocked
 # potential -- their role income is multiplied by this. See turn_in_villager_quest.
@@ -1001,6 +1006,7 @@ func tick_village_clock() -> void:
 	update_school_enrollments(hours_passed)
 	decay_doctor_price(hours_passed)
 	tick_deep_catches(hours_passed)
+	tick_wages(hours_passed)
 	if hours_passed > 0.0:
 		# grief heals with time -- the forgiving half of the death-shock system
 		morale_death_shock = maxf(0.0, morale_death_shock - hours_passed * DEATH_SHOCK_DECAY_PER_HOUR * (2.0 if ten_freed("ten_seraphel") else 1.0))
@@ -1608,6 +1614,11 @@ func tick_morale_effects(hours_passed: float) -> void:
 		drain_rate = DESPAIR_HP_DRAIN_PER_HOUR * (0.5 if ten_freed("ten_seraphel") else 1.0)
 	if village_is_starving():
 		drain_rate = maxf(drain_rate, FOOD_STARVE_HP_DRAIN_PER_HOUR)
+	# HEALTH (5.5): a staffed Hospital's doctors fight the withering and, in
+	# the regen branch below, speed every recovery -- wounds linger without it
+	var doctors := count_workers("Hospital") if is_building_operational("Hospital") else 0
+	if drain_rate > 0.0 and doctors > 0:
+		drain_rate /= 1.0 + 0.3 * float(doctors)
 	var starving = drain_rate > 0.0
 	var dead: Array = []
 	for v in rescued_villagers:
@@ -1624,7 +1635,7 @@ func tick_morale_effects(hours_passed: float) -> void:
 			else:
 				villager_hp[id] = hp
 		elif hp < VILLAGER_MAX_HP:
-			villager_hp[id] = minf(VILLAGER_MAX_HP, hp + hours_passed * DESPAIR_HP_REGEN_PER_HOUR)
+			villager_hp[id] = minf(VILLAGER_MAX_HP, hp + hours_passed * DESPAIR_HP_REGEN_PER_HOUR * (1.0 + 0.5 * float(doctors)))
 	for id in dead:
 		villager_hp.erase(id)
 		transform_villager_to_demon(id)   # despair consumes them -> they turn demonic
@@ -1731,35 +1742,80 @@ func grant_village_tribute() -> void:
 	if stack and stack.has_method("show_notification"):
 		stack.show_notification("The grateful village brings you a gift of %d gold!" % gift)
 
-func generate_passive_income() -> void:
-	var total = 0.0
-	var village_mult = get_village_income_multiplier()
+# Everyone with a role at a working building, any title.
+func count_workers(role_key: String) -> int:
+	var n := 0
 	for villager in rescued_villagers:
-		var role_key = villager.get("role_key", "")
-		var role_title = villager.get("role_title", "")
-		# a destroyed building produces nothing until it's rebuilt
-		if role_key != "" and not is_building_operational(role_key):
-			continue
-		var value = 0.0
-		if INCOME_ROLES.get(role_key, "") == role_title:
-			value = float(villager.get("stat_value", 0))
-			if role_key == "Farm":
-				value *= get_farm_income_multiplier()
-		elif role_key == "Government" and role_title == "Party":
-			value = PARTY_MEMBER_INCOME
-		# a higher-level building produces more from the same worker
-		value *= building_output_multiplier(role_key)
-		# a villager whose personal bond is complete works at unlocked potential
-		if villager.get("bond", false):
-			value *= BOND_INCOME_MULT
-		total += value * village_mult
-	if total <= 0:
-		return
-	# happy workers produce more, miserable ones less (0.75x .. 1.25x)
-	total *= village_morale_multiplier()
+		if str(villager.get("role_key", "")) == role_key:
+			n += 1
+	return n
+
+# 5.6: the village's own gold engine. Taxes need a WORKING, STAFFED
+# Government -- before that, the dungeon is the only faucet and every coin
+# hurts, exactly as Act I intends. A bonded villager works at unlocked
+# potential and is taxed at BOND_INCOME_MULT; Party members organize the
+# take; the Bar trickles drink money on the side.
+func generate_passive_income() -> void:
 	var player = get_tree().get_first_node_in_group("player")
-	if player and player.has_method("add_currency"):
-		player.add_currency(int(round(total)))
+	if player == null or not player.has_method("add_currency"):
+		return
+	var total := 0.0
+	if is_building_operational("Government") and count_workers("Government") > 0:
+		var taxable := 0.0
+		for villager in rescued_villagers:
+			var rk := str(villager.get("role_key", ""))
+			if rk == "" or rk == "Government" or not is_building_operational(rk):
+				continue
+			var share := TAX_PER_EMPLOYED * building_output_multiplier(rk)
+			if villager.get("bond", false):
+				share *= BOND_INCOME_MULT
+			taxable += share
+		taxable += PARTY_MEMBER_INCOME * float(count_leader_holders("Government", "Party"))
+		total += taxable * get_village_income_multiplier()
+	if is_building_operational("Bar"):
+		total += BARKEEP_TRICKLE * float(count_workers("Bar"))
+	if total <= 0.0:
+		return
+	# a happy village is a taxable village (0.75x .. 1.25x)
+	total *= village_morale_multiplier()
+	player.add_currency(int(round(total)))
+
+# 5.5 WAGES: staff work for PAY, drawn daily from the player's purse (the
+# treasury, 5.6 -- the Bank runs it leaner when staffed). Workers the purse
+# cannot cover QUIT on the spot: their service stops until re-staffed, and
+# the Log names them. This is the cost side of every chain in 5.7.
+var wage_accum_hours := 0.0
+
+func tick_wages(hours_passed: float) -> void:
+	wage_accum_hours += hours_passed
+	if wage_accum_hours < 24.0:
+		return
+	wage_accum_hours -= 24.0
+	var staff := []
+	for v in rescued_villagers:
+		if str(v.get("role_key", "")) != "":
+			staff.append(v)
+	if staff.is_empty():
+		return
+	var per := WAGE_PER_WORKER_PER_DAY
+	if is_building_operational("Bank") and count_workers("Bank") > 0:
+		per *= BANK_PAYROLL_DISCOUNT
+	var player = get_tree().get_first_node_in_group("player")
+	if player == null or not player.has_method("add_currency"):
+		return
+	var affordable: int = mini(staff.size(), int(floor(float(player.currency) / per)))
+	if affordable > 0:
+		player.add_currency(-int(round(per * float(affordable))))
+	var unpaid: int = staff.size() - affordable
+	if unpaid > 0:
+		staff.shuffle()
+		for i in range(unpaid):
+			var v: Dictionary = staff[i]
+			log_event("economy", "%s quit their post — the purse could not pay them." % str(v.get("name", "?")))
+			v["role_key"] = ""
+			v["role_title"] = ""
+			v["morale"] = clampf(get_personal_morale(v) - 1.5, 0.0, 10.0)
+		notify("%d worker%s quit unpaid — the treasury ran dry." % [unpaid, "" if unpaid == 1 else "s"])
 
 func count_leader_holders(role_key: String, title: String) -> int:
 	var count = 0
@@ -1770,9 +1826,6 @@ func count_leader_holders(role_key: String, title: String) -> int:
 
 func get_village_income_multiplier() -> float:
 	return 1.0 + count_leader_holders("Government", "Chancellor") * LEADER_BONUS_PER_HOLDER * (2.0 if ten_freed("ten_mirielle") else 1.0)
-
-func get_farm_income_multiplier() -> float:
-	return 1.0 + count_leader_holders("Farm", "Harvestmaster") * LEADER_BONUS_PER_HOLDER
 
 func get_gestation_speed_multiplier() -> float:
 	# a happy town makes babies faster; a despairing one makes none at all
@@ -1857,11 +1910,14 @@ func apply_leadership_automation() -> void:
 	var player = get_tree().get_first_node_in_group("player")
 	if seated_leaders("Government") > 0:            # Chancellor: staff the town
 		auto_staff_villagers()
-	if player and player.has_method("add_currency") and seated_leaders("Bank") > 0:
-		# Dorian Vail, the Coinbinder (the Ten): interest runs double
-		var interest = clampi(int(player.currency * BANK_INTEREST_RATE * (2.0 if ten_freed("ten_dorian") else 1.0)), 0, BANK_INTEREST_CAP)
+	if player and player.has_method("add_currency") and (seated_leaders("Bank") > 0 or (is_building_operational("Bank") and count_workers("Bank") > 0)):
+		# 5.6: interest is the Bank's FUNCTION -- any staffed Financist grows
+		# the treasury (half rate); the Treasurer leader runs it at full, and
+		# Dorian Vail, the Coinbinder (the Ten), doubles whatever runs
+		var rate: float = BANK_INTEREST_RATE * (1.0 if seated_leaders("Bank") > 0 else 0.5)
+		var interest = clampi(int(player.currency * rate * (2.0 if ten_freed("ten_dorian") else 1.0)), 0, BANK_INTEREST_CAP)
 		if interest > 0:
-			player.add_currency(interest)               # Treasurer: interest
+			player.add_currency(interest)               # the treasury grows
 	var researchers = seated_leaders("Science Lab")
 	if researchers > 0:
 		auto_research(researchers)                  # Lead Researchers: identify mats
@@ -2541,6 +2597,7 @@ func reset_for_new_game() -> void:
 	extra_cottages = 0
 	_family_cycle_accum = 0.0
 	village_log = []
+	wage_accum_hours = 0.0
 	pregnancies = {}
 	school_enrollments = {}
 	highest_unlocked_level = 999 if TEST_UNLOCK_ALL_LEVELS else 1
@@ -2656,6 +2713,7 @@ func save_game(player: Node) -> void:
 		"cottage_homes": cottage_homes,
 		"extra_cottages": extra_cottages,
 		"village_log": village_log,
+		"wage_accum_hours": wage_accum_hours,
 		"pregnancies": pregnancies,
 		"school_enrollments": school_enrollments,
 		"highest_unlocked_level": highest_unlocked_level,
@@ -2735,6 +2793,7 @@ func load_game() -> Dictionary:
 		extra_cottages = int(parsed.get("extra_cottages", 0))
 		if parsed.has("village_log") and parsed["village_log"] is Array:
 			village_log = parsed["village_log"]
+		wage_accum_hours = float(parsed.get("wage_accum_hours", 0.0))
 		if parsed.has("pregnancies"):
 			pregnancies = parsed["pregnancies"]
 		if parsed.has("school_enrollments"):

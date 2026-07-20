@@ -655,6 +655,7 @@ var last_operational_state := false
 # GameState.village_food) -- lush when stocked, withered when empty. The player
 # hand-tends it by holding the harvest key, filling the larder in +food chunks.
 const FARM_HARVEST_INTERVAL := 0.4    # seconds between +food chunks while tending
+const HOSPITAL_HEAL_PRICE := 12       # 5.5 Health: flat ward price, the Doctor's successor
 var farm_crop_layer: Node2D = null
 var harvest_cooldown := 0.0
 
@@ -1978,6 +1979,22 @@ func _process(delta: float) -> void:
 	else:
 		if Input.is_action_just_pressed("interact"):
 			open_assign_ui()
+		# Hospital (5.5 Health): the hands-on key checks the PLAYER in for
+		# treatment -- a flat mid-game price once the ward is staffed, the
+		# successor to the Doctor's escalating early-game lifeline.
+		if building_name == "Hospital" and is_operational() and Input.is_action_just_pressed("harvest"):
+			var pl = get_tree().get_first_node_in_group("player")
+			if pl != null and GameState.count_workers("Hospital") > 0:
+				var notif2 = get_node_or_null("../CanvasLayer/NotificationStack")
+				if pl.health >= pl.get_max_health():
+					if notif2: notif2.show_notification("The nurses look you over — not a scratch on you.")
+				elif pl.currency < HOSPITAL_HEAL_PRICE:
+					if notif2: notif2.show_notification("Treatment costs %dg — the ward cannot work for free." % HOSPITAL_HEAL_PRICE)
+				else:
+					pl.add_currency(-HOSPITAL_HEAL_PRICE)
+					pl.health = pl.get_max_health()
+					pl.update_health_display()
+					if notif2: notif2.show_notification("The ward's nurses knit you whole — %dg." % HOSPITAL_HEAL_PRICE)
 		# Farm: hold the harvest key to hand-tend the field, filling the village
 		# larder in +food chunks -- the early-game manual chore you later automate
 		# by staffing the farm with farmers.
