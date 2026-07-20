@@ -58,7 +58,20 @@ func refresh_lock_states() -> void:
 	var grid = $Panel/ScrollContainer/GridContainer
 	for i in range(grid.get_child_count()):
 		var level = i + 1
-		grid.get_child(i).disabled = level > GameState.highest_unlocked_level
+		var button = grid.get_child(i)
+		button.disabled = level > GameState.highest_unlocked_level
+		# BLUEPRINT MARKERS (polish 2026-07-20): a floor still holding lost
+		# plans wears a scroll. Blueprints gate every rebuild, so hunting
+		# them blind would be a scavenger hunt with no map -- the village
+		# remembers roughly where its things were dragged.
+		if GameState.BLUEPRINT_FLOORS.has(level) and not GameState.has_blueprint(str(GameState.BLUEPRINT_FLOORS[level])):
+			button.text = "%d\n📜" % level
+			button.tooltip_text = "The %s's blueprint lies on this floor" % str(GameState.BLUEPRINT_FLOORS[level])
+			button.add_theme_color_override("font_color", Color(0.95, 0.88, 0.55))
+		else:
+			button.text = str(level)
+			button.tooltip_text = ""
+			button.remove_theme_color_override("font_color")
 
 func close() -> void:
 	visible = false

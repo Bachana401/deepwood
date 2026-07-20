@@ -61,6 +61,16 @@ func _ready() -> void:
 	check("satchels spawn at their fixed floors, once",
 		dsrc.contains("BLUEPRINT_FLOORS.has(current_level)")
 		and ResourceLoader.exists("res://blueprint_pickup.gd"))
+	# ---- blueprints must be FINDABLE, not a blind scavenger hunt ----
+	check("the ruin names the floor its plans lie on",
+		bsrc.contains("the plans lie on dungeon floor %d"))
+	check("the level select marks floors holding unclaimed plans",
+		FileAccess.open("res://level_select_ui.gd", FileAccess.READ).get_as_text().contains("blueprint lies on this floor")
+		or FileAccess.open("res://level_select_ui.gd", FileAccess.READ).get_as_text().contains("blueprint lies on"))
+	check("...and the marker clears once the plans are in hand",
+		FileAccess.open("res://level_select_ui.gd", FileAccess.READ).get_as_text().contains("not GameState.has_blueprint"))
+	check("the test arena can never farm blueprints",
+		dsrc.contains("build_proving_grounds()") and dsrc.find("build_proving_grounds()") < dsrc.find("spawn_deep_rescue()"))
 	GameState.blueprints = saved_bp
 
 	# ---- movable buildings: the whole journey ----
