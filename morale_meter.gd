@@ -58,8 +58,10 @@ func _process(_delta: float) -> void:
 func refresh() -> void:
 	if not is_instance_valid(fill):
 		return
-	# hidden until the town is fully built, and then only while the TAB view is open
-	visible = GameState.morale_meter_unlocked and tab_open
+	# hidden until the town is fully built, then only while TAB is open --
+	# and only when the village is KNOWABLE (at home, or Telepathy): the
+	# fog rule means the meter is something you check by being there
+	visible = GameState.morale_meter_unlocked and tab_open and GameState.village_info_available()
 	if not visible:
 		return
 	cur_morale = GameState.village_morale()

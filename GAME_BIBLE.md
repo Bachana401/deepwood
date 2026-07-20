@@ -388,6 +388,8 @@ Housing was the biggest hole in the village loop: "unhoused" drives corruption (
 
 ### 5.9 The Village Log — press **L** ✅ built
 
+> **THE VILLAGE FOG (dev decision 2026-07-20):** away from the village the player learns NOTHING of it — no morale meter, no toasts, no diary. The Log still records everything; coming home and reading it is how you find out. **Telepathy** (Mage, Mystic branch, mid-game) lifts the fog entirely: meter, diary, every cry, and the Watchtower bell reach the mage anywhere — the mage becomes the only class that can watch home from the deep.
+
 A running, **timestamped journal of everything that matters in the village**, opened with **L**. The village runs on background simulation (births, deaths, rescues arriving, a villager corrupting, a wanderer showing up, a building finishing, a siege hitting) — much of it while the player is down in the dungeon. The Log is how the player *catches up on what happened while they were away* without having to watch it live.
 
 - **Logs every notable event** with an in-game timestamp (day + hour): births, deaths, corruptions, rescues returned, employment/graduation, building repairs/upgrades finished, siege start/outcome, wanderer arrivals & departures, morale milestones, someone entering the grey "rot" danger window (§10).

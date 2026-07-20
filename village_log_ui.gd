@@ -72,6 +72,13 @@ func esc_close() -> void:
 	panel.visible = false
 
 func toggle() -> void:
+	# THE VILLAGE FOG: the diary is the village's -- read it at home, or
+	# learn Telepathy (Mage) and read it from anywhere
+	if not panel.visible and not GameState.village_info_available():
+		var stack = get_tree().get_first_node_in_group("notification_stack")
+		if stack:
+			stack.show_notification("The village is beyond your knowing from here. Return home — or learn Telepathy.")
+		return
 	panel.visible = not panel.visible
 	if panel.visible:
 		refresh()

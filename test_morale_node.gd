@@ -133,6 +133,44 @@ func _ready() -> void:
 		after > before and after - before <= GameState.MORALE_DRIFT_PER_HOUR + 0.01,
 		"%f -> %f" % [before, after])
 
+	# ---- THE VILLAGE FOG + TELEPATHY (dev decision 2026-07-20) ----
+	var tele_node: Dictionary = SkillTreeData.get_node_by_id("mg_t1")
+	check("Telepathy lives mid-tree in the Mystic's road",
+		not tele_node.is_empty() and int(tele_node.get("tier", 0)) == 4
+		and str(tele_node.get("prereq", "")) == "mg_m2"
+		and float(tele_node.get("effect", {}).get("telepathy", 0.0)) > 0.0)
+	var fog_saved_skills = GameState.unlocked_skills.duplicate(true)
+	var fog_saved_dungeon: bool = GameState.in_dungeon
+	GameState.unlocked_skills = []
+	GameState.in_dungeon = true
+	check("in the deep without Telepathy, the village is beyond knowing",
+		not GameState.village_info_available())
+	GameState.unlocked_skills = ["mg_t1"]
+	check("Telepathy reaches home from ANYWHERE, even the deep",
+		GameState.village_info_available())
+	GameState.unlocked_skills = []
+	GameState.in_dungeon = false
+	var fog_p = get_tree().get_first_node_in_group("player")
+	var fog_saved_pos: Vector2 = fog_p.global_position
+	fog_p.global_position = Vector2(200.0, -100.0)
+	check("far west of the gate, the fog holds even in the overworld",
+		not GameState.village_info_available())
+	fog_p.global_position = Vector2(5000.0, -100.0)
+	check("standing in the village, everything is knowable",
+		GameState.village_info_available())
+	fog_p.global_position = fog_saved_pos
+	GameState.unlocked_skills = fog_saved_skills
+	GameState.in_dungeon = fog_saved_dungeon
+	var gfog := FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text()
+	check("the village toast channel is fog-gated (the Log records regardless)",
+		gfog.contains("if not village_info_available():\n\t\treturn\n\tvar stack"))
+	check("the diary, the meter, and the door warning all obey the fog",
+		FileAccess.open("res://village_log_ui.gd", FileAccess.READ).get_as_text().contains("village_info_available()")
+		and FileAccess.open("res://morale_meter.gd", FileAccess.READ).get_as_text().contains("village_info_available()")
+		and FileAccess.open("res://level_select_ui.gd", FileAccess.READ).get_as_text().contains("village_info_available()"))
+	check("the monarch's awakening is about YOU — never fog-gated",
+		gfog.contains("never gated by the village fog"))
+
 	# ---- alignment (5.7): every building's staffing is load-bearing ----
 	var gsrc2 := FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text()
 	check("a staffed Builder crew rebuilds WITHOUT a leader (half pace)",

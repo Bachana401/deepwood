@@ -398,7 +398,10 @@ func announce_monarch_awakening() -> void:
 	while monarch_stage_announced < s:
 		var line = MONARCH_AWAKEN_LINES[monarch_stage_announced]
 		monarch_stage_announced += 1
-		notify(line)
+		# about YOU, not the town -- never gated by the village fog
+		var stack = get_tree().get_first_node_in_group("notification_stack")
+		if stack:
+			stack.show_notification(line)
 
 # The 7/7 TRUE form (2x size, permanent shades, shadow novas, doubled
 # lifesteal -- see player.gd monarch_tick). The numeric 7/7 spikes above always
@@ -1391,7 +1394,35 @@ func manual_harvest_food() -> float:
 
 # Push a toast to whichever scene's notification stack is live (village or
 # dungeon). No-ops if none is present.
+# --- THE VILLAGE FOG (dev decision 2026-07-20): distance is ignorance ---
+# Away from home the player learns NOTHING of the village -- no meter, no
+# toasts, no diary. Its life still writes itself to the Log; coming home
+# and reading it is how you find out what your absence cost. TELEPATHY
+# (Mage, mg_t1, mid-game) is the answer: the whole village channel --
+# meter, diary, every cry, even the Watchtower's bell -- reaches you
+# anywhere, including the deep.
+const VILLAGE_PRESENCE_X := 4300.0    # just west of the gatehouse road
+
+func has_telepathy() -> bool:
+	return get_bonus_total("telepathy") > 0.0
+
+func village_presence() -> bool:
+	if dev_mode:
+		return true
+	if in_dungeon:
+		return false
+	var pl = get_tree().get_first_node_in_group("player")
+	return pl != null and pl.global_position.x > VILLAGE_PRESENCE_X
+
+func village_info_available() -> bool:
+	return village_presence() or has_telepathy()
+
+# The VILLAGE channel: every toast about the town's life flows through
+# here, and the fog gates it. (Player-personal messages use the stack
+# directly and are never gated.)
 func notify(text: String) -> void:
+	if not village_info_available():
+		return
 	var stack = get_tree().get_first_node_in_group("notification_stack")
 	if stack and stack.has_method("show_notification"):
 		stack.show_notification(text)

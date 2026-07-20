@@ -31,6 +31,10 @@ func warn_if_village_exposed() -> void:
 	# post-game there is nothing left to warn about -- the sieges died with Orin
 	if GameState.despair_dead:
 		return
+	# THE VILLAGE FOG: the dungeon door stands far from home -- without
+	# Telepathy you descend on faith, exactly as the fog rule intends
+	if not GameState.village_info_available():
+		return
 	var stack = get_tree().get_first_node_in_group("notification_stack")
 	if stack == null:
 		return
