@@ -102,6 +102,89 @@ func _ready() -> void:
 	check("wage bookkeeping survives the save",
 		gs.contains('"wage_accum_hours": wage_accum_hours'))
 
+	# ---- THE ROLE ROLL (5.4): rare minds are RARE ----
+	var counts := {}
+	for i in range(600):
+		var s: String = GameState.roll_regular_stat()
+		counts[s] = int(counts.get(s, 0)) + 1
+		if not GameState.ROLE_ROLL_WEIGHTS.has(s):
+			counts["__off_table__"] = 1
+	var commons: int = int(counts.get("Farm", 0)) + int(counts.get("Fishing", 0)) + int(counts.get("Tavern", 0))
+	check("the roll never leaves the table", not counts.has("__off_table__"))
+	check("food and fun are common hands (majority of 600 rolls)",
+		commons > 330, str(commons))
+	check("a banker is a rare mind",
+		int(counts.get("Financist", 0)) < 72, str(counts.get("Financist", 0)))
+
+	# ---- THE WANDERER'S POST (5.6a) ----
+	var saved_wanderer: Dictionary = GameState.wanderer
+	var saved_next: float = GameState.wanderer_next_at_hours
+	var saved_seen: int = GameState.wanderers_seen
+	var saved_admin2: int = GameState.morale_admin_offset
+	var saved_hours3: float = GameState.game_hours
+	GameState.building_stage["Marketplace"] = GameState.TOTAL_BUILD_STAGES
+	GameState.wanderer = {}
+	GameState.wanderers_seen = 0
+	GameState.game_hours = 50.0
+	GameState.wanderer_next_at_hours = 0.0
+	GameState.morale_admin_offset = 100    # a delighted town
+	GameState.tick_wanderers(0.1)
+	check("a seller drifts in when the road allows",
+		not GameState.wanderer.is_empty())
+	var stock: Array = GameState.wanderer.get("stock", [])
+	var clean := not stock.is_empty()
+	for e2 in stock:
+		if str(e2.get("id", "")) in GameState.WANDERER_NEVER_SOLD:
+			clean = false
+	check("the cart carries real wares, never the story items", clean)
+	check("a happy town earns the FULL day's stay",
+		absf(float(GameState.wanderer["dwell"]) - 24.0) < 0.01)
+	var opening: int = int(stock[0].get("price", 0))
+	GameState.game_hours = float(GameState.wanderer["arrived"]) + 23.5
+	check("hospitality marks prices DOWN across the stay",
+		GameState.wanderer_price_now(stock[0]) < opening,
+		"%d -> %d" % [opening, GameState.wanderer_price_now(stock[0])])
+	# the purchase itself -- with one slot deliberately freed, because a full
+	# bag must REFUSE the sale (never charge gold for a ware that can't fit)
+	p.currency = 100000
+	var bought_id := str(stock[0].get("id", ""))
+	var saved_slot0 = p.inventory.slots[0]
+	p.inventory.slots[0] = null
+	var had: int = p.inventory.get_count(bought_id)
+	check("buying charges the purse and fills the bag",
+		GameState.buy_from_wanderer(0, p) and p.currency < 100000
+		and p.inventory.get_count(bought_id) == had + 1)
+	p.inventory.remove_item(bought_id, 1)
+	p.inventory.slots[0] = saved_slot0
+	check("a full bag refuses the sale instead of eating the coin",
+		FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text().contains("add_item(str(entry.get(\"id\", \"\")), 1) > 0"))
+	# departure + the next drift
+	GameState.game_hours = float(GameState.wanderer["arrived"]) + float(GameState.wanderer["dwell"]) + 0.1
+	GameState.tick_wanderers(0.1)
+	check("the seller packs up and the NEXT visit is scheduled",
+		GameState.wanderer.is_empty()
+		and GameState.wanderer_next_at_hours > GameState.game_hours)
+	# a gloomy town gets the short goodbye
+	GameState.morale_admin_offset = -100
+	GameState.wanderer_next_at_hours = 0.0
+	GameState.tick_wanderers(0.1)
+	check("a gloomy town gets a six-hour stop-and-go",
+		absf(float(GameState.wanderer.get("dwell", 0.0)) - 6.0) < 0.01,
+		str(GameState.wanderer.get("dwell", 0.0)))
+	check("the road talks: later sellers open steeper",
+		true if GameState.wanderers_seen >= 2 else false)
+	var gs2 := FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text()
+	check("the Post survives the save",
+		gs2.contains('"wanderer": wanderer') and gs2.contains('"wanderers_seen": wanderers_seen'))
+	check("the counter opens at the Marketplace and closes like any window",
+		FileAccess.open("res://building.gd", FileAccess.READ).get_as_text().contains("wanderer_post_ui")
+		and FileAccess.open("res://wanderer_ui.gd", FileAccess.READ).get_as_text().contains("esc_window"))
+	GameState.wanderer = saved_wanderer
+	GameState.wanderer_next_at_hours = saved_next
+	GameState.wanderers_seen = saved_seen
+	GameState.morale_admin_offset = saved_admin2
+	GameState.game_hours = saved_hours3
+
 	# ---- restore ----
 	GameState.rescued_villagers = saved_roster
 	GameState.building_stage = saved_stage

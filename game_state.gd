@@ -905,10 +905,33 @@ func update_cottage_families(hours_passed: float) -> void:
 # picks one of REGULAR_STATS) or a specific stat name (Barracks always
 # grants "Warrior"). 24 in-game HOURS, same clock as mating pairings.
 const EDUCATION_DURATION_HOURS = 24.0
-# The 8 "regular" professions a School graduate can randomly come out with.
+# The 8 "regular" professions a School graduate can come out with.
 # Leadership titles (Leader/Principal/Warchief) are deliberately never
 # taught here -- see building_roles.gd for why.
 const REGULAR_STATS = ["Farm", "Hospital", "Fishing", "Scientist", "Financist", "Blacksmith", "Tavern", "Marketplace"]
+# THE ROLE ROLL (GAME_BIBLE 5.4, revised canon): a graduate does not pick --
+# they ROLL from a table weighted INVERSE to the role's value. Anyone can
+# tend a field or pour a drink; a banker, a scholar, a surgeon is a rare
+# mind. Scarcity is what makes the rare roles feel rare and keeps rescued
+# VIPs precious -- to staff the Bank you breed, school, and pray.
+# (School weight-tuning -- hand-adjusting this table as a mid-game payoff --
+# is 12.9-open and NOT built; the default table below is the whole game.)
+const ROLE_ROLL_WEIGHTS = {
+	"Farm": 25, "Fishing": 20, "Tavern": 20,        # food & fun: common hands
+	"Blacksmith": 8, "Marketplace": 8,               # skilled trades: uncommon
+	"Hospital": 7, "Scientist": 6, "Financist": 6,   # rare minds
+}
+
+func roll_regular_stat() -> String:
+	var total := 0
+	for w in ROLE_ROLL_WEIGHTS.values():
+		total += int(w)
+	var pick := randi() % total
+	for stat_name in ROLE_ROLL_WEIGHTS:
+		pick -= int(ROLE_ROLL_WEIGHTS[stat_name])
+		if pick < 0:
+			return stat_name
+	return "Farm"
 var school_enrollments: Dictionary = {}
 
 signal couple_departed(house_id, male_id, female_id)
@@ -1007,6 +1030,7 @@ func tick_village_clock() -> void:
 	decay_doctor_price(hours_passed)
 	tick_deep_catches(hours_passed)
 	tick_wages(hours_passed)
+	tick_wanderers(hours_passed)
 	if hours_passed > 0.0:
 		# grief heals with time -- the forgiving half of the death-shock system
 		morale_death_shock = maxf(0.0, morale_death_shock - hours_passed * DEATH_SHOCK_DECAY_PER_HOUR * (2.0 if ten_freed("ten_seraphel") else 1.0))
@@ -1944,6 +1968,134 @@ func generate_passive_income() -> void:
 	total *= village_morale_multiplier()
 	player.add_currency(int(round(total)))
 
+# --- THE WANDERER'S POST (GAME_BIBLE 5.6a) ---
+# The Marketplace makes no gold. It is the town's guest-stall: wandering
+# treasure-sellers drift in with random stock, and how well they treat you
+# is a DIRECT function of how nice your village is to be in. High morale
+# (5/10+): they stay the full day and slowly mark prices DOWN the longer
+# they linger. A gloomy town gets a short, full-price visit. Sellers
+# escalate -- the road talks, and a well-run village attracts better
+# merchants with rarer stock at steeper opening prices, which your
+# hospitality then eats into. Purely a gold SINK (5.6). A staffed Merchant
+# sweetens stock and haggling -- the book's own lean for the profession.
+const WANDERER_NAMES = ["Salla of the Long Road", "Bramble-cart Icky", "Vex the Peddler",
+	"Odo Twicesold", "Mirena Farshore", "The Quiet Tinker"]
+const WANDERER_GAP_MIN := 12.0
+const WANDERER_GAP_MAX := 30.0
+const WANDERER_DISCOUNT_MAX := 0.25    # a happy town's slow markdown across the stay
+const WANDERER_NEVER_SOLD = ["wpn_soulsplit", "relic_rewound_hour", "wpn_wand"]
+var wanderer: Dictionary = {}          # active seller: name/arrived/dwell/stock/tier
+var wanderer_next_at_hours := 8.0      # the first drifts in early on day one
+var wanderers_seen := 0                # the road talks: stock escalates
+
+func grade_rank(item_id: String) -> int:
+	var grade = Inventory.get_grade(item_id)
+	if Inventory.GRADE_DEFS.has(grade):
+		return int(Inventory.GRADE_DEFS[grade].rank)
+	return 1
+
+func marketplace_merchant_staffed() -> bool:
+	return is_building_operational("Marketplace") and count_workers("Marketplace") > 0
+
+func tick_wanderers(_hours_passed: float) -> void:
+	if not is_building_operational("Marketplace"):
+		return                          # the road walks past a ruin
+	if wanderer.is_empty():
+		if game_hours >= wanderer_next_at_hours:
+			_wanderer_arrive()
+	elif game_hours >= float(wanderer["arrived"]) + float(wanderer["dwell"]):
+		log_event("economy", "%s packed the cart and moved on." % str(wanderer.get("name", "The wanderer")))
+		wanderer = {}
+		wanderer_next_at_hours = game_hours + randf_range(WANDERER_GAP_MIN, WANDERER_GAP_MAX)
+
+# canon curve: 5/10+ hospitality earns the full ~24h stay; below it the
+# visit shortens with the gloom, down to a 6-hour stop-and-go
+func _wanderer_dwell_hours() -> float:
+	var m := float(village_morale())
+	if m >= 50.0:
+		return 24.0
+	return maxf(6.0, 12.0 * m / 50.0)
+
+func _wanderer_pool(tier: int) -> Array:
+	var pool := []
+	for id in Inventory.ITEM_GRADES:
+		if id in WANDERER_NEVER_SOLD:
+			continue
+		var rank := grade_rank(id)
+		# tier 0 carries common/uncommon; each visit-tier admits one rank more,
+		# so the road's best only ever reaches epic (loot stays king above)
+		if rank <= 2 + tier and rank <= 4:
+			pool.append(id)
+	return pool
+
+func _wanderer_price(item_id: String) -> int:
+	var rank := grade_rank(item_id)
+	var def: Dictionary = Inventory.get_item_def(item_id)
+	var cat := str(def.get("category", ""))
+	var base: float
+	if cat == "consumable" or cat == "material":
+		base = 8.0 + float(rank * rank) * 4.0
+	else:
+		base = 20.0 + float(rank * rank) * 22.0
+	# the road talks: later sellers open steeper (their stock is worth it)
+	base *= 1.0 + 0.15 * float(mini(wanderers_seen, 8))
+	return maxi(2, int(round(base)))
+
+func _wanderer_arrive() -> void:
+	wanderers_seen += 1
+	var tier: int = mini(wanderers_seen / 2, 2)
+	var pool := _wanderer_pool(tier)
+	if pool.is_empty():
+		return
+	pool.shuffle()
+	var slots: int = 4 + (1 if marketplace_merchant_staffed() else 0)
+	var stock := []
+	for i in range(mini(slots, pool.size())):
+		var id: String = pool[i]
+		var cat := str(Inventory.get_item_def(id).get("category", ""))
+		stock.append({"id": id, "price": _wanderer_price(id),
+			"count": 3 if (cat == "consumable" or cat == "material") else 1})
+	wanderer = {
+		"name": WANDERER_NAMES[randi() % WANDERER_NAMES.size()],
+		"arrived": game_hours, "dwell": _wanderer_dwell_hours(),
+		"stock": stock, "tier": tier,
+	}
+	log_event("economy", "%s set up at the Wanderer's Post — %d wares on the cart." % [wanderer["name"], stock.size()])
+	notify("🛒 %s has set up at the Wanderer's Post." % wanderer["name"])
+
+# The live price: a happy town's markdown deepens across the stay, and a
+# staffed Merchant haggles a tenth off everything.
+func wanderer_price_now(entry: Dictionary) -> int:
+	var p := float(entry.get("price", 10))
+	if not wanderer.is_empty() and float(village_morale()) >= 50.0:
+		var stay: float = clampf((game_hours - float(wanderer["arrived"])) / maxf(float(wanderer["dwell"]), 0.1), 0.0, 1.0)
+		p *= 1.0 - WANDERER_DISCOUNT_MAX * stay
+	if marketplace_merchant_staffed():
+		p *= 0.9
+	return maxi(1, int(round(p)))
+
+func buy_from_wanderer(index: int, player: Node) -> bool:
+	if wanderer.is_empty() or player == null or not "inventory" in player or player.inventory == null:
+		return false
+	var stock: Array = wanderer.get("stock", [])
+	if index < 0 or index >= stock.size():
+		return false
+	var entry: Dictionary = stock[index]
+	var price := wanderer_price_now(entry)
+	if player.currency < price:
+		notify("You cannot afford that — %dg." % price)
+		return false
+	# the ware goes in the bag BEFORE gold changes hands -- a full bag must
+	# never eat the coin (add_item returns what did NOT fit)
+	if player.inventory.add_item(str(entry.get("id", "")), 1) > 0:
+		notify("Your bag is full — make room first.")
+		return false
+	player.add_currency(-price)
+	entry["count"] = int(entry.get("count", 1)) - 1
+	if int(entry["count"]) <= 0:
+		stock.remove_at(index)
+	return true
+
 # 5.5 WAGES: staff work for PAY, drawn daily from the player's purse (the
 # treasury, 5.6 -- the Bank runs it leaner when staffed). Workers the purse
 # cannot cover QUIT on the spot: their service stops until re-staffed, and
@@ -2033,10 +2185,7 @@ const FORGE_ARMS_PER_TICK := 3          # arms the Forgemaster's smiths deliver 
 
 # How much one piece of gear arms the barracks (better grade == better kit).
 func arm_value_of(item_id: String) -> int:
-	var grade = Inventory.get_grade(item_id)
-	if Inventory.GRADE_DEFS.has(grade):
-		return int(Inventory.GRADE_DEFS[grade].rank)
-	return 1
+	return grade_rank(item_id)
 
 # Warriors actually equipped from the armory (can't arm more than you have).
 func armed_warriors() -> int:
@@ -2685,7 +2834,7 @@ func graduate_villager(villager_id: String) -> void:
 	school_enrollments.erase(villager_id)
 	var granted_stat = enrollment.grants_stat
 	if granted_stat == "random":
-		granted_stat = REGULAR_STATS[randi() % REGULAR_STATS.size()]
+		granted_stat = roll_regular_stat()   # the weighted role roll (5.4)
 	for villager in rescued_villagers:
 		if villager.get("id") == villager_id:
 			villager["is_kid"] = false
@@ -2763,6 +2912,9 @@ func reset_for_new_game() -> void:
 	village_log = []
 	wage_accum_hours = 0.0
 	villager_rot = {}
+	wanderer = {}
+	wanderer_next_at_hours = 8.0
+	wanderers_seen = 0
 	pregnancies = {}
 	school_enrollments = {}
 	highest_unlocked_level = 999 if TEST_UNLOCK_ALL_LEVELS else 1
@@ -2880,6 +3032,9 @@ func save_game(player: Node) -> void:
 		"village_log": village_log,
 		"wage_accum_hours": wage_accum_hours,
 		"villager_rot": villager_rot,
+		"wanderer": wanderer,
+		"wanderer_next_at_hours": wanderer_next_at_hours,
+		"wanderers_seen": wanderers_seen,
 		"pregnancies": pregnancies,
 		"school_enrollments": school_enrollments,
 		"highest_unlocked_level": highest_unlocked_level,
@@ -2964,6 +3119,9 @@ func load_game() -> Dictionary:
 		if parsed.has("villager_rot") and parsed["villager_rot"] is Dictionary:
 			for k in parsed["villager_rot"].keys():
 				villager_rot[k] = float(parsed["villager_rot"][k])
+		wanderer = parsed.get("wanderer", {}) if parsed.get("wanderer", {}) is Dictionary else {}
+		wanderer_next_at_hours = float(parsed.get("wanderer_next_at_hours", 8.0))
+		wanderers_seen = int(parsed.get("wanderers_seen", 0))
 		if parsed.has("pregnancies"):
 			pregnancies = parsed["pregnancies"]
 		if parsed.has("school_enrollments"):

@@ -1995,6 +1995,17 @@ func _process(delta: float) -> void:
 					pl.health = pl.get_max_health()
 					pl.update_health_display()
 					if notif2: notif2.show_notification("The ward's nurses knit you whole — %dg." % HOSPITAL_HEAL_PRICE)
+		# Marketplace (5.6a): the hands-on key opens the Wanderer's Post counter
+		# while a seller is in town -- and says so plainly when the stall is bare.
+		if building_name == "Marketplace" and is_operational() and Input.is_action_just_pressed("harvest"):
+			if GameState.wanderer.is_empty():
+				var notif3 = get_node_or_null("../CanvasLayer/NotificationStack")
+				if notif3:
+					notif3.show_notification("The post stands empty — a wanderer will drift in when the road allows.")
+			else:
+				var post = get_tree().get_first_node_in_group("wanderer_post_ui")
+				if post and post.has_method("open_post"):
+					post.open_post()
 		# Farm: hold the harvest key to hand-tend the field, filling the village
 		# larder in +food chunks -- the early-game manual chore you later automate
 		# by staffing the farm with farmers.
