@@ -135,11 +135,22 @@ func update_deepest_level_label() -> void:
 		$DeepestLevelLabel.text = "Deepest Level Reached: " + str(GameState.deepest_level_reached)
 		$DeepestLevelLabel.visible = true
 
+# ONE source of truth for the controls (polish 2026-07-20): the menu's
+# baked-in panel had drifted years behind -- no L, no Z, no H, none of the
+# laws. It now opens the SAME page the pause menu does, so the two can
+# never disagree again. (The old panel stays in the scene, unused.)
 func _on_how_to_play() -> void:
-	$HowToPlayPanel.visible = true
+	var page = get_tree().get_first_node_in_group("how_to_play")
+	if page == null:
+		page = preload("res://how_to_play.gd").new()
+		get_tree().root.add_child(page)
+	page.open_page()
 
 func _on_close_how_to_play() -> void:
 	$HowToPlayPanel.visible = false
+	var page = get_tree().get_first_node_in_group("how_to_play")
+	if page != null:
+		page.esc_close()
 
 func _on_start() -> void:
 	pending_delete_save = false

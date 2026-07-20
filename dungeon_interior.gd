@@ -1929,6 +1929,8 @@ func _on_combatant_died() -> void:
 		level_in_progress = false
 		level_cleared = true
 		GameState.highest_unlocked_level = max(GameState.highest_unlocked_level, current_level + 1)
+		# a cleared floor is a milestone worth banking (autosave)
+		GameState.autosave("floor %d cleared" % current_level, true)
 		# advance any "reach dungeon level N" villager bonds
 		GameState.quest_event("reach_level", "", current_level)
 		# beating Level 100 = beating Orin = the ending

@@ -152,6 +152,19 @@ func _ready() -> void:
 		and htp.contains("esc_window") and htp.contains("func esc_close"))
 	check("...and the pause menu carries it in both scenes",
 		FileAccess.open("res://pause_menu.gd", FileAccess.READ).get_as_text().contains("HowToPlayButton"))
+	check("the MAIN MENU opens the same page (one source of truth, no drift)",
+		FileAccess.open("res://main_menu.gd", FileAccess.READ).get_as_text().contains("how_to_play.gd"))
+	check("...and the page can always be closed, menu or not",
+		htp.contains("close_btn.pressed.connect(esc_close)"))
+	# autosave: a crash should cost minutes, never a session
+	var gauto := FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text()
+	check("the world writes itself down periodically",
+		gauto.contains("AUTOSAVE_INTERVAL_SECONDS") and gauto.contains("_autosave_accum >= AUTOSAVE_INTERVAL_SECONDS"))
+	check("...at milestones too: a cleared floor and coming home",
+		FileAccess.open("res://dungeon_interior.gd", FileAccess.READ).get_as_text().contains("GameState.autosave(\"floor")
+		and FileAccess.open("res://main.gd", FileAccess.READ).get_as_text().contains("home safe"))
+	check("...never over a corpse, never from a test harness",
+		gauto.contains("player.is_dead:\n\t\treturn") and gauto.contains('OS.has_environment("MONARCH_TEST")'))
 	check("...its keys are the REAL bindings (Z rifts, L log, H hands-on)",
 		htp.contains("[\"Z\",") and htp.contains("Riftweaving") and htp.contains("VILLAGE LOG")
 		and htp.contains("hands-on key"))

@@ -58,6 +58,14 @@ func _ready() -> void:
 	title.add_theme_font_size_override("font_size", 20)
 	title.position = Vector2(18, 8)
 	panel.add_child(title)
+	# a real Close: the page opens from the MAIN MENU too, where nothing
+	# sweeps ESC -- a page you can't shut is a trap
+	var close_btn := Button.new()
+	close_btn.text = "Close"
+	close_btn.position = Vector2(700, 8)
+	close_btn.custom_minimum_size = Vector2(84, 26)
+	close_btn.pressed.connect(esc_close)
+	panel.add_child(close_btn)
 	var scroll := ScrollContainer.new()
 	scroll.position = Vector2(18, 38)
 	scroll.size = Vector2(764, 508)

@@ -228,6 +228,9 @@ func _ready() -> void:
 	# a coronation interrupted by a quit finishes here, at home
 	GameState.settle_shadow_court()
 	stamp_rewound_arrival()
+	# coming home is the other milestone worth banking (autosave); deferred
+	# so the arriving player's state is fully restored before it's written
+	call_deferred("_autosave_on_arrival")
 	# the book notices the moment all seven lines hold at once
 	GameState.chronicle_check_complete()
 	if GameState.returning_from_dungeon:
@@ -431,6 +434,9 @@ func _on_arrival_raider_died() -> void:
 # NG+ arrival: one line the moment the rewound player wakes, then the world
 # treats them like any first arrival. Transient flag -- never saved, so a
 # reload mid-run stays silent.
+func _autosave_on_arrival() -> void:
+	GameState.autosave("home safe", true)
+
 func stamp_rewound_arrival() -> void:
 	if not GameState.just_rewound:
 		return

@@ -1037,6 +1037,10 @@ func _process(delta: float) -> void:
 	if get_tree().get_first_node_in_group("player") == null:
 		return
 	game_hours += delta * HOURS_PER_SECOND
+	# the quiet insurance: a crash should cost minutes, never a session
+	_autosave_accum += delta
+	if _autosave_accum >= AUTOSAVE_INTERVAL_SECONDS:
+		autosave()
 	income_timer += delta
 	if income_timer >= INCOME_INTERVAL_SECONDS:
 		income_timer -= INCOME_INTERVAL_SECONDS
@@ -2061,6 +2065,33 @@ func generate_passive_income() -> void:
 		player.add_currency(pay)
 
 var _gold_accum := 0.0
+
+# --- AUTOSAVE (polish 2026-07-20) ---
+# The game only ever saved on a deliberate pause-menu quit -- so a crash,
+# an alt-F4, or a power cut threw away the entire session. (It happened.)
+# Now the world writes itself down at the moments that matter and every
+# few minutes besides. Never while the player is dead (that would bank a
+# corpse mid-respawn), and never from the menu (no player, no run).
+const AUTOSAVE_INTERVAL_SECONDS := 180.0
+var _autosave_accum := 0.0
+
+func autosave(reason := "", loud := false) -> void:
+	# NEVER from a test harness: the suites paint fake villagers and fake
+	# economies into this very state, and an autosave would bank that
+	# fiction over the dev's real save.
+	if OS.has_environment("MONARCH_TEST"):
+		return
+	var player = get_tree().get_first_node_in_group("player")
+	if player == null:
+		return
+	if "is_dead" in player and player.is_dead:
+		return
+	save_game(player)
+	_autosave_accum = 0.0
+	if loud:
+		var stack = get_tree().get_first_node_in_group("notification_stack")
+		if stack:
+			stack.show_notification("💾 Progress saved%s." % ("" if reason == "" else " — " + reason))
 
 # --- "WHAT NOW?" (polish 2026-07-20) ---
 # The game is deep and its opening is quiet: a new player lands in ruins
