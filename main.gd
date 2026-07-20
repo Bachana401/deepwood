@@ -514,12 +514,21 @@ func _on_escape_attempt(b: Node) -> void:
 		return
 	if _gauntlet_left > 0:
 		return                       # one gauntlet at a time
-	# retries: shoved back on your feet -- and the road answers in numbers
+	# retries: shoved back on your feet -- and the road answers in numbers.
+	# The spawn is DEFERRED: this handler runs inside the physics flush
+	# (body_entered), and adding CharacterBody2Ds mid-flush is exactly the
+	# kind of engine-state violation that hard-crashes a release build.
 	b.global_position.x = GROUND_SPAN_START + 300.0
 	b.velocity = Vector2(380.0, -120.0)
 	var n: int = mini(4 * int(pow(2.0, GameState.escape_attempts - 2)), 24)
-	var tier: int = GameState.current_siege_tier()
 	_gauntlet_left = n
+	call_deferred("_spawn_gauntlet_wave", n)
+	if stack:
+		stack.show_notification("⚠ The road answers: %d of the horde turn to meet you." % n)
+	GameState.log_event("combat", "You tested the road out — %d of the dark came to argue." % n)
+
+func _spawn_gauntlet_wave(n: int) -> void:
+	var tier: int = GameState.current_siege_tier()
 	for i in range(n):
 		var e = SIEGE_ENEMY_FOR_ARRIVAL.instantiate()
 		e.skin = "raider"
@@ -530,9 +539,6 @@ func _on_escape_attempt(b: Node) -> void:
 		e.global_position = Vector2(GROUND_SPAN_START + 60.0 + (i % 6) * 44.0, GROUND_Y - 70.0 - float(i / 6) * 40.0)
 		e.died.connect(_on_gauntlet_raider_died)
 		add_child(e)
-	if stack:
-		stack.show_notification("⚠ The road answers: %d of the horde turn to meet you." % n)
-	GameState.log_event("combat", "You tested the road out — %d of the dark came to argue." % n)
 
 func _on_gauntlet_raider_died() -> void:
 	_gauntlet_left -= 1

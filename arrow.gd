@@ -135,11 +135,18 @@ func _on_hit_area_body_entered(body: Node2D) -> void:
 		return
 	pierced_bodies.append(body)
 	if body.has_method("take_damage"):
-		# a boss can absorb the shot outright -- don't print a number for a hit
-		# that never landed (void take_damage means "landed")
-		var landed = body.take_damage(damage)
-		if landed == null or landed:
+		if body.is_in_group("player"):
+			# the player's take_damage is a coroutine (its i-frames await
+			# inside) -- fire and forget; reading its return would hand back
+			# a function-state and log an async error on every enemy arrow
+			body.take_damage(damage)
 			FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+		else:
+			# a boss can absorb the shot outright -- don't print a number for
+			# a hit that never landed (void take_damage means "landed")
+			var landed = body.take_damage(damage)
+			if landed == null or landed:
+				FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
 	if slows_player and body.has_method("apply_slow"):
 		body.apply_slow(3.0, 0.55)
 	if body.has_method("apply_status"):
