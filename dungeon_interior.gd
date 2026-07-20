@@ -108,42 +108,42 @@ const BOSS_ARENAS = {
 	# Tomb of the Warden -- two big flanking ledges + a low central island;
 	# earthy green. Room to bait its slam/charge and dodge summoned adds.
 	"gravewarden": {
-		"width": 7800.0, "height": -780.0,
+		"width": 4800.0, "height": -780.0,
 		"bg_top": Color(0.05, 0.08, 0.05, 1.0), "bg_bottom": Color(0.09, 0.15, 0.08, 1.0),
 		"accent": Color(0.6, 1.0, 0.45, 1.0),
 	},
 	# Frozen Cathedral -- many scattered high platforms; you must keep moving
 	# across them to dodge its icicle rain and frost novas. Cold blue.
 	"frost_monarch": {
-		"width": 10400.0, "height": -900.0,
+		"width": 6000.0, "height": -900.0,
 		"bg_top": Color(0.03, 0.06, 0.12, 1.0), "bg_bottom": Color(0.06, 0.12, 0.2, 1.0),
 		"accent": Color(0.6, 0.85, 1.0, 1.0),
 	},
 	# Molten Foundry -- narrow stepping stones over wide gaps; punishing for a
 	# charging, pillar-erupting bruiser. Fiery red/orange.
 	"cinder_colossus": {
-		"width": 7800.0, "height": -820.0,
+		"width": 5000.0, "height": -820.0,
 		"bg_top": Color(0.12, 0.02, 0.01, 1.0), "bg_bottom": Color(0.22, 0.05, 0.02, 1.0),
 		"accent": Color(1.0, 0.5, 0.15, 1.0),
 	},
 	# Silken Hollow -- stacked ledges on each side + a high central perch the
 	# summoner retreats to. Venomous purple.
 	"weaver": {
-		"width": 10400.0, "height": -940.0,
+		"width": 5600.0, "height": -940.0,
 		"bg_top": Color(0.08, 0.03, 0.12, 1.0), "bg_bottom": Color(0.14, 0.06, 0.2, 1.0),
 		"accent": Color(1.0, 0.4, 0.9, 1.0),
 	},
 	# Storm Spire -- a symmetric tiered arena; nowhere is safe from radial
 	# novas for long. Electric yellow.
 	"stormcaller": {
-		"width": 10400.0, "height": -900.0,
+		"width": 5600.0, "height": -900.0,
 		"bg_top": Color(0.1, 0.09, 0.02, 1.0), "bg_bottom": Color(0.18, 0.16, 0.05, 1.0),
 		"accent": Color(1.0, 1.0, 0.6, 1.0),
 	},
 	# The Void Throne -- sparse floating islands over the abyss; the hardest
 	# boss teleports between them. Near-black violet.
 	"void_sovereign": {
-		"width": 13000.0, "height": -1000.0,
+		"width": 6600.0, "height": -1000.0,
 		"bg_top": Color(0.04, 0.02, 0.08, 1.0), "bg_bottom": Color(0.1, 0.04, 0.16, 1.0),
 		"accent": Color(0.8, 0.3, 1.0, 1.0),
 	},
@@ -153,7 +153,7 @@ const BOSS_ARENAS = {
 	# clutter to hide feet, ringed by high galleries you climb to pick the real
 	# one out. Lit bone-pale, because you cannot spot a shadow in the dark.
 	"hollow_choir": {
-		"width": 11000.0, "height": -880.0,
+		"width": 5400.0, "height": -880.0,
 		"bg_top": Color(0.09, 0.1, 0.07, 1.0), "bg_bottom": Color(0.16, 0.17, 0.12, 1.0),
 		"accent": Color(0.85, 0.95, 0.65, 1.0),
 	},
@@ -162,7 +162,7 @@ const BOSS_ARENAS = {
 	# the penitent on the floor, and ring-ledges climbing the walls that are the
 	# only mana-safe ground in the room. Every trip down to swing is a decision.
 	"ashen_penitent": {
-		"width": 6200.0, "height": -1250.0,
+		"width": 4200.0, "height": -1250.0,
 		"bg_top": Color(0.1, 0.03, 0.02, 1.0), "bg_bottom": Color(0.2, 0.07, 0.03, 1.0),
 		"accent": Color(1.0, 0.5, 0.12, 1.0),
 	},
@@ -171,7 +171,7 @@ const BOSS_ARENAS = {
 	# and heavy: nowhere to fly away to, so you fight it at the pillars or you
 	# bleed. See COVER_LAYER.
 	"gaoler": {
-		"width": 8600.0, "height": -640.0,
+		"width": 6800.0, "height": -640.0,
 		"bg_top": Color(0.04, 0.06, 0.09, 1.0), "bg_bottom": Color(0.09, 0.13, 0.18, 1.0),
 		"accent": Color(0.5, 0.8, 1.0, 1.0),
 	},
@@ -180,7 +180,7 @@ const BOSS_ARENAS = {
 	# length, no two ledges the same, nothing periodic anywhere in the layout.
 	# It is the only arena in the game deliberately built without a loop.
 	"sablefang": {
-		"width": 9800.0, "height": -820.0,
+		"width": 6000.0, "height": -820.0,
 		"bg_top": Color(0.06, 0.05, 0.09, 1.0), "bg_bottom": Color(0.12, 0.1, 0.16, 1.0),
 		"accent": Color(0.8, 0.7, 1.0, 1.0),
 	},
@@ -189,7 +189,7 @@ const BOSS_ARENAS = {
 	# with no dead ends and no cul-de-sacs. Keep running the ring and the traps
 	# fall behind you; stop to commit to a heavy hit and they catch up.
 	"effigy": {
-		"width": 9000.0, "height": -860.0,
+		"width": 5400.0, "height": -860.0,
 		"bg_top": Color(0.11, 0.04, 0.01, 1.0), "bg_bottom": Color(0.2, 0.09, 0.03, 1.0),
 		"accent": Color(1.0, 0.6, 0.15, 1.0),
 	},
@@ -197,7 +197,7 @@ const BOSS_ARENAS = {
 	# so the floor is a graveyard of solid headstones at chest height: cover you
 	# duck behind to eat your own shot. Grief reflects; the barrow absorbs.
 	"mourncaller": {
-		"width": 9200.0, "height": -800.0,
+		"width": 5200.0, "height": -800.0,
 		"bg_top": Color(0.05, 0.06, 0.1, 1.0), "bg_bottom": Color(0.11, 0.12, 0.19, 1.0),
 		"accent": Color(0.55, 0.75, 1.0, 1.0),
 	},
@@ -206,7 +206,7 @@ const BOSS_ARENAS = {
 	# second you are committed to a direction. No wide platform exists here --
 	# there is nowhere to plant your feet and wait it out.
 	"unseen": {
-		"width": 10000.0, "height": -1000.0,
+		"width": 5600.0, "height": -1000.0,
 		"bg_top": Color(0.02, 0.01, 0.04, 1.0), "bg_bottom": Color(0.06, 0.03, 0.1, 1.0),
 		"accent": Color(0.75, 0.2, 0.95, 1.0),
 	},
@@ -216,7 +216,7 @@ const BOSS_ARENAS = {
 	# grid of pillars -- the pillars double as the flanking geometry dread_ward
 	# demands, since you get behind it by running the posts, not by out-DPSing.
 	"warden_of_nails": {
-		"width": 8200.0, "height": -520.0,
+		"width": 5000.0, "height": -520.0,
 		"bg_top": Color(0.09, 0.07, 0.03, 1.0), "bg_bottom": Color(0.17, 0.13, 0.05, 1.0),
 		"accent": Color(0.9, 0.8, 0.35, 1.0),
 	},
@@ -225,7 +225,7 @@ const BOSS_ARENAS = {
 	# is exactly symmetric about its centre, with a fast high bridge spanning it
 	# -- the arena hands you the shuttle run the mechanic demands.
 	"twin_despair": {
-		"width": 10600.0, "height": -900.0,
+		"width": 6400.0, "height": -900.0,
 		"bg_top": Color(0.05, 0.03, 0.1, 1.0), "bg_bottom": Color(0.1, 0.07, 0.18, 1.0),
 		"accent": Color(0.7, 0.3, 1.0, 1.0),
 	},
@@ -233,7 +233,7 @@ const BOSS_ARENAS = {
 	# moving, covered, and far: long open fire-lanes to run, sparse solid
 	# braziers to break your returning shots on, and nothing at all to camp.
 	"cinderking": {
-		"width": 11000.0, "height": -880.0,
+		"width": 7000.0, "height": -880.0,
 		"bg_top": Color(0.12, 0.03, 0.0, 1.0), "bg_bottom": Color(0.24, 0.08, 0.01, 1.0),
 		"accent": Color(1.0, 0.4, 0.05, 1.0),
 	},
@@ -241,7 +241,7 @@ const BOSS_ARENAS = {
 	# panes stand in staggered pairs: they stop your reflected volley AND they
 	# are the only way behind it. Every pane is a door and a shield at once.
 	"glass_saint": {
-		"width": 9400.0, "height": -900.0,
+		"width": 6000.0, "height": -900.0,
 		"bg_top": Color(0.06, 0.09, 0.11, 1.0), "bg_bottom": Color(0.12, 0.18, 0.22, 1.0),
 		"accent": Color(0.8, 0.95, 1.0, 1.0),
 	},
@@ -249,7 +249,7 @@ const BOSS_ARENAS = {
 	# do, so he is fought where you live: the silhouette of the village, in
 	# ruins. Roof-lines and doorways for a layout, lit by dying hearth-light.
 	"last_man": {
-		"width": 11500.0, "height": -940.0,
+		"width": 6000.0, "height": -940.0,
 		"bg_top": Color(0.08, 0.06, 0.06, 1.0), "bg_bottom": Color(0.16, 0.11, 0.09, 1.0),
 		"accent": Color(1.0, 0.72, 0.4, 1.0),
 	},
@@ -259,14 +259,14 @@ const BOSS_ARENAS = {
 	# Shattered Sanctum -- a ruined sky-cathedral for the flying Seraph:
 	# columned stacks to climb and high floating isles to fight around.
 	"seraph": {
-		"width": 10400.0, "height": -1200.0,
+		"width": 6200.0, "height": -1200.0,
 		"bg_top": Color(0.14, 0.12, 0.06, 1.0), "bg_bottom": Color(0.22, 0.18, 0.1, 1.0),
 		"accent": Color(1.0, 0.95, 0.6, 1.0),
 	},
 	# Drowned Abyss -- a vast flooded cavern for the sky-serpent: three thin
 	# altitude bands of perches over nothing; its vortex drags you off them.
 	"leviathan": {
-		"width": 13000.0, "height": -1100.0,
+		"width": 6800.0, "height": -1100.0,
 		"bg_top": Color(0.01, 0.06, 0.08, 1.0), "bg_bottom": Color(0.03, 0.12, 0.14, 1.0),
 		"accent": Color(0.3, 0.95, 0.85, 1.0),
 	},
@@ -274,7 +274,7 @@ const BOSS_ARENAS = {
 	# rows rise in tiers toward both rims; its arena-wide eclipse beam forces
 	# constant altitude changes. Ash black and dying red.
 	"eclipse": {
-		"width": 13000.0, "height": -1300.0,
+		"width": 6600.0, "height": -1300.0,
 		"bg_top": Color(0.05, 0.01, 0.02, 1.0), "bg_bottom": Color(0.12, 0.03, 0.04, 1.0),
 		"accent": Color(1.0, 0.25, 0.15, 1.0),
 	},
@@ -282,7 +282,7 @@ const BOSS_ARENAS = {
 	# largest arena in the game. Ascending "spell circle" platforms spiral to
 	# both sides of a grand central dais; sickly green witchlight.
 	"wizard": {
-		"width": 13000.0, "height": -1400.0,
+		"width": 8400.0, "height": -1400.0,
 		"bg_top": Color(0.03, 0.02, 0.07, 1.0), "bg_bottom": Color(0.08, 0.05, 0.14, 1.0),
 		"accent": Color(0.55, 1.0, 0.5, 1.0),
 	},

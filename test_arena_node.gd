@@ -451,5 +451,29 @@ func _ready() -> void:
 	await get_tree().process_frame
 	GameState.in_dungeon = false
 
+	# --- ARENAS MUST EARN THEIR SIZE (dev call 2026-07-20) ---
+	# They had drifted to 6,200-13,000 wide -- up to 5x a normal floor, which
+	# at 200 px/s is a MINUTE of walking to cross. Rescaled by what each
+	# boss's movement and mechanics actually need. This guard keeps them
+	# honest: nothing may bloat past the finale, and only the bosses whose
+	# MECHANICS demand a long room (the gaoler's pillar forest, the
+	# cinderking's spaced braziers, the harvest's streaming waves) may be big.
+	var widest_arena := 0.0
+	var oversized := []
+	for bid in arenas.keys():
+		var aw: float = float(arenas[bid]["width"])
+		widest_arena = maxf(widest_arena, aw)
+		if aw > 7200.0 and bid != "wizard":
+			oversized.append("%s=%d" % [bid, int(aw)])
+	check("no arena is wider than the finale", widest_arena <= float(arenas["wizard"]["width"]),
+		"widest %d vs finale %d" % [int(widest_arena), int(arenas["wizard"]["width"])])
+	check("only mechanic-bound rooms run long", oversized.is_empty(),
+		", ".join(oversized))
+	var duel_max := 0.0
+	for bid2 in ["gravewarden", "ashen_penitent", "warden_of_nails", "mourncaller"]:
+		duel_max = maxf(duel_max, float(arenas[bid2]["width"]))
+	check("plain duels stay crossable (<= 3 normal floors)",
+		duel_max <= DI.DUNGEON_WIDTH * 3.0, "%d" % int(duel_max))
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)
