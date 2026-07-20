@@ -75,6 +75,7 @@ func _ready() -> void:
 	visual.scale = Vector2.ONE * girth
 	add_child(visual)
 	match kind:
+		"soul_split": _build_soulbolt()
 		"slash": _build_slash()
 		"javelin": _build_javelin()
 		"fireball": _build_fireball()
@@ -122,6 +123,14 @@ func _on_body_entered(body: Node2D) -> void:
 	if "is_dead" in body and body.is_dead:
 		return
 	hit_bodies.append(body)
+	# the Soul Split bolt never damages -- it only asks the target to divide
+	if kind == "soul_split":
+		if body.has_method("on_soul_split_wand"):
+			body.on_soul_split_wand()
+		else:
+			FloatingText.spawn_word(get_parent(), body.global_position + Vector2(0, -40), "...nothing?", Color(0.8, 0.8, 0.9))
+		queue_free()
+		return
 	# A weapon's thrown crescent carries its owner's signature: landing one is a
 	# hit like any other, so lifesteal, gold-touch, execute and the rest all fire.
 	# Without this a weapon built to reach was strictly worse at its own range.
@@ -189,6 +198,19 @@ func explode() -> void:
 	queue_free()
 
 # --- procedural looks ---
+
+# The Soul Split Wand's bolt: a pale prismatic orb. It deals NO damage --
+# whatever it strikes is asked to divide, and what that means is the target's
+# business (a joke for everything alive; the end of the world for one thing).
+func _build_soulbolt() -> void:
+	var orb = Polygon2D.new()
+	orb.polygon = _circle(9.0, 12)
+	orb.color = Color(0.95, 0.8, 1.0, 0.9)
+	visual.add_child(orb)
+	var halo = Polygon2D.new()
+	halo.polygon = _circle(14.0, 12)
+	halo.color = Color(0.8, 0.6, 1.0, 0.3)
+	visual.add_child(halo)
 
 func _build_slash() -> void:
 	var arc = Polygon2D.new()   # a thin crescent, like a slice of wind

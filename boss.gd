@@ -1349,6 +1349,55 @@ var _last_hurt_at := 0.0
 # for different things from the player: GUARDED means hit harder, FLANK IT means
 # get behind it, DODGED/PHASED/PARRIED mean wait for a real opening. A silent
 # block just reads as a bug.
+# --- THE SOUL SPLIT (GAME_BIBLE 9.5) ---
+# "An undivided soul cannot be destroyed" -- so the Monarch of Despair (the
+# L100 "wizard") cannot drop below 1 HP by ANY ordinary means: outside the
+# window, the deathless thing simply reforms around the wound. The Soul Split
+# Wand is the one exception: struck by it, his soul scatters into fragments for
+# four seconds, and for those four seconds he is -- for the first and only
+# time -- MORTAL. Everything else that gets hit by the wand just does the
+# harmless disco-split joke.
+const SOUL_SPLIT_WINDOW := 4.0
+var soul_split_window_until := 0.0
+
+func is_final_monarch() -> bool:
+	return boss_id == "wizard" and not is_clone and not is_false_copy
+
+func in_mortal_window() -> bool:
+	return _time_now() < soul_split_window_until
+
+func on_soul_split_wand() -> void:
+	if is_dead:
+		return
+	if is_final_monarch():
+		soul_split_window_until = _time_now() + SOUL_SPLIT_WINDOW
+		FloatingText.spawn_word(get_parent(), global_position + Vector2(0, -120),
+			"HIS SOUL SCATTERS — STRIKE NOW!", Color(1.0, 0.9, 0.5))
+		# the scattered soul cannot hold its guard together
+		_guard_chip = 0.0
+		phase_until = 0.0
+		return
+	# everyone else: the harmless joke -- 7 tiny spinning copies, then snap back
+	FloatingText.spawn_word(get_parent(), global_position + Vector2(0, -80), "...SPLIT?", Color(0.9, 0.8, 1.0))
+	_spawn_split_joke()
+
+func _spawn_split_joke() -> void:
+	for i in range(7):
+		var ghost := ColorRect.new()
+		ghost.size = Vector2(24, 34)
+		ghost.color = Color(current_def.get("color", Color(0.6, 0.6, 0.7)), 0.7)
+		ghost.position = Vector2(-12, -60)
+		add_child(ghost)
+		var ang := TAU * float(i) / 7.0
+		var t := ghost.create_tween()
+		t.set_parallel(true)
+		t.tween_property(ghost, "position", ghost.position + Vector2(cos(ang), sin(ang)) * 70.0, 0.4)
+		t.tween_property(ghost, "rotation", TAU * 2.0, 3.2)
+		t.set_parallel(false)
+		t.tween_interval(3.2)
+		t.tween_property(ghost, "position", Vector2(-12, -60), 0.4)
+		t.tween_callback(ghost.queue_free)
+
 # What counts as a "heavy" blow against stagger armour.
 #
 # This used to be a flat 6% of max_health, which quietly made the mechanic worse
@@ -3781,11 +3830,24 @@ func take_damage(amount: int) -> bool:
 	# Soul Ward: undivided he shrugs off half of everything; each living echo
 	# carries a shard of his soul away and cracks the ward wider open
 	if has_soul_split:
-		dmg = max(1, int(round(dmg * (SOUL_WARD_BASE + SOUL_WARD_PER_CLONE * living_clones()))))
+		# while the soul is SCATTERED (the wand's 4s window) the ward is gone --
+		# the fragments are bare, and every blow lands in full
+		if in_mortal_window():
+			pass
+		else:
+			dmg = max(1, int(round(dmg * (SOUL_WARD_BASE + SOUL_WARD_PER_CLONE * living_clones()))))
 	health -= dmg
 	_last_hurt_at = _time_now()   # covenant: pressure me and I stop healing my twin
 	update_health_bar()
 	if health <= 0:
+		# an undivided soul cannot be destroyed: the final Monarch reforms
+		# around any killing blow landed OUTSIDE the wand's mortal window
+		if is_final_monarch() and not in_mortal_window():
+			health = 1
+			update_health_bar()
+			FloatingText.spawn_word(get_parent(), global_position + Vector2(0, -110),
+				"THE UNDIVIDED SOUL REFORMS", Color(0.8, 0.5, 1.0))
+			return true
 		die()
 	else:
 		# REACTIVE: the blow landed and it lived, so it steps out of the world --

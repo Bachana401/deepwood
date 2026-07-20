@@ -1968,6 +1968,16 @@ func free_one_of_the_ten(id: String) -> void:
 	if stack:
 		stack.show_notification("★ %s, %s is FREE. %s (%d of the Ten stand with Deepwood.)" % [
 			def.get("name", "?"), def.get("title", ""), def.get("boon", ""), count_ten_freed()])
+	# THE GIFT (9.7): when the last of the Ten stands free, together they hand
+	# over the one weapon that matters -- Elenwe knew WHAT it was, Toren reforged
+	# it, Ilo remembered WHY. (Quest placement is 12's open question; until the
+	# dev sites it elsewhere, the Ten themselves are the quest.)
+	if all_ten_freed():
+		var player = get_tree().get_first_node_in_group("player")
+		if player and "inventory" in player and player.inventory and player.inventory.get_count("wpn_soulsplit") == 0:
+			player.inventory.add_item("wpn_soulsplit", 1)
+			if stack:
+				stack.show_notification("★★ The Ten gather. Elenwe: \"An undivided soul cannot be destroyed. So...\" — Toren presses the SOUL SPLIT WAND into your hands — \"...divide it.\"")
 
 const HERO_BIRTH_CHANCE := 0.005   # 0.5% of newborns
 # The powers a hero may graduate with (rolled once, kept for life). Each is a

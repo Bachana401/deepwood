@@ -803,7 +803,35 @@ func spawn_status_spark(col: Color) -> void:
 	t.parallel().tween_property(s, "modulate:a", 0.0, 0.25)
 	t.tween_callback(s.queue_free)
 
+# The Soul Split Wand's joke half (GAME_BIBLE 9.7): split into 7 tiny spinning
+# copies for 4 seconds, completely invulnerable, completely harmless -- pure
+# disco. On every creature in the game but one, this is ALL it does.
+var _split_until := 0.0
+
+func on_soul_split_wand() -> void:
+	if is_dead:
+		return
+	_split_until = Time.get_ticks_msec() / 1000.0 + 4.0
+	FloatingText.spawn_word(get_parent(), global_position + Vector2(0, -60), "...SPLIT?", Color(0.9, 0.8, 1.0))
+	for i in range(7):
+		var ghost := ColorRect.new()
+		ghost.size = Vector2(14, 20)
+		ghost.color = Color(0.8, 0.7, 0.95, 0.75)
+		ghost.position = Vector2(-7, -34)
+		add_child(ghost)
+		var ang := TAU * float(i) / 7.0
+		var t := ghost.create_tween()
+		t.set_parallel(true)
+		t.tween_property(ghost, "position", ghost.position + Vector2(cos(ang), sin(ang)) * 46.0, 0.35)
+		t.tween_property(ghost, "rotation", TAU * 3.0, 3.3)
+		t.set_parallel(false)
+		t.tween_interval(3.3)
+		t.tween_property(ghost, "position", Vector2(-7, -34), 0.35)
+		t.tween_callback(ghost.queue_free)
+
 func take_damage(amount: int) -> void:
+	if Time.get_ticks_msec() / 1000.0 < _split_until:
+		return   # while split, a creature is scattered light -- untouchable
 	if is_dead:
 		return
 	# Shielded enemies halve damage taken from the FRONT -- the player has to

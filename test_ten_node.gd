@@ -106,12 +106,61 @@ func _ready() -> void:
 	# Ilo: his line leads the L100 reveal
 	var di_src := FileAccess.open("res://dungeon_interior.gd", FileAccess.READ).get_as_text()
 	check("Ilo: at the gate of 100 he names what stirs", di_src.contains("ten_ilo") and di_src.contains("Thrones do not stay empty"))
-	# the gate itself is enforced at the door
+	# the gate itself is enforced at the door -- now the FULL 9.1 gate
 	var ls_src := FileAccess.open("res://level_select_ui.gd", FileAccess.READ).get_as_text()
-	check("the finale gate is enforced at level select", ls_src.contains("all_ten_freed"))
+	check("the finale gate is enforced at level select", ls_src.contains("finale_gate_missing"))
+	# and the gate demands all four conditions of the canon
+	var missing: Array = GameState.finale_gate_missing()
+	check("the gate reports what a non-perfect village still lacks", missing.size() >= 1,
+		str(missing))
+	var gs2 := FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text()
+	check("the gate checks buildings, employment, morale AND the Ten",
+		gs2.contains("still in ruins") and gs2.contains("role slot") \
+		and gs2.contains("perfect morale") and gs2.contains("hang in Orin's vaults"))
 	# vaults spawn from the dungeon's rescue hook
 	var du_src := di_src
 	check("trophy vaults spawn on their canon floors", du_src.contains("TheTen.for_level(current_level)"))
+
+	# ---------------- the Soul Split Wand (9.5 + 9.7) ----------------
+	check("the wand exists, mythic, never in any drop pool",
+		Inventory.ITEM_DEFS.has("wpn_soulsplit")
+		and Inventory.ITEM_GRADES.get("wpn_soulsplit", "") == "mythic")
+	var di2 := FileAccess.open("res://dungeon_interior.gd", FileAccess.READ).get_as_text()
+	check("...truly never drops", not di2.contains("wpn_soulsplit"))
+	check("freeing the last of the Ten hands over the wand",
+		p.inventory.get_count("wpn_soulsplit") >= 1)
+	# the joke half: a split creature is untouchable and unharmed for 4s
+	var mob = load("res://enemy.gd").new()
+	get_tree().root.add_child(mob)
+	await get_tree().process_frame
+	mob.max_health = 100
+	mob.health = 100
+	mob.on_soul_split_wand()
+	mob.take_damage(50)
+	check("a split creature is scattered light -- untouchable", mob.health == 100)
+	mob._split_until = 0.0
+	mob.take_damage(50)
+	check("...and mortal again once it snaps back", mob.health == 50)
+	mob.queue_free()
+	# the real half: the final Monarch is unkillable outside the window...
+	var monarch = load("res://boss.tscn").instantiate()
+	get_tree().root.add_child(monarch)
+	await get_tree().process_frame
+	monarch.boss_id = "wizard"
+	monarch.is_dead = false
+	monarch.has_stagger_armour = false
+	monarch.max_health = 100
+	monarch.health = 100
+	monarch.take_damage(9999)
+	check("the undivided soul REFORMS around any killing blow", not monarch.is_dead and monarch.health == 1,
+		"hp=%d dead=%s" % [monarch.health, monarch.is_dead])
+	# ...and mortal for exactly the wand's window
+	monarch.health = 100
+	monarch.on_soul_split_wand()
+	check("the wand scatters his soul (window open)", monarch.in_mortal_window())
+	monarch.take_damage(9999)
+	check("struck within the window, DESPAIR ENDS", monarch.is_dead)
+	monarch.queue_free()
 
 	# restore
 	GameState.the_ten = saved_ten
