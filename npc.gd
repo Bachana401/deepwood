@@ -832,6 +832,12 @@ func info_fields() -> Array:
 	var age_text = "Kid" if data.get("is_kid", false) else "Adult"
 	var stat_text = data.get("stat_name", "") if data.get("stat_name", "") != "" else "no stat yet"
 	var fields = [data.get("name", "?"), age_text + ", " + data.get("sex", "?"), stat_text]
+	# personal spirit (5.5b): the meter is the average, but THIS number is the
+	# one that corrupts or saves this particular person -- surface it, colored
+	# by the glyph so a villager in the red is findable at a glance
+	var spirit: float = GameState.get_personal_morale(data)
+	var glyph := "☀" if spirit >= 7.0 else ("☁" if spirit >= 3.5 else "⚠")
+	fields.append("%s Spirit %.1f/10" % [glyph, spirit])
 	if data.get("role_title", "") != "":
 		fields.append("Works: " + data.get("role_title"))
 	# the Doctor quotes her price up front -- the escalation is the mechanic,

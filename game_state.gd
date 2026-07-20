@@ -1298,34 +1298,63 @@ func count_adults() -> int:
 			n += 1
 	return n
 
-func village_morale() -> int:
-	var pop = rescued_villagers.size()
-	if pop == 0:
-		return 0
-	var adults = maxi(1, count_adults())
-	var employed = 0
-	var paired = 0
-	for v in rescued_villagers:
-		if v.get("is_kid", false):
-			continue
-		if v.get("role_key", "") != "":
-			employed += 1
-		if is_villager_paired(v.get("id", "")):
-			paired += 1
-	var score := 0.0
-	score += 26.0 * float(employed) / float(adults)                  # employment
-	score += 20.0 if has_food() else 0.0                             # food (see tick_food)
-	score += 16.0 if is_building_operational("Blacksmith") else 0.0  # armor
-	score += 18.0 * float(paired) / float(adults)                    # mating / good sex
-	score += 10.0 if is_building_operational("Bar") else 0.0         # social life
-	score += 10.0 * clampf(float(pop) / MORALE_POP_TARGET, 0.0, 1.0) # numbers alive
-	score += LEADER_MORALE_EACH * (seated_leaders("Tavern") + seated_leaders("Bar"))  # a good host keeps spirits up
+# --- PERSONAL MORALE (GAME_BIBLE 5.5b) ---
+# Two layers, the same numbers seen at two scales: every villager carries
+# their OWN morale 0-10 -- their needs move their number, and personal 0 is
+# what corrupts or kills THAT villager (10) -- while the village meter is
+# nothing but the plain average of everyone's personal value. A serene
+# average can hide two people in the red: the meter is for the shop and the
+# finale gate; the danger is always local.
+#
+# Weights are tuned so a perfect ADULT (fed, employed, paired, armed town,
+# open bar, full streets) sits at exactly 10.0 with no boons -- so the
+# gate's "average of 10" still demands EVERY villager perfect. Boons (Ilo,
+# seated hosts) are slack on top, clamped like everything else.
+const MORALE_DRIFT_PER_HOUR := 0.6   # spirits move toward their target on hour-scale
+
+func personal_morale_target(v: Dictionary) -> float:
+	var t := 1.4                                                 # being alive, and free
+	t += 2.0 if has_food() else 0.0                              # a full larder
+	if v.get("is_kid", false):
+		t += 3.8                                                 # a child's world: home, play, school
+	else:
+		t += 2.2 if str(v.get("role_key", "")) != "" else 0.0    # purpose
+		t += 1.6 if is_villager_paired(str(v.get("id", ""))) else 0.0   # love
+	t += 1.4 if is_building_operational("Blacksmith") else 0.0   # an armed town sleeps better
+	t += 1.0 if is_building_operational("Bar") else 0.0          # somewhere to laugh
+	t += 0.4 * clampf(float(rescued_villagers.size()) / MORALE_POP_TARGET, 0.0, 1.0)
+	t += (LEADER_MORALE_EACH / 10.0) * (seated_leaders("Tavern") + seated_leaders("Bar"))
 	# Ilo, the Nameless Bard (the Ten): his songs lift the whole village
 	if ten_freed("ten_ilo"):
-		score += 10.0
-	score -= morale_death_shock                                      # grief from losses
+		t += 1.0
+	t -= morale_death_shock / 10.0                               # the town's grief weighs on everyone
+	return clampf(t, 0.0, 10.0)
+
+# Seeded at target on first touch (a new villager, or a villager from an
+# old save that predates the personal layer) -- additive, never a migration.
+func get_personal_morale(v: Dictionary) -> float:
+	if not v.has("morale"):
+		v["morale"] = personal_morale_target(v)
+	return float(v["morale"])
+
+func tick_personal_morale(hours_passed: float) -> void:
+	for v in rescued_villagers:
+		var cur := get_personal_morale(v)
+		var target := personal_morale_target(v)
+		var step: float = MORALE_DRIFT_PER_HOUR * hours_passed
+		v["morale"] = clampf(cur + clampf(target - cur, -step, step), 0.0, 10.0)
+
+# The meter: the plain average of every personal value, on the 0-100 scale
+# the HUD/shop/gate already speak. Nothing separate -- just the mean.
+func village_morale() -> int:
+	if rescued_villagers.is_empty():
+		return 0
+	var total := 0.0
+	for v in rescued_villagers:
+		total += get_personal_morale(v)
+	var avg100 := total / float(rescued_villagers.size()) * 10.0
 	# morale_admin_offset is a dev-panel nudge (0 in normal play)
-	return clampi(int(round(score)) + morale_admin_offset, 0, 100)
+	return clampi(int(round(avg100)) + morale_admin_offset, 0, 100)
 
 # Dev/admin panel nudge to morale, in tenths (+1 == +1.0 on the 0-10 meter).
 func admin_nudge_morale(tenths: int) -> void:
@@ -1342,6 +1371,11 @@ func register_villager_deaths(n: int) -> void:
 	if n <= 0:
 		return
 	morale_death_shock = minf(morale_death_shock + float(n) * DEATH_SHOCK_PER_KILL, DEATH_SHOCK_MAX)
+	# grief lands NOW, not on the next drift tick: every living villager feels
+	# the deaths at once. (The per-witness outward wave is 10's corruption
+	# pass; this is the town-wide floor of it.)
+	for v in rescued_villagers:
+		v["morale"] = clampf(get_personal_morale(v) - float(n) * DEATH_SHOCK_PER_KILL / 10.0, 0.0, 10.0)
 
 func register_villagers_added(n: int) -> void:
 	if n <= 0:
@@ -1421,6 +1455,9 @@ func _despair_rate(id: String) -> float:
 func tick_morale_effects(hours_passed: float) -> void:
 	if hours_passed <= 0.0:
 		return
+	# the simulation's real layer: every villager's own spirit drifts toward
+	# what their life currently deserves (5.5b)
+	tick_personal_morale(hours_passed)
 	var m = village_morale()
 	var in_crisis = m < DESPAIR_MORALE
 	if in_crisis:
