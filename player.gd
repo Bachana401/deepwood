@@ -1331,6 +1331,83 @@ func show_hit(target: Node2D, amount: int, is_crit: bool) -> void:
 var active_buffs: Dictionary = {}
 var _rewind_armed_until := 0.0   # THE REWOUND HOUR's two-use confirm window
 
+# --- RIFTWEAVING (Mage, mg_p1..p3): the two doors, Z to weave ---
+# Open the orange rift where you stand, the blue one elsewhere, step into
+# either to exit the other. Opening costs mana; the DRAIN starts the moment
+# the second door stands, and the pair collapses when the well runs dry.
+# The upgrade nodes are what let you hold the doors open.
+const PORTAL_SCRIPT = preload("res://portal.gd")
+const PORTAL_OPEN_COST := 12.0
+const PORTAL_DRAIN_PER_SEC := 9.0
+var portal_a: Node2D = null
+var portal_b: Node2D = null
+var _portal_immune_until := 0.0
+
+func has_portal_skill() -> bool:
+	return GameState.get_bonus_total("portal_unlock") > 0.0
+
+func portal_open_cost() -> float:
+	return PORTAL_OPEN_COST * (1.0 - GameState.get_bonus_total("portal_open_cut"))
+
+func portal_drain_per_second() -> float:
+	return PORTAL_DRAIN_PER_SEC * maxf(0.15, 1.0 - GameState.get_bonus_total("portal_drain_cut"))
+
+func try_weave_portal() -> void:
+	if portal_a != null and portal_b != null:
+		close_portals("You collapse the rifts.")
+		return
+	var cost := portal_open_cost()
+	if mana < cost:
+		var stack = get_tree().get_first_node_in_group("notification_stack")
+		if stack:
+			stack.show_notification("Not enough mana to tear a rift (%d)." % int(ceil(cost)))
+		return
+	mana -= cost
+	update_mana_display()
+	var p = PORTAL_SCRIPT.new()
+	p.owner_player = self
+	p.is_orange = portal_a == null
+	get_parent().add_child(p)
+	p.global_position = global_position
+	if portal_a == null:
+		portal_a = p
+	else:
+		portal_b = p   # the second door stands -- the drain begins (see tick_portals)
+
+func tick_portals(delta: float) -> void:
+	if portal_a == null or portal_b == null:
+		return
+	if is_dead or not is_instance_valid(portal_a) or not is_instance_valid(portal_b):
+		close_portals()
+		return
+	mana -= portal_drain_per_second() * delta
+	if mana <= 0.0:
+		mana = 0.0
+		close_portals("The rifts collapse — your mana is spent.")
+	update_mana_display()
+
+func close_portals(msg := "") -> void:
+	for p in [portal_a, portal_b]:
+		if p != null and is_instance_valid(p):
+			p.collapse()
+	portal_a = null
+	portal_b = null
+	if msg != "":
+		var stack = get_tree().get_first_node_in_group("notification_stack")
+		if stack:
+			stack.show_notification(msg)
+
+# Called DEFERRED by the door the player stepped into (never mid-flush).
+func do_portal_teleport(from: Node2D) -> void:
+	var to: Node2D = portal_b if from == portal_a else portal_a
+	if to == null or not is_instance_valid(to):
+		return
+	if _now() < _portal_immune_until:
+		return
+	_portal_immune_until = _now() + 0.6   # no ping-pong: one step per crossing
+	global_position = to.global_position
+	velocity = Vector2.ZERO
+
 func add_buff(key: String, value: float, duration: float) -> void:
 	active_buffs[key] = {"v": value, "until": _now() + duration}
 
@@ -2013,6 +2090,8 @@ func perform_admin_dash() -> void:
 func _physics_process(delta: float) -> void:
 	if is_dead:
 		return
+	# both rift doors standing = the drain runs (Riftweaving)
+	tick_portals(delta)
 
 	# fall-damage apex: remember the highest point of the current airtime so we
 	# can measure the drop on landing (only once we've touched ground at least
@@ -2072,6 +2151,10 @@ func _physics_process(delta: float) -> void:
 
 	if Input.is_action_just_pressed("place_torch"):
 		try_place_torch()
+
+	# Riftweaving (Mage): Z weaves the doors -- see try_weave_portal
+	if Input.is_action_just_pressed("portal") and has_portal_skill():
+		try_weave_portal()
 
 	if Input.is_action_just_pressed("move_left"):
 		var now = Time.get_ticks_msec() / 1000.0

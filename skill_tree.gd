@@ -137,6 +137,14 @@ const TREES = {
 		{"id": "mg_s7", "branch": 1, "col": 2.5, "name": "Transcendence", "desc": "ULTIMATE: +60 max mana, +100% regen, -20% wand cd, and +0.5x beam peak.", "tier": 7, "cost": 6, "prereq": "mg_s6", "materials": {"void_essence": 3, "ancient_relic": 2}, "effect": {"max_mana": 60.0, "mana_regen": 1.0, "wand_cooldown": 0.20, "beam_ramp": 0.5}, "keystone": true},
 		# === Mystic (2): greater-barrier vs blink, ending in spellblade avatar ===
 		{"id": "mg_m1", "branch": 2, "col": 4.5, "name": "Arcane Ward", "desc": "+20 max health", "tier": 1, "cost": 1, "prereq": "mg_root", "materials": {}, "effect": {"max_health": 20.0}},
+		# --- Riftweaving: the Mystic's side-road (dev request 2026-07-20).
+		# Press Z to open an ORANGE rift where you stand; press Z again
+		# elsewhere for the BLUE one; step into either to exit the other.
+		# Opening costs mana, and the moment BOTH stand your mana DRAINS
+		# hard -- the upgrades are what let you hold the doors open.
+		{"id": "mg_p1", "branch": 2, "col": 5.5, "name": "Riftweaving", "desc": "Press Z: open an orange rift where you stand; press Z again elsewhere for the blue one. Step into either to exit the other. While BOTH stand, your mana drains FAST.", "tier": 2, "cost": 2, "prereq": "mg_m1", "materials": {"slime": 2}, "effect": {"portal_unlock": 1.0}},
+		{"id": "mg_p2", "branch": 2, "col": 5.5, "name": "Stable Rifts", "desc": "The doors learn to hold themselves: -40% rift mana drain.", "tier": 4, "cost": 2, "prereq": "mg_p1", "materials": {"ember_crystal": 1}, "effect": {"portal_drain_cut": 0.40}},
+		{"id": "mg_p3", "branch": 2, "col": 5.5, "name": "Master of Doors", "desc": "-30% more rift drain, and opening a rift costs half.", "tier": 6, "cost": 3, "prereq": "mg_p2", "materials": {"void_essence": 1}, "effect": {"portal_drain_cut": 0.30, "portal_open_cut": 0.5}},
 		{"id": "mg_m2", "branch": 2, "col": 4.5, "name": "Mana Shell", "desc": "+25 max mana", "tier": 2, "cost": 1, "prereq": "mg_m1", "materials": {}, "effect": {"max_mana": 25.0}},
 		{"id": "mg_m3", "branch": 2, "col": 4.5, "name": "Mana Barrier", "desc": "KEYSTONE: 40% of damage taken is paid from Mana, not HP", "tier": 3, "cost": 2, "prereq": "mg_m2", "materials": {"slime": 3}, "effect": {"mana_shield": 0.40}, "keystone": true},
 		{"id": "mg_m4a", "branch": 2, "col": 4.0, "name": "Greater Barrier", "desc": "FORK: +20% barrier (60% total), +40 max mana — a wall of mana", "tier": 4, "cost": 3, "prereq": "mg_m3", "materials": {"ember_crystal": 2}, "effect": {"mana_shield": 0.20, "max_mana": 40.0}, "keystone": true, "exclusive": "mg2"},

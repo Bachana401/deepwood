@@ -372,5 +372,50 @@ func _ready() -> void:
 	check("a bow gets no melee crit bias",
 		p.weapon_crit_chance_bonus() == 0.0 and p.weapon_crit_damage_bonus() == 0.0)
 
+	# ---- RIFTWEAVING (Mage mg_p1..p3): the two doors, Z to weave ----
+	var rift_ids := ["mg_p1", "mg_p2", "mg_p3"]
+	var tree_ok := true
+	for rid in rift_ids:
+		if SkillTreeData.get_node_by_id(rid).is_empty():
+			tree_ok = false
+	check("the Riftweaving line lives in the Mystic's tree", tree_ok
+		and str(SkillTreeData.get_node_by_id("mg_p1").get("prereq", "")) == "mg_m1"
+		and str(SkillTreeData.get_node_by_id("mg_p3").get("prereq", "")) == "mg_p2")
+	var rift_saved_skills = GameState.unlocked_skills.duplicate(true)
+	var rift_saved_mana: float = p.mana
+	check("no skill, no doors", not p.has_portal_skill())
+	GameState.unlocked_skills.append_array(rift_ids)
+	check("the base drain is HEAVY; fully levelled it drops to 30%",
+		p.has_portal_skill()
+		and absf(p.PORTAL_DRAIN_PER_SEC - 9.0) < 0.01
+		and absf(p.portal_drain_per_second() - 2.7) < 0.01
+		and absf(p.portal_open_cost() - 6.0) < 0.01)
+	p.mana = 50.0
+	p.try_weave_portal()
+	check("Z opens the orange door where you stand, for mana",
+		p.portal_a != null and p.portal_b == null and absf(p.mana - 44.0) < 0.01)
+	check("one door alone drains NOTHING",
+		(func(): p.tick_portals(1.0); return absf(p.mana - 44.0) < 0.01).call())
+	var here: Vector2 = p.global_position
+	p.global_position = here + Vector2(400, 0)
+	p.try_weave_portal()
+	check("the second door opens blue — and the drain begins",
+		p.portal_b != null
+		and (func(): var m0: float = p.mana; p.tick_portals(1.0); return absf((m0 - p.mana) - 2.7) < 0.05).call())
+	p._portal_immune_until = 0.0
+	p.do_portal_teleport(p.portal_b)
+	check("stepping into one door puts you at the OTHER",
+		p.global_position.distance_to(p.portal_a.global_position) < 2.0)
+	p.mana = 1.0
+	p.tick_portals(1.0)
+	check("the well runs dry and BOTH doors collapse",
+		p.portal_a == null and p.portal_b == null and p.mana == 0.0)
+	check("Z is a real input action, and the doors teleport DEFERRED",
+		FileAccess.open("res://project.godot", FileAccess.READ).get_as_text().contains("portal={")
+		and FileAccess.open("res://portal.gd", FileAccess.READ).get_as_text().contains('call_deferred("do_portal_teleport"'))
+	GameState.unlocked_skills = rift_saved_skills
+	p.mana = rift_saved_mana
+	p.global_position = here
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)
