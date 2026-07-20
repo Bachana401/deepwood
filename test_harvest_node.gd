@@ -205,6 +205,16 @@ func _ready() -> void:
 	check("the pause menu carries the book into both scenes",
 		pm.contains("ChronicleButton") and pm.contains("GameState.chronicle()"))
 
+	# ---- the defenders' fate (12.6, decided delegated) ----
+	check("Wren and Castor walk in the horde, and their deaths are real",
+		di.contains('for aid in ["adv_wren", "adv_castor"]')
+		and di.contains("walks in the horde"))
+	check("Roland alone holds -- the eleventh, mortal, standing anyway",
+		di.contains('r.override_name = "Roland"') and di.contains("We hold. Same as always."))
+	var ta := FileAccess.open("res://ten_ally.gd", FileAccess.READ).get_as_text()
+	check("the ally body carries a mortal's name and scale",
+		ta.contains("var override_name") and ta.contains("power_scale"))
+
 	# restore
 	GameState.rescued_villagers = saved_roster
 	GameState.harvested_villagers = saved_harvested

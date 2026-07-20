@@ -1405,6 +1405,18 @@ func spawn_level_combat() -> void:
 			_harvest_pool = []
 			for v in GameState.harvested_villagers:
 				_harvest_pool.append(str(v.get("name", "a villager")))
+			# THE DEFENDERS' FATE (12.6, decided delegated): the two who named
+			# the cage become its proof -- Wren and Castor, if they still
+			# stand, walk IN the horde as outsized turned, and their deaths
+			# are real. Roland alone holds (spawned below, beside the Ten).
+			for aid in ["adv_wren", "adv_castor"]:
+				var ast: Dictionary = GameState.adventurer_state(aid)
+				if ast.get("rescued", false) and not ast.get("dead", false):
+					GameState.adventurers[aid]["dead"] = true
+					var aname := str(Adventurers.get_def(aid).get("name", aid))
+					_harvest_pool.append(aname)
+					GameState.log_event("combat", "%s was taken by the turning at the gate of 100." % aname)
+					show_notification("%s walks in the horde — turned against the gate they held." % aname)
 			_harvest_pool.shuffle()
 			_harvest_total = maxi(1, _harvest_pool.size())
 			_monarch = b
@@ -1413,6 +1425,17 @@ func spawn_level_combat() -> void:
 			b.attack_damage = int(round(b.attack_damage * 0.5))
 			for t in TheTen.ids():
 				_spawn_ten_ally(t)
+			# ...and the eleventh: Roland, mortal and outmatched and standing
+			# anyway -- proof that hope can be FORGED (12.6)
+			var rst: Dictionary = GameState.adventurer_state("adv_roland")
+			if rst.get("rescued", false) and not rst.get("dead", false):
+				var r = load("res://ten_ally.gd").new()
+				r.ten_id = ""
+				r.override_name = "Roland"
+				r.power_scale = 0.7
+				r.position = Vector2(ENTRY_X + 140.0, GROUND_Y - 40.0)
+				$LevelContainer.add_child(r)
+				show_notification("Roland plants his shield at your side: \"We hold. Same as always.\"")
 	else:
 		spawn_level_mobs()
 		show_notification("Level " + str(current_level))

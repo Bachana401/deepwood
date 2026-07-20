@@ -923,14 +923,37 @@ const ROLE_ROLL_WEIGHTS = {
 	"Hospital": 7, "Scientist": 6, "Financist": 6,   # rare minds
 }
 
-func roll_regular_stat() -> String:
-	var total := 0
-	for w in ROLE_ROLL_WEIGHTS.values():
-		total += int(w)
-	var pick := randi() % total
+# FAVOUR-A-CALLING (5.4 weight-tuning, decided delegated): from School
+# level 2, the player may favour ONE calling; its weight runs at
+# x(1 + 0.5 per level above 1), hard-capped at 40% of the whole table.
+# Never 100% -- the dice never fully leave, the player only leans on them.
+const FAVOUR_SHARE_CAP := 0.4
+var school_favoured_stat := ""
+
+func effective_roll_weights() -> Dictionary:
+	var weights := {}
+	var total := 0.0
 	for stat_name in ROLE_ROLL_WEIGHTS:
-		pick -= int(ROLE_ROLL_WEIGHTS[stat_name])
-		if pick < 0:
+		weights[stat_name] = float(ROLE_ROLL_WEIGHTS[stat_name])
+		total += weights[stat_name]
+	var lvl := building_level("School")
+	if school_favoured_stat != "" and weights.has(school_favoured_stat) and lvl >= 2:
+		var base: float = weights[school_favoured_stat]
+		var boosted: float = base * (1.0 + 0.5 * float(lvl - 1))
+		# cap: the favoured share may never exceed 40% of the (new) table
+		var cap_value: float = FAVOUR_SHARE_CAP * (total - base) / (1.0 - FAVOUR_SHARE_CAP)
+		weights[school_favoured_stat] = minf(boosted, cap_value)
+	return weights
+
+func roll_regular_stat() -> String:
+	var weights := effective_roll_weights()
+	var total := 0.0
+	for w in weights.values():
+		total += float(w)
+	var pick := randf() * total
+	for stat_name in weights:
+		pick -= float(weights[stat_name])
+		if pick < 0.0:
 			return stat_name
 	return "Farm"
 var school_enrollments: Dictionary = {}
@@ -1059,6 +1082,7 @@ var seen_orin_glimpse := false
 var seen_kneel_echo := false
 var seen_orin_taunt := false
 var seen_arrival_battle := false
+var escape_attempts := 0    # 12.7: the road out, tested -- each retry doubles the answer
 
 func orin_arrived() -> bool:
 	# Per-run: in a fresh world Orin has not "walked back out" yet, no matter
@@ -3056,6 +3080,8 @@ func reset_for_new_game() -> void:
 	seen_kneel_echo = false
 	seen_orin_taunt = false
 	seen_arrival_battle = false
+	escape_attempts = 0
+	school_favoured_stat = ""
 	# The Ten wait in their cages again, and the Harvest has not happened --
 	# without these a second run starts with every boon active, no vaults to
 	# find, and a finale that begin_harvest() refuses to start.
@@ -3133,6 +3159,8 @@ func save_game(player: Node) -> void:
 		"seen_kneel_echo": seen_kneel_echo,
 		"seen_orin_taunt": seen_orin_taunt,
 		"seen_arrival_battle": seen_arrival_battle,
+		"escape_attempts": escape_attempts,
+		"school_favoured_stat": school_favoured_stat,
 		"chest_contents": chest_contents,
 		"mating_houses": mating_houses,
 		"cottage_homes": cottage_homes,
@@ -3215,6 +3243,8 @@ func load_game() -> Dictionary:
 		seen_kneel_echo = bool(parsed.get("seen_kneel_echo", false))
 		seen_orin_taunt = bool(parsed.get("seen_orin_taunt", false))
 		seen_arrival_battle = bool(parsed.get("seen_arrival_battle", true))   # old saves: don't replay
+		escape_attempts = int(parsed.get("escape_attempts", 0))
+		school_favoured_stat = str(parsed.get("school_favoured_stat", ""))
 		if parsed.has("chest_contents"):
 			chest_contents = parsed["chest_contents"]
 		if parsed.has("mating_houses"):

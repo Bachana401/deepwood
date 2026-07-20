@@ -16,6 +16,12 @@ const MAX_HP = 900.0
 const FALLBACK_SECONDS = 8.0
 
 var ten_id := ""
+# 12.6 (decided delegated): the ELEVENTH ally -- Roland at the gate of 100.
+# A mortal hero standing among legends: named directly, scaled down, and
+# still unkillable HERE (the fall-back rule is the scene's, not the Ten's --
+# nobody dies in the player's last stand beside them).
+var override_name := ""
+var power_scale := 1.0
 var hp := MAX_HP
 var attack_cd := 0.0
 var _fallback_until := 0.0
@@ -36,9 +42,12 @@ func _ready() -> void:
 	body_rect.position = Vector2(-10, -44)
 	body_rect.color = Color(0.9, 0.82, 0.55)   # trophy gold: unbreakable, visibly so
 	add_child(body_rect)
+	hp = MAX_HP * power_scale
+	if override_name != "":
+		body_rect.color = Color(0.65, 0.7, 0.85)   # steel, not trophy gold: a mortal among legends
 	var def = TheTen.get_def(ten_id)
 	var nl := Label.new()
-	nl.text = str(def.get("name", "?"))
+	nl.text = override_name if override_name != "" else str(def.get("name", "?"))
 	nl.position = Vector2(-60, -66)
 	nl.size = Vector2(120, 14)
 	nl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -60,7 +69,7 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		return
 	if hp <= 0.0:
-		hp = MAX_HP * 0.6
+		hp = MAX_HP * power_scale * 0.6
 		if body_rect:
 			body_rect.color = Color(0.9, 0.82, 0.55)
 	var prey := _nearest_transformed()
@@ -73,7 +82,7 @@ func _physics_process(delta: float) -> void:
 			if attack_cd <= 0.0:
 				attack_cd = ATTACK_COOLDOWN
 				if prey.has_method("take_damage"):
-					prey.take_damage(DAMAGE)
+					prey.take_damage(int(round(DAMAGE * power_scale)))
 	else:
 		velocity.x = 0.0
 	move_and_slide()
@@ -97,7 +106,7 @@ func take_damage(amount: int) -> void:
 	if body_rect:
 		body_rect.color = Color(0.85, 0.45, 0.35)
 		var t = create_tween()
-		t.tween_property(body_rect, "color", Color(0.9, 0.82, 0.55), 0.3)
+		t.tween_property(body_rect, "color", Color(0.65, 0.7, 0.85) if override_name != "" else Color(0.9, 0.82, 0.55), 0.3)
 	if hp <= 0.0:
 		_fallback_until = Time.get_ticks_msec() / 1000.0 + FALLBACK_SECONDS
 		FloatingText.spawn_word(get_parent(), global_position + Vector2(0, -50), "UNBROKEN — FALLING BACK", Color(1.0, 0.85, 0.4))

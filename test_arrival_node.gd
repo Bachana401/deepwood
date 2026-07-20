@@ -83,6 +83,19 @@ func _ready() -> void:
 		gsrc.contains('"seen_arrival_battle": seen_arrival_battle')
 		and gsrc.contains('parsed.get("seen_arrival_battle", true)'))
 
+	# ---- the road out, testable (12.7, decided delegated) ----
+	var mn2 := FileAccess.open("res://main.gd", FileAccess.READ).get_as_text()
+	check("the first attempt stays the scripted near-death",
+		mn2.contains("GameState.escape_attempts <= 1") and mn2.contains("barely crawl back"))
+	check("every retry answers in DOUBLING numbers, capped",
+		mn2.contains("4 * int(pow(2.0") and mn2.contains("mini(") and mn2.contains("24)"))
+	check("clearing the wave teaches the lesson -- the road already doubled",
+		mn2.contains("already DOUBLED"))
+	check("once Despair is dead, the roads are roads again",
+		mn2.contains("GameState.game_completed or GameState.despair_dead"))
+	check("the attempts survive the save",
+		gsrc.contains('"escape_attempts": escape_attempts'))
+
 	GameState.rescued_villagers = saved_roster
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

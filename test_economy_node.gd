@@ -115,6 +115,26 @@ func _ready() -> void:
 		commons > 330, str(commons))
 	check("a banker is a rare mind",
 		int(counts.get("Financist", 0)) < 72, str(counts.get("Financist", 0)))
+	# favour-a-calling (5.4 weight-tuning, decided delegated)
+	var saved_fav: String = GameState.school_favoured_stat
+	var saved_lvls: Dictionary = GameState.building_levels.duplicate(true)
+	GameState.school_favoured_stat = "Financist"
+	GameState.building_levels["School"] = 1
+	var w1: Dictionary = GameState.effective_roll_weights()
+	check("level 1 School cannot steer -- the dice rule Act I",
+		absf(float(w1["Financist"]) - 6.0) < 0.01)
+	GameState.building_levels["School"] = 6
+	var w6: Dictionary = GameState.effective_roll_weights()
+	var tot6 := 0.0
+	for wv in w6.values():
+		tot6 += float(wv)
+	check("a maxed School leans hard on the favoured calling",
+		float(w6["Financist"]) > 6.0)
+	check("...but NEVER past 40% -- the dice never fully leave",
+		float(w6["Financist"]) / tot6 <= 0.401,
+		str(float(w6["Financist"]) / tot6))
+	GameState.school_favoured_stat = saved_fav
+	GameState.building_levels = saved_lvls
 
 	# ---- THE WANDERER'S POST (5.6a) ----
 	var saved_wanderer: Dictionary = GameState.wanderer

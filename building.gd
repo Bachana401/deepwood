@@ -1995,6 +1995,29 @@ func _process(delta: float) -> void:
 					pl.health = pl.get_max_health()
 					pl.update_health_display()
 					if notif2: notif2.show_notification("The ward's nurses knit you whole — %dg." % HOSPITAL_HEAL_PRICE)
+		# School (5.4 favour-a-calling): from level 2, the hands-on key cycles
+		# which calling the curriculum leans toward -- capped at 40%, so the
+		# dice never fully leave
+		if building_name == "School" and is_operational() and Input.is_action_just_pressed("harvest"):
+			var notif4 = get_node_or_null("../CanvasLayer/NotificationStack")
+			if GameState.building_level("School") < 2:
+				if notif4:
+					notif4.show_notification("The School teaches what it can — upgrade it to steer the curriculum.")
+			else:
+				var opts: Array = GameState.ROLE_ROLL_WEIGHTS.keys()
+				opts.append("")   # back to the plain dice
+				var idx: int = opts.find(GameState.school_favoured_stat)
+				GameState.school_favoured_stat = opts[(idx + 1) % opts.size()]
+				if notif4:
+					if GameState.school_favoured_stat == "":
+						notif4.show_notification("The curriculum returns to the plain dice.")
+					else:
+						var share: float = GameState.effective_roll_weights()[GameState.school_favoured_stat]
+						var tot := 0.0
+						for w2 in GameState.effective_roll_weights().values():
+							tot += float(w2)
+						notif4.show_notification("The School now favours %s — about %d%% of graduates (never all)." % [
+							GameState.school_favoured_stat, int(round(share / tot * 100.0))])
 		# Marketplace (5.6a): the hands-on key opens the Wanderer's Post counter
 		# while a seller is in town -- and says so plainly when the stall is bare.
 		if building_name == "Marketplace" and is_operational() and Input.is_action_just_pressed("harvest"):

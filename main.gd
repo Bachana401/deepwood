@@ -471,7 +471,7 @@ func warn_wounded_corps() -> void:
 # beat (near-death + the line); every later attempt costs the same -- the edge
 # stays a soft wall the fiction owns, until the game is won.
 func build_escape_ward() -> void:
-	if GameState.game_completed:
+	if GameState.game_completed or GameState.despair_dead:
 		return              # the root is dead; the roads are roads again
 	var ward := Area2D.new()
 	ward.collision_layer = 0
@@ -483,10 +483,22 @@ func build_escape_ward() -> void:
 	ward.add_child(cs)
 	ward.position = Vector2(GROUND_SPAN_START + 20.0, GROUND_Y - 200.0)
 	add_child(ward)
-	ward.body_entered.connect(func(b):
-		if not b.is_in_group("player") or b.god_mode:
-			return
-		# the horde swells: mauled to the brink, hurled back east
+	ward.body_entered.connect(_on_escape_attempt)
+
+# "LEAVING DEEPWOOD" (12.7, decided delegated): the exit is TESTABLE -- and
+# testing it is the lesson. The first attempt is the scripted near-death
+# (2.4.1 beat 3). Every retry spawns a REAL, doubling wave: clearable, and
+# clearing it only proves the road ahead has already doubled again. The
+# cage is not a wall; it is arithmetic.
+var _gauntlet_left := 0
+
+func _on_escape_attempt(b: Node) -> void:
+	if not b.is_in_group("player") or b.god_mode:
+		return
+	GameState.escape_attempts += 1
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if GameState.escape_attempts <= 1:
+		# beat 3: mauled to the brink, hurled back east
 		b.health = maxi(1, int(b.get_max_health() * 0.2))
 		if b.has_method("update_health_display"):
 			b.update_health_display()
@@ -494,12 +506,42 @@ func build_escape_ward() -> void:
 		b.velocity = Vector2(420.0, -160.0)
 		if b.has_method("apply_knockback"):
 			b.apply_knockback(1, 120.0)
-		var stack = get_tree().get_first_node_in_group("notification_stack")
 		if stack:
 			stack.show_notification("The road out DROWNS in the horde — it swells to meet you. You barely crawl back.")
 		if not GameState.seen_failed_escape:
 			GameState.seen_failed_escape = true
-			DialogueBox.play(self, Story.FAILED_ESCAPE))
+			DialogueBox.play(self, Story.FAILED_ESCAPE)
+		return
+	if _gauntlet_left > 0:
+		return                       # one gauntlet at a time
+	# retries: shoved back on your feet -- and the road answers in numbers
+	b.global_position.x = GROUND_SPAN_START + 300.0
+	b.velocity = Vector2(380.0, -120.0)
+	var n: int = mini(4 * int(pow(2.0, GameState.escape_attempts - 2)), 24)
+	var tier: int = GameState.current_siege_tier()
+	_gauntlet_left = n
+	for i in range(n):
+		var e = SIEGE_ENEMY_FOR_ARRIVAL.instantiate()
+		e.skin = "raider"
+		e.max_health = int(round(50.0 * (1.0 + (tier - 1) * 0.3)))
+		e.attack_damage = int(round(10.0 * (1.0 + (tier - 1) * 0.2)))
+		e.reward = 2                 # the road pays poorly on purpose
+		e.wall = null
+		e.global_position = Vector2(GROUND_SPAN_START + 60.0 + (i % 6) * 44.0, GROUND_Y - 70.0 - float(i / 6) * 40.0)
+		e.died.connect(_on_gauntlet_raider_died)
+		add_child(e)
+	if stack:
+		stack.show_notification("⚠ The road answers: %d of the horde turn to meet you." % n)
+	GameState.log_event("combat", "You tested the road out — %d of the dark came to argue." % n)
+
+func _on_gauntlet_raider_died() -> void:
+	_gauntlet_left -= 1
+	if _gauntlet_left > 0:
+		return
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if stack:
+		stack.show_notification("The wave breaks... and the road runs on — the dark ahead of it has already DOUBLED. There is no end in this direction.")
+	GameState.log_event("combat", "You broke the road's wave. The road did not care.")
 
 # GAME_BIBLE 2.5.1 beat 2: the first village visit after carving to floor 15,
 # Orin stands at the wall as though returning from a long walk -- the wandering
