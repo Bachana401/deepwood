@@ -1,6 +1,7 @@
 extends CanvasLayer
 
 var current_building: Node = null
+var _draft_armed := ""   # the villager warned about, awaiting a second click
 
 func _ready() -> void:
 	visible = false
@@ -421,6 +422,19 @@ func _on_assign(villager_id: String, role_def: Dictionary) -> void:
 		return
 	var notif = get_node_or_null("../CanvasLayer/NotificationStack")
 	if role_def.get("is_enrollment", false):
+		# DRAFTING IS FOREVER (polish 2026-07-20): the Barracks deletes every
+		# other profession a person has, permanently -- send a rescued Doctor
+		# in and the Doctor is gone for good. That cannot be a single click.
+		if current_building.role_key == "Barracks":
+			var v: Dictionary = GameState.find_villager_by_id(villager_id)
+			var had := str(v.get("stat_name", ""))
+			if had != "" and had != "Warrior" and _draft_armed != villager_id:
+				_draft_armed = villager_id
+				if notif:
+					notif.show_notification("⚠ Drafting %s DELETES their %s forever — they become a Warrior and nothing else. Click again to commit." % [
+						str(v.get("name", "they")), had])
+				return
+		_draft_armed = ""
 		GameState.enroll_villager(villager_id, current_building.role_key, role_def.title, role_def.get("grants_stat", "random"))
 		if notif:
 			notif.show_notification("Enrolled as " + role_def.title + "! Check back in 24 in-game hours.")

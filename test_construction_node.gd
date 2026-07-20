@@ -128,5 +128,17 @@ func _ready() -> void:
 		FileAccess.open("res://house.gd", FileAccess.READ).get_as_text().contains("village_structure")
 		and FileAccess.open("res://watchtower.gd", FileAccess.READ).get_as_text().contains("village_structure"))
 
+	# ---- irreversible choices must be CONFIRMED, never one-click ----
+	var stsrc := FileAccess.open("res://skill_tree_ui.gd", FileAccess.READ).get_as_text()
+	check("a skill FORK warns before it locks its sibling forever",
+		stsrc.contains("_fork_armed") and stsrc.contains("locks %s for this whole run"))
+	check("...and the second click is what commits it",
+		stsrc.contains("Click again to commit"))
+	var asrc := FileAccess.open("res://assign_ui.gd", FileAccess.READ).get_as_text()
+	check("drafting to the Barracks warns it DELETES their profession",
+		asrc.contains("_draft_armed") and asrc.contains("DELETES their %s forever"))
+	check("...and a villager with nothing to lose is drafted without nagging",
+		asrc.contains('had != "" and had != "Warrior"'))
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

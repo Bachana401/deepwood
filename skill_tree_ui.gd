@@ -13,6 +13,7 @@ extends CanvasLayer
 const RESET_POTION_COST = 150
 
 var panel: Panel
+var _fork_armed := ""   # the fork node warned about, awaiting its second click
 var class_choice_box: VBoxContainer
 var tree_scroll: ScrollContainer
 var tree_canvas: Control
@@ -404,6 +405,23 @@ func _on_node_pressed(node: Dictionary) -> void:
 	if SkillTreeData.is_exclusive_blocked(node):
 		notify("You chose the other side of this fork — that path is locked.")
 		return
+	# A FORK IS FOREVER (polish 2026-07-20): taking one side of a crossroads
+	# locks its sibling for the rest of the run, and this used to happen on
+	# a single click -- one misclick could quietly end a build. Confirm it
+	# the way the game already asks for irreversible things (the Rewound
+	# Hour): press once to be warned, again to commit.
+	var grp := str(node.get("exclusive", ""))
+	if grp != "" and not GameState.is_skill_unlocked(str(node.id)):
+		var sibling_names := []
+		for other in SkillTreeData.nodes_in_exclusive_group(grp):
+			if str(other.id) != str(node.id):
+				sibling_names.append(str(other.name))
+		if _fork_armed != str(node.id):
+			_fork_armed = str(node.id)
+			notify("⚠ FORK: taking %s locks %s for this whole run. Click again to commit." % [
+				str(node.name), " / ".join(sibling_names)])
+			return
+	_fork_armed = ""
 	# In the testing sandbox every node is free: skip the point + material gates
 	# here too (but the fork/prereq gates above still apply, on purpose).
 	if not GameState.TEST_SKILL_SANDBOX:
