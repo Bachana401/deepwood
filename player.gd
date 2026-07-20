@@ -327,7 +327,12 @@ func maybe_play_intro() -> void:
 	if GameState.dev_mode or GameState.seen_intro or GameState.in_dungeon:
 		return
 	GameState.seen_intro = true
-	DialogueBox.play(self, Story.OPENING)
+	# the plea ends -> the ARRIVAL begins (2.4.1): the player walks into the
+	# three defenders' fight at the west gate, and learns combat in company
+	DialogueBox.play(self, Story.OPENING, func():
+		var m = get_parent()
+		if m and m.has_method("begin_arrival_battle"):
+			m.begin_arrival_battle())
 
 # TEST: hands the player every basic weapon at the start so the whole hotbar
 # is usable immediately (1=sword ... 6=Thundercaller, 7=ADMIN Ruin Wand,

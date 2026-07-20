@@ -27,6 +27,18 @@ const PULSE_MIN_ALPHA = 0.55
 const PULSE_MAX_ALPHA = 0.85
 const RESCUE_FADE_DURATION = 0.6
 
+# THE SORROW-CRYSTAL (GAME_BIBLE 4.2a): the taken stand frozen mid-motion,
+# shackled to a crystal that actively drains their hope -- the physical
+# mechanism of the Law of Despair. Freeing them means SHATTERING it, and the
+# crystal is guarded: while anything hostile still stands in this pocket,
+# the shackle holds. Stats are HIDDEN until they thaw at home -- every
+# rescue is a wrapped gift. (The crystallized-despair material it should
+# also pay out is 12-open -- identity and use undecided, deliberately
+# unbuilt.)
+const GUARD_RADIUS := 420.0
+const CRYSTAL_COLOR = Color(0.55, 0.75, 0.95, 0.4)
+const CRYSTAL_EDGE = Color(0.7, 0.6, 0.95, 0.8)
+
 const NPC_SCRIPT = preload("res://npc.gd")
 # Matches main.gd's VILLAGE_START_X/VILLAGE_Y -- used as a fallback spawn spot
 # for a rescued villager's world avatar when they aren't pre-assigned to a
@@ -36,14 +48,47 @@ const VILLAGE_FALLBACK_POS = Vector2(4900.0, -100.0)
 var player_inside = false
 var is_rescued = false
 
+var crystal: Node2D = null
+
 func _ready() -> void:
 	if GameState.is_villager_rescued(villager_id):
 		queue_free()
 		return
 	body_entered.connect(_on_body_entered)
 	body_exited.connect(_on_body_exited)
-	$PromptLabel.text = "Press E to Rescue " + villager_name
+	$PromptLabel.text = "[E] Shatter the Sorrow-Crystal — free " + villager_name
+	build_crystal()
 	start_pulse()
+
+# The shell: a translucent prismatic diamond around the frozen figure, its
+# facets breathing faintly -- unmistakably a PRISON, not a person standing.
+func build_crystal() -> void:
+	crystal = Node2D.new()
+	add_child(crystal)
+	var facet := Polygon2D.new()
+	facet.polygon = PackedVector2Array([Vector2(0, -58), Vector2(24, -26), Vector2(0, 10), Vector2(-24, -26)])
+	facet.color = CRYSTAL_COLOR
+	crystal.add_child(facet)
+	var edge := Line2D.new()
+	edge.points = PackedVector2Array([Vector2(0, -58), Vector2(24, -26), Vector2(0, 10), Vector2(-24, -26), Vector2(0, -58)])
+	edge.width = 2.0
+	edge.default_color = CRYSTAL_EDGE
+	crystal.add_child(edge)
+	var t := crystal.create_tween()
+	t.set_loops()
+	t.tween_property(crystal, "modulate:a", 0.65, 1.2)
+	t.tween_property(crystal, "modulate:a", 1.0, 1.2)
+
+# 4.2a: the crystal is protected -- the pocket must be CLEARED first.
+func guard_still_stands() -> bool:
+	for e in get_tree().get_nodes_in_group("dungeon_combatant"):
+		if not is_instance_valid(e) or e.is_in_group("player"):
+			continue
+		if "is_dead" in e and e.is_dead:
+			continue
+		if e.global_position.distance_to(global_position) <= GUARD_RADIUS:
+			return true
+	return false
 
 func start_pulse() -> void:
 	var tween = create_tween()
@@ -66,6 +111,14 @@ func _process(_delta: float) -> void:
 		rescue()
 
 func rescue() -> void:
+	# the shackle holds while the pocket's guard still stands (4.2a)
+	if guard_still_stands():
+		SpeechText.spawn(self, "The crystal's guard still stands — clear this pocket first.")
+		if crystal:
+			var flash = crystal.create_tween()
+			flash.tween_property(crystal, "modulate", Color(1.6, 0.7, 0.7), 0.12)
+			flash.tween_property(crystal, "modulate", Color(1, 1, 1), 0.25)
+		return
 	is_rescued = true
 	$PromptLabel.visible = false
 	GameState.rescue_villager({
@@ -78,15 +131,18 @@ func rescue() -> void:
 		"role_key": role_key,
 		"role_title": role_title,
 		"paired": false,
+		# 4.2a: a frozen hostage shows NOTHING -- the gift unwraps at home
+		"stats_hidden": true,
 	})
+	shatter_crystal()
 	spawn_world_avatar()
 	# the backstory is the villager SPEAKING -- floating text at their body,
-	# not a corner notification. The mechanical reward line stays a system
-	# notification. (SpeechText holds its spot after this node fades out.)
+	# not a corner notification. The mechanical reward stays WRAPPED (4.2a):
+	# no stat in the toast; the reveal happens when they thaw at home.
 	SpeechText.spawn(self, backstory)
 	var notif = get_node_or_null("../CanvasLayer/NotificationStack")
 	if notif:
-		notif.show_notification("Rescued " + villager_name + "! (" + stat_name + " +" + str(stat_value) + ")")
+		notif.show_notification("The Sorrow-Crystal shatters — %s is free. What they can do, you'll learn when they're home." % villager_name)
 	monitoring = false
 	var tween = create_tween()
 	tween.set_parallel(true)
@@ -94,6 +150,24 @@ func rescue() -> void:
 	tween.tween_property($Restraint, "modulate:a", 0.0, RESCUE_FADE_DURATION)
 	tween.tween_property(self, "position:y", position.y - 20.0, RESCUE_FADE_DURATION)
 	tween.chain().tween_callback(queue_free)
+
+# The breaking is INTERRUPTED drain -- the facets fly, the person thaws.
+func shatter_crystal() -> void:
+	if crystal == null:
+		return
+	for dir in [Vector2(-40, -30), Vector2(40, -30), Vector2(-30, 20), Vector2(30, 20)]:
+		var shard := Polygon2D.new()
+		shard.polygon = PackedVector2Array([Vector2(0, -8), Vector2(6, 2), Vector2(-5, 4)])
+		shard.color = CRYSTAL_EDGE
+		shard.position = Vector2(0, -24)
+		add_child(shard)
+		var st := shard.create_tween()
+		st.set_parallel(true)
+		st.tween_property(shard, "position", shard.position + dir, 0.5)
+		st.tween_property(shard, "modulate:a", 0.0, 0.5)
+		st.chain().tween_callback(shard.queue_free)
+	crystal.queue_free()
+	crystal = null
 
 # Every rescued villager gets a real walking presence in the village, same as
 # a child born from mating -- stats are never shown until this point (the

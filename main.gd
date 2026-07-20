@@ -169,6 +169,7 @@ var village_right_edge := VILLAGE_START_X
 const HOUSE_MARGIN = 240.0   # gap from the last building to the first cottage
 const HOUSE_SPACING = 160.0
 const HOUSE_SCRIPT = preload("res://house.gd")
+const SIEGE_ENEMY_FOR_ARRIVAL = preload("res://siege_enemy.tscn")
 const HOUSE_COLORS = [
 	{"body": Color(0.62, 0.48, 0.32, 1), "roof": Color(0.48, 0.24, 0.18, 1)},
 	{"body": Color(0.55, 0.42, 0.5, 1), "roof": Color(0.4, 0.22, 0.32, 1)},
@@ -352,6 +353,17 @@ func generate_houses() -> void:
 func spawn_existing_villager_avatars() -> void:
 	for villager in GameState.rescued_villagers:
 		var villager_id = villager.get("id", "")
+		# THE THAW (4.2a): a crystal-freed hostage's stats stay wrapped until
+		# they stand at home -- this is home. Unwrap the gift, and say what
+		# the gamble paid.
+		if villager.get("stats_hidden", false):
+			villager.erase("stats_hidden")
+			var stat := str(villager.get("stat_name", ""))
+			if stat != "":
+				GameState.notify("❄→☀ %s thaws fully — a %s of %d!" % [
+					villager.get("name", "?"), stat, int(villager.get("stat_value", 0))])
+				GameState.log_event("people", "%s thawed at home — a %s of %d." % [
+					villager.get("name", "?"), stat, int(villager.get("stat_value", 0))])
 		if is_villager_busy_mating(villager_id):
 			continue
 		var npc = NPC_SCRIPT.new()
@@ -362,6 +374,47 @@ func spawn_existing_villager_avatars() -> void:
 # FORESHADOWING (GAME_BIBLE 9.8): the mid-game taunt -- Orin WANTS you to grow,
 # and once, around the halfway mark, he says so almost plainly. Reads as a
 # mentor's pride the first time; reads as the farmer admiring the crop forever
+# THE ARRIVAL BATTLE (GAME_BIBLE 2.4.1, beats 1-2): the player's first fight
+# is IN COMPANY. When the opening plea ends, a small Despair wave is already
+# breaking against the three defenders at the west gate -- the player joins,
+# the wave dies, and the trio explains the trap that makes the whole game
+# happen HERE (Story.ARRIVAL_TRAP). Once per world, saved.
+var _arrival_left := 0
+
+func begin_arrival_battle() -> void:
+	if GameState.seen_arrival_battle or GameState.dev_mode:
+		return
+	var wall = null
+	for w in get_tree().get_nodes_in_group("village_wall"):
+		if not "flank" in w or w.flank == "west":
+			wall = w
+	var gate_x: float = wall.global_position.x if wall else 4700.0
+	_arrival_left = 4
+	for i in range(4):
+		var e = SIEGE_ENEMY_FOR_ARRIVAL.instantiate()
+		e.skin = "raider"
+		e.max_health = 26          # a LEARNING fight: mean-looking, killable
+		e.attack_damage = 4
+		e.reward = 3
+		e.wall = null              # they fight the defenders, not the stone
+		e.global_position = Vector2(gate_x - 420.0 - i * 55.0, -70.0)
+		e.died.connect(_on_arrival_raider_died)
+		add_child(e)
+	# beat 1: the trio is ALREADY in the fight when the player walks up
+	for a in get_tree().get_nodes_in_group("adventurer"):
+		a.global_position = Vector2(gate_x - 300.0 + randf_range(-50.0, 50.0), -70.0)
+	GameState.notify("⚔ Fighting at the west gate — the defenders are engaged!")
+
+func _on_arrival_raider_died() -> void:
+	_arrival_left -= 1
+	if _arrival_left > 0 or GameState.seen_arrival_battle:
+		return
+	GameState.seen_arrival_battle = true
+	GameState.log_event("combat", "Your first wave broke at the gate — you fought it beside Roland, Wren and Castor.")
+	var pl = get_tree().get_first_node_in_group("player")
+	if pl:
+		DialogueBox.play(pl, Story.ARRIVAL_TRAP)
+
 # NG+ arrival: one line the moment the rewound player wakes, then the world
 # treats them like any first arrival. Transient flag -- never saved, so a
 # reload mid-run stays silent.

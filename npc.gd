@@ -839,6 +839,9 @@ func info_fields() -> Array:
 		return []
 	var age_text = "Kid" if data.get("is_kid", false) else "Adult"
 	var stat_text = data.get("stat_name", "") if data.get("stat_name", "") != "" else "no stat yet"
+	# 4.2a: a crystal-freed hostage stays WRAPPED until the thaw at home
+	if data.get("stats_hidden", false):
+		stat_text = "— still thawing —"
 	var fields = [data.get("name", "?"), age_text + ", " + data.get("sex", "?"), stat_text]
 	# personal spirit (5.5b): the meter is the average, but THIS number is the
 	# one that corrupts or saves this particular person -- surface it, colored

@@ -90,3 +90,17 @@ const ENDING = [
 	{"speaker": "The Shadow Monarch", "text": "I remember now. The throne. The name. The war that broke the world. I was a monarch once... and I am again."},
 	{"speaker": "The Shadow Monarch", "text": "But I saved Deepwood as a man. I will keep it as one. One Monarch is ended. Somewhere beyond this world, another still waits — but that reckoning is for another day."},
 ]
+
+# THE TRAP EXPLAINED (GAME_BIBLE 2.4.1, beat 2) -- the wave the player helped
+# break was the trio's HUNDREDTH. With the field quiet, they say the thing
+# that makes the whole game happen HERE: there is no way out. Every road out
+# of the Deepwood grows an army to meet whoever walks it. The exit is not
+# blocked -- it is GUARDED, by exactly as much dark as it takes.
+const ARRIVAL_TRAP = [
+	{"speaker": "Roland", "text": "Easy — breathe. That was the last of tonight's. You swing like someone worth keeping."},
+	{"speaker": "Wren", "text": "Don't thank us yet, stranger. We've been stuck in this valley for weeks. There is no way out."},
+	{"speaker": "Castor", "text": "We tried. Every road out of the Deepwood — the horde grows to meet you. Ten becomes a hundred. A hundred becomes a wall."},
+	{"speaker": "Wren", "text": "It's not a siege. It's a cage. Whatever is below sends exactly as much dark as it takes to keep us in."},
+	{"speaker": "Roland", "text": "So we hold this village, because there is nothing else to hold. And if you ever want out of this valley alive—"},
+	{"speaker": "Castor", "text": "—there's only one direction left. Down. Through the root of it."},
+]

@@ -1055,6 +1055,7 @@ var seen_failed_escape := false
 var seen_orin_glimpse := false
 var seen_kneel_echo := false
 var seen_orin_taunt := false
+var seen_arrival_battle := false
 
 func orin_arrived() -> bool:
 	# Per-run: in a fresh world Orin has not "walked back out" yet, no matter
@@ -2949,6 +2950,7 @@ func reset_for_new_game() -> void:
 	seen_orin_glimpse = false
 	seen_kneel_echo = false
 	seen_orin_taunt = false
+	seen_arrival_battle = false
 	# The Ten wait in their cages again, and the Harvest has not happened --
 	# without these a second run starts with every boon active, no vaults to
 	# find, and a finale that begin_harvest() refuses to start.
@@ -3025,6 +3027,7 @@ func save_game(player: Node) -> void:
 		"seen_orin_glimpse": seen_orin_glimpse,
 		"seen_kneel_echo": seen_kneel_echo,
 		"seen_orin_taunt": seen_orin_taunt,
+		"seen_arrival_battle": seen_arrival_battle,
 		"chest_contents": chest_contents,
 		"mating_houses": mating_houses,
 		"cottage_homes": cottage_homes,
@@ -3105,6 +3108,7 @@ func load_game() -> Dictionary:
 		seen_orin_glimpse = bool(parsed.get("seen_orin_glimpse", false))
 		seen_kneel_echo = bool(parsed.get("seen_kneel_echo", false))
 		seen_orin_taunt = bool(parsed.get("seen_orin_taunt", false))
+		seen_arrival_battle = bool(parsed.get("seen_arrival_battle", true))   # old saves: don't replay
 		if parsed.has("chest_contents"):
 			chest_contents = parsed["chest_contents"]
 		if parsed.has("mating_houses"):
