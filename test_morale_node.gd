@@ -25,6 +25,8 @@ func _ready() -> void:
 	# ---- paint a controlled world (restored at the end) ----
 	var saved_roster: Array = GameState.rescued_villagers
 	var saved_houses: Dictionary = GameState.mating_houses
+	var saved_homes: Dictionary = GameState.cottage_homes
+	var saved_hours: float = GameState.game_hours
 	var saved_health: Dictionary = GameState.building_health.duplicate(true)
 	var saved_stage: Dictionary = GameState.building_stage.duplicate(true)
 	var saved_shock: float = GameState.morale_death_shock
@@ -49,10 +51,16 @@ func _ready() -> void:
 		"stat_name": "", "stat_value": 0, "role_key": "", "role_title": ""})
 	GameState.rescued_villagers = roster
 	GameState.mating_houses = {}
-	# pair every adult EXCEPT the last two -- the lonely pair the checks below
-	# first measure, then unite
+	GameState.cottage_homes = {}
+	# pair AND HOUSE every adult except the last two -- the lonely, homeless
+	# pair the checks below first measure, then unite (5.8: perfection needs
+	# both the partner and the cottage)
 	for i in range(0, int(GameState.MORALE_POP_TARGET) - 2, 2):
-		GameState.mating_houses["h%d" % i] = {"male_id": "m_ad_%d" % i, "female_id": "m_ad_%d" % (i + 1)}
+		roster[i]["partner_id"] = "m_ad_%d" % (i + 1)
+		roster[i + 1]["partner_id"] = "m_ad_%d" % i
+		roster[i]["paired"] = true
+		roster[i + 1]["paired"] = true
+		GameState.cottage_homes["h%d" % i] = {"a": "m_ad_%d" % i, "b": "m_ad_%d" % (i + 1)}
 
 	# ---- the tuning: a perfect adult is EXACTLY 10, no boons needed ----
 	var perfect: Dictionary = roster[0]
@@ -73,11 +81,42 @@ func _ready() -> void:
 	check("the meter is the plain average of everyone (two lonely souls keep it under 100)",
 		meter < 100 and meter >= 95, str(meter))
 	var second_last: Dictionary = roster[int(GameState.MORALE_POP_TARGET) - 2]
-	GameState.mating_houses["hz"] = {"male_id": second_last["id"], "female_id": last_adult["id"]}
+	check("loneliness is a standing -2, not a missing bonus",
+		absf(GameState.personal_morale_target(last_adult) - 7.2) < 0.01,
+		str(GameState.personal_morale_target(last_adult)))
+	last_adult["partner_id"] = second_last["id"]
+	second_last["partner_id"] = last_adult["id"]
+	last_adult["paired"] = true
+	second_last["paired"] = true
+	GameState.cottage_homes["hz"] = {"a": second_last["id"], "b": last_adult["id"]}
 	last_adult.erase("morale")
 	second_last.erase("morale")
-	check("unite the lonely pair and perfection is reachable",
+	check("unite and house the lonely pair and perfection is reachable",
 		GameState.village_morale() == 100, str(GameState.village_morale()))
+
+	# ---- widowhood (5.8): death parts, mourning gates, the cottage frees ----
+	GameState.remove_villager_by_id(str(second_last["id"]))
+	check("death breaks the pair and frees their cottage",
+		str(last_adult.get("partner_id", "x")) == "" and not GameState.cottage_homes.has("hz"))
+	check("the widow carries the -3 on the spot",
+		GameState.get_personal_morale(last_adult) < 7.5,
+		str(GameState.get_personal_morale(last_adult)))
+	var mates: Dictionary = GameState.find_available_parents()
+	check("a mourner cannot be re-paired inside the 48 hours",
+		mates.get("male_id", "") != str(last_adult["id"]))
+	GameState.game_hours += GameState.WIDOW_MOURN_HOURS + 1.0
+	mates = GameState.find_available_parents()
+	check("after the mourning, they may love again",
+		mates.get("male_id", "") == str(last_adult["id"]) or mates.get("female_id", "") == str(last_adult["id"]))
+	GameState.morale_death_shock = 0.0
+
+	# ---- the raised-cottage row survives the save ----
+	var gs := FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text()
+	check("homes and raised cottages survive the save",
+		gs.contains('"cottage_homes": cottage_homes') and gs.contains('"extra_cottages": extra_cottages'))
+	check("the plot at the row's end exists and charges materials",
+		ResourceLoader.exists("res://cottage_plot.gd")
+		and FileAccess.open("res://cottage_plot.gd", FileAccess.READ).get_as_text().contains("remove_item"))
 
 	# ---- instant grief + drift home ----
 	GameState.register_villager_deaths(5)
@@ -105,6 +144,8 @@ func _ready() -> void:
 	# ---- restore ----
 	GameState.rescued_villagers = saved_roster
 	GameState.mating_houses = saved_houses
+	GameState.cottage_homes = saved_homes
+	GameState.game_hours = saved_hours
 	GameState.building_health = saved_health
 	GameState.building_stage = saved_stage
 	GameState.morale_death_shock = saved_shock

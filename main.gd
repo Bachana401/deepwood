@@ -313,6 +313,21 @@ func generate_houses() -> void:
 		house.roof_color = palette.roof
 		house.position = Vector2(start_x + i * HOUSE_SPACING, VILLAGE_Y)
 		$Village.add_child(house)
+	# cottages RAISED in past sessions (5.8) come back with the world...
+	for j in range(GameState.extra_cottages):
+		var idx = j + 1
+		var palette2 = HOUSE_COLORS[idx % HOUSE_COLORS.size()]
+		var extra = HOUSE_SCRIPT.new()
+		extra.house_id = "extra_house_%d" % idx
+		extra.house_name = "Cottage %d" % (HOUSE_COUNT + idx)
+		extra.body_color = palette2.body
+		extra.roof_color = palette2.roof
+		extra.position = Vector2(start_x + (HOUSE_COUNT + j) * HOUSE_SPACING, VILLAGE_Y)
+		$Village.add_child(extra)
+	# ...and the empty plot at the row's end is where the NEXT one rises
+	var plot = preload("res://cottage_plot.gd").new()
+	plot.position = Vector2(start_x + (HOUSE_COUNT + GameState.extra_cottages) * HOUSE_SPACING, VILLAGE_Y)
+	$Village.add_child(plot)
 
 # NPC world avatars are runtime-only nodes -- nothing about them is written
 # to the save file, so a fresh scene boot (New Game OR Continue) starts with

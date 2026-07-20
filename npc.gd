@@ -838,6 +838,17 @@ func info_fields() -> Array:
 	var spirit: float = GameState.get_personal_morale(data)
 	var glyph := "☀" if spirit >= 7.0 else ("☁" if spirit >= 3.5 else "⚠")
 	fields.append("%s Spirit %.1f/10" % [glyph, spirit])
+	# where they sleep (5.8): home, the Tavern's spare bed, or the street
+	if not data.get("is_kid", false):
+		var home_id: String = GameState.villager_home_id(str(data.get("id", "")))
+		if data.has("widowed_at_hours") and GameState.game_hours < float(data["widowed_at_hours"]) + GameState.WIDOW_MOURN_HOURS:
+			fields.append("🖤 In mourning")
+		if home_id != "":
+			fields.append("⌂ " + home_id.capitalize().replace("_", " "))
+		elif GameState.is_building_operational("Tavern"):
+			fields.append("⌂ Lodging at the Tavern")
+		else:
+			fields.append("⚠ Sleeps in the street")
 	if data.get("role_title", "") != "":
 		fields.append("Works: " + data.get("role_title"))
 	# the Doctor quotes her price up front -- the escalation is the mechanic,

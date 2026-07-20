@@ -122,6 +122,14 @@ func interact() -> void:
 	# houses are children of Main/Village, not Main directly -- CanvasLayer
 	# is a sibling of Village, so it takes two levels up to reach it.
 	var notif = get_node_or_null("../../CanvasLayer/NotificationStack")
+	# 5.8: an occupied home is occupied for LIFE -- only death frees it
+	if GameState.cottage_homes.has(house_id):
+		var home: Dictionary = GameState.cottage_homes[house_id]
+		if notif:
+			notif.show_notification("%s — %s and %s live here." % [house_name,
+				GameState.villager_name(str(home.get("a", ""))),
+				GameState.villager_name(str(home.get("b", "")))])
+		return
 	if GameState.mating_houses.has(house_id):
 		var pairing = GameState.mating_houses[house_id]
 		var remaining_ingame_minutes = int(ceil(max(pairing.remaining_hours, 0.0) * 60.0))

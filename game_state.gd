@@ -809,6 +809,75 @@ const CHILD_NAMES = ["Tomi", "Sasha", "Luca", "Mira", "Finn", "Ari", "Noa", "Ren
 var mating_houses: Dictionary = {}
 var pregnancies: Dictionary = {}
 
+# --- HOUSING (GAME_BIBLE 5.8) ---
+# The cradle IS the home: the cottage a pair unites in becomes THEIRS for
+# life -- only death parts a pair or frees their cottage. Housing is the
+# hard brake on the population flywheel: you cannot out-rescue or out-breed
+# the cottages you raise. The Tavern lodges the unhoused, warm but not home.
+const WIDOW_MOURN_HOURS := 48.0     # canon: re-pairable only after the mourning
+const SINGLE_MORALE_PENALTY := 2.0  # canon: a lonely adult carries -2, standing
+const WIDOW_MORALE_HIT := 3.0       # canon: -3, decaying back over the mourning
+var cottage_homes: Dictionary = {}  # house_id -> {"a": id, "b": id}, permanent
+var extra_cottages: int = 0         # cottages RAISED beyond the starting row (5.8: built, not free)
+
+func villager_name(vid: String) -> String:
+	for v in rescued_villagers:
+		if str(v.get("id", "")) == vid:
+			return str(v.get("name", "someone"))
+	return "someone"
+
+func villager_home_id(vid: String) -> String:
+	for hid in cottage_homes:
+		var h: Dictionary = cottage_homes[hid]
+		if str(h.get("a", "")) == vid or str(h.get("b", "")) == vid:
+			return str(hid)
+	return ""
+
+# A child sleeps under its parents' roof (5.8) -- housed if either parent is.
+# Legacy children from before parent-tracking count as housed (kind default).
+func kid_is_housed(v: Dictionary) -> bool:
+	if not v.has("parents"):
+		return true
+	for pid in v.get("parents", []):
+		if villager_home_id(str(pid)) != "":
+			return true
+	return false
+
+# Housed couples keep the cradle full on their own -- the flywheel (5.7 B)
+# whose brake is the cottage count itself. A starving or despairing village
+# does not conceive.
+const FAMILY_CYCLE_HOURS := 60.0
+var _family_cycle_accum := 0.0
+
+func _couple_expecting(a: String, b: String) -> bool:
+	for p in pregnancies.values():
+		if p.get("male_id", "") in [a, b] or p.get("female_id", "") in [a, b]:
+			return true
+	return false
+
+func update_cottage_families(hours_passed: float) -> void:
+	_family_cycle_accum += hours_passed
+	if _family_cycle_accum < FAMILY_CYCLE_HOURS:
+		return
+	_family_cycle_accum = 0.0
+	if not has_food() or village_in_despair():
+		return
+	var candidates := []
+	for hid in cottage_homes:
+		var h: Dictionary = cottage_homes[hid]
+		var a := str(h.get("a", ""))
+		var b := str(h.get("b", ""))
+		if villager_name(a) == "someone" or villager_name(b) == "someone":
+			continue
+		if _couple_expecting(a, b):
+			continue
+		candidates.append(h)
+	if candidates.is_empty():
+		return
+	var pick: Dictionary = candidates[randi() % candidates.size()]
+	var pregnancy_id = "preg_%d_%d" % [Time.get_ticks_msec(), randi() % 100000]
+	pregnancies[pregnancy_id] = {"male_id": pick.get("a", ""), "female_id": pick.get("b", ""), "remaining_hours": GESTATION_DURATION_HOURS}
+
 # Active School/Barracks enrollments, keyed by villager_id:
 # {"remaining_hours", "grants_stat"}. grants_stat is either "random" (School
 # picks one of REGULAR_STATS) or a specific stat name (Barracks always
@@ -911,6 +980,7 @@ func tick_village_clock() -> void:
 	# immediately clipped by this tick's hours_passed too.
 	update_pregnancies(hours_passed)
 	update_mating_houses(hours_passed)
+	update_cottage_families(hours_passed)
 	update_school_enrollments(hours_passed)
 	decay_doctor_price(hours_passed)
 	tick_deep_catches(hours_passed)
@@ -1233,6 +1303,13 @@ func tick_food(hours_passed: float) -> void:
 # The village average feeds back into passive income (happy workers produce
 # more) and drives the mood lines villagers say near the player (npc.gd).
 func is_villager_paired(vid: String) -> bool:
+	# 5.8: pairing is durable -- the partner link outlives the mating session
+	# and every birth; only death clears it (see remove_villager_by_id).
+	for v in rescued_villagers:
+		if str(v.get("id", "")) == vid:
+			if str(v.get("partner_id", "")) != "":
+				return true
+			break
 	for h in mating_houses.values():
 		if h.get("male_id", "") == vid or h.get("female_id", "") == vid:
 			return true
@@ -1313,13 +1390,32 @@ func count_adults() -> int:
 const MORALE_DRIFT_PER_HOUR := 0.6   # spirits move toward their target on hour-scale
 
 func personal_morale_target(v: Dictionary) -> float:
+	var vid := str(v.get("id", ""))
 	var t := 1.4                                                 # being alive, and free
 	t += 2.0 if has_food() else 0.0                              # a full larder
 	if v.get("is_kid", false):
 		t += 3.8                                                 # a child's world: home, play, school
+		# a child sleeps where its parents do (5.8)
+		if not kid_is_housed(v):
+			t -= 0.5 if is_building_operational("Tavern") else 1.5
 	else:
 		t += 2.2 if str(v.get("role_key", "")) != "" else 0.0    # purpose
-		t += 1.6 if is_villager_paired(str(v.get("id", ""))) else 0.0   # love
+		# 5.8 housing: a cottage of your own 1.6; the Tavern's spare bed 0.8;
+		# the street costs you
+		if villager_home_id(vid) != "":
+			t += 1.6
+		elif is_building_operational("Tavern"):
+			t += 0.8
+		else:
+			t -= 1.0
+		# 5.8: loneliness is a STANDING penalty, not a missing bonus -- and a
+		# fresh widow carries the -3 on top, easing off across the mourning
+		if not is_villager_paired(vid):
+			t -= SINGLE_MORALE_PENALTY
+		if v.has("widowed_at_hours"):
+			var mourn_left: float = float(v["widowed_at_hours"]) + WIDOW_MOURN_HOURS - game_hours
+			if mourn_left > 0.0:
+				t -= WIDOW_MORALE_HIT * (mourn_left / WIDOW_MOURN_HOURS)
 	t += 1.4 if is_building_operational("Blacksmith") else 0.0   # an armed town sleeps better
 	t += 1.0 if is_building_operational("Bar") else 0.0          # somewhere to laugh
 	t += 0.4 * clampf(float(rescued_villagers.size()) / MORALE_POP_TARGET, 0.0, 1.0)
@@ -1848,7 +1944,10 @@ func find_available_parents() -> Dictionary:
 	var male_id = ""
 	var female_id = ""
 	for villager in rescued_villagers:
-		if villager.get("paired", false):
+		if villager.get("paired", false) or villager.get("is_kid", false):
+			continue
+		# 5.8: a widow(er) cannot be re-paired until the mourning has passed
+		if villager.has("widowed_at_hours") and game_hours < float(villager["widowed_at_hours"]) + WIDOW_MOURN_HOURS:
 			continue
 		if villager.get("sex") == "Male" and male_id == "":
 			male_id = villager.get("id", "")
@@ -1859,8 +1958,12 @@ func find_available_parents() -> Dictionary:
 func start_pairing(house_id: String, male_id: String, female_id: String) -> void:
 	mating_houses[house_id] = {"male_id": male_id, "female_id": female_id, "remaining_hours": COTTAGE_OCCUPANCY_HOURS}
 	for villager in rescued_villagers:
-		if villager.get("id") == male_id or villager.get("id") == female_id:
+		if villager.get("id") == male_id:
 			villager["paired"] = true
+			villager["partner_id"] = female_id   # 5.8: pairs are for life
+		elif villager.get("id") == female_id:
+			villager["paired"] = true
+			villager["partner_id"] = male_id
 	# in case either partner is already out wandering from a previous cycle,
 	# they're stepping back into the cottage now -- clear their old avatar.
 	remove_npc_avatar(male_id)
@@ -1879,6 +1982,9 @@ func update_mating_houses(hours_passed: float) -> void:
 	for house_id in departed_ids:
 		var pairing = mating_houses[house_id]
 		mating_houses.erase(house_id)
+		# 5.8: the cradle IS the home. The cottage they united in is theirs
+		# for life -- it never returns to the free pool while both live.
+		cottage_homes[house_id] = {"a": pairing.male_id, "b": pairing.female_id}
 		var pregnancy_id = "preg_%d_%d" % [Time.get_ticks_msec(), randi() % 100000]
 		pregnancies[pregnancy_id] = {"male_id": pairing.male_id, "female_id": pairing.female_id, "remaining_hours": GESTATION_DURATION_HOURS}
 		couple_departed.emit(house_id, pairing.male_id, pairing.female_id)
@@ -1900,15 +2006,15 @@ func update_pregnancies(hours_passed: float) -> void:
 func produce_child(pregnancy_id: String) -> void:
 	var pairing = pregnancies[pregnancy_id]
 	pregnancies.erase(pregnancy_id)
-	for villager in rescued_villagers:
-		if villager.get("id") == pairing.male_id or villager.get("id") == pairing.female_id:
-			villager["paired"] = false
+	# (5.8: pairs are permanent -- birth no longer dissolves the marriage; the
+	# couple keeps their cottage and update_cottage_families keeps the cradle)
 	var child_sex = "Male" if randi() % 2 == 0 else "Female"
 	var child_name = CHILD_NAMES[randi() % CHILD_NAMES.size()]
 	var child_id = "child_%d_%d" % [Time.get_ticks_msec(), randi() % 100000]
 	var child := {
 		"id": child_id, "name": child_name, "sex": child_sex, "is_kid": true,
 		"stat_name": "", "stat_value": 0, "role_key": "", "role_title": "", "paired": false,
+		"parents": [pairing.male_id, pairing.female_id],   # sleeps under their roof (5.8)
 	}
 	# One in two hundred is born a HERO: a once-a-playthrough (if that) event.
 	# A hero child cannot be schooled -- only the Barracks can shape what they
@@ -2393,6 +2499,9 @@ func reset_for_new_game() -> void:
 	})
 	chest_contents = {}
 	mating_houses = {}
+	cottage_homes = {}
+	extra_cottages = 0
+	_family_cycle_accum = 0.0
 	pregnancies = {}
 	school_enrollments = {}
 	highest_unlocked_level = 999 if TEST_UNLOCK_ALL_LEVELS else 1
@@ -2505,6 +2614,8 @@ func save_game(player: Node) -> void:
 		"seen_orin_taunt": seen_orin_taunt,
 		"chest_contents": chest_contents,
 		"mating_houses": mating_houses,
+		"cottage_homes": cottage_homes,
+		"extra_cottages": extra_cottages,
 		"pregnancies": pregnancies,
 		"school_enrollments": school_enrollments,
 		"highest_unlocked_level": highest_unlocked_level,
@@ -2579,6 +2690,9 @@ func load_game() -> Dictionary:
 			chest_contents = parsed["chest_contents"]
 		if parsed.has("mating_houses"):
 			mating_houses = parsed["mating_houses"]
+		if parsed.has("cottage_homes"):
+			cottage_homes = parsed["cottage_homes"]
+		extra_cottages = int(parsed.get("extra_cottages", 0))
 		if parsed.has("pregnancies"):
 			pregnancies = parsed["pregnancies"]
 		if parsed.has("school_enrollments"):
@@ -2767,6 +2881,19 @@ func remove_villager_by_id(villager_id: String) -> void:
 			rescued_villagers.erase(entry)
 			register_villager_deaths(1)   # every villager lost grieves the town
 			break
+	# 5.8: widowhood. The survivor's partner-link breaks, the -3 grief lands
+	# now and decays across the mourning window, and only after ~48h can they
+	# be paired again. Their cottage is freed below -- a home needs its pair.
+	for v in rescued_villagers:
+		if str(v.get("partner_id", "")) == villager_id:
+			v["partner_id"] = ""
+			v["paired"] = false
+			v["widowed_at_hours"] = game_hours
+			v["morale"] = clampf(get_personal_morale(v) - WIDOW_MORALE_HIT, 0.0, 10.0)
+	for hid in cottage_homes.keys():
+		var home: Dictionary = cottage_homes[hid]
+		if str(home.get("a", "")) == villager_id or str(home.get("b", "")) == villager_id:
+			cottage_homes.erase(hid)
 	for house_id in mating_houses.keys():
 		var pairing = mating_houses[house_id]
 		if pairing.male_id == villager_id or pairing.female_id == villager_id:
