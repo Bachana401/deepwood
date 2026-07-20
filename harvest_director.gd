@@ -176,8 +176,11 @@ func _spawn_monarch() -> void:
 	boss.position = Vector2(clampf(px + 420.0, _west_x, _east_x), _ground_y - 220.0)
 	add_child(boss)
 	_monarch = boss
-	# the Devourer starts WEAK (9.4): his power must be EATEN, not given
-	boss.attack_damage = int(round(boss.attack_damage * 0.5))
+	# the Devourer starts WEAK (9.4): his power must be EATEN, not given.
+	# boss damage scales by sqrt(damage_multiplier), so x0.25 halves his
+	# output. (The old finale wrote to a nonexistent 'attack_damage' and
+	# silently never weakened him at all -- caught by the error log.)
+	boss.damage_multiplier *= 0.25
 
 func _spawn_ally(ten_id: String, override_name: String) -> void:
 	var ally = load("res://ten_ally.gd").new()
@@ -265,7 +268,8 @@ func _apply_devour_tier() -> void:
 		return
 	_monarch.max_health += int(_monarch.max_health * 0.04)
 	_monarch.health = mini(_monarch.health + int(_monarch.max_health * 0.06), _monarch.max_health)
-	_monarch.attack_damage = int(round(_monarch.attack_damage * 1.05))
+	# +5% damage OUTPUT per tier: sqrt(x1.1025) = x1.05
+	_monarch.damage_multiplier *= 1.1025
 	_monarch.scale = Vector2.ONE * minf(1.0 + float(tier) * 0.05, 2.0)
 	if _monarch.has_method("update_health_bar"):
 		_monarch.update_health_bar()

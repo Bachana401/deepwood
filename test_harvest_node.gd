@@ -77,7 +77,7 @@ func _ready() -> void:
 		di.contains("HARVEST_WAVE_GAP") and di.contains("HARVEST_LIVE_CAP"))
 	check("every transformed wears a villager's NAME", di.contains("_spawn_transformed"))
 	check("the Devourer starts WEAK -- power must be eaten",
-		di.contains("attack_damage * 0.5"))
+		di.contains("damage_multiplier *= 0.25"))
 	check("he eats the LIVING transformed on a clock", di.contains("DEVOUR_INTERVAL"))
 	check("+1 tier per 5%% consumed, ~20 tiers", di.contains("DEVOUR_TIERS := 20"))
 	check("the Ten hold lanes as allies", di.contains("_spawn_ally") and ResourceLoader.exists("res://ten_ally.gd"))

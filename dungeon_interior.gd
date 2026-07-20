@@ -1694,7 +1694,7 @@ func _apply_devour_tier() -> void:
 		return
 	_monarch.max_health += int(_monarch.max_health * 0.04)
 	_monarch.health = mini(_monarch.health + int(_monarch.max_health * 0.06), _monarch.max_health)
-	_monarch.attack_damage = int(round(_monarch.attack_damage * 1.05))
+	_monarch.damage_multiplier *= 1.1025   # +5% output (damage scales by sqrt)
 	_monarch.scale = Vector2.ONE * minf(1.0 + float(tier) * 0.05, 2.0)
 	if _monarch.has_method("update_health_bar"):
 		_monarch.update_health_bar()
