@@ -1433,6 +1433,13 @@ func play_l100_reveal() -> void:
 # Orin is down -- the deathless made mortal for one instant, and the blow landed.
 # Play the ending, permanently unlock the Shadow Monarch, and salute the win.
 func play_final_victory() -> void:
+	# the fight is over: the Ten lower their weapons and gather (their walking
+	# village avatars take it from here -- these battle stand-ins bow out)
+	for a in get_tree().get_nodes_in_group("ten_ally"):
+		if is_instance_valid(a):
+			var t = a.create_tween()
+			t.tween_property(a, "modulate:a", 0.0, 2.0)
+			t.tween_callback(a.queue_free)
 	GameState.mark_game_completed()
 	DialogueBox.play(self, Story.ENDING, func():
 		# the first royal act (9.6): every fallen villager rises as a shadow of
