@@ -68,9 +68,9 @@ func _ready() -> void:
 	check("the ruin never names the floor its plans lie on",
 		not bsrc.contains("the plans lie on dungeon floor")
 		and bsrc.contains("its plans lie somewhere in the deep"))
-	check("the level select marks floors holding unclaimed plans",
-		FileAccess.open("res://level_select_ui.gd", FileAccess.READ).get_as_text().contains("blueprint lies on this floor")
-		or FileAccess.open("res://level_select_ui.gd", FileAccess.READ).get_as_text().contains("blueprint lies on"))
+	check("the level select marks floors holding unclaimed plans -- WITHOUT naming them",
+		FileAccess.open("res://level_select_ui.gd", FileAccess.READ).get_as_text().contains("Something of Deepwood's lies lost on this floor")
+		and not FileAccess.open("res://level_select_ui.gd", FileAccess.READ).get_as_text().contains("blueprint lies on this floor"))
 	check("...and the marker clears once the plans are in hand",
 		FileAccess.open("res://level_select_ui.gd", FileAccess.READ).get_as_text().contains("not GameState.has_blueprint"))
 	check("the test arena can never farm blueprints",
