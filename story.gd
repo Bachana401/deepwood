@@ -137,6 +137,14 @@ const REVEAL_AT_FEAST = [
 	{"speaker": "", "text": "The truth lands like a blade in every heart at once: their hero IS the thing that took their families. Around you, the people of Deepwood sink to their knees — kneeling to him as the last of their hope dies — and begin to TURN."},
 ]
 
+# THE RESUMED HARVEST -- the player quit (or the world crashed) mid-fight and
+# came back. The half-turned town cannot be left half-turned: while its master
+# lives, the turning does not stay down.
+const HARVEST_RESUME = [
+	{"speaker": "Orin", "text": "...Back so soon? Did you imagine the feast would clean itself up if you looked away long enough?"},
+	{"speaker": "Orin", "text": "The turning does not stay down while its master lives, hunter. Come. We were IN THE MIDDLE of something."},
+]
+
 # THE ENDING -- the soul is divided, the deathless made mortal for one instant,
 # and the blow lands. The bond completes; the Shadow Monarch wakes fully.
 const ENDING = [

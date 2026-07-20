@@ -330,6 +330,42 @@ func _ready() -> void:
 	check("LIVE: the Rewound Hour lies among the spoils",
 		p.inventory.get_count("relic_rewound_hour") > 0)
 	check("LIVE: the director leaves the stage", not GameState.harvest_at_home)
+	# ---- THE RESUME ROAD: a mid-Harvest quit must never strand the world ----
+	# paint the exact state a quit leaves behind: harvest done, Despair alive,
+	# the turned town saved -- and nothing on stage
+	GameState.harvest_done = true
+	GameState.despair_dead = false
+	GameState.harvest_at_home = false
+	GameState.harvested_villagers = [{"id": "res_1", "name": "Lost Soul", "sex": "Male",
+		"is_kid": false, "stat_name": "Farm", "stat_value": 3, "role_key": "", "role_title": ""}]
+	p.inventory.remove_item("wpn_soulsplit", p.inventory.get_count("wpn_soulsplit"))
+	main_scene._maybe_begin_feast()
+	var res_dir: Node = null
+	guard = 0
+	while guard < 90 and (res_dir == null or not res_dir._fight_on):
+		guard += 1
+		await get_tree().create_timer(0.15).timeout
+		if res_dir == null:
+			for c in main_scene.get_children():
+				if c.get_script() != null and str(c.get_script().resource_path).contains("harvest_director"):
+					res_dir = c
+		if get_tree().paused:
+			for n in get_tree().root.find_children("*", "", true, false):
+				if n.has_method("finish") and n.has_method("show_line"):
+					n.finish()
+					break
+	check("RESUME: a reloaded half-turned world re-stages the fight",
+		res_dir != null and res_dir._fight_on)
+	check("RESUME: Orin returns to finish what he started",
+		res_dir != null and res_dir._monarch != null and is_instance_valid(res_dir._monarch))
+	check("RESUME: the wand guard holds on this road too",
+		p.inventory.get_count("wpn_soulsplit") > 0)
+	if res_dir != null:
+		if res_dir._monarch != null and is_instance_valid(res_dir._monarch):
+			res_dir._monarch.queue_free()
+		res_dir.queue_free()
+	GameState.harvest_at_home = false
+
 	# leave no permanent trace: the completion file belongs to the dev's real runs
 	if not was_completed:
 		GameState.game_completed = false

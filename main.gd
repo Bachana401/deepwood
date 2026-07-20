@@ -240,6 +240,13 @@ func _ready() -> void:
 func _maybe_begin_feast() -> void:
 	if GameState.feast_ready():
 		add_child(preload("res://harvest_director.gd").new())
+	elif GameState.harvest_done and not GameState.despair_dead \
+			and GameState.harvested_villagers.size() > 0 \
+			and not GameState.harvest_at_home and not GameState.dev_mode:
+		# a quit (or crash) mid-Harvest must never strand a half-turned world
+		var d = preload("res://harvest_director.gd").new()
+		d.resume = true
+		add_child(d)
 	# the book notices the moment all seven lines hold at once
 	GameState.chronicle_check_complete()
 	if GameState.returning_from_dungeon:

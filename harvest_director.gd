@@ -34,6 +34,12 @@ var _devoured := 0
 var _monarch: Node = null
 var _fight_on := false
 var _revealed := false      # double-trigger guard: the reveal happens ONCE
+# Quit (or crash) mid-Harvest and come back: the half-turned town cannot be
+# left half-turned forever. main.gd mounts the director with resume=true and
+# the fight re-stages directly -- Orin re-raises what fell; only killing HIM
+# ends this. Without this path a mid-fight quit stranded the world: no Orin,
+# no ending, ten souls in a dead town.
+var resume := false
 var _ground_y := -39.0
 var _west_x := 4400.0
 var _east_x := 5600.0
@@ -45,7 +51,37 @@ func _ready() -> void:
 	if m != null and "village_right_edge" in m:
 		_east_x = float(m.village_right_edge) + 300.0
 	GameState.harvest_at_home = true
+	if resume:
+		_revealed = true
+		var p = get_tree().get_first_node_in_group("player")
+		if p == null:
+			queue_free()
+			return
+		# the wand guard holds on the resume road too
+		if "inventory" in p and p.inventory != null and p.inventory.get_count("wpn_soulsplit") == 0:
+			p.inventory.add_item("wpn_soulsplit", 1)
+			_notify("Elenwe presses the Soul Split Wand back into your hand: \"An undivided soul cannot be destroyed. You will need this.\"")
+		DialogueBox.play(p, Story.HARVEST_RESUME, func():
+			resume_fight())
+		return
 	begin_false_victory()
+
+# The resumed fight: the pool rebuilds from the SAVED harvested roster --
+# Orin re-raises what fell while you were gone. Only killing him ends this.
+func resume_fight() -> void:
+	_harvest_pool = []
+	for v in GameState.harvested_villagers:
+		_harvest_pool.append(str(v.get("name", "a villager")))
+	_harvest_pool.shuffle()
+	_harvest_total = maxi(1, _harvest_pool.size())
+	_spawn_monarch()
+	for t in TheTen.ids():
+		_spawn_ally(t, "")
+	var rst: Dictionary = GameState.adventurer_state("adv_roland")
+	if rst.get("rescued", false) and not rst.get("dead", false):
+		_spawn_ally("", "Roland")
+	_harvest_wave_timer = 2.0
+	_fight_on = true
 
 # ---- 1. THE FALSE VICTORY + THE FEAST ----
 func begin_false_victory() -> void:
