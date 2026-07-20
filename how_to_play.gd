@@ -21,6 +21,8 @@ const SECTIONS = [
 		["L", "THE VILLAGE LOG -- the town's diary. Everything that happened while you were away is written here."],
 		["K", "the skill tree (your class is chosen here, once)"],
 		["G", "plant a standing torch (wood + resin)"],
+		["Blueprints", "a ruin cannot be raised until its plans are FOUND in the deep (satchels at fixed floors, all by floor 30). Farm, Tavern and Builderhouse are known from the start."],
+		["Relocate", "every building can move: its panel packs it up, then walk to new ground and press H to plant it (25g + 4 wood, charged at the plant)"],
 	]],
 	["THE DEEP", [
 		["F at the red zone", "the level select -- clearing a floor unlocks the next; every 5th is a boss"],
