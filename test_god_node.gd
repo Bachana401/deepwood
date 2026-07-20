@@ -152,8 +152,8 @@ func _ready() -> void:
 		and htp.contains("esc_window") and htp.contains("func esc_close"))
 	check("...and the pause menu carries it in both scenes",
 		FileAccess.open("res://pause_menu.gd", FileAccess.READ).get_as_text().contains("HowToPlayButton"))
-	check("...its keys are the REAL bindings (Z rifts, L log, H hands-on, P console)",
-		htp.contains("[\"Z\",") == false and htp.contains("Riftweaving") and htp.contains("VILLAGE LOG")
+	check("...its keys are the REAL bindings (Z rifts, L log, H hands-on)",
+		htp.contains("[\"Z\",") and htp.contains("Riftweaving") and htp.contains("VILLAGE LOG")
 		and htp.contains("hands-on key"))
 
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
