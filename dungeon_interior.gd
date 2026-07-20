@@ -1958,6 +1958,11 @@ func _on_combatant_died() -> void:
 	if alive_count <= 0 and level_in_progress:
 		level_in_progress = false
 		level_cleared = true
+		# ...and refresh the label AFTER the flags flip: the per-kill refresh
+		# above ran while level_cleared was still false and alive_count had
+		# just hit zero, so it printed neither the tally nor the clear line.
+		# (Caught by the first-session smoke test -- every slice test passed.)
+		update_level_label()
 		# a cleared floor deserves a SOUND, not only a line of text -- and a
 		# felled boss rings brighter than a cleared corridor
 		GameState.play_sfx(GameState.SFX_CHIME, 1.6 if is_boss_level(current_level) else 1.15)
