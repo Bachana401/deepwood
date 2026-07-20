@@ -74,7 +74,11 @@ const L100_REVEAL = [
 	{"speaker": "Orin", "text": "You came so far, little hunter. Further than any of the others. It's almost a pity you never understood whose dungeon you were clearing."},
 	{"speaker": "Orin", "text": "I am the end of the living. I am the Monarch of Despair. Deepwood was never being defended. It was being harvested — slowly, so the crop would never fail."},
 	{"speaker": "???", "text": "(Something stirs behind the seal in your mind — not a memory, a FLASH. You have faced this power before. You have LOST to it before.)"},
-	{"speaker": "Orin", "text": "...There. That look. For a moment you almost remembered. No matter. Come then, hunter. Let us see what a mortal can do against a god that cannot die."},
+	# the quiet, almost courteous beat (9.2): two monarchs recognizing each
+	# other at last -- though only one of them knows it
+	{"speaker": "Orin", "text": "...There. That look. Do you know, for a moment you stood like a king. Where WOULD a stray hunter learn to stand like that, I wonder."},
+	{"speaker": "You", "text": "You talk like a man who's already won. The ones who taught me to stand talked the same way. I buried the lesson with them."},
+	{"speaker": "Orin", "text": "Courteous to the last. I have genuinely enjoyed this, hunter — the building most of all. Come then. Let us see what a mortal can do against a god that cannot die."},
 ]
 
 # THE ENDING -- the soul is divided, the deathless made mortal for one instant,

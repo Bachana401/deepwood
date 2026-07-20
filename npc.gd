@@ -77,6 +77,10 @@ var health_bar_fill: ColorRect = null
 
 func _ready() -> void:
 	add_to_group("npc")
+	# SHADOW ARMY (GAME_BIBLE 9.6): a raised villager is themselves, continued --
+	# same name, home and job -- re-made in shadow-form. The whole body reads as
+	# living shadow: darkened, faintly violet, slightly translucent.
+	call_deferred("_apply_shadow_form")
 	# layer 0 = NOT on any hittable layer, so the player's weapons/arrows can
 	# never target villagers. Damage only ever arrives through the public
 	# take_damage() below -- reserved for the future village-siege enemies.
@@ -553,6 +557,12 @@ func _process(delta: float) -> void:
 # purchase raises the next by half again; a day of peace forgives one step.
 # This is the early game's lifeline before potions flow -- and it dies with
 # her, because she is an ordinary villager a siege can take.
+func _apply_shadow_form() -> void:
+	var data = find_villager_data()
+	if data.is_empty() or not data.get("shadow", false):
+		return
+	modulate = Color(0.45, 0.35, 0.6, 0.85)
+
 func try_doctor_heal() -> bool:
 	var data = find_villager_data()
 	if data.is_empty() or not data.get("healer", false):

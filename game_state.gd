@@ -1891,6 +1891,43 @@ func remove_npc_avatar(villager_id: String) -> void:
 # finale gate (§9.1): floor 100 will not open while any still hangs.
 var the_ten: Dictionary = {}
 
+# --- THE HARVEST (GAME_BIBLE 9.3) ---
+# At the gate of 100 the truth is the weapon: the whole village turns at once --
+# every farmer, child and soldier becomes level-100 despair. No survivors, no
+# loyal holdouts... except the Ten. The roster empties into harvested_villagers
+# (a snapshot the Shadow Army will raise, 9.6) and only the unbreakable remain.
+var harvest_done := false
+var harvested_villagers: Array = []
+
+func begin_harvest() -> void:
+	if harvest_done:
+		return
+	harvest_done = true
+	var keep := []
+	for v in rescued_villagers:
+		if v.get("unbreakable", false):
+			keep.append(v)
+		else:
+			harvested_villagers.append(v)
+	rescued_villagers = keep
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if stack:
+		stack.show_notification("THE HARVEST: %d souls turn at once. Only the Ten still stand." % harvested_villagers.size())
+
+# The return (9.6): victory breaks the seal, and the first royal act is SHADOW
+# ARMY -- every fallen villager rises as a shadow of themselves: names, homes,
+# jobs and bonds kept, re-made in shadow-form. The stronger they were in life,
+# the stronger the shade. The Ten remain flesh among the shadows.
+func raise_shadow_army() -> void:
+	var raised := harvested_villagers.size()
+	for v in harvested_villagers:
+		v["shadow"] = true
+		rescued_villagers.append(v)
+	harvested_villagers = []
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if stack and raised > 0:
+		stack.show_notification("★ SHADOW ARMY: %d souls rise — themselves, continued. Deepwood stands, and it is yours." % raised)
+
 # --- THE FINALE GATE (GAME_BIBLE 9.1) ---
 # Level 100 opens only to a PERFECT village -- because a perfect village is
 # what Orin has been patiently farming all game. He needs the peak to reap it.
@@ -2226,6 +2263,8 @@ func save_game(player: Node) -> void:
 		"adventurers": adventurers,
 		"doctor_heals_bought": doctor_heals_bought,
 		"the_ten": the_ten,
+		"harvest_done": harvest_done,
+		"harvested_villagers": harvested_villagers,
 		"seen_orin_arrival": seen_orin_arrival,
 		"seen_doctor_account": seen_doctor_account,
 		"seen_failed_escape": seen_failed_escape,
@@ -2291,6 +2330,8 @@ func load_game() -> Dictionary:
 		if parsed.has("the_ten"):
 			the_ten = parsed["the_ten"]
 			ensure_the_ten()
+		harvest_done = bool(parsed.get("harvest_done", false))
+		harvested_villagers = parsed.get("harvested_villagers", [])
 		seen_orin_arrival = bool(parsed.get("seen_orin_arrival", false))
 		seen_doctor_account = bool(parsed.get("seen_doctor_account", false))
 		seen_failed_escape = bool(parsed.get("seen_failed_escape", false))
