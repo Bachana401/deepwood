@@ -834,6 +834,14 @@ func _tick_cave_mouth() -> void:
 	if pl == null:
 		return
 	if _at_mouth:
+		# NO RUNNING FROM THE HARVEST. The level-select and the stone doors
+		# already refuse to descend once the village is turning; the cave mouth
+		# is a third way down and must refuse too, or the finale's "there is
+		# nothing below anymore -- the fight is HERE" has a back door west of the
+		# wall. (Climbing OUT is always allowed -- that is toward the fight.)
+		if GameState.harvest_at_home:
+			GameState.notify("⛔ The village is TURNING behind you. There is nothing below anymore — the fight is HERE.")
+			return
 		pl.global_position = Vector2(DESCENT_X + 40.0, TUNNEL_TOP_Y - 60.0)
 		_at_mouth = false
 		_cave_prompt.visible = false
