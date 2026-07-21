@@ -77,6 +77,10 @@ func _ready() -> void:
 	# exist until the west rampart is in sight, and the words wait for the fight.
 	check("the prologue arms the arrival, it does not stage it",
 		FileAccess.open("res://player.gd", FileAccess.READ).get_as_text().contains("arm_arrival_battle"))
+	check("a reload before the wall re-arms the arrival (transient flag survives)",
+		msrc.contains("RELOAD GUARD") and msrc.contains("GameState.seen_intro")
+		and msrc.contains("not GameState.seen_arrival_battle")
+		and msrc.contains("not GameState.arrival_battle_active"))
 	check("the road is walked alone until the wall is in sight",
 		msrc.contains("func _check_arrival_trigger") and msrc.contains("ARRIVAL_TRIGGER_DIST")
 		and msrc.contains('w.flank == "west"'))

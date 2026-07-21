@@ -472,6 +472,17 @@ func arm_arrival_battle() -> void:
 const ARRIVAL_TRIGGER_DIST = 900.0   # first sight of the rampart
 
 func _check_arrival_trigger() -> void:
+	# RELOAD GUARD (sweep 2026-07-21). _arrival_armed is transient -- it is set
+	# only by the prologue's callback, and the prologue never replays. So a
+	# player who saved after the prologue but before reaching the wall came back
+	# to NO fight and NO reveal, forever: the whole opening silently skipped.
+	# Re-arm whenever the prologue is done and the battle has neither happened
+	# (seen_arrival_battle) nor is currently running (arrival_battle_active) --
+	# the two guards that keep this from re-spawning the wave mid-fight or after.
+	if not _arrival_armed and GameState.seen_intro \
+			and not GameState.seen_arrival_battle \
+			and not GameState.arrival_battle_active and not GameState.dev_mode:
+		_arrival_armed = true
 	if not _arrival_armed:
 		return
 	var pl = get_tree().get_first_node_in_group("player")
@@ -895,9 +906,11 @@ func generate_harvestables() -> void:
 		x += rng.randf_range(320.0, 620.0)
 
 func spawn_harvest_node(kind: String, x: float) -> void:
-	# nothing roots over the cave mouth -- a tree there would hang in mid-air
-	# above the hole (the Underdark carves that stretch out of the ground)
-	if absf(x - UNDERDARK_SCRIPT.MOUTH_X) < 150.0:
+	# nothing roots over the cave: the rock mound is scenery the tree would
+	# clip through, and the arch is the way in. Skip the whole mound footprint,
+	# not just the mouth -- the original grove/rock span (-350..4300) overlaps
+	# it, so a tree could otherwise sprout out of the cave's shoulder.
+	if x >= UNDERDARK_SCRIPT.MOUND_LEFT - 40.0 and x <= UNDERDARK_SCRIPT.MOUND_RIGHT + 40.0:
 		return
 	var node = HARVEST_NODE_SCRIPT.new()
 	node.node_type = kind
