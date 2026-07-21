@@ -103,5 +103,33 @@ func _ready() -> void:
 		if is_instance_valid(s): s.free()
 	p.monarch_shades = []
 
+	# EVERY NODE MUST FIT INSIDE THE REACHABLE CANVAS. The width was hardcoded
+	# to 894 while the Mage tree hangs Telepathy at col 6.5 (x~1100), so it was
+	# clipped by the panel and impossible to click. Render each class tree and
+	# assert the widest/deepest node sits within the scroll canvas.
+	var st: Node = null
+	for n in get_tree().root.find_children("*", "", true, false):
+		if n.get_script() != null and str(n.get_script().resource_path).ends_with("skill_tree_ui.gd"):
+			st = n
+			break
+	if st != null:
+		for cls in ["Sword", "Archer", "Mage", "Shadow Monarch"]:
+			GameState.chosen_class = cls
+			GameState.skill_points = 60
+			st.panel.visible = true
+			st.refresh()
+			await get_tree().process_frame
+			var cw: float = st.tree_canvas.custom_minimum_size.x
+			var ch: float = st.tree_canvas.custom_minimum_size.y
+			var worst := 0.0
+			for node in SkillTreeData.TREES.get(cls, []):
+				var right: float = st.lane_x(float(node.get("col", 0.5))) + st.CARD_W
+				var bottom: float = st.tier_top_y(node.tier) + st.CARD_H
+				if right > cw + 1.0 or bottom > ch + 1.0:
+					worst = maxf(worst, maxf(right - cw, bottom - ch))
+			check("%s tree: every node fits the reachable canvas" % cls, worst < 1.0,
+				"%.0f px past the canvas" % worst)
+		st.panel.visible = false
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

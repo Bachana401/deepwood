@@ -280,11 +280,21 @@ func rebuild_tree() -> void:
 	var tree_nodes = SkillTreeData.TREES.get(GameState.chosen_class, [])
 	var branch_names = SkillTreeData.BRANCH_NAMES.get(GameState.chosen_class, ["", "", ""])
 
-	# size the scrollable canvas to the deepest tier present
+	# size the scrollable canvas to the deepest tier AND the widest column.
+	# The width was hardcoded to 894 (three branches at cols 0.5/2.5/4.5), but
+	# the Mage tree hangs two utility nodes off to the side -- Riftweaving at
+	# col 5.5 and Telepathy at col 6.5 -- and those reach x~1100. With a fixed
+	# 894 canvas the scroll could never reveal them: Telepathy was clipped by
+	# the panel edge, half its text gone, and unreachable to click (sweep
+	# 2026-07-21). Derive the width the same way the height is derived.
 	var overall_max_tier = 1
+	var overall_max_col := 4.5
 	for node in tree_nodes:
 		overall_max_tier = max(overall_max_tier, node.tier)
-	tree_canvas.custom_minimum_size = Vector2(894, max(476.0, tier_top_y(overall_max_tier) + CARD_H + 20.0))
+		overall_max_col = maxf(overall_max_col, float(node.get("col", 0.5)))
+	var need_w: float = lane_x(overall_max_col) + CARD_W + 20.0
+	tree_canvas.custom_minimum_size = Vector2(
+		maxf(894.0, need_w), max(476.0, tier_top_y(overall_max_tier) + CARD_H + 20.0))
 
 	# connectors first (z=-1) so cards render over them. One line per prereq
 	# link -> forks fan out, convergence nodes gather two lines back in.
