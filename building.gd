@@ -1628,7 +1628,8 @@ func build_destroyed() -> void:
 		frag.color = SCORCH.lerp(body_color, 0.15)
 		gfx.add_child(frag)
 	add_scorch(w, h, 4, 14.0)
-	add_glow(w, Vector2(0, -h * 0.2))
+	add_glow(w, Vector2(-w * 0.25, -h * 0.15))
+	add_glow(w, Vector2(w * 0.22, -h * 0.2))
 	add_fire(Vector2(-w * 0.25, -h * 0.15), 16, 1.3)
 	add_fire(Vector2(w * 0.22, -h * 0.2), 14, 1.1)
 
@@ -1792,11 +1793,22 @@ func add_scorch(w: float, h: float, count: int, radius: float) -> void:
 		s.color = Color(0.1, 0.08, 0.07, 0.6)
 		gfx.add_child(s)
 
-func add_glow(w: float, local_pos: Vector2) -> void:
+# The ember glow of a smouldering ruin. It used to be circle_poly(w * 0.42)
+# -- HALF THE BUILDING WIDE -- drawn with plain alpha, so every ruin wore a
+# 300px pale disc that washed out grey in daylight and dominated the village
+# (dev's visual sweep). It is firelight: small, warm, ADDITIVE, sized to the
+# flames it comes from, not to the building.
+const RUIN_GLOW_RADIUS := 20.0
+
+func add_glow(_w: float, local_pos: Vector2) -> void:
 	var glow = Polygon2D.new()
-	glow.polygon = circle_poly(w * 0.42, 16)
+	glow.polygon = circle_poly(RUIN_GLOW_RADIUS, 16)
 	glow.position = local_pos
-	glow.color = Color(1.0, 0.45, 0.12, 0.22)
+	# faint enough that where a fire pokes above the roofline the additive
+	# blend can't blow out to a white blob against a bright sky, strong
+	# enough to read as embers on the dark wreck
+	glow.color = Color(1.0, 0.45, 0.12, 0.06)
+	glow.material = _add_mat()
 	gfx.add_child(glow)
 	var t = glow.create_tween()
 	t.set_loops()
