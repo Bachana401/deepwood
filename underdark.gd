@@ -430,12 +430,22 @@ func _build_shaft_ladders() -> void:
 			var bot_seg := _seg_at(b + 1, sx)
 			if top_seg.is_empty() or bot_seg.is_empty():
 				continue
-			var y: float = top_seg.floor_y + 60.0
+			# THE LADDER MUST REACH THE LOWER FLOOR, NOT THE LOWER CEILING. It used
+			# to stop at bot_seg.ceil_y+50 -- but the player who drops down a shaft
+			# falls all the way to bot_seg.floor_y, and the room below the ceiling
+			# (head: 250px in a tunnel, up to ~1050 in an arena) had NO rungs. So the
+			# lowest handhold sat 200-1000px overhead -- far past the ~92px jump --
+			# and once you went below band 0 you could descend forever but never
+			# climb back: a hard softlock in the deep. Rungs now divide the WHOLE
+			# floor-to-floor span into even gaps (<=82px, both ends included), so the
+			# shaft climbs in both directions no matter the room heights it joins.
+			var span: float = bot_seg.floor_y - top_seg.floor_y
+			var n: int = maxi(1, int(ceil(span / 82.0)))
+			var step: float = span / float(n)
 			var side := 1.0
-			while y < bot_seg.ceil_y + 50.0:
-				_slab(sx + side * 55.0 - 45.0, y, 90.0, 14.0)
+			for i in range(1, n):
+				_slab(sx + side * 55.0 - 45.0, bot_seg.floor_y - step * float(i), 90.0, 14.0)
 				side = -side
-				y += 72.0
 			_brazier(Vector2(sx, top_seg.floor_y + 34.0))
 
 # a slab that may carry one hole: built as two pieces around it

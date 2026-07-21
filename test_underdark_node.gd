@@ -165,6 +165,37 @@ func _ready() -> void:
 					plats += 1
 	check("there are platforms to climb and fight from", plats >= 30, "%d platforms" % plats)
 
+	# ---- 4c3. the shafts climb BOTH ways (no softlock in the deep) ----
+	# The bands connect only by shafts, so a shaft you can fall down but not climb
+	# back up traps you below band 0 forever. The ladder once stopped at the lower
+	# CEILING, leaving the whole lower room (up to ~1050px in an arena) rung-less:
+	# the lowest handhold sat 200-1000px over your head. Every shaft's rungs must
+	# divide its full floor-to-floor span into jump-sized gaps -- checked here so
+	# it can never regress into a softlock again.
+	var shaft_count := 0
+	var worst_rise := 0.0
+	for sb in ud._shafts.keys():
+		for sxx in ud._shafts[sb]:
+			var tseg: Dictionary = ud._seg_at(sb, sxx)
+			var bseg: Dictionary = ud._seg_at(sb + 1, sxx)
+			if tseg.is_empty() or bseg.is_empty():
+				continue
+			shaft_count += 1
+			# reconstruct the rungs exactly as _build_shaft_ladders lays them
+			var sp: float = bseg.floor_y - tseg.floor_y
+			var nn: int = maxi(1, int(ceil(sp / 82.0)))
+			var stp: float = sp / float(nn)
+			var ys: Array = [bseg.floor_y]
+			for k in range(1, nn):
+				ys.append(bseg.floor_y - stp * float(k))
+			ys.append(tseg.floor_y)
+			ys.sort()
+			for k in range(ys.size() - 1):
+				worst_rise = maxf(worst_rise, ys[k + 1] - ys[k])
+	check("every shaft climbs back up (no rung gap past a jump)",
+		shaft_count > 0 and worst_rise <= 92.0,
+		"%d shafts, worst rise %.0fpx" % [shaft_count, worst_rise])
+
 	# ---- 4d. THE WAY IN, and the road that must survive it ----
 	# A side-scroller road is one-dimensional: anything solid on it is a wall,
 	# and any hole in it is a trap you fall into every time you walk past. The
