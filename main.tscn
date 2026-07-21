@@ -623,7 +623,7 @@ text = "Magic Wand (1g)"
 horizontal_alignment = 1
 
 [node name="ShopZone" type="Area2D" parent="." unique_id=1891961921]
-position = Vector2(-150, -90)
+position = Vector2(4700, -90)
 collision_mask = 3
 script = ExtResource("3_h2yge")
 

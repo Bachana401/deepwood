@@ -423,7 +423,7 @@ func spawn_existing_villager_avatars() -> void:
 			continue
 		var npc = NPC_SCRIPT.new()
 		npc.villager_id = villager_id
-		npc.global_position = find_avatar_spawn_position(villager.get("role_key", ""))
+		npc.global_position = offscreen_spawn(find_avatar_spawn_position(villager.get("role_key", "")))
 		$Village.add_child(npc)
 
 # FORESHADOWING (GAME_BIBLE 9.8): the mid-game taunt -- Orin WANTS you to grow,
@@ -668,6 +668,25 @@ func is_villager_busy_mating(villager_id: String) -> bool:
 		if pairing.male_id == villager_id or pairing.female_id == villager_id:
 			return true
 	return false
+
+# NOBODY POPS INTO EXISTENCE IN FRONT OF YOU (dev call 2026-07-21). People
+# appearing out of thin air a few steps away breaks the world harder than any
+# missing feature. Any spawn inside the player's view is pushed just past the
+# nearest screen edge, so a villager always WALKS into frame instead of
+# materialising in it. (Their own wander logic carries them the rest of the way.)
+const OFFSCREEN_MARGIN := 140.0
+
+func offscreen_spawn(pos: Vector2) -> Vector2:
+	var pl = get_tree().get_first_node_in_group("player")
+	if pl == null:
+		return pos
+	var half_view: float = get_viewport_rect().size.x * 0.5 + OFFSCREEN_MARGIN
+	var dx: float = pos.x - pl.global_position.x
+	if absf(dx) >= half_view:
+		return pos                      # already out of sight -- leave it be
+	# push to whichever edge it is already closer to, so the walk-in is short
+	var side: float = 1.0 if dx >= 0.0 else -1.0
+	return Vector2(pl.global_position.x + side * half_view, pos.y)
 
 func find_avatar_spawn_position(role_key: String) -> Vector2:
 	if role_key != "":
