@@ -132,6 +132,12 @@ func _ready() -> void:
 	var old_sun = get_node_or_null("../Background/Sun")
 	if old_sun:
 		old_sun.visible = false
+	# sync the clock from the master BEFORE the first draw -- else the scene
+	# renders one frame at the 8.0 default (bright day) before _process
+	# corrects it, and if a dialogue pauses the tree on frame one (the
+	# prologue!) that bright frame is what the player sees. (start-scene fix)
+	total_hours_elapsed = GameState.game_hours
+	time_of_day = fposmod(GameState.START_TIME_OF_DAY + GameState.game_hours, 24.0)
 	was_night = is_night()
 	pick_new_moon_phase()
 	update_visuals()

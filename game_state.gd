@@ -682,7 +682,12 @@ const LEADER_BONUS_PER_HOLDER = 0.15
 # schedule all read it, so nothing freezes when the player teleports away.
 const DAY_LENGTH_SECONDS = 600.0
 const HOURS_PER_SECOND = 24.0 / DAY_LENGTH_SECONDS
-const START_TIME_OF_DAY = 8.0
+# A new run opens at NIGHT (start-scene fix 2026-07-21): 22:00, so the
+# arrival's rain-lit fight plays in the dark as canon asks, and dawn breaks a
+# few game-hours into the rebuilding. This is the clock OFFSET only --
+# game_hours (elapsed play time) still starts at 0, so no elapsed-time gate
+# (morale grace, wages, sieges) is disturbed.
+const START_TIME_OF_DAY = 22.0
 var game_hours = 0.0
 
 # Self-contained day/night read (mirrors day_night_cycle.gd's dawn 5-7 / dusk

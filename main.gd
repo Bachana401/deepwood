@@ -205,6 +205,9 @@ func _ready() -> void:
 	add_child(preload("res://village_log_ui.gd").new())
 	# F8 field journal: bug notes with context attached (marathon playtest)
 	add_child(preload("res://playtest_journal.gd").new())
+	# the arrival storm: a new run opens at night, in the rain (start-scene fix)
+	if not GameState.seen_arrival_battle and not GameState.dev_mode:
+		add_child(preload("res://arrival_weather.gd").new())
 	# the Wanderer's Post counter (5.6a) -- village only, where the stall is
 	add_child(preload("res://wanderer_ui.gd").new())
 	generate_mountains()
