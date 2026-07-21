@@ -6,10 +6,15 @@ const SLOT_SIZE = 48.0
 const SLOT_GAP = 8.0
 const ICON_MARGIN = 8.0
 const GRID_ORIGIN = Vector2(16.0, 48.0)
+# tallest the bag may get in UI units -- the base viewport is 648 high, so this
+# leaves a margin top and bottom no matter how many slots the player carries.
+const MAX_PANEL_H = 560.0
+const PANEL_MARGIN_X = 24.0   # matches the .tscn's left offset
 
 const SLOT_BG_COLOR = Color(0.15, 0.15, 0.18, 0.9)
 
 var player: Node2D
+var panel_w := 304.0   # computed in build_slots from the real capacity
 var slot_bgs: Array = []
 var slot_icons: Array = []
 var slot_counts: Array = []
@@ -36,7 +41,7 @@ var craft_rows: VBoxContainer = null
 
 func build_craft_panel() -> void:
 	var btn := Button.new()
-	btn.position = Vector2(304 - 34, 36)
+	btn.position = Vector2(panel_w - 34, 36)
 	btn.size = Vector2(26, 22)
 	btn.add_theme_font_size_override("font_size", 13)
 	btn.text = "⚒"
@@ -49,7 +54,7 @@ func build_craft_panel() -> void:
 	$Panel.add_child(btn)
 	craft_panel = Panel.new()
 	craft_panel.visible = false
-	craft_panel.position = Vector2(316, 0)
+	craft_panel.position = Vector2(panel_w + 12, 0)
 	craft_panel.size = Vector2(330, 250)
 	$Panel.add_child(craft_panel)
 	var title := Label.new()
@@ -109,7 +114,7 @@ func _on_craft(item_id: String) -> void:
 # click, not only with the Tab key.
 func build_close_button() -> void:
 	var close_btn = Button.new()
-	close_btn.position = Vector2(304 - 34, 8)
+	close_btn.position = Vector2(panel_w - 34, 8)
 	close_btn.size = Vector2(26, 22)
 	close_btn.add_theme_font_size_override("font_size", 14)
 	close_btn.text = "X"
@@ -133,15 +138,34 @@ func esc_close() -> void:
 
 func build_slots() -> void:
 	var capacity = player.inventory.capacity if player else COLUMNS * ROWS
-	# the .tscn panel is sized for 3 rows -- grow it to fit however many rows
-	# the player's actual capacity needs (kept centered on screen)
-	var rows = int(ceil(float(capacity) / COLUMNS))
+	# THE BAG RAN OFF THE SCREEN (visual sweep 2026-07-21). This grew the panel
+	# downward one row per 5 slots, and the real bag is 55 slots -- eleven rows,
+	# 672px, in a 648px-tall UI. The top and bottom rows were clipped away
+	# entirely: unreachable items, and the crafting bench (anchored to the panel
+	# top) had its title sliced off. A bag that outgrows its 3-tscn-row default
+	# must grow SIDEWAYS, not past the edge.
+	var max_rows = int((MAX_PANEL_H - GRID_ORIGIN.y - 8.0) / (SLOT_SIZE + SLOT_GAP))
+	var cols = maxi(COLUMNS, int(ceil(float(capacity) / float(max_rows))))
+	var rows = int(ceil(float(capacity) / float(cols)))
 	var half_h = (GRID_ORIGIN.y + rows * (SLOT_SIZE + SLOT_GAP) + 8.0) / 2.0
+	panel_w = GRID_ORIGIN.x * 2.0 + cols * SLOT_SIZE + (cols - 1) * SLOT_GAP
 	$Panel.offset_top = -half_h
 	$Panel.offset_bottom = half_h
+	# NOTE: this Panel is LEFT-anchored (anchor_left = 0 in the .tscn), so the
+	# offsets are measured from the screen's left edge, not from its centre.
+	$Panel.offset_left = PANEL_MARGIN_X
+	$Panel.offset_right = PANEL_MARGIN_X + panel_w
+	# the .tscn pins the hint at y=208 -- the floor of the old 3-row panel. Once
+	# the grid is taller than that it reads as text buried under the slots, so
+	# re-seat it on the real bottom edge.
+	var hint = $Panel.get_node_or_null("HintLabel")
+	if hint:
+		hint.offset_top = half_h * 2.0 - 22.0
+		hint.offset_bottom = half_h * 2.0 - 4.0
+		hint.offset_right = panel_w - 16.0
 	for i in range(capacity):
-		var col = i % COLUMNS
-		var row = i / COLUMNS
+		var col = i % cols
+		var row = i / cols
 		var pos = GRID_ORIGIN + Vector2(col * (SLOT_SIZE + SLOT_GAP), row * (SLOT_SIZE + SLOT_GAP))
 
 		var bg = ColorRect.new()

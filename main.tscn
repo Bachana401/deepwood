@@ -555,10 +555,10 @@ vertical_alignment = 1
 
 [node name="ShopUI" type="Panel" parent="CanvasLayer" unique_id=483674175]
 visible = false
-offset_left = 400.0
-offset_top = 200.0
-offset_right = 700.0
-offset_bottom = 400.0
+offset_left = 426.0
+offset_top = 224.0
+offset_right = 726.0
+offset_bottom = 424.0
 script = ExtResource("4_shopui")
 
 [node name="SFXPlayer" type="AudioStreamPlayer" parent="CanvasLayer/ShopUI" unique_id=1163697337]
@@ -721,10 +721,10 @@ horizontal_alignment = 1
 script = ExtResource("21_level_select")
 
 [node name="Panel" type="Panel" parent="LevelSelectUI"]
-offset_left = 260.0
-offset_top = 80.0
-offset_right = 700.0
-offset_bottom = 520.0
+offset_left = 356.0
+offset_top = 104.0
+offset_right = 796.0
+offset_bottom = 544.0
 
 [node name="TitleLabel" type="Label" parent="LevelSelectUI/Panel"]
 layout_mode = 0
@@ -775,17 +775,17 @@ color = Color(0.32, 0.28, 0.26, 1)
 script = ExtResource("10_pause_menu")
 
 [node name="Panel" type="Panel" parent="PauseMenu" unique_id=880898007]
-offset_left = 340.0
-offset_top = 120.0
-offset_right = 620.0
-offset_bottom = 480.0
+offset_left = 436.0
+offset_top = 109.0
+offset_right = 716.0
+offset_bottom = 539.0
 
 [node name="VBox" type="VBoxContainer" parent="PauseMenu/Panel" unique_id=1600281254]
 layout_mode = 0
 offset_left = 20.0
 offset_top = 16.0
 offset_right = 260.0
-offset_bottom = 300.0
+offset_bottom = 414.0
 theme_override_constants/separation = 10
 
 [node name="TitleLabel" type="Label" parent="PauseMenu/Panel/VBox" unique_id=674381770]

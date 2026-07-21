@@ -944,7 +944,19 @@ static func paint_icon(target: ColorRect, item_id: String) -> void:
 					"spear": _icon_spear(target, w, h)
 					_: _icon_blade(target, w, h, col, col.darkened(0.35))
 			else:
-				target.color = col   # armour / research mats keep the coloured tile
+				# ARMOUR USED TO BE A BLANK SQUARE (visual sweep 2026-07-21).
+				# All 28 helms/chests/gloves/boots/pants fell through to a flat
+				# coloured tile, so a bag full of gear was a bag full of
+				# identical rectangles -- against the standing rule that an
+				# icon must read as the thing you wear. Draw the silhouette and
+				# keep the item's colour, so sets still read at a glance.
+				match get_item_def(item_id).get("slot", ""):
+					"helmet": _icon_helm(target, w, h, col)
+					"chest": _icon_cuirass(target, w, h, col)
+					"gloves": _icon_gauntlet(target, w, h, col)
+					"boots": _icon_boot(target, w, h, col)
+					"pants": _icon_greaves(target, w, h, col)
+					_: target.color = col   # research mats keep the coloured tile
 
 # --- tiny drawing primitives (children of the icon ColorRect) ---
 static func _ipoly(t: Control, pts: PackedVector2Array, color: Color) -> void:
@@ -962,6 +974,63 @@ static func _icircle(t: Control, c: Vector2, rad: float, color: Color, sides := 
 		var a = TAU * float(i) / sides
 		pts.append(c + Vector2(cos(a), sin(a)) * rad)
 	_ipoly(t, pts, color)
+
+# --- armour silhouettes, one per equipment slot (tinted to the item colour) ---
+static func _icon_helm(t: Control, w: float, h: float, col: Color) -> void:
+	var dark = col.darkened(0.4)
+	_ipoly(t, PackedVector2Array([
+		Vector2(w * 0.22, h * 0.54), Vector2(w * 0.27, h * 0.28),
+		Vector2(w * 0.50, h * 0.17), Vector2(w * 0.73, h * 0.28),
+		Vector2(w * 0.78, h * 0.54)]), col)
+	_irect(t, Vector2(w * 0.26, h * 0.45), Vector2(w * 0.48, h * 0.09), dark)   # visor slit
+	_irect(t, Vector2(w * 0.24, h * 0.54), Vector2(w * 0.13, h * 0.20), col)    # cheek guards
+	_irect(t, Vector2(w * 0.63, h * 0.54), Vector2(w * 0.13, h * 0.20), col)
+	_iline(t, PackedVector2Array([Vector2(w * 0.5, h * 0.17), Vector2(w * 0.5, h * 0.30)]),
+		max(1.0, w * 0.05), col.lightened(0.3))                                 # crest
+
+static func _icon_cuirass(t: Control, w: float, h: float, col: Color) -> void:
+	var dark = col.darkened(0.4)
+	_icircle(t, Vector2(w * 0.25, h * 0.37), w * 0.11, dark)                    # pauldrons
+	_icircle(t, Vector2(w * 0.75, h * 0.37), w * 0.11, dark)
+	_ipoly(t, PackedVector2Array([
+		Vector2(w * 0.30, h * 0.28), Vector2(w * 0.70, h * 0.28),
+		Vector2(w * 0.66, h * 0.78), Vector2(w * 0.34, h * 0.78)]), col)
+	_irect(t, Vector2(w * 0.43, h * 0.26), Vector2(w * 0.14, h * 0.07), dark)   # neck notch
+	_irect(t, Vector2(w * 0.32, h * 0.64), Vector2(w * 0.36, h * 0.08), dark)   # belt
+	_iline(t, PackedVector2Array([Vector2(w * 0.5, h * 0.36), Vector2(w * 0.5, h * 0.62)]),
+		max(1.0, w * 0.03), col.lightened(0.25))                                # sternum ridge
+
+static func _icon_gauntlet(t: Control, w: float, h: float, col: Color) -> void:
+	var dark = col.darkened(0.4)
+	_ipoly(t, PackedVector2Array([
+		Vector2(w * 0.30, h * 0.62), Vector2(w * 0.30, h * 0.40),
+		Vector2(w * 0.40, h * 0.28), Vector2(w * 0.62, h * 0.28),
+		Vector2(w * 0.70, h * 0.42), Vector2(w * 0.70, h * 0.62)]), col)
+	_icircle(t, Vector2(w * 0.75, h * 0.52), w * 0.08, col)                     # thumb
+	_irect(t, Vector2(w * 0.27, h * 0.62), Vector2(w * 0.46, h * 0.14), dark)   # cuff
+	for i in range(3):
+		_irect(t, Vector2(w * (0.36 + i * 0.11), h * 0.34), Vector2(w * 0.07, h * 0.06),
+			col.lightened(0.3))                                                 # knuckle studs
+
+static func _icon_boot(t: Control, w: float, h: float, col: Color) -> void:
+	var dark = col.darkened(0.4)
+	_irect(t, Vector2(w * 0.34, h * 0.24), Vector2(w * 0.25, h * 0.38), col)    # shaft
+	_ipoly(t, PackedVector2Array([
+		Vector2(w * 0.34, h * 0.58), Vector2(w * 0.72, h * 0.60),
+		Vector2(w * 0.74, h * 0.72), Vector2(w * 0.30, h * 0.72)]), col)        # foot
+	_irect(t, Vector2(w * 0.28, h * 0.70), Vector2(w * 0.48, h * 0.07), dark)   # sole
+	_irect(t, Vector2(w * 0.32, h * 0.24), Vector2(w * 0.29, h * 0.08),
+		col.lightened(0.3))                                                     # cuff band
+
+static func _icon_greaves(t: Control, w: float, h: float, col: Color) -> void:
+	var dark = col.darkened(0.4)
+	_irect(t, Vector2(w * 0.29, h * 0.26), Vector2(w * 0.42, h * 0.10), dark)   # waist
+	_ipoly(t, PackedVector2Array([
+		Vector2(w * 0.30, h * 0.34), Vector2(w * 0.48, h * 0.34),
+		Vector2(w * 0.46, h * 0.78), Vector2(w * 0.32, h * 0.78)]), col)
+	_ipoly(t, PackedVector2Array([
+		Vector2(w * 0.52, h * 0.34), Vector2(w * 0.70, h * 0.34),
+		Vector2(w * 0.68, h * 0.78), Vector2(w * 0.54, h * 0.78)]), col)
 
 # --- per-item symbols (drawn in the target's 0..w / 0..h local space) ---
 static func _icon_blade(t: Control, w: float, h: float, steel: Color, guard: Color) -> void:
@@ -1162,6 +1231,12 @@ func get_count(item_id: String) -> int:
 func add_item(item_id: String, count: int) -> int:
 	if count <= 0:
 		return 0
+	# An undefined id used to be accepted in silence: it took a slot, showed a
+	# blank grey icon, had no name and no use, and saved/reloaded forever. Refuse
+	# it loudly instead -- a bad id is always a bug at the call site.
+	if not ITEM_DEFS.has(item_id):
+		push_error("Inventory.add_item: no such item '%s' -- refusing" % item_id)
+		return count
 	var remaining = count
 	var max_stack = get_max_stack(item_id)
 	for i in range(slots.size()):

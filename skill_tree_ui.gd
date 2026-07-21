@@ -25,14 +25,22 @@ var xp_label: Label
 # Tree layout geometry (canvas-local pixels). Cards are placed purely from their
 # node.col (lane) and node.tier (row); spec spines sit on half-lanes (x.5) with
 # their two fork cards on the integer lanes either side.
+#
+# CARD_H IS A MEASUREMENT, NOT A WISH (visual sweep 2026-07-21). It used to say
+# 60, but a card's text is three wrapped lines, and a Button never shrinks below
+# its own minimum size -- so cards actually drew ~76 tall. Everything spaced off
+# the 60 was therefore wrong on screen: tier rows touched with no gap, connector
+# lines anchored inside the cards instead of at their edges, and the centre spec
+# header ("Guardian") was drawn underneath the root card. The spacing below is
+# measured from what the cards really are.
 const CARD_W = 140.0
-const CARD_H = 60.0
+const CARD_H = 76.0
 const LEFT_MARGIN = 12.0
 const LANE_W = 146.0
 const ROOT_TOP = 6.0
-const HEADER_Y = 70.0
-const TIER1_Y = 96.0
-const TIER_SPACING = 74.0
+const HEADER_Y = 90.0          # clears the root card (ROOT_TOP + CARD_H + 8)
+const TIER1_Y = 118.0          # clears the header label (HEADER_Y + 22 + 6)
+const TIER_SPACING = 86.0      # CARD_H + a 10px breathing gap
 
 func _ready() -> void:
 	layer = 50

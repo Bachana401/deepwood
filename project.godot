@@ -8,13 +8,6 @@
 
 config_version=5
 
-[debug]
-
-; crash-postmortem insurance for long playtests: every run writes a log
-; (user://logs/), so a mid-session crash leaves a trace instead of a shrug
-file_logging/enable_file_logging=true
-file_logging/max_log_files=10
-
 [application]
 
 config/name="Deepwood"
@@ -27,10 +20,19 @@ config/icon="res://icon.svg"
 GameState="*res://game_state.gd"
 DragState="*res://drag_state.gd"
 
+[debug]
+
+file_logging/enable_file_logging=true
+file_logging/max_log_files=10
+
 [display]
 
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
+
+[gui]
+
+theme/custom="res://ui_theme.tres"
 
 [input]
 

@@ -87,12 +87,17 @@ func _ready() -> void:
 	check("Bar sign is lit", bl._signs.size() == 1, "got %d" % bl._signs.size())
 
 	# --- day vs night ---
-	GameState.game_hours = 18.0    # -> 02:00, deep night
+	# These used to hardcode game_hours 18 -> "02:00" and 4 -> "noon", which was
+	# only true back when the run started at 04:00. The start moved to 22:00, so
+	# both constants silently came to mean the OPPOSITE time of day and this test
+	# had been asserting that fires are brighter at noon ever since. Derive the
+	# elapsed hours from the clock we actually want, so it can't drift again.
+	GameState.game_hours = _hours_until(2.0)     # deep night
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var night_fire: float = sl._fires[0].modulate.a
 	var night_sign: float = bl._signs[0]["halo"].modulate.a
-	GameState.game_hours = 4.0     # -> 12:00, noon
+	GameState.game_hours = _hours_until(12.0)    # noon
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var day_fire: float = sl._fires[0].modulate.a
@@ -114,7 +119,7 @@ func _ready() -> void:
 	if life != null:
 		check("street lanterns registered", life._lanterns.size() > 0, "got %d" % life._lanterns.size())
 		if life._lanterns.size() > 0:
-			GameState.game_hours = 18.0
+			GameState.game_hours = _hours_until(2.0)
 			await get_tree().process_frame
 			var a1: float = life._lanterns[0]["glow"].color.a
 			var moved := false
@@ -140,3 +145,8 @@ func _lights(b: Node) -> Node:
 		if n.has_method("add_fires"):
 			return n
 	return null
+
+# Elapsed game_hours that lands the clock on `target` (a 0-24 wall time),
+# whatever GameState.START_TIME_OF_DAY happens to be.
+func _hours_until(target: float) -> float:
+	return fposmod(target - GameState.START_TIME_OF_DAY, 24.0)

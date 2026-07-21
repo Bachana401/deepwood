@@ -244,17 +244,17 @@ text = "7"
 script = ExtResource("4_pause_menu")
 
 [node name="Panel" type="Panel" parent="PauseMenu"]
-offset_left = 340.0
-offset_top = 120.0
-offset_right = 620.0
-offset_bottom = 480.0
+offset_left = 436.0
+offset_top = 109.0
+offset_right = 716.0
+offset_bottom = 539.0
 
 [node name="VBox" type="VBoxContainer" parent="PauseMenu/Panel"]
 layout_mode = 0
 offset_left = 20.0
 offset_top = 16.0
 offset_right = 260.0
-offset_bottom = 300.0
+offset_bottom = 414.0
 theme_override_constants/separation = 10
 
 [node name="TitleLabel" type="Label" parent="PauseMenu/Panel/VBox"]

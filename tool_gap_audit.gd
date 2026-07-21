@@ -188,8 +188,48 @@ func _ready() -> void:
 		note("loot", "%d %s items nothing grants: %s" % [list.size(), cat,
 			", ".join(list.slice(0, 8)) + ("  ..." if list.size() > 8 else "")])
 
+	_audit_phantom_item_ids()
+
 	printerr("\n== TOTAL GAPS: %d ==" % issues)
 	get_tree().quit(0)
+
+# ---- PHANTOM ITEM IDS ----
+# Every audit here asks "is this DEFINED item wired up?". None asked the
+# reverse: is every string the code USES as an item id actually defined?
+# Inventory.add_item takes any string at all -- a typo'd id becomes a slot in
+# the player's bag that has no name, no icon and no use, and it saves and
+# reloads faithfully forever. Nothing in the game would ever tell you. This
+# pass reads the source and flags item ids that no definition backs.
+const ID_TAKING_CALLS := ["add_item", "remove_item", "get_count", "has_item",
+	"get_display_name", "get_item_def", "equip_item", "wield_weapon", "use_item"]
+
+func _audit_phantom_item_ids() -> void:
+	printerr("\n== item ids the code uses that nothing defines ==")
+	var re := RegEx.new()
+	re.compile("\\b(%s)\\(\\s*\"([a-z0-9_]+)\"" % "|".join(ID_TAKING_CALLS))
+	var dir := DirAccess.open("res://")
+	if dir == null:
+		return
+	var seen := {}
+	dir.list_dir_begin()
+	var f := dir.get_next()
+	while f != "":
+		if f.ends_with(".gd") and not f.begins_with("tool_") \
+				and not f.begins_with("test_") and not f.begins_with("probe_"):
+			var fh := FileAccess.open("res://" + f, FileAccess.READ)
+			if fh != null:
+				var line_no := 0
+				for line in fh.get_as_text().split("\n"):
+					line_no += 1
+					for m in re.search_all(line):
+						var id: String = m.get_string(2)
+						if not Inventory.ITEM_DEFS.has(id) and not seen.has(id):
+							seen[id] = true
+							note("item-id", "%s:%d calls %s(\"%s\") -- no such item" % [
+								f, line_no, m.get_string(1), id])
+				fh.close()
+		f = dir.get_next()
+	dir.list_dir_end()
 
 # Every game script EXCEPT the item definitions themselves -- so an id only
 # counts as reachable if something other than its own declaration names it.

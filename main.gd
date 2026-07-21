@@ -902,12 +902,51 @@ func generate_mountains() -> void:
 				x += tused.size.x * tsc * randf_range(0.72, 0.88)
 				k += 1
 		return
+	# Filler ridges FIRST, so the seven authored village zones still draw in front
+	# of them and the approved village skyline is unchanged.
+	_extend_ridges_across_world()
 	for zone in MOUNTAIN_ZONES:
 		var mountain = Polygon2D.new()
 		mountain.position = Vector2(zone.x, MOUNTAIN_Y)
 		mountain.color = zone.color
 		mountain.polygon = generate_mountain_shape(zone.width, zone.height, zone.peaks)
 		$Background/Mountains.add_child(mountain)
+
+# THE MAP HAD NO BACKDROP PAST THE VILLAGE (sweep 2026-07-21). MOUNTAIN_ZONES is
+# seven hand-placed ridges that end at x~7650 -- but the world runs to 38000, so
+# roughly four fifths of Deepwood was flat sky bands with nothing behind them.
+# It only ever looked right because the painted-plate path (now retired by dev
+# call) used to tile the whole span; when that was switched off, the fallback
+# never covered the same ground.
+#
+# Continue the authored style out to the right edge: same palette, same shape
+# generator, ridges overlapping so they interlock instead of standing as islands.
+# Seeded, so the skyline is identical every run and in every save.
+const RIDGE_SEED = 0xDEE9
+
+func _extend_ridges_across_world() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = RIDGE_SEED
+	var palette: Array = []
+	for zone in MOUNTAIN_ZONES:
+		palette.append(zone.color)
+	var x := WORLD_LEFT - 600.0
+	var i := 0
+	while x < WORLD_RIGHT + 600.0:
+		var w: float = rng.randf_range(760.0, 1520.0)
+		var ridge := Polygon2D.new()
+		ridge.position = Vector2(x, MOUNTAIN_Y)
+		# alternate near/far bands so the skyline reads as layered, not a fence
+		var far: bool = i % 2 == 1
+		ridge.color = palette[rng.randi_range(0, palette.size() - 1)]
+		if far:
+			ridge.color = ridge.color.lightened(0.12)
+		ridge.polygon = generate_mountain_shape(w,
+			rng.randf_range(300.0, 620.0) if far else rng.randf_range(520.0, 900.0),
+			rng.randi_range(2, 4))
+		$Background/Mountains.add_child(ridge)
+		x += w * rng.randf_range(0.42, 0.66)   # overlap, so no gaps open up
+		i += 1
 
 # The sky bands are authored in main.tscn, and were authored back when the world
 # ended at x=19000. When the map was extended they stayed put, so the entire
