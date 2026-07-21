@@ -242,8 +242,16 @@ func _ready() -> void:
 	# elapse with a rune still counted alive -- the boss was then still bound,
 	# the next blow HEALED it (390 -> 420), and both checks below failed while
 	# the mechanic was working perfectly. Same lesson test_arena already learned.
+	# Keep swinging, the way a player would. enemy.take_damage() returns early
+	# while a creature is inside its `_split_until` window ("scattered light --
+	# untouchable"), so a single 999999 can simply be ignored, and then the boss
+	# is still bound and the next blow HEALS it (390 -> 420). One rune surviving
+	# a lone hit is correct behaviour, not a broken mechanic.
 	var waited := 0.0
 	while waited < 4.0 and sb.living_rune_adds() > 0:
+		for rune2 in sb.rune_adds:
+			if is_instance_valid(rune2):
+				rune2.take_damage(999999)
 		await get_tree().create_timer(0.05).timeout
 		waited += 0.05
 	await get_tree().physics_frame

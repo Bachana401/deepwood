@@ -64,6 +64,24 @@ func spawn_mover(prof: String) -> Node:
 	b.player = _p
 	return b
 
+# TOTAL ground covered (path length), not net displacement. The three profiles
+# below are judged on being ACTIVE, and erratic deliberately feints and pauses
+# -- 60% toward you, 22% away, 18% stop -- so its NET travel is a random walk
+# that can land under any threshold by luck (seen: 17px against a 20px bar).
+# Summing per-frame movement measures what the check actually claims.
+func run_path(b: Node, ppos: Vector2, bpos: Vector2, frames: int) -> float:
+	b.global_position = bpos
+	var last: float = b.global_position.x
+	var total := 0.0
+	for i in range(frames):
+		keep_running()
+		_p.global_position = ppos
+		_p.velocity = Vector2.ZERO
+		await get_tree().physics_frame
+		total += absf(b.global_position.x - last)
+		last = b.global_position.x
+	return total
+
 # net horizontal travel of a mover over `frames`, player pinned at `ppos`
 func run_move(b: Node, ppos: Vector2, bpos: Vector2, frames: int) -> float:
 	b.global_position = bpos
@@ -198,8 +216,8 @@ func _ready() -> void:
 	for prof in ["erratic", "weave", "pouncer"]:
 		var b = await spawn_mover(prof)
 		await get_tree().process_frame
-		var mv: float = absf(await run_move(b, pin, pin + Vector2(500, 0), 120))
-		check("%s: is an active, moving profile" % prof, mv > 20.0, "moved %.0f" % mv)
+		var mv: float = await run_path(b, pin, pin + Vector2(500, 0), 120)
+		check("%s: is an active, moving profile" % prof, mv > 60.0, "covered %.0f" % mv)
 		b.queue_free()
 
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)

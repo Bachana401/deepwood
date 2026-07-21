@@ -359,6 +359,10 @@ const DMG_SCALE_AFTER = 0.02
 const LEVEL_CLEAR_DELAY = 2.5
 const MAX_LEVEL = 100
 
+# How far past each side wall the cave fill runs. The camera can sit up to half
+# a viewport (576 at the 1152-wide base) beyond the player, so anything less
+# than that leaves bare viewport grey on screen at the ends of a floor.
+const BACKFILL_X = 900.0
 const BG_TOP_COLOR = Color(0.03, 0.025, 0.05, 1.0)
 const BG_BOTTOM_COLOR = Color(0.09, 0.06, 0.11, 1.0)
 const BOSS_BG_TOP_COLOR = Color(0.09, 0.015, 0.015, 1.0)
@@ -1192,17 +1196,20 @@ func build_background(boss: bool, arena: Dictionary = {}) -> void:
 	# the upper gradient band stretches from well above the ceiling down to
 	# -400 where the lower band takes over, whatever the arena's height
 	var sky_top_y = current_ceiling - 500.0
+	# The bands used to reach only 150px past each side wall, but the camera can
+	# sit half a screen (576) beyond the player, so standing at either end of a
+	# floor put bare viewport grey down one side of the screen. Overshoot wide.
 	var sky_top = ColorRect.new()
 	sky_top.color = top_color
 	sky_top.z_index = -100
-	sky_top.position = Vector2(-150, sky_top_y)
-	sky_top.size = Vector2(current_width + 300, -400.0 - sky_top_y)
+	sky_top.position = Vector2(-BACKFILL_X, sky_top_y)
+	sky_top.size = Vector2(current_width + BACKFILL_X * 2.0, -400.0 - sky_top_y)
 	$LevelContainer.add_child(sky_top)
 	var sky_bottom = ColorRect.new()
 	sky_bottom.color = bottom_color
 	sky_bottom.z_index = -100
-	sky_bottom.position = Vector2(-150, -400)
-	sky_bottom.size = Vector2(current_width + 300, 400)
+	sky_bottom.position = Vector2(-BACKFILL_X, -400)
+	sky_bottom.size = Vector2(current_width + BACKFILL_X * 2.0, 400)
 	$LevelContainer.add_child(sky_bottom)
 	build_wall_layer(-90.0, 240.0, 5, WALL_COLOR_FAR, -95)
 	build_wall_layer(-55.0, 170.0, 6, WALL_COLOR_NEAR, -90)
@@ -1246,10 +1253,15 @@ func build_ground_and_walls() -> void:
 	grect.size = Vector2(current_width + 200.0, 80.0)
 	gshape.shape = grect
 	ground.add_child(gshape)
+	# THE FLOOR WAS 80 PIXELS THICK AND THE VIEWPORT SEES ~360 BELOW THE PLAYER
+	# (sweep 2026-07-21), so every dungeon floor was a band of rock sitting on a
+	# slab of flat viewport grey -- the clear colour, not a colour anyone chose.
+	# The collision shape stays 80 tall (grect above); only the fill runs deep.
 	var ground_visual = ColorRect.new()
-	ground_visual.size = Vector2(current_width + 200.0, 80.0)
-	ground_visual.position = Vector2(-(current_width + 200.0) / 2.0, -40.0)
+	ground_visual.size = Vector2(current_width + BACKFILL_X * 2.0, 900.0)
+	ground_visual.position = Vector2(-(current_width + BACKFILL_X * 2.0) / 2.0, -40.0)
 	ground_visual.color = Color(0.2, 0.17, 0.15, 1.0)
+	ground_visual.z_index = -95
 	ground.add_child(ground_visual)
 	var ground_top_edge = ColorRect.new()
 	ground_top_edge.size = Vector2(current_width + 200.0, 6.0)

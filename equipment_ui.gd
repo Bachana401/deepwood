@@ -218,7 +218,7 @@ func refresh() -> void:
 	# item (or "(empty)") -- exactly an "empty helmet place", "empty armor place"...
 	for key in slot_buttons.keys():
 		var equipped_id = GameState.equipment.get(key, "")
-		slot_buttons[key].text = "(empty)" if equipped_id == "" else _short(Inventory.get_display_name(equipped_id))
+		_dress_slot(slot_buttons[key], equipped_id, "(empty)")
 	var count = GameState.relic_slot_count()
 	for i in range(GameState.RELIC_MAX_SLOTS):
 		var rb = relic_buttons[i]
@@ -228,7 +228,7 @@ func refresh() -> void:
 		else:
 			rb.disabled = false
 			var rid = GameState.equipment.relics[i]
-			rb.text = "R%d" % (i + 1) if rid == "" else _short(Inventory.get_display_name(rid))
+			_dress_slot(rb, rid, "R%d" % (i + 1))
 
 func _slot_label(key: String) -> String:
 	for def in GEAR_SLOTS:
@@ -236,8 +236,33 @@ func _slot_label(key: String) -> String:
 			return def.label
 	return key
 
-func _short(name: String) -> String:
-	return name.substr(0, 9)
+# EVERY SLOT SAID "Dragonsc" (sweep 2026-07-21). _short() cut names to nine
+# characters, so a full Dragonscale set read as five identical boxes and you
+# could not tell your helm from your boots. Show the ITEM instead: the same
+# silhouette the bag draws, with the full name wrapped underneath it -- which
+# is also the standing rule, that an icon must read as the thing you wear.
+const SLOT_ICON = 30.0
+
+func _dress_slot(button: Button, item_id: String, empty_text: String) -> void:
+	var icon: ColorRect = button.get_node_or_null("SlotIcon")
+	if item_id == "":
+		if icon != null:
+			icon.queue_free()
+		button.text = empty_text
+		button.add_theme_constant_override("icon_max_width", 0)
+		return
+	if icon == null:
+		icon = ColorRect.new()
+		icon.name = "SlotIcon"
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		icon.size = Vector2(SLOT_ICON, SLOT_ICON)
+		button.add_child(icon)
+	icon.position = Vector2((button.size.x - SLOT_ICON) / 2.0, 3.0)
+	Inventory.paint_icon(icon, item_id)
+	# full name, wrapped, in the space under the icon
+	button.text = "\n\n" + Inventory.get_display_name(item_id)
+	button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	button.add_theme_font_size_override("font_size", 9)
 
 func _on_gear_slot_pressed(key: String) -> void:
 	ensure_player()

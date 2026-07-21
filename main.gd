@@ -10,6 +10,9 @@ const GRASS_COLORS = [
 const GROUND_SPAN_START = -395.0
 const GROUND_SPAN_END = 4470.0
 const GROUND_Y = -39.0
+# How far the earth is drawn below the surface. Must exceed half a viewport
+# (324 at the 1152x648 base) or the player sees under the world.
+const UNDERGROUND_DEPTH = 900.0
 const TUFT_COUNT = 32
 
 # The world's real horizontal extent -- the ground skin, and everything the
@@ -217,6 +220,7 @@ func _ready() -> void:
 	generate_clouds()
 	fit_sky_to_world()
 	build_ground_skin()
+	fence_the_camera()
 	generate_village()
 	generate_houses()
 	generate_harvestables()
@@ -953,6 +957,19 @@ func _extend_ridges_across_world() -> void:
 # right half of Deepwood had no sky behind it at all -- just the viewport's grey
 # clear colour. Stretch them across the real world span at load, so lengthening
 # the map can never strand the sky again.
+# NOTHING EVER FENCED THE CAMERA (sweep 2026-07-21). There is not a single
+# limit_left/right anywhere in the project, so the camera simply centres on the
+# player -- and at either end of the map that put half a screen of out-of-world
+# on display: no sky, no ground, just the viewport's grey clear colour down one
+# side. Walk to the west edge of the village and you could see the world end.
+func fence_the_camera() -> void:
+	var p := get_tree().get_first_node_in_group("player")
+	if p == null or not p.has_node("Camera2D"):
+		return
+	var cam: Camera2D = p.get_node("Camera2D")
+	cam.limit_left = int(WORLD_LEFT)
+	cam.limit_right = int(WORLD_RIGHT)
+
 func fit_sky_to_world() -> void:
 	var bg := get_node_or_null("Background")
 	if bg == null:
@@ -1005,7 +1022,12 @@ func build_ground_skin() -> void:
 	s2.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	s2.centered = false
 	s2.region_enabled = true
-	s2.region_rect = Rect2(0, 0, span, maxf(46.0, 39.0 - fill_top))
+	# THE EARTH WAS 46 PIXELS THICK (sweep 2026-07-21). The camera sees ~324px
+	# below the player, so under the village's thin crust sat a strip of stray
+	# sky band and then flat viewport grey -- the clear colour, for the bottom
+	# fifth of the screen, everywhere in the overworld. The tile repeats, so
+	# depth is free.
+	s2.region_rect = Rect2(0, 0, span, UNDERGROUND_DEPTH)
 	s2.position = Vector2(WORLD_LEFT, fill_top)
 	$Ground.add_child(s2)
 
