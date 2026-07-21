@@ -20,9 +20,42 @@ var _host: Node2D
 var _bscn
 var _p: Node
 
+# THE FIXTURE WAS MEASURING BODY-BLOCKING, NOT MOVEMENT (2026-07-21).
+# The assignment loop above spawns 11 REAL bosses with their real kits, and this
+# file disposes of every boss with queue_free() -- which skips die(), and die()
+# is what kills a boss's summoned minions. So each phase left live Enemy bodies
+# standing in _host, exactly where the next mover spawns. The movers then had
+# velocity but nowhere to go: weave read -36 px/s and travelled 2px pinned
+# against a corpse, and pouncer sat on top of one with is_on_floor() false.
+# Which profiles "failed" depended purely on spawn order, which is why the
+# failure count wandered between runs. All three profiles move correctly with a
+# clear floor -- verified at -96 / -64 / -94 px net. Sweep the stage first.
+func clear_host() -> void:
+	for c in _host.get_children():
+		c.free()                       # immediate, not queued: the next spawn is NOW
+	await get_tree().physics_frame
+
+# ...AND THE STAGE KEPT PAUSING ITSELF. The village goes on living while this
+# test runs, and a story beat opening a dialogue box PAUSES THE TREE. A paused
+# tree delivers no _physics_process, so a mover just hung at its spawn y --
+# no gravity, no velocity, is_on_floor() false -- and measured as "moved 0"
+# while every other reading (not dead, full HP, not busy, in tree, physics
+# processing on) looked perfectly healthy. Whichever profile happened to be
+# running when the beat fired was the one that "failed", which is why the
+# count wandered 1-4 between identical runs. Dismiss and resume every frame.
+func keep_running() -> void:
+	if not get_tree().paused:
+		return
+	for n in get_tree().root.find_children("*", "", true, false):
+		if n.has_method("finish") and n.has_method("show_line"):
+			n.finish()
+			break
+	get_tree().paused = false
+
 # spawn a fresh gravewarden (non-combo) with a forced profile + no attacks, so we
 # measure pure movement of that profile
 func spawn_mover(prof: String) -> Node:
+	await clear_host()
 	var b = _bscn.instantiate()
 	b.boss_id = "gravewarden"
 	_host.add_child(b)
@@ -36,6 +69,7 @@ func run_move(b: Node, ppos: Vector2, bpos: Vector2, frames: int) -> float:
 	b.global_position = bpos
 	var x0: float = b.global_position.x
 	for i in range(frames):
+		keep_running()
 		_p.global_position = ppos
 		_p.velocity = Vector2.ZERO
 		await get_tree().physics_frame
@@ -87,21 +121,21 @@ func _ready() -> void:
 		"%d distinct in the sample" % seen.size())
 
 	# ---------------- RUSHER: closes the gap ----------------
-	var r = spawn_mover("rusher")
+	var r = await spawn_mover("rusher")
 	await get_tree().process_frame
 	var rmove: float = await run_move(r, pin, pin + Vector2(700, 0), 90)
 	check("rusher: closes toward the player", rmove < -80.0, "moved %.0f" % rmove)
 	r.queue_free()
 
 	# ---------------- KITER: backs off when crowded ----------------
-	var k = spawn_mover("kiter")
+	var k = await spawn_mover("kiter")
 	await get_tree().process_frame
 	var kmove: float = await run_move(k, pin, pin + Vector2(90, 0), 90)   # start inside its range
 	check("kiter: retreats when the player is inside its range", kmove > 60.0, "moved %.0f" % kmove)
 	k.queue_free()
 
 	# ---------------- TURTLE: barely moves ----------------
-	var t = spawn_mover("turtle")
+	var t = await spawn_mover("turtle")
 	await get_tree().process_frame
 	var tmove: float = absf(await run_move(t, pin, pin + Vector2(600, 0), 90))
 	# a rusher would cover ~hundreds of px in the same window; the turtle creeps
@@ -109,10 +143,11 @@ func _ready() -> void:
 	t.queue_free()
 
 	# ---------------- PURSUER: accelerates while chasing ----------------
-	var pu = spawn_mover("pursuer")
+	var pu = await spawn_mover("pursuer")
 	await get_tree().process_frame
 	pu.global_position = pin + Vector2(700, 0)
 	for i in range(70):
+		keep_running()
 		_p.global_position = pin
 		_p.velocity = Vector2.ZERO
 		await get_tree().physics_frame
@@ -121,11 +156,12 @@ func _ready() -> void:
 	pu.queue_free()
 
 	# ---------------- HOPPER: moves in jumps ----------------
-	var h = spawn_mover("hopper")
+	var h = await spawn_mover("hopper")
 	await get_tree().process_frame
 	h.global_position = pin + Vector2(500, 0)
 	var hopped := false
 	for i in range(120):
+		keep_running()
 		_p.global_position = pin
 		_p.velocity = Vector2.ZERO
 		await get_tree().physics_frame
@@ -136,12 +172,13 @@ func _ready() -> void:
 	h.queue_free()
 
 	# ---------------- MIRROR: moves only while the player moves ----------------
-	var m = spawn_mover("mirror")
+	var m = await spawn_mover("mirror")
 	await get_tree().process_frame
 	m.global_position = pin + Vector2(400, 0)
 	# player still -> mirror should hold
 	var mx0: float = m.global_position.x
 	for i in range(40):
+		keep_running()
 		_p.global_position = pin
 		_p.velocity = Vector2.ZERO
 		await get_tree().physics_frame
@@ -149,6 +186,7 @@ func _ready() -> void:
 	# player MOVING (real position change) -> mirror should close
 	var mx1: float = m.global_position.x
 	for i in range(60):
+		keep_running()
 		_p.global_position.x -= 4.0     # the player is genuinely moving
 		await get_tree().physics_frame
 	var moved: float = absf(m.global_position.x - mx1)
@@ -158,7 +196,7 @@ func _ready() -> void:
 
 	# ---------------- ERRATIC / WEAVE / POUNCER: they DO move (nonzero) --------
 	for prof in ["erratic", "weave", "pouncer"]:
-		var b = spawn_mover(prof)
+		var b = await spawn_mover(prof)
 		await get_tree().process_frame
 		var mv: float = absf(await run_move(b, pin, pin + Vector2(500, 0), 120))
 		check("%s: is an active, moving profile" % prof, mv > 20.0, "moved %.0f" % mv)

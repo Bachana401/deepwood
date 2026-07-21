@@ -31,9 +31,27 @@ func sig(layout: Array) -> String:
 func solids(layout: Array) -> Array:
 	return layout.filter(func(p): return p.get("solid", false))
 
+# The stage keeps re-pausing itself: a spawned boss kills the dummy player and
+# the game-over screen pauses the tree, and story beats open dialogue boxes that
+# do the same. A paused tree delivers no _physics_process, so the boss simply
+# stops -- which reads exactly like "never got past one knee-high pillar" and
+# "player took no damage behind cover in 15s". This file already unpaused twice
+# before the loops; the loops themselves are where it matters, because the
+# re-pause happens DURING them. That is the whole of this suite's long-standing
+# battery-only flakiness.
+func keep_running() -> void:
+	if not get_tree().paused:
+		return
+	for n in get_tree().root.find_children("*", "", true, false):
+		if n.has_method("finish") and n.has_method("show_line"):
+			n.finish()
+			break
+	get_tree().paused = false
+
 func _ready() -> void:
 	var p: Node = null
 	for i in range(1200):
+		keep_running()
 		await get_tree().process_frame
 		p = get_tree().get_first_node_in_group("player")
 		if p != null:
@@ -45,6 +63,7 @@ func _ready() -> void:
 	# happily, no node ever processes, and every behavioural check quietly fails
 	# for a reason that has nothing to do with the code under test.
 	for i in range(60):
+		keep_running()
 		await get_tree().process_frame
 		if not get_tree().paused:
 			break
@@ -270,6 +289,7 @@ func _ready() -> void:
 	var g = BS.new()
 	g.boss_id = "gaoler"
 	host.add_child(g)
+	keep_running()
 	await get_tree().process_frame
 	g.has_tether = true
 	g.player = p
@@ -277,10 +297,12 @@ func _ready() -> void:
 	# the whole time, so ONLY the cover can explain a break
 	g.global_position = p.global_position + Vector2(-200, 0)
 	wall.global_position = p.global_position + Vector2(-100, 0)
+	keep_running()
 	await get_tree().physics_frame
 	check("cover: the boss cannot see through a pillar", g._sight_to_player_blocked())
 	# same distance, no wall in the way
 	wall.global_position = p.global_position + Vector2(-100, -2000)
+	keep_running()
 	await get_tree().physics_frame
 	check("cover: with the pillar moved away it sees you again",
 		not g._sight_to_player_blocked())
@@ -295,6 +317,7 @@ func _ready() -> void:
 	ledge.add_child(lshape)
 	host.add_child(ledge)
 	ledge.global_position = p.global_position + Vector2(-100, 0)
+	keep_running()
 	await get_tree().physics_frame
 	check("cover: a plain one-way ledge does NOT block sight (scenery trap)",
 		not g._sight_to_player_blocked())
@@ -310,6 +333,7 @@ func _ready() -> void:
 		g.global_position = p.global_position + Vector2(-200, 0)
 		g.velocity = Vector2.ZERO
 		wall.global_position = p.global_position + Vector2(-100, 0)
+		keep_running()
 		await get_tree().physics_frame
 		if not g.tether_active:
 			break
@@ -336,6 +360,7 @@ func _ready() -> void:
 		GameState.active_dungeon_level = lv
 		var d = DSCN.instantiate()
 		get_tree().root.add_child(d)
+		keep_running()
 		await get_tree().process_frame
 		var bodies: Array = d.get_node("LevelContainer").find_children("*", "StaticBody2D", true, false)
 		if bodies.is_empty():
@@ -345,6 +370,7 @@ func _ready() -> void:
 			if b.collision_layer & DI.COVER_LAYER:
 				cover_seen += 1
 		d.queue_free()
+		keep_running()
 		await get_tree().process_frame
 	check("all 22 boss floors build for real", built_ok, detail)
 	check("cover reaches the built world on COVER_LAYER", cover_seen > 0,
@@ -366,6 +392,7 @@ func _ready() -> void:
 	var gd = DSCN.instantiate()
 	get_tree().root.add_child(gd)
 	for i in range(30):
+		keep_running()
 		await get_tree().physics_frame
 	get_tree().paused = false
 
@@ -380,6 +407,7 @@ func _ready() -> void:
 	var walker = load("res://boss.tscn").instantiate()
 	walker.boss_id = "gravewarden"
 	gd.get_node("LevelContainer").add_child(walker)
+	keep_running()
 	await get_tree().process_frame
 	walker.abilities = []                        # pure walk, no slam/charge to mask it
 	check("gravewarden is a walking boss (exercises the hop code)",
@@ -405,6 +433,7 @@ func _ready() -> void:
 	for i in range(360):
 		p.global_position = wpin
 		p.velocity = Vector2.ZERO
+		keep_running()
 		await get_tree().create_timer(0.016).timeout
 		if walker.global_position.x > post.global_position.x + 40.0:
 			crossed = true
@@ -443,6 +472,7 @@ func _ready() -> void:
 		for i in range(900):                     # up to ~15s of real fight
 			p.global_position = behind           # dummy hides behind the pillar
 			p.velocity = Vector2.ZERO
+			keep_running()
 			await get_tree().create_timer(0.016).timeout   # real seconds (boss
 			# cooldowns are wall-clock; frame-counting made this flaky)
 			if p.health < hp0:
@@ -452,6 +482,7 @@ func _ready() -> void:
 			hurt, "player took no damage behind cover in 15s -- the arena is a standoff")
 		shield.queue_free()
 	gd.queue_free()
+	keep_running()
 	await get_tree().process_frame
 	GameState.in_dungeon = false
 

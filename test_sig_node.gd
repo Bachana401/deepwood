@@ -17,6 +17,22 @@ func check(name: String, ok: bool, detail: String = "") -> void:
 # Free leftover gameplay nodes (hazards, homing wisps, projectiles, their
 # tweens) between tiers so they don't pile up -- a big orphan backlog under
 # headless can crash the engine at teardown even when every check is correct.
+# THE STAGE PAUSES ITSELF MID-TEST (2026-07-21). The village keeps living while
+# this suite runs, and a story beat opening a dialogue box PAUSES THE TREE. A
+# paused tree delivers no _physics_process and freezes every ability coroutine,
+# so a telegraphed attack simply never lands and the check reads "165 -> 165" --
+# indistinguishable from a broken ability. Whichever ability was mid-flight when
+# the beat fired was the one that "failed", which is why the count wandered
+# 3-4 between identical runs. Dismiss the beat and resume, every frame.
+func keep_running() -> void:
+	if not get_tree().paused:
+		return
+	for n in get_tree().root.find_children("*", "", true, false):
+		if n.has_method("finish") and n.has_method("show_line"):
+			n.finish()
+			break
+	get_tree().paused = false
+
 func cleanup() -> void:
 	for n in get_tree().root.find_children("*", "Node2D", true, false):
 		var s = n.get_script()
@@ -61,6 +77,7 @@ func _ready() -> void:
 	var pin := Vector2(1500.0, -100.0)
 	p.global_position = pin
 	for i in range(4):
+		keep_running()
 		await get_tree().physics_frame
 
 	# ---------------- GRAVE GRASP (root) ----------------
@@ -108,6 +125,7 @@ func _ready() -> void:
 		p.global_position = hazards[0].global_position
 		for i in range(50):
 			p.global_position = hazards[0].global_position
+			keep_running()
 			await get_tree().physics_frame
 			if p.health < hp0:
 				break
@@ -124,6 +142,7 @@ func _ready() -> void:
 	await wv.do_web_snare()
 	# stand in the web a moment; it should re-root
 	for i in range(40):
+		keep_running()
 		await get_tree().physics_frame
 		if p.cc_move_locked():
 			break
@@ -250,6 +269,7 @@ func _ready() -> void:
 		var closed := false
 		for i in range(140):
 			p.global_position = pin
+			keep_running()
 			await get_tree().physics_frame
 			if not is_instance_valid(w) or w.global_position.distance_to(p.global_position) < d0 - 20.0:
 				closed = true
@@ -308,6 +328,7 @@ func _ready() -> void:
 	p.global_position = Vector2(1500.0, -100.0)
 	var grounded := false
 	for i in range(240):
+		keep_running()
 		await get_tree().physics_frame
 		if p.is_on_floor():
 			grounded = true
@@ -335,6 +356,7 @@ func _ready() -> void:
 	gs.global_position = Vector2(g.x - 300.0, g.y)
 	p.global_position = Vector2(g.x, g.y)
 	for i in range(6):
+		keep_running()
 		await get_tree().physics_frame
 	p.health = p.get_max_health(); p.invincible = false; p.monarch_iframes_until = 0.0
 	var rhp0: int = p.health
@@ -355,6 +377,7 @@ func _ready() -> void:
 	p.clear_crowd_control()
 	lm.parry_until = lm._time_now() + 1.5      # arm the guard
 	lm._parry_consumed = false
+	keep_running()
 	await get_tree().physics_frame
 	var boss_hp_before: int = lm.health
 	var my_hp_before: int = p.health
@@ -366,6 +389,7 @@ func _ready() -> void:
 		"player %d -> %d, stunned=%s" % [my_hp_before, p.health, p.cc_action_locked()])
 	# after the counter is consumed, the NEXT hit lands normally
 	p.clear_crowd_control()
+	keep_running()
 	await get_tree().physics_frame
 	var boss_hp2: int = lm.health
 	lm.take_damage(40)
@@ -385,17 +409,29 @@ func _ready() -> void:
 	p.global_position = pin + Vector2(300, 0)   # off to one side; the wall sweeps through
 	var jhp0: int = p.health
 	var jdone := false
-	for i in range(120):
+	# Drive Judgment DIRECTLY, the way the Black Sun and Tidal Crush sections
+	# below already do. This used to just wait 120 frames and hope: Seraphiel is
+	# a COMBO boss, so it never picks single attacks off its `abilities` list --
+	# judgment only ever arrives inside a three-ability sentence, and might be
+	# the last word of it. So the check passed whenever some OTHER ability (dive,
+	# volley, rain, nova) happened to clip the player first, and failed whenever
+	# the sentence ran long. It was never testing the wall of light at all.
+	se.start_attack("judgment")
+	for i in range(200):
 		p.global_position = pin + Vector2(300, 0)   # hold still; the wall comes to you
 		p.velocity = Vector2.ZERO
+		keep_running()
 		await get_tree().physics_frame
 		if p.health < jhp0:
 			jdone = true
+			break
+		if not se.is_busy and i > 5:
 			break
 	check("Seraphiel Judgment: the sweeping wall of light hits a still player", jdone,
 		"%d -> %d" % [jhp0, p.health])
 	# the do_judgment coroutine is still sweeping; let it finish
 	for i in range(30):
+		keep_running()
 		await get_tree().physics_frame
 	se.queue_free()
 
@@ -415,6 +451,7 @@ func _ready() -> void:
 	for i in range(200):
 		p.global_position = pin + Vector2(560, 0)
 		p.velocity = Vector2.ZERO
+		keep_running()
 		await get_tree().physics_frame
 		if p.health < bhp0:
 			bdone = true
@@ -432,6 +469,7 @@ func _ready() -> void:
 	# ground the player, put boss at same floor line, player near the floor in the path
 	p.global_position = Vector2(g.x, g.y)
 	for i in range(60):
+		keep_running()
 		await get_tree().physics_frame
 		if p.is_on_floor():
 			break
@@ -443,6 +481,7 @@ func _ready() -> void:
 	lev.start_attack("tidal_crush")
 	for i in range(160):
 		p.velocity.x = 0.0
+		keep_running()
 		await get_tree().physics_frame
 		if p.health < thp0:
 			tdone = true
@@ -471,6 +510,7 @@ func _ready() -> void:
 	var uhp0: int = p.health
 	for i in range(60):
 		p.global_position = pin
+		keep_running()
 		await get_tree().physics_frame
 		if p.health < uhp0:
 			break

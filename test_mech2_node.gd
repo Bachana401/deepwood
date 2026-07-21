@@ -237,11 +237,19 @@ func _ready() -> void:
 	for rune in sb.rune_adds:
 		if is_instance_valid(rune):
 			rune.take_damage(999999)
-	for i in range(90):
-		await get_tree().physics_frame
-		if sb.living_rune_adds() == 0:
-			break
+	# Wait in REAL seconds, not physics frames. A rune's death runs through an
+	# animation and wall-clock timers, so under battery load 90 frames could
+	# elapse with a rune still counted alive -- the boss was then still bound,
+	# the next blow HEALED it (390 -> 420), and both checks below failed while
+	# the mechanic was working perfectly. Same lesson test_arena already learned.
+	var waited := 0.0
+	while waited < 4.0 and sb.living_rune_adds() > 0:
+		await get_tree().create_timer(0.05).timeout
+		waited += 0.05
 	await get_tree().physics_frame
+	# say so out loud if the precondition never held, instead of blaming the mechanic
+	check("soulbind: the runes actually died (test precondition)", sb.living_rune_adds() == 0,
+		"%d still lit after %.1fs" % [sb.living_rune_adds(), waited])
 	var openhp: int = sb.health
 	sb.take_damage(60)
 	check("soulbind: breaking the runes lets damage LAND (counter-play)", sb.health < openhp,
