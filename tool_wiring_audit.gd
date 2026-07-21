@@ -158,6 +158,15 @@ func _ready() -> void:
 		if not proj.contains("\n%s=" % act):
 			note("input", "'%s' is checked in %s but not defined in project.godot -- it can never fire" % [act, used_actions[act]])
 
+	# ---------- 5b. two actions fighting over one key ----------
+	# The other direction that a literal scan CAN see safely. Found 2026-07-21:
+	# `buy_dash` and `enter_dungeon` were both on F, right where the world says
+	# "Press F to Enter Dungeon". buy_dash happened to be dead (the shop buys on
+	# a mouse click), so nothing misfired -- but a dead action sitting on a live
+	# key is a trap set for whoever wires it next.
+	printerr("\n== two input actions bound to the same key ==")
+	_audit_key_conflicts(proj)
+
 	# --- PLAYER-FACING SYSTEMS NOTHING CAN REACH (added 2026-07-20) ---
 	# Crafting hid for the ENTIRE project: CRAFT_RECIPES, try_craft and even
 	# Toren's discount all worked, and no UI anywhere called them -- a whole
@@ -317,3 +326,33 @@ func _load_sources() -> void:
 				fh.close()
 		f = dir.get_next()
 	dir.list_dir_end()
+
+# Walks the [input] block of project.godot, collecting every physical key and
+# mouse button each action binds, and reports any that two actions share.
+func _audit_key_conflicts(proj: String) -> void:
+	var owner_of := {}          # "key 70" -> first action that claimed it
+	var action := ""
+	var in_input := false
+	for line in proj.split("\n"):
+		if line.begins_with("["):
+			in_input = line.begins_with("[input]")
+			continue
+		if not in_input:
+			continue
+		if line.contains("=") and not line.begins_with("\"") and not line.begins_with("Object"):
+			action = line.split("=")[0].strip_edges()
+		for bind in _binds_in(line):
+			if owner_of.has(bind) and owner_of[bind] != action:
+				note("input", "'%s' and '%s' are both bound to %s" % [owner_of[bind], action, bind])
+			elif not owner_of.has(bind):
+				owner_of[bind] = action
+
+func _binds_in(line: String) -> Array:
+	var out := []
+	var re := RegEx.new()
+	re.compile("(physical_keycode|button_index)\":([0-9]+)")
+	for m in re.search_all(line):
+		var code := int(m.get_string(2))
+		if code > 0:            # 0 = "no key set" on the keycode twin field
+			out.append("%s %d" % ["key" if m.get_string(1) == "physical_keycode" else "mouse", code])
+	return out

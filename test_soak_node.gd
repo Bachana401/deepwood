@@ -48,6 +48,14 @@ func _ready() -> void:
 			"stat_name": "Farm", "stat_value": 3,
 			"role_key": "Farm" if i < 3 else "", "role_title": "Farmer" if i < 3 else ""})
 
+	# A LEAK IS WHAT KILLS A MARATHON. Nothing measured node growth before, so a
+	# transition that forgot to free something would only show up as a session
+	# that got slower for four hours and then died. Measured 2026-07-21: flat at
+	# ~2660 nodes with ZERO orphans across all ten trips, so any real drift here
+	# is new. Orphans are the sharp signal -- a node freed from the tree but never
+	# released is exactly what a bad scene change leaves behind.
+	var nodes_before: int = Performance.get_monitor(Performance.OBJECT_NODE_COUNT)
+
 	# ---------- 1. TEN ROUND TRIPS ----------
 	var trips_ok := 0
 	for trip in range(10):
@@ -66,6 +74,11 @@ func _ready() -> void:
 			await get_tree().physics_frame
 		if GameState.in_dungeon: break
 		trips_ok += 1
+	var nodes_after: int = Performance.get_monitor(Performance.OBJECT_NODE_COUNT)
+	var orphans: int = Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT)
+	check("ten round trips leak no nodes", nodes_after < nodes_before + 300,
+		"%d -> %d" % [nodes_before, nodes_after])
+	check("...and leave no orphaned nodes behind", orphans == 0, "%d orphans" % orphans)
 	check("ten village->dungeon->village round trips survive", trips_ok == 10,
 		"%d/10" % trips_ok)
 	check("the roster survives the churn", GameState.rescued_villagers.size() >= 8,

@@ -7,7 +7,7 @@ extends CanvasLayer
 
 const SECTIONS = [
 	["MOVE & FIGHT", [
-		["A / D", "walk;  SPACE jump (double-jump once bought);  double-tap A/D to dash (once bought)"],
+		["A / D", "walk;  SPACE or W to jump (double-jump once bought);  double-tap A/D to dash (once bought)"],
 		["Mouse", "your cursor AIMS: left-click swings/shoots toward it (combos chain, finishers hit harder)"],
 		["Right-click", "your weapon's special attack, when it has one"],
 		["1 – 0", "the hotbar: weapons and potions"],

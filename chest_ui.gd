@@ -7,6 +7,7 @@ const SLOT_GAP = 6.0
 const ICON_MARGIN = 6.0
 const GRID_ORIGIN = Vector2(16.0, 46.0)
 const BUTTON_H = 32.0        # matches the Take/Deposit/Close buttons in the .tscn
+const BUTTON_PITCH = 104.0   # x-spacing of the Take All / Deposit All / Match row
 
 const SLOT_BG_COLOR = Color(0.15, 0.15, 0.18, 0.9)
 
@@ -66,8 +67,15 @@ func _layout_panel(count: int) -> void:
 	var half: float = panel_h / 2.0
 	$Panel.offset_top = -half
 	$Panel.offset_bottom = half
+	# The three transfer buttons sit on a 104px pitch and the .tscn panel is 302
+	# wide, so "⇄ Match" ran off the right edge -- invisible until the theme gave
+	# panels a border to run off. Widen the panel to whatever the row needs (the
+	# panel is RIGHT-anchored, so only offset_left moves).
+	var row_w: float = 16.0 + item_buttons.size() * BUTTON_PITCH + 16.0
+	var panel_w: float = maxf(row_w, GRID_ORIGIN.x * 2.0 + COLUMNS * (SLOT_SIZE + SLOT_GAP))
+	$Panel.offset_left = $Panel.offset_right - panel_w
 	for i in range(item_buttons.size()):
-		item_buttons[i].position = Vector2(16.0 + i * 104.0, item_y)
+		item_buttons[i].position = Vector2(16.0 + i * BUTTON_PITCH, item_y)
 	for btn in [$Panel/TakeButton, $Panel/DepositButton, $Panel/CloseButton]:
 		btn.position.y = gold_y
 
