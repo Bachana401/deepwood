@@ -24,9 +24,16 @@ func note(kind: String, msg: String) -> void:
 func _ready() -> void:
 	await get_tree().process_frame
 	_load_sources()
+	# COMMENTS ARE NOT CODE (2026-07-21). Every pass below matches call shapes --
+	# add_to_group("x"), has_method("y") -- against this blob, and it used to
+	# include comments, so a line of prose EXPLAINING a call read as the call.
+	# Caught the day it mattered: a comment saying a group was deliberately NOT
+	# joined was reported as joining it. The per-file `files` map keeps its
+	# comments; only this scan blob is stripped, because the no-op pass below
+	# genuinely needs to see whether the line above a function is a comment.
 	var all := ""
 	for f in files.keys():
-		all += files[f] + "\n"
+		all += _strip_comments(files[f]) + "\n"
 	printerr("== scanned %d scripts ==" % files.size())
 
 	# ---------- 1. groups ----------
@@ -355,4 +362,27 @@ func _binds_in(line: String) -> Array:
 		var code := int(m.get_string(2))
 		if code > 0:            # 0 = "no key set" on the keycode twin field
 			out.append("%s %d" % ["key" if m.get_string(1) == "physical_keycode" else "mouse", code])
+	return out
+
+# Drops `#` comments, but only when the # is genuinely outside a string -- a
+# naive cut would maim lines like `label.text = "Floor #%d"` and silently blind
+# the scan to whatever else is on them.
+func _strip_comments(src: String) -> String:
+	var out := ""
+	for line in src.split("\n"):
+		var in_str := false
+		var quote := ""
+		var cut := -1
+		for i in range(line.length()):
+			var c := line[i]
+			if in_str:
+				if c == quote and (i == 0 or line[i - 1] != "\\"):
+					in_str = false
+			elif c == "\"" or c == "'":
+				in_str = true
+				quote = c
+			elif c == "#":
+				cut = i
+				break
+		out += (line.substr(0, cut) if cut >= 0 else line) + "\n"
 	return out

@@ -55,11 +55,7 @@ func _ready() -> void:
 	check("the deep road is BUSIER than the near road", far > near, "near %d vs far %d" % [near, far])
 
 	# ---- 2. they see you late ----
-	var sample: Node = null
-	for e in get_tree().get_nodes_in_group("wild_mob"):
-		if is_instance_valid(e):
-			sample = e
-			break
+	var sample: Node = wild.any_live_mob()
 	check("a wild mob exists to inspect", sample != null)
 	if sample != null:
 		check("a wild mob's sight is 60% shorter than normal",

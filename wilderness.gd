@@ -145,7 +145,6 @@ func _make_mob(x: float, depth: float, rng: RandomNumberGenerator) -> Node:
 	# monster. Must run BEFORE add_child (it feeds _ready's build_character),
 	# and it MULTIPLIES the scaling above rather than replacing it.
 	e.apply_block_archetype(mini(int(depth * (MAX_ROSTER_BLOCK + 1)), MAX_ROSTER_BLOCK))
-	e.add_to_group("wild_mob")
 	main.add_child(e)
 	e.global_position = Vector2(x, -140.0)
 	# short sight is the point of the whole system -- see the header. Set AFTER
@@ -154,6 +153,9 @@ func _make_mob(x: float, depth: float, rng: RandomNumberGenerator) -> Node:
 	return e
 
 # --- for tests and the audit kit --------------------------------------------
+# Deliberately NOT an add_to_group("wild_mob"): the only consumer would have
+# been this file and a test, and tool_wiring_audit rightly calls that dead
+# bookkeeping. A mob's wildness already lives on the mob (enemy.is_wild).
 func live_count() -> int:
 	var n := 0
 	for idx in _live.keys():
@@ -161,3 +163,10 @@ func live_count() -> int:
 			if is_instance_valid(e) and not e.is_dead:
 				n += 1
 	return n
+
+func any_live_mob() -> Node:
+	for idx in _live.keys():
+		for e in _live[idx]:
+			if is_instance_valid(e) and not e.is_dead:
+				return e
+	return null
