@@ -69,6 +69,27 @@ func _ready() -> void:
 	check("the wall is worth more than the city patrol", wall_p > city_p,
 		"wall=%.1f city=%.1f house=%.1f" % [wall_p, city_p, base_p])
 
+	# a HOUSE-stationed defender must stand among the buildings, not on the
+	# furthest "village_structure" -- which the group has outgrown (Underdark
+	# chests to x~36,500, road markers past x~20,000 all join it). It anchored
+	# clean off the map before the clamp.
+	var lo := 1.0e9
+	var hi := -1.0e9
+	for b in get_tree().get_nodes_in_group("building"):
+		lo = minf(lo, b.global_position.x)
+		hi = maxf(hi, b.global_position.x)
+	var housed: Node = null
+	for a in get_tree().get_nodes_in_group("adventurer"):
+		if is_instance_valid(a):
+			housed = a
+			break
+	if housed != null and hi > lo:
+		housed.station = "house"
+		var anchor: float = housed._station_anchor_x()
+		check("a housed defender stations IN the village, not off the map",
+			anchor >= lo - 400.0 and anchor <= hi + 400.0,
+			"anchor %.0f, village %.0f..%.0f" % [anchor, lo, hi])
+
 	# ---------------- the offline shield: they die so villagers don't ----------------
 	GameState.set_adventurer_station("adv_roland", "wall")
 	GameState.set_adventurer_station("adv_wren", "house")

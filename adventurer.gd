@@ -367,14 +367,23 @@ func _station_anchor_x() -> float:
 			# and 2200, magic numbers from an older, smaller map: the village
 			# has long since sat at 4900+, so the corps patrolled empty road
 			# ~2,700px west of the town they defend (dev: "too far away").
-			var homes := get_tree().get_nodes_in_group("village_structure")
-			var best_x := 0.0
-			var found := false
-			for h in homes:
-				if is_instance_valid(h) and h.global_position.x > best_x:
-					best_x = h.global_position.x
-					found = true
-			return best_x if found else _village_center_x()
+			# A house-stationed defender belongs AMONG THE BUILDINGS. The old
+			# derivation took the furthest-east "village_structure", which the
+			# group has since outgrown: the Underdark's 43 chests are all in it
+			# (a kilometre down, out to x~36,500) and so are the east-road
+			# markers (out past x~20,000). Either dragged the anchor clean off
+			# the map -- the very "too far away" bug it was meant to cure. Clamp
+			# to the real building span, so "east end of town" stays IN town.
+			var lo := INF
+			var hi := -INF
+			for b in get_tree().get_nodes_in_group("building"):
+				if is_instance_valid(b):
+					lo = minf(lo, b.global_position.x)
+					hi = maxf(hi, b.global_position.x)
+			if hi < lo:
+				return _village_center_x()
+			# toward the east end of the housing, but never past the last hall
+			return lerpf(lo, hi, 0.72)
 		_:
 			return _village_center_x()
 

@@ -51,6 +51,7 @@ const SECTOR_W = 900.0
 const ALIVE_RADIUS = 2400.0        # sectors this close to the player are populated
 const CULL_RADIUS = 3600.0         # ...and are put away again past this
 const RESPAWN_SECONDS = 120.0      # a cleared stretch stays clear for a while
+const SURFACE_FLOOR_Y = 250.0      # below this, the player is in the Underdark
 
 # Difficulty curve, measured from wild_start out to the world's end.
 const MIN_PER_SECTOR = 1
@@ -86,6 +87,15 @@ func _process(delta: float) -> void:
 		if _player == null:
 			return
 	if GameState.in_dungeon:
+		return
+	# NOT WHILE YOU ARE UNDERGROUND (sweep 2026-07-21). The Underdark is not a
+	# "dungeon" -- it is the same overworld scene, deeper down -- so in_dungeon
+	# stays false in the caves and this streamer kept spawning WILD SURFACE MOBS
+	# on the roof above the player while the Underdark spawned its own below.
+	# Two full populations, one on top of the other, and a drift of surface mobs
+	# waiting overhead for when you climb back out. The surface begins near y=0;
+	# anything well below that is the deep, and the deep is the Underdark's job.
+	if _player.global_position.y > SURFACE_FLOOR_Y:
 		return
 	_stream(_player.global_position.x)
 

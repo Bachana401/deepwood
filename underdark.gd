@@ -169,39 +169,11 @@ func _retire_surface_door() -> void:
 	if zone != null:
 		zone.queue_free()
 
-# The surface ground is ONE collision rect the width of the world. Split it in
-# two around the mouth so there is a real hole to walk down into.
-func _carve_mouth_collision() -> void:
-	var main := get_parent()
-	var ground := main.get_node_or_null("Ground") if main != null else null
-	if ground == null:
-		return
-	var cs: CollisionShape2D = ground.get_node_or_null("CollisionShape2D")
-	if cs == null or not (cs.shape is RectangleShape2D):
-		return
-	var old_rect: RectangleShape2D = cs.shape
-	var half_w: float = old_rect.size.x / 2.0
-	var west_l: float = cs.position.x - half_w
-	var east_r: float = cs.position.x + half_w
-	# Only the stretch UNDER THE MOUND loses its crust -- the mound's own solid
-	# body roofs it, so the surface stays walkable and there is no hole to fall
-	# into from above. The tunnel is below the crust by the far end of it.
-	var gap_l := DESCENT_X
-	var gap_r := DESCENT_X + CRUST_CARVE
-	# shrink the original to the west piece...
-	var west := RectangleShape2D.new()
-	west.size = Vector2(gap_l - west_l, old_rect.size.y)
-	cs.shape = west
-	cs.position = Vector2((west_l + gap_l) / 2.0, cs.position.y)
-	# ...and add an east piece
-	var east_body := StaticBody2D.new()
-	var east_cs := CollisionShape2D.new()
-	var east := RectangleShape2D.new()
-	east.size = Vector2(east_r - gap_r, old_rect.size.y)
-	east_cs.shape = east
-	east_body.add_child(east_cs)
-	ground.add_child(east_body)
-	east_body.global_position = Vector2((gap_r + east_r) / 2.0, cs.global_position.y)
+# (There is no _carve_mouth_collision any more. The first cave cut a real hole
+# in the road's collision; the current one keeps the crust solid and drops the
+# whole tunnel below it, so the road is never broken and the entrance is the
+# arch prompt. Removed 2026-07-21 with that rework -- CRUST_CARVE survives only
+# because the mound's drawn width still reads from it.)
 
 # THE SKIN WOULD HAVE HIDDEN THE WHOLE WORLD. The surface's earth-tile fill
 # draws at z0 from the crust down to y~925 -- everything underdark (rock
