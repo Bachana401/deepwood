@@ -399,10 +399,13 @@ func _ready() -> void:
 	gd.get_node("LevelContainer").add_child(post)
 	post.global_position = Vector2(1300.0, DI.GROUND_Y - DI.VAULT_HEIGHT / 2.0)
 	var crossed := false
+	# WALL-CLOCK, not frames: boss cooldowns run off Time.get_ticks_msec, so a
+	# frame-counted wait drifts with headless FPS and this check flickered
+	# pass/fail with machine load. Real seconds are what the AI actually reads.
 	for i in range(360):
 		p.global_position = wpin
 		p.velocity = Vector2.ZERO
-		await get_tree().physics_frame
+		await get_tree().create_timer(0.016).timeout
 		if walker.global_position.x > post.global_position.x + 40.0:
 			crossed = true
 			break
@@ -440,7 +443,8 @@ func _ready() -> void:
 		for i in range(900):                     # up to ~15s of real fight
 			p.global_position = behind           # dummy hides behind the pillar
 			p.velocity = Vector2.ZERO
-			await get_tree().physics_frame
+			await get_tree().create_timer(0.016).timeout   # real seconds (boss
+			# cooldowns are wall-clock; frame-counting made this flaky)
 			if p.health < hp0:
 				hurt = true
 				break
