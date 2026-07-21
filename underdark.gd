@@ -48,10 +48,34 @@ const LOOT_SHALLOW = ["potion_health", "wood", "stone", "iron_shard", "herb", "r
 const LOOT_MID = ["potion_health", "potion_mana", "iron_shard", "ember_crystal", "food_stew", "coin_gold"]
 const LOOT_DEEP = ["potion_mana", "ember_crystal", "void_essence", "ancient_relic", "coin_gold"]
 const FLOOR_T = 60.0               # slab thickness
-const MAX_STEP = 70.0              # floor jitter between segments (92px rule)
-const ROCK_COLOR = Color(0.055, 0.05, 0.068, 1.0)
-const SLAB_COLOR = Color(0.16, 0.14, 0.13, 1.0)
-const SLAB_EDGE = Color(0.23, 0.2, 0.17, 1.0)
+# FLOOR JITTER, AND WHY IT IS SMALL. The player jumps ~92px, so any rise taller
+# than that is a wall you cannot climb. At 70 per segment with a +-140 band the
+# floor could stack into ledges of 200-290px, and walking the deep meant hitting
+# faces you simply could not get over (dev: "alignment of ground underground is
+# too bad"). 40 keeps every step comfortably climbable, and _bridge_step lays a
+# tread at each change so even those read as stairs rather than kerbs.
+const MAX_STEP = 40.0
+const FLOOR_BAND = 90.0            # how far a band's floor may wander from its base
+
+# THE FIRES OF THE DEEP. Dev call: "real light like inside dungeons, somewhere
+# orange, somewhere green, somewhere blue -- all colours to which fire can
+# become". Each is a flame plus a big additive halo, so it genuinely lights the
+# rock around it rather than being a coloured dot.
+const FIRE_COLORS = [
+	Color(1.0, 0.58, 0.18),    # common hearth-orange
+	Color(1.0, 0.58, 0.18),
+	Color(1.0, 0.74, 0.25),    # gold
+	Color(0.35, 1.0, 0.5),     # witchfire green
+	Color(0.3, 0.62, 1.0),     # cold blue
+	Color(0.75, 0.4, 1.0),     # violet
+	Color(0.3, 1.0, 0.92),     # pale teal
+]
+# The deep was legible only to a raycast: near-black rock behind near-black
+# slabs, and you could not tell floor from void. Lifted until the stone reads
+# as stone and the fires actually light it.
+const ROCK_COLOR = Color(0.085, 0.075, 0.1, 1.0)
+const SLAB_COLOR = Color(0.3, 0.26, 0.23, 1.0)
+const SLAB_EDGE = Color(0.45, 0.39, 0.31, 1.0)
 
 # --- the cave mouth ---------------------------------------------------------
 # A HOLE IN THE GROUND IS A HAZARD TO EVERYTHING THAT STANDS ON IT, so the
@@ -226,7 +250,7 @@ func _plan_bands(rng: RandomNumberGenerator) -> void:
 				kind = "crawl"
 				w = rng.randf_range(420.0, 780.0)
 			floor_y = clampf(floor_y + rng.randf_range(-MAX_STEP, MAX_STEP),
-				base - 140.0, base + 140.0)
+				base - FLOOR_BAND, base + FLOOR_BAND)
 			var head: float = TUNNEL_H
 			match kind:
 				"arena": head = ARENA_H
@@ -343,15 +367,34 @@ func _build_bands(rng: RandomNumberGenerator) -> void:
 		for i in range(segs.size()):
 			var s: Dictionary = segs[i]
 			var w: float = s.x1 - s.x0
+			# one fire colour per segment, so a stretch of tunnel reads as ITS OWN
+			# place rather than a rainbow -- and the deeper bands lean cold
+			var fire: Color = FIRE_COLORS[rng.randi_range(0, FIRE_COLORS.size() - 1)]
 			_slab_with_hole(s.x0, s.x1, s.floor_y, s.get("floor_hole"))
 			_slab_with_hole(s.x0, s.x1, s.ceil_y - FLOOR_T, s.get("ceil_hole"))
+			# A TREAD AT EVERY CHANGE OF LEVEL. Two segments at different heights
+			# meet as a bare vertical face; halve it with a step and the join
+			# reads as stairs and walks like stairs, in both directions.
+			if i > 0:
+				var prev: Dictionary = segs[i - 1]
+				var drop: float = s.floor_y - prev.floor_y
+				if absf(drop) > 12.0:
+					_slab(s.x0 - 55.0, prev.floor_y + drop * 0.5, 110.0, FLOOR_T)
+			# PLATFORMS HERE AND THERE (dev request): something to climb to, and
+			# something to fight from, in the plain stretches too -- not only in
+			# the chambers and arenas.
+			if s.kind == "tunnel" and rng.randf() < 0.45:
+				for k in range(rng.randi_range(1, 2)):
+					_slab(s.x0 + rng.randf_range(0.2, 0.75) * w,
+						s.floor_y - rng.randf_range(80.0, 150.0),
+						rng.randf_range(110.0, 190.0), 14.0)
 			# a chamber gets furniture: a platform or two, and light
 			if s.kind == "chamber":
 				for p in range(rng.randi_range(1, 2)):
 					_slab(s.x0 + rng.randf_range(0.15, 0.6) * w,
 						s.floor_y - rng.randf_range(90.0, 170.0),
 						rng.randf_range(120.0, 220.0), 16.0)
-				_brazier(Vector2(s.x0 + w * 0.5, s.floor_y - 40.0))
+				_brazier(Vector2(s.x0 + w * 0.5, s.floor_y - 40.0), fire)
 			elif s.kind == "arena":
 				# a fighting hall: tiered ledges around the rim so a crowd can
 				# come at you from above, and lit at both ends
@@ -359,18 +402,27 @@ func _build_bands(rng: RandomNumberGenerator) -> void:
 					_slab(s.x0 + rng.randf_range(0.1, 0.85) * w,
 						s.floor_y - rng.randf_range(150.0, 620.0),
 						rng.randf_range(160.0, 300.0), 16.0)
-				_brazier(Vector2(s.x0 + 90.0, s.floor_y - 40.0))
-				_brazier(Vector2(s.x1 - 90.0, s.floor_y - 40.0))
+				_brazier(Vector2(s.x0 + 90.0, s.floor_y - 40.0), fire)
+				_brazier(Vector2(s.x1 - 90.0, s.floor_y - 40.0), fire)
 			elif s.kind == "crawl":
 				# a squeeze is where a trap actually bites -- nowhere to dodge
 				if rng.randf() < 0.75:
 					_trap(Vector2(s.x0 + w * rng.randf_range(0.3, 0.7), s.floor_y - 14.0))
-			elif rng.randf() < 0.35:
-				_brazier(Vector2(s.x0 + w * 0.5, s.floor_y - 34.0))
-		# hard walls at both ends of the band
+			else:
+				# EVERY stretch gets a fire. A tunnel with no light was simply a
+				# black gap you crossed blind between two lit rooms.
+				_brazier(Vector2(s.x0 + w * 0.34, s.floor_y - 34.0), fire)
+				if w > 900.0:
+					_brazier(Vector2(s.x0 + w * 0.75, s.floor_y - 34.0), fire)
+		# Hard walls at the ends of the band, so nothing walks out of the world.
+		# EXCEPT band 0's western end -- that is where the entry stair arrives,
+		# and walling it meant you walked down from the cave, along the landing,
+		# and straight into a dead end a few strides in (dev report: "there's
+		# like a wall which does not let me go further").
 		var first: Dictionary = segs[0]
 		var last: Dictionary = segs[segs.size() - 1]
-		_slab(first.x0 - 60.0, first.ceil_y - 80.0, 60.0, first.floor_y - first.ceil_y + 160.0)
+		if b > 0:
+			_slab(first.x0 - 60.0, first.ceil_y - 80.0, 60.0, first.floor_y - first.ceil_y + 160.0)
 		_slab(last.x1, last.ceil_y - 80.0, 60.0, last.floor_y - last.ceil_y + 160.0)
 
 # Zigzag climbing shafts between bands: a hole in the upper band's floor, a
@@ -430,12 +482,12 @@ func _seg_at(band: int, x: float) -> Dictionary:
 			return s
 	return {}
 
-func _brazier(pos: Vector2) -> void:
+func _brazier(pos: Vector2, tint: Color = Color(1.0, 0.58, 0.18)) -> void:
 	var glow := Sprite2D.new()
 	glow.texture = _glow_tex()
 	glow.material = _add_mat()
-	glow.modulate = Color(1.0, 0.62, 0.2, 0.5)
-	glow.scale = Vector2(2.2, 2.2)
+	glow.modulate = Color(tint.r, tint.g, tint.b, 0.9)
+	glow.scale = Vector2(5.2, 5.2)
 	glow.position = pos + Vector2(0, -14)
 	glow.z_index = -1
 	add_child(glow)
@@ -446,8 +498,8 @@ func _brazier(pos: Vector2) -> void:
 	bowl.z_index = -1
 	add_child(bowl)
 	var flame := ColorRect.new()
-	flame.color = Color(1.0, 0.55, 0.15, 0.9)
-	flame.size = Vector2(8, 12)
+	flame.color = Color(tint.r, tint.g, tint.b, 0.95)
+	flame.size = Vector2(8, 14)
 	flame.position = pos + Vector2(-4, -18)
 	flame.z_index = -1
 	add_child(flame)
@@ -460,7 +512,10 @@ static func _glow_tex() -> ImageTexture:
 	for py in range(64):
 		for px in range(64):
 			var d := Vector2(px - 32, py - 32).length() / 32.0
-			img.set_pixel(px, py, Color(1, 1, 1, clampf(1.0 - d, 0.0, 1.0) * 0.55))
+			# squared falloff: a bright core that fades wide, so it lights the rock
+			# instead of drawing a flat disc
+			var f := clampf(1.0 - d, 0.0, 1.0)
+			img.set_pixel(px, py, Color(1, 1, 1, f * f * 0.85))
 	_glow = ImageTexture.create_from_image(img)
 	return _glow
 
@@ -508,7 +563,24 @@ func _place_seams(rng: RandomNumberGenerator) -> void:
 
 # --- streamed cave mobs (the east road's three rules, underground) ----------
 func _process(delta: float) -> void:
+	_hold_the_dark_lit()
 	_tick_cave_mouth()
+	_stream_tick(delta)
+
+# THE SUN HAS NO BUSINESS DOWN HERE. A CanvasModulate darkens the whole canvas
+# for nightfall, and it was dimming the underworld along with the surface --
+# so at 22:00 the caves were near-black no matter how many fires burned in
+# them, which is exactly backwards: the deep is lit by ITS OWN light and does
+# not care what time it is. Same counter-multiply the moon already uses to
+# escape the tint (day_night_cycle.counter_color).
+func _hold_the_dark_lit() -> void:
+	var cm := get_parent().get_node_or_null("CanvasModulate") if get_parent() != null else null
+	if cm == null:
+		return
+	var c: Color = cm.color
+	modulate = Color(1.0 / maxf(c.r, 0.05), 1.0 / maxf(c.g, 0.05), 1.0 / maxf(c.b, 0.05), 1.0)
+
+func _stream_tick(delta: float) -> void:
 	_scan_timer -= delta
 	if _scan_timer > 0.0:
 		return

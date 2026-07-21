@@ -128,6 +128,32 @@ func _ready() -> void:
 	await get_tree().process_frame
 	check("...and the third opens it", not is_instance_valid(ud._vault_gates.get(0)))
 
+	# ---- 4c2. the floor is WALKABLE and LIT (dev report: alignment too bad,
+	# add real light, platforms here and there) ----
+	var worst_step := 0.0
+	for b2 in range(ud.BANDS):
+		var sg: Array = ud._plan[b2]
+		for i in range(1, sg.size()):
+			worst_step = maxf(worst_step, absf(sg[i].floor_y - sg[i-1].floor_y))
+	check("no floor step is taller than a jump (the deep is walkable)",
+		worst_step <= 92.0, "worst step %.0f" % worst_step)
+	var lit := 0
+	var hues := {}
+	for c in ud.get_children():
+		if c is Sprite2D and c.material is CanvasItemMaterial:
+			lit += 1
+			hues["%.1f,%.1f,%.1f" % [c.modulate.r, c.modulate.g, c.modulate.b]] = true
+	check("the deep is lit by real fires", lit >= 100, "%d lights" % lit)
+	check("...in many fire-colours (orange, green, blue and more)", hues.size() >= 5,
+		"%d distinct hues" % hues.size())
+	var plats := 0
+	for c in ud.get_children():
+		if c is StaticBody2D:
+			for cc in c.get_children():
+				if cc is ColorRect and cc.size.y <= 18.0 and cc.size.x >= 100.0:
+					plats += 1
+	check("there are platforms to climb and fight from", plats >= 30, "%d platforms" % plats)
+
 	# ---- 4d. THE WAY IN, and the road that must survive it ----
 	# A side-scroller road is one-dimensional: anything solid on it is a wall,
 	# and any hole in it is a trap you fall into every time you walk past. The
