@@ -1331,33 +1331,56 @@ func build_torches(boss: bool, arena: Dictionary = {}) -> void:
 		var x = 180.0 + i * TORCH_SPACING + randf_range(-40.0, 40.0)
 		build_torch(Vector2(clamp(x, 60.0, current_width - 60.0), GROUND_Y), accent)
 
+# Shared soft radial glow for every dungeon torch (built once).
+static var _torch_glow: GradientTexture2D = null
+
+static func _torch_glow_tex() -> GradientTexture2D:
+	if _torch_glow == null:
+		var grad := Gradient.new()
+		grad.offsets = PackedFloat32Array([0.0, 0.25, 0.6, 1.0])
+		grad.colors = PackedColorArray([
+			Color(1, 1, 1, 0.9), Color(1, 1, 1, 0.45),
+			Color(1, 1, 1, 0.14), Color(1, 1, 1, 0.0),
+		])
+		_torch_glow = GradientTexture2D.new()
+		_torch_glow.gradient = grad
+		_torch_glow.width = 128
+		_torch_glow.height = 128
+		_torch_glow.fill = GradientTexture2D.FILL_RADIAL
+		_torch_glow.fill_from = Vector2(0.5, 0.5)
+		_torch_glow.fill_to = Vector2(1.0, 0.5)
+	return _torch_glow
+
 func build_torch(pos: Vector2, color: Color = TORCH_COLOR) -> void:
 	var torch = Node2D.new()
 	torch.position = pos
 	$LevelContainer.add_child(torch)
 
+	# A WALL SCONCE, NOT A BONFIRE. The old torch stood 30px with its flame at
+	# -38 -- chest height on a 56px player -- so the glow octagon sat ON whoever
+	# walked past and read as an orange blob stuck to them (visual sweep). It
+	# burns above head height now.
 	var pole = ColorRect.new()
 	pole.color = Color(0.22, 0.16, 0.11, 1.0)
-	pole.size = Vector2(6.0, 30.0)
-	pole.position = Vector2(-3.0, -30.0)
+	pole.size = Vector2(6.0, 74.0)
+	pole.position = Vector2(-3.0, -74.0)
 	torch.add_child(pole)
 
-	var glow = Polygon2D.new()
-	# chunky octagon glow -- squarish pixel-art theme
-	var glow_points = PackedVector2Array()
-	for i in range(8):
-		var angle = (i + 0.5) * TAU / 8.0
-		glow_points.append(Vector2(cos(angle), sin(angle)) * 28.0)
-	glow.polygon = glow_points
-	glow.color = Color(color.r, color.g, color.b, 0.32)
-	glow.position = Vector2(0, -38.0)
+	# A FLAT POLYGON CANNOT LOOK LIKE LIGHT. The old glow was a hard-edged
+	# octagon that read as an orange SIGN hanging by the flame; softening its
+	# alpha only made a fainter octagon. It is a real radial falloff now --
+	# the same soft-light trick the village torches use.
+	var glow = Sprite2D.new()
+	glow.texture = _torch_glow_tex()
+	glow.modulate = Color(color.r, color.g, color.b, 0.5)
+	glow.position = Vector2(0, -82.0)
 	glow.material = make_additive_material()
 	torch.add_child(glow)
 
 	var flame = Polygon2D.new()
 	flame.polygon = PackedVector2Array([Vector2(-5, 0), Vector2(5, 0), Vector2(0, -16)])
 	flame.color = color
-	flame.position = Vector2(0, -38.0)
+	flame.position = Vector2(0, -82.0)
 	torch.add_child(flame)
 
 	var flicker = flame.create_tween()
@@ -1446,7 +1469,12 @@ func spawn_level_combat() -> void:
 		# here plain, for arena testing.)
 	else:
 		spawn_level_mobs()
-		show_notification("Level " + str(current_level))
+		# the permanent HUD label already reads "Level 3 / 100" -- a toast
+		# repeating the number was pure noise. Name who holds the floor
+		# instead (same roster the spawns use: one archetype per 5 levels).
+		var rosters: Array = load("res://enemy.gd").ENEMY_ROSTERS
+		var roster: Dictionary = rosters[int((current_level - 1) / 5) % rosters.size()]
+		show_notification("Floor %d — %ss hold this deep." % [current_level, str(roster.get("name", "creature"))])
 	spawn_deep_rescue()
 	update_level_label()
 
