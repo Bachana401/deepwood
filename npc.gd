@@ -345,6 +345,46 @@ func build_health_bar() -> void:
 # Now a blow sends them sprinting for the heart of the village, and they stay
 # panicked for a while after the last hit.
 const FLEE_SECONDS := 6.0
+
+# ...AND THEY FIGHT BACK (dev request 2026-07-21: "they should go to village,
+# and also defend themselves"). Running was only half of it -- a villager
+# caught by something still just took the beating. These are farmers and
+# fishwives, not soldiers, so this is not combat: it is a cornered person
+# swinging whatever is in their hands at whatever has hold of them. Weak,
+# slow, and only at arm's length. They keep running while they do it.
+const DEFEND_RANGE := 52.0
+const DEFEND_DAMAGE := 4
+const DEFEND_COOLDOWN := 1.2
+const THREAT_GROUPS := ["siege_enemy", "course_enemy", "dungeon_combatant"]
+var defend_cd := 0.0
+
+func _nearest_threat() -> Node2D:
+	var best: Node2D = null
+	var best_d := DEFEND_RANGE
+	for grp in THREAT_GROUPS:
+		for e in get_tree().get_nodes_in_group(grp):
+			if not is_instance_valid(e) or ("is_dead" in e and e.is_dead):
+				continue
+			var d: float = global_position.distance_to(e.global_position)
+			if d < best_d:
+				best_d = d
+				best = e
+	return best
+
+func _tick_defence(delta: float) -> void:
+	if defend_cd > 0.0:
+		defend_cd -= delta
+		return
+	var threat := _nearest_threat()
+	if threat == null or not threat.has_method("take_damage"):
+		return
+	defend_cd = DEFEND_COOLDOWN
+	# face what you are hitting, then hit it
+	var dx: float = threat.global_position.x - global_position.x
+	if absf(dx) > 1.0:
+		direction = signf(dx)
+	threat.take_damage(DEFEND_DAMAGE)
+	SpeechText.spawn(self, ["Get BACK!", "Leave us alone!", "Not today!", "Aaagh!"][randi() % 4])
 const FLEE_SPEED_MULT := 2.6
 var flee_until := 0.0
 
@@ -432,6 +472,8 @@ func _physics_process(delta: float) -> void:
 	if is_in_building:
 		velocity = Vector2.ZERO
 		return
+	# indoors is safe; out here, anything that gets its hands on you gets hit
+	_tick_defence(delta)
 
 	# En route to a building visit: march straight to the door, then slip in.
 	if door_target != null:
