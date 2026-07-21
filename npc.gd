@@ -11,8 +11,35 @@ const SPEED = 40.0
 # the combat course or off the far end past the mating houses. Once assigned
 # to a building, wander_min_x/max_x below narrow this down to just that
 # building's neighborhood instead (see refresh_wander_bounds).
+# Fallback wander span, used only until the real buildings can be measured.
+# These were HARDCODED at 4850..8000 while the village actually spans roughly
+# 5,200..18,500 -- so villagers were fenced into the western third of their own
+# town and everything east of the Bank looked deserted (dev's report). The live
+# bounds are derived in _village_span() below.
 const WANDER_MIN_X = 4850.0
 const WANDER_MAX_X = 8000.0
+
+# The real village edges, measured from the buildings themselves (cached; the
+# layout only changes when a building is relocated or a cottage is raised).
+static var _span_lo := 0.0
+static var _span_hi := 0.0
+static var _span_count := -1
+
+func _village_span() -> Vector2:
+	var buildings := get_tree().get_nodes_in_group("building")
+	if buildings.size() != _span_count:
+		var lo := INF
+		var hi := -INF
+		for b in buildings:
+			if is_instance_valid(b):
+				lo = minf(lo, b.global_position.x)
+				hi = maxf(hi, b.global_position.x)
+		if lo == INF:
+			return Vector2(WANDER_MIN_X, WANDER_MAX_X)
+		_span_count = buildings.size()
+		_span_lo = lo - 120.0
+		_span_hi = hi + 220.0
+	return Vector2(_span_lo, _span_hi)
 const MIN_WALK_SECONDS = 2.0
 const MAX_WALK_SECONDS = 5.0
 const MIN_IDLE_SECONDS = 1.5
@@ -736,8 +763,10 @@ func refresh_wander_bounds() -> void:
 		wander_min_x = building.global_position.x - BUILDING_WANDER_RADIUS
 		wander_max_x = building.global_position.x + BUILDING_WANDER_RADIUS
 	else:
-		wander_min_x = WANDER_MIN_X
-		wander_max_x = WANDER_MAX_X
+		# the whole village, measured -- not a stale hardcoded strip
+		var span := _village_span()
+		wander_min_x = span.x
+		wander_max_x = span.y
 
 func get_building_for_role(role_key: String) -> Node:
 	return get_tree().get_first_node_in_group("building_role_" + role_key)

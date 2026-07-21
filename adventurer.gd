@@ -341,9 +341,44 @@ func _station_anchor_x() -> float:
 			var inward := 160.0 if (not "flank" in wall or wall.flank == "west") else -160.0
 			return wall.global_position.x - inward
 		"house":
-			return 1050.0        # by the cottages
+			# by the cottages -- DERIVED, not hardcoded. These used to be 1050
+			# and 2200, magic numbers from an older, smaller map: the village
+			# has long since sat at 4900+, so the corps patrolled empty road
+			# ~2,700px west of the town they defend (dev: "too far away").
+			var homes := get_tree().get_nodes_in_group("village_structure")
+			var best_x := 0.0
+			var found := false
+			for h in homes:
+				if is_instance_valid(h) and h.global_position.x > best_x:
+					best_x = h.global_position.x
+					found = true
+			return best_x if found else _village_center_x()
 		_:
-			return 2200.0        # the village heart
+			return _village_center_x()
+
+# The middle of the standing village, measured from the buildings themselves.
+func _village_center_x() -> float:
+	var lo := INF
+	var hi := -INF
+	for b in get_tree().get_nodes_in_group("building"):
+		if not is_instance_valid(b):
+			continue
+		lo = minf(lo, b.global_position.x)
+		hi = maxf(hi, b.global_position.x)
+	if lo == INF:
+		return 0.0            # buildings not in the tree yet -> "unresolved"
+	return (lo + hi) * 0.5
+
+# _ready() can run BEFORE the village buildings are in the tree, which left
+# home_x resolved to 0 -- the corps then tried to walk to the world origin
+# instead of home (dev: "too far away from village"). Re-resolve until it
+# lands on a real anchor.
+func _ensure_anchor() -> void:
+	if home_x != 0.0:
+		return
+	var a := _station_anchor_x()
+	if a != 0.0:
+		home_x = a
 
 func _hold_station(delta: float) -> void:
 	if home_x == 0.0:
@@ -353,6 +388,7 @@ func _hold_station(delta: float) -> void:
 		patrol_off += patrol_dir * 24.0 * delta
 		if absf(patrol_off) > 140.0:
 			patrol_dir *= -1.0
+	_ensure_anchor()
 	var dest := home_x + (patrol_off if station == "city" else 0.0)
 	var dx := dest - global_position.x
 	velocity.x = clampf(dx, -WALK_SPEED, WALK_SPEED) if absf(dx) > 6.0 else 0.0

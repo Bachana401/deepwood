@@ -650,7 +650,9 @@ func spawn_adventurers() -> void:
 			continue
 		var adv = ADVENTURER_SCRIPT.new()
 		adv.adventurer_id = id
-		adv.global_position = Vector2(1900.0 + i * 90.0, GROUND_Y - 30.0)
+		# spawn them IN the village, not on the old map's coordinates (they
+		# used to appear at x~1900, thousands of pixels west of the town)
+		adv.global_position = Vector2(VILLAGE_START_X + 60.0 + i * 90.0, VILLAGE_Y - 30.0)
 		$Village.add_child(adv)
 		i += 1
 
@@ -668,6 +670,15 @@ func find_avatar_spawn_position(role_key: String) -> Vector2:
 		for child in $Village.get_children():
 			if child.has_method("get_roles") and child.role_key == role_key:
 				return child.global_position + Vector2(randf_range(-18.0, 18.0), -60.0)
+	# the unemployed (the Doctor among them) belong IN the village, not on its
+	# western doorstep -- the old fixed fallback sat ~300px west of the first
+	# building, so they read as standing outside town (dev's report)
+	var first_x := 0.0
+	for child2 in $Village.get_children():
+		if child2.has_method("get_roles"):
+			first_x = child2.global_position.x if first_x == 0.0 else minf(first_x, child2.global_position.x)
+	if first_x > 0.0:
+		return Vector2(first_x + randf_range(40.0, 260.0), VILLAGE_FALLBACK_POS.y)
 	return VILLAGE_FALLBACK_POS
 
 func _process(delta: float) -> void:
