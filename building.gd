@@ -264,11 +264,17 @@ func rebuild_geometry() -> void:
 	health_bar_fill.position = Vector2(-bw / 2.0, -h - 50.0)
 	name_label.position = Vector2(-w / 2.0, -h - 34.0)
 	name_label.size = Vector2(w, 20.0)
+	update_name_label()
+	_refresh_rubble()
 	# prompts grew into sentences ("📜 Blueprint lost — ...") but the label
 	# stayed one building-width line -- long text spilled past narrow
 	# buildings' edges. Give every prompt a wide two-line home.
 	var pw: float = maxf(w, 400.0)
-	prompt_label.position = Vector2(-pw / 2.0, -h - 30.0)
+	# Cap how high the prompt floats: on tall facades -h-30 climbed right into
+	# the screen-top HUD and the text collided with the siege banner (seen live
+	# at a two-story ruin). Waist-height over the door reads fine and always
+	# stays on screen.
+	prompt_label.position = Vector2(-pw / 2.0, -minf(h, 190.0) - 30.0)
 	prompt_label.size = Vector2(pw, 34.0)
 	prompt_label.autowrap_mode = TextServer.AUTOWRAP_WORD
 	position_torches()
@@ -440,6 +446,97 @@ func restore_full() -> void:
 	update_torches()
 	update_prompt()
 
+# A ruin is anonymous until cleared: no name floats over rubble. (Dev request
+# 2026-07-21 -- "without names on top". The name is the clearing's reward.)
+func update_name_label() -> void:
+	if name_label == null:
+		return
+	name_label.visible = not is_ruined() or GameState.building_is_cleared(building_name)
+
+# The rubble itself: up to 3 grey mounds in front of the facade, one taken away
+# per shovelful, so progress is visible on the ground and not just in text.
+var rubble_layer: Node2D = null
+
+func _refresh_rubble() -> void:
+	if rubble_layer != null:
+		rubble_layer.queue_free()
+		rubble_layer = null
+	if not is_ruined() or GameState.building_is_cleared(building_name):
+		return
+	var remaining: int = GameState.CLEAR_STEPS - GameState.building_clear_progress(building_name)
+	if remaining <= 0:
+		return
+	rubble_layer = Node2D.new()
+	rubble_layer.name = "Rubble"
+	add_child(rubble_layer)
+	var w := eff_w()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(building_name)          # each ruin's heaps look their own
+	for i in range(remaining):
+		var cx: float = lerpf(-w * 0.32, w * 0.32, float(i) / maxf(1.0, float(GameState.CLEAR_STEPS - 1)))
+		var mw: float = rng.randf_range(26.0, 42.0)
+		var mh: float = rng.randf_range(12.0, 20.0)
+		var mound := Polygon2D.new()
+		var pts := PackedVector2Array()
+		pts.append(Vector2(-mw / 2.0, 0))
+		var segs := 5
+		for s in range(segs + 1):
+			var t: float = float(s) / segs
+			pts.append(Vector2(lerpf(-mw / 2.0, mw / 2.0, t),
+				-mh * sin(t * PI) * rng.randf_range(0.8, 1.1)))
+		pts.append(Vector2(mw / 2.0, 0))
+		mound.polygon = pts
+		mound.color = Color(0.32, 0.3, 0.28, 1.0).lightened(rng.randf_range(0.0, 0.08))
+		mound.position = Vector2(cx + rng.randf_range(-8.0, 8.0), 0)
+		rubble_layer.add_child(mound)
+		# a couple of darker stones poking out of each mound
+		for k in range(2):
+			var stone := Polygon2D.new()
+			var sw: float = rng.randf_range(5.0, 9.0)
+			stone.polygon = PackedVector2Array([
+				Vector2(-sw, 0), Vector2(-sw * 0.3, -sw * 1.1),
+				Vector2(sw * 0.6, -sw * 0.8), Vector2(sw, 0)])
+			stone.color = Color(0.22, 0.21, 0.2)
+			stone.position = mound.position + Vector2(rng.randf_range(-mw * 0.3, mw * 0.3), -rng.randf_range(2.0, mh * 0.5))
+			rubble_layer.add_child(stone)
+
+# E on an uncleared heap: one shovelful of rubble. The third one reveals the
+# building -- its name appears for the first time, and the F-build path opens.
+const CLEAR_WORK_SECONDS = 0.7   # brief lockout so three presses feel like work
+var _clear_busy_until := 0.0
+
+func attempt_clear_rubble() -> void:
+	var now: float = Time.get_ticks_msec() / 1000.0
+	if now < _clear_busy_until:
+		return
+	_clear_busy_until = now + CLEAR_WORK_SECONDS
+	var done: int = GameState.building_clear_progress(building_name) + 1
+	GameState.building_cleared[building_name] = done
+	spawn_clear_dust()
+	var notif = get_tree().get_first_node_in_group("notification_stack")
+	if done >= GameState.CLEAR_STEPS:
+		if notif:
+			notif.show_notification("Rubble cleared (3/3) — this was the %s!" % building_name)
+		GameState.play_sfx(GameState.SFX_YES, 1.15)
+	elif notif:
+		notif.show_notification("Clearing rubble... (%d/%d)" % [done, GameState.CLEAR_STEPS])
+	_refresh_rubble()
+	update_name_label()
+	update_prompt()
+
+# a puff of grey dust so each shovelful visibly does something
+func spawn_clear_dust() -> void:
+	for i in range(7):
+		var mote := ColorRect.new()
+		mote.size = Vector2(4, 4)
+		mote.color = Color(0.55, 0.52, 0.48, 0.85)
+		mote.position = Vector2(randf_range(-eff_w() * 0.4, eff_w() * 0.4), randf_range(-26.0, -4.0))
+		add_child(mote)
+		var tw := create_tween()
+		tw.tween_property(mote, "position", mote.position + Vector2(randf_range(-18, 18), randf_range(-34, -14)), 0.5)
+		tw.parallel().tween_property(mote, "modulate:a", 0.0, 0.5)
+		tw.tween_callback(mote.queue_free)
+
 # Press-F build while standing in a ruined / half-built building.
 func attempt_field_build() -> void:
 	var player = get_tree().get_first_node_in_group("player")
@@ -472,6 +569,9 @@ func update_prompt() -> void:
 		return
 	if constructing:
 		prompt_label.text = "Building..."
+	elif is_ruined() and not GameState.building_is_cleared(building_name):
+		prompt_label.text = "Press E to clear the rubble  (%d/%d)" % [
+			GameState.building_clear_progress(building_name), GameState.CLEAR_STEPS]
 	elif is_ruined() and not GameState.has_blueprint(building_name):
 		# DEV CALL (2026-07-21, live playtest): no floor numbers on the ruin --
 		# the plans are FOUND, not pointed at. (The level-select scroll marks
@@ -2012,7 +2112,12 @@ func _process(delta: float) -> void:
 	# Ruined/half-built -> F builds the next stage (locked mid-construction);
 	# a finished building -> E opens the assign panel.
 	if is_ruined():
-		if not constructing and Input.is_action_just_pressed("enter_dungeon"):
+		# a nameless heap first: E shovels it out, 1/3 -> 3/3, and only the
+		# last shovelful reveals what stood here (dev request 2026-07-21)
+		if not GameState.building_is_cleared(building_name):
+			if Input.is_action_just_pressed("interact"):
+				attempt_clear_rubble()
+		elif not constructing and Input.is_action_just_pressed("enter_dungeon"):
 			attempt_field_build()
 	else:
 		if Input.is_action_just_pressed("interact"):

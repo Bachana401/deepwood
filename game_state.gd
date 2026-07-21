@@ -805,6 +805,21 @@ const BUILDING_MAX_HEALTH = 400
 const TOTAL_BUILD_STAGES = 3
 var building_stage: Dictionary = {}
 
+# RUBBLE (dev request 2026-07-21): a ruin starts as a nameless heap. Before any
+# plans or building can happen the player CLEARS it by hand -- E three times,
+# 1/3, 2/3, 3/3 -- and only the clearing reveals what stood there. Until then
+# no name floats over it; the old labels made the village read like a menu.
+const CLEAR_STEPS = 3
+var building_cleared: Dictionary = {}   # building name -> 0..CLEAR_STEPS
+
+func building_clear_progress(name: String) -> int:
+	return int(building_cleared.get(name, 0))
+
+func building_is_cleared(name: String) -> bool:
+	# anything already under construction or standing predates the rubble system
+	# (or was cleared): never make the player re-shovel a half-built hall
+	return building_clear_progress(name) >= CLEAR_STEPS or building_build_stage(name) > 0
+
 # The Blacksmith (the Forge) is a MID-GAME building: it can't be raised until the
 # player has braved this dungeon depth. It exists to reliably supply equippable
 # gear of every slot up to a non-OP tier -- see assign_ui.add_smithy_section.
@@ -3368,9 +3383,11 @@ func reset_for_new_game() -> void:
 	# and must be repaired before its roles work.
 	building_health = {}
 	building_stage = {}
+	building_cleared = {}
 	for bn in STARTING_BUILDINGS:
 		building_health[bn] = 0
 		building_stage[bn] = 0
+		building_cleared[bn] = 0
 	building_levels = {}
 	wizard_respawn_at_hours = -1.0
 	placed_torches = []
@@ -3506,6 +3523,7 @@ func save_game(player: Node) -> void:
 		"away_report": away_report,
 		"building_health": building_health,
 		"building_stage": building_stage,
+		"building_cleared": building_cleared,
 		"building_levels": building_levels,
 		"placed_torches": placed_torches,
 		"wizard_respawn_at_hours": wizard_respawn_at_hours,
@@ -3635,6 +3653,10 @@ func load_game() -> Dictionary:
 			building_stage = {}
 			for k in parsed["building_stage"].keys():
 				building_stage[k] = int(parsed["building_stage"][k])
+		if parsed.has("building_cleared") and parsed["building_cleared"] is Dictionary:
+			building_cleared = {}
+			for k in parsed["building_cleared"].keys():
+				building_cleared[k] = int(parsed["building_cleared"][k])
 		placed_torches = []
 		for e in parsed.get("placed_torches", []):
 			if e is Dictionary:

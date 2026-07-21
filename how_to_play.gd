@@ -15,8 +15,9 @@ const SECTIONS = [
 		["Z", "Mage only, with Riftweaving: open the orange rift, then the blue one elsewhere; step in one, exit the other. Mana drains while both stand."],
 	]],
 	["THE VILLAGE", [
-		["E", "talk / rescue / open a building's assign panel / turn in a bond"],
-		["F", "at a ruin: pay gold + materials to raise its next construction stage"],
+		["E", "talk / rescue / open a building's assign panel / turn in a bond / CLEAR RUBBLE at a nameless ruin (3 shovelfuls reveal what stood there)"],
+		["F", "at a cleared ruin: pay gold + materials to raise its next construction stage"],
+		["B", "THE BUILDER'S LEDGER -- every site, its state, and what it's for (once you've uncovered it)"],
 		["H", "the hands-on key: tend the Farm, get treated at the Hospital (12g), open the Wanderer's Post, steer the School's curriculum (level 2+)"],
 		["Tab", "your bag and the village overlay (morale meter lives here, once the town is whole)"],
 		["L", "THE VILLAGE LOG -- the town's diary. Everything that happened while you were away is written here."],

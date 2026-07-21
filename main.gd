@@ -215,6 +215,8 @@ func _ready() -> void:
 	add_child(preload("res://wanderer_ui.gd").new())
 	# the east road: streamed wild mobs, thicker and meaner the further you go
 	add_child(preload("res://wilderness.gd").new())
+	# the Builder's Ledger (B): every site, its state, and its purpose once known
+	add_child(preload("res://build_menu.gd").new())
 	generate_mountains()
 	generate_grass()
 	generate_traps()
