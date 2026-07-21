@@ -72,16 +72,23 @@ func _ready() -> void:
 	check("the trio explains the trap in their own voices",
 		st.contains("ARRIVAL_TRAP") and st.contains("It's not a siege. It's a cage.")
 		and st.contains("Down. Through the root of it."))
-	check("the plea flows INTO the battle (opening's callback)",
-		FileAccess.open("res://player.gd", FileAccess.READ).get_as_text().contains("begin_arrival_battle"))
-	check("the first fight is in company at the west gate",
-		msrc.contains("func begin_arrival_battle") and msrc.contains("the trio is ALREADY in the fight"))
+	# 2026-07-21 dev rework of the opening: the player walks the road ALONE.
+	# The prologue only ARMS the arrival; the defenders and their raiders do not
+	# exist until the west rampart is in sight, and the words wait for the fight.
+	check("the prologue arms the arrival, it does not stage it",
+		FileAccess.open("res://player.gd", FileAccess.READ).get_as_text().contains("arm_arrival_battle"))
+	check("the road is walked alone until the wall is in sight",
+		msrc.contains("func _check_arrival_trigger") and msrc.contains("ARRIVAL_TRIGGER_DIST")
+		and msrc.contains('w.flank == "west"'))
+	check("the first fight is in company, AT the gate",
+		msrc.contains("func begin_arrival_battle") and msrc.contains("the trio is ALREADY in the fight")
+		and msrc.contains("wall_x - 620.0"))
 	# 2026-07-21 dev change: the wave breaking ARMS the walk home; the trap
 	# dialogue is DELIVERED when the player crosses the west rampart with the
 	# defenders (with a mouth-of-the-dungeon fallback so it can't be skipped)
-	check("the wave breaking arms the walk home, not the dialogue",
+	check("the words wait for the last raider to fall",
 		msrc.contains("_arrival_talk_pending = true")
-		and msrc.contains("Walk in with them"))
+		and msrc.contains("play_arrival_talk(pl0)"))
 	check("the talk fires at the west rampart, beside an adventurer",
 		msrc.contains("func _check_arrival_talk") and msrc.contains("Story.ARRIVAL_TRAP")
 		and msrc.contains('w.flank == "west"')

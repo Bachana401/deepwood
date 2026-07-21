@@ -344,6 +344,11 @@ func build_health_bar() -> void:
 # hit and keep ambling along their wander route as if nothing had happened.
 # Now a blow sends them sprinting for the heart of the village, and they stay
 # panicked for a while after the last hit.
+# How far outside the village's own ground counts as "stranded", and how much
+# quicker than an amble they walk when heading back to it.
+const STRAY_MARGIN := 260.0
+const HOMEWARD_SPEED_MULT := 1.5
+
 const FLEE_SECONDS := 6.0
 
 # ...AND THEY FIGHT BACK (dev request 2026-07-21: "they should go to village,
@@ -534,6 +539,31 @@ func _physics_process(delta: float) -> void:
 		velocity.x = 0.0                        # made it home -- cower here
 		is_walking = false
 		_update_villager_anim()
+		move_and_slide()
+		return
+
+	# STRANDED VILLAGERS WALK HOME (dev report 2026-07-21: "good NPC are not
+	# walking to village"). The wander below only TURNS at its bounds and idles
+	# half the time, so a villager left out on the road -- by a story beat that
+	# moved them, or a siege that scattered them -- would drift back over
+	# several minutes of stop-start ambling, if at all. Outside their ground
+	# they now simply head for it, purposefully, without pausing to idle.
+	var span_home := _village_span()
+	if global_position.x < span_home.x - STRAY_MARGIN or global_position.x > span_home.y + STRAY_MARGIN:
+		var target: float = clampf(global_position.x, span_home.x, span_home.y)
+		direction = signf(target - global_position.x)
+		velocity.x = direction * SPEED * HOMEWARD_SPEED_MULT
+		is_walking = true
+		if body_gfx and direction != 0:
+			body_gfx.scale.x = direction * body_scale_factor
+		_update_villager_anim()
+		walk_anim_t += delta * 10.0
+		var home_swing := sin(walk_anim_t)
+		if l_leg:
+			l_leg.rotation = home_swing * 0.55
+			r_leg.rotation = -home_swing * 0.55
+			l_arm.rotation = -home_swing * 0.45
+			r_arm.rotation = home_swing * 0.45
 		move_and_slide()
 		return
 

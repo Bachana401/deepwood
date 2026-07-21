@@ -1003,7 +1003,32 @@ func die() -> void:
 	var mgr = get_tree().get_first_node_in_group("dungeon_manager")
 	while mgr != null and mgr.started:
 		await get_tree().create_timer(1.0).timeout
+	# NOTHING COMES BACK WHILE YOU ARE WATCHING (dev report 2026-07-21: "evil
+	# npc are still respawning on player POV"). respawn() puts this body back on
+	# its ORIGINAL spot -- which is usually exactly where you just killed it and
+	# are still standing. Three seconds later it blinked back into existence in
+	# front of you. Wait for its spot to be off-screen first. The wilderness and
+	# the Underdark already obey this rule when they stream; this is the last
+	# spawner in the game that did not.
+	await _wait_until_unwatched()
 	respawn()
+
+# How far the player must be from a point before something may appear there.
+# Half the 1152-wide base viewport is 576, so this clears the screen edge with
+# room to spare -- the same margin the streamed spawners use.
+const UNWATCHED_DISTANCE = 760.0
+const UNWATCHED_PATIENCE = 45.0   # ...but never wait forever
+
+func _wait_until_unwatched() -> void:
+	var waited := 0.0
+	while waited < UNWATCHED_PATIENCE:
+		var pl = get_tree().get_first_node_in_group("player")
+		if pl == null or not is_instance_valid(pl):
+			return
+		if spawn_position.distance_to(pl.global_position) > UNWATCHED_DISTANCE:
+			return
+		await get_tree().create_timer(0.5).timeout
+		waited += 0.5
 
 func play_death_animation() -> void:
 	spawn_death_particles()

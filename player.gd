@@ -336,10 +336,14 @@ func maybe_play_intro() -> void:
 	# the PROLOGUE ends -> the ARRIVAL begins (new canon): the calamity orphan
 	# reaches the treeline, the bond completes (the choking beat), and he walks
 	# straight into the three defenders' fight -- combat learned in company
+	# The prologue plays, and then he is ALONE on the road (dev 2026-07-21).
+	# The fight is no longer waiting a few steps from where he wakes: he walks
+	# the whole road by himself, and only finds the three defenders when the
+	# village wall comes into view. main.gd arms that trigger; see _check_arrival.
 	DialogueBox.play(self, Story.PROLOGUE, func():
 		var m = get_parent()
-		if m and m.has_method("begin_arrival_battle"):
-			m.begin_arrival_battle())
+		if m and m.has_method("arm_arrival_battle"):
+			m.arm_arrival_battle())
 
 # TEST: hands the player every basic weapon at the start so the whole hotbar
 # is usable immediately (1=sword ... 6=Thundercaller, 7=ADMIN Ruin Wand,

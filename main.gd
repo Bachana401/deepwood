@@ -454,15 +454,44 @@ func spawn_existing_villager_avatars() -> void:
 # happen HERE (Story.ARRIVAL_TRAP). Once per world, saved.
 var _arrival_left := 0
 
-func begin_arrival_battle() -> void:
+# THE ROAD IS WALKED ALONE (dev 2026-07-21). The teaching fight used to be
+# staged 800px from where the player wakes, so he was never by himself for a
+# second. Now the prologue ends and he has the whole road to himself; the
+# defenders and their raiders exist only once he can see the west wall.
+var _arrival_armed := false
+
+func arm_arrival_battle() -> void:
 	if GameState.seen_arrival_battle or GameState.dev_mode:
 		return
-	# The fight happens ON THE ROAD IN -- right where the player is walking,
-	# a few steps east of the spawn. Canon (2.4.1): you FIND the three
-	# defenders mid-battle; a fight staged at the far gate would be over,
-	# off-screen, before you ever arrived. The trio drift back to their
-	# stations on their own once the wave is dead.
-	var road_x := 520.0
+	_arrival_armed = true
+
+const ARRIVAL_TRIGGER_DIST = 900.0   # first sight of the rampart
+
+func _check_arrival_trigger() -> void:
+	if not _arrival_armed:
+		return
+	var pl = get_tree().get_first_node_in_group("player")
+	if pl == null:
+		return
+	var wall_x := 4700.0
+	for w in get_tree().get_nodes_in_group("village_wall"):
+		if "flank" in w and w.flank == "west":
+			wall_x = w.global_position.x
+			break
+	if pl.global_position.x < wall_x - ARRIVAL_TRIGGER_DIST:
+		return
+	_arrival_armed = false
+	begin_arrival_battle(wall_x)
+
+func begin_arrival_battle(wall_x: float = 4700.0) -> void:
+	if GameState.seen_arrival_battle or GameState.dev_mode:
+		return
+	# The fight happens AT THE WALL, in sight of it (dev 2026-07-21): the
+	# player walks the road alone, the rampart comes into view, and THAT is
+	# where he finds the three defenders already fighting. Canon (2.4.1) still
+	# holds -- you FIND them mid-battle and learn combat in company -- it just
+	# happens at the gate they are defending instead of out in open country.
+	var road_x: float = wall_x - 620.0
 	_arrival_left = 4
 	GameState.begin_arrival_shield()   # nobody dies in the teaching wave
 	for i in range(4):
@@ -486,7 +515,7 @@ func begin_arrival_battle() -> void:
 	for a in get_tree().get_nodes_in_group("adventurer"):
 		a.global_position = Vector2(road_x - 40.0 + line_i * 62.0, -70.0)
 		line_i += 1
-	GameState.notify("⚔ Fighting on the road ahead — the defenders are engaged!")
+	GameState.notify("⚔ Three of them, fighting at the wall — GO!")
 
 func _on_arrival_raider_died() -> void:
 	_arrival_left -= 1
@@ -495,13 +524,14 @@ func _on_arrival_raider_died() -> void:
 	GameState.seen_arrival_battle = true
 	GameState.arrival_battle_active = false   # from here on, they are mortal
 	GameState.log_event("combat", "Your first wave broke at the gate — you fought it beside Roland, Wren and Castor.")
-	# THE TALK MOVED TO THE WALL (dev request 2026-07-21). The reveal used to
-	# fire the instant the last raider dropped -- mid-road, adrenaline still up,
-	# nobody home yet. Now the fight ends, the defenders turn for the village,
-	# and the words wait until you WALK IN WITH THEM: crossing the west rampart
-	# together is what starts the scene.
+	# THE TALK FOLLOWS THE FIGHT, because the fight is now AT the wall (dev
+	# 2026-07-21: "only after defeating them dialogue starts"). An earlier pass
+	# made the player walk to the rampart first -- correct when the battle was
+	# staged out on the open road, pointless now that it is fought at the gate.
 	_arrival_talk_pending = true
-	GameState.notify("The defenders turn for the village. Walk in with them.")
+	var pl0 = get_tree().get_first_node_in_group("player")
+	if pl0 != null:
+		play_arrival_talk(pl0)
 
 # The pending arrival talk: armed when the teaching wave breaks, fired when the
 # player crosses the west rampart. Transient on purpose -- if the player quits
@@ -526,7 +556,10 @@ func _check_arrival_talk() -> void:
 		if "flank" in w and w.flank == "west":
 			wall_x = w.global_position.x
 			break
-	if pl.global_position.x < wall_x:
+	# Only the RELOAD path reaches here (a save taken between the fight and the
+	# words). The fight itself plays the talk on the spot. Near the wall is the
+	# condition, not past it -- the battle is fought on its western approach.
+	if pl.global_position.x < wall_x - ARRIVAL_TRIGGER_DIST:
 		return
 	_arrival_talk_pending = false
 	play_arrival_talk(pl)
@@ -775,6 +808,7 @@ func _process(delta: float) -> void:
 		cloud.position.x += cloud.get_meta("speed") * delta
 		if cloud.position.x > CLOUD_SPAN_END:
 			cloud.position.x = CLOUD_SPAN_START
+	_check_arrival_trigger()
 	_check_arrival_talk()
 
 func start_music() -> void:

@@ -216,7 +216,11 @@ func _ready() -> void:
 	for prof in ["erratic", "weave", "pouncer"]:
 		var b = await spawn_mover(prof)
 		await get_tree().process_frame
-		var mv: float = await run_path(b, pin, pin + Vector2(500, 0), 120)
+		# 260 frames, not 120: pouncer idles up to 2.0s BETWEEN bursts, and the
+		# old window was exactly 2.0s -- so a run could legitimately contain
+		# barely one burst and read as "not moving". A window has to be longer
+		# than the pause the behaviour is allowed to take, or it measures luck.
+		var mv: float = await run_path(b, pin, pin + Vector2(500, 0), 260)
 		check("%s: is an active, moving profile" % prof, mv > 60.0, "covered %.0f" % mv)
 		b.queue_free()
 
