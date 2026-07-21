@@ -193,6 +193,30 @@ func _ready() -> void:
 		if call_sites == 0:
 			note("unreachable", "'%s()' (%s) is defined but NOTHING anywhere calls it -- the player can never reach it" % [fn, reachable[fn]])
 
+	# --- UNREACHABLE CODE (added 2026-07-21) ---
+	# The villager hover card was built, sized and filled every frame and
+	# shown to NOBODY, because its only call site sat after a `return true`.
+	# Dead statements look completely normal in review and in a unit probe
+	# (which calls the function directly) -- only the running game notices.
+	printerr("\n== unreachable statements ==")
+	for path in files.keys():
+		var lines: PackedStringArray = files[path].split("\n")
+		for i in range(lines.size() - 1):
+			var ln: String = lines[i]
+			var stripped := ln.strip_edges()
+			if not (stripped == "return" or stripped.begins_with("return ")):
+				continue
+			var indent := ln.length() - ln.lstrip("\t").length()
+			for j in range(i + 1, mini(i + 6, lines.size())):
+				var nx: String = lines[j]
+				var nstr := nx.strip_edges()
+				if nstr == "" or nstr.begins_with("#"):
+					continue
+				if nx.length() - nx.lstrip("\t").length() == indent:
+					note("dead-code", "%s:%d is unreachable -- it follows a return at the same depth: %s" % [
+						path.get_file(), j + 1, nstr.substr(0, 60)])
+				break
+
 	printerr("\n== TOTAL WIRING ISSUES: %d ==" % issues)
 	get_tree().quit(0)
 
