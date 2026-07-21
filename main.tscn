@@ -357,20 +357,6 @@ script = ExtResource("32_adminpanel")
 [node name="Player" parent="." unique_id=538963322 groups=["player"] instance=ExtResource("22_player")]
 position = Vector2(-300, -150)
 
-[node name="Enemy" parent="." unique_id=287284054 groups=["course_enemy"] instance=ExtResource("5_enemy")]
-position = Vector2(400, -100)
-
-[node name="Enemy2" parent="." unique_id=253017683 groups=["course_enemy"] instance=ExtResource("5_enemy")]
-position = Vector2(500, -100)
-
-[node name="Enemy3" parent="." unique_id=1150817329 groups=["course_enemy"] instance=ExtResource("5_enemy")]
-position = Vector2(700, -140)
-weapon_type = "bow"
-
-[node name="Enemy4" parent="." unique_id=886676605 groups=["course_enemy"] instance=ExtResource("5_enemy")]
-position = Vector2(1000, -80)
-weapon_type = "spear"
-
 [node name="Villager1" parent="." instance=ExtResource("16_villager")]
 position = Vector2(870, -59)
 villager_id = "elin_riverside"
@@ -413,32 +399,6 @@ script = ExtResource("28_siege_mgr")
 [node name="Wizard" parent="." groups=["village_defender"] instance=ExtResource("26_wizard")]
 position = Vector2(4790, -100)
 
-[node name="Enemy5" parent="." unique_id=588091027 groups=["course_enemy"] instance=ExtResource("5_enemy")]
-position = Vector2(1200, -100)
-base_color = Color(0.75, 0.42, 0.08, 1)
-
-[node name="Enemy6" parent="." unique_id=521000479 groups=["course_enemy"] instance=ExtResource("5_enemy")]
-position = Vector2(1680, -320)
-weapon_type = "spear"
-base_color = Color(0.75, 0.42, 0.08, 1)
-
-[node name="Enemy7" parent="." unique_id=1334836074 groups=["course_enemy"] instance=ExtResource("5_enemy")]
-position = Vector2(2120, -390)
-weapon_type = "bow"
-base_color = Color(0.42, 0.15, 0.55, 1)
-
-[node name="Enemy8" parent="." unique_id=245921906 groups=["course_enemy"] instance=ExtResource("5_enemy")]
-position = Vector2(2650, -420)
-base_color = Color(0.12, 0.45, 0.48, 1)
-
-[node name="Enemy9" parent="." unique_id=1349631886 groups=["course_enemy"] instance=ExtResource("5_enemy")]
-position = Vector2(3300, -100)
-weapon_type = "spear"
-
-[node name="Enemy10" parent="." unique_id=132760995 groups=["course_enemy"] instance=ExtResource("5_enemy")]
-position = Vector2(4000, -100)
-weapon_type = "bow"
-base_color = Color(0.75, 0.42, 0.08, 1)
 
 [node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=294605379]
 
