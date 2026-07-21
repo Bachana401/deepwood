@@ -213,6 +213,8 @@ func _ready() -> void:
 		add_child(preload("res://arrival_weather.gd").new())
 	# the Wanderer's Post counter (5.6a) -- village only, where the stall is
 	add_child(preload("res://wanderer_ui.gd").new())
+	# the east road: streamed wild mobs, thicker and meaner the further you go
+	add_child(preload("res://wilderness.gd").new())
 	generate_mountains()
 	generate_grass()
 	generate_traps()

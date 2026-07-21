@@ -72,6 +72,18 @@ const ENEMY_ROSTERS = [
 @export var respawns: bool = true
 @export var instant_aggro: bool = false
 
+# --- WILDERNESS MOBS (the lands east of the village) ---
+# A wild mob belongs to its patch of road. It sees you far LATER than anything
+# else in the game (WILD_SIGHT_MULT), and once you leave its ground it gives up
+# and walks home instead of trailing you across the map. That is what makes the
+# east travellable: danger you can walk away from, not a growing tail of mobs.
+const WILD_SIGHT_MULT = 0.4        # 60% less sight than a normal mob
+const WILD_LEASH = 460.0           # how far from home it will chase
+const WILD_LEASH_HYSTERESIS = 90.0 # ...and how far back before it re-engages
+var is_wild := false
+var wild_home_x := 0.0
+var wild_going_home := false
+
 signal died
 
 var direction = 1
@@ -522,6 +534,23 @@ func _physics_process(delta: float) -> void:
 
 	if jump_react_timer > 0:
 		jump_react_timer -= delta
+
+	# A wild mob that has been pulled off its ground breaks off and walks back.
+	# Checked before the chase block so a leashed mob can't also be chasing.
+	if is_wild and not is_knocked_back:
+		var from_home: float = global_position.x - wild_home_x
+		if wild_going_home:
+			if absf(from_home) <= WILD_LEASH - WILD_LEASH_HYSTERESIS:
+				wild_going_home = false
+		elif absf(from_home) > WILD_LEASH:
+			wild_going_home = true
+		if wild_going_home:
+			var back := -signf(from_home)
+			if back != 0.0:
+				facing_direction = int(back)
+			velocity.x = back * move_speed()
+			move_and_slide()
+			return
 
 	if not is_knocked_back:
 		var effective_detection_range = detection_range_current * 2.0 if weapon_type == "bow" else detection_range_current
