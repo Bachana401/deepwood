@@ -119,15 +119,36 @@ func _ready() -> void:
 	area.body_exited.connect(func(b): if b.is_in_group("player"): player_near = false; _refresh_prompt())
 
 const ADV_ROOT := "res://art/villagers/"
-const ADV_SPRITE_H := 54.0                 # a defender stands as tall as the hero
-# the three read as distinct travel-worn fighters -- real pixel bodies (reusing
-# the villager art) instead of the old 20x40 ColorRect box (dev: NPCs looked
-# tiny/messy). Cool modulate keeps them "blues, not villager browns".
+const ADV_SPRITE_H := 58.0                 # heroes stand a head over the townsfolk (52)
+
+# HEROES MUST READ AS HEROES (dev: "they look like other NPCs"). Sharing the
+# villager art is fine -- what makes an adventurer is the SILHOUETTE around
+# it: a cloak, a pauldron, a personal colour, and their weapon held out. Each
+# of the three gets their own palette so you can name them across the street.
 const ADV_SKINS := {"adv_roland": "man3", "adv_wren": "woman2", "adv_castor": "man4"}
+const ADV_COLORS := {
+	"adv_roland": Color(0.42, 0.55, 0.85),   # steel blue -- the shield that stood
+	"adv_wren":   Color(0.35, 0.66, 0.42),   # hunter green -- the bow in the dark
+	"adv_castor": Color(0.72, 0.32, 0.30),   # old crimson -- the spear line
+}
 var _skin_sprite: AnimatedSprite2D = null
+var _cloak: Polygon2D = null
+
+func hero_color() -> Color:
+	return ADV_COLORS.get(adventurer_id, Color(0.55, 0.6, 0.8))
 
 func _build_visual() -> void:
+	var col := hero_color()
 	var vskin: String = ADV_SKINS.get(adventurer_id, "man")
+	# THE CLOAK -- drawn BEHIND the body, the instant "this one is a fighter"
+	_cloak = Polygon2D.new()
+	_cloak.polygon = PackedVector2Array([
+		Vector2(-3, -50), Vector2(13, -46), Vector2(17, -16),
+		Vector2(11, -2), Vector2(-2, -4), Vector2(-6, -30),
+	])
+	_cloak.color = col.darkened(0.28)
+	_cloak.z_index = -1
+	add_child(_cloak)
 	if EnemySkins.is_per_frame(vskin, ADV_ROOT):
 		_skin_sprite = AnimatedSprite2D.new()
 		_skin_sprite.sprite_frames = EnemySkins.frames_for(vskin, ADV_ROOT)
@@ -136,35 +157,62 @@ func _build_visual() -> void:
 		var sc := ADV_SPRITE_H / ch
 		_skin_sprite.scale = Vector2(sc, sc)
 		_skin_sprite.offset = Vector2(-EnemySkins.hcenter_px(vskin, ADV_ROOT), -EnemySkins.feet_px(vskin, ADV_ROOT))
-		_skin_sprite.modulate = Color(0.72, 0.8, 1.0)   # travel-worn cool cast
+		# tinted toward their own colour, not a uniform blue wash
+		_skin_sprite.modulate = col.lightened(0.35)
 		if _skin_sprite.sprite_frames.has_animation("idle"):
 			_skin_sprite.animation = "idle"
 			_skin_sprite.play()
 		add_child(_skin_sprite)
-		# a hidden stand-in so the flip code below still has body_rect
 		body_rect = ColorRect.new()
-		body_rect.visible = false
+		body_rect.visible = false          # stand-in for legacy references
 		add_child(body_rect)
 	else:
 		body_rect = ColorRect.new()
-		body_rect.size = Vector2(20, 40)
-		body_rect.position = Vector2(-10, -42)
-		body_rect.color = Color(0.32, 0.36, 0.46)
+		body_rect.size = Vector2(22, 46)
+		body_rect.position = Vector2(-11, -48)
+		body_rect.color = col.darkened(0.1)
 		body_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(body_rect)
+	# a pauldron: one bright plate at the shoulder, their colour, unmistakable
+	var pauldron := Polygon2D.new()
+	pauldron.polygon = PackedVector2Array([
+		Vector2(-11, -46), Vector2(0, -49), Vector2(2, -40), Vector2(-10, -38),
+	])
+	pauldron.color = col.lightened(0.18)
+	add_child(pauldron)
+	# the weapon reads from across the street: longer, and each kind shaped
+	# its own way (a spear outreaches a blade; a bow is a stave with a string)
+	var wep := str(def.get("weapon", "blade"))
 	weapon_rect = ColorRect.new()
-	weapon_rect.size = Vector2(4, 30)
-	weapon_rect.position = Vector2(10, -40)
-	weapon_rect.color = WEAPON_COLORS.get(str(def.get("weapon", "blade")), Color.WHITE)
+	match wep:
+		"spear":
+			weapon_rect.size = Vector2(4, 52)
+			weapon_rect.position = Vector2(12, -56)
+		"bow":
+			weapon_rect.size = Vector2(4, 34)
+			weapon_rect.position = Vector2(13, -46)
+		_:
+			weapon_rect.size = Vector2(5, 36)
+			weapon_rect.position = Vector2(12, -48)
+	weapon_rect.color = WEAPON_COLORS.get(wep, Color.WHITE)
 	weapon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(weapon_rect)
+	# a blade catches the light at its tip; a spear has a head
+	if wep != "bow":
+		var tip := Polygon2D.new()
+		var ty: float = -60.0 if wep == "spear" else -52.0
+		tip.polygon = PackedVector2Array([
+			Vector2(11, ty + 6), Vector2(14.5, ty), Vector2(18, ty + 6),
+		])
+		tip.color = Color(0.92, 0.94, 1.0)
+		add_child(tip)
 	name_label = Label.new()
 	name_label.text = str(def.get("name", "Adventurer"))
-	name_label.position = Vector2(-60, -66)
+	name_label.position = Vector2(-60, -78)
 	name_label.size = Vector2(120, 16)
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_label.add_theme_font_size_override("font_size", 10)
-	name_label.add_theme_color_override("font_color", Color(0.85, 0.9, 1.0))
+	name_label.add_theme_color_override("font_color", col.lightened(0.45))
 	name_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	name_label.add_theme_constant_override("outline_size", 3)
 	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -172,7 +220,7 @@ func _build_visual() -> void:
 	# the signature ability, worn like a title -- gold, under the name
 	var abl := Label.new()
 	abl.text = "« %s »" % str(def.get("ability_name", ""))
-	abl.position = Vector2(-60, -55)
+	abl.position = Vector2(-60, -67)
 	abl.size = Vector2(120, 14)
 	abl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	abl.add_theme_font_size_override("font_size", 8)
