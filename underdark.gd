@@ -502,11 +502,23 @@ func _place_doors(rng: RandomNumberGenerator) -> void:
 		var lo := 1 + b * 12
 		var hi := mini(100, lo + 18)
 		var segs: Array = _plan[b]
+		# NEVER on the vault segment. _build_rune_vaults (which runs after this)
+		# claims segs[size-2] and bars it behind three runes -- so a door landing
+		# there is unreachable until the puzzle is solved, and if that door were
+		# the band's guaranteed floor rung, a whole band's dungeon access would
+		# sit behind a gate. Worst case: the FRESH-RUN floor-1 door, which would
+		# soft-lock the game exactly as the "every band's first door is its
+		# floor" rule was written to prevent. Currently the fixed seed dodges it;
+		# reserving the segment makes that guarantee independent of the seed.
+		var vault_idx: int = segs.size() - 2
 		var placed := 0
 		var guard := 0
 		while placed < DOORS_PER_BAND and guard < 200:
 			guard += 1
-			var s: Dictionary = segs[rng.randi_range(0, segs.size() - 1)]
+			var idx := rng.randi_range(0, segs.size() - 1)
+			if idx == vault_idx:
+				continue
+			var s: Dictionary = segs[idx]
 			if s.has("door_here"):
 				continue
 			s["door_here"] = true

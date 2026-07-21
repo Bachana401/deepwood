@@ -77,6 +77,17 @@ func _ready() -> void:
 	# early game -- which is exactly what the first random placement did.
 	check("a brand-new run can actually get in (a floor-1 door exists)",
 		minlv == 1, "shallowest door is floor %d" % minlv)
+	# ...and it must be REACHABLE: no door may sit on a rune-vault segment,
+	# which is barred behind three runes. A gated floor-1 door would soft-lock a
+	# fresh game exactly as an absent one would.
+	var gated := 0
+	for d in doors:
+		var db := int((d.position.y - ud.UD_TOP) / ud.BAND_H)
+		var dsegs: Array = ud._plan[db]
+		var dv: Dictionary = dsegs[dsegs.size() - 2]
+		if d.position.x >= dv.x0 and d.position.x <= dv.x1:
+			gated += 1
+	check("no door is trapped behind a rune-vault gate", gated == 0, "%d gated doors" % gated)
 
 	# ---- 4b. it is a PLACE, not a hallway: arenas, squeezes, loot, traps ----
 	var kinds := {}
