@@ -22,16 +22,37 @@ extends Node
 
 const ENEMY_SCENE = preload("res://enemy.tscn")
 
-# Where the wilds begin. West of this is the village and its approach, which
-# stays safe; the dungeon mouth and the shop sit in there too.
-const WILD_START = 5200.0
+# WHERE THE WILDS BEGIN -- measured from the village's EAST rampart, never
+# guessed. This was a hardcoded 5200, and the village actually runs from its
+# west wall at 4700 to its east wall at 22693 (buildings 5269..18483), so the
+# whole town sat inside the wilderness and mobs streamed in among the houses
+# (dev report 2026-07-21: "too many mobs inside the village... it should start
+# after end of the village, right side wall"). Beyond the east gate the road
+# belongs to whatever lives out there, and it worsens from that line onward.
+const WILD_FALLBACK_START = 23200.0
+const WILD_MARGIN = 500.0          # a breath of clear road outside the gate
+var wild_start := WILD_FALLBACK_START
+
+func _resolve_wild_start() -> void:
+	var east_x := -1.0
+	for w in get_tree().get_nodes_in_group("village_wall"):
+		if "flank" in w and w.flank == "east":
+			east_x = w.global_position.x
+			break
+	if east_x < 0.0:
+		# no east rampart in this layout: fall back to the far side of the
+		# furthest building rather than a magic number
+		for b in get_tree().get_nodes_in_group("building"):
+			east_x = maxf(east_x, b.global_position.x)
+	wild_start = (east_x + WILD_MARGIN) if east_x > 0.0 else WILD_FALLBACK_START
+
 # Sector bookkeeping. One sector is a stretch of road with its own population.
 const SECTOR_W = 900.0
 const ALIVE_RADIUS = 2400.0        # sectors this close to the player are populated
 const CULL_RADIUS = 3600.0         # ...and are put away again past this
 const RESPAWN_SECONDS = 120.0      # a cleared stretch stays clear for a while
 
-# Difficulty curve, measured from WILD_START out to the world's end.
+# Difficulty curve, measured from wild_start out to the world's end.
 const MIN_PER_SECTOR = 1
 const MAX_PER_SECTOR = 7
 const MAX_HP_MULT = 4.2
@@ -53,6 +74,7 @@ func _ready() -> void:
 	var main := get_parent()
 	if main != null and "WORLD_RIGHT" in main:
 		world_right = float(main.WORLD_RIGHT)
+	_resolve_wild_start()
 
 func _process(delta: float) -> void:
 	_scan_timer -= delta
@@ -85,7 +107,7 @@ func _stream(px: float) -> void:
 	var last := int(floor((px + ALIVE_RADIUS) / SECTOR_W))
 	for idx in range(first, last + 1):
 		var center := _sector_center(idx)
-		if center < WILD_START or center > world_right - 400.0:
+		if center < wild_start or center > world_right - 400.0:
 			continue
 		if _live.has(idx):
 			_prune(idx, now)
@@ -99,8 +121,8 @@ func _sector_center(idx: int) -> float:
 
 # 0 at the edge of the wilds, 1 at the world's end.
 func depth_at(x: float) -> float:
-	var span: float = maxf(1.0, world_right - WILD_START)
-	return clampf((x - WILD_START) / span, 0.0, 1.0)
+	var span: float = maxf(1.0, world_right - wild_start)
+	return clampf((x - wild_start) / span, 0.0, 1.0)
 
 func _prune(idx: int, now: float) -> void:
 	var alive := []

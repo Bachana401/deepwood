@@ -40,6 +40,10 @@ const PLATFORM_TUFTS = [
 # version of this system) fill the remaining gaps. Mixed palette: some
 # green-tinted, some the original purple-blue "distant range" tone.
 const MOUNTAIN_Y = 40.0
+# The ridges are BACKDROP and must say so. They had no z at all, so they sat at
+# z0 like the terrain and the player -- and swallowed anything drawn behind
+# them, including the cave mound, which was simply invisible against the hills.
+const MOUNTAIN_Z = -60
 
 # Deep-wood backdrop plate (art/environment/deepwood_backdrop.png, 400x160).
 # INTEGER scale only -- 3 keeps every source pixel exactly 3x3 world px, so the
@@ -1036,6 +1040,7 @@ func generate_mountains() -> void:
 		mountain.position = Vector2(zone.x, MOUNTAIN_Y)
 		mountain.color = zone.color
 		mountain.polygon = generate_mountain_shape(zone.width, zone.height, zone.peaks)
+		mountain.z_index = MOUNTAIN_Z
 		$Background/Mountains.add_child(mountain)
 
 # THE MAP HAD NO BACKDROP PAST THE VILLAGE (sweep 2026-07-21). MOUNTAIN_ZONES is
@@ -1070,6 +1075,7 @@ func _extend_ridges_across_world() -> void:
 		ridge.polygon = generate_mountain_shape(w,
 			rng.randf_range(300.0, 620.0) if far else rng.randf_range(520.0, 900.0),
 			rng.randi_range(2, 4))
+		ridge.z_index = MOUNTAIN_Z
 		$Background/Mountains.add_child(ridge)
 		x += w * rng.randf_range(0.42, 0.66)   # overlap, so no gaps open up
 		i += 1

@@ -128,6 +128,33 @@ func _ready() -> void:
 	await get_tree().process_frame
 	check("...and the third opens it", not is_instance_valid(ud._vault_gates.get(0)))
 
+	# ---- 4d. THE WAY IN, and the road that must survive it ----
+	# A side-scroller road is one-dimensional: anything solid on it is a wall,
+	# and any hole in it is a trap you fall into every time you walk past. The
+	# first cave was a hole that sealed itself with its own stair; the second
+	# was a mound that walled off the village. Both of these must hold at once.
+	var space := get_viewport().world_2d.direct_space_state
+	var broken := 0
+	var rx: float = float(ud.MOUND_LEFT) - 100.0
+	while rx < float(ud.MOUND_RIGHT) + 200.0:
+		var q := PhysicsRayQueryParameters2D.create(Vector2(rx, -120.0), Vector2(rx, 400.0))
+		q.collide_with_areas = false
+		var h := space.intersect_ray(q)
+		if not h or absf(h["position"].y - (-39.0)) > 6.0:
+			broken += 1
+		rx += 40.0
+	check("the road over the cave is unbroken (the village stays reachable)",
+		broken == 0, "%d broken samples" % broken)
+	p.global_position = Vector2(ud.DESCENT_X + 40.0, ud.TUNNEL_TOP_Y - 60.0)
+	p.velocity = Vector2.ZERO
+	for i in range(60):
+		keep_running()
+		await get_tree().physics_frame
+	check("the tunnel head is solid ground you can stand on", p.is_on_floor(),
+		"y=%.0f" % p.global_position.y)
+	check("...and the whole descent lives BELOW the crust",
+		ud.TUNNEL_TOP_Y > 60.0, "tunnel top at %.0f" % ud.TUNNEL_TOP_Y)
+
 	# ---- 5. a door respects the ladder, and hands you back to itself ----
 	GameState.highest_unlocked_level = 3
 	var sealed_door: Node = null

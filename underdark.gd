@@ -64,9 +64,26 @@ const SLAB_EDGE = Color(0.23, 0.2, 0.17, 1.0)
 # way in, and can come back to it whenever. Anything that carves ground here
 # reads this constant -- never a copy of the number.
 const MOUTH_X = 2400.0
-const MOUTH_HALF_W = 90.0
 const STAIR_STEP_W = 36.0
 const STAIR_STEP_DROP = 20.0
+
+# THE CAVE IS A HILLSIDE TUNNEL, NOT A HOLE (dev call 2026-07-21: "raise a
+# rocky mound on the surface, with dark arch, you walk in horizontally and you
+# go down slowly"). The first build was a gap in the flat ground -- and it
+# sealed itself: the stair's top steps sat flush with the surface and 60px
+# thick, so they bridged their own hole and the player walked straight over the
+# entrance every time. Nothing to fall into now. You walk in at ground level
+# through an arch in a rock mound, and the floor falls away beneath you.
+const ARCH_RUN = 130.0             # flat corridor inside the arch before the drop
+const ARCH_HEAD = 120.0            # headroom in the corridor
+const MOUND_LEFT = MOUTH_X - 190.0
+const MOUND_CREST = -250.0         # how high the rock rises above the road
+const DESCENT_X = MOUTH_X + ARCH_RUN
+const CRUST_CARVE = 430.0          # ground removed under the mound, and only there
+const MOUND_RIGHT = DESCENT_X + CRUST_CARVE + 40.0
+# The tunnel begins well under the 77px-thick crust, so nothing it does can
+# open a hole in the road above it.
+const TUNNEL_TOP_Y = 210.0
 
 # --- doors ------------------------------------------------------------------
 const DOORS_PER_BAND = 7
@@ -87,7 +104,9 @@ var _scan_timer := 0.0
 func _ready() -> void:
 	name = "Underdark"
 	_retire_surface_door()
-	_carve_mouth_collision()
+	# NOTE: the crust is NOT carved any more. The whole tunnel lives below it
+	# (TUNNEL_TOP_Y), so the road over the cave is as solid as any other stretch
+	# and the village stays reachable on foot. Entry is the arch prompt.
 	_carve_ground_skin()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = UD_SEED
@@ -112,10 +131,10 @@ func band_floor_y(band: int) -> float:
 # How many steps the descent takes, and therefore where it lets out. Both the
 # stair builder and ud_left read this, so they can never disagree.
 func _stair_steps() -> int:
-	return int(ceil(band_floor_y(0) / STAIR_STEP_DROP))
+	return int(ceil((band_floor_y(0) - TUNNEL_TOP_Y) / STAIR_STEP_DROP))
 
 func _stair_end_x() -> float:
-	return MOUTH_X - MOUTH_HALF_W + _stair_steps() * STAIR_STEP_W
+	return DESCENT_X + _stair_steps() * STAIR_STEP_W
 
 # The old surface door: sign, prompt, zone -- gone. The cave IS the way in.
 func _retire_surface_door() -> void:
@@ -140,8 +159,11 @@ func _carve_mouth_collision() -> void:
 	var half_w: float = old_rect.size.x / 2.0
 	var west_l: float = cs.position.x - half_w
 	var east_r: float = cs.position.x + half_w
-	var gap_l := MOUTH_X - MOUTH_HALF_W
-	var gap_r := MOUTH_X + MOUTH_HALF_W
+	# Only the stretch UNDER THE MOUND loses its crust -- the mound's own solid
+	# body roofs it, so the surface stays walkable and there is no hole to fall
+	# into from above. The tunnel is below the crust by the far end of it.
+	var gap_l := DESCENT_X
+	var gap_r := DESCENT_X + CRUST_CARVE
 	# shrink the original to the west piece...
 	var west := RectangleShape2D.new()
 	west.size = Vector2(gap_l - west_l, old_rect.size.y)
@@ -170,22 +192,16 @@ func _carve_ground_skin() -> void:
 	var ground := main.get_node_or_null("Ground") if main != null else null
 	if ground == null:
 		return
-	var gap_l := MOUTH_X - MOUTH_HALF_W
-	var gap_r := MOUTH_X + MOUTH_HALF_W
+	# THE SKIN IS NO LONGER SPLIT. It was cut open over the descent so the tunnel
+	# showed through -- but the road there is SOLID (the tunnel runs below the
+	# crust now), so the cut read as a hole in the earth you could obviously
+	# fall into, and you cannot. The deep fill is still shortened, because the
+	# tiles would otherwise be drawn over the top of the underworld.
 	for child in ground.get_children():
 		if not (child is Sprite2D) or not child.region_enabled:
 			continue
 		if child.region_rect.size.y > 300.0:
 			child.region_rect.size.y = 165.0 - child.position.y
-		# split around the mouth: shrink the original to the west piece and
-		# clone an east piece
-		var east := child.duplicate()
-		var west_w: float = gap_l - child.position.x
-		var full_w: float = child.region_rect.size.x
-		child.region_rect.size.x = west_w
-		east.region_rect.size.x = full_w - (gap_r - east.position.x)
-		east.position.x = gap_r
-		ground.add_child(east)
 
 func _plan_bands(rng: RandomNumberGenerator) -> void:
 	for b in range(BANDS):
@@ -256,39 +272,53 @@ func _slab(x: float, y: float, w: float, h: float) -> void:
 # The mouth: a dark opening in the surface, then a stair that SLOWLY goes
 # down (dev's words), sinking east ~16px a step until it reaches band 1.
 func _build_mouth_and_stair() -> void:
-	# the opening itself is a real gap in the carved skin -- but the MOUNTAINS
-	# draw at z0 like the skin, so above the rock backdrop's top the hole showed
-	# purple ridge through the earth. A z0 shadow (we are later in the tree than
-	# the Background) blacks out the mouth column; the player stepping through
-	# it briefly vanishes into the dark, which is exactly what walking into a
-	# cave mouth should look like.
-	var shadow := ColorRect.new()
-	shadow.color = ROCK_COLOR
-	shadow.position = Vector2(MOUTH_X - MOUTH_HALF_W - 12.0, -46.0)
-	shadow.size = Vector2(MOUTH_HALF_W * 2.0 + 74.0, 190.0)
-	add_child(shadow)
-	var lintel := Polygon2D.new()
-	lintel.color = Color(0.2, 0.18, 0.16)
-	lintel.polygon = PackedVector2Array([
-		Vector2(MOUTH_X - MOUTH_HALF_W - 34.0, -40.0),
-		Vector2(MOUTH_X - MOUTH_HALF_W + 8.0, -108.0),
-		Vector2(MOUTH_X + MOUTH_HALF_W - 8.0, -108.0),
-		Vector2(MOUTH_X + MOUTH_HALF_W + 34.0, -40.0),
-		Vector2(MOUTH_X + MOUTH_HALF_W, -40.0),
-		Vector2(MOUTH_X, -74.0),
-		Vector2(MOUTH_X - MOUTH_HALF_W, -40.0)])
-	lintel.z_index = 1
-	add_child(lintel)
-	_brazier(Vector2(MOUTH_X - MOUTH_HALF_W - 20.0, -50.0))
-	_brazier(Vector2(MOUTH_X + MOUTH_HALF_W + 20.0, -50.0))
-	# the stair: west wall first so the player can't slip under the world edge
+	var floor_y := -39.0        # the road's own surface: you walk IN, not down
+	# --- the rock mound, drawn ---------------------------------------------
+	var rock := Polygon2D.new()
+	rock.color = Color(0.2, 0.185, 0.17)
+	rock.polygon = PackedVector2Array([
+		Vector2(MOUND_LEFT, floor_y + 6.0),
+		Vector2(MOUND_LEFT + 70.0, MOUND_CREST * 0.45),
+		Vector2(MOUTH_X - 30.0, MOUND_CREST),
+		Vector2(MOUND_RIGHT - 150.0, MOUND_CREST * 0.85),
+		Vector2(MOUND_RIGHT, floor_y + 6.0)])
+	rock.z_index = -2
+	add_child(rock)
+	# the arch: a dark bite out of the mound's west face, at walking height
+	var arch := Polygon2D.new()
+	arch.color = ROCK_COLOR
+	var pts := PackedVector2Array()
+	pts.append(Vector2(MOUTH_X - 4.0, floor_y + 6.0))
+	for i in range(13):        # a rounded head, so it reads as a mouth not a door
+		var t := float(i) / 12.0
+		pts.append(Vector2(MOUTH_X - 4.0 + t * 96.0,
+			floor_y - ARCH_HEAD + 26.0 - sin(t * PI) * 26.0))
+	pts.append(Vector2(MOUTH_X + 92.0, floor_y + 6.0))
+	arch.polygon = pts
+	arch.z_index = -1
+	add_child(arch)
+	_brazier(Vector2(MOUTH_X - 46.0, floor_y - 4.0))
+
+	# --- the mound is SCENERY, and that is deliberate -----------------------
+	# A side-scroller road is one-dimensional: anything solid standing on it is
+	# a wall. The first cut of this mound had a rock shoulder either side of the
+	# arch, and it walled the road east -- you could not reach the village any
+	# more. So the mound never collides. You walk THROUGH the arch (an E prompt,
+	# built below), and the road past it stays exactly as open as it always was.
+	var lip := Polygon2D.new()
+	lip.color = Color(0.145, 0.135, 0.125)
+	lip.polygon = PackedVector2Array([
+		Vector2(MOUTH_X - 26.0, floor_y + 8.0), Vector2(MOUTH_X - 26.0, floor_y - 14.0),
+		Vector2(MOUTH_X + 108.0, floor_y - 14.0), Vector2(MOUTH_X + 108.0, floor_y + 8.0)])
+	lip.z_index = 1
+	add_child(lip)
+	_build_cave_prompt(floor_y)
+
+	# --- the descent, entirely BENEATH the untouched crust ------------------
 	var target_y := band_floor_y(0)
-	_slab(MOUTH_X - MOUTH_HALF_W - 60.0, -40.0, 60.0, target_y + 60.0)
 	var steps := _stair_steps()
-	var x := MOUTH_X - MOUTH_HALF_W
-	# the top step meets the SURFACE (GROUND_Y), so stepping in is a step, not
-	# a plunge -- entering used to cost fall damage before the first tread
-	var y := -39.0
+	var x := DESCENT_X
+	var y := TUNNEL_TOP_Y
 	for i in range(steps):
 		_slab(x, y, STAIR_STEP_W + 26.0, FLOOR_T)
 		x += STAIR_STEP_W
@@ -298,14 +328,12 @@ func _build_mouth_and_stair() -> void:
 	# landing that joins the stair to band 1's spine
 	var first_seg: Dictionary = _plan[0][0]
 	_slab(x, target_y, maxf(80.0, first_seg.x0 - x + 120.0), FLOOR_T)
-	# a ceiling over the stair run so the descent is a real tunnel -- but only
-	# once it is genuinely underground; near the mouth the ceiling would poke
-	# up through the surface, so the first stretch stays open sky-hole
-	x = MOUTH_X - MOUTH_HALF_W
-	y = -240.0
+	# the tunnel ceiling, all the way from the top -- the descent never touches
+	# the crust now, so there is no stretch that must stay open
+	x = DESCENT_X
+	y = TUNNEL_TOP_Y - TUNNEL_H
 	for i in range(steps):
-		if y > 40.0:
-			_slab(x, y, STAIR_STEP_W + 26.0, FLOOR_T)
+		_slab(x, y, STAIR_STEP_W + 26.0, FLOOR_T)
 		x += STAIR_STEP_W
 		y += STAIR_STEP_DROP
 
@@ -480,6 +508,7 @@ func _place_seams(rng: RandomNumberGenerator) -> void:
 
 # --- streamed cave mobs (the east road's three rules, underground) ----------
 func _process(delta: float) -> void:
+	_tick_cave_mouth()
 	_scan_timer -= delta
 	if _scan_timer > 0.0:
 		return
@@ -674,3 +703,87 @@ func rune_lit(band: int) -> void:
 	var gate = _vault_gates.get(band)
 	if gate != null and is_instance_valid(gate):
 		gate.queue_free()
+
+# --- the arch you walk into -------------------------------------------------
+# Standing in the mouth and pressing E puts you at the head of the tunnel, and
+# the same prompt at the tunnel head brings you back out. A physical opening in
+# the road would either block the way east or drop you in every time you walked
+# past -- see the note in _build_mouth_and_stair.
+var _cave_prompt: Label = null
+var _exit_prompt: Label = null
+var _at_mouth := false
+var _at_head := false
+
+func _build_cave_prompt(floor_y: float) -> void:
+	var mouth := Area2D.new()
+	mouth.collision_mask = 2
+	var mcs := CollisionShape2D.new()
+	var mr := RectangleShape2D.new()
+	mr.size = Vector2(150.0, 130.0)
+	mcs.shape = mr
+	mcs.position = Vector2(MOUTH_X + 40.0, floor_y - 55.0)
+	mouth.add_child(mcs)
+	add_child(mouth)
+	mouth.body_entered.connect(func(b):
+		if b.is_in_group("player"):
+			_at_mouth = true
+			_cave_prompt.visible = true)
+	mouth.body_exited.connect(func(b):
+		if b.is_in_group("player"):
+			_at_mouth = false
+			_cave_prompt.visible = false)
+	_cave_prompt = Label.new()
+	_cave_prompt.text = "[E]  Into the cave"
+	_cave_prompt.add_theme_font_size_override("font_size", 13)
+	_cave_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_cave_prompt.position = Vector2(MOUTH_X - 110.0, floor_y - 190.0)
+	_cave_prompt.size = Vector2(300.0, 20.0)
+	_cave_prompt.visible = false
+	_cave_prompt.z_index = 5
+	add_child(_cave_prompt)
+
+	var head := Area2D.new()
+	head.collision_mask = 2
+	var hcs := CollisionShape2D.new()
+	var hr := RectangleShape2D.new()
+	hr.size = Vector2(150.0, 150.0)
+	hcs.shape = hr
+	hcs.position = Vector2(DESCENT_X + 40.0, TUNNEL_TOP_Y - 70.0)
+	head.add_child(hcs)
+	add_child(head)
+	head.body_entered.connect(func(b):
+		if b.is_in_group("player"):
+			_at_head = true
+			_exit_prompt.visible = true)
+	head.body_exited.connect(func(b):
+		if b.is_in_group("player"):
+			_at_head = false
+			_exit_prompt.visible = false)
+	_exit_prompt = Label.new()
+	_exit_prompt.text = "[E]  Back out into the daylight"
+	_exit_prompt.add_theme_font_size_override("font_size", 13)
+	_exit_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_exit_prompt.position = Vector2(DESCENT_X - 110.0, TUNNEL_TOP_Y - 200.0)
+	_exit_prompt.size = Vector2(300.0, 20.0)
+	_exit_prompt.visible = false
+	_exit_prompt.z_index = 5
+	add_child(_exit_prompt)
+
+func _tick_cave_mouth() -> void:
+	if not (_at_mouth or _at_head):
+		return
+	if not Input.is_action_just_pressed("interact"):
+		return
+	var pl = get_tree().get_first_node_in_group("player")
+	if pl == null:
+		return
+	if _at_mouth:
+		pl.global_position = Vector2(DESCENT_X + 40.0, TUNNEL_TOP_Y - 60.0)
+		_at_mouth = false
+		_cave_prompt.visible = false
+		GameState.notify("The air turns cold. The floor slopes away east.")
+	else:
+		pl.global_position = Vector2(MOUTH_X + 30.0, -70.0)
+		_at_head = false
+		_exit_prompt.visible = false
+	pl.velocity = Vector2.ZERO

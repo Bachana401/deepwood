@@ -44,11 +44,31 @@ func _ready() -> void:
 		printerr("RESULT: 1 FAILURES"); get_tree().quit(1); return
 
 	# ---- 1. the village is NOT wild, and the east road IS ----
-	p.global_position = Vector2(2200.0, -100.0)
-	var home_count: int = await _settle(p, wild, Vector2(2200.0, -100.0))
-	check("no wild mobs spawn on top of the village", home_count == 0, "%d at home" % home_count)
+	# Check the MIDDLE of the town, not the road west of it. The old check stood
+	# at x=2200 -- outside the west wall, where nothing was ever going to spawn
+	# -- and so it passed happily while mobs streamed among the houses from 5200
+	# to 22693 (the whole village). Test the place the bug actually was.
+	var west_x := 4700.0
+	var east_x := 22693.0
+	for w in get_tree().get_nodes_in_group("village_wall"):
+		if "flank" in w and w.flank == "west":
+			west_x = w.global_position.x
+		elif "flank" in w and w.flank == "east":
+			east_x = w.global_position.x
+	check("the wilds begin OUTSIDE the east gate", wild.wild_start > east_x,
+		"wilds at %.0f, east gate at %.0f" % [wild.wild_start, east_x])
+	var mid_town := (west_x + east_x) * 0.5
+	await _settle(p, wild, Vector2(mid_town, -100.0))
+	check("no wild mobs spawn in the middle of the village", _inside(west_x, east_x) == 0,
+		"%d among the houses at x=%.0f" % [_inside(west_x, east_x), mid_town])
+	# Standing just inside the gate you can SEE the wilds -- that is the point.
+	# What must never happen is one of them being inside the walls with you, so
+	# count by POSITION, not by how many happen to be alive within earshot.
+	await _settle(p, wild, Vector2(east_x - 600.0, -100.0))
+	check("...nor any that a player at the gate could walk back to town with",
+		_inside(west_x, east_x) == 0, "%d inside the walls" % _inside(west_x, east_x))
 
-	var near: int = await _settle(p, wild, Vector2(wild.WILD_START + 1200.0, -100.0))
+	var near: int = await _settle(p, wild, Vector2(wild.wild_start + 1400.0, -100.0))
 	check("the road east of the village is populated", near > 0, "%d near the edge" % near)
 
 	var far: int = await _settle(p, wild, Vector2(30000.0, -100.0))
@@ -105,3 +125,13 @@ func _settle(p: Node, wild: Node, pos: Vector2) -> int:
 		p.velocity = Vector2.ZERO
 		await get_tree().physics_frame
 	return wild.live_count()
+
+# How many wild mobs are standing INSIDE the village walls right now.
+func _inside(west_x: float, east_x: float) -> int:
+	var n := 0
+	for e in get_tree().get_nodes_in_group("course_enemy"):
+		if not is_instance_valid(e) or not ("is_wild" in e) or not e.is_wild:
+			continue
+		if e.global_position.x > west_x and e.global_position.x < east_x:
+			n += 1
+	return n
