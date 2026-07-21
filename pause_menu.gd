@@ -122,9 +122,20 @@ func _build_chronicle() -> void:
 	chron_panel = Panel.new()
 	chron_panel.name = "ChroniclePanel"
 	chron_panel.visible = false
-	chron_panel.position = Vector2(290, 0)
 	chron_panel.size = Vector2(520, 360)
 	$Panel.add_child(chron_panel)
+	# THE BOOK RAN OFF THE SCREEN. It used to hang at a fixed +290 from the
+	# pause panel's left edge -- which fitted only while that panel sat at
+	# x=340. Re-centring the pause menu (it was centred on 480, half of a
+	# viewport this game stopped using) pushed the Chronicle's right edge to
+	# 1246 in a 1152-wide UI, and the seventh line's text was cut off mid-word.
+	# Derive its place from the SCREEN, so moving the menu can never shove the
+	# book off the edge again.
+	var ui_w: float = float(ProjectSettings.get_setting("display/window/size/viewport_width", 1152))
+	var ui_h: float = float(ProjectSettings.get_setting("display/window/size/viewport_height", 648))
+	chron_panel.position = Vector2(
+		(ui_w - chron_panel.size.x) / 2.0 - $Panel.offset_left,
+		(ui_h - chron_panel.size.y) / 2.0 - $Panel.offset_top)
 	var title := Label.new()
 	title.text = "THE CHRONICLE OF DEEPWOOD"
 	title.add_theme_font_size_override("font_size", 18)

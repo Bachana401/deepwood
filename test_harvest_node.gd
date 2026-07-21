@@ -220,6 +220,26 @@ func _ready() -> void:
 	var pm := FileAccess.open("res://pause_menu.gd", FileAccess.READ).get_as_text()
 	check("the pause menu carries the book into both scenes",
 		pm.contains("ChronicleButton") and pm.contains("GameState.chronicle()"))
+	# ...AND THE BOOK MUST FIT ON THE SCREEN. It used to hang at a fixed offset
+	# from the pause panel, so re-centring that panel silently pushed its right
+	# edge to 1246 in a 1152-wide UI and cut the last lines off mid-word. Nobody
+	# noticed until it was rendered. Placed from the screen now -- assert that.
+	var live_pm: Node = null
+	for n in get_tree().root.find_children("*", "", true, false):
+		if n.get_script() != null and str(n.get_script().resource_path).ends_with("pause_menu.gd"):
+			live_pm = n
+			break
+	if live_pm != null and live_pm.chron_panel != null:
+		var ui_w: float = float(ProjectSettings.get_setting("display/window/size/viewport_width", 1152))
+		var ui_h: float = float(ProjectSettings.get_setting("display/window/size/viewport_height", 648))
+		var left: float = live_pm.get_node("Panel").offset_left + live_pm.chron_panel.position.x
+		var top: float = live_pm.get_node("Panel").offset_top + live_pm.chron_panel.position.y
+		check("the Chronicle fits on the screen, whatever the menu does",
+			left >= 0.0 and left + live_pm.chron_panel.size.x <= ui_w
+			and top >= 0.0 and top + live_pm.chron_panel.size.y <= ui_h,
+			"spans %.0f..%.0f x %.0f..%.0f in %.0fx%.0f" % [
+				left, left + live_pm.chron_panel.size.x,
+				top, top + live_pm.chron_panel.size.y, ui_w, ui_h])
 
 	# ---- the softlock guard: the wand returns AT THE FEAST ----
 	check("the reveal hands the wand back if you left it behind",
