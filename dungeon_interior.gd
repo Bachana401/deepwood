@@ -1469,6 +1469,18 @@ func spawn_level_combat() -> void:
 			GameState.seen_l100_reveal = true
 			call_deferred("play_empty_throne")
 		return
+	# A FLOOR YOU ALREADY SWEPT IS STILL SWEPT. Nothing respawns here -- not
+	# after a walk home, not after a night's sleep, not after a reload. It
+	# stands as an open corridor you can cross on the way somewhere deeper.
+	# (The Ten's vaults and any un-freed hostage still stand: those are yours
+	# to collect, not enemies to refight -- see spawn_deep_rescue below.)
+	if GameState.floor_is_cleared(current_level):
+		level_in_progress = false
+		level_cleared = true
+		spawn_deep_rescue()
+		update_level_label()
+		show_notification("Floor %d is as you left it — nothing living stirs." % current_level)
+		return
 	if is_boss_level(current_level):
 		var b = spawn_boss()
 		var intro = "Level %d - %s awakens!" % [current_level, b.get_display_name()]
@@ -1976,6 +1988,9 @@ func _on_combatant_died() -> void:
 		# a cleared floor deserves a SOUND, not only a line of text -- and a
 		# felled boss rings brighter than a cleared corridor
 		GameState.play_sfx(GameState.SFX_CHIME, 1.6 if is_boss_level(current_level) else 1.15)
+		# what you killed STAYS killed -- this floor never repopulates again,
+		# in this run, however long you are away (dev rule 2026-07-21)
+		GameState.mark_floor_cleared(current_level)
 		GameState.highest_unlocked_level = max(GameState.highest_unlocked_level, current_level + 1)
 		# a cleared floor is a milestone worth banking (autosave)
 		GameState.autosave("floor %d cleared" % current_level, true)

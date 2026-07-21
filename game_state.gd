@@ -14,6 +14,21 @@ var deepest_level_reached = 0
 # part of the save file, not just a per-run counter (see DungeonManager).
 var highest_unlocked_level = 1
 
+# A FLOOR YOU CLEARED STAYS CLEARED (dev rule 2026-07-21): "mobs never respawn
+# as long as player killed that level" -- leaving, coming back hours later, or
+# quitting and reloading changes nothing. Floors used to repopulate on every
+# entry, so re-crossing a cleared floor to reach a deeper one meant fighting it
+# again from scratch. Per-run (a New Game starts with an unswept deep), keyed
+# by floor number as a String because JSON keys are strings and a round-trip
+# through the save would otherwise turn 7 into "7" and lose every entry.
+var floors_cleared: Dictionary = {}
+
+func floor_is_cleared(level: int) -> bool:
+	return bool(floors_cleared.get(str(level), false))
+
+func mark_floor_cleared(level: int) -> void:
+	floors_cleared[str(level)] = true
+
 # Story: the opening plea (Story.OPENING) plays once at the start of a new game.
 # Persisted so Continue never replays it; reset by reset_for_new_game().
 var seen_intro := false
@@ -3375,6 +3390,7 @@ func reset_for_new_game() -> void:
 	pregnancies = {}
 	school_enrollments = {}
 	highest_unlocked_level = 999 if TEST_UNLOCK_ALL_LEVELS else 1
+	floors_cleared = {}                        # a new run's deep is unswept
 	village_last_hours_elapsed = 0.0
 	game_hours = 0.0
 	hours_until_next_siege = SIEGE_FIRST_HOURS
@@ -3514,6 +3530,7 @@ func save_game(player: Node) -> void:
 		"pregnancies": pregnancies,
 		"school_enrollments": school_enrollments,
 		"highest_unlocked_level": highest_unlocked_level,
+		"floors_cleared": floors_cleared,
 		"player_xp": player_xp,
 		"player_level": player_level,
 		"skill_points": skill_points,
@@ -3621,6 +3638,8 @@ func load_game() -> Dictionary:
 			school_enrollments = parsed["school_enrollments"]
 		if parsed.has("highest_unlocked_level"):
 			highest_unlocked_level = parsed["highest_unlocked_level"]
+		if parsed.has("floors_cleared") and parsed["floors_cleared"] is Dictionary:
+			floors_cleared = parsed["floors_cleared"]
 		if TEST_UNLOCK_ALL_LEVELS:
 			highest_unlocked_level = max(highest_unlocked_level, 999)
 		player_xp = parsed.get("player_xp", player_xp)

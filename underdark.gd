@@ -37,6 +37,16 @@ const BANDS = 8
 const BAND_H = 1340.0              # solid rock + tunnel per band
 const TUNNEL_H = 250.0             # breathing room of a normal tunnel
 const CHAMBER_H = 620.0            # ...and of a chamber
+const ARENA_H = 1050.0             # a hall you can fight a crowd in
+const CRAWL_H = 130.0              # a squeeze -- no room to swing wide
+const TRAP_SCENE = preload("res://trap.tscn")
+const CHEST_SCENE = preload("res://chest.tscn")
+
+# What a chest of the deep can hold, by band. Shallow caves pay in supplies and
+# materials; the deepest pay in the things you cannot buy.
+const LOOT_SHALLOW = ["potion_health", "wood", "stone", "iron_shard", "herb", "resin", "raw_meat"]
+const LOOT_MID = ["potion_health", "potion_mana", "iron_shard", "ember_crystal", "food_stew", "coin_gold"]
+const LOOT_DEEP = ["potion_mana", "ember_crystal", "void_essence", "ancient_relic", "coin_gold"]
 const FLOOR_T = 60.0               # slab thickness
 const MAX_STEP = 70.0              # floor jitter between segments (92px rule)
 const ROCK_COLOR = Color(0.055, 0.05, 0.068, 1.0)
@@ -93,6 +103,8 @@ func _ready() -> void:
 	_build_shaft_ladders()
 	_place_doors(rng)
 	_place_seams(rng)
+	_place_chests(rng)
+	_build_rune_vaults(rng)
 
 func band_floor_y(band: int) -> float:
 	return UD_TOP + (band + 1) * BAND_H - 180.0
@@ -182,14 +194,31 @@ func _plan_bands(rng: RandomNumberGenerator) -> void:
 		var floor_y := base
 		var x := ud_left
 		while x < UD_RIGHT:
+			# THE SHAPE OF THE DEEP: mostly tunnel, with chambers to breathe in,
+			# rare ARENAS wide and tall enough to fight a crowd, and CRAWLS that
+			# squeeze you down to a corridor you cannot swing wide in. Variety
+			# is what makes it a place rather than a very long hallway.
+			var roll := rng.randf()
+			var kind := "tunnel"
 			var w := rng.randf_range(700.0, 1400.0)
-			var chamber := rng.randf() < 0.22
+			if roll < 0.09:
+				kind = "arena"
+				w = rng.randf_range(1500.0, 2300.0)
+			elif roll < 0.28:
+				kind = "chamber"
+			elif roll < 0.40:
+				kind = "crawl"
+				w = rng.randf_range(420.0, 780.0)
 			floor_y = clampf(floor_y + rng.randf_range(-MAX_STEP, MAX_STEP),
 				base - 140.0, base + 140.0)
+			var head: float = TUNNEL_H
+			match kind:
+				"arena": head = ARENA_H
+				"chamber": head = CHAMBER_H
+				"crawl": head = CRAWL_H
 			segs.append({
 				"x0": x, "x1": minf(x + w, UD_RIGHT), "floor_y": floor_y,
-				"ceil_y": floor_y - (CHAMBER_H if chamber else TUNNEL_H),
-				"kind": "chamber" if chamber else "tunnel",
+				"ceil_y": floor_y - head, "kind": kind,
 			})
 			x += w
 		_plan[b] = segs
@@ -295,6 +324,19 @@ func _build_bands(rng: RandomNumberGenerator) -> void:
 						s.floor_y - rng.randf_range(90.0, 170.0),
 						rng.randf_range(120.0, 220.0), 16.0)
 				_brazier(Vector2(s.x0 + w * 0.5, s.floor_y - 40.0))
+			elif s.kind == "arena":
+				# a fighting hall: tiered ledges around the rim so a crowd can
+				# come at you from above, and lit at both ends
+				for p in range(rng.randi_range(3, 5)):
+					_slab(s.x0 + rng.randf_range(0.1, 0.85) * w,
+						s.floor_y - rng.randf_range(150.0, 620.0),
+						rng.randf_range(160.0, 300.0), 16.0)
+				_brazier(Vector2(s.x0 + 90.0, s.floor_y - 40.0))
+				_brazier(Vector2(s.x1 - 90.0, s.floor_y - 40.0))
+			elif s.kind == "crawl":
+				# a squeeze is where a trap actually bites -- nowhere to dodge
+				if rng.randf() < 0.75:
+					_trap(Vector2(s.x0 + w * rng.randf_range(0.3, 0.7), s.floor_y - 14.0))
 			elif rng.randf() < 0.35:
 				_brazier(Vector2(s.x0 + w * 0.5, s.floor_y - 34.0))
 		# hard walls at both ends of the band
@@ -534,3 +576,101 @@ func live_count() -> int:
 			if is_instance_valid(e) and not e.is_dead:
 				n += 1
 	return n
+
+# --- traps, chests, and the rune vaults -------------------------------------
+func _trap(pos: Vector2) -> void:
+	var t = TRAP_SCENE.instantiate()
+	add_child(t)
+	t.global_position = pos
+
+# Chests of the deep. Contents are rolled ONCE from the band's table and then
+# live in GameState.chest_contents under a position-stable id, so a chest you
+# emptied stays empty and one you left full is still full when you come back --
+# the same promise the cleared floors make.
+func _stock_chest(chest: Node, band: int, rng: RandomNumberGenerator) -> void:
+	if GameState.chest_contents.has(chest.chest_id):
+		return                      # already rolled in an earlier session
+	var table: Array = LOOT_SHALLOW
+	if band >= 5:
+		table = LOOT_DEEP
+	elif band >= 2:
+		table = LOOT_MID
+	for i in range(rng.randi_range(2, 4)):
+		var id: String = table[rng.randi_range(0, table.size() - 1)]
+		chest.inventory.add_item(id, rng.randi_range(1, 3 if band < 5 else 2))
+	GameState.chest_contents[chest.chest_id] = chest.inventory.to_save_data()
+
+func _add_chest(pos: Vector2, band: int, tag: String, rng: RandomNumberGenerator) -> void:
+	var c = CHEST_SCENE.instantiate()
+	c.chest_id = "ud_%s_%d_%d" % [tag, band, int(pos.x)]
+	# parented to MAIN, not to the Underdark: chest.gd opens the shared window
+	# through the relative path "../ChestUI", which only resolves for a direct
+	# child of the village scene (tool_wiring_audit polices exactly this).
+	get_parent().add_child(c)
+	c.global_position = pos
+	_stock_chest(c, band, rng)
+
+func _place_chests(rng: RandomNumberGenerator) -> void:
+	for b in range(BANDS):
+		for s in _plan[b]:
+			if s.kind != "chamber" and s.kind != "arena":
+				continue
+			if rng.randf() > 0.55:
+				continue
+			_add_chest(Vector2(lerpf(s.x0 + 120.0, s.x1 - 120.0, rng.randf()), s.floor_y - 16.0),
+				b, "cache", rng)
+
+# THE RUNE VAULTS -- one per band. A barred gate with a real prize behind it,
+# and three rune stones scattered along that band's tunnels. Press E on all
+# three and the bars fall. It is a reason to sweep a whole band rather than
+# beeline for the next shaft.
+var _vault_runes := {}      # band -> total lit
+var _vault_gates := {}      # band -> Array[StaticBody2D]
+
+func _build_rune_vaults(rng: RandomNumberGenerator) -> void:
+	for b in range(BANDS):
+		var segs: Array = _plan[b]
+		if segs.size() < 8:
+			continue
+		var vault: Dictionary = segs[segs.size() - 2]
+		var gx: float = vault.x1 - 200.0
+		# the bars: two slabs the player cannot pass until the runes are lit
+		var gate := StaticBody2D.new()
+		var gcs := CollisionShape2D.new()
+		var grect := RectangleShape2D.new()
+		grect.size = Vector2(24.0, 200.0)
+		gcs.shape = grect
+		gate.add_child(gcs)
+		var gvis := ColorRect.new()
+		gvis.color = Color(0.36, 0.33, 0.2)
+		gvis.size = Vector2(24.0, 200.0)
+		gvis.position = Vector2(-12.0, -100.0)
+		gvis.z_index = -1
+		gate.add_child(gvis)
+		add_child(gate)
+		gate.global_position = Vector2(gx, vault.floor_y - 100.0)
+		_vault_gates[b] = gate
+		_vault_runes[b] = 0
+		# the prize
+		_add_chest(Vector2(gx + 110.0, vault.floor_y - 16.0), b, "vault", rng)
+		# three runes, spread across the band's earlier tunnels
+		for i in range(3):
+			var s: Dictionary = segs[rng.randi_range(1, maxi(1, segs.size() - 4))]
+			var rune := preload("res://underdark_rune.gd").new()
+			rune.band = b
+			rune.host = self
+			add_child(rune)
+			rune.global_position = Vector2(lerpf(s.x0 + 90.0, s.x1 - 90.0, rng.randf()),
+				s.floor_y - 24.0)
+
+# called by a rune when the player lights it
+func rune_lit(band: int) -> void:
+	_vault_runes[band] = int(_vault_runes.get(band, 0)) + 1
+	var lit: int = _vault_runes[band]
+	if lit < 3:
+		GameState.notify("A rune warms under your hand — %d of 3." % lit)
+		return
+	GameState.notify("The bars grind back. Something was kept here.")
+	var gate = _vault_gates.get(band)
+	if gate != null and is_instance_valid(gate):
+		gate.queue_free()

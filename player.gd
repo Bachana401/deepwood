@@ -94,6 +94,9 @@ const WEAPON_PROJECTILE_SCRIPT = preload("res://weapon_projectile.gd")
 # bag needs headroom. The inventory panel sizes itself from this (see
 # inventory_ui.build_slots).
 const INVENTORY_CAPACITY = 55
+# How far apart two things must be vertically before they count as standing on
+# different ground (used by building relocation -- see try_plant_building).
+const SAME_GROUND_Y = 400.0
 # 9999 starting gold was a debug leftover from before real inventory slots
 # existed -- at 999/stack that alone would fill 10 of 15 slots on a brand
 # new save. Dropped to a sane starting amount now that currency is a real
@@ -1447,6 +1450,13 @@ func try_plant_building() -> void:
 				stack.show_notification("Too close to the %s — find clearer ground." % other.building_name)
 			return
 	for node in get_tree().get_nodes_in_group("village_structure"):
+		# ...that share this GROUND. The clearance test compared x alone, which
+		# was fine while every structure stood in the village -- but the
+		# Underdark's chests are village_structures too, strung the whole width
+		# of the map a kilometre DOWN. Without a height check they reserved the
+		# surface above themselves and the player could barely plant anywhere.
+		if absf(global_position.y - node.global_position.y) > SAME_GROUND_Y:
+			continue
 		if absf(x - node.global_position.x) < my_half + 60.0 + GameState.RELOCATE_CLEARANCE:
 			if stack:
 				stack.show_notification("Too close to a structure — find clearer ground.")

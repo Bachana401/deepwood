@@ -78,6 +78,56 @@ func _ready() -> void:
 	check("a brand-new run can actually get in (a floor-1 door exists)",
 		minlv == 1, "shallowest door is floor %d" % minlv)
 
+	# ---- 4b. it is a PLACE, not a hallway: arenas, squeezes, loot, traps ----
+	var kinds := {}
+	for b in range(ud.BANDS):
+		for s in ud._plan[b]:
+			kinds[s.kind] = int(kinds.get(s.kind, 0)) + 1
+	check("there are huge halls to fight crowds in", int(kinds.get("arena", 0)) >= 10,
+		"%d arenas" % int(kinds.get("arena", 0)))
+	check("...and tight squeezes between them", int(kinds.get("crawl", 0)) >= 10,
+		"%d crawls" % int(kinds.get("crawl", 0)))
+	check("...and chambers, and plain tunnel to connect it all",
+		int(kinds.get("chamber", 0)) >= 20 and int(kinds.get("tunnel", 0)) >= 50)
+	var traps := 0
+	var runes := 0
+	for c in ud.get_children():
+		var sp = c.get_script()
+		if sp == null:
+			continue
+		if str(sp.resource_path).ends_with("trap.gd"):
+			traps += 1
+		elif str(sp.resource_path).ends_with("underdark_rune.gd"):
+			runes += 1
+	check("the squeezes are trapped", traps >= 8, "%d traps" % traps)
+	var chests := 0
+	var deep_loot := false
+	for c in get_tree().current_scene.get_children():
+		var sp2 = c.get_script()
+		if sp2 == null or not str(sp2.resource_path).ends_with("chest.gd"):
+			continue
+		if not str(c.chest_id).begins_with("ud_"):
+			continue
+		chests += 1
+		for slot in c.inventory.slots:
+			if slot != null and str(slot.item_id) in ["void_essence", "ancient_relic"]:
+				deep_loot = true
+	check("the deep is worth looting", chests >= 20, "%d chests" % chests)
+	check("...and the deepest caches pay in what you cannot buy", deep_loot)
+
+	# ---- 4c. the rune puzzle actually unbars its vault ----
+	check("every band hides a barred vault", ud._vault_gates.size() == ud.BANDS,
+		"%d gates" % ud._vault_gates.size())
+	check("...with three runes each to find", runes == ud.BANDS * 3, "%d runes" % runes)
+	var gate0 = ud._vault_gates.get(0)
+	check("the vault is BARRED until the runes are lit", is_instance_valid(gate0))
+	ud.rune_lit(0)
+	ud.rune_lit(0)
+	check("...two of three is not enough", is_instance_valid(ud._vault_gates.get(0)))
+	ud.rune_lit(0)
+	await get_tree().process_frame
+	check("...and the third opens it", not is_instance_valid(ud._vault_gates.get(0)))
+
 	# ---- 5. a door respects the ladder, and hands you back to itself ----
 	GameState.highest_unlocked_level = 3
 	var sealed_door: Node = null
