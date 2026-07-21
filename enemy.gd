@@ -2,7 +2,11 @@ extends CharacterBody2D
 
 const SPEED = 100.0
 const GRAVITY = 900.0
-const DETECTION_RANGE = 225.0
+# Dev call 2026-07-21: sight cut 15% (was 225) -- "I don't want them to non
+# stop follow me everywhere". Everything downstream scales off this: bows see
+# 2x it, a wall-alerted mob adds WALL_DETECTION_BONUS, and the respawn-growth
+# curve multiplies it -- so one number moves the whole aggro economy.
+const DETECTION_RANGE = 191.0
 const KNOCKBACK_DURATION = 0.12
 const MAX_HEALTH = 60
 const BUMP_THRESHOLD = 42.0
