@@ -140,5 +140,21 @@ func _ready() -> void:
 	check("a felled boss always restocks the belt",
 		FileAccess.open("res://dungeon_interior.gd", FileAccess.READ).get_as_text().contains("The boss's cache"))
 
+	# ---- GATHERING: a tree is four swings, a seam is a DEPOSIT ----
+	var hsrc := FileAccess.open("res://harvest_node.gd", FileAccess.READ).get_as_text()
+	check("a rock holds 20x a tree's reserve",
+		hsrc.contains("ROCK_RESERVE_MULT = 20")
+		and hsrc.contains("ROCK_RESERVE = HITS_TO_HARVEST * ROCK_RESERVE_MULT"))
+	check("every pickaxe swing PAYS, it doesn't wait for the end",
+		hsrc.contains("func _mine_swing") and hsrc.contains('player.inventory.add_item("stone", 1)'))
+	check("the seam SHRINKS as it empties -- the size is the gauge",
+		hsrc.contains("func _apply_reserve_scale") and hsrc.contains("ROCK_MIN_SCALE"))
+	check("...and only vanishes when the reserve is worked out",
+		hsrc.contains("func _exhaust_seam") and hsrc.contains("reserve_left <= 0"))
+	check("a regrown seam stands full height again",
+		hsrc.contains("visual_root.scale = Vector2.ONE"))
+	check("trees still fall in HITS_TO_HARVEST swings",
+		hsrc.contains("hits_left -= 1") and hsrc.contains("if hits_left <= 0:"))
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

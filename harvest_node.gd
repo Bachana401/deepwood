@@ -17,8 +17,19 @@ const HITS_TO_HARVEST = 4
 const REGROW_SECONDS = 150.0
 const RELIC_FIND_CHANCE = 0.02
 
+# STONE IS A DEPOSIT, NOT A TREE (dev call 2026-07-21). A tree is four swings
+# and it's gone. A rock holds TWENTY TIMES that reserve, pays out on every
+# swing as you work it, and SHRINKS as it empties -- the shrinking IS the
+# gauge, so you can read a seam's worth from across the clearing. When the
+# reserve runs out it finally disappears (and a new seam surfaces later).
+const ROCK_RESERVE_MULT = 20
+const ROCK_RESERVE = HITS_TO_HARVEST * ROCK_RESERVE_MULT   # 80 swings
+const ROCK_MIN_SCALE = 0.34        # how small a nearly-spent seam looks
+const ROCK_REGROW_SECONDS = 420.0  # a whole deposit takes far longer to return
+
 var node_type := "tree"   # "tree" | "rock"
 var hits_left := HITS_TO_HARVEST
+var reserve_left := ROCK_RESERVE
 var depleted := false
 var visual_root: Node2D = null
 var shake_tween: Tween = null
@@ -99,11 +110,49 @@ func take_tool_hit(tool_type: String, player: Node) -> void:
 	if tool_type != wanted:
 		_notify("This %s needs a %s." % [node_type, "Woodsman's Axe" if wanted == "axe" else "Miner's Pickaxe"])
 		return
-	hits_left -= 1
 	_shake()
 	_spawn_chips()
+	if node_type == "rock":
+		_mine_swing(player)
+		return
+	hits_left -= 1
 	if hits_left <= 0:
 		_harvest(player)
+
+# One pickaxe swing into a seam: it pays immediately, shrinks a little, and
+# only vanishes once the whole reserve is worked out.
+func _mine_swing(player: Node) -> void:
+	reserve_left -= 1
+	player.inventory.add_item("stone", 1)
+	if randf() < 0.35:
+		player.inventory.add_item("stone", 1)
+	# the deeper minerals the skill tree spends, surfacing as you work
+	if randf() < 0.05:
+		player.inventory.add_item("iron_shard", 1)
+		_notify("A vein of " + Inventory.get_display_name("iron_shard") + "!")
+	elif randf() < 0.025:
+		player.inventory.add_item("ember_crystal", 1)
+		_notify("A vein of " + Inventory.get_display_name("ember_crystal") + "!")
+	if randf() < RELIC_FIND_CHANCE * 0.25 and player.inventory.get_count("relic_mountain") == 0:
+		player.inventory.add_item("relic_mountain", 1)
+		_notify("Deep in the stone... the Heart of the Mountain!")
+	_apply_reserve_scale()
+	if reserve_left <= 0:
+		_exhaust_seam()
+
+# The visible gauge: a full seam stands tall, a spent one is a stub.
+func _apply_reserve_scale() -> void:
+	var frac: float = clampf(float(reserve_left) / float(ROCK_RESERVE), 0.0, 1.0)
+	var s: float = lerpf(ROCK_MIN_SCALE, 1.0, frac)
+	var t := create_tween()
+	t.tween_property(visual_root, "scale", Vector2(s, s), 0.12)
+
+func _exhaust_seam() -> void:
+	depleted = true
+	_notify("The seam is worked out.")
+	var fade = create_tween()
+	fade.tween_property(visual_root, "modulate:a", 0.0, 0.5)
+	get_tree().create_timer(ROCK_REGROW_SECONDS).timeout.connect(_regrow)
 
 func _shake() -> void:
 	if shake_tween:
@@ -172,6 +221,8 @@ func _regrow() -> void:
 		return
 	depleted = false
 	hits_left = HITS_TO_HARVEST
+	reserve_left = ROCK_RESERVE
+	visual_root.scale = Vector2.ONE      # a fresh seam stands full height again
 	var grow = create_tween()
 	grow.tween_property(visual_root, "modulate:a", 1.0, 0.6)
 
