@@ -340,9 +340,22 @@ func build_health_bar() -> void:
 
 # Public entry point for anything that hurts a villager (reserved for the
 # future village-siege enemies). Villagers sheltered inside a building are safe.
+# A struck villager RUNS FOR HOME (dev call 2026-07-21). They used to take a
+# hit and keep ambling along their wander route as if nothing had happened.
+# Now a blow sends them sprinting for the heart of the village, and they stay
+# panicked for a while after the last hit.
+const FLEE_SECONDS := 6.0
+const FLEE_SPEED_MULT := 2.6
+var flee_until := 0.0
+
+func is_fleeing() -> bool:
+	return Time.get_ticks_msec() / 1000.0 < flee_until
+
 func take_damage(amount: int) -> void:
 	if is_in_building:
 		return
+	# panic first -- even a survivable hit sends them running
+	flee_until = Time.get_ticks_msec() / 1000.0 + FLEE_SECONDS
 	health -= amount
 	if health <= 0:
 		die()
@@ -453,6 +466,34 @@ func _physics_process(delta: float) -> void:
 
 	if not is_on_floor():
 		velocity.y += GRAVITY * delta
+
+	# PANIC: struck villagers run for the heart of the village and do not
+	# stop to chat, wander or clock in until the fright wears off.
+	if is_fleeing():
+		var span := _village_span()
+		var haven: float = (span.x + span.y) * 0.5
+		var dxh: float = haven - global_position.x
+		if absf(dxh) > 24.0:
+			direction = signf(dxh)
+			velocity.x = direction * SPEED * FLEE_SPEED_MULT
+			is_walking = true
+			if body_gfx:
+				body_gfx.scale.x = direction * body_scale_factor
+			_update_villager_anim()
+			walk_anim_t += delta * 15.0        # frantic stride
+			var flee_swing := sin(walk_anim_t)
+			if l_leg:
+				l_leg.rotation = flee_swing * 0.7
+				r_leg.rotation = -flee_swing * 0.7
+				l_arm.rotation = -flee_swing * 0.6
+				r_arm.rotation = flee_swing * 0.6
+			move_and_slide()
+			return
+		velocity.x = 0.0                        # made it home -- cower here
+		is_walking = false
+		_update_villager_anim()
+		move_and_slide()
+		return
 
 	state_timer -= delta
 	if state_timer <= 0:
@@ -578,6 +619,11 @@ func _on_body_exited(body: Node) -> void:
 		player_inside = false
 
 func _process(delta: float) -> void:
+	# THE HOVER CARD NEVER RAN. Its only call site sat AFTER a `return true`
+	# inside the quest turn-in -- unreachable code, so the panel was built,
+	# sized and filled and then never shown to anybody (dev reported the
+	# missing stats twice; sizing the card was not the bug, calling it was).
+	update_hover_panel(get_global_mouse_position())
 	refresh_size_if_needed()
 	update_health_bar_display(delta)
 	apply_despair_visual()
@@ -673,7 +719,6 @@ func try_bond_interaction() -> bool:
 	else:
 		SpeechText.spawn(self, str(def.get("giver", "")) + "\n(" + VillagerQuests.objective_text(def) + ")")
 	return true
-	update_hover_panel(get_global_mouse_position())
 
 # --- mood talk ---
 # While the player stands near, every few seconds there's a 15% chance the

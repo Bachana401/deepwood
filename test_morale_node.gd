@@ -197,6 +197,20 @@ func _ready() -> void:
 	GameState.rescued_villagers = obj_saved_roster
 	GameState.village_food = obj_saved_food
 	check("the advisor always says SOMETHING true", GameState.next_objective().length() > 5)
+	# ---- the hover card must actually be CALLED, and the flee must run ----
+	var nsrc := FileAccess.open("res://npc.gd", FileAccess.READ).get_as_text()
+	check("the hover card is driven from _process, not dead code after a return",
+		nsrc.contains("func _process(delta: float) -> void:\n\t# THE HOVER CARD NEVER RAN"))
+	check("...and no unreachable hover call survives the quest turn-in",
+		not nsrc.contains("\treturn true\n\tupdate_hover_panel"))
+	check("the card shows the talent's VALUE, not just its name",
+		nsrc.contains('stat_text = "%s %d" % [str(data.get("stat_name")), int(data.get("stat_value", 0))]'))
+	check("a struck villager RUNS FOR HOME",
+		nsrc.contains("func is_fleeing") and nsrc.contains("flee_until = Time.get_ticks_msec()")
+		and nsrc.contains("FLEE_SPEED_MULT"))
+	check("...and panic outranks wandering and clocking in",
+		nsrc.contains("if is_fleeing():"))
+
 	check("chests can never be buried under a relocated building",
 		FileAccess.open("res://chest.gd", FileAccess.READ).get_as_text().contains("village_structure"))
 
