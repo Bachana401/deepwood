@@ -1759,16 +1759,9 @@ func _spawn_transformed(v_name: String) -> void:
 	nl.add_theme_constant_override("outline_size", 3)
 	enemy.add_child(nl)
 
-# The Ten hold lanes (9.4): each fights the transformed -- help, not a solution.
-# (First cut: shared kit, per-legend voice; in-character kits come with playtests.)
-func _spawn_ten_ally(ten_id: String) -> void:
-	var def = TheTen.get_def(ten_id)
-	var ally = load("res://ten_ally.gd").new()
-	ally.ten_id = ten_id
-	ally.position = Vector2(ENTRY_X + 200.0 + randf_range(0.0, 400.0), GROUND_Y - 40.0)
-	$LevelContainer.add_child(ally)
-	if str(def.get("line", "")) != "":
-		FloatingText.spawn_word(self, ally.position + Vector2(0, -80), def.get("name", "?"), Color(1.0, 0.85, 0.4))
+# (The Ten's lane-holding spawn moved to harvest_director._spawn_ally when the
+# Harvest moved from this arena into the village. The dungeon copy was left
+# behind with no callers -- removed rather than kept as a decoy.)
 
 func spawn_enemy() -> void:
 	var enemy = ENEMY_SCENE.instantiate()
