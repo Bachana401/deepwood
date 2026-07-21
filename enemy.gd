@@ -223,10 +223,50 @@ var sprite_skin := ""
 var use_sprite := false
 var enemy_sprite: AnimatedSprite2D = null
 
+# EVERY EVIL HUNTS THE VILLAGE (dev call 2026-07-21). These mobs only ever
+# chased the PLAYER -- so the opening wave, and every overworld creature,
+# walked past villagers, heroes, walls and buildings as if they were scenery.
+# `player` is the mob's current PREY (retargeted below, so all the existing
+# chase/attack logic just works); `real_player` stays the actual hero for
+# rewards. Prey is picked by nearest, with a bias for living people.
+const PREY_GROUPS := ["player", "npc", "adventurer", "village_defender"]
+const PREY_RETARGET_INTERVAL := 0.8
+var real_player: Node2D = null
+var _retarget_timer := 0.0
+
+func _pick_prey() -> Node2D:
+	var best: Node2D = null
+	var best_d := INF
+	for g in PREY_GROUPS:
+		for c in get_tree().get_nodes_in_group(g):
+			if not is_instance_valid(c) or not c.has_method("take_damage"):
+				continue
+			if "is_dead" in c and c.is_dead:
+				continue
+			if "is_in_building" in c and c.is_in_building:
+				continue      # sheltered villagers are not prey
+			var d: float = global_position.distance_to(c.global_position)
+			# the living are worth crossing a street for; the player is prey
+			# like anyone else once something closer is screaming
+			if d < best_d:
+				best_d = d
+				best = c
+	return best if best != null else real_player
+
+func _retarget(delta: float) -> void:
+	_retarget_timer -= delta
+	if _retarget_timer > 0.0:
+		return
+	_retarget_timer = PREY_RETARGET_INTERVAL
+	var p := _pick_prey()
+	if p != null:
+		player = p
+
 func _ready() -> void:
 	start_x = global_position.x
 	spawn_position = global_position
 	player = get_tree().get_first_node_in_group("player")
+	real_player = player
 	speed_variance = randf_range(0.82, 1.22)
 	jump_chance_variance = randf_range(0.5, 1.8)
 	hesitate_timer = randf_range(HESITATE_MIN_INTERVAL, HESITATE_MAX_INTERVAL)
@@ -437,6 +477,7 @@ func update_weapon_icon_position() -> void:
 func _physics_process(delta: float) -> void:
 	if is_dead:
 		return
+	_retarget(delta)
 
 	tick_statuses(delta)
 	if is_dead:
@@ -565,7 +606,10 @@ func count_nearby_enemies() -> int:
 	return count
 
 func check_bump() -> void:
-	if is_knocked_back or is_attacking or player == null or player.is_knocked_back:
+	# prey is not always the player (see _pick_prey) -- never assume its API
+	if is_knocked_back or is_attacking or player == null:
+		return
+	if "is_knocked_back" in player and player.is_knocked_back:
 		return
 	if global_position.distance_to(player.global_position) > BUMP_THRESHOLD:
 		return
@@ -882,11 +926,12 @@ func die() -> void:
 	# pays through depth_reward_mult instead (flat-8-at-floor-90 bug)
 	var depth: float = GameState.depth_reward_mult()
 	var reward = int(round(5 * damage_multiplier * depth * (1.0 + GameState.get_bonus_total("gold_gain"))))
-	if player.has_method("add_currency"):
-		player.add_currency(reward)
+	# rewards always go to the HERO, never to whatever this mob was chasing
+	if real_player != null and real_player.has_method("add_currency"):
+		real_player.add_currency(reward)
 	GameState.add_xp(int(round(8 * damage_multiplier * depth)))
-	if player.has_method("on_enemy_killed"):
-		player.on_enemy_killed()
+	if real_player != null and real_player.has_method("on_enemy_killed"):
+		real_player.on_enemy_killed()
 	spawn_coin_popup(reward)
 	# low-rate construction-material drop (tougher gens roll a little better)
 	var mat = GameState.roll_construction_drop(player, 1.0 + 0.15 * generation)

@@ -1380,7 +1380,8 @@ func place_mines(boss: bool, layout: Array) -> void:
 		# mid-air halfway up it
 		if plat.get("solid", false):
 			continue
-		if randf() < 0.5:
+		# dev call 2026-07-21: mines halved world-wide (was 0.5 per platform)
+		if randf() < 0.25:
 			var x = plat.x + randf_range(-plat.w * 0.3, plat.w * 0.3)
 			place_mine(Vector2(x, plat.y))
 

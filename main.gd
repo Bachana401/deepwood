@@ -90,7 +90,7 @@ const CLOUD_Z_INDEX = -25
 const MUSIC_LOOP_SAMPLES = 441000
 
 const TRAP_SCENE = preload("res://trap.tscn")
-const TRAP_COUNT = 25
+const TRAP_COUNT = 12   # dev call 2026-07-21: mines HALVED world-wide (was 25)
 const TRAP_SPAN_START = -670.0
 const TRAP_SPAN_END = 4470.0
 const TRAP_Y = -39.0
@@ -461,9 +461,13 @@ func begin_arrival_battle() -> void:
 		e.global_position = Vector2(road_x + 170.0 + i * 55.0, -70.0)
 		e.died.connect(_on_arrival_raider_died)
 		add_child(e)
-	# beat 1: the trio is ALREADY in the fight when the player walks up
+	# beat 1: the trio is ALREADY in the fight when the player walks up --
+	# spaced DETERMINISTICALLY (the old random offsets let two of them land
+	# 9px apart and render as one glued blob, dev's report)
+	var line_i := 0
 	for a in get_tree().get_nodes_in_group("adventurer"):
-		a.global_position = Vector2(road_x + randf_range(-60.0, 20.0), -70.0)
+		a.global_position = Vector2(road_x - 40.0 + line_i * 62.0, -70.0)
+		line_i += 1
 	GameState.notify("⚔ Fighting on the road ahead — the defenders are engaged!")
 
 func _on_arrival_raider_died() -> void:
@@ -768,7 +772,13 @@ func generate_traps() -> void:
 		place_trap(x, TRAP_Y)
 
 func generate_platform_traps() -> void:
+	# dev call 2026-07-21: mines halved everywhere -- every OTHER platform
+	# zone gets one now, so the climb still bites without being a minefield
+	var zone_i := -1
 	for zone in TRAP_PLATFORM_ZONES:
+		zone_i += 1
+		if zone_i % 2 == 1:
+			continue
 		var usable_min = zone.x_min + TRAP_PLATFORM_EDGE_MARGIN
 		var usable_max = zone.x_max - TRAP_PLATFORM_EDGE_MARGIN
 		if usable_max <= usable_min:

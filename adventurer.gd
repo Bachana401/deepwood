@@ -286,9 +286,31 @@ func _physics_process(delta: float) -> void:
 		_fight(target)
 	else:
 		_hold_station(delta)
+	_separate()
 	_update_hp_bar()
 	_tick_bark(delta, target != null)
 	move_and_slide()
+
+# Two defenders converging on one raider used to end up standing INSIDE each
+# other -- two cloaked sprites drawn on the same pixel read as one glued blob
+# (dev's report). A gentle shove keeps every hero readable as their own body.
+const PERSONAL_SPACE := 34.0
+
+func _separate() -> void:
+	for other in get_tree().get_nodes_in_group("adventurer"):
+		if other == self or not is_instance_valid(other):
+			continue
+		if "is_dead" in other and other.is_dead:
+			continue
+		var dx: float = global_position.x - other.global_position.x
+		if absf(dx) < PERSONAL_SPACE:
+			# ties broken by name so the pair never shove each other the same way
+			var push := signf(dx) if absf(dx) > 0.5 else (1.0 if adventurer_id > str(other.adventurer_id) else -1.0)
+			velocity.x += push * 90.0
+			# ...and a hard floor: converging on one raider used to beat the
+			# nudge to a ~19px equilibrium, still visibly overlapping
+			if absf(dx) < PERSONAL_SPACE * 0.6:
+				global_position.x += push * 1.6
 
 # A line now and then, when the player is close and nothing is trying to kill
 # anyone. Long random gaps so twelve of them never turn into a crowd scene.
