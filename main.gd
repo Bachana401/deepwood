@@ -228,6 +228,10 @@ func _ready() -> void:
 	spawn_adventurers()
 	announce_orin_arrival()
 	build_escape_ward()
+	# the shop finally HAS a shop -- a storefront under its sign (dev call)
+	var stall = preload("res://shop_stall.gd").new()
+	stall.position = Vector2($ShopZone.global_position.x, VILLAGE_Y)
+	add_child(stall)
 	warn_wounded_corps()
 	orin_midgame_taunt()
 	# a coronation interrupted by a quit finishes here, at home
