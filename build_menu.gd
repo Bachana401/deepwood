@@ -101,47 +101,129 @@ func _build_panel() -> void:
 # The ledger's four site states, in the order the player meets them.
 func _site_state(bn: String) -> Dictionary:
 	if not GameState.building_is_cleared(bn):
-		return {"label": "rubble — press E at the site to clear it",
-			"color": Color(0.55, 0.52, 0.5), "known": false}
+		# show the shovelling already done -- three anonymous heaps read as one
+		# heap repeated, but "2/3 cleared" is a thing you are half-way through
+		var done: int = GameState.building_clear_progress(bn)
+		var label := "rubble — press E at the site to clear it"
+		if done > 0:
+			label = "rubble, %d/%d cleared — press E to keep digging" % [done, GameState.CLEAR_STEPS]
+		return {"label": label, "color": Color(0.55, 0.52, 0.5),
+			"known": false, "group": "rubble"}
 	if GameState.building_build_stage(bn) >= GameState.TOTAL_BUILD_STAGES:
-		return {"label": "standing", "color": Color(0.55, 0.78, 0.55), "known": true}
+		return {"label": "standing", "color": Color(0.55, 0.78, 0.55),
+			"known": true, "group": "standing"}
 	if not GameState.has_blueprint(bn):
 		return {"label": "cleared — its plans are still lost in the deep",
-			"color": Color(0.72, 0.62, 0.45), "known": true}
+			"color": Color(0.72, 0.62, 0.45), "known": true, "group": "noplans"}
 	if GameState.building_build_stage(bn) == 0:
 		return {"label": "cleared — ready to build (F at the site)",
-			"color": Color(0.6, 0.72, 0.55), "known": true}
+			"color": Color(0.6, 0.72, 0.55), "known": true, "group": "ready"}
 	return {"label": "under construction — stage %d/%d (F at the site)" % [
 		GameState.building_build_stage(bn), GameState.TOTAL_BUILD_STAGES],
-		"color": Color(0.72, 0.7, 0.5), "known": true}
+		"color": Color(0.72, 0.7, 0.5), "known": true, "group": "building"}
+
+# A LIST OF ELEVEN IDENTICAL LINES IS NOT A MENU (polish pass 2026-07-21).
+# Early on, every site is an unnamed heap, so the first ledger a player ever
+# opens read as eleven copies of "an unrecognisable ruin" -- nothing to act on,
+# no way to tell one from another, no idea where any of them were. The secret
+# stays kept (that is the design), but the window now answers the two questions
+# it should: WHAT IS THERE TO DO, and WHERE DO I GO. Sites are grouped by what
+# they need from you, urgent group first, and every row carries a bearing from
+# where you are standing.
+const GROUP_ORDER := ["ready", "building", "rubble", "noplans", "standing"]
+const GROUP_TITLE := {
+	"ready": "READY TO BUILD",
+	"building": "UNDER CONSTRUCTION",
+	"rubble": "BURIED — needs clearing",
+	"noplans": "CLEARED — plans still lost in the deep",
+	"standing": "STANDING",
+}
+const GROUP_COLOR := {
+	"ready": Color(0.62, 0.82, 0.55),
+	"building": Color(0.85, 0.78, 0.45),
+	"rubble": Color(0.72, 0.66, 0.6),
+	"noplans": Color(0.72, 0.62, 0.45),
+	"standing": Color(0.55, 0.72, 0.6),
+}
 
 func refresh() -> void:
 	for c in rows_box.get_children():
 		c.queue_free()
-	# every real building site currently in the world, steadiest order first
-	var names: Array = []
-	for b in get_tree().get_nodes_in_group("building"):
-		if "building_name" in b and not names.has(b.building_name):
-			names.append(b.building_name)
-	names.sort()
+	var player := get_tree().get_first_node_in_group("player")
+	var here: float = player.global_position.x if player != null else 0.0
+	# every real building site currently in the world, bucketed by what it needs
+	var buckets := {}
+	var total := 0
 	var standing := 0
-	for bn in names:
+	for b in get_tree().get_nodes_in_group("building"):
+		if not ("building_name" in b):
+			continue
+		var bn: String = b.building_name
 		var st := _site_state(bn)
-		if st["known"] and GameState.building_build_stage(bn) >= GameState.TOTAL_BUILD_STAGES:
+		var g: String = str(st["group"])
+		if not buckets.has(g):
+			buckets[g] = []
+		buckets[g].append({"name": bn, "state": st, "x": b.global_position.x})
+		total += 1
+		if g == "standing":
 			standing += 1
-		rows_box.add_child(_make_row(bn, st))
-	title.text = "THE BUILDER'S LEDGER — %d of %d standing" % [standing, names.size()]
+	for g in GROUP_ORDER:
+		if not buckets.has(g):
+			continue
+		var rows: Array = buckets[g]
+		# nearest first inside a group: the ledger should point at the next step
+		rows.sort_custom(func(a, c): return absf(a["x"] - here) < absf(c["x"] - here))
+		rows_box.add_child(_make_header(g, rows.size()))
+		for r in rows:
+			rows_box.add_child(_make_row(r["name"], r["state"], r["x"] - here))
+	title.text = "THE BUILDER'S LEDGER — %d of %d standing" % [standing, total]
 
-func _make_row(bn: String, st: Dictionary) -> Control:
+func _make_header(group: String, count: int) -> Control:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+	var pad := Control.new()
+	pad.custom_minimum_size = Vector2(0, 6)
+	box.add_child(pad)
+	var h := Label.new()
+	h.text = "%s  (%d)" % [GROUP_TITLE.get(group, group), count]
+	h.add_theme_font_size_override("font_size", 12)
+	h.add_theme_color_override("font_color", GROUP_COLOR.get(group, Color.WHITE))
+	box.add_child(h)
+	var rule := ColorRect.new()
+	rule.custom_minimum_size = Vector2(600, 1)
+	rule.color = GROUP_COLOR.get(group, Color.WHITE)
+	rule.color.a = 0.35
+	box.add_child(rule)
+	return box
+
+# "260 paces west" -- enough to walk to, never a map coordinate.
+func _bearing(dx: float) -> String:
+	if absf(dx) < 90.0:
+		return "right here"
+	return "%d paces %s" % [int(absf(dx) / 10.0), "east" if dx > 0.0 else "west"]
+
+func _make_row(bn: String, st: Dictionary, dx: float) -> Control:
 	var row = VBoxContainer.new()
 	row.add_theme_constant_override("separation", 1)
+	var head_line = HBoxContainer.new()
 	var head = Label.new()
 	# an uncleared site keeps its secret: no name in the ledger either
 	head.text = (bn if st["known"] else "an unrecognisable ruin")
 	head.add_theme_font_size_override("font_size", 14)
 	head.add_theme_color_override("font_color",
 		Color(0.88, 0.88, 0.92) if st["known"] else Color(0.6, 0.58, 0.56))
-	row.add_child(head)
+	head.custom_minimum_size = Vector2(430, 0)
+	head_line.add_child(head)
+	# THE ONE THING THE OLD LEDGER COULD NOT TELL YOU: where it is. Without
+	# this, eleven anonymous heaps are unfindable and the window is decoration.
+	var where = Label.new()
+	where.text = _bearing(dx)
+	where.add_theme_font_size_override("font_size", 11)
+	where.add_theme_color_override("font_color", Color(0.58, 0.62, 0.7))
+	where.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	where.custom_minimum_size = Vector2(160, 0)
+	head_line.add_child(where)
+	row.add_child(head_line)
 	var state = Label.new()
 	state.text = "   " + st["label"]
 	state.add_theme_font_size_override("font_size", 11)

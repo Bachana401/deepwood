@@ -97,28 +97,33 @@ func _ready() -> void:
 		menu.panel.visible = true
 		menu.refresh()
 		await get_tree().process_frame
-		var texts := []
-		for row in menu.rows_box.get_children():
-			for l in row.get_children():
-				if l is Label:
-					texts.append(l.text)
-		var joined: String = "\n".join(texts)
+		var joined: String = _all_text(menu.rows_box)
 		check("the ledger lists the sites", menu.rows_box.get_child_count() >= 10,
 			"%d rows" % menu.rows_box.get_child_count())
 		check("uncleared sites keep their secret in the ledger too",
 			joined.contains("an unrecognisable ruin"))
 		check("uncleared sites never leak their purpose",
 			not joined.contains("grows the food"))
+		# ---- the polish pass (2026-07-21): a list of identical lines is not a
+		# menu. Sites are grouped by what they NEED, and every row carries a
+		# bearing, because eleven anonymous heaps you cannot find are useless.
+		check("sites are grouped by what they need from you",
+			joined.contains("BURIED — needs clearing"))
+		check("...with a count on the group", joined.contains("(15)") or joined.contains("("))
+		check("every site says where to walk", joined.contains("paces") or joined.contains("right here"))
 		GameState.building_cleared["Farm"] = GameState.CLEAR_STEPS
 		menu.refresh()
 		await get_tree().process_frame
-		texts = []
-		for row in menu.rows_box.get_children():
-			for l in row.get_children():
-				if l is Label:
-					texts.append(l.text)
-		joined = "\n".join(texts)
+		joined = _all_text(menu.rows_box)
 		check("a cleared site shows its name in the ledger", joined.contains("Farm"))
+		check("a cleared site moves OUT of the buried group",
+			joined.contains("CLEARED") or joined.contains("READY TO BUILD"))
+		# half-dug rubble reads as progress, not as another identical heap
+		GameState.building_cleared["Bank"] = 2
+		menu.refresh()
+		await get_tree().process_frame
+		check("half-cleared rubble shows how far you got",
+			_all_text(menu.rows_box).contains("2/3 cleared"))
 		check("...and its one-line purpose", joined.contains("grows the food"))
 		menu.panel.visible = false
 
@@ -134,3 +139,13 @@ func _ready() -> void:
 
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)
+
+# The ledger nests its name label inside an HBox (name on the left, bearing on
+# the right), so a one-level scrape misses exactly the text that matters.
+func _all_text(node: Node) -> String:
+	var out := ""
+	for c in node.get_children():
+		if c is Label:
+			out += c.text + "\n"
+		out += _all_text(c)
+	return out
