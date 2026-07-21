@@ -2076,7 +2076,12 @@ func update_level_label() -> void:
 	var label = get_node_or_null("CanvasLayer/LevelLabel")
 	if label == null:
 		return
-	var text := "Level: " + str(current_level) + " / " + str(MAX_LEVEL) + "  (Unlocked: " + str(GameState.highest_unlocked_level) + ")"
+	# COMPACT ON PURPOSE (visual sweep): the old label read "Level: 5 / 100
+	# (Unlocked: 1)" and my straggler hint pushed it long enough to collide
+	# with the notification text in the opposite corner -- the two ran
+	# together into one unreadable line. "Unlocked" belongs on the level
+	# select, not on the wall of the floor you are standing in.
+	var text := "Floor %d / %d" % [current_level, MAX_LEVEL]
 	# THE STRAGGLER PROBLEM (polish 2026-07-20): the exit only opens on a
 	# CLEARED floor, and alive_count was tracked but never shown -- so one
 	# mob stuck behind a pillar at the far edge meant blind searching a
@@ -2089,7 +2094,7 @@ func update_level_label() -> void:
 			if hint != "":
 				text += "  " + hint
 	elif level_cleared:
-		text += "   ✔ cleared — the way on is open"
+		text += "   ✔ cleared"
 	label.text = text
 	label.visible = true
 

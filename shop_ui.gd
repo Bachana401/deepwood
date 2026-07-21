@@ -21,6 +21,52 @@ func _ready() -> void:
 	# The classic screen-nuke Magic Wand is an ADMIN/test item (it deletes every
 	# enemy incl. bosses) -- it is NOT for sale in the real game. Hidden here.
 	$MagicWandOption.visible = false
+	refresh_prices()
+
+# THE SHOP NEVER SAID WHAT ANYTHING COST (visual sweep 2026-07-21). Four bare
+# words -- "Dashing", "Double Jump", "Spear", "Bow" -- and you clicked blind,
+# with no price, no idea whether you could afford it, and no sign you already
+# owned it. Every row now carries its price, greys out when your purse is
+# short, and reads OWNED once bought.
+const SHOP_ROWS := {
+	"dash": DASH_COST, "double_jump": DOUBLE_JUMP_COST,
+	"spear": SPEAR_COST, "bow": BOW_COST,
+}
+const SHOP_NAMES := {
+	"dash": "Dashing", "double_jump": "Double Jump",
+	"spear": "Spear", "bow": "Bow",
+}
+
+func _owns(item: String) -> bool:
+	if player == null:
+		return false
+	match item:
+		"dash":
+			return player.has_dash
+		"double_jump":
+			return player.has_double_jump
+		"spear":
+			return player.inventory.get_count("wpn_spear") > 0
+		"bow":
+			return player.inventory.get_count("wpn_bow") > 0
+	return false
+
+func refresh_prices() -> void:
+	if player == null:
+		player = get_tree().get_first_node_in_group("player")
+	for item in SHOP_ROWS.keys():
+		var label := _get_label(item)
+		if label == null:
+			continue
+		var cost: int = SHOP_ROWS[item]
+		if _owns(item):
+			label.text = "%s — OWNED" % SHOP_NAMES[item]
+			label.add_theme_color_override("font_color", Color(0.55, 0.85, 0.6))
+		else:
+			label.text = "%s — %dg" % [SHOP_NAMES[item], cost]
+			var afford: bool = player != null and player.currency >= cost
+			label.add_theme_color_override("font_color",
+				Color(1, 1, 1) if afford else Color(0.72, 0.6, 0.55))
 
 func esc_is_open() -> bool:
 	return visible
@@ -79,6 +125,7 @@ func try_buy_dash() -> void:
 	player.has_dash = true
 	player.update_currency_display()
 	show_notification("Dash purchased! Double-tap A or D to use it.")
+	refresh_prices()
 	print("Dash unlocked!")
 
 func try_buy_double_jump() -> void:
@@ -92,6 +139,7 @@ func try_buy_double_jump() -> void:
 	player.has_double_jump = true
 	player.update_currency_display()
 	show_notification("Double Jump purchased! Press SPACE again mid-air.")
+	refresh_prices()
 	print("Double jump unlocked!")
 
 # Weapons are inventory items now -- buying one drops it in your bag; wield it
@@ -107,6 +155,7 @@ func try_buy_weapon_item(item_id: String, cost: int, display: String) -> void:
 	player.inventory.add_item(item_id, 1)
 	player.update_currency_display()
 	show_notification(display + " added to your inventory! Press its hotbar number to wield it.")
+	refresh_prices()
 
 func try_buy_spear() -> void:
 	try_buy_weapon_item("wpn_spear", SPEAR_COST, "Spear")

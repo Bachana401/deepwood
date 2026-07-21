@@ -93,8 +93,8 @@ func _ready() -> void:
 	check("the tally updates on every kill, and the hint tracks the player",
 		dsrc2.contains("update_level_label()   # the tally is live")
 		and dsrc2.contains("_hint_timer"))
-	check("a cleared floor says the way on is open",
-		dsrc2.contains("the way on is open"))
+	check("a cleared floor says so on the label",
+		dsrc2.contains("✔ cleared"))
 
 	# ---- the sound of depth: one track, but not one mood ----
 	var DID = load("res://dungeon_interior.gd")

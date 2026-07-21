@@ -11,7 +11,10 @@ func _on_body_entered(body: Node2D) -> void:
 	if body.is_in_group("player"):
 		player_inside = true
 		player_ref = body
-		$"../CanvasLayer/ShopUI".visible = true
+		var shop = $"../CanvasLayer/ShopUI"
+		if shop.has_method("refresh_prices"):
+			shop.refresh_prices()   # prices/affordability are live on every visit
+		shop.visible = true
 
 func _on_body_exited(body: Node2D) -> void:
 	if body.is_in_group("player"):
