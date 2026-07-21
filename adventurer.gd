@@ -422,15 +422,21 @@ func _hold_station(delta: float) -> void:
 			body_rect.scale.x = face
 
 func _nearest_raider() -> Node2D:
+	# Every hostile counts, not only siege raiders. The corps used to scan
+	# "siege_enemy" alone, so on the road a wild mob could maul an adventurer
+	# and the hero would keep walking like nothing was happening (dev report
+	# 2026-07-21: "they should defend themselves"). Same groups the player's
+	# own weapons use.
 	var best: Node2D = null
 	var best_d := SEEK_RANGE
-	for r in get_tree().get_nodes_in_group("siege_enemy"):
-		if not is_instance_valid(r) or ("is_dead" in r and r.is_dead):
-			continue
-		var d: float = global_position.distance_to(r.global_position)
-		if d < best_d:
-			best_d = d
-			best = r
+	for grp in ["siege_enemy", "course_enemy"]:
+		for r in get_tree().get_nodes_in_group(grp):
+			if not is_instance_valid(r) or ("is_dead" in r and r.is_dead):
+				continue
+			var d: float = global_position.distance_to(r.global_position)
+			if d < best_d:
+				best_d = d
+				best = r
 	return best
 
 # The attack this swing will land, after the signature riders that scale it:

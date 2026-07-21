@@ -190,6 +190,7 @@ const HOUSE_COUNT = 5
 # Spread along the combat course, plus a grove/outcrop in the gap between the
 # course's end and the village gate (ground is guaranteed there).
 const HARVEST_NODE_SCRIPT = preload("res://harvest_node.gd")
+const UNDERDARK_SCRIPT = preload("res://underdark.gd")
 const TREE_COUNT = 12
 const ROCK_COUNT = 9
 const HARVEST_SPAN_START = -350.0
@@ -225,6 +226,11 @@ func _ready() -> void:
 	fit_sky_to_world()
 	build_ground_skin()
 	fence_the_camera()
+	# THE UNDERDARK (§4): the cave is now the only way down -- it retires the
+	# old surface door, carves the mouth, and builds the deep world. Mounted
+	# AFTER build_ground_skin on purpose: it carves those very sprites, and
+	# mounting it earlier once left the mouth sealed under an uncarved skin.
+	add_child(UNDERDARK_SCRIPT.new())
 	generate_village()
 	generate_houses()
 	generate_harvestables()
@@ -489,25 +495,73 @@ func _on_arrival_raider_died() -> void:
 	GameState.seen_arrival_battle = true
 	GameState.arrival_battle_active = false   # from here on, they are mortal
 	GameState.log_event("combat", "Your first wave broke at the gate — you fought it beside Roland, Wren and Castor.")
+	# THE TALK MOVED TO THE WALL (dev request 2026-07-21). The reveal used to
+	# fire the instant the last raider dropped -- mid-road, adrenaline still up,
+	# nobody home yet. Now the fight ends, the defenders turn for the village,
+	# and the words wait until you WALK IN WITH THEM: crossing the west rampart
+	# together is what starts the scene.
+	_arrival_talk_pending = true
+	GameState.notify("The defenders turn for the village. Walk in with them.")
+
+# The pending arrival talk: armed when the teaching wave breaks, fired when the
+# player crosses the west rampart. Transient on purpose -- if the player quits
+# between the fight and the wall, the reload replays from seen_arrival_battle
+# and the talk is delivered by the fallback below.
+var _arrival_talk_pending := false
+const ARRIVAL_TALK_FALLBACK_X = 5400.0   # past the wall, however a save moved it
+
+func _check_arrival_talk() -> void:
+	# reload guard: a save made between the fight and the wall re-arms the walk
+	if not _arrival_talk_pending and GameState.seen_arrival_battle \
+			and not GameState.seen_arrival_talk and not GameState.dev_mode:
+		_arrival_talk_pending = true
+	if not _arrival_talk_pending:
+		return
 	var pl = get_tree().get_first_node_in_group("player")
-	if pl:
-		# the SPEAKER MUST HAVE A BODY (live-playtest lesson): the frightened
-		# survivor "creeps from the wreckage" -- so a real villager avatar
-		# walks up beside the player for the reveal, then drifts home on his
-		# own wander logic afterwards.
-		var survivor: Node = null
-		for n in get_tree().get_nodes_in_group("npc"):
-			if n.has_method("find_villager_data"):
-				survivor = n
-				break
-		if survivor != null:
-			survivor.global_position = pl.global_position + Vector2(140.0, 0.0)
-		# the full arrival chain (new canon): the trap named -> the ruin
-		# REVEALED as Deepwood itself (the 180-degree reality check) -> the
-		# oath the whole game executes, sworn aloud once
-		DialogueBox.play(pl, Story.ARRIVAL_TRAP, func():
-			DialogueBox.play(pl, Story.DEEPWOOD_REVEAL, func():
-				DialogueBox.play(pl, Story.THE_OATH)))
+	if pl == null:
+		return
+	# the west rampart's real face if one stands, else the classic line
+	var wall_x := 4700.0
+	for w in get_tree().get_nodes_in_group("village_wall"):
+		if "flank" in w and w.flank == "west":
+			wall_x = w.global_position.x
+			break
+	if pl.global_position.x < wall_x:
+		return
+	_arrival_talk_pending = false
+	play_arrival_talk(pl)
+
+func play_arrival_talk(pl: Node) -> void:
+	GameState.seen_arrival_talk = true   # delivered exactly once, survives saves
+	# WITH the adventurer: the nearest defender steps to the player's side for
+	# the scene, so the words are exchanged between people, not thin air.
+	var nearest: Node = null
+	var best := 1.0e9
+	for a in get_tree().get_nodes_in_group("adventurer"):
+		if "is_dead" in a and a.is_dead:
+			continue
+		var d: float = a.global_position.distance_to(pl.global_position)
+		if d < best:
+			best = d
+			nearest = a
+	if nearest != null:
+		nearest.global_position = pl.global_position + Vector2(-70.0, 0.0)
+	# the SPEAKER MUST HAVE A BODY (live-playtest lesson): the frightened
+	# survivor "creeps from the wreckage" -- a real villager avatar walks up
+	# beside the player for the reveal, then drifts home on his own.
+	var survivor: Node = null
+	for n in get_tree().get_nodes_in_group("npc"):
+		if n.has_method("find_villager_data"):
+			survivor = n
+			break
+	if survivor != null:
+		survivor.global_position = pl.global_position + Vector2(140.0, 0.0)
+	# the full arrival chain (new canon): the trap named -> the ruin
+	# REVEALED as Deepwood itself (the 180-degree reality check) -> the
+	# oath the whole game executes, sworn aloud once
+	DialogueBox.play(pl, Story.ARRIVAL_TRAP, func():
+		DialogueBox.play(pl, Story.DEEPWOOD_REVEAL, func():
+			DialogueBox.play(pl, Story.THE_OATH)))
 
 # NG+ arrival: one line the moment the rewound player wakes, then the world
 # treats them like any first arrival. Transient flag -- never saved, so a
@@ -721,6 +775,7 @@ func _process(delta: float) -> void:
 		cloud.position.x += cloud.get_meta("speed") * delta
 		if cloud.position.x > CLOUD_SPAN_END:
 			cloud.position.x = CLOUD_SPAN_START
+	_check_arrival_talk()
 
 func start_music() -> void:
 	music.loop_mode = AudioStreamWAV.LOOP_FORWARD
@@ -775,8 +830,37 @@ func generate_harvestables() -> void:
 		spawn_harvest_node("tree", GROVE_START_X + i * 120.0 + randf_range(-25.0, 25.0))
 	for i in range(2):
 		spawn_harvest_node("rock", GROVE_START_X + 60.0 + i * 200.0 + randf_range(-25.0, 25.0))
+	# THE WILDS WERE BARREN (dev report 2026-07-21: "I don't see random trees
+	# or stone mining places"). Harvestables stopped at x=4300 -- the east's
+	# 33,000px had not one tree or seam. Now the whole world is forageable:
+	# scattered singles with occasional DENSE groves and outcrop clusters, so
+	# gathering out east is a reason to travel, not a lap around the village.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0x7EEE5
+	var x := 6200.0
+	while x < WORLD_RIGHT - 500.0:
+		var roll := rng.randf()
+		if roll < 0.14:
+			# a grove: 4-6 trees close together
+			for i in range(rng.randi_range(4, 6)):
+				spawn_harvest_node("tree", x + i * rng.randf_range(70.0, 110.0))
+			x += 700.0
+		elif roll < 0.24:
+			# a stone outcrop: 2-4 seams
+			for i in range(rng.randi_range(2, 4)):
+				spawn_harvest_node("rock", x + i * rng.randf_range(90.0, 140.0))
+			x += 600.0
+		elif roll < 0.62:
+			spawn_harvest_node("tree", x)
+		elif roll < 0.86:
+			spawn_harvest_node("rock", x)
+		x += rng.randf_range(320.0, 620.0)
 
 func spawn_harvest_node(kind: String, x: float) -> void:
+	# nothing roots over the cave mouth -- a tree there would hang in mid-air
+	# above the hole (the Underdark carves that stretch out of the ground)
+	if absf(x - UNDERDARK_SCRIPT.MOUTH_X) < 150.0:
+		return
 	var node = HARVEST_NODE_SCRIPT.new()
 	node.node_type = kind
 	node.position = Vector2(x, GROUND_Y)

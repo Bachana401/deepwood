@@ -1162,6 +1162,7 @@ var seen_orin_glimpse := false
 var seen_kneel_echo := false
 var seen_orin_taunt := false
 var seen_arrival_battle := false
+var seen_arrival_talk := false   # the wall-crossing reveal was DELIVERED (split from the battle flag 2026-07-21)
 # THE NEW FINALE (canon rework 2026-07-20): floor 100 is EMPTY. The false
 # victory is carried home, the feast pumps the village to its peak, and Orin
 # reveals himself AT THE FEAST -- the Harvest is fought in the village.
@@ -3408,6 +3409,7 @@ func reset_for_new_game() -> void:
 	seen_kneel_echo = false
 	seen_orin_taunt = false
 	seen_arrival_battle = false
+	seen_arrival_talk = false
 	seen_empty_throne = false
 	harvest_at_home = false
 	feast_glow = false
@@ -3491,6 +3493,7 @@ func save_game(player: Node) -> void:
 		"seen_kneel_echo": seen_kneel_echo,
 		"seen_orin_taunt": seen_orin_taunt,
 		"seen_arrival_battle": seen_arrival_battle,
+		"seen_arrival_talk": seen_arrival_talk,
 		"seen_empty_throne": seen_empty_throne,
 		"escape_attempts": escape_attempts,
 		"school_favoured_stat": school_favoured_stat,
@@ -3580,6 +3583,7 @@ func load_game() -> Dictionary:
 		seen_kneel_echo = bool(parsed.get("seen_kneel_echo", false))
 		seen_orin_taunt = bool(parsed.get("seen_orin_taunt", false))
 		seen_arrival_battle = bool(parsed.get("seen_arrival_battle", true))   # old saves: don't replay
+		seen_arrival_talk = bool(parsed.get("seen_arrival_talk", seen_arrival_battle))   # old saves heard it with the battle
 		seen_empty_throne = bool(parsed.get("seen_empty_throne", false))
 		escape_attempts = int(parsed.get("escape_attempts", 0))
 		school_favoured_stat = str(parsed.get("school_favoured_stat", ""))

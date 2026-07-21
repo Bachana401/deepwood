@@ -76,12 +76,25 @@ func _ready() -> void:
 		FileAccess.open("res://player.gd", FileAccess.READ).get_as_text().contains("begin_arrival_battle"))
 	check("the first fight is in company at the west gate",
 		msrc.contains("func begin_arrival_battle") and msrc.contains("the trio is ALREADY in the fight"))
-	check("the wave breaking triggers the trap dialogue, once",
-		msrc.contains("_on_arrival_raider_died") and msrc.contains("Story.ARRIVAL_TRAP"))
+	# 2026-07-21 dev change: the wave breaking ARMS the walk home; the trap
+	# dialogue is DELIVERED when the player crosses the west rampart with the
+	# defenders (with a mouth-of-the-dungeon fallback so it can't be skipped)
+	check("the wave breaking arms the walk home, not the dialogue",
+		msrc.contains("_arrival_talk_pending = true")
+		and msrc.contains("Walk in with them"))
+	check("the talk fires at the west rampart, beside an adventurer",
+		msrc.contains("func _check_arrival_talk") and msrc.contains("Story.ARRIVAL_TRAP")
+		and msrc.contains('w.flank == "west"')
+		and msrc.contains("get_nodes_in_group(\"adventurer\")"))
+	check("diving early can't skip it (the DOOR delivers the talk if still owed)",
+		FileAccess.open("res://underdark_door.gd", FileAccess.READ).get_as_text().contains("play_arrival_talk"))
 	var gsrc := FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text()
 	check("the arrival is one-shot, saved, and OLD saves never replay it",
 		gsrc.contains('"seen_arrival_battle": seen_arrival_battle')
 		and gsrc.contains('parsed.get("seen_arrival_battle", true)'))
+	check("...and the delivered TALK survives a mid-walk save separately",
+		gsrc.contains('"seen_arrival_talk": seen_arrival_talk')
+		and gsrc.contains('parsed.get("seen_arrival_talk", seen_arrival_battle)'))
 	# nobody dies in the teaching wave -- Roland especially (12.6: he is the
 	# eleventh ally at the gate of 100, and losing him at minute one would
 	# quietly break that beat forever)

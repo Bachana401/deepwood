@@ -145,6 +145,11 @@ func _make_mob(x: float, depth: float, rng: RandomNumberGenerator) -> Node:
 	# monster. Must run BEFORE add_child (it feeds _ready's build_character),
 	# and it MULTIPLIES the scaling above rather than replacing it.
 	e.apply_block_archetype(mini(int(depth * (MAX_ROSTER_BLOCK + 1)), MAX_ROSTER_BLOCK))
+	# course_enemy is THE overworld hostile group: it is what the player's sword
+	# arc and arrows scan (player.HOSTILE_GROUPS) and what defenders look for.
+	# Without it a wild mob could hurt you and you could not hurt it back --
+	# invisible to every weapon in the game.
+	e.add_to_group("course_enemy")
 	main.add_child(e)
 	e.global_position = Vector2(x, -140.0)
 	# short sight is the point of the whole system -- see the header. Set AFTER

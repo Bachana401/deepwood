@@ -966,22 +966,28 @@ func die() -> void:
 	if real_player != null and real_player.has_method("on_enemy_killed"):
 		real_player.on_enemy_killed()
 	spawn_coin_popup(reward)
-	# low-rate construction-material drop (tougher gens roll a little better)
-	var mat = GameState.roll_construction_drop(player, 1.0 + 0.15 * generation)
-	if mat != "":
-		spawn_material_popup(mat)
-	# raw meat (cooking ingredient)
-	if randf() < 0.25:
-		player.inventory.add_item("raw_meat", 1)
-	# THE POTIONS RULE (5.5): HP/mana potions drop ONLY from the pre-boss
-	# floors (positions 4-5 of each block) -- the player enters every boss
-	# stocked, and can't potion-spam ordinary floors. Scarcer source, richer
-	# rolls, so the boss-eve larder still fills.
-	if (GameState.active_dungeon_level - 1) % 5 + 1 >= 4:
-		if randf() < 0.16:
-			player.inventory.add_item("potion_health", 1)
-		if randf() < 0.12:
-			player.inventory.add_item("potion_mana", 1)
+	# ALL rewards go to the real hero, never to whatever the mob happened to be
+	# fighting -- since the prey rework, `player` can be an adventurer or a
+	# villager, and paying loot into THEIR "inventory" crashed the death
+	# (caught 2026-07-21 the moment mobs and defenders met on the east road).
+	var hero: Node2D = real_player if (real_player != null and is_instance_valid(real_player)) else null
+	if hero != null and "inventory" in hero:
+		# low-rate construction-material drop (tougher gens roll a little better)
+		var mat = GameState.roll_construction_drop(hero, 1.0 + 0.15 * generation)
+		if mat != "":
+			spawn_material_popup(mat)
+		# raw meat (cooking ingredient)
+		if randf() < 0.25:
+			hero.inventory.add_item("raw_meat", 1)
+		# THE POTIONS RULE (5.5): HP/mana potions drop ONLY from the pre-boss
+		# floors (positions 4-5 of each block) -- the player enters every boss
+		# stocked, and can't potion-spam ordinary floors. Scarcer source, richer
+		# rolls, so the boss-eve larder still fills.
+		if (GameState.active_dungeon_level - 1) % 5 + 1 >= 4:
+			if randf() < 0.16:
+				hero.inventory.add_item("potion_health", 1)
+			if randf() < 0.12:
+				hero.inventory.add_item("potion_mana", 1)
 	is_dead = true
 	is_attacking = false
 	$CollisionShape2D.set_deferred("disabled", true)

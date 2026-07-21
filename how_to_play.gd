@@ -31,7 +31,8 @@ const SECTIONS = [
 		["F8", "the field journal: type any problem you notice and Enter — it lands in PLAYTEST_NOTES.md stamped with where and when"],
 	]],
 	["THE DEEP", [
-		["F at the red zone", "the level select -- clearing a floor unlocks the next; every 5th is a boss"],
+		["The cave", "the ONLY way down: a mouth in the earth west of the village, a long stair, and an open underworld beneath the whole map — eight bands deep, darker and meaner the lower you go"],
+		["Stone doors", "hidden in the caves; each opens onto one dungeon floor ([E] when its rune burns gold). Deeper caves hide doors to deeper floors — clearing a floor unlocks the next; every 5th is a boss. Leaving a floor returns you to its door."],
 		["Sorrow-Crystals", "the taken hang frozen in crystals. Kill the pocket's guard, shatter the crystal (E) -- their talents stay hidden until they thaw at home."],
 		["Blue gate", "always retreats a level (works mid-fight);  green gate advances once the floor is clear"],
 		["Potions", "drop ONLY on the two floors before each boss, and every felled boss leaves a cache -- there is no potion-spam"],

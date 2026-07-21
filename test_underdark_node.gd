@@ -1,0 +1,132 @@
+extends Node
+# THE UNDERDARK (GAME_BIBLE §4 amendment). Proves the promises: the cave is the
+# ONLY way down, it is genuinely Terraria-scale, its doors respect the floor
+# ladder and hand you back to the same door, and its mobs behave like the east
+# road's (late sight, real leash, streamed away behind you).
+
+var fails := 0
+
+func check(name: String, ok: bool, detail := "") -> void:
+	if ok:
+		printerr("PASS  ", name)
+	else:
+		fails += 1
+		printerr("FAIL  ", name, "   ", detail)
+
+func keep_running() -> void:
+	if not get_tree().paused:
+		return
+	for n in get_tree().root.find_children("*", "", true, false):
+		if n.has_method("finish") and n.has_method("show_line"):
+			n.finish()
+			break
+	get_tree().paused = false
+
+func _ready() -> void:
+	var p: Node = null
+	for i in range(1200):
+		keep_running()
+		await get_tree().process_frame
+		p = get_tree().get_first_node_in_group("player")
+		if p != null:
+			break
+	if p == null:
+		printerr("no player"); get_tree().quit(1); return
+	for i in range(40):
+		keep_running()
+		await get_tree().process_frame
+	p.god_mode = true
+
+	var ud = get_tree().current_scene.get_node_or_null("Underdark")
+	check("the Underdark is built into the village scene", ud != null)
+	if ud == null:
+		printerr("RESULT: %d FAILURES" % maxi(fails, 1)); get_tree().quit(1); return
+
+	# ---- 1. the cave is the ONLY way down ----
+	check("the old surface dungeon door is retired",
+		get_tree().current_scene.get_node_or_null("DungeonZone") == null)
+	var doors := _doors(ud)
+	check("hidden stone doors exist in the deep", doors.size() >= 40, "%d doors" % doors.size())
+
+	# ---- 2. Terraria-scale ----
+	var depth: float = ud.band_floor_y(ud.BANDS - 1) - ud.UD_TOP
+	var width: float = ud.UD_RIGHT - ud.ud_left
+	check("the underworld runs the width of the map", width > 30000.0, "%.0f wide" % width)
+	check("...and is Terraria-deep, not a corridor", depth > 9000.0, "%.0f deep" % depth)
+	check("...in many depth bands", ud.BANDS >= 8, "%d bands" % ud.BANDS)
+
+	# ---- 3. the descent lands on real ground, not through it ----
+	check("the spine starts EAST of where the stair lets out",
+		ud.ud_left > ud._stair_end_x(), "spine %.0f vs stair end %.0f" % [ud.ud_left, ud._stair_end_x()])
+	check("the mouth is clear of the player's spawn point",
+		absf(ud.MOUTH_X - (-300.0)) > 400.0, "mouth at %.0f" % ud.MOUTH_X)
+
+	# ---- 4. deeper doors open onto deeper floors ----
+	var shallow := _avg_level(doors, ud, 0, 2)
+	var deep := _avg_level(doors, ud, 5, 7)
+	check("the deeper you dig, the higher the floors behind the doors",
+		deep > shallow + 25.0, "bands 0-2 avg %.0f vs bands 5-7 avg %.0f" % [shallow, deep])
+	var maxlv := 0
+	var minlv := 999
+	for d in doors:
+		maxlv = maxi(maxlv, d.target_level)
+		minlv = mini(minlv, d.target_level)
+	check("the deepest doors reach the end of the ladder", maxlv >= 95, "max %d" % maxlv)
+	# A FRESH SAVE HAS ONLY FLOOR 1. With no surface door left, if the shallow
+	# caves hold nothing below floor 8 the dungeon is unreachable for the whole
+	# early game -- which is exactly what the first random placement did.
+	check("a brand-new run can actually get in (a floor-1 door exists)",
+		minlv == 1, "shallowest door is floor %d" % minlv)
+
+	# ---- 5. a door respects the ladder, and hands you back to itself ----
+	GameState.highest_unlocked_level = 3
+	var sealed_door: Node = null
+	var open_door: Node = null
+	for d in doors:
+		if d.target_level > 3 and sealed_door == null:
+			sealed_door = d
+		if d.target_level <= 3 and open_door == null:
+			open_door = d
+	check("a door onto a floor you have not earned stays SEALED",
+		sealed_door != null and not sealed_door._unlocked())
+	check("...and one onto an unlocked floor opens", open_door != null and open_door._unlocked())
+	if open_door != null:
+		GameState.seen_arrival_battle = true
+		GameState.seen_arrival_talk = true
+		GameState.harvest_at_home = false
+		var want_level: int = open_door.target_level
+		var want_pos: Vector2 = open_door.global_position
+		open_door._try_enter()
+		for i in range(300):
+			await get_tree().process_frame
+			if GameState.in_dungeon:
+				break
+		check("entering a door drops you onto ITS floor",
+			GameState.in_dungeon and GameState.active_dungeon_level == want_level,
+			"in=%s level=%d want=%d" % [str(GameState.in_dungeon), GameState.active_dungeon_level, want_level])
+		check("...and leaving that floor returns you to that very door",
+			GameState.pre_dungeon_position.distance_to(want_pos) < 2.0,
+			"%s vs %s" % [str(GameState.pre_dungeon_position), str(want_pos)])
+		printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
+		get_tree().quit(1 if fails > 0 else 0)
+		return
+
+	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
+	get_tree().quit(1 if fails > 0 else 0)
+
+func _doors(ud: Node) -> Array:
+	var out := []
+	for c in ud.get_children():
+		if c.get_script() != null and str(c.get_script().resource_path).ends_with("underdark_door.gd"):
+			out.append(c)
+	return out
+
+func _avg_level(doors: Array, ud: Node, lo_band: int, hi_band: int) -> float:
+	var total := 0.0
+	var n := 0
+	for d in doors:
+		var b := int((d.position.y - ud.UD_TOP) / ud.BAND_H)
+		if b >= lo_band and b <= hi_band:
+			total += float(d.target_level)
+			n += 1
+	return total / maxf(1.0, float(n))

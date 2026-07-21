@@ -152,7 +152,8 @@ What the player is actually *doing and worrying about* at every stage. This is t
 
 ## 4. Combat, Player & Dungeon — systems inventory
 
-### 4.1 Player & combat ✅ (built, still balancing)
+> ✅ DECIDED (2026-07-21, dev): **THE UNDERDARK — how the deep is entered.** The surface "DUNGEON door + level scroll" is retired. The ONLY way underground is **the cave**: a mouth in the earth where the old sign stood, sloping gently down into an **open underground world** that runs beneath the whole map — Terraria-built: tunnels, chambers, shafts, dark rock lit by braziers, its own mobs and ore seams, in **four depth bands** that get meaner the deeper you go.
+> The 100 floors remain exactly as built (bosses every 5th, blueprints, the Ten's vaults, the Harvest gate — nothing moves). They are reached through **hidden stone doors** found in the underdark's niches: each door is sealed onto one floor; **the deeper the band, the higher the floors its doors open onto** (band 1 → floors 1–15 … band 4 → floors 60–100). A door only opens if that floor is unlocked (the same ladder as ever — clear N to unlock N+1; the in-floor gates still descend). Entering through a door returns you to that door when you leave. Exploration is the reward loop: pushing deeper through the caves finds doors that skip you straight to the deep floors, richer seams, and worse company.
 - Side-scroller controls: move, jump/double-jump, dash, mouse-aimed omnidirectional attacks, weapon hotbar, E interact, Tab inventory, K skill tree.
 - **Mana pool** (base 50 → up to 90 endgame) powering wands/specials; HP up to 160 endgame.
 - **Crits + floating damage numbers**; **status effects** (burn / poison / freeze / slow); **fall damage** past a safe distance (negated by fall-immunity relics); **flight** (Aetherwing relic — 10s budget, glide).

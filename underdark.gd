@@ -1,0 +1,536 @@
+extends Node2D
+# THE UNDERDARK (GAME_BIBLE §4 amendment, dev-decided 2026-07-21).
+#
+# The surface "DUNGEON door + level scroll" is retired. The only way down is
+# THE CAVE: a mouth in the earth where the old sign stood, a long stair that
+# slowly sinks east, and under the whole map an open underground world --
+# Terraria-built, and Terraria-SIZED (dev: "at least small size of Terraria"):
+#
+#   ~37,000px wide x ~11,000px deep, EIGHT depth bands of winding tunnel
+#   spines with chambers, connected by zigzag climbing shafts. Same map
+#   proportions as a Terraria small world (depth:width ~0.28 vs their ~0.29).
+#
+# The 100 floors stay exactly as built. They are reached through HIDDEN STONE
+# DOORS in the underdark's niches: deeper bands hold doors onto higher floors
+# (band 1 -> floors 1-19 ... band 8 -> 85-100). A door only opens once its
+# floor is unlocked -- the ladder is unchanged, doors are entry shortcuts.
+# pre_dungeon_position is set at the door, so leaving a floor puts you back
+# at the very door you entered.
+#
+# Three rules carried from the east road: cave mobs see you late (is_wild),
+# they let go at the leash, and they STREAM -- only the sectors around the
+# player are ever alive, so the size is free.
+
+const ENEMY_SCENE = preload("res://enemy.tscn")
+const HARVEST_NODE_SCRIPT = preload("res://harvest_node.gd")
+
+# --- geometry ---------------------------------------------------------------
+const UD_SEED = 0xD33B
+# The spine starts EAST of where the entry stair LANDS -- derived, never
+# guessed. A hardcoded number here silently drove the descent through band 1's
+# slabs the moment the mouth moved, so ud_left is computed from the real stair
+# geometry in _ready (see _stair_end_x).
+var ud_left := 4600.0
+const UD_RIGHT = 36800.0
+const UD_TOP = 420.0               # below the surface strip
+const BANDS = 8
+const BAND_H = 1340.0              # solid rock + tunnel per band
+const TUNNEL_H = 250.0             # breathing room of a normal tunnel
+const CHAMBER_H = 620.0            # ...and of a chamber
+const FLOOR_T = 60.0               # slab thickness
+const MAX_STEP = 70.0              # floor jitter between segments (92px rule)
+const ROCK_COLOR = Color(0.055, 0.05, 0.068, 1.0)
+const SLAB_COLOR = Color(0.16, 0.14, 0.13, 1.0)
+const SLAB_EDGE = Color(0.23, 0.2, 0.17, 1.0)
+
+# --- the cave mouth ---------------------------------------------------------
+# A HOLE IN THE GROUND IS A HAZARD TO EVERYTHING THAT STANDS ON IT, so the
+# mouth's position is a real constraint, not decoration. It must clear:
+#   x=-300  the player's boot position (a hole there drops them on frame 1)
+#   x=520   the arrival battle's road
+#   x=1500  the fixture ground half the boss suites pin their actors on
+#   x=4700  the village's west wall
+# 2400 sits in the open stretch between them: you walk past the cave on the
+# way in, and can come back to it whenever. Anything that carves ground here
+# reads this constant -- never a copy of the number.
+const MOUTH_X = 2400.0
+const MOUTH_HALF_W = 90.0
+const STAIR_STEP_W = 36.0
+const STAIR_STEP_DROP = 20.0
+
+# --- doors ------------------------------------------------------------------
+const DOORS_PER_BAND = 7
+
+# --- streaming mobs ---------------------------------------------------------
+const SECTOR_W = 1000.0
+const ALIVE_RADIUS = 2300.0
+const CULL_RADIUS = 3400.0
+const RESPAWN_SECONDS = 150.0
+
+var _plan := {}          # band -> Array of {x0, x1, floor_y, ceil_y, kind}
+var _shafts := {}        # band -> Array of shaft x centers (to the band below)
+var _player: Node2D = null
+var _live := {}
+var _cleared_at := {}
+var _scan_timer := 0.0
+
+func _ready() -> void:
+	name = "Underdark"
+	_retire_surface_door()
+	_carve_mouth_collision()
+	_carve_ground_skin()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = UD_SEED
+	ud_left = _stair_end_x() + 260.0
+	_plan_bands(rng)
+	# shafts are PLANNED before anything is built: they mark holes on the
+	# segments they cross, and _build_bands then builds those slabs as two
+	# pieces. Building first and patching after would leave no hole at all.
+	_plan_shafts(rng)
+	_build_dark_backdrop()
+	_build_mouth_and_stair()
+	_build_bands(rng)
+	_build_shaft_ladders()
+	_place_doors(rng)
+	_place_seams(rng)
+
+func band_floor_y(band: int) -> float:
+	return UD_TOP + (band + 1) * BAND_H - 180.0
+
+# How many steps the descent takes, and therefore where it lets out. Both the
+# stair builder and ud_left read this, so they can never disagree.
+func _stair_steps() -> int:
+	return int(ceil(band_floor_y(0) / STAIR_STEP_DROP))
+
+func _stair_end_x() -> float:
+	return MOUTH_X - MOUTH_HALF_W + _stair_steps() * STAIR_STEP_W
+
+# The old surface door: sign, prompt, zone -- gone. The cave IS the way in.
+func _retire_surface_door() -> void:
+	var main := get_parent()
+	if main == null:
+		return
+	var zone := main.get_node_or_null("DungeonZone")
+	if zone != null:
+		zone.queue_free()
+
+# The surface ground is ONE collision rect the width of the world. Split it in
+# two around the mouth so there is a real hole to walk down into.
+func _carve_mouth_collision() -> void:
+	var main := get_parent()
+	var ground := main.get_node_or_null("Ground") if main != null else null
+	if ground == null:
+		return
+	var cs: CollisionShape2D = ground.get_node_or_null("CollisionShape2D")
+	if cs == null or not (cs.shape is RectangleShape2D):
+		return
+	var old_rect: RectangleShape2D = cs.shape
+	var half_w: float = old_rect.size.x / 2.0
+	var west_l: float = cs.position.x - half_w
+	var east_r: float = cs.position.x + half_w
+	var gap_l := MOUTH_X - MOUTH_HALF_W
+	var gap_r := MOUTH_X + MOUTH_HALF_W
+	# shrink the original to the west piece...
+	var west := RectangleShape2D.new()
+	west.size = Vector2(gap_l - west_l, old_rect.size.y)
+	cs.shape = west
+	cs.position = Vector2((west_l + gap_l) / 2.0, cs.position.y)
+	# ...and add an east piece
+	var east_body := StaticBody2D.new()
+	var east_cs := CollisionShape2D.new()
+	var east := RectangleShape2D.new()
+	east.size = Vector2(east_r - gap_r, old_rect.size.y)
+	east_cs.shape = east
+	east_body.add_child(east_cs)
+	ground.add_child(east_body)
+	east_body.global_position = Vector2((gap_r + east_r) / 2.0, cs.global_position.y)
+
+# THE SKIN WOULD HAVE HIDDEN THE WHOLE WORLD. The surface's earth-tile fill
+# draws at z0 from the crust down to y~925 -- everything underdark (rock
+# backdrop, stair, braziers) sits below the player at negative z, so the upper
+# underground would render as solid tiles with an invisible passage inside.
+# Rather than a z-war (the player himself is z0), the skin is CARVED: the deep
+# fill stops at y=165 (the crust keeps its texture where the surface camera
+# sees it; darkness takes over below), and both skin sprites are split around
+# the mouth so the opening is a real hole in the drawn earth too.
+func _carve_ground_skin() -> void:
+	var main := get_parent()
+	var ground := main.get_node_or_null("Ground") if main != null else null
+	if ground == null:
+		return
+	var gap_l := MOUTH_X - MOUTH_HALF_W
+	var gap_r := MOUTH_X + MOUTH_HALF_W
+	for child in ground.get_children():
+		if not (child is Sprite2D) or not child.region_enabled:
+			continue
+		if child.region_rect.size.y > 300.0:
+			child.region_rect.size.y = 165.0 - child.position.y
+		# split around the mouth: shrink the original to the west piece and
+		# clone an east piece
+		var east := child.duplicate()
+		var west_w: float = gap_l - child.position.x
+		var full_w: float = child.region_rect.size.x
+		child.region_rect.size.x = west_w
+		east.region_rect.size.x = full_w - (gap_r - east.position.x)
+		east.position.x = gap_r
+		ground.add_child(east)
+
+func _plan_bands(rng: RandomNumberGenerator) -> void:
+	for b in range(BANDS):
+		var segs := []
+		var base := band_floor_y(b)
+		var floor_y := base
+		var x := ud_left
+		while x < UD_RIGHT:
+			var w := rng.randf_range(700.0, 1400.0)
+			var chamber := rng.randf() < 0.22
+			floor_y = clampf(floor_y + rng.randf_range(-MAX_STEP, MAX_STEP),
+				base - 140.0, base + 140.0)
+			segs.append({
+				"x0": x, "x1": minf(x + w, UD_RIGHT), "floor_y": floor_y,
+				"ceil_y": floor_y - (CHAMBER_H if chamber else TUNNEL_H),
+				"kind": "chamber" if chamber else "tunnel",
+			})
+			x += w
+		_plan[b] = segs
+
+func _build_dark_backdrop() -> void:
+	var rock := ColorRect.new()
+	rock.color = ROCK_COLOR
+	rock.z_index = -90
+	rock.position = Vector2(MOUTH_X - 600.0, 60.0)
+	rock.size = Vector2(UD_RIGHT - rock.position.x + 900.0, UD_TOP + BANDS * BAND_H + 600.0)
+	add_child(rock)
+
+func _slab(x: float, y: float, w: float, h: float) -> void:
+	var body := StaticBody2D.new()
+	var cs := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = Vector2(w, h)
+	cs.shape = rect
+	body.add_child(cs)
+	add_child(body)
+	body.global_position = Vector2(x + w / 2.0, y + h / 2.0)
+	var vis := ColorRect.new()
+	vis.color = SLAB_COLOR
+	vis.size = Vector2(w, h)
+	vis.position = Vector2(-w / 2.0, -h / 2.0)
+	vis.z_index = -1        # above the rock dark (-90), below the player (0)
+	body.add_child(vis)
+	var edge := ColorRect.new()
+	edge.color = SLAB_EDGE
+	edge.size = Vector2(w, 5.0)
+	edge.position = Vector2(-w / 2.0, -h / 2.0)
+	edge.z_index = -1
+	body.add_child(edge)
+
+# The mouth: a dark opening in the surface, then a stair that SLOWLY goes
+# down (dev's words), sinking east ~16px a step until it reaches band 1.
+func _build_mouth_and_stair() -> void:
+	# the opening itself is a real gap in the carved skin -- but the MOUNTAINS
+	# draw at z0 like the skin, so above the rock backdrop's top the hole showed
+	# purple ridge through the earth. A z0 shadow (we are later in the tree than
+	# the Background) blacks out the mouth column; the player stepping through
+	# it briefly vanishes into the dark, which is exactly what walking into a
+	# cave mouth should look like.
+	var shadow := ColorRect.new()
+	shadow.color = ROCK_COLOR
+	shadow.position = Vector2(MOUTH_X - MOUTH_HALF_W - 12.0, -46.0)
+	shadow.size = Vector2(MOUTH_HALF_W * 2.0 + 74.0, 190.0)
+	add_child(shadow)
+	var lintel := Polygon2D.new()
+	lintel.color = Color(0.2, 0.18, 0.16)
+	lintel.polygon = PackedVector2Array([
+		Vector2(MOUTH_X - MOUTH_HALF_W - 34.0, -40.0),
+		Vector2(MOUTH_X - MOUTH_HALF_W + 8.0, -108.0),
+		Vector2(MOUTH_X + MOUTH_HALF_W - 8.0, -108.0),
+		Vector2(MOUTH_X + MOUTH_HALF_W + 34.0, -40.0),
+		Vector2(MOUTH_X + MOUTH_HALF_W, -40.0),
+		Vector2(MOUTH_X, -74.0),
+		Vector2(MOUTH_X - MOUTH_HALF_W, -40.0)])
+	lintel.z_index = 1
+	add_child(lintel)
+	_brazier(Vector2(MOUTH_X - MOUTH_HALF_W - 20.0, -50.0))
+	_brazier(Vector2(MOUTH_X + MOUTH_HALF_W + 20.0, -50.0))
+	# the stair: west wall first so the player can't slip under the world edge
+	var target_y := band_floor_y(0)
+	_slab(MOUTH_X - MOUTH_HALF_W - 60.0, -40.0, 60.0, target_y + 60.0)
+	var steps := _stair_steps()
+	var x := MOUTH_X - MOUTH_HALF_W
+	# the top step meets the SURFACE (GROUND_Y), so stepping in is a step, not
+	# a plunge -- entering used to cost fall damage before the first tread
+	var y := -39.0
+	for i in range(steps):
+		_slab(x, y, STAIR_STEP_W + 26.0, FLOOR_T)
+		x += STAIR_STEP_W
+		y += STAIR_STEP_DROP
+		if i % 26 == 0:
+			_brazier(Vector2(x, y - 60.0))
+	# landing that joins the stair to band 1's spine
+	var first_seg: Dictionary = _plan[0][0]
+	_slab(x, target_y, maxf(80.0, first_seg.x0 - x + 120.0), FLOOR_T)
+	# a ceiling over the stair run so the descent is a real tunnel -- but only
+	# once it is genuinely underground; near the mouth the ceiling would poke
+	# up through the surface, so the first stretch stays open sky-hole
+	x = MOUTH_X - MOUTH_HALF_W
+	y = -240.0
+	for i in range(steps):
+		if y > 40.0:
+			_slab(x, y, STAIR_STEP_W + 26.0, FLOOR_T)
+		x += STAIR_STEP_W
+		y += STAIR_STEP_DROP
+
+func _build_bands(rng: RandomNumberGenerator) -> void:
+	for b in range(BANDS):
+		var segs: Array = _plan[b]
+		for i in range(segs.size()):
+			var s: Dictionary = segs[i]
+			var w: float = s.x1 - s.x0
+			_slab_with_hole(s.x0, s.x1, s.floor_y, s.get("floor_hole"))
+			_slab_with_hole(s.x0, s.x1, s.ceil_y - FLOOR_T, s.get("ceil_hole"))
+			# a chamber gets furniture: a platform or two, and light
+			if s.kind == "chamber":
+				for p in range(rng.randi_range(1, 2)):
+					_slab(s.x0 + rng.randf_range(0.15, 0.6) * w,
+						s.floor_y - rng.randf_range(90.0, 170.0),
+						rng.randf_range(120.0, 220.0), 16.0)
+				_brazier(Vector2(s.x0 + w * 0.5, s.floor_y - 40.0))
+			elif rng.randf() < 0.35:
+				_brazier(Vector2(s.x0 + w * 0.5, s.floor_y - 34.0))
+		# hard walls at both ends of the band
+		var first: Dictionary = segs[0]
+		var last: Dictionary = segs[segs.size() - 1]
+		_slab(first.x0 - 60.0, first.ceil_y - 80.0, 60.0, first.floor_y - first.ceil_y + 160.0)
+		_slab(last.x1, last.ceil_y - 80.0, 60.0, last.floor_y - last.ceil_y + 160.0)
+
+# Zigzag climbing shafts between bands: a hole in the upper band's floor, a
+# hole in the lower band's ceiling, and platforms every <=75px so the way BACK
+# UP respects the 92px jump rule. Planning only marks the holes on the
+# segments; _build_bands honours them, _build_shaft_ladders adds the climb.
+func _plan_shafts(rng: RandomNumberGenerator) -> void:
+	for b in range(BANDS - 1):
+		var xs := []
+		for k in range(4):
+			var sx := lerpf(ud_left + 1200.0, UD_RIGHT - 1200.0, (k + rng.randf_range(0.2, 0.8)) / 4.0)
+			var top_seg := _seg_at(b, sx)
+			var bot_seg := _seg_at(b + 1, sx)
+			if top_seg.is_empty() or bot_seg.is_empty():
+				continue
+			# never punch a hole nearer than 120px to a segment edge; if the
+			# two bands' segments barely overlap here, the clamps can fight --
+			# skip rather than mark a hole outside its own slab
+			sx = clampf(sx, top_seg.x0 + 210.0, top_seg.x1 - 210.0)
+			sx = clampf(sx, bot_seg.x0 + 210.0, bot_seg.x1 - 210.0)
+			if sx - 90.0 < maxf(top_seg.x0, bot_seg.x0) + 60.0 \
+					or sx + 90.0 > minf(top_seg.x1, bot_seg.x1) - 60.0:
+				continue
+			top_seg["floor_hole"] = Vector2(sx - 90.0, sx + 90.0)
+			bot_seg["ceil_hole"] = Vector2(sx - 90.0, sx + 90.0)
+			xs.append(sx)
+		_shafts[b] = xs
+
+func _build_shaft_ladders() -> void:
+	for b in _shafts.keys():
+		for sx in _shafts[b]:
+			var top_seg := _seg_at(b, sx)
+			var bot_seg := _seg_at(b + 1, sx)
+			if top_seg.is_empty() or bot_seg.is_empty():
+				continue
+			var y: float = top_seg.floor_y + 60.0
+			var side := 1.0
+			while y < bot_seg.ceil_y + 50.0:
+				_slab(sx + side * 55.0 - 45.0, y, 90.0, 14.0)
+				side = -side
+				y += 72.0
+			_brazier(Vector2(sx, top_seg.floor_y + 34.0))
+
+# a slab that may carry one hole: built as two pieces around it
+func _slab_with_hole(x0: float, x1: float, y: float, hole) -> void:
+	if hole == null:
+		_slab(x0, y, x1 - x0, FLOOR_T)
+		return
+	if hole.x > x0:
+		_slab(x0, y, hole.x - x0, FLOOR_T)
+	if x1 > hole.y:
+		_slab(hole.y, y, x1 - hole.y, FLOOR_T)
+
+func _seg_at(band: int, x: float) -> Dictionary:
+	for s in _plan[band]:
+		if x >= s.x0 and x <= s.x1:
+			return s
+	return {}
+
+func _brazier(pos: Vector2) -> void:
+	var glow := Sprite2D.new()
+	glow.texture = _glow_tex()
+	glow.material = _add_mat()
+	glow.modulate = Color(1.0, 0.62, 0.2, 0.5)
+	glow.scale = Vector2(2.2, 2.2)
+	glow.position = pos + Vector2(0, -14)
+	glow.z_index = -1
+	add_child(glow)
+	var bowl := ColorRect.new()
+	bowl.color = Color(0.25, 0.2, 0.16)
+	bowl.size = Vector2(18, 8)
+	bowl.position = pos + Vector2(-9, -6)
+	bowl.z_index = -1
+	add_child(bowl)
+	var flame := ColorRect.new()
+	flame.color = Color(1.0, 0.55, 0.15, 0.9)
+	flame.size = Vector2(8, 12)
+	flame.position = pos + Vector2(-4, -18)
+	flame.z_index = -1
+	add_child(flame)
+
+static var _glow: ImageTexture = null
+static func _glow_tex() -> ImageTexture:
+	if _glow != null:
+		return _glow
+	var img := Image.create(64, 64, false, Image.FORMAT_RGBA8)
+	for py in range(64):
+		for px in range(64):
+			var d := Vector2(px - 32, py - 32).length() / 32.0
+			img.set_pixel(px, py, Color(1, 1, 1, clampf(1.0 - d, 0.0, 1.0) * 0.55))
+	_glow = ImageTexture.create_from_image(img)
+	return _glow
+
+static func _add_mat() -> CanvasItemMaterial:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	return m
+
+# --- the hidden doors -------------------------------------------------------
+func _place_doors(rng: RandomNumberGenerator) -> void:
+	for b in range(BANDS):
+		var lo := 1 + b * 12
+		var hi := mini(100, lo + 18)
+		var segs: Array = _plan[b]
+		var placed := 0
+		var guard := 0
+		while placed < DOORS_PER_BAND and guard < 200:
+			guard += 1
+			var s: Dictionary = segs[rng.randi_range(0, segs.size() - 1)]
+			if s.has("door_here"):
+				continue
+			s["door_here"] = true
+			var door := preload("res://underdark_door.gd").new()
+			# EVERY BAND'S FIRST DOOR IS ITS FLOOR. Rolling all seven at random
+			# once left band 1 with nothing below floor 8 -- and a fresh save
+			# has only floor 1 unlocked, so the whole dungeon was UNREACHABLE:
+			# no door would open and there is no other way down any more.
+			# The band's bottom rung is guaranteed; the rest stay a lottery.
+			door.target_level = lo if placed == 0 else rng.randi_range(lo, hi)
+			door.position = Vector2(lerpf(s.x0 + 90.0, s.x1 - 90.0, rng.randf()), s.floor_y)
+			add_child(door)
+			placed += 1
+
+# --- ore seams --------------------------------------------------------------
+func _place_seams(rng: RandomNumberGenerator) -> void:
+	for b in range(BANDS):
+		for s in _plan[b]:
+			if rng.randf() > 0.26:
+				continue
+			var node = HARVEST_NODE_SCRIPT.new()
+			node.node_type = "rock"
+			node.position = Vector2(lerpf(s.x0 + 60.0, s.x1 - 60.0, rng.randf()), s.floor_y)
+			node.z_index = -4
+			add_child(node)
+
+# --- streamed cave mobs (the east road's three rules, underground) ----------
+func _process(delta: float) -> void:
+	_scan_timer -= delta
+	if _scan_timer > 0.0:
+		return
+	_scan_timer = 0.5
+	if _player == null or not is_instance_valid(_player):
+		_player = get_tree().get_first_node_in_group("player")
+		if _player == null:
+			return
+	if GameState.in_dungeon or _player.global_position.y < UD_TOP - 120.0:
+		return
+	_stream(_player.global_position)
+
+func _band_of(y: float) -> int:
+	return clampi(int((y - UD_TOP) / BAND_H), 0, BANDS - 1)
+
+func _stream(ppos: Vector2) -> void:
+	var now: float = Time.get_ticks_msec() / 1000.0
+	for key in _live.keys():
+		var center: Vector2 = _sector_center(key)
+		if center.distance_to(ppos) > CULL_RADIUS:
+			for e in _live[key]:
+				if is_instance_valid(e):
+					e.queue_free()
+			_live.erase(key)
+	for key in _cleared_at.keys():
+		if now - float(_cleared_at[key]) > RESPAWN_SECONDS:
+			_cleared_at.erase(key)
+	var band := _band_of(ppos.y)
+	for bb in range(maxi(0, band - 1), mini(BANDS, band + 2)):
+		var first := int(floor((ppos.x - ALIVE_RADIUS) / SECTOR_W))
+		var last := int(floor((ppos.x + ALIVE_RADIUS) / SECTOR_W))
+		for idx in range(first, last + 1):
+			var key := "%d:%d" % [bb, idx]
+			var cx := idx * SECTOR_W + SECTOR_W * 0.5
+			if cx < ud_left + 200.0 or cx > UD_RIGHT - 200.0:
+				continue
+			if _live.has(key):
+				_prune(key, now)
+				continue
+			if _cleared_at.has(key):
+				continue
+			_populate(key, bb, cx, ppos)
+
+func _sector_center(key: String) -> Vector2:
+	var parts := key.split(":")
+	var bb := int(parts[0])
+	var idx := int(parts[1])
+	return Vector2(idx * SECTOR_W + SECTOR_W * 0.5, band_floor_y(bb) - 60.0)
+
+func _prune(key: String, now: float) -> void:
+	var alive := []
+	for e in _live[key]:
+		if is_instance_valid(e) and not e.is_dead:
+			alive.append(e)
+	_live[key] = alive
+	if alive.is_empty():
+		_live.erase(key)
+		_cleared_at[key] = now
+
+func _populate(key: String, band: int, cx: float, ppos: Vector2) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(key) ^ UD_SEED
+	var count := 1 + int(band / 2.0) + (1 if rng.randf() < 0.5 else 0)
+	var made := []
+	for i in range(count):
+		var x := cx + rng.randf_range(-SECTOR_W * 0.4, SECTOR_W * 0.4)
+		var seg := _seg_at(band, x)
+		if seg.is_empty():
+			continue
+		var pos := Vector2(x, seg.floor_y - 50.0)
+		if pos.distance_to(ppos) < 720.0:
+			continue
+		var e = ENEMY_SCENE.instantiate()
+		e.respawns = false
+		e.is_wild = true
+		e.wild_home_x = x
+		var depth := float(band) / float(BANDS - 1)
+		e.wave_hp_multiplier = lerpf(1.2, 5.0, depth) * rng.randf_range(0.9, 1.15)
+		e.wave_damage_multiplier = lerpf(1.1, 3.4, depth) * rng.randf_range(0.9, 1.1)
+		e.wave_speed_multiplier = lerpf(1.0, 1.35, depth)
+		e.apply_block_archetype(mini(int(depth * 9.0), 8))
+		e.add_to_group("course_enemy")
+		add_child(e)
+		e.global_position = pos
+		e.detection_range_current = e.DETECTION_RANGE * e.WILD_SIGHT_MULT
+		made.append(e)
+	if not made.is_empty():
+		_live[key] = made
+
+func live_count() -> int:
+	var n := 0
+	for key in _live.keys():
+		for e in _live[key]:
+			if is_instance_valid(e) and not e.is_dead:
+				n += 1
+	return n
