@@ -118,13 +118,40 @@ func _ready() -> void:
 	area.body_entered.connect(func(b): if b.is_in_group("player"): player_near = true; _refresh_prompt())
 	area.body_exited.connect(func(b): if b.is_in_group("player"): player_near = false; _refresh_prompt())
 
+const ADV_ROOT := "res://art/villagers/"
+const ADV_SPRITE_H := 54.0                 # a defender stands as tall as the hero
+# the three read as distinct travel-worn fighters -- real pixel bodies (reusing
+# the villager art) instead of the old 20x40 ColorRect box (dev: NPCs looked
+# tiny/messy). Cool modulate keeps them "blues, not villager browns".
+const ADV_SKINS := {"adv_roland": "man3", "adv_wren": "woman2", "adv_castor": "man4"}
+var _skin_sprite: AnimatedSprite2D = null
+
 func _build_visual() -> void:
-	body_rect = ColorRect.new()
-	body_rect.size = Vector2(20, 40)
-	body_rect.position = Vector2(-10, -42)
-	body_rect.color = Color(0.32, 0.36, 0.46)   # travel-worn blues, not villager browns
-	body_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(body_rect)
+	var vskin: String = ADV_SKINS.get(adventurer_id, "man")
+	if EnemySkins.is_per_frame(vskin, ADV_ROOT):
+		_skin_sprite = AnimatedSprite2D.new()
+		_skin_sprite.sprite_frames = EnemySkins.frames_for(vskin, ADV_ROOT)
+		_skin_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		var ch := EnemySkins.content_height(vskin, ADV_ROOT)
+		var sc := ADV_SPRITE_H / ch
+		_skin_sprite.scale = Vector2(sc, sc)
+		_skin_sprite.offset = Vector2(-EnemySkins.hcenter_px(vskin, ADV_ROOT), -EnemySkins.feet_px(vskin, ADV_ROOT))
+		_skin_sprite.modulate = Color(0.72, 0.8, 1.0)   # travel-worn cool cast
+		if _skin_sprite.sprite_frames.has_animation("idle"):
+			_skin_sprite.animation = "idle"
+			_skin_sprite.play()
+		add_child(_skin_sprite)
+		# a hidden stand-in so the flip code below still has body_rect
+		body_rect = ColorRect.new()
+		body_rect.visible = false
+		add_child(body_rect)
+	else:
+		body_rect = ColorRect.new()
+		body_rect.size = Vector2(20, 40)
+		body_rect.position = Vector2(-10, -42)
+		body_rect.color = Color(0.32, 0.36, 0.46)
+		body_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(body_rect)
 	weapon_rect = ColorRect.new()
 	weapon_rect.size = Vector2(4, 30)
 	weapon_rect.position = Vector2(10, -40)
@@ -281,8 +308,12 @@ func _hold_station(delta: float) -> void:
 	var dest := home_x + (patrol_off if station == "city" else 0.0)
 	var dx := dest - global_position.x
 	velocity.x = clampf(dx, -WALK_SPEED, WALK_SPEED) if absf(dx) > 6.0 else 0.0
-	if body_rect and absf(velocity.x) > 1.0:
-		body_rect.scale.x = 1.0 if velocity.x >= 0.0 else -1.0
+	if absf(velocity.x) > 1.0:
+		var face := 1.0 if velocity.x >= 0.0 else -1.0
+		if _skin_sprite:
+			_skin_sprite.scale.x = absf(_skin_sprite.scale.x) * face
+		elif body_rect:
+			body_rect.scale.x = face
 
 func _nearest_raider() -> Node2D:
 	var best: Node2D = null

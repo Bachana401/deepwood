@@ -128,7 +128,11 @@ const NPC_HOODS = [Color(0.24, 0.4, 0.26), Color(0.42, 0.3, 0.2), Color(0.45, 0.
 # body when the art is present; without it, apply_size falls back to the
 # deterministic little-person build above, so this is safe with no art shipped.
 const VILLAGER_ROOT := "res://art/villagers/"
-const VILLAGER_SPRITE_H := 38.0   # adult on-screen height; kids inherit body_scale_factor (0.65)
+# Adult on-screen height. Was 38 -- which left rescued villagers TINY beside
+# the 56px player, the 64px Orin and 72px enemies (dev: "some NPCs are tiny").
+# 52 reads as an ordinary adult standing just under the hero. Kids inherit
+# body_scale_factor (0.65) -> ~34px, correctly child-sized.
+const VILLAGER_SPRITE_H := 52.0
 var villager_sprite: AnimatedSprite2D = null
 
 var body_gfx: Node2D = null
