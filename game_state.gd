@@ -1195,6 +1195,7 @@ func tick_village_clock() -> void:
 	tick_watchtower_warning()
 	tick_mine_yield(hours_passed)
 	tick_self_sufficiency()   # celebrate each chore the moment it starts running itself
+	tick_village_peril()      # escalating dread as the hearth empties (pierces the fog)
 	if hours_passed > 0.0:
 		# grief heals with time -- the forgiving half of the death-shock system
 		morale_death_shock = maxf(0.0, morale_death_shock - hours_passed * DEATH_SHOCK_DECAY_PER_HOUR * (2.0 if ten_freed("ten_seraphel") else 1.0))
@@ -1878,6 +1879,21 @@ const DESPAIR_GRACE_HOURS := 18.0        # crisis must persist this long before 
 const DESPAIR_HP_REGEN_PER_HOUR := 12.0  # a recovered village pulls the sick back up
 const VILLAGER_MAX_HP := 100.0
 
+# --- THE FADING OF DEEPWOOD (dev ask 2026-07-22): the village dying is a felt,
+# escalating dread that PIERCES the away-fog -- you must be warned even in the
+# deep, because losing everyone is nearly the end. Not the end itself: an empty
+# hearth can still be rebuilt by rescuing the taken from the dark. The true end
+# comes only when the town is empty AND no soul is left to bring home (below).
+const VILLAGE_PERIL_LOW := 3             # "few souls remain" dread fires at/under this
+# band: -1 safe, 0 dwindling (<=LOW), 1 the last soul (<=1), 2 empty (0). Warnings
+# fire only on WORSENING (band rising); recovery lowers it and re-arms the dread.
+var _peril_band := -1
+# Named souls lost FOREVER (a rescued figure who then died -- they don't wait in
+# the dark to be freed again). Empties the finite rescue pool over a doomed run;
+# see rescue_pool_open. (Populated by the permadeath wiring; see commit note.)
+var lost_souls: Array = []
+var village_lost := false                # the true end has fired (village empty, none to save)
+
 # --- CORRUPTION (GAME_BIBLE 10): despair made mechanical, v2 ---
 # The Law of Despair executed locally on the personal-morale layer (5.5b):
 # a villager whose OWN morale sits at zero begins to ROT -- a grey telegraph
@@ -2086,6 +2102,80 @@ func tick_morale_effects(hours_passed: float) -> void:
 			notify("A villager has starved to death.")
 		else:
 			notify("%d villagers have starved to death." % dead.size())
+
+# A mortal-peril cry that PIERCES the village fog: unlike notify(), this reaches
+# the player anywhere -- the deep included -- because "your whole town is about
+# to die" is the one thing distance must not hide.
+func notify_urgent(text: String) -> void:
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if stack and stack.has_method("show_notification"):
+		stack.show_notification(text)
+
+# THE FADING OF DEEPWOOD: watch the hearth's headcount and raise escalating dread
+# as it empties. Fires only when things get WORSE (band rising) so it never spams;
+# recovery re-arms it. Called every clock tick.
+func tick_village_peril() -> void:
+	if dev_mode:
+		return
+	var n := rescued_villagers.size()
+	var band := -1
+	if n == 0:
+		band = 2
+	elif n <= 1:
+		band = 1
+	elif n <= VILLAGE_PERIL_LOW:
+		band = 0
+	if band > _peril_band:
+		match band:
+			0:
+				notify_urgent("❄ A cold dread reaches you even here — Deepwood is dying. Only %d souls remain at the hearth." % n)
+				log_event("people", "Deepwood is dwindling — only %d souls remain." % n)
+				play_sfx(SFX_THUD, 0.7)
+			1:
+				notify_urgent("❄ The LAST soul of Deepwood clings to life. If they fall with no one left to bring home, Deepwood is lost. GO HOME.")
+				log_event("people", "One soul, alone, keeps Deepwood's fire lit. The town holds its breath.")
+				play_sfx(SFX_THUD, 0.55)
+			2:
+				_on_village_emptied()
+	_peril_band = band
+
+# The hearth has gone cold. If souls still wait in the dark, this is a wound, not
+# the end -- go free them and Deepwood breathes again. Only when NOBODY is left
+# to rescue does the story truly close (village_truly_lost / _trigger below).
+func _on_village_emptied() -> void:
+	log_event("people", "Deepwood has fallen silent — not one soul remains at the hearth.")
+	if rescue_pool_open():
+		notify_urgent("Deepwood stands empty and cold. But the dark still holds captives — descend, break their chains, and carry the village home again.")
+		play_sfx(SFX_THUD, 0.5)
+	else:
+		_trigger_village_lost()
+
+# Is there anyone still out there to bring home? A named soul who has neither been
+# rescued yet nor been lost forever -- a chained figure, a captive of the deep
+# nine, one of the Ten still in a vault. While ANY remains, an empty village is a
+# wound, not the end: you can always descend and rebuild.
+func rescue_pool_open() -> bool:
+	for lvl in VillagerQuests.IMPORTANT_FIGURES:
+		var fid := str(VillagerQuests.IMPORTANT_FIGURES[lvl].get("villager_id", ""))
+		if fid != "" and not is_villager_rescued(fid) and not lost_souls.has(fid):
+			return true
+	for id in Adventurers.ids():
+		var st := adventurer_state(id)
+		if not bool(st.get("rescued", false)) and not bool(st.get("dead", false)):
+			return true
+	if not all_ten_freed():
+		return true
+	return false
+
+# The true end: the hearth is cold AND no soul is left to bring home. The story
+# closes here. (Fires only once the rescue pool can actually empty -- the finite
+# permadeath wiring; until then rescue_pool_open stays true and this never runs.)
+func _trigger_village_lost() -> void:
+	if village_lost:
+		return
+	village_lost = true
+	log_event("people", "Deepwood is gone. There was no one left to save, and now no one at all.")
+	notify_urgent("Deepwood is gone. There was no one left to save — and now no one at all.")
 
 # A neglected villager's descent completes: spawn a demon where their avatar
 # stands (so it attacks the town from within), then purge the villager and heap
@@ -3616,6 +3706,9 @@ func reset_for_new_game() -> void:
 	food_empty_hours = 0.0
 	village_food = food_capacity()
 	selfsuf_celebrated = []   # a fresh run earns every "your day is your own" beat again
+	_peril_band = -1          # the fading-of-Deepwood dread starts quiet
+	village_lost = false
+	lost_souls = []
 
 func has_save() -> bool:
 	return FileAccess.file_exists(SAVE_PATH)
