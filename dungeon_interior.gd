@@ -1885,7 +1885,10 @@ func spawn_deep_rescue() -> void:
 			$LevelContainer.add_child(ar)
 			show_notification("An adventurer is chained in this level — free them!")
 	var figure = VillagerQuests.figure_for_level(current_level)
-	if figure.is_empty() or GameState.is_villager_rescued(str(figure.get("villager_id", ""))):
+	var fig_id := str(figure.get("villager_id", ""))
+	# a figure who was rescued then DIED is lost forever -- they do not wait here
+	# to be freed again (permadeath, dev decision 2026-07-22)
+	if figure.is_empty() or GameState.is_villager_rescued(fig_id) or GameState.lost_souls.has(fig_id):
 		return
 	var v = VILLAGER_SCENE.instantiate()
 	v.villager_id = str(figure.get("villager_id", ""))

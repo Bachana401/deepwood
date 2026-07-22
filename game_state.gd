@@ -2167,15 +2167,63 @@ func rescue_pool_open() -> bool:
 		return true
 	return false
 
+# Is this id one of the named leadership figures (the finite, now-permadeath
+# rescue pool)? A rescued figure who dies is added to lost_souls and never waits
+# in the dark to be freed again -- which is what lets the pool finally empty.
+func is_important_figure(villager_id: String) -> bool:
+	for lvl in VillagerQuests.IMPORTANT_FIGURES:
+		if str(VillagerQuests.IMPORTANT_FIGURES[lvl].get("villager_id", "")) == villager_id:
+			return true
+	return false
+
 # The true end: the hearth is cold AND no soul is left to bring home. The story
-# closes here. (Fires only once the rescue pool can actually empty -- the finite
-# permadeath wiring; until then rescue_pool_open stays true and this never runs.)
+# closes here -- a somber screen, then back to the world's edge (the main menu).
 func _trigger_village_lost() -> void:
 	if village_lost:
 		return
 	village_lost = true
 	log_event("people", "Deepwood is gone. There was no one left to save, and now no one at all.")
-	notify_urgent("Deepwood is gone. There was no one left to save — and now no one at all.")
+	_show_village_lost_screen()
+
+func _show_village_lost_screen() -> void:
+	var tree := get_tree()
+	if tree == null:
+		return
+	var layer := CanvasLayer.new()
+	layer.layer = 250
+	layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	tree.root.add_child(layer)
+	var bg := ColorRect.new()
+	bg.color = Color(0.02, 0.02, 0.03, 1.0)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(bg)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(center)
+	var box := VBoxContainer.new()
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_theme_constant_override("separation", 26)
+	center.add_child(box)
+	var title := Label.new()
+	title.text = "DEEPWOOD IS GONE"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 40)
+	title.add_theme_color_override("font_color", Color(0.72, 0.2, 0.24))
+	box.add_child(title)
+	var body := Label.new()
+	body.text = "Not one soul remains at the hearth,\nand no one waits in the dark to be brought home.\nThere was no one left to save.\n\nThe forest keeps its silence."
+	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	body.add_theme_font_size_override("font_size", 18)
+	body.add_theme_color_override("font_color", Color(0.78, 0.78, 0.82))
+	box.add_child(body)
+	var btn := Button.new()
+	btn.text = "Let the story rest"
+	btn.custom_minimum_size = Vector2(240, 40)
+	btn.pressed.connect(func():
+		tree.paused = false
+		tree.change_scene_to_file("res://main_menu.tscn"))
+	box.add_child(btn)
+	tree.paused = true
 
 # A neglected villager's descent completes: spawn a demon where their avatar
 # stands (so it attacks the town from within), then purge the villager and heap
@@ -2534,6 +2582,7 @@ func try_cleanse(was_villager: Dictionary) -> bool:
 	# Lightkeeper (the Ten): under her light they return steadier.
 	v["morale"] = 5.0 if ten_freed("ten_seraphel") else 3.0
 	v.erase("shadow")
+	lost_souls.erase(str(v.get("id", "")))   # cleansed back to life -> no longer lost
 	rescued_villagers.append(v)
 	villager_hp[str(v.get("id", ""))] = 60.0
 	play_sfx(SFX_YES, 1.15)
@@ -3802,6 +3851,8 @@ func save_game(player: Node) -> void:
 		"village_food": village_food,
 		"food_empty_hours": food_empty_hours,
 		"selfsuf_celebrated": selfsuf_celebrated,
+		"lost_souls": lost_souls,
+		"village_lost": village_lost,
 	}
 	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	file.store_string(JSON.stringify(data))
@@ -3948,6 +3999,8 @@ func load_game() -> Dictionary:
 		seen_l100_reveal = bool(parsed.get("seen_l100_reveal", false))
 		village_food = float(parsed.get("village_food", food_capacity()))
 		selfsuf_celebrated = parsed.get("selfsuf_celebrated", [])
+		lost_souls = parsed.get("lost_souls", [])
+		village_lost = bool(parsed.get("village_lost", false))
 		villager_hp = {}
 		if parsed.has("villager_hp") and parsed["villager_hp"] is Dictionary:
 			for k in parsed["villager_hp"].keys():
@@ -3962,6 +4015,7 @@ func delete_save() -> void:
 		DirAccess.remove_absolute(SAVE_PATH)
 
 func rescue_villager(data: Dictionary) -> void:
+	lost_souls.erase(str(data.get("id", "")))   # a soul brought home is no longer lost
 	# personal bond (VillagerQuests): if this named villager has a quest, it
 	# starts active the moment they're freed.
 	if VillagerQuests.has_quest(str(data.get("id", ""))):
@@ -4086,6 +4140,11 @@ func remove_villager_by_id(villager_id: String) -> void:
 			rescued_villagers.erase(entry)
 			register_villager_deaths(1, death_pos)   # every villager lost grieves the town
 			log_event("people", "%s is gone. Deepwood grieves." % str(entry.get("name", "Someone")))
+			# a fallen leadership figure is lost FOREVER -- they never wait in the
+			# dark to be freed again, so the finite rescue pool can truly empty
+			if is_important_figure(villager_id) and not lost_souls.has(villager_id):
+				lost_souls.append(villager_id)
+				log_event("people", "%s will not be found in the dark again — that post is lost for good." % str(entry.get("name", "A leader")))
 			break
 	# 5.8: widowhood. The survivor's partner-link breaks, the -3 grief lands
 	# now and decays across the mourning window, and only after ~48h can they

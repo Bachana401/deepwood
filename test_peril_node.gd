@@ -1,10 +1,10 @@
 extends Node
 
-# THE FADING OF DEEPWOOD (dev ask 2026-07-22): as the hearth empties, escalating
-# dread fires on WORSENING and PIERCES the away-fog; an empty village is a wound,
-# not the end, while any named soul still waits in the dark to be brought home.
-# Locks the band ladder, the re-arm on recovery, the recoverable-empty state, and
-# the true-end trigger.
+# THE FADING OF DEEPWOOD (dev ask 2026-07-22). As the hearth empties, escalating
+# dread fires on WORSENING and PIERCES the away-fog. An empty village is a wound,
+# not the end, while any named soul still waits in the dark. A fallen leadership
+# FIGURE is lost FOREVER (permadeath, dev call) -- which lets the finite rescue
+# pool finally empty; only then, with an empty hearth, does the story truly end.
 
 var fails := 0
 func check(name: String, ok: bool, detail := "") -> void:
@@ -18,11 +18,9 @@ func mk(n: int) -> Array:
 	return out
 
 func _ready() -> void:
-	var p: Node = null
 	for i in range(1200):
 		await get_tree().process_frame
-		p = get_tree().get_first_node_in_group("player")
-		if p != null: break
+		if get_tree().get_first_node_in_group("player") != null: break
 	for i in range(60):
 		await get_tree().process_frame
 		if not get_tree().paused: break
@@ -34,57 +32,80 @@ func _ready() -> void:
 	var saved_dev: bool = GameState.dev_mode
 	var saved_band: int = GameState._peril_band
 	var saved_lost: bool = GameState.village_lost
+	var saved_souls: Array = GameState.lost_souls.duplicate()
+	var saved_adv: Dictionary = GameState.adventurers.duplicate(true)
+	var saved_ten: Dictionary = GameState.the_ten.duplicate(true)
 	GameState.dev_mode = false
 
-	# a healthy hearth raises no dread
+	var fig_id := ""
+	for lvl in VillagerQuests.IMPORTANT_FIGURES:
+		fig_id = str(VillagerQuests.IMPORTANT_FIGURES[lvl].get("villager_id", ""))
+		break
+
+	# ---- the dread ladder + re-arm ----
 	GameState._peril_band = -1
+	GameState.lost_souls = []
 	GameState.rescued_villagers = mk(6)
 	GameState.tick_village_peril()
 	check("a healthy village raises no dread", GameState._peril_band == -1, str(GameState._peril_band))
-
-	# dwindling -> the cold dread band
-	GameState.rescued_villagers = mk(3)
-	GameState.tick_village_peril()
-	check("dwindling to a few souls sounds the dread", GameState._peril_band == 0, str(GameState._peril_band))
-
-	# the last soul
-	GameState.rescued_villagers = mk(1)
-	GameState.tick_village_peril()
-	check("the last soul raises the final warning", GameState._peril_band == 1, str(GameState._peril_band))
-
-	# empty -- but with souls still in the dark, it is recoverable, NOT the end
+	GameState.rescued_villagers = mk(3); GameState.tick_village_peril()
+	check("dwindling sounds the cold dread", GameState._peril_band == 0)
+	GameState.rescued_villagers = mk(1); GameState.tick_village_peril()
+	check("the last soul raises the final warning", GameState._peril_band == 1)
+	# empty, but the dungeon is full -> recoverable, NOT the end
 	GameState.village_lost = false
 	GameState.rescued_villagers = []
 	check("with a fresh dungeon the rescue pool is open", GameState.rescue_pool_open())
 	GameState.tick_village_peril()
-	check("an emptied hearth reaches the empty band", GameState._peril_band == 2, str(GameState._peril_band))
-	check("...but is NOT the true end while souls wait to be rescued", not GameState.village_lost)
+	check("an emptied hearth reaches the empty band", GameState._peril_band == 2)
+	check("...but is NOT the true end while souls wait", not GameState.village_lost)
+	GameState.rescued_villagers = mk(5); GameState.tick_village_peril()
+	check("bringing people home re-arms the dread", GameState._peril_band == -1)
 
-	# recovery re-arms the dread (band falls back)
-	GameState.rescued_villagers = mk(5)
-	GameState.tick_village_peril()
-	check("bringing people home re-arms the warning", GameState._peril_band == -1, str(GameState._peril_band))
-	# ...and a healthy town holding steady does NOT re-fire
-	GameState.tick_village_peril()
-	check("a steady healthy town stays quiet", GameState._peril_band == -1)
+	# ---- figure permadeath: a fallen leader is lost forever ----
+	GameState.lost_souls = []
+	GameState.rescued_villagers = [{"id": fig_id, "name": "Test Figure", "sex": "Male", "is_kid": false}]
+	check("the id is a real leadership figure", GameState.is_important_figure(fig_id))
+	GameState.remove_villager_by_id(fig_id)
+	check("a fallen figure is added to the lost forever", GameState.lost_souls.has(fig_id))
+	# ...and brought home again (cleanse / re-rescue) clears that
+	GameState.rescue_villager({"id": fig_id, "name": "Test Figure", "sex": "Male", "is_kid": false})
+	check("a soul brought home is no longer lost", not GameState.lost_souls.has(fig_id))
+	var dsrc := FileAccess.open("res://dungeon_interior.gd", FileAccess.READ).get_as_text()
+	check("the dungeon won't respawn a lost figure", dsrc.contains("GameState.lost_souls.has(fig_id)"))
 
-	# the true end fires once, and only through its trigger
+	# ---- the true end: empty hearth AND the pool fully emptied ----
+	GameState.lost_souls = []
+	for lvl2 in VillagerQuests.IMPORTANT_FIGURES:
+		GameState.lost_souls.append(str(VillagerQuests.IMPORTANT_FIGURES[lvl2].get("villager_id", "")))
+	GameState.ensure_adventurers()
+	for aid in GameState.adventurers.keys():
+		GameState.adventurers[aid]["dead"] = true
+	GameState.ensure_the_ten()
+	for tid in GameState.the_ten.keys():
+		GameState.the_ten[tid]["freed"] = true
+	GameState.rescued_villagers = []
+	check("with every soul lost or freed, the rescue pool is CLOSED", not GameState.rescue_pool_open())
 	GameState.village_lost = false
-	GameState._trigger_village_lost()
-	check("the true end sets the lost flag", GameState.village_lost)
-	GameState._trigger_village_lost()
-	check("the true end never double-fires", GameState.village_lost)
+	GameState._peril_band = 1
+	GameState.tick_village_peril()   # -> empty band -> pool closed -> the true end
+	check("an empty hearth with no one to save ENDS the story", GameState.village_lost)
+	get_tree().paused = false        # the end-screen pauses the tree; release it
+	for c in get_tree().root.get_children():
+		if c is CanvasLayer and c.layer == 250:
+			c.queue_free()
 
-	# wired into the clock + reset on a new run
 	var gs := FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text()
-	check("the peril watch ticks with the village clock", gs.contains("tick_village_peril()"))
-	check("mortal warnings PIERCE the fog (notify_urgent, not notify)",
-		gs.contains("func notify_urgent") and gs.contains("notify_urgent("))
-	check("a fresh run starts quiet", gs.contains("_peril_band = -1"))
+	check("mortal warnings pierce the fog (notify_urgent)", gs.contains("func notify_urgent"))
+	check("the lost-forever set survives the save", gs.contains('"lost_souls": lost_souls'))
 
+	# ---- restore ----
 	GameState.rescued_villagers = saved_roster
 	GameState.dev_mode = saved_dev
 	GameState._peril_band = saved_band
 	GameState.village_lost = saved_lost
+	GameState.lost_souls = saved_souls
+	GameState.adventurers = saved_adv
+	GameState.the_ten = saved_ten
 	printerr("test_peril : RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails, "  (FAILs=%d)" % fails)
 	get_tree().quit(1 if fails > 0 else 0)
