@@ -250,6 +250,15 @@ func _ready() -> void:
 	var stall = preload("res://shop_stall.gd").new()
 	stall.position = Vector2($ShopZone.global_position.x, VILLAGE_Y)
 	add_child(stall)
+	# THE WAYSTONE (fast-travel hub, dev 2026-07-21). Once its blueprint wakes at
+	# floor 20 it stands at the village threshold -- press E to leap to any Deep
+	# Shrine you have woken in the dungeon, so re-descending never wastes time.
+	if GameState.waystone_unlocked:
+		var way = preload("res://shrine_node.gd").new()
+		way.is_waystone = true
+		add_child(way)
+		way.global_position = Vector2(VILLAGE_START_X - 170.0, VILLAGE_Y)
+		GameState.waystone_home_pos = way.global_position
 	warn_wounded_corps()
 	orin_midgame_taunt()
 	# a coronation interrupted by a quit finishes here, at home

@@ -29,6 +29,35 @@ func floor_is_cleared(level: int) -> bool:
 func mark_floor_cleared(level: int) -> void:
 	floors_cleared[str(level)] = true
 
+# WAYSTONE SHRINES (fast-travel, Wukong-style, dev 2026-07-21). A Deep Shrine
+# stands on every tenth floor, INVISIBLE until you clear that floor -- then it
+# wakes (log + world-wide chime) and becomes a fast-travel anchor. The village
+# WAYSTONE (its blueprint recovered the moment you clear floor 20) lets you leap
+# to any woken shrine from home, so re-descending never wastes your time.
+# "Revealed" is DERIVED from floors_cleared -- no separate save; only the
+# Waystone's own unlock is a flag.
+const SHRINE_INTERVAL := 10
+var waystone_unlocked := false
+# Where the village Waystone stands (set by main.gd when it spawns one). Transient
+# -- a deep shrine reads it to know where "return home" drops you. Falls back to
+# VILLAGE_SPAWN before a Waystone exists.
+var waystone_home_pos := Vector2.ZERO
+
+func is_shrine_floor(level: int) -> bool:
+	return level >= SHRINE_INTERVAL and level % SHRINE_INTERVAL == 0
+
+func shrine_revealed(level: int) -> bool:
+	return is_shrine_floor(level) and floor_is_cleared(level)
+
+func revealed_shrines() -> Array:
+	var out := []
+	var f: int = SHRINE_INTERVAL
+	while f <= 100:
+		if shrine_revealed(f):
+			out.append(f)
+		f += SHRINE_INTERVAL
+	return out
+
 # Story: the opening plea (Story.OPENING) plays once at the start of a new game.
 # Persisted so Continue never replays it; reset by reset_for_new_game().
 var seen_intro := false
@@ -3412,6 +3441,7 @@ func reset_for_new_game() -> void:
 	school_enrollments = {}
 	highest_unlocked_level = 999 if TEST_UNLOCK_ALL_LEVELS else 1
 	floors_cleared = {}                        # a new run's deep is unswept
+	waystone_unlocked = false                  # the Waystone is re-earned at floor 20
 	village_last_hours_elapsed = 0.0
 	game_hours = 0.0
 	hours_until_next_siege = SIEGE_FIRST_HOURS
@@ -3553,6 +3583,7 @@ func save_game(player: Node) -> void:
 		"school_enrollments": school_enrollments,
 		"highest_unlocked_level": highest_unlocked_level,
 		"floors_cleared": floors_cleared,
+		"waystone_unlocked": waystone_unlocked,
 		"player_xp": player_xp,
 		"player_level": player_level,
 		"skill_points": skill_points,
@@ -3668,6 +3699,7 @@ func load_game() -> Dictionary:
 			highest_unlocked_level = parsed["highest_unlocked_level"]
 		if parsed.has("floors_cleared") and parsed["floors_cleared"] is Dictionary:
 			floors_cleared = parsed["floors_cleared"]
+		waystone_unlocked = bool(parsed.get("waystone_unlocked", false))
 		if TEST_UNLOCK_ALL_LEVELS:
 			highest_unlocked_level = max(highest_unlocked_level, 999)
 		player_xp = parsed.get("player_xp", player_xp)

@@ -423,6 +423,10 @@ func _ready() -> void:
 	start_music()
 	# no countdown -- combat begins the moment the level loads
 	spawn_level_combat()
+	# a decade floor whose shrine already woke shows it again on re-entry (and is
+	# where a fast-travel arrival lands -- it's at the entry, and the floor is clear)
+	if GameState.shrine_revealed(current_level):
+		_place_deep_shrine(false)
 
 func setup_exit_button() -> void:
 	var exit_button = get_node_or_null("CanvasLayer/ExitDungeonButton")
@@ -1432,6 +1436,34 @@ func place_player_at_entry(enter_from_right: bool) -> void:
 		player.global_position = Vector2(x, GROUND_Y - 100.0)
 		player.velocity = Vector2.ZERO
 
+# DEEP SHRINES (Wukong-style fast-travel, dev 2026-07-21). One stands at the entry
+# of every tenth floor -- INVISIBLE until you clear that floor, then it wakes (log
+# + world-wide chime) and becomes a travel anchor you can leap to from the village
+# Waystone. Placed silently when you re-enter a floor whose shrine already woke.
+const SHRINE_NODE = preload("res://shrine_node.gd")
+
+func _place_deep_shrine(waking: bool) -> void:
+	for c in get_children():
+		if c.get_script() == SHRINE_NODE:
+			return                                  # one per floor, never doubled
+	var sh = SHRINE_NODE.new()
+	sh.is_waystone = false
+	add_child(sh)
+	sh.global_position = Vector2(ENTRY_X + 130.0, GROUND_Y)
+	if not waking:
+		return
+	GameState.log_event("combat", "A Deep Shrine woke on floor %d — you can leap here from the Waystone." % current_level)
+	GameState.play_sfx(GameState.SFX_CHIME, 1.9)
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if stack:
+		stack.show_notification("🔔 A DEEP SHRINE awakens on floor %d — a new anchor to travel to." % current_level)
+	# THE WAYSTONE is earned at floor 20: its blueprint wakes with the shrine there
+	if current_level >= 20 and not GameState.waystone_unlocked:
+		GameState.waystone_unlocked = true
+		GameState.log_event("village", "The WAYSTONE blueprint woke — raise it at home to leap to any shrine.")
+		if stack:
+			stack.show_notification("▲ The WAYSTONE will rise at home — from it, travel to any woken shrine.")
+
 # --- combat flow (mirrors the old overworld dungeon_manager.gd) ---
 
 # A per-level multiplier that grows at `per`/level until `softcap`, then at the
@@ -1991,6 +2023,9 @@ func _on_combatant_died() -> void:
 		# what you killed STAYS killed -- this floor never repopulates again,
 		# in this run, however long you are away (dev rule 2026-07-21)
 		GameState.mark_floor_cleared(current_level)
+		# a Deep Shrine wakes on every tenth floor -- see _place_deep_shrine
+		if GameState.is_shrine_floor(current_level):
+			_place_deep_shrine(true)
 		GameState.highest_unlocked_level = max(GameState.highest_unlocked_level, current_level + 1)
 		# a cleared floor is a milestone worth banking (autosave)
 		GameState.autosave("floor %d cleared" % current_level, true)
