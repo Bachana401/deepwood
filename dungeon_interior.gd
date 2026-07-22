@@ -1452,6 +1452,7 @@ func _place_deep_shrine(waking: bool) -> void:
 	sh.global_position = Vector2(ENTRY_X + 130.0, GROUND_Y)
 	if not waking:
 		return
+	sh.play_wake()          # the dramatic rise-from-nothing when a floor first falls
 	GameState.log_event("combat", "A Deep Shrine woke on floor %d — you can leap here from the Waystone." % current_level)
 	GameState.play_sfx(GameState.SFX_CHIME, 1.9)
 	var stack = get_tree().get_first_node_in_group("notification_stack")

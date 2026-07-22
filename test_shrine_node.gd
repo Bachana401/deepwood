@@ -60,7 +60,11 @@ func _ready() -> void:
 	sh.is_waystone = false
 	add_child(sh)
 	await get_tree().process_frame
-	check("a Deep Shrine builds its dais, pillar and sigil", sh.get_child_count() >= 5)
+	check("a Deep Shrine builds its dais, pillar, sigil and rune ring",
+		sh._visual != null and sh._visual.get_child_count() >= 5)
+	check("...and it can play its dramatic wake", sh.has_method("play_wake"))
+	sh.play_wake()
+	await get_tree().process_frame
 	sh.queue_free()
 	var wm = load("res://shrine_menu.gd").new()
 	add_child(wm)

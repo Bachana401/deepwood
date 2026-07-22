@@ -8,6 +8,10 @@ const MENU := preload("res://shrine_menu.gd")
 var is_waystone := false
 var _inside := false
 var prompt: Label = null
+var _accent := Color.WHITE
+var _halo: Polygon2D = null
+var _beam: Polygon2D = null
+var _visual: Node2D = null      # everything but the prompt, so a wake can scale it
 
 func _ready() -> void:
 	collision_mask = 2                       # the player's body layer
@@ -22,37 +26,59 @@ func _ready() -> void:
 	_build_visual()
 
 func _build_visual() -> void:
-	var accent: Color = Color(1.0, 0.82, 0.35) if is_waystone else Color(0.4, 0.95, 1.0)
+	_accent = Color(1.0, 0.82, 0.35) if is_waystone else Color(0.42, 0.95, 1.0)
 	var stone := Color(0.30, 0.29, 0.34)
+	_visual = Node2D.new()
+	add_child(_visual)
+	# a ground rune ring -- faint marks scribed in a flattened circle round the base
+	var ring := Node2D.new()
+	_visual.add_child(ring)
+	for i in range(12):
+		var a := TAU * float(i) / 12.0
+		var mark := Polygon2D.new()
+		mark.color = Color(_accent.r, _accent.g, _accent.b, 0.28)
+		mark.material = _add_mat()
+		mark.polygon = _disc(3.0, 6)
+		mark.position = Vector2(cos(a) * 66.0, -4.0 + sin(a) * 18.0)
+		ring.add_child(mark)
+	var spin := ring.create_tween().set_loops()
+	spin.tween_property(ring, "rotation", TAU, 26.0)
+	# a slender shaft of light rising from the sigil -- the wake you see from afar
+	_beam = Polygon2D.new()
+	_beam.color = Color(_accent.r, _accent.g, _accent.b, 0.10)
+	_beam.material = _add_mat()
+	_beam.polygon = PackedVector2Array([
+		Vector2(-16, -140), Vector2(16, -140), Vector2(9, -430), Vector2(-9, -430)])
+	_visual.add_child(_beam)
 	var dais := Polygon2D.new()
 	dais.color = stone
 	dais.polygon = PackedVector2Array([
 		Vector2(-56, 0), Vector2(56, 0), Vector2(42, -22), Vector2(-42, -22)])
-	add_child(dais)
+	_visual.add_child(dais)
 	var pillar := Polygon2D.new()
 	pillar.color = stone.lightened(0.09)
 	pillar.polygon = PackedVector2Array([
 		Vector2(-16, -22), Vector2(16, -22), Vector2(12, -124), Vector2(-12, -124)])
-	add_child(pillar)
+	_visual.add_child(pillar)
 	var crown := Polygon2D.new()
 	crown.color = stone.lightened(0.18)
 	crown.polygon = _arch(Vector2(0, -140), 28.0, 8.0, 22)
-	add_child(crown)
-	var halo := Polygon2D.new()
-	halo.color = Color(accent.r, accent.g, accent.b, 0.5)
-	halo.polygon = _disc(36.0, 22)
-	halo.position = Vector2(0, -140)
-	halo.material = _add_mat()
-	add_child(halo)
+	_visual.add_child(crown)
+	_halo = Polygon2D.new()
+	_halo.color = Color(_accent.r, _accent.g, _accent.b, 0.5)
+	_halo.polygon = _disc(36.0, 22)
+	_halo.position = Vector2(0, -140)
+	_halo.material = _add_mat()
+	_visual.add_child(_halo)
 	var core := Polygon2D.new()
-	core.color = accent
+	core.color = _accent
 	core.polygon = _disc(12.0, 18)
 	core.position = Vector2(0, -140)
 	core.material = _add_mat()
-	add_child(core)
+	_visual.add_child(core)
 	var tw := create_tween().set_loops()
-	tw.tween_property(halo, "scale", Vector2(1.28, 1.28), 1.3).set_trans(Tween.TRANS_SINE)
-	tw.tween_property(halo, "scale", Vector2(1.0, 1.0), 1.3).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(_halo, "scale", Vector2(1.28, 1.28), 1.3).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(_halo, "scale", Vector2(1.0, 1.0), 1.3).set_trans(Tween.TRANS_SINE)
 	prompt = Label.new()
 	prompt.add_theme_font_size_override("font_size", 13)
 	prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -61,6 +87,30 @@ func _build_visual() -> void:
 	prompt.visible = false
 	prompt.z_index = 5
 	add_child(prompt)
+
+# The dramatic first appearance -- called once when a shrine WAKES (its floor
+# falls). It rises from nothing with a burst of light and a flare of its beam.
+func play_wake() -> void:
+	if _visual == null:
+		return
+	_visual.scale = Vector2(0.15, 0.15)
+	var pop := _visual.create_tween()
+	pop.tween_property(_visual, "scale", Vector2(1.12, 1.12), 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	pop.tween_property(_visual, "scale", Vector2(1.0, 1.0), 0.18)
+	var flash := Polygon2D.new()
+	flash.color = Color(_accent.r, _accent.g, _accent.b, 0.9)
+	flash.material = _add_mat()
+	flash.polygon = _disc(20.0, 24)
+	flash.position = Vector2(0, -140)
+	add_child(flash)
+	var fw := flash.create_tween()
+	fw.tween_property(flash, "scale", Vector2(6.5, 6.5), 0.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	fw.parallel().tween_property(flash, "modulate:a", 0.0, 0.6)
+	fw.tween_callback(flash.queue_free)
+	if _beam != null:
+		var bw := _beam.create_tween()
+		bw.tween_property(_beam, "color:a", 0.55, 0.25)
+		bw.tween_property(_beam, "color:a", 0.10, 0.9)
 
 func _add_mat() -> CanvasItemMaterial:
 	var m := CanvasItemMaterial.new()

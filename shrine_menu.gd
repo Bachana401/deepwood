@@ -99,8 +99,7 @@ func _travel(floor: int) -> void:
 	GameState.pending_player_state = GameState.capture_player_state(player)
 	GameState.pre_dungeon_position = _return_pos
 	GameState.active_dungeon_level = floor
-	get_tree().paused = false
-	get_tree().change_scene_to_file.call_deferred("res://dungeon_interior.tscn")
+	_warp_to("res://dungeon_interior.tscn")
 
 func _go_home() -> void:
 	var player = get_tree().get_first_node_in_group("player")
@@ -108,5 +107,21 @@ func _go_home() -> void:
 		GameState.pending_player_state = GameState.capture_player_state(player)
 	GameState.in_dungeon = false
 	GameState.returning_from_dungeon = true
+	_warp_to("res://main.tscn")
+
+# A quick warp flash before the hard cut -- the screen floods with the shrine's
+# light and you are elsewhere. Unpauses first so the tween can run.
+func _warp_to(scene_path: String) -> void:
 	get_tree().paused = false
-	get_tree().change_scene_to_file.call_deferred("res://main.tscn")
+	for c in get_children():
+		if c is Control:
+			c.mouse_filter = Control.MOUSE_FILTER_IGNORE      # no stray clicks mid-warp
+	var flash := ColorRect.new()
+	flash.color = Color(0.6, 0.92, 1.0, 0.0)
+	flash.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(flash)
+	var tw := create_tween()
+	tw.tween_property(flash, "color:a", 1.0, 0.30).set_trans(Tween.TRANS_SINE)
+	await tw.finished
+	if get_tree() != null:
+		get_tree().change_scene_to_file(scene_path)
