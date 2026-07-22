@@ -779,7 +779,7 @@ const SIEGE_DEF_PER_WARRIOR = 1.0
 # each) can turn it. Telegraphed early with a fog-piercing omen so you can rush
 # home and post your defenders.
 const BLACK_TIDE_EVERY := 6
-const BLACK_TIDE_MIN_DEPTH := 10
+const BLACK_TIDE_MIN_DEPTH := 15     # not until Orin is freed -- the start stays gentle
 const BLACK_TIDE_TIER_MULT := 2.2
 const BLACK_TIDE_LEAD := 8.0
 var sieges_seen := 0
@@ -1422,6 +1422,10 @@ func trigger_siege() -> void:
 	sieges_seen += 1
 	var black := is_black_tide_number(sieges_seen)
 	var tier = current_siege_tier()
+	# gentler until Orin is freed (dev 2026-07-22): the early game is not meant to
+	# be hard, and every pre-Orin wave comes from ONE side (the dungeon/west) only
+	if not orin_arrived():
+		tier = maxi(1, int(round(float(tier) * 0.6)))
 	if black:
 		# far past the wall's own strength -- the defenders are the only answer
 		tier = int(round(float(tier) * BLACK_TIDE_TIER_MULT)) + 2

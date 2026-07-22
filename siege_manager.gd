@@ -26,6 +26,7 @@ const MAX_SOLDIERS = 6
 const SOLDIER_BASE_HP = 62.0
 const SOLDIER_BASE_DMG = 12.0
 const SOLDIER_SALLY_OFFSET = 130.0   # spawn just outside the wall (west), then charge on
+const DUNGEON_APPROACH = 640.0       # west raiders start this far out -- an approach from the deep
 
 var alive_count = 0
 var siege_number = 0
@@ -50,9 +51,9 @@ func wall_for_flank(flank: String) -> Node:
 	return fallback if flank == "west" else null
 
 # Called by GameState.trigger_siege() when a scheduled siege lands while the
-# player is here in the village. 7.2: the wave comes out of the Deepwood on
-# BOTH flanks at once -- you can stand at one gate; the other one is a bet
-# on the defense you posted there.
+# player is here in the village. The wave pours out of the DUNGEON (the west/pit
+# side) -- and only once Orin is freed (floor 15) does the east road open as a
+# second, unannounced front (see two_fronts below).
 func start_live_siege(tier: int, is_black := false) -> void:
 	siege_number += 1
 	# a Black Tide (3c) fields a visibly BIGGER horde -- past the usual cap
@@ -63,24 +64,31 @@ func start_live_siege(tier: int, is_black := false) -> void:
 
 	var west_wall = wall_for_flank("west")
 	var east_wall = wall_for_flank("east")
-	var west_count: int = int(ceil(count / 2.0)) if east_wall != null else count
-	var east_count: int = count - west_count if east_wall != null else 0
+	# THE EAST FRONT STAYS SHUT until Orin is freed (clearing floor 15, dev
+	# 2026-07-22). Before that every wave pours out of the DUNGEON -- the west/pit
+	# side ONLY. Afterward the east road opens too, same as the left -- and the
+	# player is never told: they find out by seeing raiders where there were none.
+	var two_fronts := GameState.orin_arrived() and east_wall != null
+	var west_count: int = int(ceil(count / 2.0)) if two_fronts else count
+	var east_count: int = (count - west_count) if two_fronts else 0
 
 	alive_count = 0
+	# the west wave marches in FROM THE DUNGEON side -- spawned further out so it
+	# reads as a horde climbing the road out of the deep, not popping in at the gate
 	for i in range(west_count):
 		var face_x = west_wall.west_face_x() if west_wall else DEFAULT_WALL_X
 		_spawn_raider(hp, dmg, tier, west_wall,
-			Vector2(face_x - SPAWN_STANDOFF - i * randf_range(34.0, 70.0), SPAWN_Y))
+			Vector2(face_x - DUNGEON_APPROACH - i * randf_range(34.0, 70.0), SPAWN_Y))
 	for i in range(east_count):
 		_spawn_raider(hp, dmg, tier, east_wall,
 			Vector2(east_wall.east_face_x() + SPAWN_STANDOFF + i * randf_range(34.0, 70.0), SPAWN_Y))
 
+	# NEUTRAL announcement -- never names the flanks, so the east front is a
+	# discovery, not a headline
 	if is_black:
-		notify("🌑 A BLACK TIDE breaks on Deepwood! Wave %d — %d attackers (tier %d). The wall cannot hold this alone — hold with your defenders!" % [siege_number, count, tier])
-	elif east_count > 0:
-		notify("A siege from BOTH flanks! Wave %d -- %d west, %d east (tier %d)." % [siege_number, west_count, east_count, tier])
+		notify("🌑 A BLACK TIDE rises out of the deep! Wave %d — %d attackers (tier %d). The wall cannot hold this alone — hold with your defenders!" % [siege_number, count, tier])
 	else:
-		notify("A siege begins! Wave %d -- %d attackers (tier %d)." % [siege_number, count, tier])
+		notify("A siege! Wave %d — %d claw up out of the dark (tier %d)." % [siege_number, count, tier])
 	_spawn_barracks_soldiers(tier, west_wall, east_wall)
 
 func _spawn_raider(hp: int, dmg: int, tier: int, wall, pos: Vector2) -> void:
