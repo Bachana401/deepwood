@@ -82,6 +82,10 @@ const BASE_MANA_REGEN = 4.0   # points per second
 const DEFAULT_WAND_MANA_COST = 30
 var mana: float = BASE_MAX_MANA
 var mana_bar_fill: ColorRect = null
+# MU Online / Diablo liquid globes (dev ask 2026-07-22) -- the HUD's HP + mana.
+const HUD_ORB = preload("res://hud_orb.gd")
+var hp_orb: Control = null
+var mana_orb: Control = null
 var mana_label: Label = null
 const BOUNCE_DURATION = 0.1
 const INVINCIBILITY_DURATION = 1.0
@@ -288,6 +292,7 @@ func _ready() -> void:
 	build_weapon_guard()
 	build_wings_visual()
 	build_mana_bar()
+	build_orbs()
 	# keep the held weapon drawn in front of the body armor
 	$WeaponIcon.z_index = 3
 	$BowVisual.z_index = 3
@@ -1886,6 +1891,46 @@ func update_mana_display() -> void:
 	if mana_label:
 		mana_label.text = str(int(mana)) + "/" + str(int(max_mana))
 
+# The MU-style HP + mana globes (dev ask 2026-07-22). They replace the top-left
+# bars: the old bar nodes are hidden (kept alive so the legacy update_*_display
+# calls that still poke them never error), and two liquid globes are seated in
+# the bottom corners, flanking the hotbar. Built here in code so they ride into
+# both main.tscn and dungeon_interior.tscn without editing either scene.
+const ORB_D := 104.0
+func build_orbs() -> void:
+	var layer = get_node_or_null("../CanvasLayer")
+	if layer == null:
+		return
+	for n in ["HealthBarFill", "HealthLabel", "HealthBarBG", "HealthBar",
+			"ManaBarBG", "ManaBarFill", "ManaLabel"]:
+		var old = layer.get_node_or_null(n)
+		if old:
+			old.visible = false
+
+	hp_orb = HUD_ORB.new()
+	layer.add_child(hp_orb)
+	hp_orb.setup(Color(0.95, 0.24, 0.22), Color(0.42, 0.03, 0.05), Color(0.62, 0.44, 0.24))
+	hp_orb.anchor_top = 1.0; hp_orb.anchor_bottom = 1.0
+	hp_orb.offset_left = 20.0; hp_orb.offset_right = 20.0 + ORB_D
+	hp_orb.offset_top = -(ORB_D + 12.0); hp_orb.offset_bottom = -12.0
+
+	mana_orb = HUD_ORB.new()
+	layer.add_child(mana_orb)
+	mana_orb.setup(Color(0.32, 0.62, 1.0), Color(0.05, 0.12, 0.5), Color(0.44, 0.5, 0.66))
+	mana_orb.anchor_left = 1.0; mana_orb.anchor_right = 1.0
+	mana_orb.anchor_top = 1.0; mana_orb.anchor_bottom = 1.0
+	mana_orb.offset_right = -20.0; mana_orb.offset_left = -20.0 - ORB_D
+	mana_orb.offset_top = -(ORB_D + 12.0); mana_orb.offset_bottom = -12.0
+	update_orbs()
+
+# Feed the globes the live pools every frame -- cheap, and it catches passive
+# regen/drain that never routes through update_*_display.
+func update_orbs() -> void:
+	if hp_orb:
+		hp_orb.set_values(float(health), float(get_max_health()))
+	if mana_orb:
+		mana_orb.set_values(mana, get_max_mana())
+
 func apply_knockback(direction_sign: int, distance: float) -> void:
 	if is_dead:
 		return
@@ -2260,6 +2305,7 @@ func perform_admin_dash() -> void:
 		invincible = false
 
 func _physics_process(delta: float) -> void:
+	update_orbs()   # keep the HP/mana globes tracking live pools (incl. passive regen)
 	if is_dead:
 		return
 	# both rift doors standing = the drain runs (Riftweaving)
