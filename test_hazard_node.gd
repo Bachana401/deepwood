@@ -31,6 +31,10 @@ func _spawn(kind: String) -> Node2D:
 	h.kind = kind
 	h.damage = 24
 	get_tree().current_scene.add_child(h)
+	# drive it ONLY by the forced _tick_* calls below, so the test is deterministic --
+	# otherwise its own phase-clock could fire during an await (it did, in a clean
+	# clone: the gas cloud poisoned the player before we measured the baseline).
+	h.set_physics_process(false)
 	return h
 
 func _ready() -> void:
@@ -111,6 +115,7 @@ func _ready() -> void:
 	var gs := _spawn("gas")
 	gs.global_position = p.global_position + Vector2(0, 0)
 	await get_tree().process_frame
+	p.poison_until = 0.0                        # clean baseline (poison uses max())
 	var poison_before: float = p.poison_until
 	gs._hit_cd = 0.0
 	gs._t = gs.GAS_DORMANT + gs.GAS_SPEW * 0.5
