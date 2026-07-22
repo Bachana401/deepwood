@@ -900,6 +900,18 @@ const CHILD_NAMES = ["Tomi", "Sasha", "Luca", "Mira", "Finn", "Ari", "Noa", "Ren
 var mating_houses: Dictionary = {}
 var pregnancies: Dictionary = {}
 
+# A session-monotonic sequence behind every generated pregnancy/child id. Births
+# that resolve in the SAME frame -- a dev time-skip completing several
+# pregnancies at once, or multiple cottages departing together -- share
+# Time.get_ticks_msec() to the millisecond, so a bare timestamp+random id could
+# collide and silently overwrite one soul in the roster dict. The sequence makes
+# ids unique WITHIN a run no matter the frame; the timestamp keeps them unique
+# across runs. Not saved: it only has to be monotonic while the session lives.
+var _birth_seq: int = 0
+func _mint_birth_id(prefix: String) -> String:
+	_birth_seq += 1
+	return "%s_%d_%d_%d" % [prefix, Time.get_ticks_msec(), _birth_seq, randi() % 100000]
+
 # --- THE VILLAGE LOG (GAME_BIBLE 5.9) ---
 # The village's diary, opened with L: a timestamped journal of everything
 # that mattered -- much of it while the player was down in the dark. Plain
@@ -990,7 +1002,7 @@ func update_cottage_families(hours_passed: float) -> void:
 	if candidates.is_empty():
 		return
 	var pick: Dictionary = candidates[randi() % candidates.size()]
-	var pregnancy_id = "preg_%d_%d" % [Time.get_ticks_msec(), randi() % 100000]
+	var pregnancy_id = _mint_birth_id("preg")
 	pregnancies[pregnancy_id] = {"male_id": pick.get("a", ""), "female_id": pick.get("b", ""), "remaining_hours": GESTATION_DURATION_HOURS}
 
 # Active School/Barracks enrollments, keyed by villager_id:
@@ -2856,7 +2868,7 @@ func update_mating_houses(hours_passed: float) -> void:
 		# for life -- it never returns to the free pool while both live.
 		cottage_homes[house_id] = {"a": pairing.male_id, "b": pairing.female_id}
 		log_event("people", "%s and %s made a cottage their home." % [villager_name(pairing.male_id), villager_name(pairing.female_id)])
-		var pregnancy_id = "preg_%d_%d" % [Time.get_ticks_msec(), randi() % 100000]
+		var pregnancy_id = _mint_birth_id("preg")
 		pregnancies[pregnancy_id] = {"male_id": pairing.male_id, "female_id": pairing.female_id, "remaining_hours": GESTATION_DURATION_HOURS}
 		couple_departed.emit(house_id, pairing.male_id, pairing.female_id)
 
@@ -2881,7 +2893,7 @@ func produce_child(pregnancy_id: String) -> void:
 	# couple keeps their cottage and update_cottage_families keeps the cradle)
 	var child_sex = "Male" if randi() % 2 == 0 else "Female"
 	var child_name = CHILD_NAMES[randi() % CHILD_NAMES.size()]
-	var child_id = "child_%d_%d" % [Time.get_ticks_msec(), randi() % 100000]
+	var child_id = _mint_birth_id("child")
 	var child := {
 		"id": child_id, "name": child_name, "sex": child_sex, "is_kid": true,
 		"stat_name": "", "stat_value": 0, "role_key": "", "role_title": "", "paired": false,
