@@ -148,6 +148,9 @@ func _ready() -> void:
 	_place_seams(rng)
 	_place_chests(rng)
 	_build_rune_vaults(rng)
+	# LAST on purpose: hidden treasure lofts add on top of the finished, audited
+	# map without shifting any earlier seed draw (see _build_hidden_lofts).
+	_build_hidden_lofts(rng)
 
 func band_floor_y(band: int) -> float:
 	return UD_TOP + (band + 1) * BAND_H - 180.0
@@ -685,14 +688,19 @@ func _trap(pos: Vector2) -> void:
 func _stock_chest(chest: Node, band: int, rng: RandomNumberGenerator) -> void:
 	if GameState.chest_contents.has(chest.chest_id):
 		return                      # already rolled in an earlier session
+	# a FOUND loft (see _build_hidden_lofts) pays better than a floor cache: one
+	# loot tier deeper and an extra roll -- the reward for looking UP and climbing
+	# rather than just running the spine east.
+	var is_loft: bool = str(chest.chest_id).begins_with("ud_loft")
+	var tier: int = band + 1 if is_loft else band
 	var table: Array = LOOT_SHALLOW
-	if band >= 5:
+	if tier >= 5:
 		table = LOOT_DEEP
-	elif band >= 2:
+	elif tier >= 2:
 		table = LOOT_MID
-	for i in range(rng.randi_range(2, 4)):
+	for i in range(rng.randi_range(2, 4) + (1 if is_loft else 0)):
 		var id: String = table[rng.randi_range(0, table.size() - 1)]
-		chest.inventory.add_item(id, rng.randi_range(1, 3 if band < 5 else 2))
+		chest.inventory.add_item(id, rng.randi_range(1, 3 if tier < 5 else 2))
 	GameState.chest_contents[chest.chest_id] = chest.inventory.to_save_data()
 
 func _add_chest(pos: Vector2, band: int, tag: String, rng: RandomNumberGenerator) -> void:
@@ -714,6 +722,50 @@ func _place_chests(rng: RandomNumberGenerator) -> void:
 				continue
 			_add_chest(Vector2(lerpf(s.x0 + 120.0, s.x1 - 120.0, rng.randf()), s.floor_y - 16.0),
 				b, "cache", rng)
+
+# HIDDEN TREASURE LOFTS -- Terraria's reward for looking UP, not just running the
+# spine east. The player can't cut ground or build, so a secret can't hide behind
+# a wall you mine; it hides in the VERTICAL instead. In a share of the tall rooms
+# (chambers/arenas) a small treasure shelf sits high in the rafters, off in a
+# corner, with its own ladder of jump-safe platforms and a richer-than-usual cache
+# lit by one warm glint. Cross the floor and you miss it; look up, see the light,
+# and climb. Built LAST so the seed-driven spine, shafts, doors, seams, caches and
+# vaults are byte-identical to the audited map -- lofts only add on top.
+const LOFT_W := 236.0
+func _build_hidden_lofts(rng: RandomNumberGenerator) -> void:
+	for b in range(BANDS):
+		var segs: Array = _plan[b]
+		for si in range(segs.size()):
+			var s: Dictionary = segs[si]
+			if s.kind != "chamber" and s.kind != "arena":
+				continue
+			if si == segs.size() - 2:              # never the barred vault segment
+				continue
+			var room_h: float = s.floor_y - s.ceil_y
+			if room_h < 360.0:                      # needs rafters to hide a loft in
+				continue
+			if rng.randf() > 0.5:
+				continue
+			# tuck the shelf into a top corner, up near the ceiling
+			var west_side: bool = rng.randf() < 0.5
+			var loft_x: float = (s.x0 + 70.0) if west_side else (s.x1 - 70.0 - LOFT_W)
+			loft_x = clampf(loft_x, s.x0 + 30.0, s.x1 - LOFT_W - 30.0)
+			var loft_y: float = s.ceil_y + 90.0
+			_slab(loft_x, loft_y, LOFT_W, 16.0)
+			# a ladder from the room floor up to the shelf's OPEN edge, rungs <=82px
+			# apart so the whole climb honours the 92px jump (same math as the shafts)
+			var climb_x: float = (loft_x + LOFT_W - 24.0) if west_side else (loft_x + 24.0)
+			var span: float = s.floor_y - loft_y
+			var nn: int = maxi(1, int(ceil(span / 80.0)))
+			var stp: float = span / float(nn)
+			var side := 1.0
+			for i in range(1, nn):
+				_slab(climb_x + side * 44.0 - 45.0, s.floor_y - stp * float(i), 90.0, 14.0)
+				side = -side
+			# the reward, and the glint that gives it away from the floor below
+			_add_chest(Vector2(loft_x + LOFT_W * 0.5, loft_y - 16.0), b, "loft", rng)
+			_brazier(Vector2(loft_x + LOFT_W * 0.5, loft_y - 34.0),
+				FIRE_COLORS[rng.randi_range(1, FIRE_COLORS.size() - 1)])
 
 # THE RUNE VAULTS -- one per band. A barred gate with a real prize behind it,
 # and three rune stones scattered along that band's tunnels. Press E on all

@@ -113,6 +113,8 @@ func _ready() -> void:
 	check("the squeezes are trapped", traps >= 8, "%d traps" % traps)
 	var chests := 0
 	var deep_loot := false
+	var lofts := 0
+	var lofts_stocked := 0
 	for c in get_tree().current_scene.get_children():
 		var sp2 = c.get_script()
 		if sp2 == null or not str(sp2.resource_path).ends_with("chest.gd"):
@@ -120,11 +122,29 @@ func _ready() -> void:
 		if not str(c.chest_id).begins_with("ud_"):
 			continue
 		chests += 1
+		var items := 0
 		for slot in c.inventory.slots:
-			if slot != null and str(slot.item_id) in ["void_essence", "ancient_relic"]:
-				deep_loot = true
+			if slot != null:
+				items += 1
+				if str(slot.item_id) in ["void_essence", "ancient_relic"]:
+					deep_loot = true
+		if str(c.chest_id).begins_with("ud_loft"):
+			lofts += 1
+			if items > 0:
+				lofts_stocked += 1
 	check("the deep is worth looting", chests >= 20, "%d chests" % chests)
 	check("...and the deepest caches pay in what you cannot buy", deep_loot)
+	# HIDDEN TREASURE LOFTS -- the reward for looking up, not just running east.
+	# They must EXIST, hold loot, and their climb must be jump-safe (same span/nn
+	# rung math as the shafts, so reachability is proven the same way).
+	check("hidden treasure lofts are scattered through the deep", lofts >= 8, "%d lofts" % lofts)
+	check("...and every one holds a cache", lofts > 0 and lofts_stocked == lofts,
+		"%d/%d stocked" % [lofts_stocked, lofts])
+	var udsrc := FileAccess.open("res://underdark.gd", FileAccess.READ).get_as_text()
+	check("...reached by a jump-safe ladder (rungs from a span/nn divide, <=82px)",
+		udsrc.contains("func _build_hidden_lofts")
+		and udsrc.contains("int(ceil(span / 80.0))")
+		and udsrc.contains("s.floor_y - stp * float(i)"))
 
 	# ---- 4c. the rune puzzle actually unbars its vault ----
 	check("every band hides a barred vault", ud._vault_gates.size() == ud.BANDS,
