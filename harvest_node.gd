@@ -30,6 +30,7 @@ const ROCK_REGROW_SECONDS = 420.0  # a whole deposit takes far longer to return
 var node_type := "tree"   # "tree" | "rock"
 var hits_left := HITS_TO_HARVEST
 var reserve_left := ROCK_RESERVE
+var size_mult := 1.0      # trees vary a LITTLE: a bigger one is a couple more swings
 var depleted := false
 var visual_root: Node2D = null
 var shake_tween: Tween = null
@@ -47,6 +48,11 @@ func _ready() -> void:
 	add_child(visual_root)
 	if node_type == "tree":
 		build_tree_visual()
+		# a LITTLE variety (dev 2026-07-22): three sizes, a bigger tree is a few
+		# more swings -- never wildly different, so the grove reads as a grove
+		size_mult = [0.85, 1.0, 1.2][randi() % 3]
+		visual_root.scale = Vector2(size_mult, size_mult)
+		hits_left = int(round(HITS_TO_HARVEST * size_mult))
 	else:
 		build_rock_visual()
 
@@ -112,6 +118,11 @@ func take_tool_hit(tool_type: String, player: Node) -> void:
 		return
 	_shake()
 	_spawn_chips()
+	# a real HIT sound at last (dev: "no sound effect? for real?"): a dull thock
+	# for the axe on wood, a metallic chink for the pick on stone
+	GameState.play_sfx(
+		GameState.SFX_THUD if node_type == "tree" else GameState.SFX_CHIME,
+		1.25 if node_type == "tree" else 0.8, global_position)
 	if node_type == "rock":
 		_mine_swing(player)
 		return
@@ -220,9 +231,9 @@ func _regrow() -> void:
 	if not is_instance_valid(self):
 		return
 	depleted = false
-	hits_left = HITS_TO_HARVEST
+	hits_left = int(round(HITS_TO_HARVEST * size_mult))
 	reserve_left = ROCK_RESERVE
-	visual_root.scale = Vector2.ONE      # a fresh seam stands full height again
+	visual_root.scale = Vector2(size_mult, size_mult)   # back to its own size
 	var grow = create_tween()
 	grow.tween_property(visual_root, "modulate:a", 1.0, 0.6)
 

@@ -50,6 +50,9 @@ const DEEPWOOD_REVEAL = [
 	{"speaker": "A Survivor", "text": "You're searching for Deepwood, aren't you. Everyone who still breathes is searching for Deepwood. The safe place. The bright place."},
 	{"speaker": "A Survivor", "text": "...Look around you. This IS Deepwood. This is what they left of it. They dragged the strong down into the dark, alive — and killed everyone else."},
 	{"speaker": "", "text": "The word lands like a blade. The haven you crossed a dying world to find — the place where you were finally going to rest — is the ruin you are standing in."},
+	{"speaker": "Roland", "text": "...Then we hold what's left. Friend — one thing before we dig in. That dark. Does it ever come at us from the east road? Both sides at once?"},
+	{"speaker": "A Survivor", "text": "No. Never the east — that road's been dead quiet since the fall. It only ever claws UP out of the pit, from the deep in the west. Guard the dungeon mouth and you've guarded Deepwood."},
+	{"speaker": "Castor", "text": "One front, then. Small mercy. We watch the west, and we watch it well."},
 ]
 
 # THE OATH (new canon: the four swear it together). The plan the whole game
