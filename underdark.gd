@@ -262,6 +262,13 @@ func _slab(x: float, y: float, w: float, h: float) -> void:
 	var rect := RectangleShape2D.new()
 	rect.size = Vector2(w, h)
 	cs.shape = rect
+	# THIN slabs are PLATFORMS: one-way, so you can jump UP THROUGH them and land on
+	# top (dev report 2026-07-21: "platforms are not jumpable through"). Ledges,
+	# arena tiers, and every climb rung become jump-through; the thick structural
+	# slabs (floors h=60, walls, ceilings, treads, pit bottoms) stay solid so the
+	# world still holds you. One-way is strictly MORE reachable -- it can only add
+	# ways up, never take one away, so no climb this file already proves can break.
+	cs.one_way_collision = h <= 18.0
 	body.add_child(cs)
 	add_child(body)
 	body.global_position = Vector2(x + w / 2.0, y + h / 2.0)
