@@ -1341,6 +1341,50 @@ func roll_crit(base: int) -> Array:
 func show_hit(target: Node2D, amount: int, is_crit: bool) -> void:
 	if is_instance_valid(target):
 		FloatingText.spawn(get_parent(), target.global_position, amount, is_crit)
+		spawn_hit_spark(target.global_position + Vector2(0, -20.0), is_crit)
+
+# IMPACT SPARK (combat feel, 2026-07-22). Enemies already FLASH when hit, but nothing
+# burst at the point of contact -- the little radial "connect" that makes a swing feel
+# like it bit. A short spray of streaks (hot gold + bigger for a crit) reads on EVERY
+# hit, additive on top of the flash/knockback/number, and DOESN'T touch the hit-stop
+# (which the author keeps for the punchy moments on purpose). Cheap + self-freeing.
+func spawn_hit_spark(pos: Vector2, crit: bool) -> void:
+	var world := get_parent()
+	if world == null:
+		return
+	var col := Color(1.0, 0.9, 0.35) if crit else Color(1.0, 1.0, 1.0)
+	var count := 8 if crit else 5
+	var reach := 26.0 if crit else 16.0
+	var life := 0.13 if crit else 0.09
+	for i in range(count):
+		var a := TAU * (float(i) / float(count)) + randf_range(-0.3, 0.3)
+		var dir := Vector2(cos(a), sin(a))
+		var streak := Line2D.new()
+		streak.width = 3.0 if crit else 2.0
+		streak.default_color = col
+		streak.points = PackedVector2Array([dir * (reach * 0.3), dir * reach * randf_range(0.85, 1.15)])
+		streak.z_index = 40
+		world.add_child(streak)
+		streak.global_position = pos
+		var t := streak.create_tween()
+		t.parallel().tween_property(streak, "modulate:a", 0.0, life)
+		t.parallel().tween_property(streak, "scale", Vector2(1.5, 1.5), life)
+		t.chain().tween_callback(streak.queue_free)
+	if crit:   # a crit also flashes a bright disc, so it's unmistakable
+		var disc := Polygon2D.new()
+		var pts := PackedVector2Array()
+		for i in range(10):
+			var ang := TAU * float(i) / 10.0
+			pts.append(Vector2(cos(ang), sin(ang)) * 14.0)
+		disc.polygon = pts
+		disc.color = Color(1.0, 0.95, 0.6, 0.55)
+		disc.z_index = 39
+		world.add_child(disc)
+		disc.global_position = pos
+		var td := disc.create_tween()
+		td.parallel().tween_property(disc, "modulate:a", 0.0, 0.14)
+		td.parallel().tween_property(disc, "scale", Vector2(2.0, 2.0), 0.14)
+		td.chain().tween_callback(disc.queue_free)
 
 # HIT-STOP (combat juice, dev polish 2026-07-21). A big blow lands harder when the
 # whole world hangs for a heartbeat on impact. Only fires for the punchy moments
