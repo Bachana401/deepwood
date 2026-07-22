@@ -32,6 +32,14 @@ func _ready() -> void:
 			"acell": area.x * area.y,
 			"override": ws.has("size_override"),
 			"slash": not d.get("swing_slash", {}).is_empty(),
+			# A weapon that carries a SPECIAL (a thrown javelin, a 3-arrow volley, a
+			# homing shot) or an Excellent's unique_effect does its real work off the
+			# stat dials -- so lower raw numbers aren't a dead pick, they're the price
+			# of the gimmick. The dominance rule below must ignore those, or it cries
+			# wolf (7 false hits: javelin_volley, multi_shot, homing, the 5 exc pairs).
+			"gimmick": (not d.get("special", {}).is_empty())
+				or str(d.get("unique_effect", "")) != ""
+				or bool(d.get("excellent", false)),
 		})
 	rows.sort_custom(func(a, b): return a["acell"] < b["acell"])
 
@@ -76,6 +84,11 @@ func _ready() -> void:
 			# a weapon with 0 base damage does its work through a projectile
 			# special, so comparing it on the damage dial says nothing
 			if a["dmg"] <= 0.0 or b["dmg"] <= 0.0:
+				continue
+			# ...and if EITHER weapon has a gimmick (special/unique_effect), the raw
+			# stats aren't the whole weapon -- lower numbers buy the gimmick, they
+			# don't make it a dead pick. Only PLAIN vs PLAIN is a true dominance.
+			if a["gimmick"] or b["gimmick"]:
 				continue
 			if a["dmg"] >= b["dmg"] and a["cd"] <= b["cd"] and a["reach"] >= b["reach"] and a["acell"] >= b["acell"] \
 					and (a["dmg"] > b["dmg"] or a["cd"] < b["cd"] or a["reach"] > b["reach"] or a["acell"] > b["acell"]):
