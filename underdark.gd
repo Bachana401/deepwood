@@ -120,6 +120,7 @@ const RESPAWN_SECONDS = 150.0
 
 var _plan := {}          # band -> Array of {x0, x1, floor_y, ceil_y, kind}
 var _shafts := {}        # band -> Array of shaft x centers (to the band below)
+var _pits := {}          # band -> Array of {x, w, ambush, floor_y} sunken rooms
 var _player: Node2D = null
 var _live := {}
 var _cleared_at := {}
@@ -134,16 +135,25 @@ func _ready() -> void:
 	_carve_ground_skin()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = UD_SEED
+	# A SEPARATE stream for the bolt-on features (pits, ambushes, lofts). Drawing
+	# them from their own rng means the spine/shaft/door/seam/cache/vault layout the
+	# whole-map audit signed off on is byte-identical no matter what we add here.
+	var frng := RandomNumberGenerator.new()
+	frng.seed = UD_SEED ^ 0x5A5A17
 	ud_left = _stair_end_x() + 260.0
 	_plan_bands(rng)
 	# shafts are PLANNED before anything is built: they mark holes on the
 	# segments they cross, and _build_bands then builds those slabs as two
 	# pieces. Building first and patching after would leave no hole at all.
 	_plan_shafts(rng)
+	# sunken stashes + ambush chambers punch their OWN floor holes -- also before
+	# _build_bands, and on the feature rng so the shared layout never shifts.
+	_plan_pits(frng)
 	_build_dark_backdrop()
 	_build_mouth_and_stair()
 	_build_bands(rng)
 	_build_shaft_ladders()
+	_build_pits(frng)
 	_place_doors(rng)
 	_place_seams(rng)
 	_place_chests(rng)
@@ -688,17 +698,24 @@ func _trap(pos: Vector2) -> void:
 func _stock_chest(chest: Node, band: int, rng: RandomNumberGenerator) -> void:
 	if GameState.chest_contents.has(chest.chest_id):
 		return                      # already rolled in an earlier session
-	# a FOUND loft (see _build_hidden_lofts) pays better than a floor cache: one
-	# loot tier deeper and an extra roll -- the reward for looking UP and climbing
-	# rather than just running the spine east.
-	var is_loft: bool = str(chest.chest_id).begins_with("ud_loft")
-	var tier: int = band + 1 if is_loft else band
+	# A FOUND cache pays better than a floor one; a GUARDED cache better still --
+	# the reward scaling with the effort. Loft (climb) and stash (drop) are +1 tier
+	# and +1 roll; an ambush cache (fight) is +2 tiers and +2 rolls.
+	var id_s := str(chest.chest_id)
+	var tier: int = band
+	var bonus_rolls := 0
+	if id_s.begins_with("ud_loft") or id_s.begins_with("ud_stash"):
+		tier = band + 1
+		bonus_rolls = 1
+	elif id_s.begins_with("ud_ambush"):
+		tier = band + 2
+		bonus_rolls = 2
 	var table: Array = LOOT_SHALLOW
 	if tier >= 5:
 		table = LOOT_DEEP
 	elif tier >= 2:
 		table = LOOT_MID
-	for i in range(rng.randi_range(2, 4) + (1 if is_loft else 0)):
+	for i in range(rng.randi_range(2, 4) + bonus_rolls):
 		var id: String = table[rng.randi_range(0, table.size() - 1)]
 		chest.inventory.add_item(id, rng.randi_range(1, 3 if tier < 5 else 2))
 	GameState.chest_contents[chest.chest_id] = chest.inventory.to_save_data()
@@ -722,6 +739,93 @@ func _place_chests(rng: RandomNumberGenerator) -> void:
 				continue
 			_add_chest(Vector2(lerpf(s.x0 + 120.0, s.x1 - 120.0, rng.randf()), s.floor_y - 16.0),
 				b, "cache", rng)
+
+# SUNKEN STASHES + HIDDEN AMBUSH CHAMBERS. The other axis of secret the no-dig
+# world allows: rooms tucked BELOW the spine. Each punches a JUMPABLE 180px mouth
+# in a segment's floor -- run past and you can hop it, or drop through on purpose.
+# A stash is a small pit with a cache; an ambush is a wider chamber whose cache is
+# guarded -- drop in and a pack springs. Planned here (marks the floor hole so
+# _build_bands honours it), built by _build_pits once the floors exist.
+const AMBUSH_SCENE = preload("res://underdark_ambush.gd")
+const PIT_MOUTH := 90.0            # half-width of the (jumpable) entrance hole
+
+func _plan_pits(rng: RandomNumberGenerator) -> void:
+	for b in range(BANDS):
+		_pits[b] = []
+		var segs: Array = _plan[b]
+		var want: int = rng.randi_range(2, 3)
+		var guard := 0
+		while _pits[b].size() < want and guard < 50:
+			guard += 1
+			var si := rng.randi_range(0, segs.size() - 1)
+			var s: Dictionary = segs[si]
+			# not arenas (their floors carry the fight), not the barred vault seg,
+			# and never a segment that already owns a hole (a shaft)
+			if s.kind == "arena" or si == segs.size() - 2 or s.has("floor_hole"):
+				continue
+			var ambush: bool = rng.randf() < 0.4
+			var w: float = rng.randf_range(400.0, 470.0) if ambush else rng.randf_range(190.0, 250.0)
+			if s.x1 - s.x0 < w + 240.0:
+				continue                              # segment too short to hold it
+			var sx: float = lerpf(s.x0 + w * 0.5 + 90.0, s.x1 - w * 0.5 - 90.0, rng.randf())
+			s["floor_hole"] = Vector2(sx - PIT_MOUTH, sx + PIT_MOUTH)
+			_pits[b].append({"x": sx, "w": w, "ambush": ambush, "floor_y": float(s.floor_y)})
+
+func _build_pits(rng: RandomNumberGenerator) -> void:
+	for b in range(BANDS):
+		for pit in _pits.get(b, []):
+			var sx: float = pit.x
+			var half: float = pit.w * 0.5
+			var floor_y: float = pit.floor_y
+			var depth: float = 330.0 if pit.ambush else 250.0
+			var bottom: float = floor_y + depth
+			# the room: a floor at the bottom and two side walls carved into the rock
+			_slab(sx - half, bottom, pit.w, FLOOR_T)
+			_slab(sx - half - 16.0, floor_y, 16.0, depth + FLOOR_T)
+			_slab(sx + half, floor_y, 16.0, depth + FLOOR_T)
+			# the way BACK OUT: a ladder up through the mouth, rungs from an even
+			# span/nn divide so every gap is <=82px (the shaft/loft climb rule)
+			var span: float = bottom - floor_y
+			var nn: int = maxi(1, int(ceil(span / 80.0)))
+			var stp: float = span / float(nn)
+			var side := 1.0
+			for i in range(1, nn):
+				_slab(sx + side * 40.0 - 45.0, bottom - stp * float(i), 90.0, 14.0)
+				side = -side
+			# the prize, tucked against a wall, lit so the pit isn't a black hole
+			var tag: String = "ambush" if pit.ambush else "stash"
+			var chest_x: float = sx + (half - 80.0) * (1.0 if rng.randf() < 0.5 else -1.0)
+			_add_chest(Vector2(chest_x, bottom - 16.0), b, tag, rng)
+			_brazier(Vector2(sx, bottom - 40.0), FIRE_COLORS[rng.randi_range(0, FIRE_COLORS.size() - 1)])
+			if pit.ambush:
+				var amb = AMBUSH_SCENE.new()
+				amb.band = b
+				amb.host = self
+				add_child(amb)
+				amb.global_position = Vector2(sx, bottom - 100.0)
+
+# Called by an ambush trigger the moment the player drops into its chamber: a
+# pack of the deep's own mobs, scaled to the band, springs around them. respawns
+# = false, so once you clear the room it stays clear for this visit.
+func spring_ambush(center: Vector2, band: int) -> void:
+	var arng := RandomNumberGenerator.new()
+	arng.seed = int(center.x) ^ int(center.y) ^ UD_SEED
+	var count: int = 3 + int(band / 2.0)
+	var depth := float(band) / float(BANDS - 1)
+	for i in range(count):
+		var e = ENEMY_SCENE.instantiate()
+		e.respawns = false
+		e.is_wild = true
+		e.wave_hp_multiplier = lerpf(1.2, 5.0, depth) * arng.randf_range(0.9, 1.15)
+		e.wave_damage_multiplier = lerpf(1.1, 3.4, depth) * arng.randf_range(0.9, 1.1)
+		e.wave_speed_multiplier = lerpf(1.0, 1.35, depth)
+		e.apply_block_archetype(mini(int(depth * 9.0), 8))
+		e.add_to_group("course_enemy")
+		add_child(e)
+		e.global_position = center + Vector2(arng.randf_range(-150.0, 150.0), -30.0)
+		e.wild_home_x = e.global_position.x
+		e.detection_range_current = e.DETECTION_RANGE * 3.0   # they already know you're here
+	FloatingText.spawn_word(get_parent(), center + Vector2(0, -140.0), "Ambush!", Color(1.0, 0.4, 0.3))
 
 # HIDDEN TREASURE LOFTS -- Terraria's reward for looking UP, not just running the
 # spine east. The player can't cut ground or build, so a secret can't hide behind

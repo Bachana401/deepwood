@@ -115,6 +115,9 @@ func _ready() -> void:
 	var deep_loot := false
 	var lofts := 0
 	var lofts_stocked := 0
+	var stashes := 0
+	var ambush_caches := 0
+	var pit_caches_empty := 0
 	for c in get_tree().current_scene.get_children():
 		var sp2 = c.get_script()
 		if sp2 == null or not str(sp2.resource_path).ends_with("chest.gd"):
@@ -128,10 +131,19 @@ func _ready() -> void:
 				items += 1
 				if str(slot.item_id) in ["void_essence", "ancient_relic"]:
 					deep_loot = true
-		if str(c.chest_id).begins_with("ud_loft"):
+		var cid := str(c.chest_id)
+		if cid.begins_with("ud_loft"):
 			lofts += 1
 			if items > 0:
 				lofts_stocked += 1
+		elif cid.begins_with("ud_stash"):
+			stashes += 1
+			if items == 0:
+				pit_caches_empty += 1
+		elif cid.begins_with("ud_ambush"):
+			ambush_caches += 1
+			if items == 0:
+				pit_caches_empty += 1
 	check("the deep is worth looting", chests >= 20, "%d chests" % chests)
 	check("...and the deepest caches pay in what you cannot buy", deep_loot)
 	# HIDDEN TREASURE LOFTS -- the reward for looking up, not just running east.
@@ -145,6 +157,25 @@ func _ready() -> void:
 		udsrc.contains("func _build_hidden_lofts")
 		and udsrc.contains("int(ceil(span / 80.0))")
 		and udsrc.contains("s.floor_y - stp * float(i)"))
+	# SUNKEN STASHES + HIDDEN AMBUSH CHAMBERS -- rooms tucked BELOW the spine. A pit
+	# you can drop into (or hop) for a cache; a wider chamber whose cache is guarded
+	# by a pack that springs when you drop in. Both must exist, hold loot, and CLIMB
+	# BACK OUT (a pit you can't leave is a softlock).
+	check("sunken stashes are dug through the deep", stashes >= 6, "%d stashes" % stashes)
+	check("hidden ambush chambers guard some caches", ambush_caches >= 3, "%d ambushes" % ambush_caches)
+	check("every sunken cache holds loot", (stashes + ambush_caches) > 0 and pit_caches_empty == 0,
+		"%d empty" % pit_caches_empty)
+	var trigs := 0
+	for c in ud.get_children():
+		if c.get_script() != null and str(c.get_script().resource_path).ends_with("underdark_ambush.gd"):
+			trigs += 1
+	check("every ambush chamber has a live trigger", trigs == ambush_caches, "%d triggers vs %d" % [trigs, ambush_caches])
+	check("...that springs a pack of mobs, and a jumpable mouth you climb back out of",
+		udsrc.contains("func spring_ambush") and udsrc.contains("bottom - stp * float(i)")
+		and udsrc.contains("PIT_MOUTH"))
+	# the pit climb-out uses the same jump-safe span/nn divide as the shafts
+	check("a sunken room's climb-out divides its depth into jump-sized rungs",
+		udsrc.contains("nn: int = maxi(1, int(ceil(span / 80.0)))"))
 
 	# ---- 4c. the rune puzzle actually unbars its vault ----
 	check("every band hides a barred vault", ud._vault_gates.size() == ud.BANDS,
