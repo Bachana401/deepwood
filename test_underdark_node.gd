@@ -228,6 +228,69 @@ func _ready() -> void:
 					plats += 1
 	check("there are platforms to climb and fight from", plats >= 30, "%d platforms" % plats)
 
+	# ---- 4c3b. EVERY platform is REACHABLE (dev report 2026-07-21: "some places are
+	# closed... I'm certain those are bugs"). They were: arena/chamber/tunnel ledges
+	# used to be flung to random heights (arena ledges up to 620px over the floor), so
+	# a third of them hung a jump or more past anything below -- loot you could SEE but
+	# never reach. They are climbable STACKS now; this proves it forever. Flood-fill
+	# from the whole floor: a thin platform is reachable if it sits within a jump of a
+	# reachable surface (floor segment or lower platform) with horizontal overlap. It
+	# can also be dropped onto from anything above it. Zero may be stranded.
+	var JUMP := 92.0
+	var HREACH := 60.0
+	var surfaces: Array = []            # the floor, everywhere -- all reachable to begin
+	for b3 in range(ud.BANDS):
+		for s in ud._plan[b3]:
+			surfaces.append({"top": s.floor_y, "x0": s.x0, "x1": s.x1})
+	var plated: Array = []              # every thin (one-way) platform's standing surface
+	for c in ud.get_children():
+		if not (c is StaticBody2D):
+			continue
+		for cc in c.get_children():
+			# >=80 so the 90px-wide CLIMB RUNGS (shaft/loft/pit ladders) count too --
+			# leave them out and a loft shelf 500px up looks stranded when its ladder
+			# was right there. SLAB_COLOR skips the edge highlight; size.y<=18 skips walls.
+			if cc is ColorRect and cc.size.y <= 18.0 and cc.size.x >= 80.0 and cc.color == ud.SLAB_COLOR:
+				var gx: float = c.global_position.x
+				plated.append({
+					"top": c.global_position.y - cc.size.y / 2.0,
+					"x0": gx - cc.size.x / 2.0, "x1": gx + cc.size.x / 2.0, "r": false})
+				break
+	var changed := true
+	var passes := 0
+	while changed and passes < 30:
+		changed = false
+		passes += 1
+		for pf in plated:
+			if pf.r:
+				continue
+			var ok := false
+			for s in surfaces:                       # reachable from the floor?
+				if s.top - pf.top <= JUMP and pf.x0 <= s.x1 + HREACH and pf.x1 >= s.x0 - HREACH:
+					ok = true
+					break
+			if not ok:
+				for q in plated:                     # ...or from a lower, already-reachable rung?
+					if q.r and q != pf and q.top - pf.top <= JUMP and pf.x0 <= q.x1 + HREACH and pf.x1 >= q.x0 - HREACH:
+						ok = true
+						break
+			if ok:
+				pf.r = true
+				changed = true
+	var stranded := 0
+	for pf in plated:
+		if not pf.r:
+			stranded += 1
+			# find nearest surface below/beside to diagnose the gap
+			var best := 99999.0
+			for s in surfaces:
+				var dy: float = s.top - pf.top
+				if pf.x0 <= s.x1 + 200.0 and pf.x1 >= s.x0 - 200.0:
+					best = minf(best, absf(dy))
+			printerr("  STRANDED plat top=%.0f x=[%.0f,%.0f] nearest-floor dy=%.0f" % [pf.top, pf.x0, pf.x1, best])
+	check("every platform is reachable -- no 'closed places'", stranded == 0,
+		"%d of %d stranded" % [stranded, plated.size()])
+
 	# ---- 4c3. the shafts climb BOTH ways (no softlock in the deep) ----
 	# The bands connect only by shafts, so a shaft you can fall down but not climb
 	# back up traps you below band 0 forever. The ladder once stopped at the lower

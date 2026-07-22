@@ -353,6 +353,20 @@ func _build_mouth_and_stair() -> void:
 		x += STAIR_STEP_W
 		y += STAIR_STEP_DROP
 
+# A CLIMBABLE STACK of platforms: rung k sits PLAT_RISE (<=92px jump) above the
+# floor (k=0) or the rung below it, x's alternating a little so you hop up corner
+# to corner. Nothing is ever stranded past a jump -- the fix for "some places are
+# closed" (a third of the old random-height ledges hung out of reach). One-way
+# tops (see _slab) let you jump straight up through them onto the next.
+const PLAT_RISE := 80.0
+func _climbable_platforms(cx: float, floor_y: float, count: int, rng: RandomNumberGenerator) -> void:
+	var side := 1.0
+	for k in range(count):
+		var pw: float = rng.randf_range(155.0, 215.0)
+		var px: float = cx + side * 66.0 - pw * 0.5
+		_slab(px, floor_y - PLAT_RISE * float(k + 1), pw, 14.0)
+		side = -side
+
 func _build_bands(rng: RandomNumberGenerator) -> void:
 	for b in range(BANDS):
 		var segs: Array = _plan[b]
@@ -376,24 +390,19 @@ func _build_bands(rng: RandomNumberGenerator) -> void:
 			# something to fight from, in the plain stretches too -- not only in
 			# the chambers and arenas.
 			if s.kind == "tunnel" and rng.randf() < 0.45:
-				for k in range(rng.randi_range(1, 2)):
-					_slab(s.x0 + rng.randf_range(0.2, 0.75) * w,
-						s.floor_y - rng.randf_range(80.0, 150.0),
-						rng.randf_range(110.0, 190.0), 14.0)
-			# a chamber gets furniture: a platform or two, and light
+				_climbable_platforms(s.x0 + w * rng.randf_range(0.32, 0.6), s.floor_y, rng.randi_range(1, 2), rng)
+			# a chamber gets furniture: a small climbable stack, and light
 			if s.kind == "chamber":
-				for p in range(rng.randi_range(1, 2)):
-					_slab(s.x0 + rng.randf_range(0.15, 0.6) * w,
-						s.floor_y - rng.randf_range(90.0, 170.0),
-						rng.randf_range(120.0, 220.0), 16.0)
+				_climbable_platforms(s.x0 + w * rng.randf_range(0.3, 0.6), s.floor_y, rng.randi_range(2, 3), rng)
 				_brazier(Vector2(s.x0 + w * 0.5, s.floor_y - 40.0), fire)
 			elif s.kind == "arena":
-				# a fighting hall: tiered ledges around the rim so a crowd can
-				# come at you from above, and lit at both ends
-				for p in range(rng.randi_range(3, 5)):
-					_slab(s.x0 + rng.randf_range(0.1, 0.85) * w,
-						s.floor_y - rng.randf_range(150.0, 620.0),
-						rng.randf_range(160.0, 300.0), 16.0)
+				# a fighting hall: SEVERAL climbable towers across the floor, so a
+				# crowd can come at you from above AND you can chase them up -- every
+				# ledge reachable, lit at both ends
+				var towers: int = rng.randi_range(2, 3)
+				for t in range(towers):
+					var tx: float = s.x0 + w * lerpf(0.22, 0.78, float(t) / float(maxi(1, towers - 1)))
+					_climbable_platforms(tx + rng.randf_range(-w * 0.05, w * 0.05), s.floor_y, rng.randi_range(2, 4), rng)
 				_brazier(Vector2(s.x0 + 90.0, s.floor_y - 40.0), fire)
 				_brazier(Vector2(s.x1 - 90.0, s.floor_y - 40.0), fire)
 			elif s.kind == "crawl":
