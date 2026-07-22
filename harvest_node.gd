@@ -16,6 +16,16 @@ extends Area2D
 const HITS_TO_HARVEST = 4
 const REGROW_SECONDS = 150.0
 const RELIC_FIND_CHANCE = 0.02
+const MATERIAL_PICKUP = preload("res://material_pickup.gd")
+
+# Materials POP OUT onto the ground now (Terraria-style) instead of teleporting
+# into the bag -- they toss out and magnet back to the player (material_pickup).
+func _drop(id: String, n: int) -> void:
+	if n <= 0:
+		return
+	var d = MATERIAL_PICKUP.new()
+	get_parent().add_child(d)
+	d.setup(id, n, global_position + Vector2(randf_range(-8.0, 8.0), -34.0))
 
 # STONE IS A DEPOSIT, NOT A TREE (dev call 2026-07-21). A tree is four swings
 # and it's gone. A rock holds TWENTY TIMES that reserve, pays out on every
@@ -134,16 +144,15 @@ func take_tool_hit(tool_type: String, player: Node) -> void:
 # only vanishes once the whole reserve is worked out.
 func _mine_swing(player: Node) -> void:
 	reserve_left -= 1
-	player.inventory.add_item("stone", 1)
-	if randf() < 0.35:
-		player.inventory.add_item("stone", 1)
+	_drop("stone", 1 + (1 if randf() < 0.35 else 0))
 	# the deeper minerals the skill tree spends, surfacing as you work
 	if randf() < 0.05:
-		player.inventory.add_item("iron_shard", 1)
+		_drop("iron_shard", 1)
 		_notify("A vein of " + Inventory.get_display_name("iron_shard") + "!")
 	elif randf() < 0.025:
-		player.inventory.add_item("ember_crystal", 1)
+		_drop("ember_crystal", 1)
 		_notify("A vein of " + Inventory.get_display_name("ember_crystal") + "!")
+	# a relic is too rare to risk to a despawn timer -- straight to the bag
 	if randf() < RELIC_FIND_CHANCE * 0.25 and player.inventory.get_count("relic_mountain") == 0:
 		player.inventory.add_item("relic_mountain", 1)
 		_notify("Deep in the stone... the Heart of the Mountain!")
@@ -195,28 +204,28 @@ func _harvest(player: Node) -> void:
 	var got := []
 	if node_type == "tree":
 		var wood = randi_range(2, 4)
-		player.inventory.add_item("wood", wood)
+		_drop("wood", wood)
 		got.append("%d Wood" % wood)
 		if randf() < 0.35:
-			player.inventory.add_item("resin", 1)
+			_drop("resin", 1)
 			got.append("1 Resin")
 		if randf() < 0.4:   # wild herbs for cooking (crafting ingredient)
-			player.inventory.add_item("herb", 1)
+			_drop("herb", 1)
 			got.append("1 " + Inventory.get_display_name("herb"))
 		if randf() < RELIC_FIND_CHANCE and player.inventory.get_count("relic_sylvan") == 0:
-			player.inventory.add_item("relic_sylvan", 1)
+			player.inventory.add_item("relic_sylvan", 1)   # relic straight to the bag
 			_notify("Hidden in the roots... the Sylvan Charm!")
 	else:
 		var stone = randi_range(2, 4)
-		player.inventory.add_item("stone", stone)
+		_drop("stone", stone)
 		got.append("%d Stone" % stone)
 		# deeper minerals surface rarely -- the same substances the skill tree
 		# spends, so mining feeds progression alongside dungeon drops
 		if randf() < 0.20:
-			player.inventory.add_item("iron_shard", 1)
+			_drop("iron_shard", 1)
 			got.append("1 " + Inventory.get_display_name("iron_shard"))
 		elif randf() < 0.10:
-			player.inventory.add_item("ember_crystal", 1)
+			_drop("ember_crystal", 1)
 			got.append("1 " + Inventory.get_display_name("ember_crystal"))
 		if randf() < RELIC_FIND_CHANCE and player.inventory.get_count("relic_mountain") == 0:
 			player.inventory.add_item("relic_mountain", 1)

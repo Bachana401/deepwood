@@ -20,6 +20,13 @@ func _ready() -> void:
 		p = get_tree().get_first_node_in_group("player")
 		if p != null: break
 	if p == null: printerr("no player"); get_tree().quit(1); return
+	# unpause past the opening prologue so pausable nodes (the drops) actually tick
+	for i in range(60):
+		await get_tree().process_frame
+		if not get_tree().paused: break
+		for n in get_tree().root.find_children("*", "", true, false):
+			if n.has_method("finish") and n.has_method("show_line"): n.finish(); break
+	get_tree().paused = false
 	for i in range(30):
 		await get_tree().process_frame
 
@@ -31,12 +38,14 @@ func _ready() -> void:
 	tree.global_position = p.global_position
 	await get_tree().process_frame
 	var wood0: int = p.inventory.get_count("wood")
-	for s in range(6):                 # a tree is 4 chops; a few extra for the drop tween
+	for s in range(6):                 # a tree is ~4 chops
 		p.attack_cooldown_remaining = 0.0
 		p.perform_attack()
 		for i in range(4):
 			await get_tree().process_frame
-	check("chopping a tree with the axe yields WOOD",
+	for i in range(140):               # the drops toss out, then magnet back to the player
+		await get_tree().process_frame
+	check("chopping a tree with the axe yields WOOD (dropped, then collected)",
 		p.inventory.get_count("wood") > wood0, "wood %d -> %d" % [wood0, p.inventory.get_count("wood")])
 	tree.queue_free()
 
@@ -53,7 +62,9 @@ func _ready() -> void:
 		p.perform_attack()
 		for i in range(4):
 			await get_tree().process_frame
-	check("mining a rock with the pickaxe yields STONE",
+	for i in range(140):               # let the dropped stone magnet back
+		await get_tree().process_frame
+	check("mining a rock with the pickaxe yields STONE (dropped, then collected)",
 		p.inventory.get_count("stone") > stone0, "stone %d -> %d" % [stone0, p.inventory.get_count("stone")])
 
 	# ---- and the WRONG tool does nothing (still needs the pickaxe on a rock) ----
@@ -62,6 +73,10 @@ func _ready() -> void:
 	rock2.node_type = "rock"
 	get_tree().current_scene.add_child(rock2)
 	rock2.global_position = p.global_position
+	# clear any drops still magneting in from the real mining above, so they
+	# can't trickle into the baseline and fake a "wrong tool mined stone"
+	for d in get_tree().get_nodes_in_group("material_pickup"):
+		if is_instance_valid(d): d.queue_free()
 	await get_tree().process_frame
 	var stone1: int = p.inventory.get_count("stone")
 	for s in range(2):

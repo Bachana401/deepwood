@@ -146,7 +146,9 @@ func _ready() -> void:
 		hsrc.contains("ROCK_RESERVE_MULT = 20")
 		and hsrc.contains("ROCK_RESERVE = HITS_TO_HARVEST * ROCK_RESERVE_MULT"))
 	check("every pickaxe swing PAYS, it doesn't wait for the end",
-		hsrc.contains("func _mine_swing") and hsrc.contains('player.inventory.add_item("stone", 1)'))
+		hsrc.contains("func _mine_swing") and hsrc.contains('_drop("stone"'))
+	check("materials POP OUT onto the ground (Terraria-style), not into the bag",
+		hsrc.contains("MATERIAL_PICKUP") and hsrc.contains("func _drop"))
 	check("the seam SHRINKS as it empties -- the size is the gauge",
 		hsrc.contains("func _apply_reserve_scale") and hsrc.contains("ROCK_MIN_SCALE"))
 	check("...and only vanishes when the reserve is worked out",
