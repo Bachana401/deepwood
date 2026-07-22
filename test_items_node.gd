@@ -151,8 +151,8 @@ func _ready() -> void:
 		hsrc.contains("func _apply_reserve_scale") and hsrc.contains("ROCK_MIN_SCALE"))
 	check("...and only vanishes when the reserve is worked out",
 		hsrc.contains("func _exhaust_seam") and hsrc.contains("reserve_left <= 0"))
-	check("a regrown seam stands full height again",
-		hsrc.contains("visual_root.scale = Vector2.ONE"))
+	check("a regrown seam returns to its own size",
+		hsrc.contains("visual_root.scale = Vector2(size_mult, size_mult)"))
 	check("trees still fall in HITS_TO_HARVEST swings",
 		hsrc.contains("hits_left -= 1") and hsrc.contains("if hits_left <= 0:"))
 

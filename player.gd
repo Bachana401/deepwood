@@ -1941,9 +1941,11 @@ func update_orbs() -> void:
 static var _plight_tex: GradientTexture2D = null
 static func _player_light_tex() -> GradientTexture2D:
 	if _plight_tex == null:
+		# a SMOOTH falloff (dev: the old light read as "a round circle, a sun") --
+		# a soft core that fades gradually into the dark, no hard disc edge
 		var g := Gradient.new()
-		g.offsets = PackedFloat32Array([0.0, 0.55, 1.0])
-		g.colors = PackedColorArray([Color(1, 1, 1, 1), Color(1, 1, 1, 0.32), Color(1, 1, 1, 0.0)])
+		g.offsets = PackedFloat32Array([0.0, 0.28, 0.6, 1.0])
+		g.colors = PackedColorArray([Color(1, 1, 1, 0.82), Color(1, 1, 1, 0.42), Color(1, 1, 1, 0.12), Color(1, 1, 1, 0.0)])
 		_plight_tex = GradientTexture2D.new()
 		_plight_tex.gradient = g
 		_plight_tex.width = 128
@@ -1956,13 +1958,28 @@ static func _player_light_tex() -> GradientTexture2D:
 func build_player_light() -> void:
 	player_light = PointLight2D.new()
 	player_light.texture = _player_light_tex()
-	player_light.texture_scale = 4.6
-	player_light.color = Color(1.0, 0.86, 0.62)
-	player_light.energy = 0.8
+	player_light.texture_scale = 6.2          # a wider, gentler pool, not a tight sun
+	player_light.color = Color(1.0, 0.88, 0.66)
+	player_light.energy = 0.55                # softer, so it blends instead of glaring
 	player_light.shadow_enabled = false
 	player_light.position = Vector2(0, -18)
 	player_light.enabled = false
 	add_child(player_light)
+	build_char_shadow(self, 0.5)              # a small grounding shadow at the feet
+
+# A small, soft shadow blot under a character so it reads as standing ON the
+# ground, not floating (dev: "create shadows... so the game feels smoother").
+# Reuses the soft radial texture, tinted black and flattened.
+func build_char_shadow(host: Node2D, width: float) -> void:
+	var sh := Sprite2D.new()
+	sh.name = "CharShadow"
+	sh.texture = _player_light_tex()
+	sh.modulate = Color(0, 0, 0, 0.30)
+	sh.scale = Vector2(width, width * 0.32)
+	sh.position = Vector2(0, 24.0)            # the feet / ground line
+	sh.z_index = -4                           # under the body, over the floor
+	sh.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	host.add_child(sh)
 
 func apply_knockback(direction_sign: int, distance: float) -> void:
 	if is_dead:
