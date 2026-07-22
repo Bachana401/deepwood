@@ -138,6 +138,18 @@ func _ready() -> void:
 	ud.rune_lit(0)
 	await get_tree().process_frame
 	check("...and the third opens it", not is_instance_valid(ud._vault_gates.get(0)))
+	# THE DEEP REBUILDS ON EVERY RELOAD (fixed seed), so an opened vault has to be
+	# remembered or it silently re-bars itself -- runes reset, gate back down, an
+	# empty chest sealed behind it -- the moment you come back up from any floor.
+	check("...and that it opened is REMEMBERED for the rebuild",
+		GameState.underdark_vaults_open.has(0))
+	# a rune belonging to an already-open vault must come up lit and inert
+	var litrune = preload("res://underdark_rune.gd").new()
+	litrune.start_lit = true
+	add_child(litrune)
+	await get_tree().process_frame
+	check("a re-opened vault's runes come up already lit, not re-lightable", litrune.lit)
+	litrune.queue_free()
 
 	# ---- 4c2. the floor is WALKABLE and LIT (dev report: alignment too bad,
 	# add real light, platforms here and there) ----

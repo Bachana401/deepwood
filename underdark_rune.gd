@@ -6,6 +6,7 @@ extends Area2D
 var band := 0
 var host: Node = null
 var lit := false
+var start_lit := false        # already lit from a persisted, re-opened vault
 var player_inside := false
 var glyph: ColorRect = null
 var prompt: Label = null
@@ -40,6 +41,11 @@ func _ready() -> void:
 	prompt.visible = false
 	prompt.z_index = 5
 	add_child(prompt)
+	# a rune of an already-opened vault comes up lit and inert: lit == true makes
+	# _on_enter and _process both early-return, so it can't be re-lit
+	if start_lit:
+		lit = true
+		glyph.color = Color(1.0, 0.72, 0.25, 1.0)
 
 func _on_enter(body: Node2D) -> void:
 	if not body.is_in_group("player") or lit:

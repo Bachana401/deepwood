@@ -729,24 +729,29 @@ func _build_rune_vaults(rng: RandomNumberGenerator) -> void:
 			continue
 		var vault: Dictionary = segs[segs.size() - 2]
 		var gx: float = vault.x1 - 200.0
-		# the bars: two slabs the player cannot pass until the runes are lit
-		var gate := StaticBody2D.new()
-		var gcs := CollisionShape2D.new()
-		var grect := RectangleShape2D.new()
-		grect.size = Vector2(24.0, 200.0)
-		gcs.shape = grect
-		gate.add_child(gcs)
-		var gvis := ColorRect.new()
-		gvis.color = Color(0.36, 0.33, 0.2)
-		gvis.size = Vector2(24.0, 200.0)
-		gvis.position = Vector2(-12.0, -100.0)
-		gvis.z_index = -1
-		gate.add_child(gvis)
-		add_child(gate)
-		gate.global_position = Vector2(gx, vault.floor_y - 100.0)
-		_vault_gates[b] = gate
-		_vault_runes[b] = 0
-		# the prize
+		# A vault you already unbarred STAYS unbarred (persisted): no gate, and its
+		# runes come up already lit. Every RNG draw below still fires either way, so
+		# the seed-driven layout of the rest of the deep never shifts.
+		var is_open: bool = GameState.underdark_vaults_open.has(b)
+		if not is_open:
+			# the bars: two slabs the player cannot pass until the runes are lit
+			var gate := StaticBody2D.new()
+			var gcs := CollisionShape2D.new()
+			var grect := RectangleShape2D.new()
+			grect.size = Vector2(24.0, 200.0)
+			gcs.shape = grect
+			gate.add_child(gcs)
+			var gvis := ColorRect.new()
+			gvis.color = Color(0.36, 0.33, 0.2)
+			gvis.size = Vector2(24.0, 200.0)
+			gvis.position = Vector2(-12.0, -100.0)
+			gvis.z_index = -1
+			gate.add_child(gvis)
+			add_child(gate)
+			gate.global_position = Vector2(gx, vault.floor_y - 100.0)
+			_vault_gates[b] = gate
+		_vault_runes[b] = 3 if is_open else 0
+		# the prize (the chest's own looted-state persists via chest_contents)
 		_add_chest(Vector2(gx + 110.0, vault.floor_y - 16.0), b, "vault", rng)
 		# three runes, spread across the band's earlier tunnels
 		for i in range(3):
@@ -754,6 +759,7 @@ func _build_rune_vaults(rng: RandomNumberGenerator) -> void:
 			var rune := preload("res://underdark_rune.gd").new()
 			rune.band = b
 			rune.host = self
+			rune.start_lit = is_open
 			add_child(rune)
 			rune.global_position = Vector2(lerpf(s.x0 + 90.0, s.x1 - 90.0, rng.randf()),
 				s.floor_y - 24.0)
@@ -766,6 +772,9 @@ func rune_lit(band: int) -> void:
 		GameState.notify("A rune warms under your hand — %d of 3." % lit)
 		return
 	GameState.notify("The bars grind back. Something was kept here.")
+	# remember it: the deep rebuilds every reload, and this vault must stay open
+	if not GameState.underdark_vaults_open.has(band):
+		GameState.underdark_vaults_open.append(band)
 	var gate = _vault_gates.get(band)
 	if gate != null and is_instance_valid(gate):
 		gate.queue_free()

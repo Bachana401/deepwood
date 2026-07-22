@@ -582,6 +582,14 @@ var rescued_villagers: Array = []
 # chest.gd. Written whenever a chest's UI is closed.
 var chest_contents: Dictionary = {}
 
+# Which Underdark rune-vaults have been unbarred, by band index. The deep is
+# rebuilt from a fixed seed on EVERY scene load (including every trip back up
+# from a dungeon floor), so without this a vault you opened would silently
+# re-bar itself the moment you returned -- runes reset, gate back down, an empty
+# chest sealed behind it. Persisted so an opened vault stays open. (The loot
+# itself never dupes regardless: the chest behind it lives in chest_contents.)
+var underdark_vaults_open: Array = []
+
 # --- Adventurers (GAME_BIBLE 2.4.1) ---
 # Live state per adventurer id: {"rescued", "dead", "station", "hp"}. The
 # registry (names/stats/rescue levels) is Adventurers.ROSTER; this dict is what
@@ -3370,6 +3378,7 @@ func reset_for_new_game() -> void:
 		"stat_name": "Farm", "stat_value": 2, "role_key": "", "role_title": "", "paired": false,
 	})
 	chest_contents = {}
+	underdark_vaults_open = []
 	mating_houses = {}
 	cottage_homes = {}
 	extra_cottages = 0
@@ -3514,6 +3523,7 @@ func save_game(player: Node) -> void:
 		"escape_attempts": escape_attempts,
 		"school_favoured_stat": school_favoured_stat,
 		"chest_contents": chest_contents,
+		"underdark_vaults_open": underdark_vaults_open,
 		"mating_houses": mating_houses,
 		"cottage_homes": cottage_homes,
 		"extra_cottages": extra_cottages,
@@ -3606,6 +3616,12 @@ func load_game() -> Dictionary:
 		school_favoured_stat = str(parsed.get("school_favoured_stat", ""))
 		if parsed.has("chest_contents"):
 			chest_contents = parsed["chest_contents"]
+		if parsed.has("underdark_vaults_open"):
+			# JSON numbers load as floats -- normalise to int band indices so
+			# underdark_vaults_open.has(band) matches an int band cleanly
+			underdark_vaults_open = []
+			for v in parsed["underdark_vaults_open"]:
+				underdark_vaults_open.append(int(v))
 		if parsed.has("mating_houses"):
 			mating_houses = parsed["mating_houses"]
 		if parsed.has("cottage_homes"):
