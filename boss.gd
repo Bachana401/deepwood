@@ -3891,6 +3891,7 @@ func enrage() -> void:
 	current_tint = Color(1.0, 0.62, 0.56)   # blood-tinged
 	if rig != null:
 		rig.modulate = current_tint
+	_boss_hud_banner("ENRAGED")
 
 # Apex second wind: cooldowns nearly vanish and it moves a quarter faster.
 func frenzy() -> void:
@@ -3898,6 +3899,7 @@ func frenzy() -> void:
 	current_tint = Color(1.0, 0.38, 0.32)   # burning red
 	if rig != null:
 		rig.modulate = current_tint
+	_boss_hud_banner("FRENZY")
 	base_move_speed *= 1.25
 	shake_camera(9.0, 0.5)
 	spawn_shockwave(240.0, Color(1.0, 0.15, 0.1))
@@ -3935,6 +3937,19 @@ func play_sfx(stream: AudioStream) -> void:
 func update_health_bar() -> void:
 	var percent = clamp(float(health) / max_health, 0.0, 1.0)
 	$HealthBarFill.size.x = health_bar_w * percent
+	# the real boss also drives the big screen bar (not its clones/echoes)
+	if not is_clone and not is_false_copy:
+		var hud = get_tree().get_first_node_in_group("boss_hud")
+		if hud:
+			hud.set_health(percent)
+
+# A one-shot dramatic banner on the boss spectacle overlay (enrage/frenzy).
+func _boss_hud_banner(text: String) -> void:
+	if is_clone or is_false_copy:
+		return
+	var hud = get_tree().get_first_node_in_group("boss_hud")
+	if hud:
+		hud.phase_banner("%s — %s" % [get_display_name(), text])
 
 func die() -> void:
 	# echoes are worth a token amount, not a boss bounty
@@ -3944,6 +3959,11 @@ func die() -> void:
 	is_busy = true
 	$CollisionShape2D.set_deferred("disabled", true)
 	play_sfx(SFX_DEATH)
+	# the kill flourish (the real boss only -- an echo dying is not the fight ending)
+	if not is_clone and not is_false_copy:
+		var hud = get_tree().get_first_node_in_group("boss_hud")
+		if hud:
+			hud.slain(get_display_name())
 	# clear any minions this boss summoned so they don't linger after the fight
 	for m in minions:
 		if is_instance_valid(m) and m.has_method("take_damage"):

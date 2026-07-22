@@ -380,6 +380,9 @@ func _ready() -> void:
 	# group-based, so village-only actions simply no-op down here.
 	add_child(preload("res://admin_panel.gd").new())
 	add_child(preload("res://playtest_journal.gd").new())   # F8 field notes, everywhere
+	var bhud = preload("res://boss_hud.gd").new()            # the boss spectacle overlay
+	bhud.name = "BossHUD"
+	add_child(bhud)
 	GameState.in_dungeon = true
 	if GameState.proving_grounds:
 		build_proving_grounds()
@@ -1789,11 +1792,18 @@ func spawn_level_combat() -> void:
 		return
 	if is_boss_level(current_level):
 		var b = spawn_boss()
-		var intro = "Level %d - %s awakens!" % [current_level, b.get_display_name()]
 		var counter = get_boss_counter(current_level)
-		if counter != "":
-			intro += "  (weak to %s)" % counter
-		show_notification(intro)
+		var hud = get_node_or_null("BossHUD")
+		if hud:
+			# the cinematic entrance replaces the old one-line toast
+			var sub: String = ("weak to %s" % counter) if counter != "" else "guardian of the deep"
+			var accent: Color = b.current_def.get("magic", Color(1.0, 0.32, 0.3))
+			hud.present(b.get_display_name(), sub, accent)
+		else:
+			var intro = "Level %d - %s awakens!" % [current_level, b.get_display_name()]
+			if counter != "":
+				intro += "  (weak to %s)" % counter
+			show_notification(intro)
 		# (The Harvest moved HOME -- see harvest_director.gd. Floor 100 in a
 		# real run is the empty throne above; in dev_mode the wizard spawns
 		# here plain, for arena testing.)
