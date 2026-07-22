@@ -10,47 +10,10 @@ const GROUND_Y = -39.0
 const CEILING_Y = -480.0
 const ENTRY_X = 140.0
 
-const REGULAR_LAYOUTS = [
-	# 0 -- "Ascending Steps": a rough staircase climbing left to right.
-	[
-		{"x": 320.0, "y": -120.0, "w": 180.0},
-		{"x": 640.0, "y": -200.0, "w": 160.0},
-		{"x": 980.0, "y": -280.0, "w": 160.0},
-		{"x": 1380.0, "y": -220.0, "w": 200.0},
-		{"x": 1780.0, "y": -140.0, "w": 180.0},
-		{"x": 2160.0, "y": -260.0, "w": 160.0},
-	],
-	# 1 -- "Scattered Isles": small floating platforms, wider gaps.
-	[
-		{"x": 260.0, "y": -160.0, "w": 120.0},
-		{"x": 530.0, "y": -260.0, "w": 100.0},
-		{"x": 830.0, "y": -180.0, "w": 140.0},
-		{"x": 1160.0, "y": -320.0, "w": 110.0},
-		{"x": 1490.0, "y": -200.0, "w": 130.0},
-		{"x": 1860.0, "y": -300.0, "w": 120.0},
-		{"x": 2210.0, "y": -180.0, "w": 140.0},
-	],
-	# 2 -- "Twin Ledges over a Pit": symmetric flanking ledges, high spine.
-	[
-		{"x": 230.0, "y": -140.0, "w": 220.0},
-		{"x": 570.0, "y": -240.0, "w": 160.0},
-		{"x": 1300.0, "y": -340.0, "w": 200.0},
-		{"x": 2030.0, "y": -240.0, "w": 160.0},
-		{"x": 2370.0, "y": -140.0, "w": 220.0},
-	],
-	# 3 -- "Long Overwatch": one long high spine over lower stepping stones.
-	[
-		{"x": 1300.0, "y": -300.0, "w": 700.0},
-		{"x": 360.0, "y": -150.0, "w": 150.0},
-		{"x": 760.0, "y": -190.0, "w": 130.0},
-		{"x": 1900.0, "y": -190.0, "w": 130.0},
-		{"x": 2300.0, "y": -150.0, "w": 150.0},
-	],
-]
-const BOSS_LAYOUT = [
-	{"x": 500.0, "y": -220.0, "w": 320.0},
-	{"x": 2100.0, "y": -220.0, "w": 320.0},
-]
+# Regular floors no longer read from a fixed table -- they build a themed layout
+# per floor (see generate_regular_layout, far below). The four old static sets and
+# the flat two-ledge boss layout that lived here are gone: they were the whole of
+# the "map is uncreative" report.
 
 # Boss identity per level. The six standard bosses CYCLE through the regular
 # boss levels (5..90); the apex bosses are the game's UNIQUE finale gauntlet --
@@ -482,7 +445,209 @@ func get_layout(level: int) -> Array:
 	if is_boss_level(level):
 		var arena = get_boss_arena(level)
 		return generate_boss_platforms(get_boss_id(level), arena.get("width", DUNGEON_WIDTH), arena.get("height", CEILING_Y))
-	return REGULAR_LAYOUTS[get_layout_slot(level)]
+	return generate_regular_layout(level)
+
+# ============================ REGULAR FLOOR LAYOUTS ============================
+# The dungeon used to hold FOUR hand-placed platform sets, cycled by (level-1)%5,
+# so every non-boss floor was one of four identical rooms -- the "map is 2/10,
+# uncreative" report. Each floor now GENERATES its own layout, seeded by its
+# number (so it's identical on every visit), from a rotating catalogue of THEMES,
+# each with its own silhouette and its own way to fight. The ground is always
+# continuous (build_ground_and_walls), so a floor is winnable on foot no matter
+# what; the platforms are reachable ADVANTAGE terrain, built from two primitives
+# that are reachable BY CONSTRUCTION -- a tier-1 ledge within one 92px jump of the
+# floor, and a climbable _stack whose rungs rise <=82px and overlap. The Underdark
+# "closed places" lesson: test_dungeon_layout_node flood-fills all 100 floors so
+# nothing is ever stranded again.
+const REG_STEP := 82.0       # vertical gap between climbable rungs (< 92px jump)
+const REG_FIRST := 74.0      # a tier-1 ledge's rise above the floor
+const REG_MARGIN := 240.0    # keep platforms clear of both doorways
+const REG_TOP := CEILING_Y + 90.0   # ledges stop here: clear of the ceiling AND its stalactites
+const REG_L := REG_MARGIN
+const REG_R := DUNGEON_WIDTH - REG_MARGIN
+# A fixed shuffled order so consecutive floors never share a theme and no theme
+# recurs for a dozen floors.
+const REG_THEME_ORDER := [0, 7, 3, 10, 1, 5, 8, 2, 11, 4, 9, 6]
+
+func get_regular_theme(level: int) -> int:
+	return REG_THEME_ORDER[(level - 1) % REG_THEME_ORDER.size()]
+
+func generate_regular_layout(level: int) -> Array:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = (int(hash("dgn_layout")) ^ (level * 2654435)) & 0x7FFFFFFF
+	var out: Array = []
+	match get_regular_theme(level):
+		0: _theme_terraces(out, rng)
+		1: _theme_isles(out, rng)
+		2: _theme_pillared_hall(out, rng)
+		3: _theme_chasm_bridges(out, rng)
+		4: _theme_overwatch(out, rng)
+		5: _theme_gauntlet(out, rng)
+		6: _theme_twin_towers(out, rng)
+		7: _theme_amphitheatre(out, rng)
+		8: _theme_roost(out, rng)
+		9: _theme_warren(out, rng)
+		10: _theme_sunken_court(out, rng)
+		11: _theme_cascade(out, rng)
+	return out
+
+# ---- reachable primitives ----
+# a one-way ledge whose STANDING SURFACE (top) is at `top`
+func _ledge(out: Array, cx: float, top: float, w: float) -> void:
+	out.append({"x": cx, "y": top + PLATFORM_HEIGHT * 0.5, "w": w})
+
+# a climbable tower from the floor at cx: `count` rungs, each REG_STEP higher, x
+# alternating +-54 (< the 150+ width) so consecutive rungs overlap -> reachable.
+# Returns the height of the top rung.
+func _stack(out: Array, cx: float, count: int, rng: RandomNumberGenerator) -> float:
+	var side := 1.0
+	var top := GROUND_Y - REG_FIRST
+	for k in range(count):
+		_ledge(out, cx + side * 54.0, top, rng.randf_range(150.0, 195.0))
+		if k < count - 1:
+			top -= REG_STEP
+		side = -side
+	return top
+
+# a high horizontal SPAN with a climbable access stair at one end. The stair's top
+# rung sits REG_STEP under the span and shares its x column, so the span is one hop
+# up from ground the player earned rung by rung.
+func _span_with_access(out: Array, tiers: int, x0: float, x1: float, access_left: bool, rng: RandomNumberGenerator) -> void:
+	var ax: float = (x0 + 75.0) if access_left else (x1 - 75.0)
+	var top := GROUND_Y - REG_FIRST
+	var side := 1.0
+	for k in range(tiers):
+		_ledge(out, ax + side * 50.0, top, rng.randf_range(150.0, 180.0))
+		top -= REG_STEP
+		side = -side
+	_ledge(out, (x0 + x1) * 0.5, top, x1 - x0)   # the span, REG_STEP over the last rung
+
+# ---- the twelve themes ----
+# 0 TERRACES -- a staircase climbing the whole hall one way, a perch on the far side
+func _theme_terraces(out: Array, rng: RandomNumberGenerator) -> void:
+	var dir: float = 1.0 if rng.randf() < 0.5 else -1.0
+	var steps: int = rng.randi_range(5, 6)
+	var x: float = (REG_L + 150.0) if dir > 0.0 else (REG_R - 150.0)
+	var top: float = GROUND_Y - REG_FIRST
+	for k in range(steps):
+		top = maxf(top, REG_TOP)      # top out into a high landing, don't gore the ceiling
+		_ledge(out, x, top, rng.randf_range(185.0, 230.0))
+		top -= rng.randf_range(66.0, 80.0)
+		x += dir * rng.randf_range(140.0, 172.0)
+	_stack(out, (REG_R - 165.0) if dir > 0.0 else (REG_L + 165.0), rng.randi_range(1, 2), rng)
+
+# 1 ISLES -- low floating stones the width of the room, two higher stacks
+func _theme_isles(out: Array, rng: RandomNumberGenerator) -> void:
+	var n: int = rng.randi_range(6, 8)
+	for k in range(n):
+		var x: float = lerpf(REG_L + 90.0, REG_R - 90.0, float(k) / float(n - 1)) + rng.randf_range(-35.0, 35.0)
+		_ledge(out, x, GROUND_Y - rng.randf_range(56.0, 86.0), rng.randf_range(110.0, 150.0))
+	var mid: float = (REG_L + REG_R) * 0.5
+	_stack(out, rng.randf_range(REG_L + 300.0, mid - 100.0), 2, rng)
+	_stack(out, rng.randf_range(mid + 100.0, REG_R - 300.0), 2, rng)
+
+# 2 PILLARED HALL -- a colonnade of chest-high cover to weave and break sight on,
+# with a few ledges to shoot from
+func _theme_pillared_hall(out: Array, rng: RandomNumberGenerator) -> void:
+	var n: int = rng.randi_range(5, 7)
+	for k in range(n):
+		var x: float = lerpf(REG_L + 130.0, REG_R - 130.0, float(k) / float(n - 1)) + rng.randf_range(-30.0, 30.0)
+		out.append(pillar(x, rng.randf_range(48.0, 72.0), rng.randf_range(72.0, 88.0)))
+	for k in range(rng.randi_range(2, 4)):
+		_ledge(out, rng.randf_range(REG_L + 150.0, REG_R - 150.0), GROUND_Y - rng.randf_range(58.0, 84.0), rng.randf_range(130.0, 175.0))
+
+# 3 CHASM BRIDGES -- two or three high spans over open floor, each with its own
+# climb up; fight on the bridges or drop and fight below
+func _theme_chasm_bridges(out: Array, rng: RandomNumberGenerator) -> void:
+	var bridges: int = rng.randi_range(2, 3)
+	for b in range(bridges):
+		var x0: float = lerpf(REG_L + 60.0, REG_R - 640.0, float(b) / float(maxi(1, bridges - 1)))
+		var x1: float = x0 + rng.randf_range(360.0, 560.0)
+		_span_with_access(out, rng.randi_range(2, 3), x0, x1, rng.randf() < 0.5, rng)
+
+# 4 OVERWATCH -- one long central spine over low stepping stones (the old slot 3,
+# but the spine is now honestly reachable by its own stair)
+func _theme_overwatch(out: Array, rng: RandomNumberGenerator) -> void:
+	var cx: float = (REG_L + REG_R) * 0.5
+	_span_with_access(out, rng.randi_range(2, 3), cx - rng.randf_range(300.0, 400.0), cx + rng.randf_range(300.0, 400.0), rng.randf() < 0.5, rng)
+	for k in range(rng.randi_range(3, 4)):
+		_ledge(out, rng.randf_range(REG_L + 120.0, REG_R - 120.0), GROUND_Y - rng.randf_range(56.0, 82.0), rng.randf_range(120.0, 160.0))
+
+# 5 GAUNTLET -- cover and ledge alternating across the room, a serpentine run
+func _theme_gauntlet(out: Array, rng: RandomNumberGenerator) -> void:
+	var n: int = rng.randi_range(6, 8)
+	for k in range(n):
+		var x: float = lerpf(REG_L + 110.0, REG_R - 110.0, float(k) / float(n - 1))
+		if k % 2 == 0:
+			out.append(pillar(x, rng.randf_range(46.0, 64.0), 88.0))
+		else:
+			_ledge(out, x, GROUND_Y - rng.randf_range(60.0, 86.0), rng.randf_range(120.0, 160.0))
+
+# 6 TWIN TOWERS -- two tall climbable towers flanking a low central island
+func _theme_twin_towers(out: Array, rng: RandomNumberGenerator) -> void:
+	_stack(out, REG_L + rng.randf_range(200.0, 320.0), rng.randi_range(3, 4), rng)
+	_stack(out, REG_R - rng.randf_range(200.0, 320.0), rng.randi_range(3, 4), rng)
+	_ledge(out, (REG_L + REG_R) * 0.5 + rng.randf_range(-60.0, 60.0), GROUND_Y - rng.randf_range(60.0, 84.0), rng.randf_range(160.0, 220.0))
+
+# 7 AMPHITHEATRE -- symmetric tiers stepping up and IN toward the centre, a bowl
+func _theme_amphitheatre(out: Array, rng: RandomNumberGenerator) -> void:
+	var cx: float = (REG_L + REG_R) * 0.5
+	var tiers: int = rng.randi_range(3, 4)
+	var top: float = GROUND_Y - REG_FIRST
+	var half: float = 700.0
+	for t in range(tiers):
+		_ledge(out, cx - half, top, rng.randf_range(180.0, 220.0))
+		_ledge(out, cx + half, top, rng.randf_range(180.0, 220.0))
+		top -= REG_STEP
+		half -= 120.0
+
+# 8 ROOST -- a corner tower climbing high, then a run of ledges under the ceiling
+func _theme_roost(out: Array, rng: RandomNumberGenerator) -> void:
+	var left: bool = rng.randf() < 0.5
+	var cx: float = (REG_L + 180.0) if left else (REG_R - 180.0)
+	var top: float = _stack(out, cx, 4, rng)
+	var dir: float = 1.0 if left else -1.0
+	var x: float = cx
+	for k in range(rng.randi_range(3, 4)):
+		x += dir * rng.randf_range(130.0, 165.0)
+		_ledge(out, x, top + rng.randf_range(-6.0, 6.0), rng.randf_range(175.0, 205.0))
+
+# 9 WARREN -- irregular, nothing periodic: a scatter of low ledges and stub cover,
+# plus one high hidden perch. No two runs the same.
+func _theme_warren(out: Array, rng: RandomNumberGenerator) -> void:
+	var x: float = REG_L + 120.0
+	while x < REG_R - 120.0:
+		_ledge(out, x, GROUND_Y - rng.randf_range(56.0, 88.0), rng.randf_range(100.0, 165.0))
+		if rng.randf() < 0.35:
+			out.append(pillar(x + rng.randf_range(40.0, 90.0), rng.randf_range(44.0, 60.0), rng.randf_range(70.0, 88.0)))
+		x += rng.randf_range(190.0, 300.0)
+	_stack(out, rng.randf_range(REG_L + 300.0, REG_R - 300.0), rng.randi_range(2, 3), rng)
+
+# 10 SUNKEN COURT -- a walled courtyard: two framing walls, rim stacks outside
+# them, a low dais at the centre
+func _theme_sunken_court(out: Array, rng: RandomNumberGenerator) -> void:
+	var cx: float = (REG_L + REG_R) * 0.5
+	out.append(pillar(cx - rng.randf_range(360.0, 440.0), 56.0, 88.0))
+	out.append(pillar(cx + rng.randf_range(360.0, 440.0), 56.0, 88.0))
+	_stack(out, REG_L + rng.randf_range(220.0, 320.0), rng.randi_range(2, 3), rng)
+	_stack(out, REG_R - rng.randf_range(220.0, 320.0), rng.randi_range(2, 3), rng)
+	_ledge(out, cx, GROUND_Y - rng.randf_range(58.0, 78.0), rng.randf_range(180.0, 240.0))
+
+# 11 CASCADE -- a switchbacking climb: up one way, reverse halfway, back the other
+func _theme_cascade(out: Array, rng: RandomNumberGenerator) -> void:
+	var dir: float = 1.0 if rng.randf() < 0.5 else -1.0
+	var x: float = (REG_L + 160.0) if dir > 0.0 else (REG_R - 160.0)
+	var top: float = GROUND_Y - REG_FIRST
+	var n: int = rng.randi_range(6, 7)
+	for k in range(n):
+		top = maxf(top, REG_TOP)      # a switchback tops out under the ceiling, not through it
+		_ledge(out, x, top, rng.randf_range(165.0, 205.0))
+		top -= rng.randf_range(64.0, 80.0)
+		x += dir * rng.randf_range(110.0, 158.0)
+		if k == int(n / 2):
+			dir = -dir
+	for k in range(2):
+		_ledge(out, rng.randf_range(REG_L + 200.0, REG_R - 200.0), GROUND_Y - rng.randf_range(56.0, 78.0), rng.randf_range(140.0, 180.0))
 
 func total_boss_levels() -> int:
 	return int(MAX_LEVEL / 5)
