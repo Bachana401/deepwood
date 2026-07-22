@@ -59,9 +59,6 @@ func refresh() -> void:
 # clogged the bags and chests forever. The Marketplace is literally a
 # market: staff a trader and the stalls buy your old gear at grade prices.
 # The wielded weapon, worn gear, and the never-sold relics are not listed.
-const STALL_PRICES = {"": 4, "Common": 6, "Uncommon": 15, "Rare": 40,
-	"Epic": 100, "Legendary": 250, "Mythic": 600}
-
 func add_market_stall_section(list: VBoxContainer) -> void:
 	var header = Label.new()
 	header.add_theme_font_size_override("font_size", 14)
@@ -92,7 +89,7 @@ func add_market_stall_section(list: VBoxContainer) -> void:
 		# bag copy is a true duplicate; only the blade in your hand is held
 		if item_id == str(player.active_weapon_id):
 			continue
-		var price: int = STALL_PRICES.get(Inventory.get_grade(item_id), 4)
+		var price: int = Inventory.sell_value(item_id)   # grade-scaled, one source of truth
 		var row = Button.new()
 		row.text = "  Sell %s  [%s]  —  %dg" % [Inventory.get_display_name(item_id), Inventory.get_grade_name(item_id), price]
 		row.custom_minimum_size = Vector2(0, 26)

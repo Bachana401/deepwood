@@ -785,6 +785,128 @@ static func _slot_word(slot: String) -> String:
 		"boots": return "Boots"
 	return slot.capitalize()
 
+# What a piece sells for at a staffed Marketplace stall, by grade (6-rank
+# ladder). ONE source of truth so the stall and the tooltip never disagree --
+# the stall used to look this up by the lowercase grade KEY against a table
+# keyed by NAME, so every item silently sold for 4g. Materials/currency (no
+# grade) fall through to the base 4.
+const SELL_VALUES = {"": 4, "common": 6, "uncommon": 15, "rare": 40, "epic": 100, "legendary": 250, "mythic": 600}
+static func sell_value(item_id: String) -> int:
+	return int(SELL_VALUES.get(get_grade(item_id), 4))
+
+# --- TERRARIA-STYLE TOOLTIP (dev ask 2026-07-22) ---
+# The plain one-colour text block became a proper item card: the name in its
+# rarity colour, the base stats in white, every "+" bonus in green, specials in
+# gold, and the sell value in coin-gold at the foot -- the read the dev liked in
+# Terraria. Emitted as BBCode for a RichTextLabel (see item_tooltip.gd). The
+# older build_tooltip_text stays for any plain-text caller.
+const TT_SUB := "8f8f9c"     # grey subtitle (grade . type)
+const TT_STAT := "e6e4d6"    # near-white base stat
+const TT_PLUS := "74d074"    # green "+" bonus (Terraria's modifier green)
+const TT_MANA := "6fc7e8"    # mana cyan
+const TT_SPECIAL := "f0c674" # gold: unique / relic power / set
+const TT_COIN := "e8c24a"    # coin gold (the value line)
+const TT_WARN := "d98a4a"    # unidentified / caution
+const TT_HINT := "71717c"    # dim usage hint
+
+static func _hex(c: Color) -> String:
+	return "%02x%02x%02x" % [int(round(c.r * 255)), int(round(c.g * 255)), int(round(c.b * 255))]
+
+# cooldown -> a Terraria speed word (faster = lower cooldown)
+static func _speed_word(cd: float) -> String:
+	if cd <= 0.20: return "Insanely fast"
+	if cd <= 0.34: return "Very fast"
+	if cd <= 0.55: return "Fast"
+	if cd <= 0.80: return "Average"
+	if cd <= 1.05: return "Slow"
+	return "Very slow"
+
+# weapon_type -> the damage word Terraria prints ("28 melee damage")
+static func _dmg_word(wtype: String) -> String:
+	match wtype:
+		"bow": return "ranged"
+		"wand": return "magic"
+		"spear", "melee": return "melee"
+	return "melee"
+
+static func build_tooltip_bbcode(item_id: String) -> String:
+	var def = get_item_def(item_id)
+	if def.is_empty():
+		return item_id
+	var cat = get_category(item_id)
+	var lines: Array = []
+	# --- name, in its rarity colour, a shade bigger ---
+	var name_col: Color = get_grade_color(item_id) if get_grade(item_id) != "" else def.get("color", Color(0.95, 0.93, 0.85))
+	lines.append("[font_size=16][color=#%s]%s[/color][/font_size]" % [_hex(name_col.lightened(0.12)), get_display_name(item_id)])
+	# --- subtitle: grade . category . type ---
+	var sub := ""
+	var grade_name = get_grade_name(item_id)
+	if grade_name != "":
+		sub = grade_name
+	var tail: String = CATEGORY_LABELS.get(cat, "Item")
+	if cat == "armor":
+		tail = _slot_word(def.get("slot", "")) + " Armor"
+	elif cat == "weapon":
+		tail = str(def.get("weapon_type", "")).capitalize()
+		if def.get("excellent", false):
+			tail += " · Excellent"
+	sub = (sub + " · " + tail) if sub != "" else tail
+	lines.append("[color=#%s]%s[/color]" % [TT_SUB, sub])
+
+	if cat == "weapon":
+		var ws = weapon_stats_for(item_id)
+		if not ws.is_empty():
+			lines.append("[color=#%s]%d %s damage[/color]" % [TT_STAT, int(ws.get("damage", 0)), _dmg_word(str(def.get("weapon_type", "")))])
+			lines.append("[color=#%s]%s speed[/color]" % [TT_STAT, _speed_word(float(ws.get("cooldown", 0.5)))])
+		if def.has("mana_cost"):
+			lines.append("[color=#%s]Uses %d mana[/color]" % [TT_MANA, int(def.mana_cost)])
+		if def.has("unique_desc"):
+			lines.append("[color=#%s]%s[/color]" % [TT_SPECIAL, def.unique_desc])
+		# the passive bundle it grants just for being wielded -> green "+" lines
+		var passive = get_weapon_passive(item_id)
+		for key in passive.keys():
+			lines.append("[color=#%s]%s (while wielded)[/color]" % [TT_PLUS, _effect_line(key, passive[key]).strip_edges()])
+	elif cat == "consumable":
+		if def.has("use_desc"):
+			lines.append("[color=#%s]%s[/color]" % [TT_PLUS, def.use_desc])
+		if CRAFT_RECIPES.has(item_id):
+			var parts = []
+			for ing in CRAFT_RECIPES[item_id].keys():
+				parts.append("%dx %s" % [CRAFT_RECIPES[item_id][ing], get_display_name(ing)])
+			lines.append("[color=#%s]Craft: %s[/color]" % [TT_HINT, ", ".join(parts)])
+	elif cat == "armor" or cat == "relic":
+		for key in def.get("equip_effect", {}).keys():
+			lines.append("[color=#%s]%s[/color]" % [TT_PLUS, _effect_line(key, def.equip_effect[key]).strip_edges()])
+		if def.has("relic_desc"):
+			lines.append("[color=#%s]%s[/color]" % [TT_SPECIAL, def.relic_desc])
+
+	# set membership + its bonuses (weapon or armour)
+	var set_id = get_set(item_id)
+	if set_id != "" and SET_DEFS.has(set_id):
+		var sd = SET_DEFS[set_id]
+		var have = GameStateRef().set_pieces_equipped(set_id)
+		lines.append("[color=#%s]Set: %s (%d/%d worn)[/color]" % [TT_SPECIAL, sd.name, have, sd.pieces.size()])
+		if sd.has("bonus_2pc_desc"):
+			lines.append("[color=#%s]  2 pc: %s[/color]" % [TT_SPECIAL, sd.bonus_2pc_desc])
+		lines.append("[color=#%s]  %d pc: %s[/color]" % [TT_SPECIAL, sd.pieces.size(), sd.bonus_desc])
+
+	if def.get("is_material", false) and not GameStateRef().researched_materials.has(item_id):
+		lines.append("[color=#%s]Unidentified — research it at the Science Lab[/color]" % TT_WARN)
+
+	# --- footer: what it's worth, in coin gold (real stall price) ---
+	if cat in ["weapon", "armor", "relic", "consumable", "material"] and not def.get("is_currency", false):
+		lines.append("[color=#%s]Sells for %dg[/color]" % [TT_COIN, sell_value(item_id)])
+
+	# --- footer: the one-line usage hint, dimmed ---
+	var hint := ""
+	if cat == "weapon": hint = "Wield from your hotbar (keys 1-0)"
+	elif cat == "consumable": hint = "Right-click to use"
+	elif cat == "armor" or cat == "relic": hint = "Equip from your gear panel (TAB)"
+	if hint != "":
+		lines.append("[color=#%s]%s[/color]" % [TT_HINT, hint])
+
+	return "\n".join(lines)
+
 static func _effect_line(key: String, val) -> String:
 	if FLAG_EFFECT_TEXT.has(key):
 		return FLAG_EFFECT_TEXT[key]
