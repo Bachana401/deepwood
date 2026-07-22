@@ -257,8 +257,10 @@ func _build_dark_backdrop() -> void:
 	var rock := ColorRect.new()
 	rock.color = ROCK_COLOR
 	rock.z_index = -90
-	rock.position = Vector2(MOUTH_X - 600.0, 60.0)
-	rock.size = Vector2(UD_RIGHT - rock.position.x + 900.0, UD_TOP + BANDS * BAND_H + 600.0)
+	# overshoot each side past the 960px the camera can travel at the 0.6 zoom
+	# (no camera limits underground), so hugging a far wall never bares grey
+	rock.position = Vector2(MOUTH_X - 1050.0, 60.0)
+	rock.size = Vector2(UD_RIGHT - rock.position.x + 1050.0, UD_TOP + BANDS * BAND_H + 600.0)
 	add_child(rock)
 
 func _slab(x: float, y: float, w: float, h: float) -> void:

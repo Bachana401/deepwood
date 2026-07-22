@@ -7,8 +7,11 @@ extends CanvasLayer
 const SLOTS = 10
 const SLOT_SIZE = 42.0
 const GAP = 4.0
-const BG_IDLE = Color(0.1, 0.1, 0.13, 0.85)
-const BG_ACTIVE = Color(0.9, 0.8, 0.3, 0.95)
+# pixel-box slots matching the inventory: a slate border frame (idle) that turns
+# gold when its weapon is wielded, over a dark inset fill.
+const BG_IDLE = Color(0.34, 0.38, 0.52, 0.95)
+const BG_ACTIVE = Color(0.9, 0.8, 0.3, 0.98)
+const FILL_COLOR = Color(0.10, 0.12, 0.17, 0.92)
 
 var player: Node2D = null
 var slot_bgs: Array = []
@@ -42,6 +45,13 @@ func build() -> void:
 		bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		row.add_child(bg)
 		slot_bgs.append(bg)
+
+		var fill = ColorRect.new()                       # dark inset fill -> border ring shows
+		fill.size = Vector2(SLOT_SIZE - 4.0, SLOT_SIZE - 4.0)
+		fill.position = Vector2(x + 2.0, 2.0)
+		fill.color = FILL_COLOR
+		fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(fill)
 
 		var icon = ColorRect.new()
 		icon.size = Vector2(SLOT_SIZE - 14, SLOT_SIZE - 14)

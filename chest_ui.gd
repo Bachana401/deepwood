@@ -9,7 +9,9 @@ const GRID_ORIGIN = Vector2(16.0, 46.0)
 const BUTTON_H = 32.0        # matches the Take/Deposit/Close buttons in the .tscn
 const BUTTON_PITCH = 104.0   # x-spacing of the Take All / Deposit All / Match row
 
-const SLOT_BG_COLOR = Color(0.15, 0.15, 0.18, 0.9)
+# Terraria pixel-box slots, matching the inventory: slate border + dark fill.
+const SLOT_BORDER_COLOR = Color(0.34, 0.38, 0.52, 0.95)
+const SLOT_FILL_COLOR = Color(0.10, 0.12, 0.17, 0.92)
 
 var player: Node2D
 var current_chest: Node = null
@@ -86,7 +88,7 @@ func build_slots(count: int) -> void:
 		var pos = GRID_ORIGIN + Vector2(col * (SLOT_SIZE + SLOT_GAP), row * (SLOT_SIZE + SLOT_GAP))
 
 		var bg = ColorRect.new()
-		bg.color = SLOT_BG_COLOR
+		bg.color = SLOT_BORDER_COLOR                     # frame; fill sits on top
 		bg.size = Vector2(SLOT_SIZE, SLOT_SIZE)
 		bg.position = pos
 		bg.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -95,6 +97,13 @@ func build_slots(count: int) -> void:
 		bg.mouse_exited.connect(_on_slot_unhover)
 		$Panel.add_child(bg)
 		slot_bgs.append(bg)
+
+		var fill = ColorRect.new()                       # inset dark fill -> border ring shows
+		fill.color = SLOT_FILL_COLOR
+		fill.size = Vector2(SLOT_SIZE - 4.0, SLOT_SIZE - 4.0)
+		fill.position = pos + Vector2(2.0, 2.0)
+		fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		$Panel.add_child(fill)
 
 		var icon = ColorRect.new()
 		icon.size = Vector2(SLOT_SIZE - ICON_MARGIN * 2, SLOT_SIZE - ICON_MARGIN * 2)

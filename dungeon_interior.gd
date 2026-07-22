@@ -324,9 +324,10 @@ const LEVEL_CLEAR_DELAY = 2.5
 const MAX_LEVEL = 100
 
 # How far past each side wall the cave fill runs. The camera can sit up to half
-# a viewport (576 at the 1152-wide base) beyond the player, so anything less
-# than that leaves bare viewport grey on screen at the ends of a floor.
-const BACKFILL_X = 900.0
+# a viewport beyond the player -- and at the Terraria-match zoom of 0.6 that half
+# is 960 (1152 / 0.6 / 2), not the old 576/720, so the fill must overshoot past
+# it or a floor's ends show bare viewport grey. Kept a touch above 960 for slack.
+const BACKFILL_X = 1000.0
 const BG_TOP_COLOR = Color(0.03, 0.025, 0.05, 1.0)
 const BG_BOTTOM_COLOR = Color(0.09, 0.06, 0.11, 1.0)
 const BOSS_BG_TOP_COLOR = Color(0.09, 0.015, 0.015, 1.0)
