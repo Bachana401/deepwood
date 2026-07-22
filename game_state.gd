@@ -772,6 +772,18 @@ const SIEGE_INTERVAL_HOURS = 12.0
 # cleanly if defense >= threat, otherwise the overflow becomes villager deaths.
 const SIEGE_DEF_WIZARD = 4.0
 const SIEGE_DEF_PER_WARRIOR = 1.0
+# THE BLACK TIDE (GAME_BIBLE 3c, dev vision: "a few waves, not often, which the
+# village won't survive without adventurers"). Every Nth siege (once you've drawn
+# real heat) is a Black Tide: a wave far past what the wall's passive defense
+# (the wizard + warriors) can hold, so only STATIONED ADVENTURERS (worth 3 defense
+# each) can turn it. Telegraphed early with a fog-piercing omen so you can rush
+# home and post your defenders.
+const BLACK_TIDE_EVERY := 6
+const BLACK_TIDE_MIN_DEPTH := 10
+const BLACK_TIDE_TIER_MULT := 2.2
+const BLACK_TIDE_LEAD := 8.0
+var sieges_seen := 0
+var _black_omen_armed := true
 var hours_until_next_siege = SIEGE_FIRST_HOURS
 var live_siege_active = false
 # Tally of what happened while the player was away, shown on their return.
@@ -1199,6 +1211,7 @@ func tick_village_clock() -> void:
 	tick_mine_yield(hours_passed)
 	tick_self_sufficiency()   # celebrate each chore the moment it starts running itself
 	tick_village_peril()      # escalating dread as the hearth empties (pierces the fog)
+	tick_black_tide_omen()    # the fog-piercing warning of a coming Black Tide
 	if hours_passed > 0.0:
 		# grief heals with time -- the forgiving half of the death-shock system
 		morale_death_shock = maxf(0.0, morale_death_shock - hours_passed * DEATH_SHOCK_DECAY_PER_HOUR * (2.0 if ten_freed("ten_seraphel") else 1.0))
@@ -1383,14 +1396,41 @@ func tick_sieges(hours_passed: float) -> void:
 		if live_siege_active:
 			break  # a live battle just started; stop scheduling until it ends
 
+# Is siege number n a Black Tide? Periodic + gated behind real depth, so a fresh
+# town isn't hit by one before it can field defenders.
+func is_black_tide_number(n: int) -> bool:
+	return n > 0 and n % BLACK_TIDE_EVERY == 0 and highest_unlocked_level >= BLACK_TIDE_MIN_DEPTH
+
+func next_siege_is_black_tide() -> bool:
+	return is_black_tide_number(sieges_seen + 1)
+
+# The dread of a coming Black Tide reaches you ANYWHERE (pierces the away-fog),
+# far enough ahead to run home and post your defenders. One-shot per tide.
+func tick_black_tide_omen() -> void:
+	if despair_dead or live_siege_active or not next_siege_is_black_tide():
+		_black_omen_armed = true
+		return
+	if hours_until_next_siege <= BLACK_TIDE_LEAD and _black_omen_armed:
+		_black_omen_armed = false
+		notify_urgent("🌑 A BLACK TIDE is rising — a wave the wall cannot hold alone. Station your adventurers and come home. ~%dh." % int(ceil(maxf(hours_until_next_siege, 0.0))))
+		log_event("combat", "The horizon darkened — a Black Tide gathers against Deepwood.")
+		play_sfx(SFX_THUD, 0.6)
+
 func trigger_siege() -> void:
 	if despair_dead:
 		return
+	sieges_seen += 1
+	var black := is_black_tide_number(sieges_seen)
 	var tier = current_siege_tier()
+	if black:
+		# far past the wall's own strength -- the defenders are the only answer
+		tier = int(round(float(tier) * BLACK_TIDE_TIER_MULT)) + 2
+		notify_urgent("🌑 THE BLACK TIDE BREAKS on Deepwood — tier %d! Only your stationed defenders can turn it." % tier)
+		log_event("combat", "A Black Tide crashed against the wall — a wave the town could never hold alone.")
 	if not in_dungeon:
 		var mgr = get_tree().get_first_node_in_group("siege_manager")
 		if mgr and mgr.has_method("start_live_siege"):
-			mgr.start_live_siege(tier)
+			mgr.start_live_siege(tier, black)
 			live_siege_active = true
 			return
 	resolve_siege_offline(tier)
@@ -3807,6 +3847,8 @@ func reset_for_new_game() -> void:
 	village_lost = false
 	lost_souls = []
 	has_whisperstone = false  # the Lab's far-speaker must be built anew each run
+	sieges_seen = 0           # the Black Tide count restarts with the run
+	_black_omen_armed = true
 
 func has_save() -> bool:
 	return FileAccess.file_exists(SAVE_PATH)
@@ -3903,6 +3945,7 @@ func save_game(player: Node) -> void:
 		"lost_souls": lost_souls,
 		"village_lost": village_lost,
 		"has_whisperstone": has_whisperstone,
+		"sieges_seen": sieges_seen,
 	}
 	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	file.store_string(JSON.stringify(data))
@@ -4052,6 +4095,7 @@ func load_game() -> Dictionary:
 		lost_souls = parsed.get("lost_souls", [])
 		village_lost = bool(parsed.get("village_lost", false))
 		has_whisperstone = bool(parsed.get("has_whisperstone", false))
+		sieges_seen = int(parsed.get("sieges_seen", 0))
 		villager_hp = {}
 		if parsed.has("villager_hp") and parsed["villager_hp"] is Dictionary:
 			for k in parsed["villager_hp"].keys():

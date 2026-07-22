@@ -53,9 +53,11 @@ func wall_for_flank(flank: String) -> Node:
 # player is here in the village. 7.2: the wave comes out of the Deepwood on
 # BOTH flanks at once -- you can stand at one gate; the other one is a bet
 # on the defense you posted there.
-func start_live_siege(tier: int) -> void:
+func start_live_siege(tier: int, is_black := false) -> void:
 	siege_number += 1
-	var count = min(BASE_COUNT + tier, MAX_COUNT)
+	# a Black Tide (3c) fields a visibly BIGGER horde -- past the usual cap
+	var cap = MAX_COUNT + (6 if is_black else 0)
+	var count = min(BASE_COUNT + tier, cap)
 	var hp = int(round(BASE_HP * (1.0 + (tier - 1) * HP_PER_TIER)))
 	var dmg = int(round(BASE_DMG * (1.0 + (tier - 1) * DMG_PER_TIER)))
 
@@ -73,7 +75,9 @@ func start_live_siege(tier: int) -> void:
 		_spawn_raider(hp, dmg, tier, east_wall,
 			Vector2(east_wall.east_face_x() + SPAWN_STANDOFF + i * randf_range(34.0, 70.0), SPAWN_Y))
 
-	if east_count > 0:
+	if is_black:
+		notify("🌑 A BLACK TIDE breaks on Deepwood! Wave %d — %d attackers (tier %d). The wall cannot hold this alone — hold with your defenders!" % [siege_number, count, tier])
+	elif east_count > 0:
 		notify("A siege from BOTH flanks! Wave %d -- %d west, %d east (tier %d)." % [siege_number, west_count, east_count, tier])
 	else:
 		notify("A siege begins! Wave %d -- %d attackers (tier %d)." % [siege_number, count, tier])
