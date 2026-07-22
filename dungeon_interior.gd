@@ -1361,6 +1361,8 @@ func _dgn_cache(level: int, idx: int, plat: Dictionary, rng: RandomNumberGenerat
 	c.global_position = Vector2(float(plat.x), float(plat.y) - 22.0)
 	if not GameState.chest_contents.has(c.chest_id):
 		var table := ["potion_health", "potion_mana", "iron_shard", "ember_crystal", "coin_gold", "herb", "resin"]
+		if level <= 30:
+			table.append("slime")     # the tier-3 keystone reagent, sourced where those keystones open
 		if level >= 40:
 			table.append_array(["void_essence", "ancient_relic"])
 		for k in range(rng.randi_range(2, 3)):

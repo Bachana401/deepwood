@@ -2386,6 +2386,7 @@ var moving_building := ""                 # transient: the building packed up
 # haul per Miner per in-game day. No new resource ids: the Blacksmith and
 # Builderhouse chains simply connect.
 var _mine_accum := 0.0
+var _mine_cycles := 0
 
 func tick_mine_yield(hours_passed: float) -> void:
 	if not is_building_operational("Mine"):
@@ -2396,10 +2397,20 @@ func tick_mine_yield(hours_passed: float) -> void:
 	_mine_accum += hours_passed
 	while _mine_accum >= 24.0:
 		_mine_accum -= 24.0
+		_mine_cycles += 1
 		var player = get_tree().get_first_node_in_group("player")
 		if player and "inventory" in player and player.inventory:
 			player.inventory.add_item("stone", 2 * miners)
 			player.inventory.add_item("iron_shard", 1 * miners)
+			# EMBER too, at half the iron cadence. ember_crystal gates 28 skill nodes
+			# -- the most of any material -- yet was cache-ONLY (scarce), while iron
+			# (10 nodes) flowed from here. That left every ember-gated spec, and ALL
+			# THREE Mage specs (their tier-4 forks are all ember), materially stalled
+			# vs iron specs (marathon sim 2026-07-22: Mage 29% tree vs Sword 52%). The
+			# mine now digs crystals too, so ember has a village source like iron does.
+			if _mine_cycles % 2 == 0:
+				player.inventory.add_item("ember_crystal", 1 * miners)
+				log_event("economy", "The Mine's deep seam gave up %d ember crystal." % miners)
 			log_event("economy", "The Mine's haul came up: %d stone, %d iron." % [2 * miners, miners])
 
 # --- THE SHRINE (GAME_BIBLE 10, decided 2026-07-20 delegated) ---
@@ -3434,6 +3445,7 @@ func reset_for_new_game() -> void:
 	watchtower_tier = 0
 	_tower_bell_armed = true
 	_mine_accum = 0.0
+	_mine_cycles = 0
 	blueprints = BLUEPRINT_STARTERS.duplicate()
 	building_positions = {}
 	moving_building = ""

@@ -1191,6 +1191,15 @@ func die() -> void:
 		# raw meat (cooking ingredient)
 		if randf() < 0.25:
 			hero.inventory.add_item("raw_meat", 1)
+		# SLIME -- the reagent for the tier-3 KEYSTONE of every spec (the first real
+		# payoff of a skill tree). It gates the whole rest of the tree, so it MUST be
+		# an early material -- but its only source was the Fishing Dock's deep-catch,
+		# itself gated behind freeing Kaldos of the Ten (floors 22-63). So every tree
+		# froze at tier 2 for hours no matter your level (marathon sim 2026-07-22: 29
+		# of 36 points sat idle). It now drops on the shallow floors where those
+		# keystones are meant to open; fishing stays the deep's bulk source.
+		if GameState.active_dungeon_level <= 30 and randf() < 0.06:
+			hero.inventory.add_item("slime", 1)
 		# THE POTIONS RULE (5.5): HP/mana potions drop ONLY from the pre-boss
 		# floors (positions 4-5 of each block) -- the player enters every boss
 		# stocked, and can't potion-spam ordinary floors. Scarcer source, richer
