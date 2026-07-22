@@ -259,6 +259,9 @@ func _ready() -> void:
 		add_child(way)
 		way.global_position = Vector2(VILLAGE_START_X - 170.0, VILLAGE_Y)
 		GameState.waystone_home_pos = way.global_position
+	# a quiet objective ticker at the top of the screen -- a new player never has
+	# to guess the next step (it reads GameState.next_objective live)
+	add_child(preload("res://objective_banner.gd").new())
 	warn_wounded_corps()
 	orin_midgame_taunt()
 	# a coronation interrupted by a quit finishes here, at home
