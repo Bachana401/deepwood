@@ -49,6 +49,24 @@ const VERT_TOLERANCE := 74.0      # a floor hazard only bites something near the
 var _spikes: Node2D = null
 var _flame: Polygon2D = null
 var _nozzle: Polygon2D = null
+var _flame_light: PointLight2D = null
+
+# Shared warm radial texture for the flamevent's light (a fire jet IS a light
+# source in the dark cave, dev ask 2026-07-22).
+static var _htex: GradientTexture2D = null
+static func _light_tex() -> GradientTexture2D:
+	if _htex == null:
+		var g := Gradient.new()
+		g.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
+		g.colors = PackedColorArray([Color(1, 1, 1, 1), Color(1, 1, 1, 0.3), Color(1, 1, 1, 0.0)])
+		_htex = GradientTexture2D.new()
+		_htex.gradient = g
+		_htex.width = 96
+		_htex.height = 96
+		_htex.fill = GradientTexture2D.FILL_RADIAL
+		_htex.fill_from = Vector2(0.5, 0.5)
+		_htex.fill_to = Vector2(1.0, 0.5)
+	return _htex
 var _block: Node2D = null
 var _cloud: Node2D = null
 var _sfx: AudioStreamPlayer2D = null
@@ -162,6 +180,14 @@ func _build_flamevent() -> void:
 	_flame.position.y = -10.0
 	_flame.scale.y = 0.0
 	add_child(_flame)
+	_flame_light = PointLight2D.new()
+	_flame_light.texture = _light_tex()
+	_flame_light.texture_scale = 2.6
+	_flame_light.color = Color(1.0, 0.6, 0.25)
+	_flame_light.energy = 0.0
+	_flame_light.shadow_enabled = false
+	_flame_light.position = Vector2(0, -30.0)
+	add_child(_flame_light)
 
 func _tick_flamevent() -> void:
 	var cycle := FLAME_DORMANT + FLAME_ERUPT
@@ -171,11 +197,15 @@ func _tick_flamevent() -> void:
 		# glow the nozzle as the tell
 		var tell := ph > (FLAME_DORMANT - FLAME_TELL)
 		_nozzle.color = Color(1.0, 0.5, 0.2, 1.0) if tell else Color(0.25, 0.22, 0.2, 1.0)
+		if _flame_light:
+			_flame_light.energy = 0.25 if tell else 0.0   # a faint pre-glow on the tell
 	else:
 		var e := (ph - FLAME_DORMANT) / FLAME_ERUPT
 		# quick whoosh up, flicker, then snuff
 		_flame.scale.y = clampf(sin(e * PI) * 1.15, 0.0, 1.0)
 		_flame.scale.x = 1.0 + 0.15 * sin(_t * 30.0)
+		if _flame_light:
+			_flame_light.energy = _flame.scale.y * 1.3 + 0.1 * sin(_t * 30.0)  # light pulses with the jet
 		if _flame.scale.y > 0.35:
 			var p := _player()
 			if p != null and absf(p.global_position.x - global_position.x) <= span * 0.5 \
