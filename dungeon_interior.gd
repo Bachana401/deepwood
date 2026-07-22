@@ -1326,6 +1326,7 @@ func build_level_visuals(level: int) -> void:
 	build_stalactites(boss)
 	build_torches(boss, arena)
 	place_mines(boss, layout)
+	place_hazards(level, boss)
 	build_gates()
 
 # FLOOR SURPRISES (dev 2026-07-21: "many places to go, many surprises, goods and
@@ -1637,6 +1638,39 @@ func place_mines(boss: bool, layout: Array) -> void:
 		if randf() < 0.25:
 			var x = plat.x + randf_range(-plat.w * 0.3, plat.w * 0.3)
 			place_mine(Vector2(x, plat.y))
+
+# CREATIVE HAZARDS beyond the mine (dev 2026-07-21: "no creative traps"). A themed
+# couple per non-boss floor, seeded so a floor is the same each visit. Spikes and
+# flame-vents from the start; the crusher and poison geyser join a little deeper so
+# the early floors stay gentle. All are telegraphed and dodgeable -- danger you
+# read and route around, not damage you eat blind.
+const HAZARD_SCRIPT = preload("res://hazard.gd")
+
+func place_hazards(level: int, boss: bool) -> void:
+	if boss:
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(hash("dgn_hazard_v2")) ^ (level * 40503)
+	var pool := ["spike", "flamevent"]
+	if level >= 12:
+		pool.append("crusher")
+	if level >= 18:
+		pool.append("gas")
+	var n := clampi(1 + int(level / 22), 1, 3)
+	var placed := 0
+	var tries := 0
+	while placed < n and tries < 40:
+		tries += 1
+		var x := rng.randf_range(360.0, current_width - 320.0)
+		if absf(x - ENTRY_X) < MINE_SAFE_ZONE or absf(x - (current_width - 46.0)) < 200.0:
+			continue
+		var hz = HAZARD_SCRIPT.new()
+		hz.kind = pool[rng.randi() % pool.size()]
+		hz.damage = mini(int(round(16 + level * 0.6)), 70)   # scales with depth, capped, never a one-shot
+		hz.span = rng.randf_range(84.0, 120.0)
+		hz.position = Vector2(x, GROUND_Y)
+		$LevelContainer.add_child(hz)
+		placed += 1
 
 func place_mine(pos: Vector2) -> void:
 	var mine = TRAP_SCENE.instantiate()
