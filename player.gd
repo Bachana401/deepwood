@@ -2559,13 +2559,29 @@ func perform_attack() -> void:
 	# the swing itself leaves a trail -- fired here, BEFORE anything is hit, so
 	# cutting empty air still draws the arc. A finisher carves a bigger one.
 	spawn_swing_trail(aim_dir, stats, is_finisher)
-	# a wielded gathering tool works the harvest nodes inside the swing area
-	# (trees want the axe, rocks the pickaxe -- see harvest_node.gd)
+	# a wielded gathering tool works the harvest node it's swung at (trees want the
+	# axe, rocks the pickaxe -- see harvest_node.gd). This used to read
+	# $AttackArea.get_overlapping_areas(), but a harvest node sits on the DEFAULT
+	# collision layer (1) while AttackArea only monitors the enemy layer (mask 4) --
+	# so the swing never saw a tree or rock and gathering silently did nothing (dev
+	# report 2026-07-22: "mining and chopping wood doesn't work"). Detect by the
+	# `harvestable` GROUP within the swing's reach instead, so it's immune to layer
+	# config: swing the nearest tree/rock you're standing next to.
 	var tool_type = str(active_def.get("tool_type", ""))
 	if tool_type != "":
-		for area in $AttackArea.get_overlapping_areas():
-			if area.is_in_group("harvestable") and area.has_method("take_tool_hit"):
-				area.take_tool_hit(tool_type, self)
+		var reach: float = float(stats.range_offset) + 56.0
+		var best: Node = null
+		var best_dx: float = reach
+		for node in get_tree().get_nodes_in_group("harvestable"):
+			if not (is_instance_valid(node) and node.has_method("take_tool_hit")):
+				continue
+			var dx: float = absf(node.global_position.x - global_position.x)
+			var dy: float = absf(node.global_position.y - global_position.y)
+			if dx <= best_dx and dy <= 150.0:
+				best = node
+				best_dx = dx
+		if best != null:
+			best.take_tool_hit(tool_type, self)
 	var bodies = $AttackArea.get_overlapping_bodies()
 	if special_type == "cleave":
 		# the Sunderer carves through EVERY body in the arc, not just one
