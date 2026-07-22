@@ -64,7 +64,7 @@ func _ready() -> void:
 		_player().god_mode = true       # a walker, not a combat test -- don't die to a stray hit
 
 	var walked := 0
-	for floor in range(1, 5):
+	for floor in range(1, 7):        # 1-6, so floor 5 exercises a BOSS floor reached BY ITS DOOR
 		# ---- 1. this floor must have an unlocked door in the deep ----
 		var door := _find_door(floor)
 		check("floor %d has its own door in the Underdark" % floor, door != null)
@@ -135,6 +135,6 @@ func _ready() -> void:
 			"y %.0f -> %.0f on_floor=%s (door y=%.0f)" % [y_start, y_end, str(rp.is_on_floor()), door_pos.y])
 		walked += 1
 
-	check("walked %d floors door->clear->leave->door with no softlock" % walked, walked >= 4, "%d" % walked)
+	check("walked %d floors door->clear->leave->door with no softlock (incl. a boss floor)" % walked, walked >= 6, "%d" % walked)
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)
