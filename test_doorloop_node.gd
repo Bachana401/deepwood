@@ -136,5 +136,48 @@ func _ready() -> void:
 		walked += 1
 
 	check("walked %d floors door->clear->leave->door with no softlock (incl. a boss floor)" % walked, walked >= 6, "%d" % walked)
+
+	# ---- DEEP SPOT-CHECK: a marathon reaches the deep, where floors carry void/
+	# relic caches, crushers + poison gas, and tougher elites. Prove deep floors
+	# built + cleared + left safely when reached BY THEIR DOOR (unlock them directly,
+	# as if the ladder had been climbed). ----
+	for deep in [40, 80]:
+		GameState.highest_unlocked_level = maxi(GameState.highest_unlocked_level, deep)
+		var d2 := _find_door(deep)
+		check("deep floor %d has an (unlocked) door" % deep, d2 != null and d2._unlocked())
+		if d2 == null:
+			continue
+		d2._try_enter()
+		for i in range(400):
+			keep_running(); await get_tree().process_frame
+			if GameState.in_dungeon: break
+		# let the player fall the short drop from its spawn onto the floor
+		var dp := _player()
+		for i in range(90):
+			keep_running(); await get_tree().physics_frame
+			if dp != null and dp.is_on_floor(): break
+		check("entering deep floor %d by its door builds + stands you on it" % deep,
+			GameState.in_dungeon and GameState.active_dungeon_level == deep and dp != null and dp.is_on_floor(),
+			"lvl=%d y=%.0f" % [GameState.active_dungeon_level, dp.global_position.y if dp else 0.0])
+		var di2 = get_tree().current_scene
+		var g2 := 0
+		while int(di2.alive_count) > 0 and g2 < 500:
+			g2 += 1
+			for grp in ["dungeon_combatant", "course_enemy", "siege_enemy"]:
+				for e in get_tree().get_nodes_in_group(grp):
+					if is_instance_valid(e) and not e.is_in_group("player") and e.has_method("take_damage"):
+						e.take_damage(999999)
+			keep_running(); await get_tree().physics_frame
+		if int(di2.alive_count) > 0:
+			di2.alive_count = 1; di2._on_combatant_died(); await _await_frames(3)
+		check("deep floor %d clears" % deep, bool(di2.level_cleared))
+		di2.exit_dungeon()
+		await _await_frames(240)
+		var rp2 := _player()
+		var landed2 := false
+		for i in range(180):
+			keep_running(); await get_tree().physics_frame
+			if rp2 != null and rp2.is_on_floor(): landed2 = true; break
+		check("leaving deep floor %d lands you SOLID (not falling)" % deep, landed2)
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)
