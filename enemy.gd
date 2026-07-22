@@ -1067,6 +1067,25 @@ func spawn_death_particles() -> void:
 	get_parent().add_child(particles)
 	particles.emitting = true
 	particles.finished.connect(particles.queue_free)
+	# JUICE (dev polish 2026-07-21): a bright shockwave ring bursts on the kill, so
+	# a death reads as a POP, not just a fade
+	var ring := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(20):
+		var a := TAU * float(i) / 20.0
+		pts.append(Vector2(cos(a), sin(a)) * 13.0)
+	ring.polygon = pts
+	ring.color = Color(1.0, 0.86, 0.55, 0.85)
+	var mat := CanvasItemMaterial.new()
+	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	ring.material = mat
+	ring.z_index = 11
+	get_parent().add_child(ring)
+	ring.global_position = global_position + Vector2(0, -20)
+	var rt := ring.create_tween()
+	rt.tween_property(ring, "scale", Vector2(3.6, 3.6), 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	rt.parallel().tween_property(ring, "modulate:a", 0.0, 0.3)
+	rt.tween_callback(ring.queue_free)
 
 func spawn_coin_popup(amount: int) -> void:
 	var popup = Node2D.new()

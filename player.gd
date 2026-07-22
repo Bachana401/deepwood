@@ -1338,6 +1338,37 @@ func show_hit(target: Node2D, amount: int, is_crit: bool) -> void:
 	if is_instance_valid(target):
 		FloatingText.spawn(get_parent(), target.global_position, amount, is_crit)
 
+# HIT-STOP (combat juice, dev polish 2026-07-21). A big blow lands harder when the
+# whole world hangs for a heartbeat on impact. Only fires for the punchy moments
+# (crits, finishers, kills), never every tap, so it stays special. The restore
+# timer IGNORES time_scale (4th arg) so it isn't itself slowed to a crawl, and a
+# shared deadline means a later hit can extend the freeze but an earlier one can
+# never cut a later one short.
+var _hitstop_end := 0.0
+func hit_stop(dur := 0.07) -> void:
+	if god_mode:
+		return
+	_hitstop_end = maxf(_hitstop_end, (Time.get_ticks_msec() / 1000.0) + dur)
+	Engine.time_scale = 0.02
+
+func _process(_delta: float) -> void:
+	# Restore the freeze in REAL (wall-clock) time. _process runs every RENDERED
+	# frame no matter the time_scale, so this can never get stuck in slow-mo the way
+	# a time_scaled create_timer did. Cheap: one compare per frame.
+	if Engine.time_scale < 1.0 and (Time.get_ticks_msec() / 1000.0) >= _hitstop_end:
+		Engine.time_scale = 1.0
+
+func _exit_tree() -> void:
+	# leaving the scene mid-freeze must never carry the slow-mo into the next one
+	Engine.time_scale = 1.0
+
+# The full impact package for a punchy landed blow: freeze-frame + camera kick.
+# strong (a crit) hits harder than a plain finisher.
+func _impact_feedback(strong: bool) -> void:
+	hit_stop(0.08 if strong else 0.055)
+	if has_node("Camera2D"):
+		$Camera2D.shake(6.5 if strong else 4.0, 0.18)
+
 # --- Timed buffs (from food). active_buffs[key] = {"v": amount, "until": t}. ---
 var active_buffs: Dictionary = {}
 var _rewind_armed_until := 0.0   # THE REWOUND HOUR's two-use confirm window
@@ -2569,6 +2600,9 @@ func perform_attack() -> void:
 					show_hit(target, dealt, cr[1])
 					apply_omnivamp(dealt)
 					apply_melee_skills(target, dealt)
+					# JUICE: the punchy blows hang the world a beat + kick the camera
+					if cr[1] or is_finisher:
+						_impact_feedback(cr[1])
 				else:
 					_last_swing_damage = 0
 			if target.has_method("apply_knockback"):
