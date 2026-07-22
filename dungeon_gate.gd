@@ -1,11 +1,10 @@
 extends Area2D
 
-# One of the two doorways in every dungeon level (see dungeon_interior.gd):
-#   "back"    -- left side, always usable. On level 1 it leaves the dungeon
-#                entirely; on any deeper level it moves you back one level.
-#   "forward" -- right side, only usable once the current level is CLEARED.
-#                Advancing is always this manual step now -- clearing a level
-#                no longer auto-teleports you forward.
+# The LEAVE gate on the left of every dungeon floor (see dungeon_interior.gd).
+# Always usable; it takes you back out to the Underdark, to the very door you
+# entered by. Since 2026-07-22 this is the ONLY gate -- the old right-side
+# "forward" gate that walked you floor->floor is gone, and doors are the only way
+# in. (`direction` stays for the dormant forward-colour code; only "back" is built.)
 var direction = "back"
 var manager: Node = null
 
@@ -80,15 +79,12 @@ func current_color() -> Color:
 	return FORWARD_READY_COLOR if (manager and manager.level_cleared) else FORWARD_LOCKED_COLOR
 
 func prompt_text() -> String:
-	if direction == "back":
-		if manager and manager.current_level <= 1:
-			return "Press E to Leave the Dungeon"
-		return "Press E to Retreat a Level"
+	# There is only the leave gate now (dev 2026-07-22): it takes you back out to
+	# the Underdark, to the door you came in by. Deeper floors are reached only by
+	# finding their doors in the caves.
 	if manager and manager.level_cleared:
-		if manager.current_level >= manager.MAX_LEVEL:
-			return "Press E to Leave -- Dungeon Complete!"
-		return "Press E to Descend Deeper"
-	return "Clear this level to unlock"
+		return "Press E to Leave -- Floor Cleared"
+	return "Press E to Leave for the Caves"
 
 func _process(_delta: float) -> void:
 	var color = current_color()

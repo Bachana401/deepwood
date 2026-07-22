@@ -1375,35 +1375,26 @@ func _dgn_hazard(rng: RandomNumberGenerator) -> void:
 	t.global_position = Vector2(rng.randf_range(520.0, maxf(560.0, current_width - 420.0)), GROUND_Y)
 
 func build_gates() -> void:
+	# ONLY the "leave" gate now (dev 2026-07-22). The old right-side "forward" gate
+	# that walked you floor->floor is gone: the ONLY way into a floor is finding and
+	# entering its door in the Underdark, and the ONLY way out is back through this
+	# gate to the very door you came in by. Clearing a floor still unlocks the next
+	# (highest_unlocked_level) -- you just have to go find that floor's door.
 	var back_gate = GATE_SCRIPT.new()
 	back_gate.direction = "back"
 	back_gate.manager = self
 	back_gate.position = Vector2(46.0, GROUND_Y)
 	$LevelContainer.add_child(back_gate)
-	var forward_gate = GATE_SCRIPT.new()
-	forward_gate.direction = "forward"
-	forward_gate.manager = self
-	forward_gate.position = Vector2(current_width - 46.0, GROUND_Y)
-	$LevelContainer.add_child(forward_gate)
 
 # Both gates funnel through here. Back: level 1 leaves the dungeon, deeper
 # levels retreat one (usable any time, even mid-fight, as an escape hatch).
 # Forward: locked until the level is cleared; on the final level it exits.
 func on_gate_used(direction: String) -> void:
-	if direction == "back":
-		if current_level <= 1:
-			exit_dungeon()
-		else:
-			go_to_level(current_level - 1, true)
-		return
-	if not level_cleared:
-		show_notification("The way down is sealed -- clear this level first!")
-		return
-	if current_level >= MAX_LEVEL:
-		show_notification("All " + str(MAX_LEVEL) + " dungeon levels cleared!")
-		exit_dungeon()
-	else:
-		go_to_level(current_level + 1, false)
+	# The only gate is "leave": it ALWAYS returns you to the Underdark, at the very
+	# door you entered by (exit_dungeon restores pre_dungeon_position). No more
+	# hopping between floors from inside a floor -- floors are reached only by their
+	# doors. "forward" no longer exists, but stay defensive if one is ever wired up.
+	exit_dungeon()
 
 func go_to_level(level: int, enter_from_right: bool) -> void:
 	current_level = level

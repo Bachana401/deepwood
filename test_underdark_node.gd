@@ -46,7 +46,19 @@ func _ready() -> void:
 	check("the old surface dungeon door is retired",
 		get_tree().current_scene.get_node_or_null("DungeonZone") == null)
 	var doors := _doors(ud)
-	check("hidden stone doors exist in the deep", doors.size() >= 40, "%d doors" % doors.size())
+	# ONE DOOR PER FLOOR (dev 2026-07-22): doors are the ONLY way into a floor now
+	# (the in-dungeon forward gate is gone), so EVERY floor 1..MAX must have exactly
+	# one findable door, or the ladder dead-ends at the first floor with no door.
+	check("hidden stone doors exist in the deep", doors.size() >= ud.MAX_FLOOR, "%d doors" % doors.size())
+	var by_floor := {}
+	for d in doors:
+		by_floor[d.target_level] = int(by_floor.get(d.target_level, 0)) + 1
+	var missing := []
+	for lv in range(1, ud.MAX_FLOOR + 1):
+		if not by_floor.has(lv):
+			missing.append(lv)
+	check("EVERY floor has its own door (doors are the only way in)", missing.is_empty(),
+		"%d floors have no door: %s" % [missing.size(), str(missing.slice(0, 8))])
 
 	# ---- 2. Terraria-scale ----
 	var depth: float = ud.band_floor_y(ud.BANDS - 1) - ud.UD_TOP

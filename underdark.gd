@@ -110,7 +110,12 @@ const MOUND_RIGHT = DESCENT_X + CRUST_CARVE + 40.0
 const TUNNEL_TOP_Y = 210.0
 
 # --- doors ------------------------------------------------------------------
-const DOORS_PER_BAND = 7
+# ONE DOOR PER FLOOR (dev 2026-07-22). Doors are now the ONLY way into a dungeon
+# floor -- the in-dungeon "forward" gate that walked you level->level is gone. So
+# every floor 1..MAX_FLOOR must have its own findable door, or the ladder would
+# dead-end at the first floor with no door. floor N's door sits in the depth-band
+# that matches N (deeper floor, deeper door) and opens only once N is unlocked.
+const MAX_FLOOR := 100
 
 # --- streaming mobs ---------------------------------------------------------
 const SECTOR_W = 1000.0
@@ -536,49 +541,47 @@ static func _add_mat() -> CanvasItemMaterial:
 	return m
 
 # --- the hidden doors -------------------------------------------------------
-func _place_doors(rng: RandomNumberGenerator) -> void:
+func _place_doors(_rng: RandomNumberGenerator) -> void:
+	# Bucket the floors by depth-band: the deeper the floor, the deeper its door.
+	var floors_by_band := {}
 	for b in range(BANDS):
-		var lo := 1 + b * 12
-		var hi := mini(100, lo + 18)
+		floors_by_band[b] = []
+	for floor in range(1, MAX_FLOOR + 1):
+		var b: int = clampi((floor - 1) * BANDS / MAX_FLOOR, 0, BANDS - 1)
+		floors_by_band[b].append(floor)
+	for b in range(BANDS):
 		var segs: Array = _plan[b]
-		# NEVER on the vault segment. _build_rune_vaults (which runs after this)
-		# claims segs[size-2] and bars it behind three runes -- so a door landing
-		# there is unreachable until the puzzle is solved, and if that door were
-		# the band's guaranteed floor rung, a whole band's dungeon access would
-		# sit behind a gate. Worst case: the FRESH-RUN floor-1 door, which would
-		# soft-lock the game exactly as the "every band's first door is its
-		# floor" rule was written to prevent. Currently the fixed seed dodges it;
-		# reserving the segment makes that guarantee independent of the seed.
+		# NEVER the vault segment: _build_rune_vaults bars segs[size-2] behind three
+		# runes, so a door there is unreachable until the puzzle is solved -- a floor
+		# would sit locked behind a gate (the fresh-run floor-1 door would soft-lock
+		# the game). Reserving it keeps door access independent of the vault.
 		var vault_idx: int = segs.size() - 2
-		var placed := 0
-		var guard := 0
-		while placed < DOORS_PER_BAND and guard < 200:
-			guard += 1
-			var idx := rng.randi_range(0, segs.size() - 1)
-			# START AT THE BOTTOM AND CLIMB (dev 2026-07-21: "I expected to start at
-			# floor 1"). The band's GUARANTEED lowest-floor door (placed==0) is moved
-			# to the WESTMOST segment -- the first door you reach descending -- so a
-			# fresh run meets this band's lowest floor first and works up from there
-			# via the in-dungeon gate. The roll above is still consumed, so every
-			# other door, seam, chest and vault sits exactly where it did.
-			if placed == 0:
-				idx = 0
-			if idx == vault_idx:
-				continue
-			var s: Dictionary = segs[idx]
-			if s.has("door_here"):
-				continue
-			s["door_here"] = true
-			var door := preload("res://underdark_door.gd").new()
-			# EVERY BAND'S FIRST DOOR IS ITS FLOOR. Rolling all seven at random
-			# once left band 1 with nothing below floor 8 -- and a fresh save
-			# has only floor 1 unlocked, so the whole dungeon was UNREACHABLE:
-			# no door would open and there is no other way down any more.
-			# The band's bottom rung is guaranteed; the rest stay a lottery.
-			door.target_level = lo if placed == 0 else rng.randi_range(lo, hi)
-			door.position = Vector2(lerpf(s.x0 + 90.0, s.x1 - 90.0, rng.randf()), s.floor_y)
-			add_child(door)
-			placed += 1
+		var usable: Array = []
+		for i in range(segs.size()):
+			if i != vault_idx:
+				usable.append(segs[i])
+		if usable.is_empty():
+			usable = segs.duplicate()
+		var fs: Array = floors_by_band[b]
+		if fs.is_empty():
+			continue
+		# spread this band's floors across its usable segments, low floor westmost
+		# (so descending, you meet this band's floors in order), and stagger the
+		# doors that share a segment so they don't stack.
+		var buckets := {}
+		for si in range(usable.size()):
+			buckets[si] = []
+		for i in range(fs.size()):
+			buckets[i % usable.size()].append(fs[i])
+		for si in range(usable.size()):
+			var s: Dictionary = usable[si]
+			var here: Array = buckets[si]
+			for j in range(here.size()):
+				var frac: float = (float(j) + 0.5) / float(here.size())
+				var door := preload("res://underdark_door.gd").new()
+				door.target_level = int(here[j])
+				door.position = Vector2(lerpf(s.x0 + 90.0, s.x1 - 90.0, frac), s.floor_y)
+				add_child(door)
 
 # --- ore seams --------------------------------------------------------------
 func _place_seams(rng: RandomNumberGenerator) -> void:
