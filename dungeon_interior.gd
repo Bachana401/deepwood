@@ -343,6 +343,7 @@ const ENEMY_SCENE = preload("res://enemy.tscn")
 const BOSS_SCENE = preload("res://boss.tscn")
 const VILLAGER_SCENE = preload("res://villager.tscn")
 const SPECIAL_MOB_SCRIPT = preload("res://special_mob.gd")
+const CHEST_SCENE = preload("res://chest.tscn")
 const WEAPON_TYPES = ["sword", "spear", "bow"]
 const HP_SCALE_PER_LEVEL = 0.15
 const DMG_SCALE_PER_LEVEL = 0.10
@@ -1144,6 +1145,10 @@ func gen_wizard(w: float, h: float) -> Array:
 func build_level_visuals(level: int) -> void:
 	for child in $LevelContainer.get_children():
 		child.queue_free()
+	# floor-surprise caches hang off the ROOT (so their ../ChestUI resolves), not
+	# $LevelContainer, so clear them by group when a floor is (re)built
+	for n in get_tree().get_nodes_in_group("floor_surprise"):
+		n.queue_free()
 	var boss = is_boss_level(level)
 	var arena = get_boss_arena(level) if boss else {}
 	current_width = get_level_width(level)
@@ -1152,10 +1157,54 @@ func build_level_visuals(level: int) -> void:
 	build_ground_and_walls()
 	var layout = get_layout(level)
 	build_platforms(layout)
+	build_floor_surprises(level, layout)
 	build_stalactites(boss)
 	build_torches(boss, arena)
 	place_mines(boss, layout)
 	build_gates()
+
+# FLOOR SURPRISES (dev 2026-07-21: "many places to go, many surprises, goods and
+# bads"). Each non-boss floor rolls 1-2 extras, seeded by its level so a floor is
+# the same each visit: a HIDDEN CACHE up on a ledge (good -- a chest, its loot
+# stable by a floor id so a looted one stays looted), or a HAZARD trap on the
+# ground (bad). Environmental, so the fight's difficulty is unchanged. (The
+# ambush surprise -- a pack that springs -- lives in spawn_level_mobs, since it
+# only makes sense on a floor still being fought.)
+func build_floor_surprises(level: int, layout: Array) -> void:
+	if is_boss_level(level):
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(hash("dgn_surprise")) ^ (level * 2654435)
+	var ledges := []
+	for plat in layout:
+		if not plat.get("solid", false) and float(plat.y) < GROUND_Y - 70.0:
+			ledges.append(plat)
+	for i in range(rng.randi_range(1, 2)):
+		# lean toward the CACHE -- it's the genuinely new GOOD surprise; the floor's
+		# mines already provide hazards and the ambush is the new BAD one
+		if rng.randf() < 0.6 and not ledges.is_empty():
+			_dgn_cache(level, i, ledges[rng.randi() % ledges.size()], rng)
+		else:
+			_dgn_hazard(rng)
+
+func _dgn_cache(level: int, idx: int, plat: Dictionary, rng: RandomNumberGenerator) -> void:
+	var c = CHEST_SCENE.instantiate()
+	c.chest_id = "dgn_%d_%d_%d" % [level, idx, int(plat.x)]   # unique per floor + slot
+	c.add_to_group("floor_surprise")
+	add_child(c)                       # ROOT child, so chest.gd's ../ChestUI resolves
+	c.global_position = Vector2(float(plat.x), float(plat.y) - 22.0)
+	if not GameState.chest_contents.has(c.chest_id):
+		var table := ["potion_health", "potion_mana", "iron_shard", "ember_crystal", "coin_gold", "herb", "resin"]
+		if level >= 40:
+			table.append_array(["void_essence", "ancient_relic"])
+		for k in range(rng.randi_range(2, 3)):
+			c.inventory.add_item(table[rng.randi() % table.size()], rng.randi_range(1, 2))
+		GameState.chest_contents[c.chest_id] = c.inventory.to_save_data()
+
+func _dgn_hazard(rng: RandomNumberGenerator) -> void:
+	var t = TRAP_SCENE.instantiate()
+	$LevelContainer.add_child(t)
+	t.global_position = Vector2(rng.randf_range(520.0, maxf(560.0, current_width - 420.0)), GROUND_Y)
 
 func build_gates() -> void:
 	var back_gate = GATE_SCRIPT.new()
@@ -1687,6 +1736,12 @@ func spawn_level_mobs() -> void:
 			spawn_kind(op_types[randi() % op_types.size()])
 		else:
 			spawn_kind(annoy_types[randi() % annoy_types.size()])
+	# AMBUSH (a bad surprise, dev 2026-07-21): now and then a couple of the floor's
+	# own drop in from high up as you fight -- extra bodies to clear, this floor's
+	# own monster types, so it stings without a fresh difficulty tier.
+	if randf() < 0.32:
+		for k in range(2):
+			spawn_enemy(Vector2(randf_range(600.0, current_width - 300.0), GROUND_Y - randf_range(220.0, 340.0)))
 
 func pick_random_subset(pool: Array, n: int) -> Array:
 	var copy = pool.duplicate()
@@ -1820,7 +1875,7 @@ func _spawn_transformed(v_name: String) -> void:
 # Harvest moved from this arena into the village. The dungeon copy was left
 # behind with no callers -- removed rather than kept as a decoy.)
 
-func spawn_enemy() -> void:
+func spawn_enemy(at = null) -> void:
 	var enemy = ENEMY_SCENE.instantiate()
 	enemy.weapon_type = WEAPON_TYPES[randi() % WEAPON_TYPES.size()]
 	enemy.respawns = false
@@ -1846,7 +1901,7 @@ func spawn_enemy() -> void:
 			vis_block = choices[randi() % choices.size()]
 	enemy.apply_mixed_archetype(stat_block, vis_block)
 	assign_enemy_behavior(enemy)
-	enemy.position = Vector2(randf_range(600.0, current_width - 200.0), GROUND_Y - 60.0)
+	enemy.position = at if at != null else Vector2(randf_range(600.0, current_width - 200.0), GROUND_Y - 60.0)
 	enemy.add_to_group("dungeon_combatant")
 	$LevelContainer.add_child(enemy)
 	enemy.died.connect(_on_combatant_died)
