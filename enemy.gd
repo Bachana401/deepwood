@@ -36,6 +36,19 @@ const MELEE_STANDOFF_FRACTION = 0.82
 const WINDUP_SWORD = 0.17
 const WINDUP_SPEAR = 0.14
 const WINDUP_BOW = 0.16
+# SUPER-MOBS (dev: "no super mobs"). An elite is not just a bigger grunt -- it
+# wears a glowing aura and a crown so you spot it across the room, calls itself
+# out on spawn, and every few seconds winds up a telegraphed ground SLAM: a
+# shockwave you leap over. Mechanics, not a stat wall -- and hard-capped so a
+# slam can stagger you but never one-shot (the forever boss rule).
+const ELITE_SLAM_START = 210.0    # a slam begins if the player is at least this close
+const ELITE_SLAM_RADIUS = 155.0   # the shockwave's ground reach
+const ELITE_SLAM_AIR = 96.0       # ...and its height: jump above this and it whiffs
+const ELITE_SLAM_MIN = 4.0
+const ELITE_SLAM_MAX = 6.5
+const ELITE_WINDUP = 0.55         # the tell: long enough to read and leap
+const ELITE_SLAM_DMG_MULT = 1.7
+const ELITE_SLAM_HP_CAP = 0.45    # a slam can never take more than this share of max HP
 const WALL_TURN_DURATION = 0.8
 const WALL_NOTICE_DURATION = 3.5
 const WALL_DETECTION_BONUS = 120.0
@@ -156,6 +169,7 @@ var status_overlay: ColorRect = null
 # "dasher" (evasive lunges). "" = the normal grunt AI. is_elite scales it up. ---
 var behavior := ""
 var is_elite := false
+var elite_slam_timer := 0.0
 var behavior_timer := 0.0
 var summoned_minions: Array = []
 
@@ -308,6 +322,8 @@ func _ready() -> void:
 	setup_weapon_visual()
 	update_body_color()
 	build_character()
+	if is_elite:
+		_become_super_mob()
 
 func update_body_color() -> void:
 	$ColorRect.color = base_color.darkened(clamp(generation * 0.15, 0.0, 0.6))
@@ -536,6 +552,8 @@ func _physics_process(delta: float) -> void:
 	# normal movement AI below
 	if behavior != "":
 		process_behavior(delta)
+	if is_elite:
+		_tick_elite_slam(delta)
 
 	if attack_cooldown_remaining > 0:
 		attack_cooldown_remaining -= delta
@@ -816,7 +834,140 @@ func set_behavior(kind: String, elite: bool = false) -> void:
 	if elite:
 		wave_hp_multiplier *= 2.4
 		wave_damage_multiplier *= 1.4
-		scale *= 1.25
+		scale *= 1.3
+		elite_slam_timer = randf_range(2.5, 4.0)   # first slam comes fairly soon
+
+# ---------- SUPER-MOB (elite) presence + signature slam ----------
+# A soft radial glow, built once and shared, so an elite's aura costs nothing.
+static var _elite_glow: GradientTexture2D = null
+static func _elite_glow_tex() -> GradientTexture2D:
+	if _elite_glow == null:
+		var g := Gradient.new()
+		g.offsets = PackedFloat32Array([0.0, 0.5, 1.0])
+		g.colors = PackedColorArray([Color(1, 1, 1, 0.5), Color(1, 1, 1, 0.18), Color(1, 1, 1, 0.0)])
+		_elite_glow = GradientTexture2D.new()
+		_elite_glow.gradient = g
+		_elite_glow.width = 128
+		_elite_glow.height = 128
+		_elite_glow.fill = GradientTexture2D.FILL_RADIAL
+		_elite_glow.fill_from = Vector2(0.5, 0.5)
+		_elite_glow.fill_to = Vector2(1.0, 0.5)
+	return _elite_glow
+
+# Dress a plain elite up into something you SEE coming: a pulsing aura in its
+# archetype colour, a gold crown so it reads as a champion in a crowd, and a
+# shout on arrival.
+func _become_super_mob() -> void:
+	var glow := Sprite2D.new()
+	glow.texture = _elite_glow_tex()
+	glow.modulate = Color(accent_color.r, accent_color.g, accent_color.b, 0.9)
+	glow.scale = Vector2(1.6, 1.6)
+	glow.z_index = -1
+	glow.position = Vector2(0, -18)
+	var mat := CanvasItemMaterial.new()
+	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	glow.material = mat
+	add_child(glow)
+	var pulse := glow.create_tween()
+	pulse.set_loops()
+	pulse.tween_property(glow, "scale", Vector2(1.95, 1.95), 0.8).set_trans(Tween.TRANS_SINE)
+	pulse.tween_property(glow, "scale", Vector2(1.6, 1.6), 0.8).set_trans(Tween.TRANS_SINE)
+	var crown := Polygon2D.new()
+	crown.polygon = PackedVector2Array([
+		Vector2(-11, -46), Vector2(-11, -58), Vector2(-4, -51),
+		Vector2(0, -60), Vector2(4, -51), Vector2(11, -58), Vector2(11, -46)])
+	crown.color = Color(1.0, 0.86, 0.3)
+	add_child(crown)
+	FloatingText.spawn_word(get_parent(), global_position + Vector2(0, -72), "⚠ ELITE", Color(1.0, 0.85, 0.3))
+
+func _tick_elite_slam(delta: float) -> void:
+	if is_dead or player == null or not is_instance_valid(player):
+		return
+	elite_slam_timer -= delta
+	if elite_slam_timer > 0.0:
+		return
+	# only from a settled stance, and only when the player is in range to threaten
+	if is_attacking or is_knocked_back or is_frozen() or is_petrified() or not is_on_floor():
+		elite_slam_timer = 0.35
+		return
+	if absf(player.global_position.x - global_position.x) > ELITE_SLAM_START:
+		elite_slam_timer = 0.4
+		return
+	elite_slam_timer = randf_range(ELITE_SLAM_MIN, ELITE_SLAM_MAX)
+	_elite_slam()
+
+func _elite_slam() -> void:
+	is_attacking = true       # plant through the wind-up (the movement AI reads this)
+	velocity.x = 0
+	_telegraph_weapon($WeaponIcon, ELITE_WINDUP)
+	_spawn_slam_ring()        # the tell: a ground ring swelling to the slam's reach
+	var t := create_tween()
+	t.tween_interval(ELITE_WINDUP)
+	t.tween_callback(_elite_shockwave)
+	t.tween_callback(finish_attack)
+
+func _spawn_slam_ring() -> void:
+	var ring := Node2D.new()
+	ring.z_index = 2
+	ring.position = Vector2(0, 4)
+	add_child(ring)
+	var poly := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(24):
+		var a := TAU * float(i) / 24.0
+		pts.append(Vector2(cos(a) * ELITE_SLAM_RADIUS, sin(a) * ELITE_SLAM_RADIUS * 0.32))
+	poly.polygon = pts
+	poly.color = Color(1.0, 0.4, 0.2, 0.30)
+	ring.add_child(poly)
+	ring.scale = Vector2(0.2, 0.2)
+	var t := ring.create_tween()
+	t.tween_property(ring, "scale", Vector2(1.0, 1.0), ELITE_WINDUP)
+	t.tween_property(poly, "modulate:a", 0.0, 0.14)
+	t.tween_callback(ring.queue_free)
+
+func _elite_shockwave() -> void:
+	if is_dead:
+		return
+	play_sfx(SFX_HIT)
+	# a wave ALONG THE GROUND: near horizontally AND not lifted off -- so leaping
+	# clears it. Hard-capped, so it staggers but can never one-shot.
+	if player != null and is_instance_valid(player) and player.has_method("take_damage"):
+		var dx := absf(player.global_position.x - global_position.x)
+		var dy := absf(player.global_position.y - global_position.y)
+		if dx <= ELITE_SLAM_RADIUS and dy <= ELITE_SLAM_AIR:
+			var raw := int(round(float(WEAPONS[weapon_type].damage) * damage_multiplier * ELITE_SLAM_DMG_MULT))
+			if player.has_method("get_max_health"):
+				raw = mini(raw, int(round(player.get_max_health() * ELITE_SLAM_HP_CAP)))
+			player.take_damage(raw)
+			if player.has_method("apply_knockback"):
+				var away := signf(player.global_position.x - global_position.x)
+				if away == 0.0:
+					away = float(facing_direction)
+				player.apply_knockback(int(away), randf_range(60.0, 92.0))
+			if player.has_node("Camera2D"):
+				player.get_node("Camera2D").shake(10.0, 0.35)
+	_spawn_shock_burst()
+
+func _spawn_shock_burst() -> void:
+	var burst := Node2D.new()
+	burst.z_index = 3
+	get_parent().add_child(burst)
+	burst.global_position = Vector2(global_position.x, global_position.y + 20.0)
+	var ln := Line2D.new()
+	ln.width = 5.0
+	ln.default_color = Color(1.0, 0.6, 0.25, 0.9)
+	var pts := PackedVector2Array()
+	for i in range(20):
+		var a := TAU * float(i) / 19.0
+		pts.append(Vector2(cos(a) * ELITE_SLAM_RADIUS, sin(a) * ELITE_SLAM_RADIUS * 0.3))
+	ln.points = pts
+	burst.add_child(ln)
+	burst.scale = Vector2(0.3, 0.3)
+	var t := burst.create_tween()
+	t.set_parallel(true)
+	t.tween_property(burst, "scale", Vector2(1.1, 1.1), 0.25)
+	t.tween_property(ln, "modulate:a", 0.0, 0.25)
+	t.chain().tween_callback(burst.queue_free)
 
 # Periodic special action layered on the normal movement AI.
 func process_behavior(delta: float) -> void:
