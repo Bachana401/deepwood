@@ -1386,9 +1386,9 @@ func build_gates() -> void:
 	back_gate.position = Vector2(46.0, GROUND_Y)
 	$LevelContainer.add_child(back_gate)
 
-# Both gates funnel through here. Back: level 1 leaves the dungeon, deeper
-# levels retreat one (usable any time, even mid-fight, as an escape hatch).
-# Forward: locked until the level is cleared; on the final level it exits.
+# The one gate ("leave") funnels through here. It ALWAYS leaves the floor for the
+# Underdark, usable any time (an escape hatch mid-fight too). Floors are reached
+# only by their doors now -- there is no floor-to-floor movement from inside a floor.
 func on_gate_used(direction: String) -> void:
 	# The only gate is "leave": it ALWAYS returns you to the Underdark, at the very
 	# door you entered by (exit_dungeon restores pre_dungeon_position). No more
