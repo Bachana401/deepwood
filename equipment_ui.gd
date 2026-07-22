@@ -44,20 +44,29 @@ func _unhandled_input(event: InputEvent) -> void:
 		if panel.visible:
 			refresh()
 
-# A boxed slot with a border so empty slots read as slots.
+# A Terraria pixel-box slot (dev ask 2026-07-22): slate border over a dark-navy
+# fill, matching the inventory/tooltip palette. Empty slots read as slots via
+# both the frame AND a faint ghost silhouette of what belongs there (refresh()).
 func _slot_style(hover: bool, locked := false) -> StyleBoxFlat:
 	var s = StyleBoxFlat.new()
 	if locked:
-		s.bg_color = Color(0.09, 0.09, 0.11, 1)
-		s.border_color = Color(0.3, 0.3, 0.35, 1)
+		s.bg_color = Color(0.07, 0.08, 0.11, 1)
+		s.border_color = Color(0.22, 0.24, 0.32, 1)
 	else:
-		s.bg_color = Color(0.19, 0.19, 0.24, 1) if hover else Color(0.13, 0.13, 0.17, 1)
-		s.border_color = Color(0.55, 0.55, 0.62, 1)
+		s.bg_color = Color(0.16, 0.18, 0.25, 1) if hover else Color(0.10, 0.12, 0.17, 1)
+		s.border_color = Color(0.46, 0.50, 0.66, 1) if hover else Color(0.34, 0.38, 0.52, 1)
 	s.set_border_width_all(2)
-	s.set_corner_radius_all(5)
+	s.set_corner_radius_all(3)
 	s.content_margin_left = 3
 	s.content_margin_right = 3
 	return s
+
+# Representative silhouette shown, dimmed, in an EMPTY slot -- the Terraria "a
+# ghost helmet means a helmet goes here" read. Reuses the bag's own icons.
+const SLOT_GHOST = {
+	"helmet": "helm_leather", "chest": "armor_leather", "pants": "pants_leather",
+	"gloves": "gloves_leather", "boots": "boots_leather", "relic": "relic_vigor",
+}
 
 func _slot_button(x: float, y: float, w: float, h: float) -> Button:
 	var b = Button.new()
@@ -84,6 +93,12 @@ func build_panel() -> void:
 	panel.offset_right = -20.0
 	panel.offset_top = -PANEL_H / 2.0
 	panel.offset_bottom = PANEL_H / 2.0
+	var pstyle = StyleBoxFlat.new()
+	pstyle.bg_color = Color(0.07, 0.08, 0.11, 0.97)
+	pstyle.border_color = Color(0.34, 0.38, 0.52, 0.9)
+	pstyle.set_border_width_all(2)
+	pstyle.set_corner_radius_all(4)
+	panel.add_theme_stylebox_override("panel", pstyle)
 	add_child(panel)
 
 	title_label = Label.new()
@@ -162,8 +177,8 @@ func build_picker() -> void:
 	picker.offset_top = -150.0
 	picker.offset_bottom = 150.0
 	var style = StyleBoxFlat.new()
-	style.bg_color = Color(0.1, 0.1, 0.13, 0.97)
-	style.border_color = Color(0.6, 0.6, 0.66, 1)
+	style.bg_color = Color(0.07, 0.08, 0.11, 0.97)
+	style.border_color = Color(0.34, 0.38, 0.52, 0.9)
 	style.set_border_width_all(2)
 	style.set_corner_radius_all(4)
 	picker.add_theme_stylebox_override("panel", style)
@@ -218,7 +233,7 @@ func refresh() -> void:
 	# item (or "(empty)") -- exactly an "empty helmet place", "empty armor place"...
 	for key in slot_buttons.keys():
 		var equipped_id = GameState.equipment.get(key, "")
-		_dress_slot(slot_buttons[key], equipped_id, "(empty)")
+		_dress_slot(slot_buttons[key], equipped_id, "", SLOT_GHOST.get(key, ""))
 	var count = GameState.relic_slot_count()
 	for i in range(GameState.RELIC_MAX_SLOTS):
 		var rb = relic_buttons[i]
@@ -228,7 +243,7 @@ func refresh() -> void:
 		else:
 			rb.disabled = false
 			var rid = GameState.equipment.relics[i]
-			_dress_slot(rb, rid, "R%d" % (i + 1))
+			_dress_slot(rb, rid, "", SLOT_GHOST.get("relic", ""))
 
 func _slot_label(key: String) -> String:
 	for def in GEAR_SLOTS:
@@ -243,12 +258,25 @@ func _slot_label(key: String) -> String:
 # is also the standing rule, that an icon must read as the thing you wear.
 const SLOT_ICON = 30.0
 
-func _dress_slot(button: Button, item_id: String, empty_text: String) -> void:
+func _dress_slot(button: Button, item_id: String, empty_text: String, ghost_id := "") -> void:
 	var icon: ColorRect = button.get_node_or_null("SlotIcon")
 	if item_id == "":
-		if icon != null:
-			icon.queue_free()
-		button.text = empty_text
+		if ghost_id != "":
+			# a dim ghost of what belongs here, centred -- "a helmet goes here"
+			if icon == null:
+				icon = ColorRect.new()
+				icon.name = "SlotIcon"
+				icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				icon.size = Vector2(SLOT_ICON, SLOT_ICON)
+				button.add_child(icon)
+			icon.position = Vector2((button.size.x - SLOT_ICON) / 2.0, (button.size.y - SLOT_ICON) / 2.0)
+			Inventory.paint_icon(icon, ghost_id)
+			icon.modulate = Color(1, 1, 1, 0.16)
+			button.text = ""
+		else:
+			if icon != null:
+				icon.queue_free()
+			button.text = empty_text
 		button.add_theme_constant_override("icon_max_width", 0)
 		return
 	if icon == null:
@@ -257,6 +285,7 @@ func _dress_slot(button: Button, item_id: String, empty_text: String) -> void:
 		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		icon.size = Vector2(SLOT_ICON, SLOT_ICON)
 		button.add_child(icon)
+	icon.modulate = Color(1, 1, 1, 1)     # opaque again if this slot was a ghost before
 	icon.position = Vector2((button.size.x - SLOT_ICON) / 2.0, 3.0)
 	Inventory.paint_icon(icon, item_id)
 	# full name, wrapped, in the space under the icon
