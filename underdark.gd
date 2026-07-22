@@ -546,6 +546,14 @@ func _place_doors(rng: RandomNumberGenerator) -> void:
 		while placed < DOORS_PER_BAND and guard < 200:
 			guard += 1
 			var idx := rng.randi_range(0, segs.size() - 1)
+			# START AT THE BOTTOM AND CLIMB (dev 2026-07-21: "I expected to start at
+			# floor 1"). The band's GUARANTEED lowest-floor door (placed==0) is moved
+			# to the WESTMOST segment -- the first door you reach descending -- so a
+			# fresh run meets this band's lowest floor first and works up from there
+			# via the in-dungeon gate. The roll above is still consumed, so every
+			# other door, seam, chest and vault sits exactly where it did.
+			if placed == 0:
+				idx = 0
 			if idx == vault_idx:
 				continue
 			var s: Dictionary = segs[idx]
