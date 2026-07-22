@@ -972,6 +972,9 @@ func log_event(cat: String, text: String) -> void:
 # the cottages you raise. The Tavern lodges the unhoused, warm but not home.
 const WIDOW_MOURN_HOURS := 48.0     # canon: re-pairable only after the mourning
 const SINGLE_MORALE_PENALTY := 2.0  # canon: a lonely adult carries -2, standing
+# The floor a FED soul never falls below (3b): well clear of the morale-0 rot
+# trigger, so a poor-but-fed village is miserable, not dying. Starvation lifts it.
+const ROT_SAFE_FLOOR := 1.5
 const WIDOW_MORALE_HIT := 3.0       # canon: -3, decaying back over the mourning
 var cottage_homes: Dictionary = {}  # house_id -> {"a": id, "b": id}, permanent
 var extra_cottages: int = 0         # cottages RAISED beyond the starting row (5.8: built, not free)
@@ -1806,6 +1809,14 @@ func personal_morale_target(v: Dictionary) -> float:
 	if ten_freed("ten_ilo"):
 		t += 1.0
 	t -= morale_death_shock / 10.0                               # the town's grief weighs on everyone
+	# 3b tuning (2026-07-22): a FED, free soul holds a dim ember -- miserable, yes
+	# (low income, no births, complaints, maybe below the despair line), but
+	# poverty ALONE never rots them to death. Only an EMPTY larder lifts this
+	# floor, so corruption is the price of real crisis (starvation), not the
+	# default state of a fresh, unbuilt village. Before this, a new town of
+	# homeless jobless souls sat at ~0.5 and collapsed to demons in ~5 real min.
+	if has_food():
+		t = maxf(t, ROT_SAFE_FLOOR)
 	return clampf(t, 0.0, 10.0)
 
 # Seeded at target on first touch (a new villager, or a villager from an
