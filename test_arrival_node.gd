@@ -99,6 +99,15 @@ func _ready() -> void:
 		and msrc.contains("get_nodes_in_group(\"adventurer\")"))
 	check("diving early can't skip it (the DOOR delivers the talk if still owed)",
 		FileAccess.open("res://underdark_door.gd", FileAccess.READ).get_as_text().contains("play_arrival_talk"))
+	# THE SCENE HAPPENS AT THE VILLAGE, NEVER IN THE DEEP (dev report 2026-07-21:
+	# went down first, killed a mob, and the rescues/trio happened in the dungeon).
+	# The road east passes the cave BEFORE the wall, so the descent stays SEALED
+	# until the arrival battle is done, and the trigger never fires from below.
+	check("the cave is sealed until the arrival is done (the scene is at the gate first)",
+		FileAccess.open("res://underdark.gd", FileAccess.READ).get_as_text().contains(
+			"not GameState.seen_arrival_battle and not GameState.dev_mode"))
+	check("...and the arrival never fires from underground or a dungeon floor",
+		msrc.contains("GameState.in_dungeon or pl.global_position.y > 250.0"))
 	var gsrc := FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text()
 	check("the arrival is one-shot, saved, and OLD saves never replay it",
 		gsrc.contains('"seen_arrival_battle": seen_arrival_battle')

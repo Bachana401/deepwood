@@ -488,6 +488,12 @@ func _check_arrival_trigger() -> void:
 	var pl = get_tree().get_first_node_in_group("player")
 	if pl == null:
 		return
+	# THE ARRIVAL IS A SURFACE SCENE AT THE GATE. The cave is sealed until it is
+	# done (underdark._tick_cave_mouth), but guard here too: never fire it from a
+	# dungeon floor or from down in the deep, so the trio + reveal can only ever
+	# happen where they belong -- on the road at the village wall.
+	if GameState.in_dungeon or pl.global_position.y > 250.0:
+		return
 	var wall_x := 4700.0
 	for w in get_tree().get_nodes_in_group("village_wall"):
 		if "flank" in w and w.flank == "west":

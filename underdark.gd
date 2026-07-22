@@ -1017,6 +1017,16 @@ func _tick_cave_mouth() -> void:
 		if GameState.harvest_at_home:
 			GameState.notify("⛔ The village is TURNING behind you. There is nothing below anymore — the fight is HERE.")
 			return
+		# THE ARRIVAL COMES FIRST (dev 2026-07-21). On a new game the road east
+		# passes this cave BEFORE the village wall, so a player could dive here and
+		# meet the deep -- rescuing villagers, meeting the trio -- before ever
+		# arriving. The scene must happen at the gate: the way down stays sealed
+		# until the arrival battle is done. dev_mode skips the whole opening.
+		if not GameState.seen_arrival_battle and not GameState.dev_mode:
+			var stack = get_tree().get_first_node_in_group("notification_stack")
+			if stack:
+				stack.show_notification("The road runs on to the village, just east — reach it first. There is nothing for you below yet.")
+			return
 		pl.global_position = Vector2(DESCENT_X + 40.0, TUNNEL_TOP_Y - 60.0)
 		_at_mouth = false
 		_cave_prompt.visible = false
