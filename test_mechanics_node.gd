@@ -152,5 +152,28 @@ func _ready() -> void:
 	check("...and takes even chip damage normally", plain.health == pl0 - 5,
 		"%d -> %d" % [pl0, plain.health])
 
+	# The same "never delete you" line extends to ELITE SPECIAL MOBS. They aren't
+	# bosses (full-mult scaling is right for them), but the fast glass-cannon type
+	# at the floor-100 curve reached ~159 as an elite -- a one-shot through a bare
+	# 160-HP player, from a mob far less telegraphed than a boss. special_mob caps
+	# every blow to MAX_HIT_FRACTION of the player's HP (verified live at 115<165):
+	# still a 2-hit threat, never an outright delete. A fraction < 1.0 can never
+	# one-shot; the cap must be wired onto attack_damage against the player's HP.
+	var SM = load("res://special_mob.gd")
+	check("a special mob's blow is capped below a full HP bar (fraction < 1.0)",
+		SM.MAX_HIT_FRACTION < 1.0, "%.2f" % SM.MAX_HIT_FRACTION)
+	check("...but still hits like a truck (>= half a bar)", SM.MAX_HIT_FRACTION >= 0.5)
+	var sm_src := FileAccess.open("res://special_mob.gd", FileAccess.READ).get_as_text()
+	check("...the cap is applied to attack_damage against the player's max HP",
+		sm_src.contains("attack_damage = mini(attack_damage")
+		and sm_src.contains("get_max_health() * MAX_HIT_FRACTION"))
+	# and it MUST actually bite: the hardest elite's raw hit (dmg-24 glass cannon at
+	# the floor-100 curve, x1.25 elite = 159, a near-delete of a bare 160 bar) is
+	# well above the cap, so the clamp genuinely reduces it rather than no-opping.
+	var hardest_raw := int(round(24 * 5.30 * 1.25))            # 159
+	var bare_cap := int(round(160 * SM.MAX_HIT_FRACTION))      # 112
+	check("the cap actually bites (hardest elite raw %d > cap %d)" % [hardest_raw, bare_cap],
+		hardest_raw > bare_cap)
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

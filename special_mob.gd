@@ -109,6 +109,15 @@ var player: Node2D = null
 var max_health := 34
 var health := 34
 var attack_damage := 7
+# NEVER a one-shot -- the game's fairness line covers elites too. A special mob is
+# far less telegraphed than a boss (no wind-up to read), so being deleted by one
+# is even more "the number was too big" than a boss one-shot. Every blow -- melee,
+# blast, or bolt, they all carry attack_damage -- is capped to this share of the
+# player's max HP: a floor-100 elite glass-cannon (raw 159) still hits like a
+# truck and threatens a 2-hit kill, but you always survive the first and get a
+# beat to answer. Below the cap, damage scales normally; only the hardest hitters
+# at the deepest floors ever reach it.
+const MAX_HIT_FRACTION := 0.7
 var reward := 6
 var xp_reward := 6
 var move_speed := 66.0
@@ -270,6 +279,10 @@ func _ready() -> void:
 		affix = ELITE_AFFIXES.keys()[randi() % ELITE_AFFIXES.size()]
 	hover_offset = Vector2(randf_range(-70.0, 70.0), -randf_range(150.0, 240.0))
 	player = get_tree().get_first_node_in_group("player")
+	# cap every blow below a one-shot (see MAX_HIT_FRACTION) -- one place, so melee,
+	# blasts and every projectile that carries attack_damage all obey it
+	if player != null and player.has_method("get_max_health"):
+		attack_damage = mini(attack_damage, int(round(player.get_max_health() * MAX_HIT_FRACTION)))
 	build_collision()
 	build_visual()
 	build_health_bar()
