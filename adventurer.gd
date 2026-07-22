@@ -40,6 +40,7 @@ var station := "city"
 var home_x := 0.0            # the anchor this station patrols around
 var patrol_off := 0.0
 var patrol_dir := 1.0
+var _post_offset := 0.0       # a stable per-hero shift so co-stationed heroes don't stack
 var attack_cd := 0.0
 var is_dead := false
 var player_near := false
@@ -93,6 +94,14 @@ func _ready() -> void:
 	ability = str(def.get("ability", ""))
 	var st = GameState.adventurer_state(adventurer_id)
 	station = str(st.get("station", "city"))
+	# Spread + desync (dev report: the three starters "stick to each other,
+	# sometimes run away"). All three default to the "city" post, so they aimed
+	# for the SAME village-centre point and paced it in perfect lockstep -- a
+	# glued, jittering knot. Give each a stable offset off the shared anchor and
+	# a random patrol phase, so they pace different stretches as three bodies.
+	_post_offset = (float(hash(adventurer_id) % 5) - 2.0) * 48.0
+	patrol_off = randf_range(-90.0, 90.0)
+	patrol_dir = 1.0 if (hash(adventurer_id) % 2 == 0) else -1.0
 	collision_mask = 1
 	collision_layer = 0
 	add_to_group("adventurer")
@@ -420,7 +429,7 @@ func _hold_station(delta: float) -> void:
 		if absf(patrol_off) > 140.0:
 			patrol_dir *= -1.0
 	_ensure_anchor()
-	var dest := home_x + (patrol_off if station == "city" else 0.0)
+	var dest := home_x + (_post_offset + patrol_off if station == "city" else _post_offset * 0.5)
 	var dx := dest - global_position.x
 	velocity.x = clampf(dx, -WALK_SPEED, WALK_SPEED) if absf(dx) > 6.0 else 0.0
 	if absf(velocity.x) > 1.0:
@@ -430,22 +439,36 @@ func _hold_station(delta: float) -> void:
 		elif body_rect:
 			body_rect.scale.x = face
 
+# How far from their POST a hero will move to meet a threat. A SIEGE is the
+# post's whole reason to exist, so they'll cross the watch to meet it; a WILD
+# east-road mob is only their fight if it's right on top of them -- otherwise
+# they'd sprint 760px down the road after it and abandon the town they guard
+# (dev report: "sometimes running away"). They still defend themselves.
+const DEFEND_RADIUS := 560.0
+const SELF_DEFENSE_RADIUS := 150.0
+
 func _nearest_raider() -> Node2D:
-	# Every hostile counts, not only siege raiders. The corps used to scan
-	# "siege_enemy" alone, so on the road a wild mob could maul an adventurer
-	# and the hero would keep walking like nothing was happening (dev report
-	# 2026-07-21: "they should defend themselves"). Same groups the player's
-	# own weapons use.
+	var post_x: float = home_x if home_x != 0.0 else global_position.x
 	var best: Node2D = null
 	var best_d := SEEK_RANGE
-	for grp in ["siege_enemy", "course_enemy"]:
-		for r in get_tree().get_nodes_in_group(grp):
-			if not is_instance_valid(r) or ("is_dead" in r and r.is_dead):
-				continue
-			var d: float = global_position.distance_to(r.global_position)
-			if d < best_d:
-				best_d = d
-				best = r
+	# a siege threatens the post -- meet it anywhere within the post's watch
+	for r in get_tree().get_nodes_in_group("siege_enemy"):
+		if not is_instance_valid(r) or ("is_dead" in r and r.is_dead):
+			continue
+		if absf(r.global_position.x - post_x) > DEFEND_RADIUS:
+			continue
+		var d: float = global_position.distance_to(r.global_position)
+		if d < best_d:
+			best_d = d
+			best = r
+	# a wild road mob: fought only when it comes right to them, never chased
+	for r in get_tree().get_nodes_in_group("course_enemy"):
+		if not is_instance_valid(r) or ("is_dead" in r and r.is_dead):
+			continue
+		var d2: float = global_position.distance_to(r.global_position)
+		if d2 <= SELF_DEFENSE_RADIUS and d2 < best_d:
+			best_d = d2
+			best = r
 	return best
 
 # The attack this swing will land, after the signature riders that scale it:
