@@ -1227,6 +1227,7 @@ var seen_kneel_echo := false
 var seen_orin_taunt := false
 var seen_arrival_battle := false
 var seen_arrival_talk := false   # the wall-crossing reveal was DELIVERED (split from the battle flag 2026-07-21)
+var seen_gather_hint := false    # taught the axe/pickaxe once (transient; a swing at a tree/rock with a plain weapon triggers it)
 # THE NEW FINALE (canon rework 2026-07-20): floor 100 is EMPTY. The false
 # victory is carried home, the feast pumps the village to its peak, and Orin
 # reveals himself AT THE FEAST -- the Harvest is fought in the village.
@@ -3487,6 +3488,7 @@ func reset_for_new_game() -> void:
 	seen_orin_glimpse = false
 	seen_kneel_echo = false
 	seen_orin_taunt = false
+	seen_gather_hint = false
 	seen_arrival_battle = false
 	seen_arrival_talk = false
 	seen_empty_throne = false

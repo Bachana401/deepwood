@@ -74,5 +74,19 @@ func _ready() -> void:
 	rock.queue_free()
 	rock2.queue_free()
 
+	# ---- swinging a PLAIN WEAPON at a tree/rock teaches the tool ONCE ----
+	GameState.seen_gather_hint = false
+	p.wield_weapon("wpn_sword")
+	var tree2 = HN.new()
+	tree2.node_type = "tree"
+	get_tree().current_scene.add_child(tree2)
+	tree2.global_position = p.global_position
+	await get_tree().process_frame
+	p.attack_cooldown_remaining = 0.0
+	p.perform_attack()
+	await get_tree().process_frame
+	check("a plain-weapon swing at a tree teaches the tool (once)", GameState.seen_gather_hint)
+	tree2.queue_free()
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

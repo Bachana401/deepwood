@@ -2593,6 +2593,19 @@ func perform_attack() -> void:
 				best_dx = dx
 		if best != null:
 			best.take_tool_hit(tool_type, self)
+	elif not GameState.seen_gather_hint:
+		# swinging a plain WEAPON at a tree/rock -- the new player who doesn't know
+		# gathering needs a tool. Teach it ONCE, at the exact moment of confusion, so
+		# "I hit the tree and nothing happened" never becomes a bug report.
+		for node in get_tree().get_nodes_in_group("harvestable"):
+			if is_instance_valid(node) and node.has_method("take_tool_hit") \
+					and absf(node.global_position.x - global_position.x) <= 92.0 \
+					and absf(node.global_position.y - global_position.y) <= 150.0:
+				GameState.seen_gather_hint = true
+				var st = get_tree().get_first_node_in_group("notification_stack")
+				if st:
+					st.show_notification("That needs a TOOL — wield your Woodsman's Axe (trees) or Miner's Pickaxe (rock) from the hotbar, then swing.")
+				break
 	var bodies = $AttackArea.get_overlapping_bodies()
 	if special_type == "cleave":
 		# the Sunderer carves through EVERY body in the arc, not just one
