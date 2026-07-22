@@ -307,21 +307,30 @@ func play_sfx(stream: AudioStream) -> void:
 # chooses the weapon from the archetype's mix, so it overrides any weapon_type
 # set beforehand.
 func apply_block_archetype(block: int) -> void:
+	apply_mixed_archetype(block, block)
+
+# The LOOK (sprite/colour/shape/weapon) comes from visual_block; the STAT mults
+# always come from stat_block -- the FLOOR's own difficulty band. So a floor can
+# field a MIXED horde of monster skins (dev request 2026-07-21: "mobs mostly 1
+# variety, I want them mixed") WITHOUT changing how hard the fight is: give a
+# grunt a neighbour's face and it still hits and dies exactly as this floor's own.
+func apply_mixed_archetype(stat_block: int, visual_block: int) -> void:
 	if ENEMY_ROSTERS.is_empty():
 		return
-	var data: Dictionary = ENEMY_ROSTERS[block % ENEMY_ROSTERS.size()]
-	base_color = data.get("color", base_color)
-	var s := float(data.get("scale", 1.0))
+	var vd: Dictionary = ENEMY_ROSTERS[visual_block % ENEMY_ROSTERS.size()]
+	base_color = vd.get("color", base_color)
+	var s := float(vd.get("scale", 1.0))
 	scale = Vector2(s, s)
-	var weapons: Array = data.get("weapons", [weapon_type])
+	var weapons: Array = vd.get("weapons", [weapon_type])
 	if not weapons.is_empty():
 		weapon_type = weapons[randi() % weapons.size()]
-	character_shape = data.get("shape", "grunt")
-	accent_color = data.get("accent", accent_color)
-	sprite_skin = data.get("sprite", "")
-	wave_hp_multiplier *= float(data.get("hp_mult", 1.0))
-	wave_damage_multiplier *= float(data.get("dmg_mult", 1.0))
-	wave_speed_multiplier *= float(data.get("speed_mult", 1.0))
+	character_shape = vd.get("shape", "grunt")
+	accent_color = vd.get("accent", accent_color)
+	sprite_skin = vd.get("sprite", "")
+	var sd: Dictionary = ENEMY_ROSTERS[stat_block % ENEMY_ROSTERS.size()]
+	wave_hp_multiplier *= float(sd.get("hp_mult", 1.0))
+	wave_damage_multiplier *= float(sd.get("dmg_mult", 1.0))
+	wave_speed_multiplier *= float(sd.get("speed_mult", 1.0))
 
 # Builds a distinct UNDEAD silhouette (skull/hood + bony features) on top of
 # the torso ColorRect, so each roster archetype reads as its own monster. Parts

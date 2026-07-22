@@ -1829,8 +1829,22 @@ func spawn_enemy() -> void:
 	enemy.wave_hp_multiplier = scaling.hp
 	enemy.wave_damage_multiplier = scaling.dmg
 	enemy.wave_speed_multiplier = scaling.speed
-	# re-skin into this 5-level block's roster (levels 1-5 -> block 0, etc.)
-	enemy.apply_block_archetype(int((current_level - 1) / 5))
+	# re-skin into this floor's 5-level block, but MIX a neighbour's LOOK onto ~45%
+	# of grunts so the floor fields a varied horde, not one repeated monster. Stats
+	# always come from THIS floor's block, so difficulty is unchanged, and a grunt
+	# never wears the face of a monster from deeper than you have reached.
+	var stat_block := int((current_level - 1) / 5)
+	var vis_block := stat_block
+	if randf() < 0.45:
+		var choices := []
+		if stat_block - 1 >= 0:
+			choices.append(stat_block - 1)
+		var max_seen := int((GameState.highest_unlocked_level - 1) / 5)
+		if stat_block + 1 <= max_seen and stat_block + 1 < enemy.ENEMY_ROSTERS.size():
+			choices.append(stat_block + 1)
+		if not choices.is_empty():
+			vis_block = choices[randi() % choices.size()]
+	enemy.apply_mixed_archetype(stat_block, vis_block)
 	assign_enemy_behavior(enemy)
 	enemy.position = Vector2(randf_range(600.0, current_width - 200.0), GROUND_Y - 60.0)
 	enemy.add_to_group("dungeon_combatant")
