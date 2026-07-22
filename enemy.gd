@@ -21,6 +21,21 @@ const RANDOM_JUMP_CHANCE = 0.006
 const JUMP_SEE_HEIGHT = 40.0
 const HORIZONTAL_DEADZONE = 6.0
 const ENEMY_ARROW_RANGE = 460.0
+# MELEE IS A SIDE-SCROLLER SWING, NOT A CIRCLE. Reach used to be euclidean
+# centre-to-centre distance, so a mob would "hit" a player 45px straight up on a
+# ledge, and its reach felt inconsistent from every angle (dev: "attack range
+# seems weird"). A swing now connects ALONG the ground -- horizontal reach with a
+# small vertical give -- which is where the weapon visibly is.
+const MELEE_VERTICAL_BAND = 48.0
+# Melee mobs HOLD at a weapon-length and swing, instead of shoving their body into
+# the player at the 6px deadzone (dev: "mobs move weird"). A wall of mobs now
+# rings you at reach rather than piling into your face.
+const MELEE_STANDOFF_FRACTION = 0.82
+# A readable WIND-UP before the strike lands, so an incoming hit can be seen and
+# answered rather than arriving out of nowhere.
+const WINDUP_SWORD = 0.17
+const WINDUP_SPEAR = 0.14
+const WINDUP_BOW = 0.16
 const WALL_TURN_DURATION = 0.8
 const WALL_NOTICE_DURATION = 3.5
 const WALL_DETECTION_BONUS = 120.0
@@ -577,7 +592,11 @@ func _physics_process(delta: float) -> void:
 			var dir_to_player = facing_direction
 			if absf(dx) > HORIZONTAL_DEADZONE:
 				dir_to_player = sign(dx)
-			if hesitate_remaining > 0:
+			# a melee mob holds a weapon-length away and swings from there
+			var standoff: float = float(WEAPONS[weapon_type].range) * MELEE_STANDOFF_FRACTION if weapon_type != "bow" else float(HORIZONTAL_DEADZONE)
+			if is_attacking:
+				velocity.x = 0    # PLANT and swing -- the wind-up reads as a commit, not a drive-by
+			elif hesitate_remaining > 0:
 				velocity.x = 0
 			elif wall_turn_timer > 0:
 				velocity.x = -dir_to_player * move_speed()
@@ -585,8 +604,8 @@ func _physics_process(delta: float) -> void:
 				velocity.x = -dir_to_player * move_speed()
 			elif weapon_type == "bow" and dist_to_player < BOW_HOLD_RANGE and not player_above:
 				velocity.x = 0
-			elif absf(dx) <= HORIZONTAL_DEADZONE and not player_above:
-				velocity.x = 0
+			elif absf(dx) <= standoff and not player_above:
+				velocity.x = 0    # at reach: stop shoving in, stand and strike
 			else:
 				velocity.x = dir_to_player * move_speed()
 			try_attack(dir_to_player)
@@ -663,12 +682,24 @@ func check_bump() -> void:
 		player.apply_knockback(-away_from_player, bump_distance)
 	apply_knockback(away_from_player, bump_distance * 0.6)
 
+# A side-scroller swing connects along the ground: horizontal reach, with a small
+# vertical band so a step up onto a low ledge doesn't make you untouchable but a
+# player a full storey up is safe. Bows keep true (euclidean) range -- they fire.
+func _melee_connects(reach: float) -> bool:
+	if player == null:
+		return false
+	var hx := absf(player.global_position.x - global_position.x)
+	var vy := absf(player.global_position.y - global_position.y)
+	return hx <= reach and vy <= MELEE_VERTICAL_BAND
+
 func try_attack(dir_to_player: int) -> void:
 	if attack_cooldown_remaining > 0 or is_attacking:
 		return
 	var stats = WEAPONS[weapon_type]
-	var dist = global_position.distance_to(player.global_position)
-	if dist > stats.range:
+	if weapon_type == "bow":
+		if global_position.distance_to(player.global_position) > stats.range:
+			return
+	elif not _melee_connects(stats.range):
 		return
 	attack_cooldown_remaining = stats.cooldown
 	facing_direction = dir_to_player
@@ -686,7 +717,7 @@ func finish_attack() -> void:
 	update_weapon_icon_position()
 
 func try_deal_melee_damage(stats: Dictionary) -> void:
-	if player != null and global_position.distance_to(player.global_position) <= stats.range and player.has_method("take_damage"):
+	if player != null and _melee_connects(stats.range) and player.has_method("take_damage"):
 		player.take_damage(int(stats.damage * damage_multiplier))
 		if player.has_method("apply_knockback"):
 			var knockback_distance = randf_range(stats.knockback_min, stats.knockback_max)
@@ -695,13 +726,23 @@ func try_deal_melee_damage(stats: Dictionary) -> void:
 				away_from_enemy = facing_direction
 			player.apply_knockback(away_from_enemy, knockback_distance)
 
+# A weapon flashes hot during its wind-up, so the strike telegraphs itself. Kept
+# on the WEAPON so it never fights a body-wide status tint (burn/freeze/poison).
+func _telegraph_weapon(node: CanvasItem, dur: float) -> void:
+	node.modulate = Color(2.2, 1.5, 1.4)
+	var t := create_tween()
+	t.tween_property(node, "modulate", Color(1, 1, 1, 1), dur)
+
 func animate_sword_attack(stats: Dictionary) -> void:
 	play_sfx(SFX_SWORD)
 	var icon = $WeaponIcon
 	update_weapon_icon_position()
+	# WIND-UP: cock back and flash, THEN strike through (damage on the follow-through)
 	icon.rotation_degrees = -50 * facing_direction
+	_telegraph_weapon(icon, WINDUP_SWORD)
 	var tween = create_tween()
-	tween.tween_property(icon, "rotation_degrees", 50 * facing_direction, 0.15)
+	tween.tween_property(icon, "rotation_degrees", -82 * facing_direction, WINDUP_SWORD)
+	tween.tween_property(icon, "rotation_degrees", 58 * facing_direction, 0.12)
 	tween.tween_callback(try_deal_melee_damage.bind(stats))
 	tween.tween_property(icon, "rotation_degrees", 0.0, 0.1)
 	tween.tween_callback(finish_attack)
@@ -711,9 +752,12 @@ func animate_spear_attack(stats: Dictionary) -> void:
 	var icon = $WeaponIcon
 	update_weapon_icon_position()
 	var base_x = icon.position.x
-	var lunge_x = base_x + 20 * facing_direction
+	var draw_x = base_x - 14 * facing_direction         # draw the thrust back first
+	var lunge_x = base_x + 24 * facing_direction
+	_telegraph_weapon(icon, WINDUP_SPEAR)
 	var tween = create_tween()
-	tween.tween_property(icon, "position:x", lunge_x, 0.12)
+	tween.tween_property(icon, "position:x", draw_x, WINDUP_SPEAR)
+	tween.tween_property(icon, "position:x", lunge_x, 0.09)   # then stab
 	tween.tween_callback(try_deal_melee_damage.bind(stats))
 	tween.tween_property(icon, "position:x", base_x, 0.18)
 	tween.tween_callback(finish_attack)
@@ -723,10 +767,18 @@ func animate_bow_attack(stats: Dictionary) -> void:
 	var bow = $BowVisual
 	var aim_dir = get_aim_direction()
 	update_weapon_icon_position()
+	# DRAW the bow (a readable wind-up), THEN loose on the release callback
+	_telegraph_weapon(bow, WINDUP_BOW)
 	var tween = create_tween()
-	tween.tween_property(bow, "scale", Vector2(1.3, 1.3), 0.06)
-	tween.tween_property(bow, "scale", Vector2.ONE, 0.1)
+	tween.tween_property(bow, "scale", Vector2(1.35, 0.85), WINDUP_BOW)   # draw back
+	tween.tween_property(bow, "scale", Vector2.ONE, 0.08)                 # loose
+	tween.tween_callback(_loose_arrow.bind(stats))
 	tween.tween_callback(finish_attack)
+
+func _loose_arrow(stats: Dictionary) -> void:
+	if player == null or is_dead:
+		return
+	var aim_dir = get_aim_direction()
 	var arrow = ARROW_SCENE.instantiate()
 	arrow.position = global_position + aim_dir * 20.0
 	# target mask 2 (player) | 8 (buildings) -- enemy arrows can smash buildings
