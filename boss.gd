@@ -2984,7 +2984,10 @@ func do_curse() -> void:
 	for i in range(CURSE_ORBS):
 		var dir = base.rotated(deg_to_rad(-27.0 + 18.0 * i))
 		var orb = MAGIC_ORB.new()
-		orb.setup(dir, int(round(CURSE_DAMAGE * damage_multiplier)), Color(0.62, 0.35, 1.0), CURSE_ORB_SPEED)
+		# sqrt curve like every other boss attack: CURSE fires CURSE_ORBS at once,
+		# and at the full floor-100 curve a point-blank faceful (4 x 74) was an
+		# instant kill; sqrt keeps even all four (4 x 32 = 128) under a full bar.
+		orb.setup(dir, int(round(CURSE_DAMAGE * sqrt(damage_multiplier))), Color(0.62, 0.35, 1.0), CURSE_ORB_SPEED)
 		orb.position = position + dir * 34.0
 		get_parent().add_child(orb)
 	set_cd("curse")
@@ -3639,7 +3642,12 @@ func _zone_marker(pos: Vector2, radius: float, color: Color) -> Polygon2D:
 func spawn_arrow(pos: Vector2, dir: Vector2, dmg: int, rng: float) -> void:
 	var arrow = ARROW_SCENE.instantiate()
 	arrow.position = pos
-	arrow.setup(dir.normalized(), int(round(dmg * damage_multiplier)), 15.0, 30.0, 2, true, rng)
+	# sqrt(damage_multiplier), same hard line as deal_player_damage: this helper
+	# fires SEVEN abilities (barrage/nova/rain/volley/meteor/doomring/splinter) and
+	# most rain SEVERAL projectiles at once. At the full floor-100 curve two meteors
+	# (2x106) or a point-blank volley one-shot through 160 HP; sqrt keeps a whole
+	# salvo survivable (2 meteors = 138) while still stinging.
+	arrow.setup(dir.normalized(), int(round(dmg * sqrt(damage_multiplier))), 15.0, 30.0, 2, true, rng)
 	get_parent().add_child(arrow)
 
 func deal_player_damage(amount: int) -> void:

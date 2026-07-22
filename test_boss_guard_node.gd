@@ -157,6 +157,15 @@ func _ready() -> void:
 	# unavoidable one-shot from ~floor 55 on. It must scale by sqrt.
 	check("boss damage scales by sqrt(damage_multiplier), never the full curve",
 		boss_src.contains("amount * sqrt(damage_multiplier)"))
+	# ...and the PROJECTILE paths too: spawn_arrow fires seven abilities and curse
+	# throws a spread, so a full-curve salvo one-shot just as the melee path did.
+	check("boss projectiles (spawn_arrow + curse orb) also scale by sqrt",
+		boss_src.contains("dmg * sqrt(damage_multiplier)")
+		and boss_src.contains("CURSE_DAMAGE * sqrt(damage_multiplier)"))
+	# and NOTHING that hits the player may use the bare full curve any more
+	check("no player-damage path uses the full damage_multiplier",
+		not boss_src.contains("* damage_multiplier)), Color")     # the old curse orb
+		and not boss_src.contains("dmg * damage_multiplier)"))    # the old spawn_arrow
 	var dmg100: float = 1.0 + 29 * 0.10 + (100 - 30) * 0.02   # floor-100 DMG curve (~5.3)
 	var s_god: bool = p.god_mode
 	var s_inv: bool = p.invincible
