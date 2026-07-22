@@ -1594,6 +1594,43 @@ const VILLAGE_PRESENCE_X := 4300.0    # just west of the gatehouse road
 func has_telepathy() -> bool:
 	return get_bonus_total("telepathy") > 0.0
 
+# THE WHISPERSTONE (dev ask 2026-07-22): the non-mage's answer to the fog. A
+# scrying/comm device built ONCE at a working Science Lab -- after that the
+# village's whole channel (toasts + the Log's live feed) reaches you anywhere,
+# exactly like Telepathy. Without it, and without the rune, you learn nothing
+# away from home but what the villagers tell you when you get back.
+const WHISPERSTONE_COST := {"iron_shard": 8, "ember_crystal": 2}
+var has_whisperstone := false
+
+func has_communicator() -> bool:
+	return has_whisperstone
+
+# Craft the Whisperstone at the Lab. Returns "" on success, else the reason.
+func try_build_whisperstone(player: Node) -> String:
+	if has_whisperstone:
+		return "The Whisperstone already hums on the Lab bench."
+	if not is_building_operational("Science Lab"):
+		return "The Whisperstone can only be made at a working Science Lab."
+	if count_workers("Science Lab") == 0 and seated_leaders("Science Lab") == 0:
+		return "The bench sits cold — staff a Scientist first."
+	if player == null or not ("inventory" in player) or player.inventory == null:
+		return "No hands to build it."
+	for mid in WHISPERSTONE_COST:
+		if player.inventory.get_count(mid) < int(WHISPERSTONE_COST[mid]):
+			return "The Whisperstone needs %s." % _cost_text(WHISPERSTONE_COST)
+	for mid in WHISPERSTONE_COST:
+		player.inventory.remove_item(mid, int(WHISPERSTONE_COST[mid]))
+	has_whisperstone = true
+	log_event("village", "The Lab's Whisperstone woke with a low hum — Deepwood can reach you now, wherever you roam.")
+	play_sfx(SFX_CHIME, 1.2)
+	return ""
+
+func _cost_text(cost: Dictionary) -> String:
+	var parts := []
+	for mid in cost:
+		parts.append("%dx %s" % [int(cost[mid]), Inventory.get_display_name(mid)])
+	return ", ".join(parts)
+
 func village_presence() -> bool:
 	if dev_mode:
 		return true
@@ -1603,7 +1640,7 @@ func village_presence() -> bool:
 	return pl != null and pl.global_position.x > VILLAGE_PRESENCE_X
 
 func village_info_available() -> bool:
-	return village_presence() or has_telepathy()
+	return village_presence() or has_telepathy() or has_communicator()
 
 # The VILLAGE channel: every toast about the town's life flows through
 # here, and the fog gates it. (Player-personal messages use the stack
@@ -3758,6 +3795,7 @@ func reset_for_new_game() -> void:
 	_peril_band = -1          # the fading-of-Deepwood dread starts quiet
 	village_lost = false
 	lost_souls = []
+	has_whisperstone = false  # the Lab's far-speaker must be built anew each run
 
 func has_save() -> bool:
 	return FileAccess.file_exists(SAVE_PATH)
@@ -3853,6 +3891,7 @@ func save_game(player: Node) -> void:
 		"selfsuf_celebrated": selfsuf_celebrated,
 		"lost_souls": lost_souls,
 		"village_lost": village_lost,
+		"has_whisperstone": has_whisperstone,
 	}
 	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	file.store_string(JSON.stringify(data))
@@ -4001,6 +4040,7 @@ func load_game() -> Dictionary:
 		selfsuf_celebrated = parsed.get("selfsuf_celebrated", [])
 		lost_souls = parsed.get("lost_souls", [])
 		village_lost = bool(parsed.get("village_lost", false))
+		has_whisperstone = bool(parsed.get("has_whisperstone", false))
 		villager_hp = {}
 		if parsed.has("villager_hp") and parsed["villager_hp"] is Dictionary:
 			for k in parsed["villager_hp"].keys():

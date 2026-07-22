@@ -256,6 +256,31 @@ func _on_upgrade() -> void:
 # material the player is carrying that hasn't been identified yet can be
 # researched here, which reveals its real name and lets skill nodes spend it.
 func add_research_section(list: VBoxContainer) -> void:
+	# THE WHISPERSTONE (dev ask 2026-07-22): built once here, it lifts the away-fog
+	# forever -- the village's live feed reaches you anywhere, the deep included.
+	var ws_header = Label.new()
+	ws_header.add_theme_font_size_override("font_size", 14)
+	ws_header.add_theme_color_override("font_color", Color(0.55, 0.78, 0.96, 1))
+	ws_header.text = "The Whisperstone"
+	list.add_child(ws_header)
+	if GameState.has_whisperstone:
+		var built = Label.new()
+		built.add_theme_font_size_override("font_size", 11)
+		built.add_theme_color_override("font_color", Color(0.6, 0.85, 0.7, 1))
+		built.text = "  Humming. Deepwood's news reaches you wherever you roam."
+		list.add_child(built)
+	else:
+		var ws_btn = Button.new()
+		ws_btn.text = "  Build the Whisperstone  (%s)" % GameState._cost_text(GameState.WHISPERSTONE_COST)
+		ws_btn.custom_minimum_size = Vector2(0, 28)
+		ws_btn.pressed.connect(_on_build_whisperstone)
+		list.add_child(ws_btn)
+		var ws_note = Label.new()
+		ws_note.add_theme_font_size_override("font_size", 10)
+		ws_note.add_theme_color_override("font_color", Color(0.6, 0.6, 0.66, 1))
+		ws_note.text = "  Then the Log reaches you in the deep — no rune needed."
+		list.add_child(ws_note)
+
 	var header = Label.new()
 	header.add_theme_font_size_override("font_size", 14)
 	header.text = "Research"
@@ -283,6 +308,14 @@ func add_research_section(list: VBoxContainer) -> void:
 		none_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6, 1))
 		none_label.text = "  (no unidentified materials in your inventory)"
 		list.add_child(none_label)
+
+func _on_build_whisperstone() -> void:
+	var player = get_tree().get_first_node_in_group("player")
+	var reason = GameState.try_build_whisperstone(player)
+	var notif = get_tree().get_first_node_in_group("notification_stack")
+	if notif:
+		notif.show_notification(reason if reason != "" else "The Whisperstone hums to life — Deepwood can reach you anywhere now.")
+	refresh()
 
 func _on_research(item_id: String) -> void:
 	# Grammar (5.1): the Lab's SERVICE is the scholar, not the bench -- an
