@@ -46,6 +46,10 @@ const FALL_DAMAGE_PER_PIXEL = 0.15
 var fall_apex_y := 0.0
 var was_grounded_fall := true
 var has_touched_ground := false
+# the last solid ground we stood on -- a fall-out-of-the-world safety net snaps
+# us back here instead of falling forever (a gap, or collision not built yet).
+var _last_ground_pos := Vector2.ZERO
+const FALL_RECOVER_DROP := 2500.0    # a drop this far below the last ground = the void
 
 # --- Flight (Aetherwing relic) ---
 # Hold Space in the air to levitate upward. EVERY class can do this -- it costs
@@ -2222,8 +2226,15 @@ func _physics_process(delta: float) -> void:
 	# once, so spawning slightly above the floor never counts as a fall).
 	if is_on_floor():
 		fall_apex_y = global_position.y
+		_last_ground_pos = global_position
 	elif has_touched_ground:
 		fall_apex_y = min(fall_apex_y, global_position.y)
+		# THE VOID GUARD: if we've fallen far below the last ground we stood on, we've
+		# dropped out of the world (a gap, or collision not yet built after a load) --
+		# recover to that ground instead of falling forever (dev report 2026-07-22).
+		if global_position.y > _last_ground_pos.y + FALL_RECOVER_DROP:
+			global_position = _last_ground_pos
+			velocity = Vector2.ZERO
 
 	if not is_on_floor():
 		velocity.y += GRAVITY * delta

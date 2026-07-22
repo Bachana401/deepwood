@@ -865,6 +865,16 @@ func apply_save_data() -> void:
 		# to the flat currency int it stored.
 		player.currency = data.get("currency", player.currency)
 	player.global_position = Vector2(data.get("position_x", player.global_position.x), data.get("position_y", player.global_position.y))
+	# NEVER load underground. The Underdark lives inside THIS scene, so a save made
+	# down in the caves -- or the auto-save on clearing a floor, which records the
+	# deep Underdark DOOR you entered by -- would drop you into the deep. And the
+	# deep's collision is generated over the first frames, so a player placed there
+	# before it exists FALLS FOREVER (dev report 2026-07-22: "pressed Continue,
+	# spawned underground, fell forever"). Continue always lands you safe on the
+	# surface, at the village threshold. In-session floor exit is unaffected -- it
+	# uses the live pre_dungeon_position, not this saved point.
+	if player.global_position.y > 250.0:
+		player.global_position = GameState.VILLAGE_SPAWN
 	player.has_dash = data.get("has_dash", player.has_dash)
 	player.has_double_jump = data.get("has_double_jump", player.has_double_jump)
 	player.health = data.get("health", player.health)

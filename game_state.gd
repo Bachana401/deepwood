@@ -3545,6 +3545,14 @@ func has_save() -> bool:
 
 func save_game(player: Node) -> void:
 	var save_pos = pre_dungeon_position if in_dungeon else player.global_position
+	# Continue must land on the SURFACE, never in the Underdark (which lives in the
+	# village scene). in_dungeon saves pre_dungeon_position -- but with doors-only
+	# access that IS a deep Underdark door, and a plain walk in the caves saves the
+	# live deep position. Either would drop the player underground on load (and into
+	# the void before the deep is built). Persist a safe village spawn instead; the
+	# in-session floor exit still uses the live pre_dungeon_position, unaffected.
+	if save_pos.y > 250.0:
+		save_pos = VILLAGE_SPAWN
 	var data = {
 		"currency": player.currency,
 		"inventory": player.inventory.to_save_data(),
