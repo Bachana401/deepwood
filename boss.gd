@@ -3643,8 +3643,16 @@ func spawn_arrow(pos: Vector2, dir: Vector2, dmg: int, rng: float) -> void:
 	get_parent().add_child(arrow)
 
 func deal_player_damage(amount: int) -> void:
+	# EVERY boss attack scales by sqrt(damage_multiplier), NOT the full multiplier
+	# -- the dev's hard line (see the SIDESTEP/RIPOSTE note: "scaled by the SAME
+	# sqrt the rest of the fight uses -- a counter must sting, never one-shot").
+	# The punish passives applied sqrt inline and were safe, but the ~24 ORDINARY
+	# attacks all route through here, and this multiplied by the FULL curve. At the
+	# floor-100 curve (x5.3) that doubled every hit: BEAM one-shot from floor 55
+	# (167 > 160 HP) up to 201, SLAM reached 159. sqrt brings them back to the
+	# documented band (BEAM 80/87, SLAM 63/69) -- stings hard, never one-shots.
 	if player != null and is_instance_valid(player) and player.has_method("take_damage"):
-		player.take_damage(int(round(amount * damage_multiplier)))
+		player.take_damage(int(round(amount * sqrt(damage_multiplier))))
 
 func knockback_player_away(distance: float) -> void:
 	if player == null or not is_instance_valid(player) or not player.has_method("apply_knockback"):

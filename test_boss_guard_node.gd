@@ -150,6 +150,33 @@ func _ready() -> void:
 	check("stagger is the only HP-proportional damage gate",
 		boss_src.count("max_health * STAGGER_HEAVY_FRACTION") == 0)
 
+	# ---- THE DEEP MUST NEVER ONE-SHOT (the dev's hard line) ----
+	# Every ordinary attack routes through deal_player_damage. It once multiplied
+	# by the FULL depth curve instead of sqrt, so at the floor-100 curve (x5.3) the
+	# beam hit for 201 and the slam for 159 through a 160-HP player -- an
+	# unavoidable one-shot from ~floor 55 on. It must scale by sqrt.
+	check("boss damage scales by sqrt(damage_multiplier), never the full curve",
+		boss_src.contains("amount * sqrt(damage_multiplier)"))
+	var dmg100: float = 1.0 + 29 * 0.10 + (100 - 30) * 0.02   # floor-100 DMG curve (~5.3)
+	var s_god: bool = p.god_mode
+	var s_inv: bool = p.invincible
+	var s_hp: int = p.health
+	p.god_mode = false
+	p.invincible = false
+	p.is_dead = false
+	p.health = 100000                    # can't die, so we read the raw blow
+	boss.is_dead = false
+	boss.damage_multiplier = dmg100
+	boss.player = p
+	var before_hp: int = p.health
+	boss.deal_player_damage(boss.BEAM_DAMAGE)   # the single biggest base attack
+	var dealt: int = before_hp - p.health
+	p.health = s_hp
+	p.god_mode = s_god
+	p.invincible = s_inv
+	check("the hardest boss blow can't one-shot a full-HP player at floor 100 (dealt %d < %d)" % [dealt, p.get_max_health()],
+		dealt > 0 and dealt < p.get_max_health())
+
 	# ---- a block must SAY why, or it reads as a bug ----
 	check("boss can label a block", boss.has_method("_spawn_block_label"))
 	# (FloatingText is a static utility class -- probe the source, not an instance)
