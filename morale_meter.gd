@@ -119,6 +119,10 @@ func _refresh_glance() -> void:
 	lines.append(food_line)
 	lines.append("Souls %d  (%d working, %d idle)" % [GameState.rescued_villagers.size(), employed, jobless])
 	lines.append("Wages %.0fg/day%s" % [wage, "   ⚠ %d unhoused" % homeless if homeless > 0 else ""])
+	# The time economy at a glance: how much of the day the village no longer
+	# needs the player for. Climbs as chores get automated (see chore_domains).
+	var ss: Dictionary = GameState.village_self_sufficiency()
+	lines.append("🕊 Self-reliance %d%%  (%d/%d chores run themselves)" % [int(round(float(ss["fraction"]) * 100.0)), int(ss["handled"]), int(ss["total"])])
 	var rotting: int = GameState.villager_rot.size()
 	if rotting > 0:
 		lines.append("⚠ %d SLIPPING — mend their lives now" % rotting)

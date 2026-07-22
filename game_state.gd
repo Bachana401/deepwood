@@ -1194,6 +1194,7 @@ func tick_village_clock() -> void:
 	tick_wanderers(hours_passed)
 	tick_watchtower_warning()
 	tick_mine_yield(hours_passed)
+	tick_self_sufficiency()   # celebrate each chore the moment it starts running itself
 	if hours_passed > 0.0:
 		# grief heals with time -- the forgiving half of the death-shock system
 		morale_death_shock = maxf(0.0, morale_death_shock - hours_passed * DEATH_SHOCK_DECAY_PER_HOUR * (2.0 if ten_freed("ten_seraphel") else 1.0))
@@ -2863,6 +2864,79 @@ func auto_repair_one() -> void:
 		if "role_key" in node and str(node.role_key) == worst and node.has_method("refresh_visual"):
 			node.refresh_visual()
 
+# --- VILLAGE SELF-SUFFICIENCY (the time economy, dev vision 2026-07-22) ---
+# The dev's core loop: early Deepwood needs the player's HANDS for everything --
+# hand-harvesting food, hauling repairs, assigning every rescue -- so the day is
+# eaten by chores and only a thin window is left to dive. Every automation earned
+# above (a staffed Farm, a builder crew, a seated Chancellor) hands one of those
+# chores to the village and gives that time BACK. This makes the trade legible:
+# a self-reliance % for the glance panel, and a one-time celebration the first
+# time each chore starts running itself ("your mornings are your own").
+#
+# Each domain: key, a short label, whether it currently runs WITHOUT the player,
+# and the line said the first time it does. Purely derived from live state --
+# the same staffing checks the auto_* helpers above act on, read as progress.
+func chore_domains() -> Array:
+	return [
+		{
+			"key": "food", "label": "Food",
+			"handled": not rescued_villagers.is_empty() and food_production_per_hour() >= food_consumption_per_hour(),
+			"freed": "🌾 The fields feed the town on their own now — that's your mornings back. Spend them below.",
+		},
+		{
+			"key": "staffing", "label": "Labour",
+			"handled": seated_leaders("Government") > 0,
+			"freed": "🏛 The Chancellor seats every new soul for you now — no more hand-assigning the rescued.",
+		},
+		{
+			"key": "repair", "label": "Repairs",
+			"handled": seated_leaders("Builderhouse") > 0 or count_workers("Builderhouse") > 0,
+			"freed": "🔨 The builders keep Deepwood standing without you — leave the hauling to them.",
+		},
+		{
+			"key": "health", "label": "Healing",
+			"handled": is_building_operational("Hospital") and count_workers("Hospital") > 0,
+			"freed": "⚕ The infirmary tends the hurt on its own now — one less thing to come home for.",
+		},
+		{
+			"key": "commerce", "label": "Coin & lore",
+			"handled": seated_leaders("Science Lab") > 0 or seated_leaders("Marketplace") > 0,
+			"freed": "⚖ The market and lab turn your haul to coin and knowledge without you lifting a finger.",
+		},
+	]
+
+# How much of the village's daily upkeep now runs itself, 0..1 (plus the raw
+# counts for the readout). At 0 the town needs the player for everything (the
+# early block); at 1 it runs itself and the whole day is the player's to dive.
+func village_self_sufficiency() -> Dictionary:
+	var doms := chore_domains()
+	var handled := 0
+	for d in doms:
+		if d["handled"]:
+			handled += 1
+	return {
+		"handled": handled, "total": doms.size(),
+		"fraction": float(handled) / float(maxi(1, doms.size())),
+	}
+
+# Persistent: which domains have already had their one-time "you're free of this
+# chore" celebration. Never fires twice, and waits until the player is HOME to
+# see it (village_info_available) so a chore that automates while you're deep is
+# still celebrated when you walk back in and it still holds.
+var selfsuf_celebrated: Array = []
+
+func tick_self_sufficiency() -> void:
+	# once every chore has been celebrated there is nothing left to watch
+	if dev_mode or selfsuf_celebrated.size() >= 5 or not village_info_available():
+		return
+	for d in chore_domains():
+		var key := str(d["key"])
+		if bool(d["handled"]) and not selfsuf_celebrated.has(key):
+			selfsuf_celebrated.append(key)
+			notify(str(d["freed"]))
+			log_event("village", str(d["freed"]))
+			play_sfx(SFX_CHIME, 1.15)
+
 func find_available_parents() -> Dictionary:
 	var male_id = ""
 	var female_id = ""
@@ -3541,6 +3615,7 @@ func reset_for_new_game() -> void:
 	# comfortable runway to rebuild the Farm before hunger bites.
 	food_empty_hours = 0.0
 	village_food = food_capacity()
+	selfsuf_celebrated = []   # a fresh run earns every "your day is your own" beat again
 
 func has_save() -> bool:
 	return FileAccess.file_exists(SAVE_PATH)
@@ -3633,6 +3708,7 @@ func save_game(player: Node) -> void:
 		"seen_l100_reveal": seen_l100_reveal,
 		"village_food": village_food,
 		"food_empty_hours": food_empty_hours,
+		"selfsuf_celebrated": selfsuf_celebrated,
 	}
 	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	file.store_string(JSON.stringify(data))
@@ -3778,6 +3854,7 @@ func load_game() -> Dictionary:
 		seen_intro = bool(parsed.get("seen_intro", true))   # old saves: don't replay
 		seen_l100_reveal = bool(parsed.get("seen_l100_reveal", false))
 		village_food = float(parsed.get("village_food", food_capacity()))
+		selfsuf_celebrated = parsed.get("selfsuf_celebrated", [])
 		villager_hp = {}
 		if parsed.has("villager_hp") and parsed["villager_hp"] is Dictionary:
 			for k in parsed["villager_hp"].keys():
