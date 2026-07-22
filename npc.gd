@@ -707,8 +707,22 @@ func _process(delta: float) -> void:
 		return
 	if player_inside and Input.is_action_just_pressed("interact"):
 		if not try_doctor_heal() and not try_bond_interaction():
+			maybe_recount_news()   # no far-feed? then ask the people who were here
 			show_info()
 	tick_mood_talk(delta)
+
+# "Ask the villagers what happened while you were gone" (dev ask 2026-07-22): the
+# fallback for a player with NO live feed (no Whisperstone, no Telepathy rune) --
+# each soul you ask recounts a RANDOM recent entry from the town's diary, so
+# asking around is how you piece together the days you missed.
+func maybe_recount_news() -> void:
+	if GameState.has_communicator() or GameState.has_telepathy():
+		return   # you already heard it all live
+	if GameState.village_log.is_empty():
+		return
+	var recent: Array = GameState.village_log.slice(0, min(6, GameState.village_log.size()))
+	var e = recent[randi() % recent.size()]
+	SpeechText.spawn(self, "You were gone, but —\n" + str(e.get("text", "...")))
 
 # E on the Doctor (GAME_BIBLE 5.5a): a full heal at an escalating price. Every
 # purchase raises the next by half again; a day of peace forgives one step.

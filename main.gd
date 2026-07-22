@@ -307,8 +307,17 @@ func show_away_report() -> void:
 	# -- otherwise a returning player never thinks to press L. (With
 	# Telepathy nothing accumulates: you watched it all as it happened.)
 	if GameState.log_unread > 0:
-		stack.show_notification("📖 While you were away, %d thing%s happened in Deepwood — press L to read the diary." % [
-			GameState.log_unread, "" if GameState.log_unread == 1 else "s"])
+		# more than a bare count (dev ask 2026-07-22): name the freshest thing that
+		# happened, so the homecoming actually tells you something before you press L
+		var latest := ""
+		if not GameState.village_log.is_empty():
+			latest = str(GameState.village_log[0].get("text", ""))
+		var msg := "📖 While you were away, %d thing%s happened in Deepwood." % [
+			GameState.log_unread, "" if GameState.log_unread == 1 else "s"]
+		if latest != "":
+			msg += "  Latest: %s" % latest
+		msg += "  (Press L for the full diary.)"
+		stack.show_notification(msg)
 		GameState.log_unread = 0
 	if report.sieges <= 0:
 		return
