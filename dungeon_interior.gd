@@ -336,6 +336,14 @@ const WALL_COLOR_FAR = Color(0.09, 0.07, 0.11, 1.0)
 const WALL_COLOR_NEAR = Color(0.14, 0.11, 0.16, 1.0)
 const TORCH_SPACING = 380.0
 const TORCH_COLOR = Color(1.0, 0.55, 0.15, 1.0)
+# Terraria cave lighting (dev ask 2026-07-22): the dungeon is a DARK cave carved
+# by warm torch-pools + the light the player carries, not a flat-lit room. This
+# is the ambient darkness (a CanvasModulate multiply) -- THE dial to tune if a
+# fight reads too dark; real PointLight2D torches + the player light add back on
+# top of it. Slight cool-purple to sit under the dungeon's own palette.
+const DUNGEON_AMBIENT := Color(0.52, 0.49, 0.6)
+const TORCH_LIGHT_ENERGY := 0.9
+const TORCH_LIGHT_SCALE := 4.0
 const STALACTITE_COLOR = Color(0.11, 0.09, 0.13, 1.0)
 
 var music: AudioStreamWAV = preload("res://audio/dungeon_music.wav")
@@ -381,6 +389,7 @@ func _ready() -> void:
 		return
 	boss_counter_seq = build_counter_sequence()
 	current_level = GameState.active_dungeon_level
+	_ensure_ambient()          # a dark cave, before the torches carve it back
 	build_level_visuals(current_level)
 	place_player_at_entry(false)
 	update_level_label()
@@ -1549,6 +1558,17 @@ func make_additive_material() -> CanvasItemMaterial:
 	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	return mat
 
+# The dark cave: one CanvasModulate on the dungeon root (world canvas only -- the
+# HUD rides a separate CanvasLayer and stays bright). Added once in _ready; the
+# per-level rebuild only swaps LevelContainer, so this persists.
+func _ensure_ambient() -> void:
+	if get_node_or_null("DungeonAmbient") != null:
+		return
+	var cm := CanvasModulate.new()
+	cm.name = "DungeonAmbient"
+	cm.color = DUNGEON_AMBIENT
+	add_child(cm)
+
 func build_torches(boss: bool, arena: Dictionary = {}) -> void:
 	var accent = arena.get("accent", TORCH_COLOR) if boss else TORCH_COLOR
 	var count = int(current_width / TORCH_SPACING)
@@ -1601,6 +1621,17 @@ func build_torch(pos: Vector2, color: Color = TORCH_COLOR) -> void:
 	glow.position = Vector2(0, -82.0)
 	glow.material = make_additive_material()
 	torch.add_child(glow)
+
+	# a REAL light (not just the additive bloom) so the torch carves a warm pool
+	# out of the DUNGEON_AMBIENT dark -- the Terraria cave read
+	var light := PointLight2D.new()
+	light.texture = _torch_glow_tex()
+	light.texture_scale = TORCH_LIGHT_SCALE
+	light.color = Color(color.r, color.g, color.b)
+	light.energy = TORCH_LIGHT_ENERGY
+	light.shadow_enabled = false
+	light.position = Vector2(0, -82.0)
+	torch.add_child(light)
 
 	var flame = Polygon2D.new()
 	flame.polygon = PackedVector2Array([Vector2(-5, 0), Vector2(5, 0), Vector2(0, -16)])

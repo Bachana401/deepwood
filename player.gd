@@ -86,6 +86,9 @@ var mana_bar_fill: ColorRect = null
 const HUD_ORB = preload("res://hud_orb.gd")
 var hp_orb: Control = null
 var mana_orb: Control = null
+# The light the player carries -- a warm pool so the Terraria-dark dungeon is
+# always readable right around the hero. On only where it's dark (the dungeon).
+var player_light: PointLight2D = null
 var mana_label: Label = null
 const BOUNCE_DURATION = 0.1
 const INVINCIBILITY_DURATION = 1.0
@@ -293,6 +296,7 @@ func _ready() -> void:
 	build_wings_visual()
 	build_mana_bar()
 	build_orbs()
+	build_player_light()
 	# keep the held weapon drawn in front of the body armor
 	$WeaponIcon.z_index = 3
 	$BowVisual.z_index = 3
@@ -1931,6 +1935,35 @@ func update_orbs() -> void:
 	if mana_orb:
 		mana_orb.set_values(mana, get_max_mana())
 
+# The warm pool the hero carries. A real PointLight2D so it reads against the
+# dungeon's CanvasModulate dark; enabled only in the dungeon (a clean signal),
+# so it never washes out the daylit village.
+static var _plight_tex: GradientTexture2D = null
+static func _player_light_tex() -> GradientTexture2D:
+	if _plight_tex == null:
+		var g := Gradient.new()
+		g.offsets = PackedFloat32Array([0.0, 0.55, 1.0])
+		g.colors = PackedColorArray([Color(1, 1, 1, 1), Color(1, 1, 1, 0.32), Color(1, 1, 1, 0.0)])
+		_plight_tex = GradientTexture2D.new()
+		_plight_tex.gradient = g
+		_plight_tex.width = 128
+		_plight_tex.height = 128
+		_plight_tex.fill = GradientTexture2D.FILL_RADIAL
+		_plight_tex.fill_from = Vector2(0.5, 0.5)
+		_plight_tex.fill_to = Vector2(1.0, 0.5)
+	return _plight_tex
+
+func build_player_light() -> void:
+	player_light = PointLight2D.new()
+	player_light.texture = _player_light_tex()
+	player_light.texture_scale = 4.6
+	player_light.color = Color(1.0, 0.86, 0.62)
+	player_light.energy = 0.8
+	player_light.shadow_enabled = false
+	player_light.position = Vector2(0, -18)
+	player_light.enabled = false
+	add_child(player_light)
+
 func apply_knockback(direction_sign: int, distance: float) -> void:
 	if is_dead:
 		return
@@ -2306,6 +2339,10 @@ func perform_admin_dash() -> void:
 
 func _physics_process(delta: float) -> void:
 	update_orbs()   # keep the HP/mana globes tracking live pools (incl. passive regen)
+	if player_light:
+		# carry a light through the dark places: the dungeon, and the Underdark
+		# (deep below the surface, where main.tscn's own CanvasModulate dims it)
+		player_light.enabled = GameState.in_dungeon or global_position.y > 300.0
 	if is_dead:
 		return
 	# both rift doors standing = the drain runs (Riftweaving)
