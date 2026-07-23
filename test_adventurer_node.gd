@@ -556,8 +556,11 @@ func _ready() -> void:
 	check("the siege splits across BOTH ramparts (once the east front opens)",
 		sm.contains("wall_for_flank(\"east\")") and sm.contains("two_fronts")
 		and sm.contains("west_count") and sm.contains("east_count"))
-	check("raiders plant on the OUTSIDE face of their rampart",
-		FileAccess.open("res://siege_enemy.gd", FileAccess.READ).get_as_text().contains("east_face_x() + ATTACK_STOP_GAP"))
+	var esrc2 := FileAccess.open("res://siege_enemy.gd", FileAccess.READ).get_as_text()
+	check("raiders stop at the face they APPROACH — they can't walk THROUGH the wall",
+		esrc2.contains("global_position.x <= wall.global_position.x")
+		and esrc2.contains("wall.west_face_x() - ATTACK_STOP_GAP")
+		and esrc2.contains("east_face_x() + ATTACK_STOP_GAP"))
 	check("both ramparts get patched between assaults",
 		sm.contains("for wall in get_tree().get_nodes_in_group(\"village_wall\")"))
 	check("the east rampart is the PLAYER'S to raise — NOT auto-spawned at floor 15",

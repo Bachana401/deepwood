@@ -285,10 +285,15 @@ func nearest_raider() -> Node2D:
 
 func target_stop_x(target: Node2D) -> float:
 	if target == wall and is_instance_valid(wall):
-		# 7.2: plant on the OUTSIDE face of whichever rampart this wave besieges
-		if "flank" in wall and wall.flank == "east":
-			return wall.east_face_x() + ATTACK_STOP_GAP
-		return wall.west_face_x() - ATTACK_STOP_GAP
+		# Plant on whichever face we are APPROACHING FROM, so we physically stop at
+		# the wall and can NEVER walk through it. Was flank-based (dev 2026-07-23:
+		# "placed the wall as the tutorial said, the wave passed through") -- a west
+		# raider hitting a wall the game had labelled 'east' aimed at its FAR face and
+		# marched clean through. Approach-based is right for both fronts anyway: west
+		# raiders come from the west and stop at west_face; east raiders from the east.
+		if global_position.x <= wall.global_position.x:
+			return wall.west_face_x() - ATTACK_STOP_GAP
+		return wall.east_face_x() + ATTACK_STOP_GAP
 	# plant on whichever side we're approaching from
 	if global_position.x <= target.global_position.x:
 		return target.global_position.x - ATTACK_STOP_GAP
