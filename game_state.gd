@@ -978,12 +978,14 @@ const BUILD_BASE_COST := {"coin_gold": 60, "wood": 16, "stone": 8}
 # and walls come from timber and stone; gold is for the grander halls that come
 # later (BUILD_BASE_COST). A small founder's cache (player.gd) covers these three.
 func build_cost(bname: String) -> Dictionary:
+	# kept cheap (dev 2026-07-23: "too much wood") so the lean founder's cache
+	# covers all three tutorial builds with a sliver to spare -- 19 wood + 8 stone.
 	if bname == "Cottage":
-		return {"wood": 14}                       # a home is timber
+		return {"wood": 8}                        # a home is timber
 	if bname == "Wall":
-		return {"stone": 10, "wood": 8}           # a rampart is stone + timber
+		return {"stone": 6, "wood": 5}            # a rampart is stone + timber
 	if bname == "Farm":
-		return {"wood": 12, "stone": 4}           # tilled ground + a fence
+		return {"wood": 6, "stone": 2}            # tilled ground + a fence
 	return BUILD_BASE_COST
 
 func can_afford_build(bname: String, player: Node) -> bool:

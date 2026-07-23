@@ -203,13 +203,15 @@ func _harvest(player: Node) -> void:
 	depleted = true
 	var got := []
 	if node_type == "tree":
-		var wood = randi_range(2, 4)
+		# dev 2026-07-23 "too much wood/herbs": a tree gives a modest 2-3 wood, and
+		# resin/herbs are an OCCASIONAL find, not nearly every tree.
+		var wood = randi_range(2, 3)
 		_drop("wood", wood)
 		got.append("%d Wood" % wood)
-		if randf() < 0.35:
+		if randf() < 0.22:
 			_drop("resin", 1)
 			got.append("1 Resin")
-		if randf() < 0.4:   # wild herbs for cooking (crafting ingredient)
+		if randf() < 0.15:   # wild herbs for cooking (crafting ingredient) -- occasional
 			_drop("herb", 1)
 			got.append("1 " + Inventory.get_display_name("herb"))
 		if randf() < RELIC_FIND_CHANCE and player.inventory.get_count("relic_sylvan") == 0:

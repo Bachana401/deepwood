@@ -323,11 +323,11 @@ func _ready() -> void:
 			inventory.add_item("coin_bronze", STARTING_BRONZE)
 		else:
 			# a FOUNDER'S CACHE (dev bug 2026-07-23: the tutorial demanded a wall the
-			# penniless new player could never afford). Timber + stone enough to raise
-			# the first wall, farm and cottage -- the tutorial builds, which cost no
-			# gold. Gold is still earned, never given.
-			inventory.add_item("wood", 40)
-			inventory.add_item("stone", 20)
+			# penniless new player could never afford). Timber + stone JUST enough to
+			# raise the first wall, farm and cottage -- the tutorial builds, which cost
+			# no gold. Kept lean (dev: "too much wood") so you don't start on a pile.
+			inventory.add_item("wood", 20)
+			inventory.add_item("stone", 12)
 		grant_starter_gear()
 		wield_weapon("wpn_sword")
 	# admin Ruin Wand + flight relics are guaranteed present. On a NEW game
