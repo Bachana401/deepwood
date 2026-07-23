@@ -345,6 +345,20 @@ const DUNGEON_AMBIENT := Color(0.52, 0.49, 0.6)
 const TORCH_LIGHT_ENERGY := 0.9
 const TORCH_LIGHT_SCALE := 4.0
 const STALACTITE_COLOR = Color(0.11, 0.09, 0.13, 1.0)
+# CAVE LIFE (dev ask 2026-07-22: "underground ground feels so dead, make it
+# alive"). Bioluminescent clutter -- glowing mushrooms, crystal veins, moss,
+# hanging roots -- that reads as a living cave. Every glow is a CHEAP additive
+# sprite (the shared torch-glow texture, tinted), NOT a PointLight2D, so a whole
+# floor of it costs nothing per frame and adds no real-light load (the dungeon
+# was flagged laggy; 2D lights are the expensive part, so the life fakes its
+# glow instead of casting it). All of it is static -- built once per floor.
+const SHROOM_GLOW := Color(0.35, 0.95, 0.85)     # teal biolum
+const SHROOM_STEM := Color(0.80, 0.85, 0.82)
+const SHROOM_GLOW2 := Color(0.55, 0.75, 1.0)     # a second, cooler colony
+const CRYSTAL_COLOR := Color(0.58, 0.46, 0.92)   # violet shards
+const CRYSTAL_GLOW := Color(0.62, 0.42, 1.0)
+const MOSS_COLOR := Color(0.27, 0.42, 0.22)
+const ROOT_COLOR := Color(0.20, 0.15, 0.12)
 
 var music: AudioStreamWAV = preload("res://audio/dungeon_music.wav")
 
@@ -1337,6 +1351,7 @@ func build_level_visuals(level: int) -> void:
 	build_platforms(layout)
 	build_floor_surprises(level, layout)
 	build_stalactites(boss)
+	build_cave_life(boss, layout)
 	build_torches(boss, arena)
 	place_mines(boss, layout)
 	place_hazards(level, boss)
@@ -1555,6 +1570,124 @@ func build_stalactites(boss: bool) -> void:
 		stalactite.color = STALACTITE_COLOR.darkened(randf_range(0.0, 0.15))
 		stalactite.position = Vector2(x, current_ceiling)
 		$LevelContainer.add_child(stalactite)
+
+# THE CAVE IS ALIVE (dev ask 2026-07-22). Glowing mushroom colonies on the floor
+# and a few ledges, violet crystal clusters, moss, pebbles, and roots hanging
+# from the ceiling. Everything here is STATIC (built once) and every glow is a
+# cheap additive sprite, never a PointLight2D -- so a whole living floor costs
+# nothing per frame and adds no real-light load.
+func build_cave_life(boss: bool, layout: Array) -> void:
+	var scale_f: float = current_width / DUNGEON_WIDTH
+	var damp: float = 0.6 if boss else 1.0     # a boss arena keeps the stage clearer
+
+	# glowing mushroom colonies along the floor
+	var shroom_spots: int = int(6 * scale_f * damp) + 2
+	for i in range(shroom_spots):
+		var mx: float = randf_range(70.0, current_width - 70.0)
+		var col: Color = SHROOM_GLOW if randf() < 0.6 else SHROOM_GLOW2
+		_mushroom_cluster(Vector2(mx, GROUND_Y), col, randf_range(0.75, 1.35))
+
+	# a few colonies + moss up on ledges, so the platforms aren't dead either
+	if layout.size() > 0:
+		var ledges: Array = layout.duplicate()
+		ledges.shuffle()
+		for j in range(min(3, ledges.size())):
+			var plat = ledges[j]
+			var ph: float = plat.get("h", PLATFORM_HEIGHT)
+			var top: float = float(plat.y) - ph / 2.0
+			var lc: Color = SHROOM_GLOW if randf() < 0.5 else SHROOM_GLOW2
+			_mushroom_cluster(Vector2(float(plat.x) + randf_range(-plat.w * 0.3, plat.w * 0.3), top),
+				lc, randf_range(0.55, 0.9))
+			_moss_patch(Vector2(float(plat.x), top), plat.w * 0.6)
+
+	# violet crystal clusters on the ground
+	for i in range(int(4 * scale_f * damp) + 1):
+		var cx: float = randf_range(90.0, current_width - 90.0)
+		_crystal_cluster(Vector2(cx, GROUND_Y), randf_range(0.8, 1.4))
+
+	# moss on the floor here and there
+	for i in range(int(8 * scale_f) + 3):
+		_moss_patch(Vector2(randf_range(40.0, current_width - 40.0), GROUND_Y), randf_range(24.0, 70.0))
+
+	# roots hanging from the ceiling
+	for i in range(int(7 * scale_f) + 2):
+		_ceiling_root(randf_range(60.0, current_width - 60.0))
+
+	# small pebbles/rubble on the floor for texture
+	for i in range(int(16 * scale_f) + 4):
+		var pb := ColorRect.new()
+		var s: float = randf_range(3.0, 8.0)
+		pb.size = Vector2(s, s * randf_range(0.6, 1.0))
+		pb.position = Vector2(randf_range(20.0, current_width - 20.0), GROUND_Y - pb.size.y)
+		pb.color = Color(0.16, 0.13, 0.12).lightened(randf_range(0.0, 0.12))
+		pb.z_index = -9
+		$LevelContainer.add_child(pb)
+
+# a soft colored halo -- the cheap fake-light the whole cave-life layer uses
+func _glow_sprite(at: Vector2, color: Color, px: float, z: int) -> void:
+	var g := Sprite2D.new()
+	g.texture = _torch_glow_tex()
+	g.modulate = Color(color.r, color.g, color.b, 0.5)
+	g.material = make_additive_material()
+	g.position = at
+	g.z_index = z
+	g.scale = Vector2(px / 128.0, px / 128.0)   # glow texture is 128px
+	$LevelContainer.add_child(g)
+
+func _mushroom_cluster(base: Vector2, glow_col: Color, cl_scale: float) -> void:
+	for k in range(randi_range(2, 4)):
+		var off: float = randf_range(-16.0, 16.0) * cl_scale
+		var hgt: float = randf_range(12.0, 26.0) * cl_scale
+		var cap_w: float = randf_range(9.0, 15.0) * cl_scale
+		var foot: Vector2 = base + Vector2(off, 0)
+		_glow_sprite(foot + Vector2(0, -hgt), glow_col, cap_w * 5.0, -11)
+		var stem := ColorRect.new()
+		stem.size = Vector2(max(2.0, cap_w * 0.28), hgt)
+		stem.position = foot + Vector2(-stem.size.x / 2.0, -hgt)
+		stem.color = SHROOM_STEM
+		stem.z_index = -10
+		$LevelContainer.add_child(stem)
+		var cap := Polygon2D.new()
+		cap.polygon = PackedVector2Array([
+			Vector2(-cap_w / 2.0, 0), Vector2(cap_w / 2.0, 0),
+			Vector2(cap_w * 0.32, -cap_w * 0.5), Vector2(-cap_w * 0.32, -cap_w * 0.5)])
+		cap.position = foot + Vector2(0, -hgt)
+		cap.color = glow_col
+		cap.z_index = -10
+		$LevelContainer.add_child(cap)
+
+func _crystal_cluster(base: Vector2, cl_scale: float) -> void:
+	_glow_sprite(base + Vector2(0, -14.0 * cl_scale), CRYSTAL_GLOW, 90.0 * cl_scale, -11)
+	for k in range(randi_range(2, 4)):
+		var off: float = randf_range(-14.0, 14.0) * cl_scale
+		var h: float = randf_range(16.0, 34.0) * cl_scale
+		var w: float = randf_range(5.0, 9.0) * cl_scale
+		var shard := Polygon2D.new()
+		shard.polygon = PackedVector2Array([
+			Vector2(-w / 2.0, 0), Vector2(w / 2.0, 0), Vector2(0, -h)])
+		shard.position = base + Vector2(off, 0)
+		shard.color = CRYSTAL_COLOR.lightened(randf_range(0.0, 0.2))
+		shard.z_index = -10
+		$LevelContainer.add_child(shard)
+
+func _moss_patch(at: Vector2, width: float) -> void:
+	var moss := ColorRect.new()
+	moss.size = Vector2(width, randf_range(3.0, 5.0))
+	moss.position = at + Vector2(-width / 2.0, -moss.size.y)
+	moss.color = MOSS_COLOR.lightened(randf_range(0.0, 0.15))
+	moss.z_index = -9
+	$LevelContainer.add_child(moss)
+
+func _ceiling_root(x: float) -> void:
+	var rlen: float = randf_range(24.0, 70.0)
+	var w: float = randf_range(3.0, 6.0)
+	var root := Polygon2D.new()
+	root.polygon = PackedVector2Array([
+		Vector2(-w / 2.0, 0), Vector2(w / 2.0, 0), Vector2(w * 0.15, rlen), Vector2(-w * 0.15, rlen)])
+	root.position = Vector2(x, current_ceiling)
+	root.color = ROOT_COLOR.lightened(randf_range(0.0, 0.1))
+	root.z_index = -12
+	$LevelContainer.add_child(root)
 
 func make_additive_material() -> CanvasItemMaterial:
 	var mat = CanvasItemMaterial.new()
