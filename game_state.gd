@@ -1019,9 +1019,10 @@ func can_place_building(tree: SceneTree, bwidth: float, x: float, exclude: Node 
 		if x < west_x + 160.0 or x > east_x - 160.0:
 			return false
 	else:
-		# a sane surface band (west gate through the eastern village) so a wall
-		# can't be dropped a mile out in the void
-		if x < 3000.0 or x > 14000.0:
+		# a sane surface band (west road through the full eastern village + its
+		# cottages, which a built-out town can stretch well past x=14000) so a wall
+		# can't be dropped a mile out in the void, but any real gate is reachable
+		if x < 2000.0 or x > 30000.0:
 			return false
 	var my_half: float = bwidth / 2.0
 	for other in tree.get_nodes_in_group("building"):
