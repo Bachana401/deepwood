@@ -2751,7 +2751,11 @@ const BLUEPRINT_FLOORS = {
 var blueprints: Array = []
 
 func has_blueprint(building_name: String) -> bool:
-	return building_name in blueprints
+	# DEV/TEST: in dev_mode you hold EVERY blueprint, so the whole build menu is
+	# open to test (dev ask 2026-07-22). The real game still SCATTERS them through
+	# the levels (BLUEPRINT_FLOORS + blueprint_pickup) -- this only bypasses that
+	# in the sandbox. Launch with --dev to get them all.
+	return dev_mode or (building_name in blueprints)
 
 func grant_blueprint(building_name: String) -> void:
 	if building_name in blueprints:
