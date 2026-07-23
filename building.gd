@@ -577,6 +577,8 @@ func update_prompt() -> void:
 		prompt_label.text = "Building..."
 	elif building_name == "Farm":
 		prompt_label.text = "E: manage   •   Hold H: tend crops"
+	elif building_name == "Blacksmith":
+		prompt_label.text = "E: manage   •   F: forge wares (dash, jump, spear, bow)"
 	else:
 		prompt_label.text = "Press E"
 
@@ -2131,6 +2133,15 @@ func _process(delta: float) -> void:
 					pl.health = pl.get_max_health()
 					pl.update_health_display()
 					if notif2: notif2.show_notification("The ward's nurses knit you whole — %dg." % HOSPITAL_HEAL_PRICE)
+		# Blacksmith = THE FORGE (dev 2026-07-22): F opens its wares -- the dash /
+		# double-jump / spear / bow unlocks the deleted standalone shop used to sell.
+		# Built is enough to browse; you don't need it staffed.
+		if building_name == "Blacksmith" and Input.is_action_just_pressed("enter_dungeon"):
+			var forge = get_node_or_null("../CanvasLayer/ShopUI")
+			if forge != null:
+				forge.visible = true
+				if forge.has_method("refresh_prices"):
+					forge.refresh_prices()
 		# School (5.4 favour-a-calling): from level 2, the hands-on key cycles
 		# which calling the curriculum leans toward -- capped at 40%, so the
 		# dice never fully leave
