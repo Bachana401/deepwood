@@ -1066,7 +1066,10 @@ func can_place_building(tree: SceneTree, bwidth: float, x: float, exclude: Node 
 	# else must sit INSIDE the ramparts.
 	if not is_wall:
 		var west_x := 4700.0
-		var east_x := 1.0e9
+		# with no east rampart standing, halls are still bound to the same sane
+		# surface band walls use -- 1e9 let a stray click strand a hall a mile out
+		# in the eastern void (dev sweep 2026-07-23)
+		var east_x := 30000.0
 		for w in tree.get_nodes_in_group("village_wall"):
 			if "flank" in w and w.flank == "east":
 				east_x = w.global_position.x
@@ -1800,7 +1803,11 @@ func resolve_siege_offline(tier: int) -> void:
 			continue
 		if rescued_villagers.is_empty():
 			break
-		remove_random_villager()
+		# HONEST bookkeeping (dev sweep 2026-07-23): with only unbreakables (the Ten)
+		# left, remove_random_villager() takes nobody -- so count a loss ONLY when
+		# someone was actually taken, and stop rolling casualties that can't land.
+		if not remove_random_villager():
+			break
 		away_report.villagers_lost += 1
 
 # Called by the live SiegeManager when a village battle is fully repelled.
@@ -4606,18 +4613,21 @@ func remove_villager_by_id(villager_id: String) -> void:
 	remove_npc_avatar(villager_id)
 
 # Called by the death sequence (player.gd's die()) on Medium/Hard.
-func remove_random_villager() -> void:
+# Returns true if someone was actually taken -- with only unbreakables (the Ten)
+# left it takes nobody, and callers who COUNT losses must know (honest away report).
+func remove_random_villager() -> bool:
 	if rescued_villagers.is_empty():
-		return
+		return false
 	# 5.8: the Ten cannot be taken by anything -- not despair, not your death
 	var takeable := []
 	for v in rescued_villagers:
 		if not v.get("unbreakable", false):
 			takeable.append(v)
 	if takeable.is_empty():
-		return
+		return false
 	var removed = takeable[randi() % takeable.size()]
 	remove_villager_by_id(removed.get("id"))
+	return true
 
 # THE DEATH TOLL (polish 2026-07-20): on Medium a death costs a villager
 # and on Hard a skill material too -- the harshest mechanic in the game,

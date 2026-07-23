@@ -342,6 +342,11 @@ func show_away_report() -> void:
 	stack.show_notification("While you were away: %d siege%s -- %d repelled." % [report.sieges, "" if report.sieges == 1 else "s", report.repelled])
 	if report.villagers_lost > 0:
 		stack.show_notification("The raids claimed %d villager%s!" % [report.villagers_lost, "" if report.villagers_lost == 1 else "s"])
+	# Maera's mercy was tallied but never TOLD -- the one boon moment the player
+	# would most want to hear about on homecoming (dev sweep 2026-07-23)
+	if int(report.get("stabilized", 0)) > 0:
+		stack.show_notification("✨ Maera pulled %d villager%s back from the brink — they live." % [
+			int(report.get("stabilized", 0)), "" if int(report.get("stabilized", 0)) == 1 else "s"])
 	if int(report.get("adventurers_lost", 0)) > 0:
 		var names: Array = report.get("fallen_names", [])
 		if names.is_empty():

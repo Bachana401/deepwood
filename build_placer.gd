@@ -76,6 +76,16 @@ func _process(_d: float) -> void:
 	var ok := GameState.can_place_building(get_tree(), build_w, mx, null, build_name == "Wall") \
 		and p != null and GameState.can_afford_build(build_name, p)
 	ghost.color = Color(0.35, 0.9, 0.5, 0.42) if ok else Color(0.95, 0.3, 0.3, 0.42)
+	# A WALL's hint reads the ground LIVE: which gate would this spot guard? The
+	# tutorial says "the west" but nothing at placement-time did (dev 2026-07-23:
+	# "placed the wall as instructed... the wave passed through") -- so say it under
+	# the cursor, and warn plainly when the ground guards the quiet east instead.
+	if build_name == "Wall" and hint != null:
+		var f := _flank_for_x(mx)
+		if f == "west":
+			hint.text = "This ground guards the WEST gate — where the dark climbs out. Left-click on GREEN."
+		else:
+			hint.text = "⚠ This ground guards the EAST road (quiet until far deeper). The dark comes from the WEST — walk left of the village."
 
 # _input (not _unhandled_input): grab the click BEFORE any building's Area2D or
 # the world eats it, so a delete/place click always lands (dev: "delete didn't

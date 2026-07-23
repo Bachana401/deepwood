@@ -1019,10 +1019,17 @@ func _living_allies(radius: float) -> Array:
 	return out
 
 func heal_nearby_allies() -> void:
+	# CAPPED (dev 2026-07-23 "enemies not dying", part 2): 15% every 3.2s out-healed
+	# the weak start's ~1-2 damage entirely -- a knot of grunts around a healer read
+	# as unkillable. Now 8% per pulse, and a healer NEVER mends another healer, so
+	# two healers can't keep each other (and their knot) alive forever. Focusing the
+	# healer down is the counter-play, and now it actually works.
 	var healed = false
 	for e in _living_allies(280.0):
+		if "behavior" in e and str(e.behavior) == "healer":
+			continue
 		if "health" in e and "max_health" in e and e.health < e.max_health:
-			e.health = min(e.max_health, e.health + int(round(e.max_health * 0.15)))
+			e.health = min(e.max_health, e.health + maxi(1, int(round(e.max_health * 0.08))))
 			if e.has_method("update_health_bar"):
 				e.update_health_bar()
 			if e.has_method("spawn_status_spark"):

@@ -119,5 +119,29 @@ func _ready() -> void:
 	check("the advisor still has something true to say",
 		GameState.next_objective().length() > 8)
 
+	# ---------- 7. THE OPENING'S PROMISES (dev reports 2026-07-23) ----------
+	# The whole first-session seam: no wave mid-tutorial, a real grace day, and a
+	# wall raiders can never walk through. Every one of these shipped broken once.
+	var saved_open: bool = GameState.opening_done
+	var saved_next: float = GameState.hours_until_next_siege
+	GameState.opening_done = false
+	GameState.hours_until_next_siege = 0.001
+	GameState.tick_sieges(50.0)
+	check("NO wave can land while the opening/tutorial is unfinished",
+		GameState.hours_until_next_siege == 0.001 and not GameState.live_siege_active)
+	GameState.opening_done = saved_open
+	GameState.hours_until_next_siege = saved_next
+	check("the first wave grants a full grace day (>= 24h, ~10 real min)",
+		GameState.SIEGE_FIRST_HOURS >= 24.0, str(GameState.SIEGE_FIRST_HOURS))
+	var se_src := FileAccess.open("res://siege_enemy.gd", FileAccess.READ).get_as_text()
+	check("raiders stop at the wall face they APPROACH — never walking through",
+		se_src.contains("global_position.x <= wall.global_position.x")
+		and se_src.contains("wall.west_face_x() - ATTACK_STOP_GAP"))
+	var to_src := FileAccess.open("res://tutorial_overlay.gd", FileAccess.READ).get_as_text()
+	check("the tutorial names WHERE the wall goes (the WEST gate)",
+		to_src.contains("WEST"))
+	check("...and the wall holo reads the ground's gate live while placing",
+		FileAccess.open("res://build_placer.gd", FileAccess.READ).get_as_text().contains("guards the WEST gate"))
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)
