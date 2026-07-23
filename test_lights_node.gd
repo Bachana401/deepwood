@@ -139,11 +139,15 @@ func _ready() -> void:
 		check("street lanterns registered", life._lanterns.size() > 0, "got %d" % life._lanterns.size())
 		if life._lanterns.size() > 0:
 			GameState.game_hours = _hours_until(2.0)
-			await get_tree().process_frame
+			# Drive the flicker DIRECTLY rather than waiting on _process: the live
+			# village re-pauses the tree mid-test, which froze _update_lanterns and
+			# made this check flaky under suite load (it passed alone, failed in the
+			# suite). Calling it here advances _lantern_t deterministically, pause or no.
+			life._update_lanterns(0.0)          # settle to the night state first
 			var a1: float = life._lanterns[0]["glow"].color.a
 			var moved := false
-			for i in range(40):
-				await get_tree().process_frame
+			for i in range(60):
+				life._update_lanterns(0.1)
 				if absf(life._lanterns[0]["glow"].color.a - a1) > 0.02:
 					moved = true; break
 			check("lantern glow actually flickers", moved)
