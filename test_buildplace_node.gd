@@ -120,5 +120,32 @@ func _ready() -> void:
 	check("the tutorial closes after the last step", GameState.tutorial_step == -1,
 		str(GameState.tutorial_step))
 
+	# ---- a DELETED building can be REBUILT from scratch (no orphaned roster) ----
+	var reb := "Bar"
+	GameState.remove_building(reb)
+	for b in get_tree().get_nodes_in_group("building"):
+		if "building_name" in b and str(b.building_name) == reb:
+			b.queue_free()
+	await get_tree().process_frame
+	check("the razed building is gone from the world",
+		not _has_building(reb) and GameState.building_removed(reb))
+	for k in GameState.build_cost(reb):
+		p.inventory.add_item(k, int(GameState.build_cost(reb)[k]) + 2)
+	var rx := 0.0
+	for cand in range(int(west) + 340, 26000, 40):
+		if GameState.can_place_building(get_tree(), 400.0, float(cand)):
+			rx = float(cand); break
+	placer.start_build(reb, 400.0, 110.0, Color(0.4, 0.4, 0.4))
+	placer._try_place(rx)
+	await get_tree().process_frame
+	check("...and it can be rebuilt fresh from the menu",
+		_has_building(reb) and not GameState.building_removed(reb))
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
+
+func _has_building(bn: String) -> bool:
+	for b in get_tree().get_nodes_in_group("building"):
+		if "building_name" in b and str(b.building_name) == bn:
+			return true
+	return false
 	get_tree().quit(1 if fails > 0 else 0)

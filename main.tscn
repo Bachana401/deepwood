@@ -1,12 +1,10 @@
 [gd_scene format=3 uid="uid://ckjwmj303dryj"]
 
-[ext_resource type="Script" uid="uid://ccvav26dc4u3m" path="res://shop_zone.gd" id="3_h2yge"]
 [ext_resource type="Script" uid="uid://r3bty4ucvj0" path="res://shop_ui.gd" id="4_shopui"]
 [ext_resource type="PackedScene" path="res://enemy.tscn" id="5_enemy"]
 [ext_resource type="Script" uid="uid://dq1n72ijt8xss" path="res://main.gd" id="6_main"]
 [ext_resource type="Script" path="res://dungeon_zone.gd" id="7_dungeon_zone"]
 [ext_resource type="Script" path="res://dungeon_manager.gd" id="8_dungeon_mgr"]
-[ext_resource type="Script" uid="uid://flhmjcoh0fdp" path="res://shop_sign.gd" id="9_shop_sign"]
 [ext_resource type="Script" uid="uid://dxuwisx6jq5lw" path="res://pause_menu.gd" id="10_pause_menu"]
 [ext_resource type="Script" path="res://dungeon_sign.gd" id="11_dungeon_sign"]
 [ext_resource type="Script" uid="uid://d4hrcir16cimt" path="res://notification_stack.gd" id="12_notification_stack"]
@@ -57,9 +55,6 @@ size = Vector2(160, 30)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_jump_c"]
 size = Vector2(130, 30)
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_ixm5k"]
-size = Vector2(80, 100)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_survival_zone"]
 size = Vector2(60, 100)

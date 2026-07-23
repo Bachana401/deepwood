@@ -380,6 +380,31 @@ func generate_village() -> void:
 			cursor += FARM_PEN_WIDTH + VILLAGE_GAP
 	village_right_edge = cursor
 
+# A village building's blueprint def by name (for the build menu + placer).
+func building_def(bname: String) -> Dictionary:
+	for def in VILLAGE_BUILDINGS:
+		if str(def.name) == bname:
+			return def
+	return {}
+
+# Raise a role building FROM SCRATCH on chosen ground (build menu). Used when its
+# ruin was deleted -- there's no node to move, so make a fresh standing one. The
+# caller sets building_stage/positions; this just puts the body in the world.
+func create_building(bname: String, x: float) -> Node:
+	var def := building_def(bname)
+	if def.is_empty():
+		return null
+	var sc := float(def.get("scale", 2.0))
+	var b = BUILDING_SCRIPT.new()
+	b.building_name = str(def.name)
+	b.role_key = str(def.role_key)
+	b.width = def.width * sc * VILLAGE_WIDTH_BOOST * 1.3
+	b.height = def.height * sc * 1.3
+	b.body_color = def.color
+	b.position = Vector2(x, VILLAGE_Y)
+	$Village.add_child(b)
+	return b
+
 # Re-plant every standing torch the player has placed (G key) -- they persist
 # in GameState.placed_torches across dungeon trips and save/load.
 func spawn_placed_torches() -> void:

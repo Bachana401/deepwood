@@ -122,54 +122,6 @@ func _build_panel() -> void:
 	close.pressed.connect(func(): panel.visible = false)
 	panel.add_child(close)
 
-# The ledger's four site states, in the order the player meets them.
-func _site_state(bn: String) -> Dictionary:
-	if not GameState.building_is_cleared(bn):
-		# show the shovelling already done -- three anonymous heaps read as one
-		# heap repeated, but "2/3 cleared" is a thing you are half-way through
-		var done: int = GameState.building_clear_progress(bn)
-		var label := "rubble — press E at the site to clear it"
-		if done > 0:
-			label = "rubble, %d/%d cleared — press E to keep digging" % [done, GameState.CLEAR_STEPS]
-		return {"label": label, "color": Color(0.55, 0.52, 0.5),
-			"known": false, "group": "rubble"}
-	if GameState.building_build_stage(bn) >= GameState.TOTAL_BUILD_STAGES:
-		return {"label": "standing", "color": Color(0.55, 0.78, 0.55),
-			"known": true, "group": "standing"}
-	if not GameState.has_blueprint(bn):
-		return {"label": "cleared — its plans are still lost in the deep",
-			"color": Color(0.72, 0.62, 0.45), "known": true, "group": "noplans"}
-	if GameState.building_build_stage(bn) == 0:
-		return {"label": "cleared — ready to build (F at the site)",
-			"color": Color(0.6, 0.72, 0.55), "known": true, "group": "ready"}
-	return {"label": "under construction — stage %d/%d (F at the site)" % [
-		GameState.building_build_stage(bn), GameState.TOTAL_BUILD_STAGES],
-		"color": Color(0.72, 0.7, 0.5), "known": true, "group": "building"}
-
-# A LIST OF ELEVEN IDENTICAL LINES IS NOT A MENU (polish pass 2026-07-21).
-# Early on, every site is an unnamed heap, so the first ledger a player ever
-# opens read as eleven copies of "an unrecognisable ruin" -- nothing to act on,
-# no way to tell one from another, no idea where any of them were. The secret
-# stays kept (that is the design), but the window now answers the two questions
-# it should: WHAT IS THERE TO DO, and WHERE DO I GO. Sites are grouped by what
-# they need from you, urgent group first, and every row carries a bearing from
-# where you are standing.
-const GROUP_ORDER := ["ready", "building", "rubble", "noplans", "standing"]
-const GROUP_TITLE := {
-	"ready": "READY TO BUILD",
-	"building": "UNDER CONSTRUCTION",
-	"rubble": "BURIED — needs clearing",
-	"noplans": "CLEARED — plans still lost in the deep",
-	"standing": "STANDING",
-}
-const GROUP_COLOR := {
-	"ready": Color(0.62, 0.82, 0.55),
-	"building": Color(0.85, 0.78, 0.45),
-	"rubble": Color(0.72, 0.66, 0.6),
-	"noplans": Color(0.72, 0.62, 0.45),
-	"standing": Color(0.55, 0.72, 0.6),
-}
-
 func refresh() -> void:
 	for c in rows_box.get_children():
 		c.queue_free()
@@ -191,6 +143,11 @@ func refresh() -> void:
 		rows_box.add_child(_build_row(str(nm), by_name[nm]))
 		if GameState.building_build_stage(str(nm)) >= GameState.TOTAL_BUILD_STAGES:
 			standing += 1
+	# a building whose ruin was DELETED has no live node -- still offer it, so a
+	# razed site can be rebuilt from scratch (see build_placer / main.create_building)
+	for rn in GameState.removed_buildings.keys():
+		if not by_name.has(str(rn)):
+			rows_box.add_child(_build_row(str(rn), null))
 	title.text = "THE BUILDER'S LEDGER — %d of %d built" % [standing, names.size()]
 
 # One button per building: its name, and Build (cost) when you can raise it.
@@ -250,77 +207,31 @@ func _placer() -> Node:
 		get_tree().current_scene.add_child(pl)
 	return pl
 
-func _start_build(bn: String, node: Node) -> void:
+func _start_build(bn: String, node) -> void:
 	panel.visible = false
-	var w: float = float(node.width) if "width" in node else 120.0
-	var h: float = float(node.height) if "height" in node else 90.0
-	var col: Color = node.body_color if "body_color" in node else Color(0.5, 0.45, 0.4)
+	var w := 120.0
+	var h := 90.0
+	var col := Color(0.5, 0.45, 0.4)
+	if node != null and "width" in node:
+		# a live ruin gives its own dimensions
+		w = float(node.width)
+		h = float(node.height)
+		col = node.body_color
+	else:
+		# a DELETED building has no node -- size the holo from the village roster
+		var scene = get_tree().current_scene
+		if scene != null and scene.has_method("building_def"):
+			var def: Dictionary = scene.building_def(bn)
+			if not def.is_empty():
+				var sc := float(def.get("scale", 2.0))
+				w = float(def.width) * sc * 1.3
+				h = float(def.height) * sc * 1.3
+				col = def.color
 	_placer().start_build(bn, w, h, col)
 
 func _start_delete() -> void:
 	panel.visible = false
 	_placer().start_delete()
-
-func _make_header(group: String, count: int) -> Control:
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 2)
-	var pad := Control.new()
-	pad.custom_minimum_size = Vector2(0, 6)
-	box.add_child(pad)
-	var h := Label.new()
-	h.text = "%s  (%d)" % [GROUP_TITLE.get(group, group), count]
-	h.add_theme_font_size_override("font_size", 12)
-	h.add_theme_color_override("font_color", GROUP_COLOR.get(group, Color.WHITE))
-	box.add_child(h)
-	var rule := ColorRect.new()
-	rule.custom_minimum_size = Vector2(600, 1)
-	rule.color = GROUP_COLOR.get(group, Color.WHITE)
-	rule.color.a = 0.35
-	box.add_child(rule)
-	return box
-
-# "260 paces west" -- enough to walk to, never a map coordinate.
-func _bearing(dx: float) -> String:
-	if absf(dx) < 90.0:
-		return "right here"
-	return "%d paces %s" % [int(absf(dx) / 10.0), "east" if dx > 0.0 else "west"]
-
-func _cottage_row() -> Control:
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 2)
-	var h := Label.new()
-	h.text = "RAISE A HOME"
-	h.add_theme_font_size_override("font_size", 12)
-	h.add_theme_color_override("font_color", Color(0.72, 0.84, 0.72))
-	box.add_child(h)
-	var line := HBoxContainer.new()
-	var lbl := Label.new()
-	lbl.text = "Cottage — a home for a family"
-	lbl.add_theme_font_size_override("font_size", 14)
-	lbl.add_theme_color_override("font_color", Color(0.88, 0.88, 0.92))
-	lbl.custom_minimum_size = Vector2(300, 0)
-	line.add_child(lbl)
-	var cost := Label.new()
-	cost.text = _cost_text("Cottage")
-	cost.add_theme_font_size_override("font_size", 11)
-	cost.add_theme_color_override("font_color", Color(0.7, 0.7, 0.6))
-	cost.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	cost.custom_minimum_size = Vector2(100, 0)
-	line.add_child(cost)
-	var build := Button.new()
-	build.text = "Build (%s)" % _cost_text("Cottage")
-	build.custom_minimum_size = Vector2(180, 0)
-	build.add_theme_font_size_override("font_size", 11)
-	build.pressed.connect(func() -> void:
-		panel.visible = false
-		_placer().start_build("Cottage", 90.0, 80.0, Color(0.58, 0.5, 0.35)))
-	line.add_child(build)
-	box.add_child(line)
-	var rule := ColorRect.new()
-	rule.custom_minimum_size = Vector2(600, 1)
-	rule.color = Color(0.35, 0.4, 0.35, 0.5)
-	box.add_child(rule)
-	return box
 
 func _cost_text(bn: String) -> String:
 	var parts := PackedStringArray()
@@ -328,50 +239,3 @@ func _cost_text(bn: String) -> String:
 		var nm: String = "g" if k == "coin_gold" else Inventory.get_display_name(k)
 		parts.append("%d%s" % [int(GameState.build_cost(bn)[k]), (nm if k == "coin_gold" else " " + nm)])
 	return ", ".join(parts)
-
-func _make_row(bn: String, st: Dictionary, dx: float, node: Node) -> Control:
-	var row = VBoxContainer.new()
-	row.add_theme_constant_override("separation", 1)
-	var head_line = HBoxContainer.new()
-	var head = Label.new()
-	# an uncleared site keeps its secret: no name in the ledger either
-	head.text = (bn if st["known"] else "an unrecognisable ruin")
-	head.add_theme_font_size_override("font_size", 14)
-	head.add_theme_color_override("font_color",
-		Color(0.88, 0.88, 0.92) if st["known"] else Color(0.6, 0.58, 0.56))
-	head.custom_minimum_size = Vector2(300, 0)
-	head_line.add_child(head)
-	# where it is, so anonymous heaps are findable
-	var where = Label.new()
-	where.text = _bearing(dx)
-	where.add_theme_font_size_override("font_size", 11)
-	where.add_theme_color_override("font_color", Color(0.58, 0.62, 0.7))
-	where.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	where.custom_minimum_size = Vector2(100, 0)
-	head_line.add_child(where)
-	# BUILD IT (dev 2026-07-22): a site not yet standing gets a Build button --
-	# click to raise it on ground YOU pick, with the green/red placement holo.
-	if str(st.get("group", "")) != "standing":
-		var build := Button.new()
-		build.text = "Build (%s)" % _cost_text(bn)
-		build.custom_minimum_size = Vector2(180, 0)
-		build.add_theme_font_size_override("font_size", 11)
-		build.pressed.connect(func() -> void: _start_build(bn, node))
-		head_line.add_child(build)
-	row.add_child(head_line)
-	var state = Label.new()
-	state.text = "   " + st["label"]
-	state.add_theme_font_size_override("font_size", 11)
-	state.add_theme_color_override("font_color", st["color"])
-	row.add_child(state)
-	if st["known"] and PURPOSE.has(bn):
-		var why = Label.new()
-		why.text = "   " + PURPOSE[bn]
-		why.add_theme_font_size_override("font_size", 11)
-		why.add_theme_color_override("font_color", Color(0.55, 0.62, 0.68))
-		row.add_child(why)
-	var sep = ColorRect.new()
-	sep.custom_minimum_size = Vector2(600, 1)
-	sep.color = Color(0.3, 0.29, 0.27, 0.6)
-	row.add_child(sep)
-	return row

@@ -159,6 +159,11 @@ func _try_place(x: float) -> void:
 	GameState.building_stage[build_name] = GameState.TOTAL_BUILD_STAGES
 	GameState.removed_buildings.erase(build_name)
 	var node = _find_building(build_name)
+	if node == null:
+		# its ruin was deleted -- there's no node to raise, so make a fresh one
+		var scene = get_tree().current_scene
+		if scene != null and scene.has_method("create_building"):
+			node = scene.create_building(build_name, x)
 	if node != null:
 		node.global_position.x = x
 		if node.has_method("rebuild_geometry"): node.rebuild_geometry()
