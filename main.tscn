@@ -393,7 +393,7 @@ script = ExtResource("28_siege_mgr")
 position = Vector2(4790, -100)
 
 
-[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=294605379]
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=294605379 groups=["cutscene_hides"]]
 
 [node name="CurrencyLabel" type="Label" parent="CanvasLayer" unique_id=860665856]
 offset_left = 20.0
@@ -915,7 +915,7 @@ chest_id = "chest_warehouse"
 
 [node name="ItemTooltip" parent="." instance=ExtResource("25_tooltip")]
 
-[node name="HotbarUI" parent="." instance=ExtResource("29_hotbar")]
+[node name="HotbarUI" parent="." instance=ExtResource("29_hotbar") groups=["cutscene_hides"]]
 
 [node name="DeathScreen" type="CanvasLayer" parent="."]
 script = ExtResource("15_death_screen")

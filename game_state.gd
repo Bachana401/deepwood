@@ -1027,6 +1027,9 @@ var tutorial_step: int = -1     # -1 = inactive/done; 0..N = the step you're on
 func tutorial_begin() -> void:
 	if tutorial_step != -1 or dev_mode:
 		return
+	# the cinematic opening is over the moment building becomes the task: the HUD
+	# and the "what now" ticker come up now, not on the game's first frame.
+	opening_done = true
 	tutorial_step = 0
 	notify(TUTORIAL_STEPS[0]["prompt"])
 
@@ -1441,6 +1444,11 @@ var seen_kneel_echo := false
 var seen_orin_taunt := false
 var seen_arrival_battle := false
 var seen_arrival_talk := false   # the wall-crossing reveal was DELIVERED (split from the battle flag 2026-07-21)
+# THE OPENING IS CINEMATIC (dev 2026-07-22): from a new game's first frame the
+# player should see only the chat, no HUD chrome and no "raise the Farm" ticker,
+# until the interactive building tutorial begins (tutorial_begin flips this true).
+# Old saves + dev_mode are already past the opening, so they read true.
+var opening_done := false
 var seen_gather_hint := false    # taught the axe/pickaxe once (transient; a swing at a tree/rock with a plain weapon triggers it)
 # THE NEW FINALE (canon rework 2026-07-20): floor 100 is EMPTY. The false
 # victory is carried home, the feast pumps the village to its peak, and Orin
@@ -4004,6 +4012,7 @@ func reset_for_new_game() -> void:
 	seen_gather_hint = false
 	seen_arrival_battle = false
 	seen_arrival_talk = false
+	opening_done = false
 	seen_empty_throne = false
 	harvest_at_home = false
 	feast_glow = false
@@ -4103,6 +4112,7 @@ func save_game(player: Node) -> void:
 		"seen_orin_taunt": seen_orin_taunt,
 		"seen_arrival_battle": seen_arrival_battle,
 		"seen_arrival_talk": seen_arrival_talk,
+		"opening_done": opening_done,
 		"seen_empty_throne": seen_empty_throne,
 		"escape_attempts": escape_attempts,
 		"school_favoured_stat": school_favoured_stat,
@@ -4206,6 +4216,7 @@ func load_game() -> Dictionary:
 		seen_orin_taunt = bool(parsed.get("seen_orin_taunt", false))
 		seen_arrival_battle = bool(parsed.get("seen_arrival_battle", true))   # old saves: don't replay
 		seen_arrival_talk = bool(parsed.get("seen_arrival_talk", seen_arrival_battle))   # old saves heard it with the battle
+		opening_done = bool(parsed.get("opening_done", true))   # old saves are long past the opening
 		seen_empty_throne = bool(parsed.get("seen_empty_throne", false))
 		escape_attempts = int(parsed.get("escape_attempts", 0))
 		school_favoured_stat = str(parsed.get("school_favoured_stat", ""))

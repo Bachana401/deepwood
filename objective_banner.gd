@@ -46,9 +46,11 @@ func _process(delta: float) -> void:
 func _refresh() -> void:
 	if _wrap == null:
 		return
-	# This lives in main.tscn, so it is village-only already; just fall silent while
-	# the town is TURNING (the Harvest -- there is only one thing to do then).
-	var show: bool = not GameState.harvest_at_home
+	# This lives in main.tscn, so it is village-only already. Silent (1) through the
+	# whole cinematic OPENING -- no "raise the Farm" nag on a new game's first frame,
+	# only once building becomes the task (opening_done / dev_mode) -- and (2) while
+	# the town is TURNING (the Harvest, when there is only one thing left to do).
+	var show: bool = (GameState.opening_done or GameState.dev_mode) and not GameState.harvest_at_home
 	_wrap.visible = show
 	if show:
 		_label.text = "▶  " + GameState.next_objective()

@@ -29,9 +29,23 @@ static func play(host: Node, script_lines: Array, on_finished := Callable()) -> 
 func _ready() -> void:
 	layer = 60
 	process_mode = Node.PROCESS_MODE_ALWAYS   # keep running while the tree is paused
+	add_to_group("dialogue_box")
 	build_ui()
 	get_tree().paused = true
+	_set_cutscene_hud_hidden(true)            # ONLY CHAT while a scripted beat plays
 	show_line()
+
+# The opening (and every scripted beat) should read as chat, not chat-over-a-HUD:
+# hide the HUD chrome + hotbar (group "cutscene_hides") while a box is on screen.
+# Restored when the LAST box closes -- checked by group, so a chained next line
+# keeps it hidden with no flicker, and a stray leak can never strand it off.
+func _set_cutscene_hud_hidden(hidden: bool) -> void:
+	var t := get_tree()
+	if t == null:
+		return
+	for n in t.get_nodes_in_group("cutscene_hides"):
+		if is_instance_valid(n):
+			n.visible = not hidden
 
 func build_ui() -> void:
 	var shade = ColorRect.new()   # dim the world a touch behind the box
@@ -106,8 +120,18 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 func finish() -> void:
-	get_tree().paused = false
+	var t := get_tree()
+	t.paused = false
 	var cb = _on_finished
-	queue_free()
+	queue_free()                              # deferred: this box still counts below
 	if cb.is_valid():
-		cb.call()
+		cb.call()                             # a chained line re-hides on its _ready
+	# restore the HUD only when the conversation is truly over -- if the callback
+	# opened another box, one still lives in the group and we stay hidden
+	var still_talking := false
+	for n in t.get_nodes_in_group("dialogue_box"):
+		if n != self and is_instance_valid(n) and not n.is_queued_for_deletion():
+			still_talking = true
+			break
+	if not still_talking:
+		_set_cutscene_hud_hidden(false)
