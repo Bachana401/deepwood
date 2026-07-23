@@ -22,6 +22,17 @@ func count_sides(west_x: float, east_x: float) -> Dictionary:
 			e += 1
 	return {"w": w, "e": e}
 
+# Find a standing rampart of this flank, or raise one (walls are buildable now).
+func _wall_or_build(flank: String, x: float) -> Node:
+	for w in get_tree().get_nodes_in_group("village_wall"):
+		if "flank" in w and w.flank == flank:
+			return w
+	var wall = preload("res://wall.tscn").instantiate()
+	wall.flank = flank
+	wall.position = Vector2(x, -39.0)
+	get_tree().current_scene.add_child(wall)
+	return wall
+
 func clear_sieges() -> void:
 	for r in get_tree().get_nodes_in_group("siege_enemy"):
 		if is_instance_valid(r):
@@ -35,16 +46,18 @@ func _ready() -> void:
 	get_tree().paused = false
 
 	var mgr = get_tree().get_first_node_in_group("siege_manager")
-	var west_wall: Node = null
-	var east_wall: Node = null
-	for w in get_tree().get_nodes_in_group("village_wall"):
-		if "flank" in w and w.flank == "west": west_wall = w
-		elif "flank" in w and w.flank == "east": east_wall = w
+	# Walls START REMOVED now (buildable from the B menu, dev 2026-07-22), so a fresh
+	# village has neither rampart. This test needs both fronts standing to check the
+	# wave split -- raise them the way the placer does (flank set, added to the scene).
+	var west_wall: Node = _wall_or_build("west", 4700.0)
+	var east_wall: Node = _wall_or_build("east", 9000.0)
+	await get_tree().process_frame   # let wall._ready join "village_wall"
 	if mgr == null or west_wall == null or east_wall == null:
 		check("siege_manager + both walls present in the village", false, "mgr/walls missing")
 		printerr("test_wavesides : RESULT: 1 FAILURES  (FAILs=1)")
 		get_tree().quit(1)
 		return
+	check("siege_manager + both walls present in the village", true)
 
 	var s_depth: int = GameState.highest_unlocked_level
 	var s_live: bool = GameState.live_siege_active

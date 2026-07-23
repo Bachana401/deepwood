@@ -553,8 +553,9 @@ func _ready() -> void:
 	var wl := FileAccess.open("res://wall.gd", FileAccess.READ).get_as_text()
 	check("the wall knows its flank and its outer face",
 		wl.contains("@export var flank") and wl.contains("func east_face_x") and wl.contains("func outer_face_x"))
-	check("the siege splits across BOTH ramparts",
-		sm.contains("wall_for_flank(\"east\")") and sm.contains("BOTH flanks"))
+	check("the siege splits across BOTH ramparts (once the east front opens)",
+		sm.contains("wall_for_flank(\"east\")") and sm.contains("two_fronts")
+		and sm.contains("west_count") and sm.contains("east_count"))
 	check("raiders plant on the OUTSIDE face of their rampart",
 		FileAccess.open("res://siege_enemy.gd", FileAccess.READ).get_as_text().contains("east_face_x() + ATTACK_STOP_GAP"))
 	check("both ramparts get patched between assaults",
