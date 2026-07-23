@@ -89,6 +89,7 @@ const TUTORIAL_INTRO = [
 	{"speaker": "Wren", "text": "And each great hall stands but ONCE — one Farm, one Barracks, one Forge. Try to raise a second and the ledger simply tells you it's already built. Homes and walls are the exception — raise as many of those as you can afford."},
 	{"speaker": "Castor", "text": "Raise a WALL first — the dark climbs up out of the pit to the WEST, so that's the gate that needs stone. Then a Farm so we eat, and a cottage or two so the ones we save have a bed."},
 	{"speaker": "Roland", "text": "Walk up to any building and press [E] to run it — set folk to work, upgrade it, buy from the forge. Press [L] any time to read the village's ledger: what's happening, who we've lost, what's owed."},
+	{"speaker": "Wren", "text": "One thing those homes do: sit a rescued man and woman in a cottage together ([E] on it) and, given time, a child is born. Keep the School staffed and it raises that child into a calling of their own — new hands for the village, born not saved. That's how Deepwood outlasts all of us."},
 	{"speaker": "Castor", "text": "The rest you learn with a blade. Down in the deep are doors to a hundred floors, and behind them — our people, the Unbreakables. Free them, raise this ruin around us..."},
 	{"speaker": "Roland", "text": "...and Deepwood lives again. That's the whole of it, stranger. Now — let's build."},
 ]
