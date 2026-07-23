@@ -109,5 +109,16 @@ func _ready() -> void:
 			found_wall = true; break
 	check("...and the rampart stands in the village", found_wall)
 
+	# ---- the step-gated tutorial advances as you build ----
+	GameState.tutorial_step = 0
+	GameState.tutorial_note("Farm")            # step 0 wants Wall -- wrong build, no move
+	check("the tutorial ignores the wrong build", GameState.tutorial_step == 0)
+	GameState.tutorial_note("Wall")            # the right one advances it
+	check("building the wanted building advances the tutorial", GameState.tutorial_step == 1)
+	GameState.tutorial_note("Farm")
+	GameState.tutorial_note("Cottage")
+	check("the tutorial closes after the last step", GameState.tutorial_step == -1,
+		str(GameState.tutorial_step))
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

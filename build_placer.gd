@@ -129,6 +129,7 @@ func _try_place(x: float) -> void:
 		var stk = get_tree().get_first_node_in_group("notification_stack")
 		if stk: stk.show_notification("🧱 A rampart rises.")
 		GameState.log_event("village", "A wall was raised from the build menu.")
+		GameState.tutorial_note("Wall")
 		_clear()
 		return
 	# A COTTAGE has no pre-placed ruin -- build a brand-new home on the chosen spot
@@ -149,6 +150,7 @@ func _try_place(x: float) -> void:
 		var st = get_tree().get_first_node_in_group("notification_stack")
 		if st: st.show_notification("🏠 A new cottage is raised.")
 		GameState.log_event("village", "A cottage was raised from the build menu.")
+		GameState.tutorial_note("Cottage")
 		_clear()
 		return
 	# raise it at the chosen spot: the site exists as a ruin, so move it + finish it
@@ -164,6 +166,7 @@ func _try_place(x: float) -> void:
 	GameState.play_sfx(GameState.SFX_YES, 1.0)
 	if stack: stack.show_notification("🏗 The %s is raised on its new ground." % build_name)
 	GameState.log_event("village", "The %s was raised from the build menu." % build_name)
+	GameState.tutorial_note(build_name)
 	_clear()
 
 func _try_delete(x: float) -> void:

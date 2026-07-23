@@ -665,9 +665,10 @@ func play_arrival_talk(pl: Node) -> void:
 		_spawn_reveal_survivors(pl)
 		DialogueBox.play(pl, Story.DEEPWOOD_REVEAL, func():
 			DialogueBox.play(pl, Story.THE_OATH, func():
-				# beat 8: the oath sworn, the trio teach the player the ropes
+				# beat 8: the oath sworn, the trio teach the player the ropes -- then
+				# the tutorial becomes a step-gated checklist (wall -> farm -> home)
 				DialogueBox.play(pl, Story.TUTORIAL_INTRO, func():
-					GameState.notify("Press B to raise your first building — start with a Wall at the west gate.")))))
+					GameState.tutorial_begin()))))
 
 # BEAT 6 (dev's opening 2026-07-22): villagerS step out of the ruins for the
 # reveal -- thin, hollow-eyed survivors who hid through the fight, fading up and

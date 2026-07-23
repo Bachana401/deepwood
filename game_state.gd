@@ -1013,6 +1013,37 @@ func can_place_building(tree: SceneTree, bwidth: float, x: float, exclude: Node 
 			return false
 	return true
 
+# --- THE OPENING TUTORIAL (step-gated, dev polish 2026-07-22) ---
+# After the oath, the trio's words become a CHECKLIST: raise a wall, then a farm,
+# then a home -- each build ticks the current step and points at the next. Starts
+# when the opening ends (tutorial_begin), per-lifetime, skipped in dev_mode.
+const TUTORIAL_STEPS := [
+	{"want": "Wall", "prompt": "🧱 Tutorial — raise a WALL at the west gate: press B, pick Wall, left-click on GREEN ground."},
+	{"want": "Farm", "prompt": "🌾 Tutorial — now a FARM so the village eats: press B, pick Farm, place it."},
+	{"want": "Cottage", "prompt": "🏠 Tutorial — a COTTAGE so the ones you save have a bed: press B, pick Cottage."},
+]
+var tutorial_step: int = -1     # -1 = inactive/done; 0..N = the step you're on
+
+func tutorial_begin() -> void:
+	if tutorial_step != -1 or dev_mode:
+		return
+	tutorial_step = 0
+	notify(TUTORIAL_STEPS[0]["prompt"])
+
+# Called when a building is raised. If it's what the current step wants, tick it
+# and point at the next -- or close the tutorial on the last.
+func tutorial_note(building_name: String) -> void:
+	if tutorial_step < 0 or tutorial_step >= TUTORIAL_STEPS.size():
+		return
+	if building_name != str(TUTORIAL_STEPS[tutorial_step]["want"]):
+		return
+	tutorial_step += 1
+	if tutorial_step < TUTORIAL_STEPS.size():
+		notify(str(TUTORIAL_STEPS[tutorial_step]["prompt"]))
+	else:
+		tutorial_step = -1
+		notify("✓ You've the way of it now. Deepwood is yours to raise — and when you're ready, find a door in the deep and go down after our people.")
+
 # --- THE RAMPART (dev ask 2026-07-22: "make WALLS bigger... with gate,
 # upgradable... in the beginning it's gotta be weak of course"). One shared tier
 # drives BOTH ramparts (the west gatehouse the wild road breaks against and the
@@ -3914,6 +3945,7 @@ func reset_for_new_game() -> void:
 	extra_cottages = 0
 	extra_cottage_positions = []
 	placed_walls = []
+	tutorial_step = -1
 	_family_cycle_accum = 0.0
 	village_log = []
 	log_unread = 0
@@ -4081,6 +4113,7 @@ func save_game(player: Node) -> void:
 		"extra_cottages": extra_cottages,
 		"extra_cottage_positions": extra_cottage_positions,
 		"placed_walls": placed_walls,
+		"tutorial_step": tutorial_step,
 		"village_log": village_log,
 		"log_unread": log_unread,
 		"wage_accum_hours": wage_accum_hours,
@@ -4198,6 +4231,7 @@ func load_game() -> Dictionary:
 			for w in parsed["placed_walls"]:
 				if w is Dictionary and w.has("x"):
 					placed_walls.append({"x": float(w["x"]), "flank": str(w.get("flank", "west"))})
+		tutorial_step = int(parsed.get("tutorial_step", -1))
 		if parsed.has("village_log") and parsed["village_log"] is Array:
 			village_log = parsed["village_log"]
 		log_unread = int(parsed.get("log_unread", 0))
