@@ -81,17 +81,12 @@ const THE_OATH = [
 # BEAT 8 (dev's opening 2026-07-22): the TUTORIAL, spoken by the trio -- how to
 # build, what the keys do, and the shape of the whole game. Deliberately NOT
 # everything; the rest is learned with a blade in hand.
+# A SHORT handoff, then the interactive tutorial takes over (dev 2026-07-22: "show,
+# don't tell"). The card that follows walks you through raising the first three
+# buildings by DOING; the closing (game_state.tutorial_note) tells the rest.
 const TUTORIAL_INTRO = [
-	{"speaker": "Roland", "text": "Right — if we're doing this, you'll want to know HOW. I'll say it once, so listen."},
-	{"speaker": "Roland", "text": "Press [B] for the Builder's Ledger. Every building we can raise is there by name — hover one to read what it costs and what it's for."},
-	{"speaker": "Wren", "text": "Pick one and a ghost of it follows your cursor. GREEN, it'll stand there; RED, it won't — bad ground, or right on top of something. Left-click on green to raise it. Right-click to change your mind."},
-	{"speaker": "Roland", "text": "But you can only raise what you hold the PLANS for. Deepwood's blueprints were scattered when it fell — most lie down in the deep. Find a building's plans as you descend, and it opens up in the ledger; until then it just reads 'blueprint not found'."},
-	{"speaker": "Wren", "text": "And each great hall stands but ONCE — one Farm, one Barracks, one Forge. Try to raise a second and the ledger simply tells you it's already built. Homes and walls are the exception — raise as many of those as you can afford."},
-	{"speaker": "Castor", "text": "Raise a WALL first — the dark climbs up out of the pit to the WEST, so that's the gate that needs stone. Then a Farm so we eat, and a cottage or two so the ones we save have a bed."},
-	{"speaker": "Roland", "text": "Walk up to any building and press [E] to run it — set folk to work, upgrade it, buy from the forge. Press [L] any time to read the village's ledger: what's happening, who we've lost, what's owed."},
-	{"speaker": "Wren", "text": "One thing those homes do: sit a rescued man and woman in a cottage together ([E] on it) and, given time, a child is born. Keep the School staffed and it raises that child into a calling of their own — new hands for the village, born not saved. That's how Deepwood outlasts all of us."},
-	{"speaker": "Castor", "text": "The rest you learn with a blade. Down in the deep are doors to a hundred floors, and behind them — our people, the Unbreakables. Free them, raise this ruin around us..."},
-	{"speaker": "Roland", "text": "...and Deepwood lives again. That's the whole of it, stranger. Now — let's build."},
+	{"speaker": "Roland", "text": "You'll want to know how to raise this ruin back into a town. I won't lecture you — just follow the prompts, and DO as they say. A thing's learned by the doing."},
+	{"speaker": "Castor", "text": "Start with the wall the dark comes for. We'll be right here beside you."},
 ]
 
 # THE FAILED ESCAPE (2.4.1 beat 3) -- the player tries the road out himself and

@@ -265,6 +265,8 @@ func _ready() -> void:
 	# a quiet objective ticker at the top of the screen -- a new player never has
 	# to guess the next step (it reads GameState.next_objective live)
 	add_child(preload("res://objective_banner.gd").new())
+	# the interactive tutorial card -- walks the first three builds by DOING them
+	add_child(preload("res://tutorial_overlay.gd").new())
 	warn_wounded_corps()
 	orin_midgame_taunt()
 	# a coronation interrupted by a quit finishes here, at home

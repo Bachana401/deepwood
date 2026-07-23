@@ -1017,10 +1017,14 @@ func can_place_building(tree: SceneTree, bwidth: float, x: float, exclude: Node 
 # After the oath, the trio's words become a CHECKLIST: raise a wall, then a farm,
 # then a home -- each build ticks the current step and points at the next. Starts
 # when the opening ends (tutorial_begin), per-lifetime, skipped in dev_mode.
+# The interactive tutorial (dev 2026-07-22: "show, don't tell"). tutorial_overlay.gd
+# turns each of these into a live, do-it-now card -- name the building + why, then
+# prompt the exact action (open the ledger, then pick + place). `done` is the brief
+# confirm shouted when it goes up; the closing (below) tells the rest, after doing.
 const TUTORIAL_STEPS := [
-	{"want": "Wall", "prompt": "🧱 Tutorial — raise a WALL at the west gate: press B, pick Wall, left-click on GREEN ground."},
-	{"want": "Farm", "prompt": "🌾 Tutorial — now a FARM so the village eats: press B, pick Farm, place it."},
-	{"want": "Cottage", "prompt": "🏠 Tutorial — a COTTAGE so the ones you save have a bed: press B, pick Cottage."},
+	{"want": "Wall", "done": "✓ A rampart rises — that's the whole of building: [B] · pick · place on GREEN."},
+	{"want": "Farm", "done": "✓ A farm — the village will eat now."},
+	{"want": "Cottage", "done": "✓ A home stands, ready for someone you save."},
 ]
 var tutorial_step: int = -1     # -1 = inactive/done; 0..N = the step you're on
 
@@ -1031,7 +1035,8 @@ func tutorial_begin() -> void:
 	# and the "what now" ticker come up now, not on the game's first frame.
 	opening_done = true
 	tutorial_step = 0
-	notify(TUTORIAL_STEPS[0]["prompt"])
+	# the on-screen card (tutorial_overlay.gd) carries the live instructions now --
+	# no toast needed to start, it appears the moment the step goes non-negative
 
 # Called when a building is raised. If it's what the current step wants, tick it
 # and point at the next -- or close the tutorial on the last.
@@ -1040,12 +1045,15 @@ func tutorial_note(building_name: String) -> void:
 		return
 	if building_name != str(TUTORIAL_STEPS[tutorial_step]["want"]):
 		return
+	# shout the brief confirm for the building that just went up (the card already
+	# shows the NEXT one, so the toast is a reward, not another instruction)
+	notify(str(TUTORIAL_STEPS[tutorial_step].get("done", "✓ Raised.")))
 	tutorial_step += 1
-	if tutorial_step < TUTORIAL_STEPS.size():
-		notify(str(TUTORIAL_STEPS[tutorial_step]["prompt"]))
-	else:
+	if tutorial_step >= TUTORIAL_STEPS.size():
 		tutorial_step = -1
-		notify("✓ You've the way of it now. Deepwood is yours to raise — and when you're ready, find a door in the deep and go down after our people.")
+		# NOW the tells, after the doing: what gates building, and the whole point.
+		notify("You only raise what you hold the PLANS for — the rest lie scattered in the deep, one to a floor. Press [E] at any building to run it, [L] for the village log.")
+		notify("That's the way of it. Now — find a door in the deep and go DOWN, and bring our frozen people home. That is how Deepwood lives again.")
 
 # --- THE RAMPART (dev ask 2026-07-22: "make WALLS bigger... with gate,
 # upgradable... in the beginning it's gotta be weak of course"). One shared tier

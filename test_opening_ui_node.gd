@@ -41,8 +41,45 @@ func _ready() -> void:
 		banner._refresh()
 		check("the 'raise the Farm' ticker is HIDDEN during the opening", not banner._wrap.visible)
 		GameState.opening_done = true
+		GameState.tutorial_step = 0
 		banner._refresh()
-		check("...and it appears once building is the task", banner._wrap.visible)
+		check("...still hidden while the interactive tutorial card is up", not banner._wrap.visible)
+		GameState.tutorial_step = -1
+		banner._refresh()
+		check("...and it appears once building is the task and the tutorial is done", banner._wrap.visible)
+
+	# ---- the interactive tutorial card walks the first builds by DOING ----
+	var tut: Node = null
+	for n in get_tree().current_scene.get_children():
+		if n.get_script() != null and str(n.get_script().resource_path).ends_with("tutorial_overlay.gd"):
+			tut = n
+	check("the tutorial card exists", tut != null)
+	if tut != null:
+		GameState.tutorial_step = -1
+		tut._process(0.0)
+		check("the card is hidden when no tutorial is running", not tut._card.visible)
+		GameState.tutorial_step = 0
+		tut._menu = null            # force it to re-find the ledger (closed)
+		tut._process(0.0)
+		check("step 1 shows the card, naming the WALL", tut._card.visible
+			and tut._title.text.contains("WALL"))
+		check("...and prompts the FIRST action: open the ledger",
+			tut._action.text.contains("[B]"))
+		# open the Builder's Ledger -> the card advances to the place sub-step
+		var menu: Node = null
+		for n in get_tree().current_scene.get_children():
+			if n.get_script() != null and str(n.get_script().resource_path).ends_with("build_menu.gd"):
+				menu = n
+		if menu != null:
+			menu.panel.visible = true
+			tut._menu = menu
+			tut._process(0.0)
+			check("with the ledger open, it prompts to pick + place on GREEN",
+				tut._action.text.contains("GREEN"))
+			menu.panel.visible = false
+		GameState.tutorial_step = -1
+		tut._process(0.0)
+		check("the card falls away when the tutorial finishes", not tut._card.visible)
 
 	# clear the auto-started prologue box so the group is empty for a clean test
 	for b in get_tree().get_nodes_in_group("dialogue_box"):

@@ -48,9 +48,11 @@ func _refresh() -> void:
 		return
 	# This lives in main.tscn, so it is village-only already. Silent (1) through the
 	# whole cinematic OPENING -- no "raise the Farm" nag on a new game's first frame,
-	# only once building becomes the task (opening_done / dev_mode) -- and (2) while
-	# the town is TURNING (the Harvest, when there is only one thing left to do).
-	var show: bool = (GameState.opening_done or GameState.dev_mode) and not GameState.harvest_at_home
+	# only once building becomes the task (opening_done / dev_mode); (2) while the
+	# interactive tutorial card is up (it carries the instructions then, tutorial_step
+	# >= 0); and (3) while the town is TURNING (the Harvest, one thing left to do).
+	var show: bool = (GameState.opening_done or GameState.dev_mode) \
+		and GameState.tutorial_step < 0 and not GameState.harvest_at_home
 	_wrap.visible = show
 	if show:
 		_label.text = "▶  " + GameState.next_objective()
