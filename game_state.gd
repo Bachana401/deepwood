@@ -784,7 +784,12 @@ func torches_lit() -> bool:
 
 # --- Village siege state (autoload-owned so assaults resolve while the player
 # is off in a dungeon) ---
-const SIEGE_FIRST_HOURS = 6.0
+# A full day (24h) is 600s real, so 1 in-game hour ~= 25s. The FIRST wave is a
+# generous grace day-and-a-bit so a new player finishes the tutorial and raises
+# the wall before anything hits (dev 2026-07-23: "wave came too fast" -- it was 6h
+# / ~2.5 real minutes, landing mid-tutorial). The clock also doesn't start until the
+# opening is over (see tick_sieges).
+const SIEGE_FIRST_HOURS = 24.0
 const SIEGE_INTERVAL_HOURS = 12.0
 # Abstract defense model used when a siege resolves OFF-SCREEN (player away):
 # the wizard is a standing defense of SIEGE_DEF_WIZARD; each Barracks warrior
@@ -1665,6 +1670,11 @@ func in_shift_change_window() -> bool:
 func tick_sieges(hours_passed: float) -> void:
 	# The Shadow Court (GAME_BIBLE 11): the raids die with their master.
 	if despair_dead:
+		return
+	# The siege clock does not even START until the opening is over (the prologue,
+	# the arrival fight, the oath, and the build tutorial). A brand-new player is
+	# never hit while still learning to raise the wall (dev 2026-07-23).
+	if not opening_done:
 		return
 	# Leaving for a dungeon abandons any in-progress live battle -- from here on
 	# sieges resolve abstractly until the player is back in the village.

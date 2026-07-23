@@ -44,38 +44,23 @@ const HEROES_BANTER = [
 # trio's hundredth. With the field quiet, they say the thing that makes the
 # whole game happen HERE: there is no way out.
 const ARRIVAL_TRAP = [
-	{"speaker": "Roland", "text": "Easy — breathe. That was the last of tonight's. You swing like someone worth keeping."},
-	{"speaker": "Wren", "text": "Don't thank us yet, stranger. We've been stuck in this valley for weeks. There is no way out."},
-	{"speaker": "Castor", "text": "We tried. Every road out — the horde grows to meet you. Ten becomes a hundred. A hundred becomes a wall."},
-	{"speaker": "Wren", "text": "It's not a siege. It's a cage. Whatever is below sends exactly as much dark as it takes to keep us in."},
-	{"speaker": "Roland", "text": "So we hold this ruin, because there is nothing else to hold. And if you ever want out of this valley alive—"},
-	{"speaker": "Castor", "text": "—there's only one direction left. Down. Through the root of it."},
+	{"speaker": "Roland", "text": "That was the last of tonight's. You can fight — but here's the hard truth: you can't leave."},
+	{"speaker": "Wren", "text": "Every road out, the horde grows to meet you. It's not a siege. It's a cage. There's only one way out: Down. Through the root of it."},
 ]
 
 # THE REVEAL OF THE RUIN (new canon: the 180-degree reality check). The four
 # were all chasing the same rumour of a safe haven -- and a frightened survivor
 # tells them they are already standing in it.
 const DEEPWOOD_REVEAL = [
-	{"speaker": "", "text": "A figure creeps from the wreckage — thin, hollow-eyed, flinching at his own footsteps. He has watched the whole fight from a broken doorway."},
-	{"speaker": "A Survivor", "text": "Wait— WAIT. Don't go looking for the road, travellers. There is nothing out there for you."},
-	{"speaker": "A Survivor", "text": "You're searching for Deepwood, aren't you. Everyone who still breathes is searching for Deepwood. The safe place. The bright place."},
-	{"speaker": "A Survivor", "text": "...Look around you. This IS Deepwood. This is what they left of it. They dragged the strong down into the dark, alive — and killed everyone else."},
-	{"speaker": "", "text": "The word lands like a blade. The haven you crossed a dying world to find — the place where you were finally going to rest — is the ruin you are standing in."},
-	{"speaker": "A Survivor", "text": "But hear me — the best of us did NOT die. The strong-willed — our scholars, our builders, our great hearts — the dark took them ALIVE and froze them in the deep. We named them the Unbreakables."},
-	{"speaker": "A Survivor", "text": "Free them, and Deepwood breathes again. Every one you carry back out of that pit is a piece of the city returning. THAT is how this ends — not by the blade alone, but by bringing our best ones home."},
-	{"speaker": "Roland", "text": "...Then we hold what's left, and we go down after them. Friend — one thing before we dig in. That dark. Does it ever come at us from the east road? Both sides at once?"},
-	{"speaker": "A Survivor", "text": "No. Never the east — that road's been dead quiet since the fall. It only ever claws UP out of the pit, from the deep in the west. Guard the dungeon mouth and you've guarded Deepwood."},
-	{"speaker": "Castor", "text": "One front, then. Small mercy. We watch the west, and we watch it well."},
+	{"speaker": "A Survivor", "text": "You're searching for Deepwood? ...Look around you. You're standing in it. This ruin is what they left of it."},
+	{"speaker": "A Survivor", "text": "But the best of us didn't die. The dark took our strongest ALIVE and froze them in the deep — the Unbreakables. Free them, and Deepwood breathes again. That is how this ends: by bringing our people home."},
+	{"speaker": "A Survivor", "text": "And it only ever claws up from the pit in the WEST — never the east. Guard the dungeon mouth, and you've guarded Deepwood."},
 ]
 
 # THE OATH (new canon: the four swear it together). The plan the whole game
 # executes, said aloud once.
 const THE_OATH = [
-	{"speaker": "Roland", "text": "Then there's nothing left to search for. It was always going to end here."},
-	{"speaker": "Wren", "text": "The world out there is ash. If a safe place is going to exist... someone has to build it."},
-	{"speaker": "You", "text": "Then we build THIS one. Free the taken. Raise the walls. Make Deepwood what the rumour promised — and when it stands, I'm going down after the thing that did this."},
-	{"speaker": "Castor", "text": "Down through a hundred floors of the dark. ...Aye. I've followed worse plans."},
-	{"speaker": "", "text": "No parchment, no ceremony. Four strangers in a dead village, swearing the only oath that matters: it lives again, or none of us leave."},
+	{"speaker": "You", "text": "Then we build THIS one. Free the taken, raise the walls — and when Deepwood stands, I go down after the thing that did this. It lives again, or none of us leave."},
 ]
 
 # BEAT 8 (dev's opening 2026-07-22): the TUTORIAL, spoken by the trio -- how to
