@@ -26,6 +26,12 @@ var hint: Label = null
 func _ready() -> void:
 	z_index = 90
 	add_to_group("build_placer")
+
+# If the village scene is torn down (you dive into a dungeon) while a build/delete
+# is in progress, _clear() never runs -- so clear the flag here, or the player
+# would be unable to attack in the dungeon (it gates on placing_building).
+func _exit_tree() -> void:
+	GameState.placing_building = false
 	ui = CanvasLayer.new()
 	ui.layer = 60
 	add_child(ui)

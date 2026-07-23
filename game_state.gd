@@ -2669,7 +2669,7 @@ func next_objective() -> String:
 	if not is_building_operational("Farm"):
 		if not has_blueprint("Farm"):
 			return "Find the Farm's blueprint below"
-		return "Raise the Farm — stand at its ruins and press F"
+		return "Raise the Farm — open the Build menu (B) and place it"
 	if farm_worker_count() == 0 and dock_worker_count() == 0:
 		return "Put someone to work at the Farm (E → assign) so food grows itself"
 	if village_food <= 0.0:
@@ -2679,17 +2679,17 @@ func next_objective() -> String:
 		if not v.get("is_kid", false) and villager_home_id(str(v.get("id", ""))) == "":
 			homeless += 1
 	if not is_building_operational("Hospital") and has_blueprint("Hospital"):
-		return "Raise the Hospital — wounds do not heal on their own here"
+		return "Raise the Hospital (Build menu: B) — wounds do not heal on their own here"
 	if homeless >= 4:
 		return "Raise a cottage at the staked plot — %d sleep rough" % homeless
 	if rescued_villagers.size() < 8:
 		return "Descend and free the taken — every soul is a pair of hands"
 	if not is_building_operational("Barracks") and has_blueprint("Barracks"):
-		return "Raise the Barracks — the nights are getting worse"
+		return "Raise the Barracks (Build menu: B) — the nights are getting worse"
 	if watchtower_tier < 1:
 		return "Raise the Watchtower — you cannot plan around a siege you can't see"
 	if not is_building_operational("Government"):
-		return "The Government makes the village's own gold — raise it when you can"
+		return "The Government makes the village's own gold — raise it (Build menu: B) when you can"
 	var ruined := count_ruined_buildings()
 	if ruined > 0:
 		return "%d building%s still in ruins — Deepwood deserves to stand whole" % [ruined, "" if ruined == 1 else "s"]
