@@ -60,6 +60,19 @@ func _ready() -> void:
 	await get_tree().process_frame
 	check("a drop into empty space does NOT delete the item",
 		p.inventory.get_count("wood") == wbefore)
+	# and the bin REFUSES currency -- a fat-fingered drag can't nuke your gold
+	p.inventory.add_item("coin_gold", 50)
+	var gidx := -1
+	for i in range(p.inventory.slots.size()):
+		var s3 = p.inventory.slots[i]
+		if s3 != null and str(s3.item_id) == "coin_gold":
+			gidx = i; break
+	var gbefore: int = p.inventory.get_count("coin_gold")
+	DragState.start_drag(p.inventory, gidx)
+	DragState.perform_drop(ui.trash_zone.get_global_rect().get_center())
+	await get_tree().process_frame
+	check("the bin refuses to discard COIN (no accidental gold loss)",
+		p.inventory.get_count("coin_gold") == gbefore, "gold %d -> %d" % [gbefore, p.inventory.get_count("coin_gold")])
 
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

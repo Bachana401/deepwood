@@ -102,6 +102,13 @@ func perform_drop(mouse_pos: Vector2) -> void:
 				and source_inventory != null and source_index >= 0:
 			var s = source_inventory.slots[source_index]
 			if s != null:
+				# NEVER let a fat-fingered drag delete your money -- coins go back
+				if Inventory.get_category(str(s.item_id)) == "currency":
+					var stk = get_tree().get_first_node_in_group("notification_stack")
+					if stk: stk.show_notification("You can't throw away coin.")
+					refresh_all_panels()
+					cancel_drag()
+					return
 				var nm: String = Inventory.get_display_name(str(s.item_id))
 				source_inventory.slots[source_index] = null
 				var stack = get_tree().get_first_node_in_group("notification_stack")
