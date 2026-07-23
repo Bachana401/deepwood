@@ -78,6 +78,19 @@ const THE_OATH = [
 	{"speaker": "", "text": "No parchment, no ceremony. Four strangers in a dead village, swearing the only oath that matters: it lives again, or none of us leave."},
 ]
 
+# BEAT 8 (dev's opening 2026-07-22): the TUTORIAL, spoken by the trio -- how to
+# build, what the keys do, and the shape of the whole game. Deliberately NOT
+# everything; the rest is learned with a blade in hand.
+const TUTORIAL_INTRO = [
+	{"speaker": "Roland", "text": "Right — if we're doing this, you'll want to know HOW. I'll say it once, so listen."},
+	{"speaker": "Roland", "text": "Press [B] for the Builder's Ledger. Every building we can raise is there by name — hover one to read what it costs and what it's for."},
+	{"speaker": "Wren", "text": "Pick one and a ghost of it follows your cursor. GREEN, it'll stand there; RED, it won't — bad ground, or right on top of something. Left-click on green to raise it. Right-click to change your mind."},
+	{"speaker": "Castor", "text": "Raise a WALL first — the dark climbs up out of the pit to the WEST, so that's the gate that needs stone. Then a Farm so we eat, and a cottage or two so the ones we save have a bed."},
+	{"speaker": "Roland", "text": "Walk up to any building and press [E] to run it — set folk to work, upgrade it, buy from the forge. Press [L] any time to read the village's ledger: what's happening, who we've lost, what's owed."},
+	{"speaker": "Castor", "text": "The rest you learn with a blade. Down in the deep are doors to a hundred floors, and behind them — our people, the Unbreakables. Free them, raise this ruin around us..."},
+	{"speaker": "Roland", "text": "...and Deepwood lives again. That's the whole of it, stranger. Now — let's build."},
+]
+
 # THE FAILED ESCAPE (2.4.1 beat 3) -- the player tries the road out himself and
 # barely survives it. One-shot.
 const FAILED_ESCAPE = [

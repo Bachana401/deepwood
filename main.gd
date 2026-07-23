@@ -663,7 +663,10 @@ func play_arrival_talk(pl: Node) -> void:
 	# oath the whole game executes, sworn aloud once
 	DialogueBox.play(pl, Story.ARRIVAL_TRAP, func():
 		DialogueBox.play(pl, Story.DEEPWOOD_REVEAL, func():
-			DialogueBox.play(pl, Story.THE_OATH)))
+			DialogueBox.play(pl, Story.THE_OATH, func():
+				# beat 8: the oath sworn, the trio teach the player the ropes
+				DialogueBox.play(pl, Story.TUTORIAL_INTRO, func():
+					GameState.notify("Press B to raise your first building — start with a Wall at the west gate.")))))
 
 # NG+ arrival: one line the moment the rewound player wakes, then the world
 # treats them like any first arrival. Transient flag -- never saved, so a
