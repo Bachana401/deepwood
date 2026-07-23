@@ -265,6 +265,8 @@ func _ready() -> void:
 	max_health = int(round(data["hp"] * wave_hp_multiplier))
 	health = max_health
 	attack_damage = int(round(data["dmg"] * wave_damage_multiplier))
+	if kind != "flyer":                       # a floating mob has nothing to cast on
+		preload("res://char_shadow.gd").attach(self, 0.5, 0.0)
 	reward = data["reward"]
 	xp_reward = data["xp"]
 	move_speed = data["speed"] * wave_speed_multiplier

@@ -142,6 +142,7 @@ func _ready() -> void:
 		queue_free()
 		return
 	add_to_group("village_defender")
+	preload("res://char_shadow.gd").attach(self, 0.5, 22.0)  # grounding shadow at his feet
 	# layer 0 = the player's weapons/arrows can never hit him (he's friendly);
 	# mask 1 so he still rests on the ground. Future siege enemies will hurt him
 	# through the public take_damage() below.

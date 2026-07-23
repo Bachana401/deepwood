@@ -94,6 +94,7 @@ func _ready() -> void:
 	ability = str(def.get("ability", ""))
 	var st = GameState.adventurer_state(adventurer_id)
 	station = str(st.get("station", "city"))
+	preload("res://char_shadow.gd").attach(self, 0.45, 0.0)  # grounding shadow (feet at y0)
 	# Spread + desync (dev report: the three starters "stick to each other,
 	# sometimes run away"). All three default to the "city" post, so they aimed
 	# for the SAME village-centre point and paced it in perfect lockstep -- a

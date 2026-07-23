@@ -138,6 +138,7 @@ func _ready() -> void:
 		add_to_group("siege_enemy")
 		collision_layer = 4   # course-enemy layer -> the player's weapons hit it
 	collision_mask = 1        # collide with ground only
+	preload("res://char_shadow.gd").attach(self, 0.5, 0.0)   # grounding shadow (feet at y0)
 	health = max_health
 
 	var shape = CollisionShape2D.new()
