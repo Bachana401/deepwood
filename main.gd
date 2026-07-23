@@ -376,7 +376,10 @@ func generate_village() -> void:
 		# A FEW ICONIC RUINS ONLY (dev 2026-07-23): the fallen city shows a handful of
 		# landmark ruins; every other site starts as OPEN GROUND you raise from the B
 		# menu. A building the player has already placed always returns to its spot.
-		if not (def.name in ICONIC_STARTER_RUINS) and not GameState.building_positions.has(def.name):
+		# dev_mode keeps ALL 15 standing (the sandbox test-populates workers into every
+		# building, so they must all exist).
+		if not GameState.dev_mode and not (def.name in ICONIC_STARTER_RUINS) \
+				and not GameState.building_positions.has(def.name):
 			cursor += reserve + VILLAGE_GAP
 			continue
 		var building = BUILDING_SCRIPT.new()
