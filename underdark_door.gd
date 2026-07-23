@@ -9,6 +9,11 @@ var target_level := 1
 var player_inside := false
 var prompt: Label = null
 var rune: ColorRect = null
+# THE WAY FORWARD (dev ask 2026-07-22: "1 main way clearly indicating to go for
+# floors"). Exactly one door -- the deepest floor you can currently enter -- wears
+# a tall beacon of light so, in a cave of many doors, the next step is never a
+# guess. It updates live as you clear floors and the frontier moves on.
+var beacon: Node2D = null
 
 func _ready() -> void:
 	collision_mask = 2
@@ -53,12 +58,50 @@ func _build_visual() -> void:
 	prompt.visible = false
 	prompt.z_index = 5
 	add_child(prompt)
+	_build_beacon()
+
+# A tall, soft column of gold light rising from the arch, capped by a slowly
+# bobbing chevron pointing down at the door -- the "go here next" marker. Built
+# hidden; only the frontier door shows it (see _process). Additive, so it reads
+# as light against the dark; a single cheap tween drives the bob + pulse.
+func _build_beacon() -> void:
+	beacon = Node2D.new()
+	beacon.visible = false
+	beacon.z_index = -3
+	add_child(beacon)
+	var add_mat := CanvasItemMaterial.new()
+	add_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	# the column: a few stacked bars, brightest at the base, fading up
+	for i in range(6):
+		var bar := ColorRect.new()
+		var wdt := 26.0 - i * 3.0
+		bar.size = Vector2(wdt, 66.0)
+		bar.position = Vector2(-wdt / 2.0, -150.0 - i * 62.0)
+		bar.color = Color(1.0, 0.82, 0.4, 0.16 - i * 0.02)
+		bar.material = add_mat
+		beacon.add_child(bar)
+	# the bobbing chevron above the arch
+	var chevron := Polygon2D.new()
+	chevron.polygon = PackedVector2Array([Vector2(-16, -18), Vector2(16, -18), Vector2(0, 0)])
+	chevron.color = Color(1.0, 0.85, 0.45, 0.95)
+	chevron.material = add_mat
+	chevron.position = Vector2(0, -132.0)
+	beacon.add_child(chevron)
+	var t := create_tween().set_loops()
+	t.tween_property(chevron, "position:y", -120.0, 0.9).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	t.tween_property(chevron, "position:y", -132.0, 0.9).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 func _unlocked() -> bool:
 	return target_level <= GameState.highest_unlocked_level
 
+# The single door worth beaconing: the deepest floor you can currently enter.
+func _is_frontier() -> bool:
+	return target_level == GameState.highest_unlocked_level
+
 func _process(_delta: float) -> void:
 	rune.color = Color(0.95, 0.78, 0.3, 0.9) if _unlocked() else Color(0.3, 0.5, 0.85, 0.7)
+	if beacon != null:
+		beacon.visible = _is_frontier()
 	if not player_inside:
 		return
 	if Input.is_action_just_pressed("interact"):
