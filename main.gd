@@ -435,10 +435,16 @@ func generate_houses() -> void:
 	# cottage row's far end is the second gate. Placed past the last lot the
 	# plot can ever fill (cottage_plot caps at 15 raised), so homes never
 	# outgrow their wall.
-	var east_wall = preload("res://wall.tscn").instantiate()
-	east_wall.flank = "east"
-	east_wall.position = Vector2(start_x + (HOUSE_COUNT + 16) * HOUSE_SPACING + 60.0, VILLAGE_Y)
-	add_child(east_wall)
+	# ...but the east front only WAKES once Orin is freed (clear floor 15, see
+	# siege_manager two_fronts). Before that the wall is pointless clutter on a
+	# side nothing attacks, so don't raise it yet (dev 2026-07-22: "delete right
+	# side wall, we won't need it till level 15 anyway"). The village scene
+	# rebuilds on every return from the deep, so it appears the trip after Orin.
+	if GameState.orin_arrived():
+		var east_wall = preload("res://wall.tscn").instantiate()
+		east_wall.flank = "east"
+		east_wall.position = Vector2(start_x + (HOUSE_COUNT + 16) * HOUSE_SPACING + 60.0, VILLAGE_Y)
+		add_child(east_wall)
 
 # NPC world avatars are runtime-only nodes -- nothing about them is written
 # to the save file, so a fresh scene boot (New Game OR Continue) starts with
