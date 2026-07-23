@@ -3483,6 +3483,12 @@ func find_available_parents() -> Dictionary:
 	for villager in rescued_villagers:
 		if villager.get("paired", false) or villager.get("is_kid", false):
 			continue
+		# The Ten are LEGENDS, not settlers (dev sweep 2026-07-23): without this,
+		# pressing E on a cottage could draft Maera or Brannoc as a parent -- paired
+		# for life, avatar removed, pulled into the cradle cycle. The Unbreakables
+		# walk the village; they don't disappear into a cottage to start a family.
+		if villager.get("unbreakable", false):
+			continue
 		# 5.8: a widow(er) cannot be re-paired until the mourning has passed
 		if villager.has("widowed_at_hours") and game_hours < float(villager["widowed_at_hours"]) + WIDOW_MOURN_HOURS:
 			continue
