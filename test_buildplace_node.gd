@@ -89,5 +89,25 @@ func _ready() -> void:
 			found_home = true; break
 	check("...and it stands in the village", found_home)
 
+	# ---- a WALL builds a rampart on chosen ground + persists ----
+	check("the player holds the Wall blueprint", GameState.has_blueprint("Wall"))
+	var walls0: int = GameState.placed_walls.size()
+	var wx := 0.0
+	for cand in range(int(west) + 300, 24000, 40):
+		if GameState.can_place_building(get_tree(), 64.0, float(cand)):
+			wx = float(cand); break
+	for k in GameState.build_cost("Wall"):
+		p.inventory.add_item(k, int(GameState.build_cost("Wall")[k]) + 2)
+	placer.start_build("Wall", 64.0, 132.0, Color(0.5, 0.5, 0.55))
+	placer._try_place(wx)
+	await get_tree().process_frame
+	check("building a Wall records a placed rampart", GameState.placed_walls.size() == walls0 + 1,
+		"%d -> %d" % [walls0, GameState.placed_walls.size()])
+	var found_wall := false
+	for w2 in get_tree().get_nodes_in_group("village_wall"):
+		if is_instance_valid(w2) and absf(w2.global_position.x - wx) < 2.0:
+			found_wall = true; break
+	check("...and the rampart stands in the village", found_wall)
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

@@ -25,6 +25,7 @@ const PURPOSE := {
 	"Mine": "digs stone and ore from under the hills",
 	"Shrine": "where sorrow-crystals are cleansed",
 	"Cottage": "a family's home",
+	"Wall": "a rampart the siege breaks against — raise one at the gate the wave comes from",
 	"Watchtower": "eyes on the horizon — early siege warning",
 	"Wanderer's Post": "draws wanderers in from the roads",
 }
@@ -177,6 +178,8 @@ func refresh() -> void:
 	# grouping (dev ask 2026-07-22). The Cottage has no pre-placed node, so first.
 	if GameState.has_blueprint("Cottage"):
 		rows_box.add_child(_build_row("Cottage", null))
+	if GameState.has_blueprint("Wall"):
+		rows_box.add_child(_build_row("Wall", null))
 	var by_name := {}
 	for b in get_tree().get_nodes_in_group("building"):
 		if "building_name" in b:
@@ -214,6 +217,10 @@ func _on_build_pressed(bn: String, node, built: bool) -> void:
 	if bn == "Cottage":
 		panel.visible = false
 		_placer().start_build("Cottage", 90.0, 80.0, Color(0.58, 0.5, 0.35))
+		return
+	if bn == "Wall":
+		panel.visible = false
+		_placer().start_build("Wall", 64.0, 132.0, Color(0.5, 0.5, 0.55))
 		return
 	if built:
 		_set_detail("The %s is already built. (Delete it first if you want to move it.)" % bn)

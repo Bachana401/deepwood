@@ -975,6 +975,8 @@ const BUILD_BASE_COST := {"coin_gold": 60, "wood": 16, "stone": 8}
 func build_cost(bname: String) -> Dictionary:
 	if bname == "Cottage":
 		return {"coin_gold": 30, "wood": 12}          # a home is cheap
+	if bname == "Wall":
+		return {"coin_gold": 40, "stone": 24, "wood": 8}   # a rampart is stone + timber
 	return BUILD_BASE_COST
 
 func can_afford_build(bname: String, player: Node) -> bool:
@@ -1149,6 +1151,10 @@ var extra_cottages: int = 0         # cottages RAISED beyond the starting row (5
 # Index j lines up with the j-th extra cottage; a cottage without a stored spot
 # falls back to the old end-of-row slot. Persisted so a placed home stays put.
 var extra_cottage_positions: Array = []
+# Ramparts the player has BUILT from the menu (walls start removed now — dev
+# 2026-07-22 "build them in the tutorial"). Each is {"x": float, "flank": String};
+# main.gd re-raises them on every scene build, so a built wall stays where it was.
+var placed_walls: Array = []
 
 func villager_name(vid: String) -> String:
 	for v in rescued_villagers:
@@ -2742,7 +2748,7 @@ func play_sfx(stream: AudioStream, pitch := 1.0, at = null) -> void:
 # floors paced by the dependency ladder (5.7.1), everything in hand by
 # floor 30 -- deliberately early, so no building arrives too late to
 # matter. Old saves know everything (additive default).
-const BLUEPRINT_STARTERS = ["Farm", "Tavern", "Builderhouse", "Cottage"]
+const BLUEPRINT_STARTERS = ["Farm", "Tavern", "Builderhouse", "Cottage", "Wall"]
 const BLUEPRINT_FLOORS = {
 	2: "Hospital", 4: "School", 6: "Fishing Dock", 8: "Barracks",
 	10: "Science Lab", 11: "Bar", 13: "Mine", 16: "Blacksmith",
@@ -3907,6 +3913,7 @@ func reset_for_new_game() -> void:
 	cottage_homes = {}
 	extra_cottages = 0
 	extra_cottage_positions = []
+	placed_walls = []
 	_family_cycle_accum = 0.0
 	village_log = []
 	log_unread = 0
@@ -4073,6 +4080,7 @@ func save_game(player: Node) -> void:
 		"cottage_homes": cottage_homes,
 		"extra_cottages": extra_cottages,
 		"extra_cottage_positions": extra_cottage_positions,
+		"placed_walls": placed_walls,
 		"village_log": village_log,
 		"log_unread": log_unread,
 		"wage_accum_hours": wage_accum_hours,
@@ -4185,6 +4193,11 @@ func load_game() -> Dictionary:
 		if parsed.has("extra_cottage_positions") and parsed["extra_cottage_positions"] is Array:
 			for cx in parsed["extra_cottage_positions"]:
 				extra_cottage_positions.append(float(cx))
+		placed_walls = []
+		if parsed.has("placed_walls") and parsed["placed_walls"] is Array:
+			for w in parsed["placed_walls"]:
+				if w is Dictionary and w.has("x"):
+					placed_walls.append({"x": float(w["x"]), "flank": str(w.get("flank", "west"))})
 		if parsed.has("village_log") and parsed["village_log"] is Array:
 			village_log = parsed["village_log"]
 		log_unread = int(parsed.get("log_unread", 0))

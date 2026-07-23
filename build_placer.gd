@@ -26,15 +26,15 @@ var hint: Label = null
 func _ready() -> void:
 	z_index = 90
 	add_to_group("build_placer")
+	ui = CanvasLayer.new()
+	ui.layer = 60
+	add_child(ui)
 
 # If the village scene is torn down (you dive into a dungeon) while a build/delete
 # is in progress, _clear() never runs -- so clear the flag here, or the player
 # would be unable to attack in the dungeon (it gates on placing_building).
 func _exit_tree() -> void:
 	GameState.placing_building = false
-	ui = CanvasLayer.new()
-	ui.layer = 60
-	add_child(ui)
 
 func start_build(bname: String, w: float, h: float, col: Color) -> void:
 	_clear()
@@ -109,6 +109,28 @@ func _try_place(x: float) -> void:
 		if stack: stack.show_notification("Not enough materials for the %s." % build_name)
 		return
 	GameState.pay_build(build_name, p)
+	# A WALL is raised fresh (walls start removed now). Its flank faces OUTWARD --
+	# west if placed left of the village's middle, east if right -- and it persists
+	# in GameState.placed_walls so main.gd re-raises it on every scene build.
+	if build_name == "Wall":
+		var wall = preload("res://wall.tscn").instantiate()
+		var lo := INF
+		var hi := -INF
+		for b in get_tree().get_nodes_in_group("building"):
+			lo = minf(lo, b.global_position.x)
+			hi = maxf(hi, b.global_position.x)
+		var center: float = (lo + hi) * 0.5 if lo != INF else 7000.0
+		wall.flank = "west" if x < center else "east"
+		wall.position = Vector2(x, VILLAGE_Y)
+		var vil = get_tree().current_scene.get_node_or_null("Village")
+		(vil if vil != null else get_tree().current_scene).add_child(wall)
+		GameState.placed_walls.append({"x": x, "flank": str(wall.flank)})
+		GameState.play_sfx(GameState.SFX_YES, 1.0)
+		var stk = get_tree().get_first_node_in_group("notification_stack")
+		if stk: stk.show_notification("🧱 A rampart rises.")
+		GameState.log_event("village", "A wall was raised from the build menu.")
+		_clear()
+		return
 	# A COTTAGE has no pre-placed ruin -- build a brand-new home on the chosen spot
 	# and remember its ground so it comes back there (see main.generate_houses).
 	if build_name == "Cottage":

@@ -453,6 +453,12 @@ func generate_houses() -> void:
 		east_wall.flank = "east"
 		east_wall.position = Vector2(start_x + (HOUSE_COUNT + 16) * HOUSE_SPACING + 60.0, VILLAGE_Y)
 		add_child(east_wall)
+	# player-built ramparts (build menu) come back on the ground they were raised
+	for wdata in GameState.placed_walls:
+		var pwall = preload("res://wall.tscn").instantiate()
+		pwall.flank = str(wdata.get("flank", "west"))
+		pwall.position = Vector2(float(wdata.get("x", 4700.0)), VILLAGE_Y)
+		add_child(pwall)
 
 # NPC world avatars are runtime-only nodes -- nothing about them is written
 # to the save file, so a fresh scene boot (New Game OR Continue) starts with
