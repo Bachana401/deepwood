@@ -611,5 +611,27 @@ func _ready() -> void:
 	GameState.hours_until_next_siege = saved_siege_hours
 	GameState.village_log = saved_log2
 
+	# ---- heroes de-glue + they actually ANIMATE (dev: "only idle, still glued") ----
+	var advs := get_tree().get_nodes_in_group("adventurer")
+	if advs.size() >= 2:
+		var a0 = advs[0]
+		var a1 = advs[1]
+		a0.global_position.x = 12000.0
+		a1.global_position.x = 12000.0        # exactly stacked, off in empty ground
+		for i in range(80):
+			a0._separate()
+			a1._separate()
+		var gap: float = absf(a0.global_position.x - a1.global_position.x)
+		check("two stacked heroes ease apart instead of gluing", gap >= a0.PERSONAL_SPACE * 0.8,
+			"gap %.1f" % gap)
+		if a0._skin_sprite != null:
+			var sf = a0._skin_sprite.sprite_frames
+			check("a hero's skin carries a WALK animation to play",
+				sf != null and sf.has_animation("walk"))
+			a0._update_adv_anim(true)
+			check("moving swaps the hero into WALK", str(a0._skin_sprite.animation) == "walk")
+			a0._update_adv_anim(false)
+			check("resting swaps the hero back to IDLE", str(a0._skin_sprite.animation) == "idle")
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

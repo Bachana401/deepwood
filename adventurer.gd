@@ -297,9 +297,35 @@ func _physics_process(delta: float) -> void:
 	else:
 		_hold_station(delta)
 	_separate()
+	# play WALK while moving, IDLE at rest (the frames were always there -- the
+	# hero just never left idle). velocity is final here, after _separate.
+	_update_adv_anim(absf(velocity.x) > 8.0)
 	_update_hp_bar()
 	_tick_bark(delta, target != null)
 	move_and_slide()
+
+# The villager skins carry idle + walk but NO attack frames, so: swap the sprite
+# between walk/idle from movement, and sell the swing with a procedural lunge.
+func _update_adv_anim(moving: bool) -> void:
+	if _skin_sprite == null:
+		return
+	var sf: SpriteFrames = _skin_sprite.sprite_frames
+	var want := "walk" if moving else "idle"
+	if sf != null and sf.has_animation(want) and _skin_sprite.animation != want:
+		_skin_sprite.play(want)
+
+# A short forward jab of the body -- the attack "animation" for a skin that has no
+# attack strip (dev: "no attack"). Reads as a swing without new art.
+func _swing_lunge() -> void:
+	var node: Node2D = _skin_sprite if _skin_sprite != null else body_rect
+	if node == null:
+		return
+	var face := signf(_skin_sprite.scale.x) if _skin_sprite != null else 1.0
+	if face == 0.0:
+		face = 1.0
+	var t := node.create_tween()
+	t.tween_property(node, "position:x", 10.0 * face, 0.07)
+	t.tween_property(node, "position:x", 0.0, 0.13)
 
 # Two defenders converging on one raider used to end up standing INSIDE each
 # other -- two cloaked sprites drawn on the same pixel read as one glued blob
@@ -316,11 +342,12 @@ func _separate() -> void:
 		if absf(dx) < PERSONAL_SPACE:
 			# ties broken by name so the pair never shove each other the same way
 			var push := signf(dx) if absf(dx) > 0.5 else (1.0 if adventurer_id > str(other.adventurer_id) else -1.0)
-			velocity.x += push * 90.0
-			# ALWAYS ease apart by POSITION too (dev: "heroes collide mostly"),
-			# proportional to the overlap -- the velocity nudge alone lost to their
-			# pull toward the same post and left them stacked. This can't be beaten.
-			global_position.x += push * (PERSONAL_SPACE - absf(dx)) * 0.10
+			velocity.x += push * 140.0
+			# ALWAYS ease apart by POSITION too (dev: "heroes STILL glued"), a firm
+			# fraction of the overlap so it wins even while both are pulled onto the
+			# same target -- combined with the combat stand-off slot in _fight below,
+			# co-fighting heroes fan out around a raider instead of stacking on it.
+			global_position.x += push * (PERSONAL_SPACE - absf(dx)) * 0.28
 
 # A line now and then, when the player is close and nothing is trying to kill
 # anyone. Long random gaps so twelve of them never turn into a crowd scene.
@@ -516,11 +543,22 @@ func _second_raider(first: Node2D) -> Node2D:
 	return best
 
 func _fight(target: Node2D) -> void:
-	var dist := global_position.distance_to(target.global_position)
+	# face the raider so the sprite (and the swing lunge) point the right way
+	var tface := 1.0 if target.global_position.x >= global_position.x else -1.0
+	if _skin_sprite:
+		_skin_sprite.scale.x = absf(_skin_sprite.scale.x) * tface
+	elif body_rect:
+		body_rect.scale.x = tface
 	var is_bow := str(def.get("weapon", "blade")) == "bow"
 	var reach := BOW_RANGE if is_bow else ATTACK_RANGE
-	if dist > reach:
-		velocity.x = signf(target.global_position.x - global_position.x) * WALK_SPEED * 1.35
+	# a COMBAT STAND-OFF SLOT (dev: "heroes glued"): don't march onto the raider's
+	# exact x -- aim for a per-hero offset beside it, so several heroes attacking one
+	# raider fan out along the reach instead of piling on the same pixel.
+	var slot := clampf(_post_offset * 0.5, -reach * 0.7, reach * 0.7)
+	var stand_x := target.global_position.x + slot
+	var dist := absf(stand_x - global_position.x)
+	if dist > reach * 0.6:
+		velocity.x = signf(stand_x - global_position.x) * WALK_SPEED * 1.35
 		return
 	velocity.x = 0.0
 	if attack_cd > 0.0:
@@ -539,6 +577,7 @@ func _fight(target: Node2D) -> void:
 					_loose_arrow(second, dmg)
 	elif target.has_method("take_damage"):
 		play_sfx(SFX_SPEAR if str(def.get("weapon", "blade")) == "spear" else SFX_SWORD)
+		_swing_lunge()   # the swing, since the skin has no attack strip
 		# Bottom-Seen: a wounded raider is not fought, it is FINISHED
 		if ability == "bottom_seen" and "health" in target and "max_health" in target \
 				and float(target.health) <= float(target.max_health) * EXECUTE_FRAC:
