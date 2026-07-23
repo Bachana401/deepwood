@@ -957,7 +957,22 @@ func building_removed(bname: String) -> bool:
 
 func remove_building(bname: String) -> void:
 	removed_buildings[bname] = true
+	# UNASSIGN its workers (dev 2026-07-23 hole): deleting a building left its
+	# villagers with a role_key pointing at nothing -- still counted as "employed",
+	# still drawing wages (tick_wages pays anyone with a role_key), producing
+	# nothing, and awkward to reassign. Set them idle so the roster is honest.
+	var freed := 0
+	for v in rescued_villagers:
+		if str(v.get("role_key", "")) == bname:
+			v["role_key"] = ""
+			v["role_title"] = ""
+			freed += 1
+	# kids schooled here lose their desk too (the School is gone)
+	if bname == "School":
+		school_enrollments.clear()
 	log_event("village", "%s was cleared away — its ground stands empty now." % bname)
+	if freed > 0:
+		log_event("village", "%d worker%s laid off — the %s no longer stands." % [freed, "s" if freed != 1 else "", bname])
 
 func restore_building(bname: String) -> void:
 	removed_buildings.erase(bname)

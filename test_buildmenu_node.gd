@@ -29,6 +29,19 @@ func _ready() -> void:
 	GameState.restore_building("Bar")
 	check("restore un-records it", not GameState.building_removed("Bar"))
 
+	# ---- razing a building LAYS OFF its workers (no phantom wage-drawing jobs) ----
+	GameState.rescued_villagers = [
+		{"id": "w1", "name": "Alden", "role_key": "Bar", "role_title": "Barkeep"},
+		{"id": "w2", "name": "Bryn", "role_key": "Farm", "role_title": "Farmer"},
+	]
+	GameState.remove_building("Bar")
+	check("razing a building clears its workers' jobs",
+		str(GameState.rescued_villagers[0].get("role_key", "")) == "")
+	check("...but leaves other buildings' workers alone",
+		str(GameState.rescued_villagers[1].get("role_key", "")) == "Farm")
+	GameState.restore_building("Bar")
+	GameState.rescued_villagers = []
+
 	# ---- razing takes the live site out of the world (the menu's own helper) ----
 	var target := ""
 	for b in get_tree().get_nodes_in_group("building"):
