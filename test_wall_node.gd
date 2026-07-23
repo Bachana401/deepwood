@@ -20,6 +20,15 @@ func _ready() -> void:
 		if p != null: break
 	if p == null: printerr("no player"); get_tree().quit(1); return
 
+	# walls START REMOVED now (buildable from the B menu, dev 2026-07-22) -- raise
+	# one so the live rampart's HP can be checked against the tier below.
+	if get_tree().get_first_node_in_group("village_wall") == null:
+		var w = preload("res://wall.tscn").instantiate()
+		w.flank = "west"
+		w.position = Vector2(4700.0, -39.0)
+		get_tree().current_scene.add_child(w)
+		await get_tree().process_frame
+
 	# ---- TIER 1 IS WEAK ----
 	GameState.wall_level = 1
 	check("the wall starts weak — tier 1 is 350 HP", GameState.wall_max_health() == 350,
@@ -33,7 +42,11 @@ func _ready() -> void:
 	p.inventory.add_item("coin_gold", 200)
 	p.inventory.add_item("stone", 30)
 	p.inventory.add_item("iron_shard", 6)
+	# measure what the upgrade SPENDS (deltas) -- the player may already hold some
+	# stone from the founder's cache, so absolute counts aren't reliable
 	var g0: int = p.inventory.get_count("coin_gold")
+	var stone0: int = p.inventory.get_count("stone")
+	var iron0: int = p.inventory.get_count("iron_shard")
 	check("with the materials in hand, tier 2 is affordable", GameState.can_afford_wall_upgrade(p))
 	check("raising the rampart to tier 2 succeeds", GameState.try_upgrade_wall(p))
 	check("the wall is now tier 2", GameState.wall_level == 2)
@@ -42,11 +55,11 @@ func _ready() -> void:
 	check("tier 2 adds worth (1.5), traps (8 dps) and posts (4)",
 		GameState.wall_defense_bonus() == 1.5 and GameState.wall_trap_dps() == 8.0
 		and GameState.wall_station_capacity() == 4)
-	check("the upgrade spent the gold", p.inventory.get_count("coin_gold") == g0 - 120,
-		"gold left %d" % p.inventory.get_count("coin_gold"))
+	check("the upgrade spent the gold", g0 - p.inventory.get_count("coin_gold") == 120,
+		"gold spent %d" % (g0 - p.inventory.get_count("coin_gold")))
 	check("the upgrade spent the stone + iron",
-		p.inventory.get_count("stone") == 10 and p.inventory.get_count("iron_shard") == 2,
-		"stone %d iron %d" % [p.inventory.get_count("stone"), p.inventory.get_count("iron_shard")])
+		stone0 - p.inventory.get_count("stone") == 20 and iron0 - p.inventory.get_count("iron_shard") == 4,
+		"stone spent %d iron spent %d" % [stone0 - p.inventory.get_count("stone"), iron0 - p.inventory.get_count("iron_shard")])
 
 	# ---- the LIVE wall in the scene followed the tier ----
 	var wall = get_tree().get_first_node_in_group("village_wall")
