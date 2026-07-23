@@ -143,6 +143,13 @@ func rescue() -> void:
 		pl.inventory.add_item("sorrowshard", shards)
 		SpeechText.spawn(self, "+%d Sorrowshard" % shards)
 	spawn_world_avatar()
+	# A rescue is hard-won -- bank it NOW. The autosave is otherwise only every 180s
+	# (and on floor-clear), so freeing someone then pressing Continue before that
+	# fired brought the shattered Sorrow-Crystal BACK, the freed villager gone with it
+	# (dev 2026-07-23: "after releasing them they should not be visible" on Continue).
+	# is_villager_rescued() already gates the crystal's respawn; this makes the roster
+	# entry it reads durable the instant you free them.
+	GameState.autosave("freed %s" % villager_name)
 	# the backstory is the villager SPEAKING -- floating text at their body,
 	# not a corner notification. The mechanical reward stays WRAPPED (4.2a):
 	# no stat in the toast; the reveal happens when they thaw at home.

@@ -62,6 +62,9 @@ func _process(_delta: float) -> void:
 
 func _free() -> void:
 	GameState.rescue_adventurer(adventurer_id)
+	# bank the rescue NOW so Continue can't undo it (autosave is otherwise every
+	# 180s) -- same durability fix as the Sorrow-Crystal villagers, dev 2026-07-23
+	GameState.autosave("freed %s" % str(Adventurers.get_def(adventurer_id).get("name", "an adventurer")))
 	var def = Adventurers.get_def(adventurer_id)
 	var stack = get_tree().get_first_node_in_group("notification_stack")
 	if stack and str(def.get("line", "")) != "":

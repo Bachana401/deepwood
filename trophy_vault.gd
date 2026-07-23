@@ -87,6 +87,9 @@ func _process(_delta: float) -> void:
 
 func _free() -> void:
 	GameState.free_one_of_the_ten(ten_id)
+	# freeing one of the Ten is a permanent boon -- bank it NOW so Continue can't
+	# undo it (autosave is otherwise every 180s), dev 2026-07-23
+	GameState.autosave("freed %s of the Ten" % str(TheTen.get_def(ten_id).get("name", "one")))
 	var def = TheTen.get_def(ten_id)
 	var stack = get_tree().get_first_node_in_group("notification_stack")
 	if stack and str(def.get("line", "")) != "":
