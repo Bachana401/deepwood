@@ -31,6 +31,25 @@ func _ready() -> void:
 			if n.has_method("finish") and n.has_method("show_line"):
 				n.finish(); break
 
+	# Blacksmith + Bar are NON-iconic, so a fresh village now starts them as open
+	# ground (dev 2026-07-23) rather than standing ruins. Raise them the way the B
+	# menu does, so their living-building lights (the forge's 3 fires, the Bar's lit
+	# sign) have a facade to attach to. Await enough frames for _ready to run and the
+	# nodes to join the "building" group before the finish loop below iterates it.
+	var scene := get_tree().current_scene
+	if scene != null and scene.has_method("create_building"):
+		var wx := 6000.0
+		for want in ["Blacksmith", "Bar"]:
+			var have := false
+			for b in get_tree().get_nodes_in_group("building"):
+				if b.building_name == want:
+					have = true; break
+			if not have:
+				scene.create_building(want, wx)
+			wx += 320.0
+	for i in range(12):
+		await get_tree().process_frame
+
 	# finish every building (what the admin P panel does)
 	for b in get_tree().get_nodes_in_group("building"):
 		if not ("building_level" in b):

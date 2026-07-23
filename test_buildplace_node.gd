@@ -152,6 +152,26 @@ func _ready() -> void:
 			found_wall = true; break
 	check("...and the rampart stands in the village", found_wall)
 
+	# ---- ONE rampart per flank: a second wall on a walled flank is refused (dev
+	# 2026-07-23: "at level 15 the player can place 2 walls" -- the duplicate) ----
+	var wflank := placer._flank_for_x(wx)
+	check("the flank now reads as walled", placer._flank_has_wall(wflank))
+	var wx2 := 0.0
+	for cand2 in range(int(west) + 200, 26000, 40):
+		var c := float(cand2)
+		if placer._flank_for_x(c) == wflank and absf(c - wx) > 140.0 \
+				and GameState.can_place_building(get_tree(), 64.0, c, null, true):
+			wx2 = c; break
+	if wx2 > 0.0:
+		var before2: int = GameState.placed_walls.size()
+		for k in GameState.build_cost("Wall"):
+			p.inventory.add_item(k, int(GameState.build_cost("Wall")[k]) + 2)
+		placer.start_build("Wall", 64.0, 132.0, Color(0.5, 0.5, 0.55))
+		placer._try_place(wx2)
+		await get_tree().process_frame
+		check("a SECOND wall on the same flank is refused — no duplicate rampart",
+			GameState.placed_walls.size() == before2, "%d walls" % GameState.placed_walls.size())
+
 	# ---- a Wall is DELETABLE too now (dev 2026-07-23) ----
 	var wall_node: Node = null
 	for w3 in get_tree().get_nodes_in_group("village_wall"):
@@ -160,6 +180,19 @@ func _ready() -> void:
 	if wall_node != null:
 		var wbefore: int = GameState.placed_walls.size()
 		check("the delete tool finds a WALL", placer._building_at(wall_node.global_position.x) == wall_node)
+		check("a player-RAISED wall is recognised as deletable",
+			placer._wall_is_player_placed(wall_node))
+		# the town's OWN rampart (the Orin-gated east gate) is NOT in placed_walls, so
+		# a stray delete-click must be refused -- forge one far from any placed entry
+		# and confirm the guard rejects it (else a misclick strips a flank mid-siege)
+		var town_wall = load("res://wall.tscn").instantiate()
+		town_wall.flank = "east"
+		town_wall.position = Vector2(wall_node.global_position.x + 5000.0, wall_node.global_position.y)
+		get_tree().current_scene.add_child(town_wall)
+		await get_tree().process_frame
+		check("the town's own rampart is NOT deletable (guard holds)",
+			not placer._wall_is_player_placed(town_wall))
+		town_wall.queue_free()
 		placer._do_delete(wall_node, placer._delete_kind(wall_node))
 		check("deleting a wall removes it from placed_walls", GameState.placed_walls.size() == wbefore - 1)
 	await get_tree().process_frame
@@ -197,10 +230,10 @@ func _ready() -> void:
 		_has_building(reb) and not GameState.building_removed(reb))
 
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
+	get_tree().quit(1 if fails > 0 else 0)
 
 func _has_building(bn: String) -> bool:
 	for b in get_tree().get_nodes_in_group("building"):
 		if "building_name" in b and str(b.building_name) == bn:
 			return true
 	return false
-	get_tree().quit(1 if fails > 0 else 0)

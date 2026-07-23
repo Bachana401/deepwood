@@ -302,7 +302,11 @@ func _physics_process(delta: float) -> void:
 	_update_hp_bar()
 	_tick_bark(delta, target != null)
 	move_and_slide()
-	_separate()   # AFTER the move, so the AI's pull can never undo it (dev x4)
+	# NO peer separation (dev 2026-07-23: "every NPC passes through each other like
+	# the player does, no collision"). Heroes never collide with each other, and we
+	# don't shove them apart either -- they overlap and pass through freely. The
+	# combat stand-off SLOT in _fight still fans co-attackers to distinct spots, so
+	# they read as separate bodies without ever pushing.
 
 # The villager skins carry idle + walk but NO attack frames, so: swap the sprite
 # between walk/idle from movement, and sell the swing with a procedural lunge.
@@ -327,27 +331,9 @@ func _swing_lunge() -> void:
 	t.tween_property(node, "position:x", 10.0 * face, 0.07)
 	t.tween_property(node, "position:x", 0.0, 0.13)
 
-# Two defenders converging on one raider used to end up standing INSIDE each
-# other -- two cloaked sprites on the same pixel read as one glued blob (dev's
-# report, FOUR times). This runs AFTER move_and_slide, so it is the final word on
-# position: any two heroes closer than PERSONAL_SPACE are shoved to exactly that
-# gap THIS frame (each moves half the overlap). The AI's pull toward a shared
-# target can never undo it, so they can never stack -- they always read as three
-# separate bodies. They still don't physically collide, so they slide past freely.
-const PERSONAL_SPACE := 52.0     # a clear gap for the wide cloaked sprites
-
-func _separate() -> void:
-	for other in get_tree().get_nodes_in_group("adventurer"):
-		if other == self or not is_instance_valid(other):
-			continue
-		if "is_dead" in other and other.is_dead:
-			continue
-		var dx: float = global_position.x - other.global_position.x
-		if absf(dx) < PERSONAL_SPACE:
-			# ties broken by name so the pair never shove each other the same way
-			var push := signf(dx) if absf(dx) > 0.5 else (1.0 if adventurer_id > str(other.adventurer_id) else -1.0)
-			# HARD: each moves half the overlap -> the pair ends a full gap apart
-			global_position.x += push * (PERSONAL_SPACE - absf(dx)) * 0.5
+# (Peer separation was REMOVED 2026-07-23 on dev's call: "every NPC passes through
+# each other like the player, no collision." Heroes overlap and pass through freely;
+# the _fight stand-off slot is what keeps co-attackers reading as separate bodies.)
 
 # A line now and then, when the player is close and nothing is trying to kill
 # anyone. Long random gaps so twelve of them never turn into a crowd scene.
@@ -458,8 +444,8 @@ func _hold_station(delta: float) -> void:
 			patrol_dir *= -1.0
 	_ensure_anchor()
 	var dest := home_x + (_post_offset + patrol_off if station == "city" else _post_offset * 0.5)
-	# (mutual spacing is handled every frame by _separate(), called from
-	# _physics_process -- see PERSONAL_SPACE)
+	# (heroes pass through each other freely -- no peer collision, no separation
+	# push; their own _post_offset just gives each a slightly different resting spot)
 	var dx := dest - global_position.x
 	velocity.x = clampf(dx, -WALK_SPEED, WALK_SPEED) if absf(dx) > 6.0 else 0.0
 	if absf(velocity.x) > 1.0:

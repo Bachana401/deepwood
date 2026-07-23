@@ -560,9 +560,12 @@ func _ready() -> void:
 		FileAccess.open("res://siege_enemy.gd", FileAccess.READ).get_as_text().contains("east_face_x() + ATTACK_STOP_GAP"))
 	check("both ramparts get patched between assaults",
 		sm.contains("for wall in get_tree().get_nodes_in_group(\"village_wall\")"))
-	check("the east rampart rises past the last cottage lot",
-		FileAccess.open("res://main.gd", FileAccess.READ).get_as_text().contains("east_wall.flank = \"east\"")
-		and FileAccess.open("res://cottage_plot.gd", FileAccess.READ).get_as_text().contains("MAX_RAISED"))
+	check("the east rampart is the PLAYER'S to raise — NOT auto-spawned at floor 15",
+		not FileAccess.open("res://main.gd", FileAccess.READ).get_as_text().contains("east_wall.flank = \"east\""))
+	check("a flank that already has a rampart refuses a SECOND (upgrade, don't stack)",
+		FileAccess.open("res://build_placer.gd", FileAccess.READ).get_as_text().contains("_flank_has_wall"))
+	check("cottages cap so the row can't sprawl past the walls",
+		FileAccess.open("res://cottage_plot.gd", FileAccess.READ).get_as_text().contains("MAX_RAISED"))
 	check("wall-stationed adventurers split between the two ramparts",
 		FileAccess.open("res://adventurer.gd", FileAccess.READ).get_as_text().contains("hash(adventurer_id) % walls.size()"))
 	GameState.game_hours = saved_hours2
@@ -611,31 +614,25 @@ func _ready() -> void:
 	GameState.hours_until_next_siege = saved_siege_hours
 	GameState.village_log = saved_log2
 
-	# ---- heroes de-glue (dev: "STILL glued", x4) ----
-	# TWO parts, because the bug shipped 4 times hiding between them:
-	# (1) the MATH -- _separate() must actually push two stacked heroes to a full
-	#     gap; (2) the ORDERING -- it must run AFTER move_and_slide, or the AI pull
-	#     undoes it every frame (the real cause). A source check locks the order,
-	#     since a live physics sim can't run headless (the village re-pauses the tree).
+	# ---- every NPC passes THROUGH every other, no collision (dev 2026-07-23:
+	# "just like the player passes through them and doesn't collide, I want them to
+	# do the same with each other"). This REVERSES the old separation-push: two
+	# heroes may share a spot and stay there. We assert the absence of the push and
+	# that heroes sit off the collision layer, so nothing ever blocks a peer.
 	var advs := get_tree().get_nodes_in_group("adventurer")
 	if advs.size() >= 2:
 		var a0 = advs[0]
 		var a1 = advs[1]
-		a0.global_position.x = 12000.0
-		a1.global_position.x = 12000.0        # exactly stacked, off in empty ground
-		for i in range(6):                    # a HARD push clears it in a few frames
-			a0._separate()
-			a1._separate()
-		var gap: float = absf(a0.global_position.x - a1.global_position.x)
-		check("_separate() shoves two stacked heroes to a full gap", gap >= a0.PERSONAL_SPACE * 0.9,
-			"gap %.1f" % gap)
+		check("heroes sit OFF the collision layer — they never physically block a peer",
+			a0.collision_layer == 0)
+		check("...and the separation shove is GONE — stacked heroes pass through, not apart",
+			not a0.has_method("_separate"))
 		var advtxt := FileAccess.open("res://adventurer.gd", FileAccess.READ).get_as_text()
-		check("...and it runs AFTER move_and_slide (or the AI pull undoes it — the 4x bug)",
-			advtxt.contains("move_and_slide()\n\t_separate()"))
-		check("...as a HARD push (half the overlap each), not a weak nudge",
-			advtxt.contains("(PERSONAL_SPACE - absf(dx)) * 0.5"))
+		check("no PERSONAL_SPACE push survives in the hero source",
+			not advtxt.contains("PERSONAL_SPACE"))
 		var npctxt := FileAccess.open("res://npc.gd", FileAccess.READ).get_as_text()
-		check("villagers separate hard too", npctxt.contains("(VILLAGER_SPACE - absf(dx)) * 0.5"))
+		check("villagers likewise have no separation shove — they overlap freely too",
+			not npctxt.contains("_separate_from_peers") and not npctxt.contains("VILLAGER_SPACE"))
 		if a0._skin_sprite != null:
 			var sf = a0._skin_sprite.sprite_frames
 			check("a hero's skin carries a WALK animation to play",

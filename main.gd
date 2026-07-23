@@ -487,20 +487,14 @@ func generate_houses() -> void:
 	pit_road.marker_label = "the village"
 	pit_road.position = Vector2(-180.0, VILLAGE_Y)
 	add_child(pit_road)
-	# 7.2: the EAST rampart -- the village is besieged from BOTH ends, and the
-	# cottage row's far end is the second gate. Placed past the last lot the
-	# plot can ever fill (cottage_plot caps at 15 raised), so homes never
-	# outgrow their wall.
-	# ...but the east front only WAKES once Orin is freed (clear floor 15, see
-	# siege_manager two_fronts). Before that the wall is pointless clutter on a
-	# side nothing attacks, so don't raise it yet (dev 2026-07-22: "delete right
-	# side wall, we won't need it till level 15 anyway"). The village scene
-	# rebuilds on every return from the deep, so it appears the trip after Orin.
-	if GameState.orin_arrived():
-		var east_wall = preload("res://wall.tscn").instantiate()
-		east_wall.flank = "east"
-		east_wall.position = Vector2(start_x + (HOUSE_COUNT + 16) * HOUSE_SPACING + 60.0, VILLAGE_Y)
-		add_child(east_wall)
+	# 7.2: the village is besieged from BOTH ends -- the west gate the pit-road
+	# breaks against, and the cottage row's far (east) end, which opens as a second
+	# front once Orin is freed (clear floor 15, see siege_manager two_fronts).
+	# BOTH ramparts are the PLAYER'S to raise now (dev 2026-07-23): the east wall is
+	# NO LONGER auto-spawned at floor 15. When the east front wakes you raise the east
+	# rampart yourself from the B menu, exactly like the west -- it returns below with
+	# the rest of placed_walls. (This ended the "two walls at level 15" overlap, where
+	# the auto wall stacked on top of any east wall the player had already built.)
 	# player-built ramparts (build menu) come back on the ground they were raised
 	for wdata in GameState.placed_walls:
 		var pwall = preload("res://wall.tscn").instantiate()

@@ -477,23 +477,11 @@ func die() -> void:
 	if not is_queued_for_deletion():
 		queue_free()
 
-const VILLAGER_SPACE := 46.0
-
-# Keep villagers from standing INSIDE each other (dev: "NPCs collide", repeatedly).
-# They don't physically collide (collision_layer 0, the player passes through them
-# the same), so any pair overlapping is shoved to a full gap by POSITION -- a HARD
-# push (each moves half the overlap this frame), so it dominates their slow wander
-# and can't be undone. They read as separate people, and still slide past freely.
-func _separate_from_peers() -> void:
-	for other in get_tree().get_nodes_in_group("npc"):
-		if other == self or not is_instance_valid(other):
-			continue
-		if ("is_in_building" in other and other.is_in_building):
-			continue
-		var dx: float = global_position.x - other.global_position.x
-		if absf(dx) < VILLAGER_SPACE:
-			var push: float = signf(dx) if absf(dx) > 0.5 else (1.0 if str(name) > str(other.name) else -1.0)
-			global_position.x += push * (VILLAGER_SPACE - absf(dx)) * 0.5
+# (Peer separation was REMOVED 2026-07-23 on dev's call: "every NPC passes through
+# each other like the player, no collision." Villagers overlap and pass through each
+# other freely -- collision_layer 0 already means they never physically collide, and
+# we no longer shove them apart either. Their own wander sends them to their own
+# spots, so they read as a crowd rather than a single glued blob.)
 
 func _physics_process(delta: float) -> void:
 	if is_in_building:
@@ -501,7 +489,6 @@ func _physics_process(delta: float) -> void:
 		return
 	# indoors is safe; out here, anything that gets its hands on you gets hit
 	_tick_defence(delta)
-	_separate_from_peers()          # don't pile onto other villagers (dev: "NPCs collide")
 
 	# En route to a building visit: march straight to the door, then slip in.
 	if door_target != null:

@@ -105,6 +105,15 @@ func _try_place(x: float) -> void:
 	if not GameState.can_place_building(get_tree(), build_w, x, null, build_name == "Wall"):
 		if stack: stack.show_notification("Can't build there — need clear ground inside the walls.")
 		return
+	# ONE rampart per flank (dev 2026-07-23: "at level 15 the player can place 2
+	# walls"). A flank that already holds a wall can't take a second -- you UPGRADE the
+	# standing rampart at the gate (press E), you never stack a fresh one beside it.
+	# Checked BEFORE we charge, so a refused placement costs nothing.
+	if build_name == "Wall":
+		var f := _flank_for_x(x)
+		if _flank_has_wall(f):
+			if stack: stack.show_notification("The %s rampart already stands — upgrade it at the gate (press E)." % f)
+			return
 	if p == null or not GameState.can_afford_build(build_name, p):
 		if stack: stack.show_notification("Not enough materials for the %s." % build_name)
 		return
@@ -114,13 +123,7 @@ func _try_place(x: float) -> void:
 	# in GameState.placed_walls so main.gd re-raises it on every scene build.
 	if build_name == "Wall":
 		var wall = preload("res://wall.tscn").instantiate()
-		var lo := INF
-		var hi := -INF
-		for b in get_tree().get_nodes_in_group("building"):
-			lo = minf(lo, b.global_position.x)
-			hi = maxf(hi, b.global_position.x)
-		var center: float = (lo + hi) * 0.5 if lo != INF else 7000.0
-		wall.flank = "west" if x < center else "east"
+		wall.flank = _flank_for_x(x)
 		wall.position = Vector2(x, VILLAGE_Y)
 		var vil = get_tree().current_scene.get_node_or_null("Village")
 		(vil if vil != null else get_tree().current_scene).add_child(wall)
@@ -218,6 +221,42 @@ func _delete_label(target, kind: String) -> String:
 		"cottage": return "cottage"
 		_: return str(target.building_name)
 
+# A wall you RAISED (it lives in placed_walls) can be pulled down; any wall NOT in
+# placed_walls is the town's own and must never be deletable, so a misclick can't
+# queue_free a rampart GameState still believes stands (its defence gone mid-siege,
+# silently re-raised only on the next reload). Player-built is now the norm -- this
+# stays as the invariant guard for any future non-placed rampart (dev 2026-07-23).
+func _wall_is_player_placed(target) -> bool:
+	for entry in GameState.placed_walls:
+		if absf(float(entry.get("x", 0.0)) - target.global_position.x) <= 8.0:
+			return true
+	return false
+
+# The village's mid-x, from the spread of its buildings. A wall placed left of it
+# guards the WEST (pit-road) gate; right of it, the EAST gate that wakes at floor 15.
+func _village_center_x() -> float:
+	var lo := INF
+	var hi := -INF
+	for b in get_tree().get_nodes_in_group("building"):
+		lo = minf(lo, b.global_position.x)
+		hi = maxf(hi, b.global_position.x)
+	return (lo + hi) * 0.5 if lo != INF else 7000.0
+
+func _flank_for_x(x: float) -> String:
+	return "west" if x < _village_center_x() else "east"
+
+# True if this flank already holds a rampart -- checked against BOTH the live nodes
+# and placed_walls, so a second placement is refused even before the first wall's
+# _ready has joined it to the "village_wall" group.
+func _flank_has_wall(flank: String) -> bool:
+	for w in get_tree().get_nodes_in_group("village_wall"):
+		if is_instance_valid(w) and "flank" in w and str(w.flank) == flank:
+			return true
+	for entry in GameState.placed_walls:
+		if str(entry.get("flank", "")) == flank:
+			return true
+	return false
+
 func _do_delete(target, kind: String) -> void:
 	match kind:
 		"building":
@@ -234,6 +273,13 @@ func _do_delete(target, kind: String) -> void:
 func _confirm_delete(target: Node) -> void:
 	_confirming = true          # stop _input swallowing the YES/NO clicks
 	var kind := _delete_kind(target)
+	# the town's OWN rampart (not one you raised) can't be torn down -- refuse before
+	# the confirm even opens, so a stray click can't strip a flank's defence
+	if kind == "wall" and not _wall_is_player_placed(target):
+		_confirming = false
+		var stk = get_tree().get_first_node_in_group("notification_stack")
+		if stk: stk.show_notification("The town's own rampart holds the line — it can't be pulled down.")
+		return
 	var label := _delete_label(target, kind)
 	var panel := Panel.new()
 	panel.anchor_left = 0.5; panel.anchor_right = 0.5
