@@ -1,5 +1,9 @@
 extends Node
-# Rubble clearing (E x3 reveals a nameless ruin) + the Builder's Ledger (B).
+# RUINS ARE PURELY VISUAL + the flat Builder's Ledger (B). (Rewritten 2026-07-22:
+# the old model -- E×3 to clear a nameless heap, a ledger grouped by what a site
+# needs with a bearing to walk to -- was replaced. A ruin is now inert decor you
+# raise or delete from the B menu, and the ledger is a plain A-Z list of buildings
+# by NAME. This test asserts THAT reality.)
 
 var fails := 0
 
@@ -33,7 +37,7 @@ func _ready() -> void:
 		keep_running()
 		await get_tree().process_frame
 
-	# a genuinely fresh village: nothing cleared, nothing built
+	# a genuinely fresh village: nothing built, every site a ruin
 	GameState.reset_for_new_game()
 	var b: Node = null
 	for n in get_tree().get_nodes_in_group("building"):
@@ -44,50 +48,37 @@ func _ready() -> void:
 		printerr("RESULT: 1 FAILURES"); get_tree().quit(1); return
 	b.current_state = b.compute_visual_state()
 	b.rebuild_geometry()
+	b.update_name_label()
 	await get_tree().process_frame
 
-	# ---- anonymous rubble ----
-	check("a fresh ruin is NOT cleared", not GameState.building_is_cleared("Farm"))
-	check("no name floats over uncleared rubble", not b.name_label.visible)
-	check("the rubble mounds are on the ground", b.rubble_layer != null
+	# ---- a ruin is PURELY VISUAL: rubble on the ground, no name, no prompt ----
+	check("a fresh site reads as a ruin", b.is_ruined())
+	check("a fresh ruin is NOT counted as cleared", not GameState.building_is_cleared("Farm"))
+	check("the rubble mounds still render on the ground", b.rubble_layer != null
 		and b.rubble_layer.get_child_count() > 0)
+	check("no name floats over the ruin", not b.name_label.visible)
 	b.update_prompt()
-	check("the prompt asks for E, not F", b.prompt_label.text.begins_with("Press E to clear"),
-		"'%s'" % b.prompt_label.text)
+	check("an inert ruin shows NO prompt at all (never 'Press E to clear')",
+		not b.prompt_label.visible and b.prompt_label.text == "",
+		"visible=%s text='%s'" % [b.prompt_label.visible, b.prompt_label.text])
 
-	# ---- three shovelfuls (the work lockout is real time, so wait it out) ----
-	for i in range(3):
-		b.attempt_clear_rubble()
-		check("clear %d/3 registered" % (i + 1),
-			GameState.building_clear_progress("Farm") == i + 1,
-			"got %d" % GameState.building_clear_progress("Farm"))
-		await get_tree().create_timer(b.CLEAR_WORK_SECONDS + 0.1).timeout
-	check("spamming E past 3 does nothing weird", GameState.building_clear_progress("Farm") == 3)
-
-	# ---- the reveal ----
-	check("the site is now cleared", GameState.building_is_cleared("Farm"))
-	check("the name appears only now", b.name_label.visible)
-	check("the rubble is gone", b.rubble_layer == null)
-	b.update_prompt()
-	check("the prompt moves on from clearing", not b.prompt_label.text.begins_with("Press E to clear"),
-		"'%s'" % b.prompt_label.text)
-
-	# ---- an already-standing building never demands a shovel ----
+	# ---- a standing building is not a ruin and shows its name ----
 	GameState.building_stage["Bar"] = GameState.TOTAL_BUILD_STAGES
-	check("a standing building counts as cleared without shovelling",
-		GameState.building_is_cleared("Bar"))
+	var bar: Node = null
+	for n in get_tree().get_nodes_in_group("building"):
+		if n.building_name == "Bar":
+			bar = n
+	if bar != null:
+		bar.build_stage = GameState.TOTAL_BUILD_STAGES   # sync the node to the state
+		bar.current_state = bar.compute_visual_state()
+		bar.rebuild_geometry()
+		bar.update_name_label()
+		await get_tree().process_frame
+		check("a standing building is no longer a ruin", not bar.is_ruined())
+		check("...and it counts as cleared", GameState.building_is_cleared("Bar"))
+		check("...and its name shows", bar.name_label.visible)
 
-	# ---- save / load round trip ----
-	GameState.save_game(p)
-	GameState.building_cleared["Farm"] = 0
-	GameState.load_game()
-	check("clearing survives save/load", GameState.building_clear_progress("Farm") == 3,
-		"got %d" % GameState.building_clear_progress("Farm"))
-	# ...and a New Game starts with every site buried again
-	GameState.reset_for_new_game()
-	check("a NEW game starts uncleared", not GameState.building_is_cleared("Farm"))
-
-	# ---- the Builder's Ledger ----
+	# ---- the Builder's Ledger is a FLAT list of buildings by name ----
 	var menu: Node = null
 	for n in get_tree().current_scene.get_children():
 		if n.get_script() != null and str(n.get_script().resource_path).ends_with("build_menu.gd"):
@@ -100,52 +91,48 @@ func _ready() -> void:
 		var joined: String = _all_text(menu.rows_box)
 		check("the ledger lists the sites", menu.rows_box.get_child_count() >= 10,
 			"%d rows" % menu.rows_box.get_child_count())
-		check("uncleared sites keep their secret in the ledger too",
-			joined.contains("an unrecognisable ruin"))
-		check("uncleared sites never leak their purpose",
-			not joined.contains("grows the food"))
-		# ---- the polish pass (2026-07-21): a list of identical lines is not a
-		# menu. Sites are grouped by what they NEED, and every row carries a
-		# bearing, because eleven anonymous heaps you cannot find are useless.
-		check("sites are grouped by what they need from you",
-			joined.contains("BURIED — needs clearing"))
-		check("...with a count on the group", joined.contains("(15)") or joined.contains("("))
-		check("every site says where to walk", joined.contains("paces") or joined.contains("right here"))
-		GameState.building_cleared["Farm"] = GameState.CLEAR_STEPS
-		menu.refresh()
-		await get_tree().process_frame
-		joined = _all_text(menu.rows_box)
-		check("a cleared site shows its name in the ledger", joined.contains("Farm"))
-		check("a cleared site moves OUT of the buried group",
-			joined.contains("CLEARED") or joined.contains("READY TO BUILD"))
-		# half-dug rubble reads as progress, not as another identical heap
-		GameState.building_cleared["Bank"] = 2
-		menu.refresh()
-		await get_tree().process_frame
-		check("half-cleared rubble shows how far you got",
-			_all_text(menu.rows_box).contains("2/3 cleared"))
-		check("...and its one-line purpose", joined.contains("grows the food"))
+		# the FLAT model: every site is named outright, no "unrecognisable ruin",
+		# no group headers, no walking bearings
+		check("sites are named outright, no anonymous heaps", joined.contains("Farm")
+			and not joined.contains("an unrecognisable ruin"))
+		check("no grouping headers", not joined.contains("BURIED — needs clearing")
+			and not joined.contains("READY TO BUILD"))
+		check("no walking bearings", not joined.contains("paces"))
+		# a starter you hold the plans for offers a priced Build...
+		check("a starter offers a priced Build", joined.contains("Farm")
+			and joined.contains("Build ("))
+		# ...and Cottage + Wall are buildable rows of their own (not world nodes)
+		check("Cottage is a buildable row", joined.contains("Cottage"))
+		check("Wall is a buildable row", joined.contains("Wall"))
+		# a building whose blueprint is still lost reads so, with no Build offer
+		check("a blueprint you lack reads 'blueprint not found'",
+			joined.contains("blueprint not found"))
+		# a standing building reads as built, not as a build target
+		check("a standing building shows as built", joined.contains("✓ built"))
 		menu.panel.visible = false
 
-	# every building named in the ledger's purpose map must actually exist
+	# every building named in the ledger's purpose map must resolve to a real
+	# building OR a known buildable/dynamic site (Cottage + Wall are placed fresh
+	# from the menu; the Watchtower bell + Wanderer's Post counter are sub-features)
 	var known := {}
 	for n in get_tree().get_nodes_in_group("building"):
 		known[n.building_name] = true
-	for bn in ["Cottage", "Watchtower", "Wanderer's Post"]:
-		known[bn] = true      # spawned later / dynamically, purposes still valid
+	for bn in ["Cottage", "Wall", "Watchtower", "Wanderer's Post"]:
+		known[bn] = true
 	if menu != null:
 		for bn in menu.PURPOSE.keys():
-			check("ledger purpose '%s' names a real building" % bn, known.has(bn))
+			check("ledger purpose '%s' resolves to a real site" % bn, known.has(bn))
 
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)
 
-# The ledger nests its name label inside an HBox (name on the left, bearing on
-# the right), so a one-level scrape misses exactly the text that matters.
+# The ledger nests labels inside buttons/boxes, so a one-level scrape misses text.
 func _all_text(node: Node) -> String:
 	var out := ""
 	for c in node.get_children():
 		if c is Label:
+			out += c.text + "\n"
+		if c is Button:
 			out += c.text + "\n"
 		out += _all_text(c)
 	return out
