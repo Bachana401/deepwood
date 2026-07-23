@@ -1180,6 +1180,14 @@ func update_health_bar() -> void:
 		fill.size.x = 40 * health_percent
 
 func die() -> void:
+	# Guard + flag FIRST (dev 2026-07-23 hardening): set is_dead at the TOP, not 40
+	# lines down after the reward logic. Callers already gate on is_dead, but this way
+	# a future await added anywhere in here can never let a DoT tick re-enter die() and
+	# double-pay drops/XP or double-emit `died` (a double-emit would crater a siege's
+	# alive_count / a floor's kill count). Bulletproof regardless of call path.
+	if is_dead:
+		return
+	is_dead = true
 	# damage_multiplier is the VILLAGE respawn-generation scaler; the deep
 	# pays through depth_reward_mult instead (flat-8-at-floor-90 bug)
 	var depth: float = GameState.depth_reward_mult()
@@ -1222,7 +1230,6 @@ func die() -> void:
 				hero.inventory.add_item("potion_health", 1)
 			if randf() < 0.12:
 				hero.inventory.add_item("potion_mana", 1)
-	is_dead = true
 	is_attacking = false
 	$CollisionShape2D.set_deferred("disabled", true)
 	play_sfx(SFX_DEATH)
