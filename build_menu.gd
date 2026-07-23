@@ -160,6 +160,10 @@ func refresh() -> void:
 		c.queue_free()
 	var player := get_tree().get_first_node_in_group("player")
 	var here: float = player.global_position.x if player != null else 0.0
+	# RAISE A HOME (dev 2026-07-22): the Cottage is no pre-placed ruin, so it gets
+	# its own always-available Build row -- you hold its blueprint.
+	if GameState.has_blueprint("Cottage"):
+		rows_box.add_child(_cottage_row())
 	# every real building site currently in the world, bucketed by what it needs
 	var buckets := {}
 	var total := 0
@@ -230,6 +234,43 @@ func _bearing(dx: float) -> String:
 	if absf(dx) < 90.0:
 		return "right here"
 	return "%d paces %s" % [int(absf(dx) / 10.0), "east" if dx > 0.0 else "west"]
+
+func _cottage_row() -> Control:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+	var h := Label.new()
+	h.text = "RAISE A HOME"
+	h.add_theme_font_size_override("font_size", 12)
+	h.add_theme_color_override("font_color", Color(0.72, 0.84, 0.72))
+	box.add_child(h)
+	var line := HBoxContainer.new()
+	var lbl := Label.new()
+	lbl.text = "Cottage — a home for a family"
+	lbl.add_theme_font_size_override("font_size", 14)
+	lbl.add_theme_color_override("font_color", Color(0.88, 0.88, 0.92))
+	lbl.custom_minimum_size = Vector2(300, 0)
+	line.add_child(lbl)
+	var cost := Label.new()
+	cost.text = _cost_text("Cottage")
+	cost.add_theme_font_size_override("font_size", 11)
+	cost.add_theme_color_override("font_color", Color(0.7, 0.7, 0.6))
+	cost.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	cost.custom_minimum_size = Vector2(100, 0)
+	line.add_child(cost)
+	var build := Button.new()
+	build.text = "Build (%s)" % _cost_text("Cottage")
+	build.custom_minimum_size = Vector2(180, 0)
+	build.add_theme_font_size_override("font_size", 11)
+	build.pressed.connect(func() -> void:
+		panel.visible = false
+		_placer().start_build("Cottage", 90.0, 80.0, Color(0.58, 0.5, 0.35)))
+	line.add_child(build)
+	box.add_child(line)
+	var rule := ColorRect.new()
+	rule.custom_minimum_size = Vector2(600, 1)
+	rule.color = Color(0.35, 0.4, 0.35, 0.5)
+	box.add_child(rule)
+	return box
 
 func _cost_text(bn: String) -> String:
 	var parts := PackedStringArray()

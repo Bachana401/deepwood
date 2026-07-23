@@ -7,6 +7,13 @@ extends Node2D
 # a CanvasLayer child carries the on-screen hint + the confirm panel.
 
 const VILLAGE_Y := -39.0
+const HOUSE_SCRIPT = preload("res://house.gd")
+const HOUSE_PALETTES = [
+	{"body": Color(0.62, 0.48, 0.32, 1), "roof": Color(0.48, 0.24, 0.18, 1)},
+	{"body": Color(0.55, 0.42, 0.5, 1), "roof": Color(0.4, 0.22, 0.32, 1)},
+	{"body": Color(0.42, 0.5, 0.42, 1), "roof": Color(0.28, 0.36, 0.24, 1)},
+	{"body": Color(0.58, 0.5, 0.35, 1), "roof": Color(0.42, 0.3, 0.16, 1)},
+]
 
 var mode := ""              # "" | "build" | "delete"
 var build_name := ""
@@ -86,6 +93,26 @@ func _try_place(x: float) -> void:
 		if stack: stack.show_notification("Not enough materials for the %s." % build_name)
 		return
 	GameState.pay_build(build_name, p)
+	# A COTTAGE has no pre-placed ruin -- build a brand-new home on the chosen spot
+	# and remember its ground so it comes back there (see main.generate_houses).
+	if build_name == "Cottage":
+		var pal = HOUSE_PALETTES[GameState.extra_cottages % HOUSE_PALETTES.size()]
+		var home = HOUSE_SCRIPT.new()
+		home.house_id = "menu_house_%d" % GameState.extra_cottages
+		home.house_name = "Cottage %d" % (6 + GameState.extra_cottages)
+		home.body_color = pal.body
+		home.roof_color = pal.roof
+		home.position = Vector2(x, VILLAGE_Y)
+		var village = get_tree().current_scene.get_node_or_null("Village")
+		(village if village != null else get_tree().current_scene).add_child(home)
+		GameState.extra_cottage_positions.append(x)
+		GameState.extra_cottages += 1
+		GameState.play_sfx(GameState.SFX_YES, 1.0)
+		var st = get_tree().get_first_node_in_group("notification_stack")
+		if st: st.show_notification("🏠 A new cottage is raised.")
+		GameState.log_event("village", "A cottage was raised from the build menu.")
+		_clear()
+		return
 	# raise it at the chosen spot: the site exists as a ruin, so move it + finish it
 	GameState.building_positions[build_name] = x
 	GameState.building_cleared[build_name] = GameState.CLEAR_STEPS

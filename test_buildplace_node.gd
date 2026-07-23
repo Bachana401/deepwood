@@ -66,5 +66,28 @@ func _ready() -> void:
 	check("...on the ground you chose", absf(float(GameState.building_positions.get(bn, -1.0)) - clear_x) < 1.0)
 	check("...and it charged the materials", p.inventory.get_count("coin_gold") < gold0)
 
+	# ---- a COTTAGE builds a BRAND-NEW home on chosen ground (dev ask) ----
+	check("the player holds the Cottage blueprint", GameState.has_blueprint("Cottage"))
+	var cott0: int = GameState.extra_cottages
+	var cx := 0.0
+	for cand in range(int(west) + 260, 24000, 40):
+		if GameState.can_place_building(get_tree(), 90.0, float(cand)):
+			cx = float(cand); break
+	for k in GameState.build_cost("Cottage"):
+		p.inventory.add_item(k, int(GameState.build_cost("Cottage")[k]) + 1)
+	placer.start_build("Cottage", 90.0, 80.0, Color(0.58, 0.5, 0.35))
+	placer._try_place(cx)
+	await get_tree().process_frame
+	check("building a Cottage raises a NEW home", GameState.extra_cottages == cott0 + 1,
+		"%d -> %d" % [cott0, GameState.extra_cottages])
+	check("...remembered on the chosen ground",
+		GameState.extra_cottage_positions.size() > 0
+		and absf(float(GameState.extra_cottage_positions[-1]) - cx) < 1.0)
+	var found_home := false
+	for n in get_tree().current_scene.find_children("*", "", true, false):
+		if "house_id" in n and str(n.house_id).begins_with("menu_house_"):
+			found_home = true; break
+	check("...and it stands in the village", found_home)
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

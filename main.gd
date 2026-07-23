@@ -412,7 +412,12 @@ func generate_houses() -> void:
 		extra.house_name = "Cottage %d" % (HOUSE_COUNT + idx)
 		extra.body_color = palette2.body
 		extra.roof_color = palette2.roof
-		extra.position = Vector2(start_x + (HOUSE_COUNT + j) * HOUSE_SPACING, VILLAGE_Y)
+		# menu-built cottages come back on the ground the player chose; the old
+		# end-of-row slot is only the fallback for any without a saved spot
+		var ecx: float = start_x + (HOUSE_COUNT + j) * HOUSE_SPACING
+		if j < GameState.extra_cottage_positions.size():
+			ecx = float(GameState.extra_cottage_positions[j])
+		extra.position = Vector2(ecx, VILLAGE_Y)
 		$Village.add_child(extra)
 	# ...and the empty plot at the row's end is where the NEXT one rises
 	var plot = preload("res://cottage_plot.gd").new()

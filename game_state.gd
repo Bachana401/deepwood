@@ -1141,6 +1141,10 @@ const ROT_SAFE_FLOOR := 1.5
 const WIDOW_MORALE_HIT := 3.0       # canon: -3, decaying back over the mourning
 var cottage_homes: Dictionary = {}  # house_id -> {"a": id, "b": id}, permanent
 var extra_cottages: int = 0         # cottages RAISED beyond the starting row (5.8: built, not free)
+# Freeform ground the player chose for menu-built cottages (build menu 2026-07-22).
+# Index j lines up with the j-th extra cottage; a cottage without a stored spot
+# falls back to the old end-of-row slot. Persisted so a placed home stays put.
+var extra_cottage_positions: Array = []
 
 func villager_name(vid: String) -> String:
 	for v in rescued_villagers:
@@ -2734,7 +2738,7 @@ func play_sfx(stream: AudioStream, pitch := 1.0, at = null) -> void:
 # floors paced by the dependency ladder (5.7.1), everything in hand by
 # floor 30 -- deliberately early, so no building arrives too late to
 # matter. Old saves know everything (additive default).
-const BLUEPRINT_STARTERS = ["Farm", "Tavern", "Builderhouse"]
+const BLUEPRINT_STARTERS = ["Farm", "Tavern", "Builderhouse", "Cottage"]
 const BLUEPRINT_FLOORS = {
 	2: "Hospital", 4: "School", 6: "Fishing Dock", 8: "Barracks",
 	10: "Science Lab", 11: "Bar", 13: "Mine", 16: "Blacksmith",
@@ -3894,6 +3898,7 @@ func reset_for_new_game() -> void:
 	mating_houses = {}
 	cottage_homes = {}
 	extra_cottages = 0
+	extra_cottage_positions = []
 	_family_cycle_accum = 0.0
 	village_log = []
 	log_unread = 0
@@ -4059,6 +4064,7 @@ func save_game(player: Node) -> void:
 		"mating_houses": mating_houses,
 		"cottage_homes": cottage_homes,
 		"extra_cottages": extra_cottages,
+		"extra_cottage_positions": extra_cottage_positions,
 		"village_log": village_log,
 		"log_unread": log_unread,
 		"wage_accum_hours": wage_accum_hours,
@@ -4167,6 +4173,10 @@ func load_game() -> Dictionary:
 		if parsed.has("cottage_homes"):
 			cottage_homes = parsed["cottage_homes"]
 		extra_cottages = int(parsed.get("extra_cottages", 0))
+		extra_cottage_positions = []
+		if parsed.has("extra_cottage_positions") and parsed["extra_cottage_positions"] is Array:
+			for cx in parsed["extra_cottage_positions"]:
+				extra_cottage_positions.append(float(cx))
 		if parsed.has("village_log") and parsed["village_log"] is Array:
 			village_log = parsed["village_log"]
 		log_unread = int(parsed.get("log_unread", 0))
@@ -4184,6 +4194,10 @@ func load_game() -> Dictionary:
 			blueprints = parsed["blueprints"]
 		else:
 			blueprints = STARTING_BUILDINGS.duplicate()
+		# the Cottage blueprint is a given (dev 2026-07-22) -- grant it to any save
+		# from before it existed, so building homes from the menu always works
+		if not ("Cottage" in blueprints):
+			blueprints.append("Cottage")
 		building_positions = {}
 		if parsed.has("building_positions") and parsed["building_positions"] is Dictionary:
 			for k in parsed["building_positions"].keys():
