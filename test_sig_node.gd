@@ -375,7 +375,14 @@ func _ready() -> void:
 	p.global_position = pin
 	p.health = p.get_max_health(); p.invincible = false; p.monarch_iframes_until = 0.0
 	p.clear_crowd_control()
-	lm.parry_until = lm._time_now() + 1.5      # arm the guard
+	# The dev-kit bag holds the Aegis Ward ("blocks one hit every 6s", wall-clock).
+	# Under suite CPU load >6 real seconds pass between phases, the ward comes off
+	# cooldown and SWALLOWS the riposte counter -- 160 -> 160 with the stun still
+	# landing (suiteC flake 2026-07-23). Park it far in the future so the counter
+	# hit always reaches health.
+	p.aegis_ready_at = p._now() + 999.0
+	lm.parry_until = lm._time_now() + 30.0     # arm the guard WIDE (load-proof: these
+	                                           # awaited frames can eat wall-clock seconds)
 	lm._parry_consumed = false
 	keep_running()
 	await get_tree().physics_frame
