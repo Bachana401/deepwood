@@ -661,10 +661,30 @@ func kill_adventurer(id: String) -> void:
 	if stack:
 		stack.show_notification("%s has fallen. The dead do not re-enlist." % Adventurers.get_def(id).get("name", "An adventurer"))
 
-func set_adventurer_station(id: String, station: String) -> void:
+func set_adventurer_station(id: String, station: String) -> bool:
 	ensure_adventurers()
-	if adventurers.has(id) and station in Adventurers.STATIONS:
-		adventurers[id]["station"] = station
+	if not (adventurers.has(id) and station in Adventurers.STATIONS):
+		return false
+	# the wall only has so many fighting-steps -- a higher tier holds more. A full
+	# wall turns the extra defenders back to the city patrol until you raise it.
+	if station == "wall" and adventurers[id]["station"] != "wall":
+		if wall_stationed_count() >= wall_station_capacity():
+			var stack = get_tree().get_first_node_in_group("notification_stack")
+			if stack:
+				stack.show_notification("The wall is full (%d posts). Raise the rampart for more." % wall_station_capacity())
+			return false
+	adventurers[id]["station"] = station
+	return true
+
+# Living, rescued adventurers currently posted ON the wall (counts toward its cap).
+func wall_stationed_count() -> int:
+	ensure_adventurers()
+	var n := 0
+	for id in adventurers.keys():
+		var a: Dictionary = adventurers[id]
+		if a["rescued"] and not a["dead"] and a["station"] == "wall":
+			n += 1
+	return n
 
 # Living, rescued adventurers at fighting stations (wall/city). House-sheltered
 # ones are alive but contribute nothing -- that is the trade the player makes.
@@ -925,6 +945,76 @@ func building_level(name: String) -> int:
 
 func building_output_multiplier(name: String) -> float:
 	return 1.0 + (building_level(name) - 1) * BUILDING_OUTPUT_PER_LEVEL
+
+# --- THE RAMPART (dev ask 2026-07-22: "make WALLS bigger... with gate,
+# upgradable... in the beginning it's gotta be weak of course"). One shared tier
+# drives BOTH ramparts (the west gatehouse the wild road breaks against and the
+# east wall over the cottages). A tier is a wall you can SEE grow, that soaks a
+# heavier wave (more HP), that fights back on its own (spiked/oil TRAPS damage
+# besiegers pressed against its face), and that HOLDS more defenders (station
+# slots). Tier 1 is a weak palisade; tier 4 is a fortress.
+var wall_level: int = 1
+const WALL_MAX_LEVEL := 4
+# 1-indexed by tier; index 0 is unused padding so wall_level maps straight in.
+const WALL_HP_BY_LEVEL       := [0, 350, 650, 1050, 1600]  # weak start -> fortress
+const WALL_DEFENSE_BY_LEVEL  := [0, 0.0, 1.5, 3.0, 5.0]    # the wall's own worth vs a wave
+const WALL_TRAP_DPS_BY_LEVEL := [0, 0.0, 8.0, 16.0, 28.0]  # traps bleed besiegers at the face
+const WALL_SLOTS_BY_LEVEL    := [0, 2, 4, 6, 9]            # adventurers postable ON the wall
+# Cost to reach the NEXT tier (index = the tier you're LEAVING). All inventory ids.
+const WALL_UPGRADE_COST := [
+	{},                                                    # 0 unused
+	{"coin_gold": 120, "stone": 20, "iron_shard": 4},      # 1 -> 2
+	{"coin_gold": 320, "stone": 45, "iron_shard": 10},     # 2 -> 3
+	{"coin_gold": 700, "stone": 80, "iron_shard": 20},     # 3 -> 4
+]
+
+func wall_max_health() -> int:
+	var base: int = WALL_HP_BY_LEVEL[clampi(wall_level, 1, WALL_MAX_LEVEL)]
+	# Brannoc, the Wall That Stood (the Ten), still stacks half again on top
+	if ten_freed("ten_brannoc"):
+		base = int(base * 1.5)
+	return base
+
+func wall_defense_bonus() -> float:
+	return WALL_DEFENSE_BY_LEVEL[clampi(wall_level, 1, WALL_MAX_LEVEL)]
+
+func wall_trap_dps() -> float:
+	return WALL_TRAP_DPS_BY_LEVEL[clampi(wall_level, 1, WALL_MAX_LEVEL)]
+
+func wall_station_capacity() -> int:
+	return WALL_SLOTS_BY_LEVEL[clampi(wall_level, 1, WALL_MAX_LEVEL)]
+
+# The gold+materials to raise the wall one tier, or {} when already maxed.
+func wall_upgrade_cost() -> Dictionary:
+	if wall_level >= WALL_MAX_LEVEL:
+		return {}
+	return WALL_UPGRADE_COST[wall_level]
+
+func can_afford_wall_upgrade(player: Node) -> bool:
+	var cost := wall_upgrade_cost()
+	if cost.is_empty() or player == null or not ("inventory" in player) or player.inventory == null:
+		return false
+	for k in cost.keys():
+		if player.inventory.get_count(k) < int(cost[k]):
+			return false
+	return true
+
+# Pay + raise the tier one step, then refresh any live wall node so the change is
+# immediate (taller, tougher, better-manned). Returns true on success.
+func try_upgrade_wall(player: Node) -> bool:
+	if wall_level >= WALL_MAX_LEVEL:
+		return false
+	if not can_afford_wall_upgrade(player):
+		return false
+	var cost := wall_upgrade_cost()
+	for k in cost.keys():
+		player.inventory.remove_item(k, int(cost[k]))
+	wall_level += 1
+	log_event("village", "The rampart was raised to tier %d — taller, tougher, and better manned." % wall_level)
+	for w in get_tree().get_nodes_in_group("village_wall"):
+		if w.has_method("refresh_from_level"):
+			w.refresh_from_level()
+	return true
 
 var village_last_hours_elapsed = 0.0
 
@@ -1324,6 +1414,9 @@ func village_defense_power() -> float:
 	power += ARMED_WARRIOR_BONUS * float(armed_warriors())
 	# a seated Warchief is a standing army in themselves -- auto-repels far more
 	power += WARCHIEF_DEFENSE * seated_leaders("Barracks")
+	# the RAMPART itself blunts the wave: a higher tier is taller stone with
+	# traps set into it, worth real defense even before a body mans it
+	power += wall_defense_bonus()
 	# morale rides the whole village's fighting spirit up or down
 	return power * morale_defense_multiplier()
 
@@ -3775,6 +3868,7 @@ func reset_for_new_game() -> void:
 		building_stage[bn] = 0
 		building_cleared[bn] = 0
 	building_levels = {}
+	wall_level = 1
 	wizard_respawn_at_hours = -1.0
 	placed_torches = []
 	morale_death_shock = 0.0
@@ -3932,6 +4026,7 @@ func save_game(player: Node) -> void:
 		"building_stage": building_stage,
 		"building_cleared": building_cleared,
 		"building_levels": building_levels,
+		"wall_level": wall_level,
 		"placed_torches": placed_torches,
 		"wizard_respawn_at_hours": wizard_respawn_at_hours,
 		"wizard_power_tier": wizard_power_tier,
@@ -4071,6 +4166,8 @@ func load_game() -> Dictionary:
 			building_levels = {}
 			for k in parsed["building_levels"].keys():
 				building_levels[k] = int(parsed["building_levels"][k])
+		if parsed.has("wall_level"):
+			wall_level = clampi(int(parsed["wall_level"]), 1, WALL_MAX_LEVEL)
 		if parsed.has("building_stage") and parsed["building_stage"] is Dictionary:
 			building_stage = {}
 			for k in parsed["building_stage"].keys():
