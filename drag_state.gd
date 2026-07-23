@@ -92,6 +92,23 @@ func start_drag(inventory: Inventory, index: int) -> void:
 	count_label.visible = true
 
 func perform_drop(mouse_pos: Vector2) -> void:
+	# THE BIN (dev 2026-07-23): a drop released over a panel's 🗑 discards the held
+	# stack outright. Checked before the slots so the bin always wins over a slot
+	# it might overlap.
+	for panel in registered_panels:
+		if not is_instance_valid(panel) or not panel.visible:
+			continue
+		if panel.has_method("is_over_trash") and panel.is_over_trash(mouse_pos) \
+				and source_inventory != null and source_index >= 0:
+			var s = source_inventory.slots[source_index]
+			if s != null:
+				var nm: String = Inventory.get_display_name(str(s.item_id))
+				source_inventory.slots[source_index] = null
+				var stack = get_tree().get_first_node_in_group("notification_stack")
+				if stack: stack.show_notification("🗑 Discarded %s." % nm)
+			refresh_all_panels()
+			cancel_drag()
+			return
 	var target_inventory: Inventory = null
 	var target_index = -1
 	for panel in registered_panels:

@@ -32,8 +32,39 @@ func _ready() -> void:
 	player = get_tree().get_first_node_in_group("player")
 	build_slots()
 	build_close_button()
+	build_trash_zone()
 	build_craft_panel()
 	DragState.register_panel(self)
+
+# THE BIN (dev 2026-07-23: "drop items / delete in bin"). A red 🗑 in the header --
+# drag any stack onto it and let go to discard it (DragState.perform_drop routes a
+# drop over is_over_trash() here). Deliberate drag = no fat-finger deletes.
+var trash_zone: Panel = null
+
+func build_trash_zone() -> void:
+	trash_zone = Panel.new()
+	trash_zone.position = Vector2(panel_w - 34.0 - 50.0, 6.0)
+	trash_zone.size = Vector2(42.0, 26.0)
+	trash_zone.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.5, 0.13, 0.13, 0.72)
+	sb.set_corner_radius_all(6)
+	sb.set_border_width_all(2)
+	sb.border_color = Color(0.95, 0.45, 0.45, 0.85)
+	trash_zone.add_theme_stylebox_override("panel", sb)
+	var lbl := Label.new()
+	lbl.text = "🗑"
+	lbl.add_theme_font_size_override("font_size", 18)
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl.size = trash_zone.size
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	trash_zone.add_child(lbl)
+	$Panel.add_child(trash_zone)
+
+# DragState asks this when a drag is released: is the cursor over the bin?
+func is_over_trash(global_pos: Vector2) -> bool:
+	return trash_zone != null and visible and trash_zone.get_global_rect().has_point(global_pos)
 
 # --- THE CRAFTING BENCH (polish 2026-07-20) ---
 # GameState.try_craft, CRAFT_RECIPES and even Toren's cost discount all
