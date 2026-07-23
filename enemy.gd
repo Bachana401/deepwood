@@ -328,11 +328,16 @@ func _ready() -> void:
 		_become_super_mob()
 
 func update_body_color() -> void:
-	$ColorRect.color = base_color.darkened(clamp(generation * 0.15, 0.0, 0.6))
+	var cr = get_node_or_null("ColorRect")
+	if cr:
+		cr.color = base_color.darkened(clamp(generation * 0.15, 0.0, 0.6))
 
 func play_sfx(stream: AudioStream) -> void:
-	$SFXPlayer.stream = stream
-	$SFXPlayer.play()
+	var sfx = get_node_or_null("SFXPlayer")   # null on a headless-built enemy
+	if sfx == null:
+		return
+	sfx.stream = stream
+	sfx.play()
 
 # Re-skins this enemy into the roster archetype for the given 5-level block.
 # MUST be called before the node enters the tree (before _ready), because the
@@ -500,6 +505,8 @@ func _update_enemy_anim() -> void:
 		enemy_sprite.play(want)
 
 func setup_weapon_visual() -> void:
+	if not has_node("WeaponIcon"):   # headless-built enemy has no weapon visual
+		return
 	var stats = WEAPONS.get(weapon_type, WEAPONS["sword"])
 	if weapon_type == "bow":
 		$WeaponIcon.visible = false
@@ -1157,6 +1164,8 @@ func flash_hit() -> void:
 		enemy_sprite.modulate = Color(2.4, 2.4, 2.4)
 		create_tween().tween_property(enemy_sprite, "modulate", Color(1, 1, 1), 0.15)
 		return
+	if not has_node("ColorRect"):   # headless-built enemy has no body rect
+		return
 	$ColorRect.color = Color(1, 1, 1)
 	var tween = create_tween()
 	tween.tween_property($ColorRect, "color", base_color.darkened(clamp(generation * 0.15, 0.0, 0.6)), 0.15)
@@ -1166,7 +1175,9 @@ func flash_hit() -> void:
 
 func update_health_bar() -> void:
 	var health_percent = float(health) / max_health
-	$HealthBarFill.size.x = 40 * health_percent
+	var fill = get_node_or_null("HealthBarFill")   # null on a headless-built enemy
+	if fill:
+		fill.size.x = 40 * health_percent
 
 func die() -> void:
 	# damage_multiplier is the VILLAGE respawn-generation scaler; the deep

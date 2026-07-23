@@ -1601,25 +1601,28 @@ func configure_from_def(def: Dictionary) -> void:
 	# radii all multiply by this (1.0 = the old 160x220 reference body)
 	reach_mult = clampf((body.x + body.y) / 380.0, 0.7, 1.6)
 
-	var shape := RectangleShape2D.new()
-	shape.size = body
-	$CollisionShape2D.shape = shape
-
-	# the old flat placeholder body is replaced by a per-boss creature rig
-	$ColorRect.visible = false
-	$EyeLeft.visible = false
-	$EyeRight.visible = false
-	build_rig(def.get("shape", ""), body, eye_color)
+	# the hitbox + visual rig only exist on a scene-built boss; a headless boss
+	# (created via .new() to exercise mechanics) has neither, so skip them cleanly
+	if has_node("CollisionShape2D"):
+		var shape := RectangleShape2D.new()
+		shape.size = body
+		$CollisionShape2D.shape = shape
+		# the old flat placeholder body is replaced by a per-boss creature rig
+		$ColorRect.visible = false
+		$EyeLeft.visible = false
+		$EyeRight.visible = false
+		build_rig(def.get("shape", ""), body, eye_color)
 
 	# health bar width follows the body so small bosses don't wear giant bars
 	var bar_half := clampf(body.x / 2.0 + 30.0, 40.0, 80.0)
-	health_bar_w = bar_half * 2.0
+	health_bar_w = bar_half * 2.0                 # a stat the mechanics still need
 	var bar_y := -body.y / 2.0 - 34.0
-	for bar in [$HealthBarBG, $HealthBarFill]:
-		bar.offset_left = -bar_half
-		bar.offset_right = bar_half
-		bar.offset_top = bar_y
-		bar.offset_bottom = bar_y + 12.0
+	if has_node("HealthBarFill"):                 # bars only exist on a scene-built boss
+		for bar in [$HealthBarBG, $HealthBarFill]:
+			bar.offset_left = -bar_half
+			bar.offset_right = bar_half
+			bar.offset_top = bar_y
+			bar.offset_bottom = bar_y + 12.0
 
 	if has_aura:
 		build_aura()
@@ -3931,12 +3934,17 @@ func flash_hit() -> void:
 	tween.tween_property(rig, "modulate", current_tint, 0.15)
 
 func play_sfx(stream: AudioStream) -> void:
-	$SFXPlayer.stream = stream
-	$SFXPlayer.play()
+	var sfx = get_node_or_null("SFXPlayer")   # a headless-built boss has no scene tree
+	if sfx == null:
+		return
+	sfx.stream = stream
+	sfx.play()
 
 func update_health_bar() -> void:
 	var percent = clamp(float(health) / max_health, 0.0, 1.0)
-	$HealthBarFill.size.x = health_bar_w * percent
+	var fill = get_node_or_null("HealthBarFill")   # null on a headless-built boss
+	if fill:
+		fill.size.x = health_bar_w * percent
 	# the real boss also drives the big screen bar (not its clones/echoes)
 	if not is_clone and not is_false_copy:
 		var hud = get_tree().get_first_node_in_group("boss_hud")
