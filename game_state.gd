@@ -1802,10 +1802,13 @@ var food_empty_hours := 0.0                  # how long the stockpile has sat em
 var _warned_no_food := false
 var _warned_low_morale := false
 
-# How much food the town can hold -- scales with population so a bigger village
-# needs a bigger buffer (and more farmers to keep it full).
+# How much food the town can hold -- scales with the REAL population so a bigger
+# village needs a bigger buffer (and more farmers to keep it full). The floor was
+# 6 phantom mouths, which gave an EMPTY honest village a static 24-food larder that
+# never moved (dev 2026-07-23: "food is too high and never ends"). A small min of 3
+# just avoids a literal-empty larder the instant your first villager arrives.
 func food_capacity() -> float:
-	return FOOD_DAYS_CAP * maxf(float(rescued_villagers.size()), 6.0)
+	return FOOD_DAYS_CAP * maxf(float(rescued_villagers.size()), 3.0)
 
 # The town is "fed" as long as there is any food in store.
 func has_food() -> bool:

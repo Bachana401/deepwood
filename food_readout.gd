@@ -45,6 +45,12 @@ func _ready() -> void:
 	add_child(label)
 
 func _process(delta: float) -> void:
+	# NO MOUTHS, NO GAUGE (dev 2026-07-23): an empty village has no one to feed, so
+	# the larder is meaningless -- don't show a static bar before the first villager
+	# is rescued. It appears the moment the town has anyone to eat.
+	visible = not GameState.rescued_villagers.is_empty()
+	if not visible:
+		return
 	flash_t += delta
 	var cap = GameState.food_capacity()
 	cur_frac = clampf(GameState.village_food / cap, 0.0, 1.0) if cap > 0.0 else 0.0

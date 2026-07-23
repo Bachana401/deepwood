@@ -35,6 +35,27 @@ func _ready() -> void:
 	var saved_last: float = GameState.village_last_hours_elapsed
 	GameState.dev_mode = false
 
+	# ---- an EMPTY honest village has no big phantom larder (dev: "food too high,
+	# never ends" -- it was floored at 6 mouths and nobody ate it) ----
+	GameState.rescued_villagers = []
+	check("an empty village's larder scales to a small floor, not 6 phantom mouths",
+		absf(GameState.food_capacity() - GameState.FOOD_DAYS_CAP * 3.0) < 0.01,
+		"cap=%.1f" % GameState.food_capacity())
+	GameState.rescued_villagers = mk(10)
+	check("...and the larder grows with the REAL population",
+		absf(GameState.food_capacity() - GameState.FOOD_DAYS_CAP * 10.0) < 0.01)
+	var fr = null
+	for n in get_tree().current_scene.find_children("*", "", true, false):
+		if n.get_script() != null and str(n.get_script().resource_path).ends_with("food_readout.gd"):
+			fr = n; break
+	if fr != null:
+		GameState.rescued_villagers = []
+		fr._process(0.0)
+		check("the food gauge hides when there is no one to feed", not fr.visible)
+		GameState.rescued_villagers = mk(3)
+		fr._process(0.0)
+		check("...and returns once the town has mouths to feed", fr.visible)
+
 	# ---- a fresh, unbuilt, unstaffed, homeless town ----
 	GameState.building_stage = {}
 	GameState.villager_hp = {}
