@@ -317,10 +317,10 @@ func _separate() -> void:
 			# ties broken by name so the pair never shove each other the same way
 			var push := signf(dx) if absf(dx) > 0.5 else (1.0 if adventurer_id > str(other.adventurer_id) else -1.0)
 			velocity.x += push * 90.0
-			# ...and a hard floor: converging on one raider used to beat the
-			# nudge to a ~19px equilibrium, still visibly overlapping
-			if absf(dx) < PERSONAL_SPACE * 0.6:
-				global_position.x += push * 1.6
+			# ALWAYS ease apart by POSITION too (dev: "heroes collide mostly"),
+			# proportional to the overlap -- the velocity nudge alone lost to their
+			# pull toward the same post and left them stacked. This can't be beaten.
+			global_position.x += push * (PERSONAL_SPACE - absf(dx)) * 0.10
 
 # A line now and then, when the player is close and nothing is trying to kill
 # anyone. Long random gaps so twelve of them never turn into a crowd scene.

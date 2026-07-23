@@ -246,10 +246,8 @@ func _ready() -> void:
 	spawn_adventurers()
 	announce_orin_arrival()
 	build_escape_ward()
-	# the shop finally HAS a shop -- a storefront under its sign (dev call)
-	var stall = preload("res://shop_stall.gd").new()
-	stall.position = Vector2($ShopZone.global_position.x, VILLAGE_Y)
-	add_child(stall)
+	# (the standalone shop + its stall were removed on dev request 2026-07-22 --
+	# the village starts bare; trade will come back through a built Marketplace.)
 	# THE WAYSTONE (fast-travel hub, dev 2026-07-21). Once its blueprint wakes at
 	# floor 20 it stands at the village threshold -- press E to leap to any Deep
 	# Shrine you have woken in the dungeon, so re-descending never wastes time.

@@ -390,8 +390,6 @@ role_title = "Doctors"
 backstory = "Sena tended the sick before the fall. She watches the treeline every dusk -- her sister Bram was dragged into the deep the same night she was taken."
 sex = "Female"
 
-[node name="Wall" parent="." groups=["village_wall"] instance=ExtResource("27_wall")]
-position = Vector2(4700, -39)
 
 [node name="SiegeManager" type="Node" parent="." groups=["siege_manager"]]
 script = ExtResource("28_siege_mgr")
@@ -581,34 +579,6 @@ offset_bottom = 188.0
 mouse_filter = 0
 text = "Magic Wand (1g)"
 horizontal_alignment = 1
-
-[node name="ShopZone" type="Area2D" parent="." unique_id=1891961921]
-position = Vector2(4840, -90)
-collision_mask = 3
-script = ExtResource("3_h2yge")
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="ShopZone" unique_id=1930590447]
-shape = SubResource("RectangleShape2D_ixm5k")
-
-[node name="ColorRect" type="ColorRect" parent="ShopZone" unique_id=305361445]
-offset_left = -40.0
-offset_top = -50.0
-offset_right = 40.0
-offset_bottom = 50.0
-
-[node name="ShopSign" type="Node2D" parent="ShopZone" unique_id=1228809187]
-script = ExtResource("9_shop_sign")
-
-[node name="BoltLeft" type="Polygon2D" parent="ShopZone/ShopSign" unique_id=885354733]
-position = Vector2(-72, -142)
-color = Color(1, 1, 0.6, 1)
-polygon = PackedVector2Array(5, -15, -3, 3, 2, 3, -5, 15, 6, -1, 1, -1, 5, -15)
-
-[node name="BoltRight" type="Polygon2D" parent="ShopZone/ShopSign" unique_id=1517967087]
-position = Vector2(72, -142)
-scale = Vector2(-1, 1)
-color = Color(1, 1, 0.6, 1)
-polygon = PackedVector2Array(5, -15, -3, 3, 2, 3, -5, 15, 6, -1, 1, -1, 5, -15)
 
 [node name="DungeonManager" type="Node" parent="." unique_id=286968272 groups=["dungeon_manager"]]
 script = ExtResource("8_dungeon_mgr")
