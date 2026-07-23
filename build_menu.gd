@@ -132,22 +132,22 @@ func refresh() -> void:
 		rows_box.add_child(_build_row("Cottage", null))
 	if GameState.has_blueprint("Wall"):
 		rows_box.add_child(_build_row("Wall", null))
+	# map any LIVE building node by name (for its built status)...
 	var by_name := {}
 	for b in get_tree().get_nodes_in_group("building"):
 		if "building_name" in b:
 			by_name[str(b.building_name)] = b
-	var names: Array = by_name.keys()
+	# ...but list the WHOLE roster (dev 2026-07-23: most sites start as open ground
+	# with no ruin now, yet must still be buildable). A site with no live node builds
+	# fresh via create_building; a deleted or unraised one lists all the same.
+	var scene = get_tree().current_scene
+	var names: Array = scene.building_names() if (scene != null and scene.has_method("building_names")) else by_name.keys()
 	names.sort()
 	var standing := 0
 	for nm in names:
-		rows_box.add_child(_build_row(str(nm), by_name[nm]))
+		rows_box.add_child(_build_row(str(nm), by_name.get(str(nm), null)))
 		if GameState.building_build_stage(str(nm)) >= GameState.TOTAL_BUILD_STAGES:
 			standing += 1
-	# a building whose ruin was DELETED has no live node -- still offer it, so a
-	# razed site can be rebuilt from scratch (see build_placer / main.create_building)
-	for rn in GameState.removed_buildings.keys():
-		if not by_name.has(str(rn)):
-			rows_box.add_child(_build_row(str(rn), null))
 	title.text = "THE BUILDER'S LEDGER — %d of %d built" % [standing, names.size()]
 
 # One button per building: its name, and Build (cost) when you can raise it.

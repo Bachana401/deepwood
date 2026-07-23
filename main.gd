@@ -170,6 +170,19 @@ const VILLAGE_BUILDINGS = [
 	{"name": "Mine", "role_key": "Mine", "width": 120.0, "height": 70.0, "scale": 2.4, "color": Color(0.36, 0.34, 0.38, 1)},
 	{"name": "Shrine", "role_key": "Shrine", "width": 95.0, "height": 92.0, "scale": 2.2, "color": Color(0.72, 0.7, 0.6, 1)},
 ]
+# The fallen city starts with only these few landmark ruins standing; every other
+# building site is open ground until the player raises it from the B menu (dev
+# 2026-07-23). All 15 are still fully buildable -- see build_menu (lists the whole
+# roster) + create_building (raises one with no pre-placed ruin).
+const ICONIC_STARTER_RUINS := ["Government", "Bank", "Barracks", "Marketplace"]
+
+# Every roster building name, for the build menu (so a site with no ruin still lists).
+func building_names() -> Array:
+	var out := []
+	for def in VILLAGE_BUILDINGS:
+		out.append(str(def.name))
+	return out
+
 # Right edge of the last building, set by generate_village -- the houses start
 # past it so the enlarged village never overruns the cottages.
 var village_right_edge := VILLAGE_START_X
@@ -360,6 +373,12 @@ func generate_village() -> void:
 		if GameState.building_removed(def.name):
 			cursor += reserve + VILLAGE_GAP
 			continue
+		# A FEW ICONIC RUINS ONLY (dev 2026-07-23): the fallen city shows a handful of
+		# landmark ruins; every other site starts as OPEN GROUND you raise from the B
+		# menu. A building the player has already placed always returns to its spot.
+		if not (def.name in ICONIC_STARTER_RUINS) and not GameState.building_positions.has(def.name):
+			cursor += reserve + VILLAGE_GAP
+			continue
 		var building = BUILDING_SCRIPT.new()
 		building.building_name = def.name
 		building.role_key = def.role_key
@@ -424,15 +443,9 @@ func generate_houses() -> void:
 	# Cottages sit just past the (now larger) village, computed from where the
 	# buildings actually ended so they never overlap.
 	var start_x = village_right_edge + HOUSE_MARGIN
-	for i in range(HOUSE_COUNT):
-		var palette = HOUSE_COLORS[i % HOUSE_COLORS.size()]
-		var house = HOUSE_SCRIPT.new()
-		house.house_id = "house_%d" % i
-		house.house_name = "Cottage %d" % (i + 1)
-		house.body_color = palette.body
-		house.roof_color = palette.roof
-		house.position = Vector2(start_x + i * HOUSE_SPACING, VILLAGE_Y)
-		$Village.add_child(house)
+	# NO PRE-BUILT COTTAGES (dev 2026-07-23): the fallen village starts with none --
+	# you raise every home yourself from the B menu. Only the ones the PLAYER built
+	# come back below.
 	# cottages RAISED in past sessions (5.8) come back with the world...
 	for j in range(GameState.extra_cottages):
 		var idx = j + 1

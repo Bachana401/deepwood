@@ -37,13 +37,14 @@ func _ready() -> void:
 		keep_running()
 		await get_tree().process_frame
 
-	# a genuinely fresh village: nothing built, every site a ruin
+	# a genuinely fresh village: only a few ICONIC sites start as ruins now (dev
+	# 2026-07-23), so test against one that actually stands (Government).
 	GameState.reset_for_new_game()
 	var b: Node = null
 	for n in get_tree().get_nodes_in_group("building"):
-		if n.building_name == "Farm":
+		if n.building_name == "Government":
 			b = n
-	check("a Farm site exists", b != null)
+	check("an iconic ruin (Government) stands at the start", b != null)
 	if b == null:
 		printerr("RESULT: 1 FAILURES"); get_tree().quit(1); return
 	b.current_state = b.compute_visual_state()
@@ -53,7 +54,7 @@ func _ready() -> void:
 
 	# ---- a ruin is PURELY VISUAL: rubble on the ground, no name, no prompt ----
 	check("a fresh site reads as a ruin", b.is_ruined())
-	check("a fresh ruin is NOT counted as cleared", not GameState.building_is_cleared("Farm"))
+	check("a fresh ruin is NOT counted as cleared", not GameState.building_is_cleared("Government"))
 	check("the rubble mounds still render on the ground", b.rubble_layer != null
 		and b.rubble_layer.get_child_count() > 0)
 	check("no name floats over the ruin", not b.name_label.visible)
@@ -62,11 +63,12 @@ func _ready() -> void:
 		not b.prompt_label.visible and b.prompt_label.text == "",
 		"visible=%s text='%s'" % [b.prompt_label.visible, b.prompt_label.text])
 
-	# ---- a standing building is not a ruin and shows its name ----
-	GameState.building_stage["Bar"] = GameState.TOTAL_BUILD_STAGES
+	# ---- a standing building is not a ruin and shows its name (use an ICONIC one
+	# that actually stands at the start now -- the Bank) ----
+	GameState.building_stage["Bank"] = GameState.TOTAL_BUILD_STAGES
 	var bar: Node = null
 	for n in get_tree().get_nodes_in_group("building"):
-		if n.building_name == "Bar":
+		if n.building_name == "Bank":
 			bar = n
 	if bar != null:
 		bar.build_stage = GameState.TOTAL_BUILD_STAGES   # sync the node to the state
@@ -75,7 +77,7 @@ func _ready() -> void:
 		bar.update_name_label()
 		await get_tree().process_frame
 		check("a standing building is no longer a ruin", not bar.is_ruined())
-		check("...and it counts as cleared", GameState.building_is_cleared("Bar"))
+		check("...and it counts as cleared", GameState.building_is_cleared("Bank"))
 		check("...and its name shows", bar.name_label.visible)
 
 	# ---- the Builder's Ledger is a FLAT list of buildings by name ----
@@ -111,10 +113,14 @@ func _ready() -> void:
 		check("a standing building shows as built", joined.contains("✓ built"))
 		menu.panel.visible = false
 
-	# every building named in the ledger's purpose map must resolve to a real
-	# building OR a known buildable/dynamic site (Cottage + Wall are placed fresh
-	# from the menu; the Watchtower bell + Wanderer's Post counter are sub-features)
+	# every building named in the ledger's purpose map must resolve to a buildable
+	# site: the WHOLE roster (most start as open ground with no ruin now, but all
+	# build from the menu) + Cottage + Wall + the Watchtower/Wanderer's sub-features.
 	var known := {}
+	var scene2 = get_tree().current_scene
+	if scene2 != null and scene2.has_method("building_names"):
+		for bn2 in scene2.building_names():
+			known[str(bn2)] = true
 	for n in get_tree().get_nodes_in_group("building"):
 		known[n.building_name] = true
 	for bn in ["Cottage", "Wall", "Watchtower", "Wanderer's Post"]:

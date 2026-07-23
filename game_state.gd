@@ -977,6 +977,33 @@ func remove_building(bname: String) -> void:
 func restore_building(bname: String) -> void:
 	removed_buildings.erase(bname)
 
+# Delete a player-raised COTTAGE (dev 2026-07-23: cottages are deletable now). Drops
+# its saved ground + the count, and breaks any pairing sheltering there. Homes are
+# DERIVED (villager_home_id), so nobody is left with a dangling home reference.
+func remove_cottage(house_id: String, x: float) -> void:
+	var best_i := -1
+	var best_d := 1.0e9
+	for i in range(extra_cottage_positions.size()):
+		var d: float = absf(float(extra_cottage_positions[i]) - x)
+		if d < best_d:
+			best_d = d
+			best_i = i
+	if best_i >= 0 and best_d < 48.0:
+		extra_cottage_positions.remove_at(best_i)
+	extra_cottages = maxi(0, extra_cottages - 1)
+	if mating_houses.has(house_id):
+		mating_houses.erase(house_id)
+	log_event("village", "A cottage was cleared away — its ground stands empty now.")
+
+# Delete a player-raised WALL: drop it from placed_walls by its ground.
+func remove_placed_wall(x: float) -> void:
+	var kept := []
+	for w in placed_walls:
+		if absf(float(w.get("x", 0.0)) - x) > 4.0:
+			kept.append(w)
+	placed_walls = kept
+	log_event("village", "A rampart was pulled down.")
+
 # True while the B-menu placer holds the cursor (building or deleting). The player
 # checks this so a left-click that places/deletes doesn't ALSO swing a weapon.
 var placing_building := false

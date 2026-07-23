@@ -76,17 +76,19 @@ func _ready() -> void:
 	GameState.blueprints = saved_bp
 
 	# ---- movable buildings: the whole journey ----
+	# only a few ICONIC sites start standing now (dev 2026-07-23) -- relocate one
+	# that exists (Government), not the Farm (which starts as open ground)
 	var mover: Node = null
 	for b2 in get_tree().get_nodes_in_group("building"):
-		if str(b2.building_name) == "Farm":
+		if str(b2.building_name) == "Government":
 			mover = b2
-	check("the Farm stands in the live village", mover != null)
+	check("an iconic building stands in the live village", mover != null)
 	if mover != null:
 		var saved_positions = GameState.building_positions.duplicate(true)
 		var saved_x: float = mover.global_position.x
 		var saved_gold: int = p.currency
 		var saved_pos_p: Vector2 = p.global_position
-		GameState.moving_building = "Farm"
+		GameState.moving_building = "Government"
 		# too close to a neighbour: refused
 		var neighbour: Node = null
 		for b3 in get_tree().get_nodes_in_group("building"):
@@ -98,7 +100,7 @@ func _ready() -> void:
 		p.global_position = Vector2(neighbour.global_position.x + 10.0, -100.0)
 		p.try_plant_building()
 		check("planting refuses ground too close to a neighbour",
-			GameState.moving_building == "Farm" and mover.global_position.x == saved_x)
+			GameState.moving_building == "Government" and mover.global_position.x == saved_x)
 		# clear ground: the open stretch just west of the EAST rampart -- the
 		# only guaranteed-empty land in the packed default layout
 		var east_wall_x := 999999.0
@@ -114,7 +116,7 @@ func _ready() -> void:
 		check("the plant charges the small price",
 			p.currency == gold_before - GameState.RELOCATE_GOLD)
 		check("the chosen ground persists",
-			absf(float(GameState.building_positions.get("Farm", -1.0)) - clear_x) < 1.0
+			absf(float(GameState.building_positions.get("Government", -1.0)) - clear_x) < 1.0
 			and gs.contains('"building_positions": building_positions'))
 		check("the layout honors saved ground on rebuild",
 			FileAccess.open("res://main.gd", FileAccess.READ).get_as_text().contains("GameState.building_positions.has(def.name)"))

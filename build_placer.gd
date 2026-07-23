@@ -53,7 +53,7 @@ func start_delete() -> void:
 	_clear()
 	mode = "delete"
 	GameState.placing_building = true
-	_show_hint("Click a building to remove it · right-click to cancel")
+	_show_hint("Click a building, wall or cottage to remove it · right-click to cancel")
 
 func _clear() -> void:
 	mode = ""
@@ -177,7 +177,7 @@ func _try_place(x: float) -> void:
 func _try_delete(x: float) -> void:
 	var target = _building_at(x)
 	if target != null:
-		_confirm_delete(str(target.building_name))
+		_confirm_delete(target)
 
 func _find_building(bname: String):
 	for b in get_tree().get_nodes_in_group("building"):
@@ -185,17 +185,56 @@ func _find_building(bname: String):
 			return b
 	return null
 
+# The building/wall/cottage nearest the click. Roster buildings first, then walls,
+# then cottages -- so ANY placeable can be removed, not just the 15 halls (dev ask
+# 2026-07-23: "make them deletable").
 func _building_at(x: float):
 	for b in get_tree().get_nodes_in_group("building"):
 		if not ("building_name" in b and "width" in b):
 			continue
 		if absf(x - b.global_position.x) <= float(b.width) / 2.0 + 24.0:
 			return b
+	for w in get_tree().get_nodes_in_group("village_wall"):
+		if is_instance_valid(w) and absf(x - w.global_position.x) <= 46.0:
+			return w
+	for h in get_tree().get_nodes_in_group("village_structure"):
+		if is_instance_valid(h) and "house_id" in h and absf(x - h.global_position.x) <= 55.0:
+			return h
 	return null
 
-# The YES/NO panel: "This building will be deleted forever. Continue?"
-func _confirm_delete(bname: String) -> void:
+# What KIND of thing is this, and a friendly name for the confirm popup.
+func _delete_kind(target) -> String:
+	if "building_name" in target and target.is_in_group("building"):
+		return "building"
+	if target.is_in_group("village_wall"):
+		return "wall"
+	if target.is_in_group("village_structure"):
+		return "cottage"
+	return "building"
+
+func _delete_label(target, kind: String) -> String:
+	match kind:
+		"wall": return "%s wall" % str(target.flank) if "flank" in target else "wall"
+		"cottage": return "cottage"
+		_: return str(target.building_name)
+
+func _do_delete(target, kind: String) -> void:
+	match kind:
+		"building":
+			GameState.remove_building(str(target.building_name))
+		"wall":
+			GameState.remove_placed_wall(target.global_position.x)
+		"cottage":
+			GameState.remove_cottage(str(target.house_id) if "house_id" in target else "", target.global_position.x)
+	if is_instance_valid(target):
+		target.queue_free()
+
+# The YES/NO panel: "This will be deleted forever. Continue?" -- works for any
+# placeable (a hall, a rampart, or a cottage).
+func _confirm_delete(target: Node) -> void:
 	_confirming = true          # stop _input swallowing the YES/NO clicks
+	var kind := _delete_kind(target)
+	var label := _delete_label(target, kind)
 	var panel := Panel.new()
 	panel.anchor_left = 0.5; panel.anchor_right = 0.5
 	panel.anchor_top = 0.5; panel.anchor_bottom = 0.5
@@ -203,7 +242,7 @@ func _confirm_delete(bname: String) -> void:
 	panel.offset_top = -80.0; panel.offset_bottom = 80.0
 	ui.add_child(panel)
 	var msg := Label.new()
-	msg.text = "The %s will be deleted FOREVER.\nAre you sure you want to continue?" % bname
+	msg.text = "The %s will be deleted FOREVER.\nAre you sure you want to continue?" % label
 	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	msg.add_theme_font_size_override("font_size", 15)
 	msg.position = Vector2(20, 22); msg.size = Vector2(420, 60)
@@ -217,12 +256,10 @@ func _confirm_delete(bname: String) -> void:
 	no.position = Vector2(250, 108); no.size = Vector2(170, 34)
 	panel.add_child(no)
 	yes.pressed.connect(func() -> void:
-		GameState.remove_building(bname)
-		var n = _find_building(bname)
-		if n != null: n.queue_free()
+		_do_delete(target, kind)
 		GameState.play_sfx(GameState.SFX_THUD, 1.0)
 		var stack = get_tree().get_first_node_in_group("notification_stack")
-		if stack: stack.show_notification("The %s was cleared away." % bname)
+		if stack: stack.show_notification("The %s was cleared away." % label)
 		panel.queue_free()
 		_clear())
 	no.pressed.connect(func() -> void:

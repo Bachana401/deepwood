@@ -20,6 +20,27 @@ func _ready() -> void:
 	for i in range(30):
 		await get_tree().process_frame
 
+	# ---- the fallen village starts SPARSE (dev 2026-07-23): a few iconic ruins,
+	# no pre-built cottages -- but the whole roster still builds from the menu ----
+	var start_ruins := []
+	for b in get_tree().get_nodes_in_group("building"):
+		if "building_name" in b: start_ruins.append(str(b.building_name))
+	check("only a few iconic sites start as ruins, not all 15", start_ruins.size() <= 6,
+		"%d: %s" % [start_ruins.size(), str(start_ruins)])
+	check("...Government is one of them", "Government" in start_ruins)
+	check("a non-iconic site (Tavern) starts as OPEN GROUND", not ("Tavern" in start_ruins))
+	var start_cottages := 0
+	for n in get_tree().current_scene.find_children("*", "", true, false):
+		if "house_id" in n and str(n.house_id).begins_with("house_"):
+			start_cottages += 1
+	check("the village starts with NO pre-built cottages", start_cottages == 0, "%d" % start_cottages)
+	var scene = get_tree().current_scene
+	check("the build menu still offers all 15 roster buildings",
+		scene.has_method("building_names") and scene.building_names().size() == 15,
+		"%d" % (scene.building_names().size() if scene.has_method("building_names") else -1))
+	check("...including a non-iconic one with no ruin (Tavern)",
+		scene.has_method("building_names") and "Tavern" in scene.building_names())
+
 	# ---- cost table ----
 	check("a building has a material cost", not GameState.build_cost("Bar").is_empty())
 	check("a Cottage costs gatherable timber, no gold",
@@ -85,10 +106,20 @@ func _ready() -> void:
 		GameState.extra_cottage_positions.size() > 0
 		and absf(float(GameState.extra_cottage_positions[-1]) - cx) < 1.0)
 	var found_home := false
+	var cott_node: Node = null
 	for n in get_tree().current_scene.find_children("*", "", true, false):
 		if "house_id" in n and str(n.house_id).begins_with("menu_house_"):
-			found_home = true; break
+			found_home = true; cott_node = n; break
 	check("...and it stands in the village", found_home)
+	# ---- and a raised COTTAGE can be DELETED (checked BEFORE any wall exists,
+	# so the delete tool's building/wall/cottage search resolves to the cottage) ----
+	if cott_node != null:
+		var cbefore: int = GameState.extra_cottages
+		check("the delete tool finds a COTTAGE, not just halls",
+			placer._building_at(cott_node.global_position.x) == cott_node)
+		placer._do_delete(cott_node, placer._delete_kind(cott_node))
+		check("deleting a cottage drops the home count", GameState.extra_cottages == cbefore - 1)
+		await get_tree().process_frame
 
 	# ---- the tutorial builds cost NO gold (a penniless new player can raise them) ----
 	check("the Wall costs no gold, only gatherable stone/wood",
@@ -120,6 +151,18 @@ func _ready() -> void:
 		if is_instance_valid(w2) and absf(w2.global_position.x - wx) < 2.0:
 			found_wall = true; break
 	check("...and the rampart stands in the village", found_wall)
+
+	# ---- a Wall is DELETABLE too now (dev 2026-07-23) ----
+	var wall_node: Node = null
+	for w3 in get_tree().get_nodes_in_group("village_wall"):
+		if is_instance_valid(w3) and absf(w3.global_position.x - wx) < 2.0:
+			wall_node = w3; break
+	if wall_node != null:
+		var wbefore: int = GameState.placed_walls.size()
+		check("the delete tool finds a WALL", placer._building_at(wall_node.global_position.x) == wall_node)
+		placer._do_delete(wall_node, placer._delete_kind(wall_node))
+		check("deleting a wall removes it from placed_walls", GameState.placed_walls.size() == wbefore - 1)
+	await get_tree().process_frame
 
 	# ---- the step-gated tutorial advances as you build ----
 	GameState.tutorial_step = 0
