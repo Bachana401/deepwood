@@ -1969,19 +1969,11 @@ func build_player_light() -> void:
 	add_child(player_light)
 	build_char_shadow(self, 0.5)              # a small grounding shadow at the feet
 
-# A small, soft shadow blot under a character so it reads as standing ON the
-# ground, not floating (dev: "create shadows... so the game feels smoother").
-# Reuses the soft radial texture, tinted black and flattened.
+# The grounding shadow now lives in char_shadow.gd so every character shares it
+# (dev: "create shadows... so the game feels smoother"). Kept as a thin wrapper
+# so existing callers are undisturbed; the player's feet sit at local y 24.
 func build_char_shadow(host: Node2D, width: float) -> void:
-	var sh := Sprite2D.new()
-	sh.name = "CharShadow"
-	sh.texture = _player_light_tex()
-	sh.modulate = Color(0, 0, 0, 0.30)
-	sh.scale = Vector2(width, width * 0.32)
-	sh.position = Vector2(0, 24.0)            # the feet / ground line
-	sh.z_index = -4                           # under the body, over the floor
-	sh.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-	host.add_child(sh)
+	preload("res://char_shadow.gd").attach(host, width, 24.0)
 
 func apply_knockback(direction_sign: int, distance: float) -> void:
 	if is_dead:

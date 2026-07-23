@@ -200,6 +200,10 @@ func apply_size() -> void:
 	last_applied_is_kid = is_kid
 	var scale_factor = 0.65 if is_kid else 1.0
 	body_scale_factor = scale_factor
+	# a grounding shadow at the feet (18*scale below origin), same as everyone
+	# carries now (char_shadow.gd). Attached to self so the body_gfx rebuild
+	# below never wipes it; guarded, so repeat apply_size calls don't stack it.
+	preload("res://char_shadow.gd").attach(self, 0.45 * body_scale_factor, 18.0 * body_scale_factor)
 
 	if body_gfx:
 		for c in body_gfx.get_children():

@@ -322,6 +322,8 @@ func _ready() -> void:
 	setup_weapon_visual()
 	update_body_color()
 	build_character()
+	# a grounding shadow at the feet, same as the player carries (char_shadow.gd)
+	preload("res://char_shadow.gd").attach(self, 0.5, SPRITE_GROUND_Y)
 	if is_elite:
 		_become_super_mob()
 
