@@ -81,6 +81,9 @@ func _ready() -> void:
 	var sieges_before: int = int(GameState.away_report.get("sieges", 0))
 	var villagers_pre_siege: int = GameState.rescued_villagers.size()
 	var adv_lost_before: int = int(GameState.away_report.get("adventurers_lost", 0))
+	# this phase simulates MID-GAME (away in the deep) -- the opening is long over.
+	# The siege clock is gated on opening_done now (never a wave mid-tutorial).
+	GameState.opening_done = true
 	GameState.in_dungeon = true
 	GameState.hours_until_next_siege = 2.0
 	GameState.skip_hours(4.0)
