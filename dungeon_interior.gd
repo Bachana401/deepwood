@@ -1710,7 +1710,10 @@ func build_torches(boss: bool, arena: Dictionary = {}) -> void:
 	var count = int(current_width / TORCH_SPACING)
 	for i in range(count):
 		var x = 180.0 + i * TORCH_SPACING + randf_range(-40.0, 40.0)
-		build_torch(Vector2(clamp(x, 60.0, current_width - 60.0), GROUND_Y), accent)
+		# only every other torch casts a real light (the rest keep the cheap glow)
+		# -- halves the dungeon's real-light count. The first torch always lights so
+		# the entrance is never dim.
+		build_torch(Vector2(clamp(x, 60.0, current_width - 60.0), GROUND_Y), accent, i % 2 == 0)
 
 # Shared soft radial glow for every dungeon torch (built once).
 static var _torch_glow: GradientTexture2D = null
@@ -1732,7 +1735,7 @@ static func _torch_glow_tex() -> GradientTexture2D:
 		_torch_glow.fill_to = Vector2(1.0, 0.5)
 	return _torch_glow
 
-func build_torch(pos: Vector2, color: Color = TORCH_COLOR) -> void:
+func build_torch(pos: Vector2, color: Color = TORCH_COLOR, cast_light: bool = true) -> void:
 	var torch = Node2D.new()
 	torch.position = pos
 	$LevelContainer.add_child(torch)
@@ -1759,15 +1762,19 @@ func build_torch(pos: Vector2, color: Color = TORCH_COLOR) -> void:
 	torch.add_child(glow)
 
 	# a REAL light (not just the additive bloom) so the torch carves a warm pool
-	# out of the DUNGEON_AMBIENT dark -- the Terraria cave read
-	var light := PointLight2D.new()
-	light.texture = _torch_glow_tex()
-	light.texture_scale = TORCH_LIGHT_SCALE
-	light.color = Color(color.r, color.g, color.b)
-	light.energy = TORCH_LIGHT_ENERGY
-	light.shadow_enabled = false
-	light.position = Vector2(0, -82.0)
-	torch.add_child(light)
+	# out of the DUNGEON_AMBIENT dark -- the Terraria cave read. LAG CUT
+	# (2026-07-22): 2D lights are the dungeon's dominant cost, so only SOME
+	# torches cast a real one; the rest keep just the cheap additive glow above.
+	# The ones that do light are a touch bigger + brighter to fill the wider gaps.
+	if cast_light:
+		var light := PointLight2D.new()
+		light.texture = _torch_glow_tex()
+		light.texture_scale = TORCH_LIGHT_SCALE * 1.3
+		light.color = Color(color.r, color.g, color.b)
+		light.energy = TORCH_LIGHT_ENERGY * 1.15
+		light.shadow_enabled = false
+		light.position = Vector2(0, -82.0)
+		torch.add_child(light)
 
 	var flame = Polygon2D.new()
 	flame.polygon = PackedVector2Array([Vector2(-5, 0), Vector2(5, 0), Vector2(0, -16)])

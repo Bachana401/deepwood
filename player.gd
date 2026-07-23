@@ -1958,7 +1958,9 @@ static func _player_light_tex() -> GradientTexture2D:
 func build_player_light() -> void:
 	player_light = PointLight2D.new()
 	player_light.texture = _player_light_tex()
-	player_light.texture_scale = 6.2          # a wider, gentler pool, not a tight sun
+	# 5.2 (trimmed from 6.2): a gentle pool, not a tight sun -- and a smaller light
+	# is cheaper to fill, since 2D lights were the dungeon's main lag.
+	player_light.texture_scale = 5.2
 	player_light.color = Color(1.0, 0.88, 0.66)
 	player_light.energy = 0.55                # softer, so it blends instead of glaring
 	player_light.shadow_enabled = false
