@@ -978,8 +978,11 @@ func restore_building(bname: String) -> void:
 	removed_buildings.erase(bname)
 
 # Delete a player-raised COTTAGE (dev 2026-07-23: cottages are deletable now). Drops
-# its saved ground + the count, and breaks any pairing sheltering there. Homes are
-# DERIVED (villager_home_id), so nobody is left with a dangling home reference.
+# its saved ground + the count, breaks any pairing sheltering there, AND frees any
+# settled couple who called it home. villager_home_id() DERIVES a home by scanning
+# cottage_homes -- so razing an occupied cottage without erasing its cottage_homes
+# entry left the couple pointing at a home that no longer stood (they read as housed,
+# their gone cottage never freed a housing slot). dev 2026-07-23 dangling-home hole.
 func remove_cottage(house_id: String, x: float) -> void:
 	var best_i := -1
 	var best_d := 1.0e9
@@ -991,8 +994,10 @@ func remove_cottage(house_id: String, x: float) -> void:
 	if best_i >= 0 and best_d < 48.0:
 		extra_cottage_positions.remove_at(best_i)
 	extra_cottages = maxi(0, extra_cottages - 1)
-	if mating_houses.has(house_id):
+	if mating_houses.has(house_id):        # a couple mid-cycle here is broken up
 		mating_houses.erase(house_id)
+	if cottage_homes.has(house_id):        # a SETTLED couple loses their home
+		cottage_homes.erase(house_id)
 	log_event("village", "A cottage was cleared away — its ground stands empty now.")
 
 # Delete a player-raised WALL: drop it from placed_walls by its ground.

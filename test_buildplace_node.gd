@@ -117,8 +117,16 @@ func _ready() -> void:
 		var cbefore: int = GameState.extra_cottages
 		check("the delete tool finds a COTTAGE, not just halls",
 			placer._building_at(cott_node.global_position.x) == cott_node)
+		# settle a couple in THIS cottage first, so we prove razing it frees them and
+		# leaves no dangling home reference (dev 2026-07-23 dangling-home hole)
+		var chid := str(cott_node.house_id)
+		GameState.cottage_homes[chid] = {"a": "dh_test_a", "b": "dh_test_b"}
+		check("a settled couple reads as HOUSED before the raze",
+			GameState.villager_home_id("dh_test_a") == chid)
 		placer._do_delete(cott_node, placer._delete_kind(cott_node))
 		check("deleting a cottage drops the home count", GameState.extra_cottages == cbefore - 1)
+		check("...and its settled couple is freed — no dangling home reference",
+			not GameState.cottage_homes.has(chid) and GameState.villager_home_id("dh_test_a") == "")
 		await get_tree().process_frame
 
 	# ---- the tutorial builds cost NO gold (a penniless new player can raise them) ----
