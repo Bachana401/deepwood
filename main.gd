@@ -350,6 +350,11 @@ func generate_village() -> void:
 			# reserve the water at its MAX-upgraded sideways spread
 			var water_max = 1.0 + (BUILDING_SCRIPT.MAX_LEVEL - 1) * BUILDING_SCRIPT.DOCK_WATER_PER_LEVEL
 			reserve = max(reserve, w * 2.0 * BUILDING_SCRIPT.DOCK_WATER_HALF * water_max)
+		# a building the player razed for good (build menu) leaves empty ground --
+		# skip it but still advance the cursor so the others keep their spots
+		if GameState.building_removed(def.name):
+			cursor += reserve + VILLAGE_GAP
+			continue
 		var building = BUILDING_SCRIPT.new()
 		building.building_name = def.name
 		building.role_key = def.role_key

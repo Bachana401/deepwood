@@ -946,6 +946,22 @@ func building_level(name: String) -> int:
 func building_output_multiplier(name: String) -> float:
 	return 1.0 + (building_level(name) - 1) * BUILDING_OUTPUT_PER_LEVEL
 
+# --- DELETED BUILDINGS (dev 2026-07-22 building menu: "player can delete these
+# ruins... game always double checks"). A building the player razes for good is
+# recorded here; generate_village skips it on every rebuild, leaving its ground
+# empty, until it is re-placed. Keyed by building_name.
+var removed_buildings: Dictionary = {}
+
+func building_removed(bname: String) -> bool:
+	return removed_buildings.has(bname)
+
+func remove_building(bname: String) -> void:
+	removed_buildings[bname] = true
+	log_event("village", "%s was cleared away — its ground stands empty now." % bname)
+
+func restore_building(bname: String) -> void:
+	removed_buildings.erase(bname)
+
 # --- THE RAMPART (dev ask 2026-07-22: "make WALLS bigger... with gate,
 # upgradable... in the beginning it's gotta be weak of course"). One shared tier
 # drives BOTH ramparts (the west gatehouse the wild road breaks against and the
@@ -3869,6 +3885,7 @@ func reset_for_new_game() -> void:
 		building_cleared[bn] = 0
 	building_levels = {}
 	wall_level = 1
+	removed_buildings = {}
 	wizard_respawn_at_hours = -1.0
 	placed_torches = []
 	morale_death_shock = 0.0
@@ -4027,6 +4044,7 @@ func save_game(player: Node) -> void:
 		"building_cleared": building_cleared,
 		"building_levels": building_levels,
 		"wall_level": wall_level,
+		"removed_buildings": removed_buildings,
 		"placed_torches": placed_torches,
 		"wizard_respawn_at_hours": wizard_respawn_at_hours,
 		"wizard_power_tier": wizard_power_tier,
@@ -4168,6 +4186,10 @@ func load_game() -> Dictionary:
 				building_levels[k] = int(parsed["building_levels"][k])
 		if parsed.has("wall_level"):
 			wall_level = clampi(int(parsed["wall_level"]), 1, WALL_MAX_LEVEL)
+		if parsed.has("removed_buildings") and parsed["removed_buildings"] is Dictionary:
+			removed_buildings = {}
+			for k in parsed["removed_buildings"].keys():
+				removed_buildings[k] = true
 		if parsed.has("building_stage") and parsed["building_stage"] is Dictionary:
 			building_stage = {}
 			for k in parsed["building_stage"].keys():

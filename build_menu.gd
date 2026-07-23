@@ -178,6 +178,13 @@ func refresh() -> void:
 			rows_box.add_child(_make_row(r["name"], r["state"], r["x"] - here))
 	title.text = "THE BUILDER'S LEDGER — %d of %d standing" % [standing, total]
 
+# Free the live site node once the player razes it (GameState already recorded
+# the removal so generate_village skips it on every future rebuild).
+func _delete_live_building(bn: String) -> void:
+	for b in get_tree().get_nodes_in_group("building"):
+		if "building_name" in b and b.building_name == bn:
+			b.queue_free()
+
 func _make_header(group: String, count: int) -> Control:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 2)
@@ -212,7 +219,7 @@ func _make_row(bn: String, st: Dictionary, dx: float) -> Control:
 	head.add_theme_font_size_override("font_size", 14)
 	head.add_theme_color_override("font_color",
 		Color(0.88, 0.88, 0.92) if st["known"] else Color(0.6, 0.58, 0.56))
-	head.custom_minimum_size = Vector2(430, 0)
+	head.custom_minimum_size = Vector2(360, 0)
 	head_line.add_child(head)
 	# THE ONE THING THE OLD LEDGER COULD NOT TELL YOU: where it is. Without
 	# this, eleven anonymous heaps are unfindable and the window is decoration.
@@ -221,8 +228,26 @@ func _make_row(bn: String, st: Dictionary, dx: float) -> Control:
 	where.add_theme_font_size_override("font_size", 11)
 	where.add_theme_color_override("font_color", Color(0.58, 0.62, 0.7))
 	where.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	where.custom_minimum_size = Vector2(160, 0)
+	where.custom_minimum_size = Vector2(130, 0)
 	head_line.add_child(where)
+	# RAZE A RUIN (dev 2026-07-22 build menu): clear a site's ground for good, so
+	# you can place what you want there instead. Standing buildings are spared
+	# here (they hold workers); only rubble/cleared/under-construction sites show
+	# it. Two clicks -- "Delete" then "forever?" -- is the double-check.
+	if str(st.get("group", "")) != "standing":
+		var del := Button.new()
+		del.text = "Delete"
+		del.custom_minimum_size = Vector2(96, 0)
+		del.add_theme_font_size_override("font_size", 11)
+		del.pressed.connect(func() -> void:
+			if del.text == "Delete":
+				del.text = "forever?"
+				del.add_theme_color_override("font_color", Color(1.0, 0.45, 0.4))
+			else:
+				GameState.remove_building(bn)
+				_delete_live_building(bn)
+				refresh())
+		head_line.add_child(del)
 	row.add_child(head_line)
 	var state = Label.new()
 	state.text = "   " + st["label"]
