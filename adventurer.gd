@@ -421,6 +421,8 @@ func _ensure_anchor() -> void:
 	if a != 0.0:
 		home_x = a
 
+const SEP_RADIUS := 52.0     # heroes closer than this on the x-axis steer apart
+
 func _hold_station(delta: float) -> void:
 	if home_x == 0.0:
 		home_x = _station_anchor_x()
@@ -431,6 +433,19 @@ func _hold_station(delta: float) -> void:
 			patrol_dir *= -1.0
 	_ensure_anchor()
 	var dest := home_x + (_post_offset + patrol_off if station == "city" else _post_offset * 0.5)
+	# SEPARATION (dev: "heroes can't move freely, they stick to each other"). They
+	# don't physically collide (layer 0), so they were just AI-clustering on the
+	# same anchor. Steer each one off any peer sharing its stretch, so they spread
+	# out and walk AROUND each other instead of piling up.
+	for a in get_tree().get_nodes_in_group("adventurer"):
+		if a == self or not is_instance_valid(a):
+			continue
+		var gap: float = global_position.x - a.global_position.x
+		if absf(gap) < SEP_RADIUS:
+			var push: float = 1.0 if gap >= 0.0 else -1.0
+			if gap == 0.0:
+				push = 1.0 if (hash(adventurer_id) % 2 == 0) else -1.0
+			dest += push * (SEP_RADIUS - absf(gap)) * 0.9
 	var dx := dest - global_position.x
 	velocity.x = clampf(dx, -WALK_SPEED, WALK_SPEED) if absf(dx) > 6.0 else 0.0
 	if absf(velocity.x) > 1.0:

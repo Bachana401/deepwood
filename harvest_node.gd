@@ -32,8 +32,8 @@ func _drop(id: String, n: int) -> void:
 # swing as you work it, and SHRINKS as it empties -- the shrinking IS the
 # gauge, so you can read a seam's worth from across the clearing. When the
 # reserve runs out it finally disappears (and a new seam surfaces later).
-const ROCK_RESERVE_MULT = 20
-const ROCK_RESERVE = HITS_TO_HARVEST * ROCK_RESERVE_MULT   # 80 swings
+const ROCK_RESERVE_MULT = 5
+const ROCK_RESERVE = HITS_TO_HARVEST * ROCK_RESERVE_MULT   # 20 swings (dev: stone was WAY too much)
 const ROCK_MIN_SCALE = 0.34        # how small a nearly-spent seam looks
 const ROCK_REGROW_SECONDS = 420.0  # a whole deposit takes far longer to return
 
@@ -144,7 +144,7 @@ func take_tool_hit(tool_type: String, player: Node) -> void:
 # only vanishes once the whole reserve is worked out.
 func _mine_swing(player: Node) -> void:
 	reserve_left -= 1
-	_drop("stone", 1 + (1 if randf() < 0.35 else 0))
+	_drop("stone", 1)                # was 1-2/swing over 80 swings (~110 a rock) -- far too much
 	# the deeper minerals the skill tree spends, surfacing as you work
 	if randf() < 0.05:
 		_drop("iron_shard", 1)
