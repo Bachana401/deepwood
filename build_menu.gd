@@ -91,9 +91,18 @@ func _build_panel() -> void:
 	rows_box.add_theme_constant_override("separation", 6)
 	scroll.add_child(rows_box)
 
+	# Delete a building: click it, then a YES/NO panel makes you sure (dev asked
+	# for exactly this instead of the old two-click-in-the-list).
+	var del_btn = Button.new()
+	del_btn.text = "🗑  Delete a Building"
+	del_btn.position = Vector2(120, 542)
+	del_btn.size = Vector2(190, 30)
+	del_btn.pressed.connect(_start_delete)
+	panel.add_child(del_btn)
+
 	var close = Button.new()
 	close.text = "Close (B)"
-	close.position = Vector2(275, 542)
+	close.position = Vector2(420, 542)
 	close.size = Vector2(110, 30)
 	close.pressed.connect(func(): panel.visible = false)
 	panel.add_child(close)
@@ -163,7 +172,7 @@ func refresh() -> void:
 		var g: String = str(st["group"])
 		if not buckets.has(g):
 			buckets[g] = []
-		buckets[g].append({"name": bn, "state": st, "x": b.global_position.x})
+		buckets[g].append({"name": bn, "state": st, "x": b.global_position.x, "node": b})
 		total += 1
 		if g == "standing":
 			standing += 1
@@ -175,15 +184,28 @@ func refresh() -> void:
 		rows.sort_custom(func(a, c): return absf(a["x"] - here) < absf(c["x"] - here))
 		rows_box.add_child(_make_header(g, rows.size()))
 		for r in rows:
-			rows_box.add_child(_make_row(r["name"], r["state"], r["x"] - here))
+			rows_box.add_child(_make_row(r["name"], r["state"], r["x"] - here, r["node"]))
 	title.text = "THE BUILDER'S LEDGER — %d of %d standing" % [standing, total]
 
-# Free the live site node once the player razes it (GameState already recorded
-# the removal so generate_village skips it on every future rebuild).
-func _delete_live_building(bn: String) -> void:
-	for b in get_tree().get_nodes_in_group("building"):
-		if "building_name" in b and b.building_name == bn:
-			b.queue_free()
+# The world-space placer that carries the build hologram + the delete popup;
+# made once, lazily, and parked in the village scene.
+func _placer() -> Node:
+	var pl = get_tree().get_first_node_in_group("build_placer")
+	if pl == null:
+		pl = preload("res://build_placer.gd").new()
+		get_tree().current_scene.add_child(pl)
+	return pl
+
+func _start_build(bn: String, node: Node) -> void:
+	panel.visible = false
+	var w: float = float(node.width) if "width" in node else 120.0
+	var h: float = float(node.height) if "height" in node else 90.0
+	var col: Color = node.body_color if "body_color" in node else Color(0.5, 0.45, 0.4)
+	_placer().start_build(bn, w, h, col)
+
+func _start_delete() -> void:
+	panel.visible = false
+	_placer().start_delete()
 
 func _make_header(group: String, count: int) -> Control:
 	var box := VBoxContainer.new()
@@ -209,7 +231,14 @@ func _bearing(dx: float) -> String:
 		return "right here"
 	return "%d paces %s" % [int(absf(dx) / 10.0), "east" if dx > 0.0 else "west"]
 
-func _make_row(bn: String, st: Dictionary, dx: float) -> Control:
+func _cost_text(bn: String) -> String:
+	var parts := PackedStringArray()
+	for k in GameState.build_cost(bn):
+		var nm: String = "g" if k == "coin_gold" else Inventory.get_display_name(k)
+		parts.append("%d%s" % [int(GameState.build_cost(bn)[k]), (nm if k == "coin_gold" else " " + nm)])
+	return ", ".join(parts)
+
+func _make_row(bn: String, st: Dictionary, dx: float, node: Node) -> Control:
 	var row = VBoxContainer.new()
 	row.add_theme_constant_override("separation", 1)
 	var head_line = HBoxContainer.new()
@@ -219,35 +248,25 @@ func _make_row(bn: String, st: Dictionary, dx: float) -> Control:
 	head.add_theme_font_size_override("font_size", 14)
 	head.add_theme_color_override("font_color",
 		Color(0.88, 0.88, 0.92) if st["known"] else Color(0.6, 0.58, 0.56))
-	head.custom_minimum_size = Vector2(360, 0)
+	head.custom_minimum_size = Vector2(300, 0)
 	head_line.add_child(head)
-	# THE ONE THING THE OLD LEDGER COULD NOT TELL YOU: where it is. Without
-	# this, eleven anonymous heaps are unfindable and the window is decoration.
+	# where it is, so anonymous heaps are findable
 	var where = Label.new()
 	where.text = _bearing(dx)
 	where.add_theme_font_size_override("font_size", 11)
 	where.add_theme_color_override("font_color", Color(0.58, 0.62, 0.7))
 	where.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	where.custom_minimum_size = Vector2(130, 0)
+	where.custom_minimum_size = Vector2(100, 0)
 	head_line.add_child(where)
-	# RAZE A RUIN (dev 2026-07-22 build menu): clear a site's ground for good, so
-	# you can place what you want there instead. Standing buildings are spared
-	# here (they hold workers); only rubble/cleared/under-construction sites show
-	# it. Two clicks -- "Delete" then "forever?" -- is the double-check.
+	# BUILD IT (dev 2026-07-22): a site not yet standing gets a Build button --
+	# click to raise it on ground YOU pick, with the green/red placement holo.
 	if str(st.get("group", "")) != "standing":
-		var del := Button.new()
-		del.text = "Delete"
-		del.custom_minimum_size = Vector2(96, 0)
-		del.add_theme_font_size_override("font_size", 11)
-		del.pressed.connect(func() -> void:
-			if del.text == "Delete":
-				del.text = "forever?"
-				del.add_theme_color_override("font_color", Color(1.0, 0.45, 0.4))
-			else:
-				GameState.remove_building(bn)
-				_delete_live_building(bn)
-				refresh())
-		head_line.add_child(del)
+		var build := Button.new()
+		build.text = "Build (%s)" % _cost_text(bn)
+		build.custom_minimum_size = Vector2(180, 0)
+		build.add_theme_font_size_override("font_size", 11)
+		build.pressed.connect(func() -> void: _start_build(bn, node))
+		head_line.add_child(build)
 	row.add_child(head_line)
 	var state = Label.new()
 	state.text = "   " + st["label"]

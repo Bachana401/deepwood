@@ -962,6 +962,51 @@ func remove_building(bname: String) -> void:
 func restore_building(bname: String) -> void:
 	removed_buildings.erase(bname)
 
+# --- RAISING BUILDINGS FROM THE MENU (dev 2026-07-22: build from B with a holo) ---
+# Pick a building, a green/red hologram shows where it can stand, click to raise
+# it on clear village ground. can_place_building is the ONE truth the holo colour
+# and the actual placement both read, so green ALWAYS means it will build.
+const BUILD_BASE_COST := {"coin_gold": 60, "wood": 16, "stone": 8}
+
+func build_cost(bname: String) -> Dictionary:
+	if bname == "Cottage":
+		return {"coin_gold": 30, "wood": 12}          # a home is cheap
+	return BUILD_BASE_COST
+
+func can_afford_build(bname: String, player: Node) -> bool:
+	if player == null or not ("inventory" in player) or player.inventory == null:
+		return false
+	for k in build_cost(bname):
+		if player.inventory.get_count(k) < int(build_cost(bname)[k]):
+			return false
+	return true
+
+func pay_build(bname: String, player: Node) -> void:
+	for k in build_cost(bname):
+		player.inventory.remove_item(k, int(build_cost(bname)[k]))
+
+# Can a building `bwidth` wide stand centred at x? INSIDE the ramparts and clear
+# of every other structure -- the same rule the old relocate plant used, so a
+# built building can never overlap another. (The village IS the surface, so a
+# spot here is always "on the ground, not underground".)
+func can_place_building(tree: SceneTree, bwidth: float, x: float, exclude: Node = null) -> bool:
+	var west_x := 4700.0
+	var east_x := 1.0e9
+	for w in tree.get_nodes_in_group("village_wall"):
+		if "flank" in w and w.flank == "east":
+			east_x = w.global_position.x
+		else:
+			west_x = w.global_position.x
+	if x < west_x + 160.0 or x > east_x - 160.0:
+		return false
+	var my_half: float = bwidth / 2.0
+	for other in tree.get_nodes_in_group("building"):
+		if other == exclude or not ("width" in other):
+			continue
+		if absf(x - other.global_position.x) < my_half + float(other.width) / 2.0 + RELOCATE_CLEARANCE:
+			return false
+	return true
+
 # --- THE RAMPART (dev ask 2026-07-22: "make WALLS bigger... with gate,
 # upgradable... in the beginning it's gotta be weak of course"). One shared tier
 # drives BOTH ramparts (the west gatehouse the wild road breaks against and the

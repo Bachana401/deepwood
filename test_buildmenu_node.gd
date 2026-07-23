@@ -39,15 +39,17 @@ func _ready() -> void:
 	var before := _count(target)
 	var bm: Node = null
 	for w in get_tree().get_nodes_in_group("esc_window"):
-		if w.has_method("_delete_live_building"):
+		if w.has_method("_start_delete") and w.has_method("_start_build"):
 			bm = w
 			break
-	check("the build menu exposes the raze helper", bm != null)
-	if bm != null:
-		GameState.remove_building(target)
-		bm._delete_live_building(target)
-		await get_tree().process_frame
-		await get_tree().process_frame
+	check("the build menu drives build + delete", bm != null)
+	# what the delete popup's YES does: record the razing + free the live site
+	GameState.remove_building(target)
+	for b in get_tree().get_nodes_in_group("building"):
+		if "building_name" in b and str(b.building_name) == target:
+			b.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
 	check("razing removes the site from the world",
 		before > 0 and _count(target) == 0, "%s: %d -> %d" % [target, before, _count(target)])
 

@@ -1,0 +1,70 @@
+extends Node
+# BUILD FROM THE MENU (dev 2026-07-22: "list of buildings... a holo, green if
+# placeable, red if bad, on the ground, not on another building"). The holo's
+# colour and the actual placement both read GameState.can_place_building, so this
+# proves that ONE truth: inside the walls + clear of other buildings = placeable,
+# and a placement there raises the building and charges its cost.
+
+var fails := 0
+func check(name: String, ok: bool, detail := "") -> void:
+	if ok: printerr("PASS  ", name)
+	else: fails += 1; printerr("FAIL  ", name, "   ", detail)
+
+func _ready() -> void:
+	var p: Node = null
+	for i in range(1200):
+		await get_tree().process_frame
+		p = get_tree().get_first_node_in_group("player")
+		if p != null: break
+	if p == null: printerr("no player"); get_tree().quit(1); return
+	for i in range(30):
+		await get_tree().process_frame
+
+	# ---- cost table ----
+	check("a building has a material cost", not GameState.build_cost("Bar").is_empty())
+	check("a Cottage has its own cheaper cost",
+		GameState.build_cost("Cottage").has("coin_gold") and GameState.build_cost("Cottage").has("wood"))
+
+	# ---- can_place_building is the green/red truth ----
+	var walls := get_tree().get_nodes_in_group("village_wall")
+	var west := 4700.0
+	for w in walls:
+		if not ("flank" in w and w.flank == "east"): west = w.global_position.x
+	check("NOT placeable west of the wall (off the ground you own)",
+		not GameState.can_place_building(get_tree(), 120.0, west - 50.0))
+	# a spot ON an existing building must be red
+	var target: Node = null
+	for b in get_tree().get_nodes_in_group("building"):
+		if "building_name" in b and "width" in b:
+			target = b; break
+	check("there is a building to test against", target != null)
+	var bw: float = float(target.width)
+	check("NOT placeable on top of another building",
+		not GameState.can_place_building(get_tree(), bw, target.global_position.x))
+	# a genuinely clear x inside the walls, sized to the REAL building footprint
+	var clear_x := 0.0
+	for cand in range(int(west) + 240, 24000, 40):
+		if GameState.can_place_building(get_tree(), bw, float(cand)):
+			clear_x = float(cand); break
+	check("clear ground inside the walls IS placeable", clear_x > 0.0, "clear_x %.0f" % clear_x)
+
+	# ---- raising a building from the menu (the placer's own logic) ----
+	var bn: String = str(target.building_name)
+	GameState.building_stage[bn] = 0                 # make it a ruin to build
+	var placer = preload("res://build_placer.gd").new()
+	get_tree().current_scene.add_child(placer)
+	await get_tree().process_frame
+	# fund it, then place at the clear spot the same call the holo validated
+	for k in GameState.build_cost(bn):
+		p.inventory.add_item(k, int(GameState.build_cost(bn)[k]) + 2)
+	var gold0: int = p.inventory.get_count("coin_gold")
+	placer.start_build(bn, float(target.width), float(target.height), Color(0.5, 0.45, 0.4))
+	placer._try_place(clear_x)
+	check("building it raises the site to standing",
+		GameState.building_stage.get(bn, 0) == GameState.TOTAL_BUILD_STAGES,
+		"stage %d" % int(GameState.building_stage.get(bn, 0)))
+	check("...on the ground you chose", absf(float(GameState.building_positions.get(bn, -1.0)) - clear_x) < 1.0)
+	check("...and it charged the materials", p.inventory.get_count("coin_gold") < gold0)
+
+	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
+	get_tree().quit(1 if fails > 0 else 0)
