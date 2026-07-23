@@ -921,15 +921,20 @@ func _build_pits(rng: RandomNumberGenerator) -> void:
 			_slab(sx - half, bottom, pit.w, FLOOR_T)
 			_slab(sx - half - 16.0, floor_y, 16.0, depth + FLOOR_T)
 			_slab(sx + half, floor_y, 16.0, depth + FLOOR_T)
-			# the way BACK OUT: a ladder up through the mouth, rungs from an even
-			# span/nn divide so every gap is <=82px (the shaft/loft climb rule)
+			# the way BACK OUT: a STAIRCASE of one-way treads that marches from the
+			# pit floor UP TO THE RIM on the left side. Each tread is <=78px above
+			# the last (a safe jump) and the top one sits level with the rim (floor_y)
+			# hard against the west wall, so you step straight out onto solid ground --
+			# escapable no matter how WIDE the pit is (the old centred rungs left a
+			# 400px ambush pit unclimbable: you dropped in for the loot and were stuck).
 			var span: float = bottom - floor_y
-			var nn: int = maxi(1, int(ceil(span / 80.0)))
+			var nn: int = maxi(2, int(ceil(span / 74.0)))
 			var stp: float = span / float(nn)
-			var side := 1.0
-			for i in range(1, nn):
-				_slab(sx + side * 40.0 - 45.0, bottom - stp * float(i), 90.0, 14.0)
-				side = -side
+			var tw: float = 122.0
+			for i in range(1, nn + 1):
+				var frac: float = float(i) / float(nn)
+				var tx: float = lerpf(sx - 30.0, sx - half + tw * 0.5, frac)   # end AT the rim
+				_slab(tx - tw * 0.5, bottom - stp * float(i), tw, 14.0)
 			# the prize, tucked against a wall, lit so the pit isn't a black hole
 			var tag: String = "ambush" if pit.ambush else "stash"
 			var chest_x: float = sx + (half - 80.0) * (1.0 if rng.randf() < 0.5 else -1.0)
