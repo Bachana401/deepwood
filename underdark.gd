@@ -166,6 +166,9 @@ func _ready() -> void:
 	# LAST on purpose: hidden treasure lofts add on top of the finished, audited
 	# map without shifting any earlier seed draw (see _build_hidden_lofts).
 	_build_hidden_lofts(rng)
+	# ...and the living-cave dressing is dead last, on NO rng at all (plain randf),
+	# so it can never perturb the audited layout above it.
+	_build_cave_life()
 
 func band_floor_y(band: int) -> float:
 	return UD_TOP + (band + 1) * BAND_H - 180.0
@@ -541,6 +544,112 @@ static func _add_mat() -> CanvasItemMaterial:
 	var m := CanvasItemMaterial.new()
 	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	return m
+
+# --- the cave is alive ------------------------------------------------------
+# A bioluminescent dressing over the finished bands (dev ask 2026-07-22:
+# "underground ground feels so dead, make it alive"): glowing mushrooms, crystal
+# veins, moss, and roots, denser in the halls and sparse in the crawls. It walks
+# the PLANNED segments so every piece sits on a real floor (never floating in a
+# shaft or buried in rock). Seed-independent (plain randf, never the layout rng)
+# and static + additive-glow (never a PointLight2D), so it can't shift the
+# audited map and it adds nothing to the per-frame or real-light cost.
+const CL_SHROOM := [Color(0.35, 0.95, 0.85), Color(0.55, 0.75, 1.0)]
+const CL_CRYSTAL := Color(0.60, 0.45, 0.95)
+const CL_MOSS := Color(0.27, 0.44, 0.22)
+const CL_ROOT := Color(0.16, 0.13, 0.14)
+const CL_STEM := Color(0.80, 0.85, 0.82)
+
+func _build_cave_life() -> void:
+	for band in range(BANDS):
+		if not _plan.has(band):
+			continue
+		for s in _plan[band]:
+			var w: float = float(s.x1) - float(s.x0)
+			if w < 60.0:
+				continue
+			var floor_y: float = float(s.floor_y)
+			var ceil_y: float = float(s.ceil_y)
+			var dens: float = 0.7
+			match str(s.kind):
+				"arena": dens = 1.4
+				"chamber": dens = 1.1
+				"crawl": dens = 0.35
+			for i in range(int(w / 640.0 * dens)):
+				_cl_mushrooms(Vector2(randf_range(float(s.x0) + 24.0, float(s.x1) - 24.0), floor_y),
+					CL_SHROOM[randi() % 2], randf_range(0.7, 1.3))
+			for i in range(int(w / 1100.0 * dens)):
+				_cl_crystals(Vector2(randf_range(float(s.x0) + 30.0, float(s.x1) - 30.0), floor_y),
+					randf_range(0.8, 1.4))
+			for i in range(int(w / 420.0 * dens)):
+				_cl_moss(Vector2(randf_range(float(s.x0) + 10.0, float(s.x1) - 10.0), floor_y),
+					randf_range(26.0, 80.0))
+			if floor_y - ceil_y > 120.0:
+				for i in range(int(w / 560.0 * dens)):
+					_cl_root(Vector2(randf_range(float(s.x0) + 20.0, float(s.x1) - 20.0), ceil_y),
+						randf_range(26.0, 80.0))
+
+func _cl_glow(at: Vector2, color: Color, px: float) -> void:
+	var g := Sprite2D.new()
+	g.texture = _glow_tex()          # shared 64px squared-falloff, no real light
+	g.material = _add_mat()
+	g.modulate = Color(color.r, color.g, color.b, 0.5)
+	g.position = at
+	g.scale = Vector2(px / 64.0, px / 64.0)
+	g.z_index = -1
+	add_child(g)
+
+func _cl_mushrooms(base: Vector2, glow: Color, sc: float) -> void:
+	for k in range(randi_range(2, 4)):
+		var off: float = randf_range(-18.0, 18.0) * sc
+		var hgt: float = randf_range(12.0, 28.0) * sc
+		var cap_w: float = randf_range(9.0, 16.0) * sc
+		var foot: Vector2 = base + Vector2(off, 0)
+		_cl_glow(foot + Vector2(0, -hgt), glow, cap_w * 5.0)
+		var stem := ColorRect.new()
+		stem.size = Vector2(maxf(2.0, cap_w * 0.28), hgt)
+		stem.position = foot + Vector2(-stem.size.x / 2.0, -hgt)
+		stem.color = CL_STEM
+		stem.z_index = -1
+		add_child(stem)
+		var cap := Polygon2D.new()
+		cap.polygon = PackedVector2Array([
+			Vector2(-cap_w / 2.0, 0), Vector2(cap_w / 2.0, 0),
+			Vector2(cap_w * 0.32, -cap_w * 0.5), Vector2(-cap_w * 0.32, -cap_w * 0.5)])
+		cap.position = foot + Vector2(0, -hgt)
+		cap.color = glow
+		cap.z_index = -1
+		add_child(cap)
+
+func _cl_crystals(base: Vector2, sc: float) -> void:
+	_cl_glow(base + Vector2(0, -16.0 * sc), CL_CRYSTAL, 80.0 * sc)
+	for k in range(randi_range(2, 4)):
+		var off: float = randf_range(-14.0, 14.0) * sc
+		var h: float = randf_range(16.0, 36.0) * sc
+		var cw: float = randf_range(5.0, 9.0) * sc
+		var shard := Polygon2D.new()
+		shard.polygon = PackedVector2Array([Vector2(-cw / 2.0, 0), Vector2(cw / 2.0, 0), Vector2(0, -h)])
+		shard.position = base + Vector2(off, 0)
+		shard.color = CL_CRYSTAL.lightened(randf_range(0.0, 0.2))
+		shard.z_index = -1
+		add_child(shard)
+
+func _cl_moss(at: Vector2, width: float) -> void:
+	var moss := ColorRect.new()
+	moss.size = Vector2(width, randf_range(3.0, 6.0))
+	moss.position = at + Vector2(-width / 2.0, -moss.size.y)
+	moss.color = CL_MOSS.lightened(randf_range(0.0, 0.15))
+	moss.z_index = -1
+	add_child(moss)
+
+func _cl_root(at: Vector2, rlen: float) -> void:
+	var w: float = randf_range(3.0, 6.0)
+	var root := Polygon2D.new()
+	root.polygon = PackedVector2Array([
+		Vector2(-w / 2.0, 0), Vector2(w / 2.0, 0), Vector2(w * 0.15, rlen), Vector2(-w * 0.15, rlen)])
+	root.position = at
+	root.color = CL_ROOT.lightened(randf_range(0.0, 0.1))
+	root.z_index = -1
+	add_child(root)
 
 # --- the hidden doors -------------------------------------------------------
 func _place_doors(_rng: RandomNumberGenerator) -> void:
