@@ -142,8 +142,8 @@ func _ready() -> void:
 
 	# ---- GATHERING: a tree is four swings, a seam is a DEPOSIT ----
 	var hsrc := FileAccess.open("res://harvest_node.gd", FileAccess.READ).get_as_text()
-	check("a rock holds 20x a tree's reserve",
-		hsrc.contains("ROCK_RESERVE_MULT = 20")
+	check("a rock holds 5x a tree's reserve (dev: stone was WAY too much at 20x)",
+		hsrc.contains("ROCK_RESERVE_MULT = 5")
 		and hsrc.contains("ROCK_RESERVE = HITS_TO_HARVEST * ROCK_RESERVE_MULT"))
 	check("every pickaxe swing PAYS, it doesn't wait for the end",
 		hsrc.contains("func _mine_swing") and hsrc.contains('_drop("stone"'))

@@ -86,11 +86,21 @@ func _ready() -> void:
 	GameState.the_ten["ten_brannoc"]["freed"] = true
 	check("Brannoc: warriors train twice as fast",
 		abs(GameState.get_barracks_graduation_speed_multiplier() - base_grad * 2.0) < 0.001)
+	# a wall raised WITHOUT Brannoc gives the base HP; with him it stands half again
+	# as strong. Measured as a ratio so it survives any change to the wall's base HP.
+	GameState.the_ten["ten_brannoc"]["freed"] = false
+	var wall0 = load("res://wall.gd").new()
+	get_tree().root.add_child(wall0)
+	await get_tree().process_frame
+	var base_hp: int = wall0.max_health
+	wall0.queue_free()
+	GameState.the_ten["ten_brannoc"]["freed"] = true
 	var wall = load("res://wall.gd").new()
 	get_tree().root.add_child(wall)
 	await get_tree().process_frame
-	check("Brannoc: the wall stands half again as strong", wall.max_health == 1200,
-		"%d" % wall.max_health)
+	check("Brannoc: the wall stands half again as strong",
+		wall.max_health == int(round(base_hp * 1.5)),
+		"%d (base %d)" % [wall.max_health, base_hp])
 	wall.queue_free()
 	# Toren: the Forge sells Epic, crafting costs a quarter less
 	var aui = get_tree().root.find_children("*", "", true, false).filter(func(n): return n.has_method("smithy_max_rank"))

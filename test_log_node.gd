@@ -101,7 +101,7 @@ func _ready() -> void:
 	check("with Telepathy nothing accumulates -- you saw it all live",
 		GameState.log_unread == 1)
 	check("the homecoming points at the diary",
-		FileAccess.open("res://main.gd", FileAccess.READ).get_as_text().contains("press L to read the diary"))
+		FileAccess.open("res://main.gd", FileAccess.READ).get_as_text().contains("Press L for the full diary"))
 	check("opening the diary marks it read",
 		FileAccess.open("res://village_log_ui.gd", FileAccess.READ).get_as_text().contains("log_unread = 0"))
 	check("the unread count survives the save",
