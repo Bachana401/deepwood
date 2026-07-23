@@ -127,6 +127,12 @@ const DEFENDER_GROUPS = ["village_defender", "npc", "player", "building"]
 # "beside Roland" dialogue played to an empty road. Arrival raiders fight
 # the people in front of them, and nothing else.
 var arrival_mode := false
+# THEATRICAL (dev 2026-07-22): the arrival fight is STAGED at new-game start so the
+# trio + raiders are already trading blows when the player walks up -- no pop-in.
+# While theatrical a raider shadow-boxes: it swings at the trio but deals NO damage
+# and CANNOT be killed, so nobody falls before the player triggers the scene. The
+# approach (main.trigger_arrival_scene) clears this and the fight turns real.
+var theatrical := false
 
 func _ready() -> void:
 	if faction == "village":
@@ -248,7 +254,10 @@ func current_target() -> Node2D:
 func nearest_defender() -> Node2D:
 	var best: Node2D = null
 	var best_d = DEFENDER_SEEK_RANGE
-	var groups: Array = ["adventurer", "player"] if arrival_mode else DEFENDER_GROUPS
+	# theatrical raiders shadow-box the TRIO only -- never the player (who can walk
+	# right up to the staged fight before the scene without being swung at)
+	var groups: Array = (["adventurer"] if theatrical \
+		else (["adventurer", "player"] if arrival_mode else DEFENDER_GROUPS))
 	for group_name in groups:
 		for d in get_tree().get_nodes_in_group(group_name):
 			if not is_instance_valid(d) or not d.has_method("take_damage"):
@@ -292,7 +301,9 @@ func try_attack(target: Node2D) -> void:
 	if target != wall and global_position.distance_to(target.global_position) > ATTACK_RANGE + ATTACK_STOP_GAP:
 		return
 	attack_cooldown_remaining = ATTACK_COOLDOWN
-	if target.has_method("take_damage"):
+	# a theatrical raider still SWINGS (below) but its blow lands for nothing --
+	# the staged shadow-fight can't hurt anyone until the scene turns it real
+	if target.has_method("take_damage") and not theatrical:
 		target.take_damage(attack_damage)
 		# Stormhand: the blow arcs on into a second raider nearby
 		if hero_power == "stormhand":
@@ -315,6 +326,8 @@ func animate_attack() -> void:
 func take_damage(amount: int) -> void:
 	if is_dead:
 		return
+	if theatrical:
+		return                        # a staged shadow-raider can't be felled yet
 	health -= amount
 	update_health_bar_fill()
 	if health <= 0:

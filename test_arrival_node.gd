@@ -81,12 +81,22 @@ func _ready() -> void:
 		msrc.contains("RELOAD GUARD") and msrc.contains("GameState.seen_intro")
 		and msrc.contains("not GameState.seen_arrival_battle")
 		and msrc.contains("not GameState.arrival_battle_active"))
-	check("the road is walked alone until the wall is in sight",
+	check("the approach in sight of the wall triggers the scene",
 		msrc.contains("func _check_arrival_trigger") and msrc.contains("ARRIVAL_TRIGGER_DIST")
-		and msrc.contains('w.flank == "west"'))
-	check("the first fight is in company, AT the gate",
-		msrc.contains("func begin_arrival_battle") and msrc.contains("the trio is ALREADY in the fight")
-		and msrc.contains("wall_x - 620.0"))
+		and msrc.contains('w.flank == "west"') and msrc.contains("trigger_arrival_scene"))
+	# 2026-07-22 dev rework: the fight is STAGED from the first frame so there is no
+	# spawn-on-approach pop-in -- the trio + raiders are already at the gate, fighting
+	# theatrically, when the player walks up.
+	check("the fight is STAGED at game start, already in progress at the gate",
+		msrc.contains("func stage_arrival_battle") and msrc.contains("stage_arrival_battle()")
+		and msrc.contains("e.theatrical = true") and msrc.contains("wall_x - 620.0"))
+	var esrc := FileAccess.open("res://siege_enemy.gd", FileAccess.READ).get_as_text()
+	check("a staged raider deals no damage and can't be felled until the scene",
+		esrc.contains("var theatrical") and esrc.contains("can't be felled yet")
+		and esrc.contains("and not theatrical"))
+	check("the approach turns the shadow-fight real: banter, then live",
+		msrc.contains("func trigger_arrival_scene") and msrc.contains("Story.HEROES_BANTER")
+		and msrc.contains("func activate_arrival_combat") and msrc.contains("e.theatrical = false"))
 	# 2026-07-21 dev change: the wave breaking ARMS the walk home; the trap
 	# dialogue is DELIVERED when the player crosses the west rampart with the
 	# defenders (with a mouth-of-the-dungeon fallback so it can't be skipped)

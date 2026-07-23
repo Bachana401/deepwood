@@ -244,6 +244,11 @@ func _ready() -> void:
 		apply_save_data()
 	spawn_existing_villager_avatars()
 	spawn_adventurers()
+	# THE ARRIVAL IS STAGED FROM THE FIRST FRAME (dev 2026-07-22): the trio and
+	# their raiders are already trading blows at the road when the player walks up,
+	# so nothing pops in out of nowhere. The approach only starts the banter and
+	# turns the shadow-fight real. No-op once it's been seen / in dev / a dungeon.
+	stage_arrival_battle()
 	announce_orin_arrival()
 	build_escape_ward()
 	# (the standalone shop + its stall were removed on dev request 2026-07-22 --
@@ -568,48 +573,85 @@ func _check_arrival_trigger() -> void:
 	if pl.global_position.x < wall_x - ARRIVAL_TRIGGER_DIST:
 		return
 	_arrival_armed = false
-	begin_arrival_battle(wall_x)
+	trigger_arrival_scene(wall_x)
 
-func begin_arrival_battle(wall_x: float = 4700.0) -> void:
-	if GameState.seen_arrival_battle or GameState.dev_mode:
+func _west_wall_x() -> float:
+	var wall_x := 4700.0
+	for w in get_tree().get_nodes_in_group("village_wall"):
+		if "flank" in w and w.flank == "west":
+			wall_x = w.global_position.x
+			break
+	return wall_x
+
+var _arrival_staged := false
+
+# STAGE the teaching fight at new-game start (dev 2026-07-22): the trio + their
+# raiders stand at the road ALREADY fighting -- theatrically, so no one falls --
+# so when the player walks up there is no pop-in, just a battle in progress. The
+# fight happens AT THE WALL (2.4.1): you FIND the three defenders mid-battle and
+# learn combat in company. Transient (raiders aren't saved) -- re-staged on a
+# reload where the arrival is still owed.
+func stage_arrival_battle(wall_x: float = -1.0) -> void:
+	if GameState.seen_arrival_battle or GameState.dev_mode or _arrival_staged:
 		return
-	# The fight happens AT THE WALL, in sight of it (dev 2026-07-21): the
-	# player walks the road alone, the rampart comes into view, and THAT is
-	# where he finds the three defenders already fighting. Canon (2.4.1) still
-	# holds -- you FIND them mid-battle and learn combat in company -- it just
-	# happens at the gate they are defending instead of out in open country.
+	if GameState.in_dungeon:
+		return
+	if wall_x < 0.0:
+		wall_x = _west_wall_x()
 	var road_x: float = wall_x - 620.0
+	_arrival_staged = true
 	_arrival_left = 4
 	GameState.begin_arrival_shield()   # nobody dies in the teaching wave
 	for i in range(4):
 		var e = SIEGE_ENEMY_FOR_ARRIVAL.instantiate()
 		e.skin = "raider"
 		e.max_health = 60          # a LEARNING fight: lasts long enough for the
-		                           # player to WALK OVER and land real hits (the
-		                           # trio alone fells 26hp raiders in ~8 seconds,
-		                           # before the student even arrives)
+		                           # player to WALK OVER and land real hits once live
 		e.attack_damage = 4
 		e.reward = 3
 		e.wall = null              # they fight the defenders, not the stone
 		e.arrival_mode = true      # ...and ONLY the defenders -- never a building 4km east
+		e.theatrical = true        # a shadow-fight until the player triggers the scene
 		e.global_position = Vector2(road_x + 170.0 + i * 55.0, -70.0)
 		e.died.connect(_on_arrival_raider_died)
 		add_child(e)
-	# beat 1: the trio is ALREADY in the fight when the player walks up --
-	# spaced DETERMINISTICALLY (the old random offsets let two of them land
-	# 9px apart and render as one glued blob, dev's report)
+	# the trio HOLDS the road: their POST is moved here (home_x), not just their
+	# bodies, or they would seek raiders only near their old village station and
+	# never engage. Spaced DETERMINISTICALLY (random offsets once glued two into
+	# one blob, dev's report).
 	var line_i := 0
 	for a in get_tree().get_nodes_in_group("adventurer"):
-		a.global_position = Vector2(road_x - 40.0 + line_i * 62.0, -70.0)
+		var ax: float = road_x - 40.0 + line_i * 62.0
+		a.global_position = Vector2(ax, -70.0)
+		if "home_x" in a:
+			a.home_x = ax
 		line_i += 1
+
+# The APPROACH (within sight of the rampart) starts the banter, then turns the
+# staged shadow-fight into a real one. The fight is already on screen; this only
+# hands the player their cue.
+func trigger_arrival_scene(wall_x: float = -1.0) -> void:
+	if GameState.seen_arrival_battle or GameState.dev_mode:
+		return
+	if not _arrival_staged:
+		stage_arrival_battle(wall_x)   # belt-and-suspenders (e.g. an odd reload)
 	# BEAT 2-3 (dev's opening): the player crested the road and SEES the trio
 	# fighting -- their banter plays, ending on "let's help them", then control
-	# returns and the teaching wave is joined.
+	# returns and the shadow-fight becomes the teaching wave.
 	var pl_b = get_tree().get_first_node_in_group("player")
 	if pl_b != null:
-		DialogueBox.play(pl_b, Story.HEROES_BANTER, func(): GameState.notify("⚔ Three of them, holding the gate — GO!"))
+		DialogueBox.play(pl_b, Story.HEROES_BANTER, func(): activate_arrival_combat())
 	else:
-		GameState.notify("⚔ Three of them, holding the gate — GO!")
+		activate_arrival_combat()
+
+# The scene is over: the raiders can now be killed, they turn on the player, and
+# the trio's shield is refreshed for the whole of the real fight.
+func activate_arrival_combat() -> void:
+	GameState.begin_arrival_shield()   # a fresh window covering the live fight
+	for e in get_tree().get_nodes_in_group("siege_enemy"):
+		if "theatrical" in e:
+			e.theatrical = false
+	GameState.notify("⚔ Three of them, holding the gate — GO!")
 
 func _on_arrival_raider_died() -> void:
 	_arrival_left -= 1
@@ -617,6 +659,11 @@ func _on_arrival_raider_died() -> void:
 		return
 	GameState.seen_arrival_battle = true
 	GameState.arrival_battle_active = false   # from here on, they are mortal
+	# release the trio from the road post we pinned them to for the staged fight,
+	# so they drift back to their proper stations (home_x = 0 -> re-resolves)
+	for a in get_tree().get_nodes_in_group("adventurer"):
+		if "home_x" in a:
+			a.home_x = 0.0
 	GameState.log_event("combat", "Your first wave broke at the gate — you fought it beside Roland, Wren and Castor.")
 	# THE TALK FOLLOWS THE FIGHT, because the fight is now AT the wall (dev
 	# 2026-07-21: "only after defeating them dialogue starts"). An earlier pass
