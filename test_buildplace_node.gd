@@ -22,8 +22,9 @@ func _ready() -> void:
 
 	# ---- cost table ----
 	check("a building has a material cost", not GameState.build_cost("Bar").is_empty())
-	check("a Cottage has its own cheaper cost",
-		GameState.build_cost("Cottage").has("coin_gold") and GameState.build_cost("Cottage").has("wood"))
+	check("a Cottage costs gatherable timber, no gold",
+		GameState.build_cost("Cottage").has("wood") and not GameState.build_cost("Cottage").has("coin_gold"))
+	check("a grander hall still costs gold (Bar)", GameState.build_cost("Bar").has("coin_gold"))
 
 	# ---- can_place_building is the green/red truth ----
 	var walls := get_tree().get_nodes_in_group("village_wall")
@@ -88,6 +89,17 @@ func _ready() -> void:
 		if "house_id" in n and str(n.house_id).begins_with("menu_house_"):
 			found_home = true; break
 	check("...and it stands in the village", found_home)
+
+	# ---- the tutorial builds cost NO gold (a penniless new player can raise them) ----
+	check("the Wall costs no gold, only gatherable stone/wood",
+		not GameState.build_cost("Wall").has("coin_gold"))
+	check("the Farm costs no gold either", not GameState.build_cost("Farm").has("coin_gold"))
+	check("the Cottage costs no gold either", not GameState.build_cost("Cottage").has("coin_gold"))
+	# ---- a rampart may stand AT the west gate (it defines the edge) ----
+	check("a WALL can stand west of the ramparts (at the gate the dark comes for)",
+		GameState.can_place_building(get_tree(), 64.0, west - 40.0, null, true))
+	check("...but an ordinary HALL may not (it must sit inside the walls)",
+		not GameState.can_place_building(get_tree(), 120.0, west - 40.0, null, false))
 
 	# ---- a WALL builds a rampart on chosen ground + persists ----
 	check("the player holds the Wall blueprint", GameState.has_blueprint("Wall"))

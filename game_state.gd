@@ -972,11 +972,18 @@ var placing_building := false
 # and the actual placement both read, so green ALWAYS means it will build.
 const BUILD_BASE_COST := {"coin_gold": 60, "wood": 16, "stone": 8}
 
+# The FIRST buildings you raise cost only what you can GATHER (wood/stone), never
+# gold -- the honest start has no coin and no way to earn it before you've built
+# anything (dev bug 2026-07-23: "it doesn't let me build wall"). Your shelter, farm
+# and walls come from timber and stone; gold is for the grander halls that come
+# later (BUILD_BASE_COST). A small founder's cache (player.gd) covers these three.
 func build_cost(bname: String) -> Dictionary:
 	if bname == "Cottage":
-		return {"coin_gold": 30, "wood": 12}          # a home is cheap
+		return {"wood": 14}                       # a home is timber
 	if bname == "Wall":
-		return {"coin_gold": 40, "stone": 24, "wood": 8}   # a rampart is stone + timber
+		return {"stone": 10, "wood": 8}           # a rampart is stone + timber
+	if bname == "Farm":
+		return {"wood": 12, "stone": 4}           # tilled ground + a fence
 	return BUILD_BASE_COST
 
 func can_afford_build(bname: String, player: Node) -> bool:
@@ -995,16 +1002,27 @@ func pay_build(bname: String, player: Node) -> void:
 # of every other structure -- the same rule the old relocate plant used, so a
 # built building can never overlap another. (The village IS the surface, so a
 # spot here is always "on the ground, not underground".)
-func can_place_building(tree: SceneTree, bwidth: float, x: float, exclude: Node = null) -> bool:
-	var west_x := 4700.0
-	var east_x := 1.0e9
-	for w in tree.get_nodes_in_group("village_wall"):
-		if "flank" in w and w.flank == "east":
-			east_x = w.global_position.x
-		else:
-			west_x = w.global_position.x
-	if x < west_x + 160.0 or x > east_x - 160.0:
-		return false
+func can_place_building(tree: SceneTree, bwidth: float, x: float, exclude: Node = null, is_wall: bool = false) -> bool:
+	# A WALL *defines* the perimeter, so it is not bound by "inside the ramparts"
+	# (with the walls gone at the start, that boundary doesn't even exist yet -- the
+	# first rampart could never be placed, dev bug 2026-07-23). A wall may stand
+	# anywhere along the village surface, only clear of the buildings. Everything
+	# else must sit INSIDE the ramparts.
+	if not is_wall:
+		var west_x := 4700.0
+		var east_x := 1.0e9
+		for w in tree.get_nodes_in_group("village_wall"):
+			if "flank" in w and w.flank == "east":
+				east_x = w.global_position.x
+			else:
+				west_x = w.global_position.x
+		if x < west_x + 160.0 or x > east_x - 160.0:
+			return false
+	else:
+		# a sane surface band (west gate through the eastern village) so a wall
+		# can't be dropped a mile out in the void
+		if x < 3000.0 or x > 14000.0:
+			return false
 	var my_half: float = bwidth / 2.0
 	for other in tree.get_nodes_in_group("building"):
 		if other == exclude or not ("width" in other):

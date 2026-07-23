@@ -73,7 +73,7 @@ func _process(_d: float) -> void:
 	var mx := get_global_mouse_position().x
 	ghost.global_position = Vector2(mx - build_w / 2.0, VILLAGE_Y - ghost.size.y)
 	var p = get_tree().get_first_node_in_group("player")
-	var ok := GameState.can_place_building(get_tree(), build_w, mx) \
+	var ok := GameState.can_place_building(get_tree(), build_w, mx, null, build_name == "Wall") \
 		and p != null and GameState.can_afford_build(build_name, p)
 	ghost.color = Color(0.35, 0.9, 0.5, 0.42) if ok else Color(0.95, 0.3, 0.3, 0.42)
 
@@ -102,7 +102,7 @@ func _input(event: InputEvent) -> void:
 func _try_place(x: float) -> void:
 	var p = get_tree().get_first_node_in_group("player")
 	var stack = get_tree().get_first_node_in_group("notification_stack")
-	if not GameState.can_place_building(get_tree(), build_w, x):
+	if not GameState.can_place_building(get_tree(), build_w, x, null, build_name == "Wall"):
 		if stack: stack.show_notification("Can't build there — need clear ground inside the walls.")
 		return
 	if p == null or not GameState.can_afford_build(build_name, p):
