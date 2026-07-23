@@ -962,6 +962,10 @@ func remove_building(bname: String) -> void:
 func restore_building(bname: String) -> void:
 	removed_buildings.erase(bname)
 
+# True while the B-menu placer holds the cursor (building or deleting). The player
+# checks this so a left-click that places/deletes doesn't ALSO swing a weapon.
+var placing_building := false
+
 # --- RAISING BUILDINGS FROM THE MENU (dev 2026-07-22: build from B with a holo) ---
 # Pick a building, a green/red hologram shows where it can stand, click to raise
 # it on clear village ground. can_place_building is the ONE truth the holo colour

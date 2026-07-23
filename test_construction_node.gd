@@ -55,19 +55,17 @@ func _ready() -> void:
 		gs.contains('"blueprints": blueprints')
 		and gs.contains("blueprints = STARTING_BUILDINGS.duplicate()"))
 	var bsrc := FileAccess.open("res://building.gd", FileAccess.READ).get_as_text()
-	check("F on a plan-less ruin refuses, and the prompt says why",
-		bsrc.contains("has_blueprint(building_name)") and bsrc.contains("Blueprint lost"))
+	# NEW MODEL (dev 2026-07-22): ruins are PURELY VISUAL -- no E-clear, no F-build,
+	# no prompt on the heap. You raise buildings + delete ruins from the B menu.
+	check("ruins are purely visual — inert, no clear/build on the heap",
+		bsrc.contains("RUINS ARE PURELY VISUAL"))
 	var dsrc := FileAccess.open("res://dungeon_interior.gd", FileAccess.READ).get_as_text()
 	check("satchels spawn at their fixed floors, once",
 		dsrc.contains("BLUEPRINT_FLOORS.has(current_level)")
 		and ResourceLoader.exists("res://blueprint_pickup.gd"))
-	# ---- blueprints must be FINDABLE, not a blind scavenger hunt ----
-	# DEV CALL (2026-07-21, live playtest): the ruin does NOT name floors --
-	# plans are FOUND, not pointed at. The level-select scrolls stay as the
-	# subtle map for anyone who goes looking.
+	# a ruin never names floors -- and now shows nothing at all on the heap
 	check("the ruin never names the floor its plans lie on",
-		not bsrc.contains("the plans lie on dungeon floor")
-		and bsrc.contains("its plans lie somewhere in the deep"))
+		not bsrc.contains("the plans lie on dungeon floor"))
 	check("the level select marks floors holding unclaimed plans -- WITHOUT naming them",
 		FileAccess.open("res://level_select_ui.gd", FileAccess.READ).get_as_text().contains("Something of Deepwood's lies lost on this floor")
 		and not FileAccess.open("res://level_select_ui.gd", FileAccess.READ).get_as_text().contains("blueprint lies on this floor"))

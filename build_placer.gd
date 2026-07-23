@@ -32,6 +32,7 @@ func _ready() -> void:
 func start_build(bname: String, w: float, h: float, col: Color) -> void:
 	_clear()
 	mode = "build"
+	GameState.placing_building = true
 	build_name = bname
 	build_w = w
 	ghost = ColorRect.new()
@@ -44,10 +45,12 @@ func start_build(bname: String, w: float, h: float, col: Color) -> void:
 func start_delete() -> void:
 	_clear()
 	mode = "delete"
+	GameState.placing_building = true
 	_show_hint("Click a building to remove it · right-click to cancel")
 
 func _clear() -> void:
 	mode = ""
+	GameState.placing_building = false
 	build_name = ""
 	if ghost != null:
 		ghost.queue_free()
@@ -66,7 +69,10 @@ func _process(_d: float) -> void:
 		and p != null and GameState.can_afford_build(build_name, p)
 	ghost.color = Color(0.35, 0.9, 0.5, 0.42) if ok else Color(0.95, 0.3, 0.3, 0.42)
 
-func _unhandled_input(event: InputEvent) -> void:
+# _input (not _unhandled_input): grab the click BEFORE any building's Area2D or
+# the world eats it, so a delete/place click always lands (dev: "delete didn't
+# work on ruins").
+func _input(event: InputEvent) -> void:
 	if mode == "":
 		return
 	if event is InputEventMouseButton and event.pressed:

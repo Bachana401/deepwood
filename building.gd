@@ -567,18 +567,14 @@ func attempt_field_build() -> void:
 func update_prompt() -> void:
 	if not prompt_label:
 		return
+	# RUINS ARE PURELY VISUAL now (dev 2026-07-22): a heap shows NO prompt at all --
+	# you raise it or delete it from the B menu, never by standing on it.
+	if is_ruined():
+		prompt_label.visible = false
+		prompt_label.text = ""
+		return
 	if constructing:
 		prompt_label.text = "Building..."
-	elif is_ruined() and not GameState.building_is_cleared(building_name):
-		prompt_label.text = "Press E to clear the rubble  (%d/%d)" % [
-			GameState.building_clear_progress(building_name), GameState.CLEAR_STEPS]
-	elif is_ruined() and not GameState.has_blueprint(building_name):
-		# DEV CALL (2026-07-21, live playtest): no floor numbers on the ruin --
-		# the plans are FOUND, not pointed at. (The level-select scroll marks
-		# remain the subtle map for anyone who goes looking.)
-		prompt_label.text = "📜 Blueprint lost — its plans lie somewhere in the deep"
-	elif is_ruined():
-		prompt_label.text = "Press F to Build (%s)  —  stage %d/%d" % [repair_requirement_text(), build_stage, GameState.TOTAL_BUILD_STAGES]
 	elif building_name == "Farm":
 		prompt_label.text = "E: manage   •   Hold H: tend crops"
 	else:
@@ -2112,13 +2108,10 @@ func _process(delta: float) -> void:
 	# Ruined/half-built -> F builds the next stage (locked mid-construction);
 	# a finished building -> E opens the assign panel.
 	if is_ruined():
-		# a nameless heap first: E shovels it out, 1/3 -> 3/3, and only the
-		# last shovelful reveals what stood here (dev request 2026-07-21)
-		if not GameState.building_is_cleared(building_name):
-			if Input.is_action_just_pressed("interact"):
-				attempt_clear_rubble()
-		elif not constructing and Input.is_action_just_pressed("enter_dungeon"):
-			attempt_field_build()
+		# RUINS ARE PURELY VISUAL now (dev 2026-07-22): no E-to-clear, no F-to-build
+		# on the heap itself. You raise buildings AND delete ruins from the B menu;
+		# the rubble just takes up ground until you do. So the heap is inert.
+		return
 	else:
 		if Input.is_action_just_pressed("interact"):
 			open_assign_ui()

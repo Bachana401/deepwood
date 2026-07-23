@@ -2479,9 +2479,10 @@ func _physics_process(delta: float) -> void:
 	# hand flares each shot. (The dedicated attack body pose -- the future
 	# two-hands-up frame -- isn't wired yet; these frames are now the aim pose.)
 	# Root still lets you swing; only stun/freeze (cc_hard) locks attacks out.
-	if Input.is_action_pressed("attack") and not cc_hard:
+	if Input.is_action_pressed("attack") and not cc_hard and not GameState.placing_building:
 		# a channelling Sage pours a beam instead of firing bolts; everyone
 		# else falls through to the normal per-cooldown attack
+		# (a click that places/deletes a building must not ALSO swing a weapon)
 		if not channel_beam(delta):
 			perform_attack()
 	else:
