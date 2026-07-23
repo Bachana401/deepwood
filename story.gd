@@ -85,6 +85,8 @@ const TUTORIAL_INTRO = [
 	{"speaker": "Roland", "text": "Right — if we're doing this, you'll want to know HOW. I'll say it once, so listen."},
 	{"speaker": "Roland", "text": "Press [B] for the Builder's Ledger. Every building we can raise is there by name — hover one to read what it costs and what it's for."},
 	{"speaker": "Wren", "text": "Pick one and a ghost of it follows your cursor. GREEN, it'll stand there; RED, it won't — bad ground, or right on top of something. Left-click on green to raise it. Right-click to change your mind."},
+	{"speaker": "Roland", "text": "But you can only raise what you hold the PLANS for. Deepwood's blueprints were scattered when it fell — most lie down in the deep. Find a building's plans as you descend, and it opens up in the ledger; until then it just reads 'blueprint not found'."},
+	{"speaker": "Wren", "text": "And each great hall stands but ONCE — one Farm, one Barracks, one Forge. Try to raise a second and the ledger simply tells you it's already built. Homes and walls are the exception — raise as many of those as you can afford."},
 	{"speaker": "Castor", "text": "Raise a WALL first — the dark climbs up out of the pit to the WEST, so that's the gate that needs stone. Then a Farm so we eat, and a cottage or two so the ones we save have a bed."},
 	{"speaker": "Roland", "text": "Walk up to any building and press [E] to run it — set folk to work, upgrade it, buy from the forge. Press [L] any time to read the village's ledger: what's happening, who we've lost, what's owed."},
 	{"speaker": "Castor", "text": "The rest you learn with a blade. Down in the deep are doors to a hundred floors, and behind them — our people, the Unbreakables. Free them, raise this ruin around us..."},
