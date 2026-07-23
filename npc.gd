@@ -477,12 +477,13 @@ func die() -> void:
 	if not is_queued_for_deletion():
 		queue_free()
 
-const VILLAGER_SPACE := 42.0
+const VILLAGER_SPACE := 46.0
 
-# Keep villagers from standing INSIDE each other (dev: "NPCs collide"). They don't
-# physically collide (collision_layer 0, the player passes through them the same),
-# so nudge any pair that overlaps apart by position -- this works no matter which
-# movement branch set their velocity this frame, and eases off as they separate.
+# Keep villagers from standing INSIDE each other (dev: "NPCs collide", repeatedly).
+# They don't physically collide (collision_layer 0, the player passes through them
+# the same), so any pair overlapping is shoved to a full gap by POSITION -- a HARD
+# push (each moves half the overlap this frame), so it dominates their slow wander
+# and can't be undone. They read as separate people, and still slide past freely.
 func _separate_from_peers() -> void:
 	for other in get_tree().get_nodes_in_group("npc"):
 		if other == self or not is_instance_valid(other):
@@ -492,7 +493,7 @@ func _separate_from_peers() -> void:
 		var dx: float = global_position.x - other.global_position.x
 		if absf(dx) < VILLAGER_SPACE:
 			var push: float = signf(dx) if absf(dx) > 0.5 else (1.0 if str(name) > str(other.name) else -1.0)
-			global_position.x += push * (VILLAGER_SPACE - absf(dx)) * 0.08
+			global_position.x += push * (VILLAGER_SPACE - absf(dx)) * 0.5
 
 func _physics_process(delta: float) -> void:
 	if is_in_building:

@@ -611,19 +611,31 @@ func _ready() -> void:
 	GameState.hours_until_next_siege = saved_siege_hours
 	GameState.village_log = saved_log2
 
-	# ---- heroes de-glue + they actually ANIMATE (dev: "only idle, still glued") ----
+	# ---- heroes de-glue (dev: "STILL glued", x4) ----
+	# TWO parts, because the bug shipped 4 times hiding between them:
+	# (1) the MATH -- _separate() must actually push two stacked heroes to a full
+	#     gap; (2) the ORDERING -- it must run AFTER move_and_slide, or the AI pull
+	#     undoes it every frame (the real cause). A source check locks the order,
+	#     since a live physics sim can't run headless (the village re-pauses the tree).
 	var advs := get_tree().get_nodes_in_group("adventurer")
 	if advs.size() >= 2:
 		var a0 = advs[0]
 		var a1 = advs[1]
 		a0.global_position.x = 12000.0
 		a1.global_position.x = 12000.0        # exactly stacked, off in empty ground
-		for i in range(80):
+		for i in range(6):                    # a HARD push clears it in a few frames
 			a0._separate()
 			a1._separate()
 		var gap: float = absf(a0.global_position.x - a1.global_position.x)
-		check("two stacked heroes ease apart instead of gluing", gap >= a0.PERSONAL_SPACE * 0.8,
+		check("_separate() shoves two stacked heroes to a full gap", gap >= a0.PERSONAL_SPACE * 0.9,
 			"gap %.1f" % gap)
+		var advtxt := FileAccess.open("res://adventurer.gd", FileAccess.READ).get_as_text()
+		check("...and it runs AFTER move_and_slide (or the AI pull undoes it — the 4x bug)",
+			advtxt.contains("move_and_slide()\n\t_separate()"))
+		check("...as a HARD push (half the overlap each), not a weak nudge",
+			advtxt.contains("(PERSONAL_SPACE - absf(dx)) * 0.5"))
+		var npctxt := FileAccess.open("res://npc.gd", FileAccess.READ).get_as_text()
+		check("villagers separate hard too", npctxt.contains("(VILLAGER_SPACE - absf(dx)) * 0.5"))
 		if a0._skin_sprite != null:
 			var sf = a0._skin_sprite.sprite_frames
 			check("a hero's skin carries a WALK animation to play",
