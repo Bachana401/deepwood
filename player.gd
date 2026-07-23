@@ -2525,11 +2525,14 @@ func has_wings() -> bool:
 		or GameState.monarch_stage() >= WINGS_STAGE \
 		or GameState.get_bonus_total("flight") > 0.0
 
-# Mana burned per second aloft. A Mage pays far less; skills may discount it
-# further. Never free -- a floor of 1/sec keeps levitation from becoming
-# permanent flight no matter how it's stacked.
+# Mana burned per second aloft. A Mage pays far less. Never free -- a floor of
+# 1/sec keeps levitation from becoming permanent flight no matter how it's
+# stacked. (The old "levitate_cost" skill modifier was a DEAD READ -- no node,
+# item or boon ever granted the key after levitation was stripped from the class
+# trees -- so the audit removed it, 2026-07-23. If a discount skill returns some
+# day, grant + read the key together.)
 func levitate_mana_rate() -> float:
-	var rate := LEVITATE_MANA_PER_SEC * (1.0 - GameState.get_skill_total("levitate_cost"))
+	var rate := LEVITATE_MANA_PER_SEC
 	if GameState.chosen_class == "Mage":
 		rate *= LEVITATE_MAGE_DISCOUNT
 	return maxf(1.0, rate)
