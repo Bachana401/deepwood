@@ -1138,7 +1138,11 @@ func take_damage(amount: int) -> void:
 	if behavior == "shield" and player != null and is_instance_valid(player):
 		var from_front = sign(player.global_position.x - global_position.x) == facing_direction
 		if from_front:
-			amount = int(round(amount * 0.4))
+			# 60% off the FRONT -- but NEVER to zero. With the honest weak start the
+			# player's base hit is ~1, and int(round(1 * 0.4)) == 0 made a shielded
+			# grunt literally UNKILLABLE from the front: the bar never moved, reported
+			# as "enemies simply not dying" (dev 2026-07-23). Floor a landed hit at 1.
+			amount = maxi(1, int(round(amount * 0.4)))
 			spawn_block_spark()
 	# a stoned foe is brittle -- it takes bonus damage while petrified
 	if is_petrified():
