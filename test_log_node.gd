@@ -55,8 +55,8 @@ func _ready() -> void:
 		gs.contains("spirit is failing") and gs.contains("Hope returns to Deepwood"))
 	var bg := FileAccess.open("res://building.gd", FileAccess.READ).get_as_text()
 	check("a building rising again is written", bg.contains("stands again"))
-	var cp := FileAccess.open("res://cottage_plot.gd", FileAccess.READ).get_as_text()
-	check("a raised cottage is written", cp.contains("A new cottage was raised"))
+	var cp := FileAccess.open("res://build_placer.gd", FileAccess.READ).get_as_text()
+	check("a raised cottage is written", cp.contains("A cottage was raised from the build menu"))
 
 	# ---- the reader ----
 	check("the diary survives the save", gs.contains('"village_log": village_log'))

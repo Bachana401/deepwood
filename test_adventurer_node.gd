@@ -564,8 +564,9 @@ func _ready() -> void:
 		not FileAccess.open("res://main.gd", FileAccess.READ).get_as_text().contains("east_wall.flank = \"east\""))
 	check("a flank that already has a rampart refuses a SECOND (upgrade, don't stack)",
 		FileAccess.open("res://build_placer.gd", FileAccess.READ).get_as_text().contains("_flank_has_wall"))
-	check("cottages cap so the row can't sprawl past the walls",
-		FileAccess.open("res://cottage_plot.gd", FileAccess.READ).get_as_text().contains("MAX_RAISED"))
+	check("cottages are raised ONE way (the B menu) — the old plot path is gone",
+		not ResourceLoader.exists("res://cottage_plot.gd")
+		and FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text().contains("must sit INSIDE the ramparts"))
 	check("wall-stationed adventurers split between the two ramparts",
 		FileAccess.open("res://adventurer.gd", FileAccess.READ).get_as_text().contains("hash(adventurer_id) % walls.size()"))
 	GameState.game_hours = saved_hours2

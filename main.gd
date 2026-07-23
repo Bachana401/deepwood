@@ -454,7 +454,12 @@ func generate_houses() -> void:
 		var idx = j + 1
 		var palette2 = HOUSE_COLORS[idx % HOUSE_COLORS.size()]
 		var extra = HOUSE_SCRIPT.new()
-		extra.house_id = "extra_house_%d" % idx
+		# CRITICAL: the id MUST match the one build_placer stamped on the j-th cottage
+		# ("menu_house_%d" % <count at build> == "menu_house_%d" % j). cottage_homes is
+		# keyed by that id, and house.gd reads occupancy by it -- so a mismatched id on
+		# reload made a settled cottage read EMPTY and get double-booked with a second
+		# couple. Cottages are built ONE way now (the B menu), so there is ONE scheme.
+		extra.house_id = "menu_house_%d" % j
 		extra.house_name = "Cottage %d" % (HOUSE_COUNT + idx)
 		extra.body_color = palette2.body
 		extra.roof_color = palette2.roof
@@ -465,10 +470,9 @@ func generate_houses() -> void:
 			ecx = float(GameState.extra_cottage_positions[j])
 		extra.position = Vector2(ecx, VILLAGE_Y)
 		$Village.add_child(extra)
-	# ...and the empty plot at the row's end is where the NEXT one rises
-	var plot = preload("res://cottage_plot.gd").new()
-	plot.position = Vector2(start_x + (HOUSE_COUNT + GameState.extra_cottages) * HOUSE_SPACING, VILLAGE_Y)
-	$Village.add_child(plot)
+	# (The old end-of-row "cottage_plot" E-to-build marker was REMOVED 2026-07-23:
+	# cottages are raised ONE way now -- from the B menu, placed on any clear ground.
+	# A second build path with its own id scheme was the double-book bug's root.)
 	# 7.1: the Watchtower's plot stands just inside the west gate -- the first
 	# thing a returning delver passes, asking to be raised
 	var tower = preload("res://watchtower.gd").new()

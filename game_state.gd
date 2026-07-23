@@ -1026,9 +1026,11 @@ const BUILD_BASE_COST := {"coin_gold": 60, "wood": 16, "stone": 8}
 # later (BUILD_BASE_COST). A small founder's cache (player.gd) covers these three.
 func build_cost(bname: String) -> Dictionary:
 	# kept cheap (dev 2026-07-23: "too much wood") so the lean founder's cache
-	# covers all three tutorial builds with a sliver to spare -- 19 wood + 8 stone.
+	# (20 wood + 12 stone, player.gd) covers all three tutorial builds exactly --
+	# they total 19 wood + 12 stone. All three cost only what you can GATHER at the
+	# start: timber from trees, stone from the deposits. No gold, no rare mats.
 	if bname == "Cottage":
-		return {"wood": 8}                        # a home is timber
+		return {"wood": 8, "stone": 4}            # a home: timber on a stone footing
 	if bname == "Wall":
 		return {"stone": 6, "wood": 5}            # a rampart is stone + timber
 	if bname == "Farm":

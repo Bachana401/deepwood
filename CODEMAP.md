@@ -2,7 +2,7 @@
 
 _Navigation index for fast lookup. Regenerate with `bash gen_codemap.sh`. Line numbers drift as code changes — treat as approximate anchors, confirm with a read._
 
-`104` game scripts, ~41409 LOC. Generated 2026-07-23.
+`103` game scripts, ~41351 LOC. Generated 2026-07-23.
 
 ## File directory
 
@@ -19,7 +19,7 @@ _Navigation index for fast lookup. Regenerate with `bash gen_codemap.sh`. Line n
 | boss.gd | 4017 | Dungeon boss. |
 | boss_hud.gd | 190 | WUKONG-STYLE BOSS SPECTACLE (dev ask 2026-07-22). Makes every boss an EVENT: |
 | build_menu.gd | 241 | THE BUILDER'S LEDGER (B key; dev request 2026-07-21). |
-| build_placer.gd | 279 | THE BUILDER'S HAND (dev 2026-07-22). Raise a building from the B menu with a |
+| build_placer.gd | 325 | THE BUILDER'S HAND (dev 2026-07-22). Raise a building from the B menu with a |
 | building.gd | 2238 | (no header comment) |
 | building_hitbox.gd | 15 | Buildings are Area2D nodes (for the Press-E proximity), which enemy arrows |
 | building_lights.gd | 303 | Breathes life into the painted facades WITHOUT touching the approved art: |
@@ -28,7 +28,6 @@ _Navigation index for fast lookup. Regenerate with `bash gen_codemap.sh`. Line n
 | char_shadow.gd | 44 | Preloaded as a const by its users (const CHAR_SHADOW = preload(...)) rather than |
 | chest.gd | 44 | Unique per-instance id, used as the key into GameState.chest_contents so |
 | chest_ui.gd | 283 | Terraria pixel-box slots, matching the inventory: slate border + dark fill. |
-| cottage_plot.gd | 109 | The empty plot at the end of the cottage row (GAME_BIBLE 5.8): housing is |
 | currency_pickup.gd | 99 | "1 full in-game day" is defined by the day/night cycle's own day length, |
 | day_night_cycle.gd | 501 | (no header comment) |
 | death_screen.gd | 41 | The cost of dying, said ON the black screen itself -- the toast version |
@@ -48,7 +47,7 @@ _Navigation index for fast lookup. Regenerate with `bash gen_codemap.sh`. Line n
 | farm_pen.gd | 73 | A fenced pasture beside the Farm. Draws the fence + a dirt patch and spawns a |
 | floating_text.gd | 75 | Shared floating combat text -- a damage number that rises, drifts, and fades |
 | food_readout.gd | 99 | Always-visible village food gauge, top-left HUD, tucked just under the mana |
-| game_state.gd | 4651 | Deepest dungeon level ever reached in a single run -- a high-score style |
+| game_state.gd | 4658 | Deepest dungeon level ever reached in a single run -- a high-score style |
 | harvest_director.gd | 309 | THE HARVEST, AT HOME (new finale canon, 2026-07-20). |
 | harvest_node.gd | 254 | A harvestable world node: a TREE (chop with the Woodsman's Axe) or a ROCK |
 | hazard.gd | 307 | CREATIVE DUNGEON HAZARDS (dev report 2026-07-21: "no creative traps"). Beyond |
@@ -63,7 +62,7 @@ _Navigation index for fast lookup. Regenerate with `bash gen_codemap.sh`. Line n
 | item_tooltip.gd | 94 | A single hover tooltip shared by every item UI (inventory, chest, equipment |
 | level_select_ui.gd | 106 | (no header comment) |
 | magic_orb.gd | 102 | A slow homing "cursed orb" fired by the Warlock mob (special_mob.gd). It |
-| main.gd | 1460 | (no header comment) |
+| main.gd | 1458 | (no header comment) |
 | main_menu.gd | 185 | Whether the fresh-start flow currently in the difficulty picker should wipe |
 | material_pickup.gd | 95 | A dropped material on the ground (dev ask 2026-07-22: "materials like in |
 | morale_meter.gd | 174 | Village morale, shown in the TAB overlay directly BELOW the mana bar (kept |
@@ -117,7 +116,7 @@ _Navigation index for fast lookup. Regenerate with `bash gen_codemap.sh`. Line n
 
 Jump anchors for the files too large to grep comfortably. `#` = section header, `»` = function.
 
-### game_state.gd (4651 lines)
+### game_state.gd (4658 lines)
 ```
 26     » floor_is_cleared
 29     » mark_floor_cleared
@@ -196,252 +195,252 @@ Jump anchors for the files too large to grep comfortably. `#` = section header, 
 955    » building_removed
 958    » remove_building
 977    » restore_building
-983    » remove_cottage
-999    » remove_placed_wall
-1011   # RAISING BUILDINGS FROM THE MENU (dev 2026-07-22: build from B with a holo)
-1022   » build_cost
-1033   » can_afford_build
-1041   » pay_build
-1049   » can_place_building
-1079   # THE OPENING TUTORIAL (step-gated, dev polish 2026-07-22)
-1094   » tutorial_begin
-1106   » tutorial_note
-1121   # THE RAMPART (dev ask 2026-07-22: "make WALLS bigger... with gate,
-1143   » wall_max_health
-1150   » wall_defense_bonus
-1153   » wall_trap_dps
-1156   » wall_station_capacity
-1160   » wall_upgrade_cost
-1165   » can_afford_wall_upgrade
-1176   » try_upgrade_wall
-1214   » _mint_birth_id
-1218   # THE VILLAGE LOG (GAME_BIBLE 5.9)
-1231   » log_event
-1242   # HOUSING (GAME_BIBLE 5.8)
-1264   » villager_name
-1270   » villager_home_id
-1279   » kid_is_housed
-1293   » _couple_expecting
-1299   » update_cottage_families
-1351   » effective_roll_weights
-1366   » roll_regular_stat
-1382   » _ready
-1395   # Audio: a "Master" (Volume) bus and a dedicated "Music" bus routed into it,
-1402   » setup_audio
-1416   » apply_master_volume
-1420   » apply_music_volume
-1427   » set_master_volume
-1432   » set_music_volume
-1437   » save_audio_settings
-1443   » _process
-1463   » skip_hours
-1466   » tick_village_clock
-1493   # Siege scheduling + resolution (runs in every scene)
-1495   » current_siege_tier
-1536   » deep_truly_empty
-1539   » feast_ready
-1556   » arrival_shield_on
-1564   » begin_arrival_shield
-1569   » orin_arrived
-1574   » village_defense_power
-1611   » warrior_count
-1620   # DAY/NIGHT SHIFTS (GAME_BIBLE 7.3)
-1629   » hour_of_day
-1632   » warrior_shift
-1635   » on_duty_shift
-1639   » warrior_on_duty
-1642   » on_duty_warrior_count
-1651   » in_shift_change_window
-1658   » tick_sieges
-1679   » is_black_tide_number
-1682   » next_siege_is_black_tide
-1687   » tick_black_tide_omen
-1697   » trigger_siege
-1727   » tick_deep_catches
-1746   » resolve_siege_offline
-1790   » on_live_siege_ended
-1809   » consume_away_report
-1816   » is_building_operational
-1819   # Food & hunger (Step 1: the hunger loop)
-1852   » food_capacity
-1856   » has_food
-1860   » food_consumption_per_hour
-1864   » farm_worker_count
-1875   » food_production_per_hour
-1884   » dock_worker_count
-1894   » food_days_remaining
-1901   » village_is_starving
-1906   » manual_harvest_food
-1913   # THE VILLAGE FOG (dev decision 2026-07-20): distance is ignorance
-1922   » has_telepathy
-1933   » has_communicator
-1937   » try_build_whisperstone
-1956   » _cost_text
-1962   » village_presence
-1970   » village_info_available
-1976   » notify
-1987   » tick_food
-2005   # Villager needs & morale
-2011   » is_villager_paired
-2027   » villager_needs
-2047   » villager_morale
-2057   # Village-wide morale (0-100 internally, shown to the player as X/10)
-2077   » count_adults
-2084   # PERSONAL MORALE (GAME_BIBLE 5.5b)
-2098   » personal_morale_target
-2149   » get_personal_morale
-2154   » tick_personal_morale
-2163   » village_morale
-2177   » admin_nudge_morale
-2181   » village_morale_10
-2197   » register_villager_deaths
-2223   » register_villagers_added
-2229   » all_buildings_operational
-2235   » update_morale_meter_unlock
-2240   » village_morale_multiplier
-2243   # Morale consequences (rewards & punishments)
-2255   # THE FADING OF DEEPWOOD (dev ask 2026-07-22): the village dying is a felt,
-2270   # CORRUPTION (GAME_BIBLE 10): despair made mechanical, v2
-2302   » is_warrior_villager
-2307   » tick_rot
-2338   » _spread_infection
-2363   » on_wall_broken
-2368   » get_villager_hp
-2371   » village_in_despair
-2375   » village_despair_depth
-2382   » _despair_rate
-2387   » tick_morale_effects
-2482   » notify_urgent
-2490   » tick_village_peril
-2518   » _on_village_emptied
-2530   » rescue_pool_open
-2546   » is_important_figure
-2554   » _trigger_village_lost
-2561   » _show_village_lost_screen
-2605   » transform_villager_to_demon
-2633   » _spawn_demon_at
-2650   » morale_defense_multiplier
-2655   » morale_birth_multiplier
-2660   # High-morale rewards (the carrot)
-2664   » morale_high_factor
-2669   » morale_speed_bonus
-2674   » morale_regen_per_sec
-2681   » village_is_celebrating
-2690   » tick_village_tribute
-2699   » grant_village_tribute
-2709   » count_workers
-2721   » generate_passive_income
-2754   # AUTOSAVE (polish 2026-07-20)
-2763   » autosave
-2781   # "WHAT NOW?" (polish 2026-07-20)
-2787   » next_objective
-2825   # ONE-SHOT SFX (polish pass 2026-07-20)
-2835   » play_sfx
-2858   # BLUEPRINTS (GAME_BIBLE 5.2, dev decision 2026-07-20)
-2872   » has_blueprint
-2879   » grant_blueprint
-2888   # MOVABLE BUILDINGS (GAME_BIBLE 5.2, dev decision 2026-07-20)
-2900   # THE MINE (GAME_BIBLE 5.7, decided 2026-07-20 delegated)
-2908   » tick_mine_yield
-2933   # THE SHRINE (GAME_BIBLE 10, decided 2026-07-20 delegated)
-2942   » shrine_unlocked
-2945   » shrine_ready
-2948   » try_cleanse
-2970   # THE WATCHTOWER (GAME_BIBLE 7.1, decided 2026-07-20 delegated)
-2984   » watchtower_warning_hours
-2988   » siege_clock_visible
-2993   » tick_watchtower_warning
-3005   # THE WANDERER'S POST (GAME_BIBLE 5.6a)
-3025   » grade_rank
-3031   » marketplace_merchant_staffed
-3034   » tick_wanderers
-3047   » _wanderer_dwell_hours
-3053   » _wanderer_pool
-3065   » _wanderer_price
-3078   » _wanderer_arrive
-3102   » wanderer_price_now
-3111   » buy_from_wanderer
-3139   » tick_wages
-3171   » count_leader_holders
-3178   » get_village_income_multiplier
-3181   » get_gestation_speed_multiplier
-3185   » get_school_graduation_speed_multiplier
-3188   » get_barracks_graduation_speed_multiplier
-3193   # LEADERSHIP AUTOMATION
-3211   # Barracks armory
-3222   » arm_value_of
-3226   » armed_warriors
-3230   » forgemaster_supplying
-3234   » deposit_one_arm
-3250   » seated_leaders
-3257   » apply_leadership_automation
-3293   » auto_staff_villagers
-3300   » try_auto_place
-3319   » auto_research
-3328   » auto_sell_surplus
-3343   » auto_heal_villagers
-3350   » auto_enroll_children
-3365   » auto_repair_one
-3383   # VILLAGE SELF-SUFFICIENCY (the time economy, dev vision 2026-07-22)
-3395   » chore_domains
-3427   » village_self_sufficiency
-3444   » tick_self_sufficiency
-3456   » find_available_parents
-3471   » start_pairing
-3487   » update_mating_houses
-3508   » update_pregnancies
-3520   » produce_child
-3552   » remove_npc_avatar
-3557   # School / Barracks enrollment
-3559   # THE TEN (GAME_BIBLE §8)
-3566   # THE HARVEST (GAME_BIBLE 9.3)
-3574   # THE SHADOW COURT (GAME_BIBLE 11)
-3580   » begin_harvest
-3599   » raise_shadow_army
-3612   » settle_shadow_court
-3616   # NG+ (GAME_BIBLE 11): THE REWOUND HOUR
-3632   » rewind_world_keep_player
-3654   # THE CHRONICLE (GAME_BIBLE 11): the 100% ledger
-3660   » chronicle
-3733   » chronicle_check_complete
-3744   » new_game_plus
-3755   # THE FINALE GATE (GAME_BIBLE 9.1)
-3760   » count_ruined_buildings
-3768   » count_empty_role_slots
-3783   » finale_gate_missing
-3797   » finale_gate_open
-3800   » ensure_the_ten
-3805   » ten_freed
-3809   » count_ten_freed
-3817   » all_ten_freed
-3820   » free_one_of_the_ten
-3862   # The Doctor's escalating heal (GAME_BIBLE 5.5a)
-3873   » doctor_heal_price
-3876   » doctor_alive
-3887   » _migrate_starting_civilians
-3907   » decay_doctor_price
-3917   » enroll_villager
-3933   » update_school_enrollments
-3948   » graduate_villager
-3981   » load_deepest_level
-3987   » record_level_reached
-3998   » reset_for_new_game
-4148   » has_save
-4151   » save_game
-4255   » load_game
-4430   » delete_save
-4434   » rescue_villager
-4446   # Villager bonds (personal quests)
-4451   » quest_event
-4473   » find_villager_by_id
-4481   » villager_quest_ready
-4497   » turn_in_villager_quest
-4515   » is_villager_rescued
-4521   » assign_villager_to_role
-4547   » remove_villager_by_id
-4592   » remove_random_villager
-4614   » report_death_toll
-4638   » remove_one_skill_material
+986    » remove_cottage
+1004   » remove_placed_wall
+1016   # RAISING BUILDINGS FROM THE MENU (dev 2026-07-22: build from B with a holo)
+1027   » build_cost
+1040   » can_afford_build
+1048   » pay_build
+1056   » can_place_building
+1086   # THE OPENING TUTORIAL (step-gated, dev polish 2026-07-22)
+1101   » tutorial_begin
+1113   » tutorial_note
+1128   # THE RAMPART (dev ask 2026-07-22: "make WALLS bigger... with gate,
+1150   » wall_max_health
+1157   » wall_defense_bonus
+1160   » wall_trap_dps
+1163   » wall_station_capacity
+1167   » wall_upgrade_cost
+1172   » can_afford_wall_upgrade
+1183   » try_upgrade_wall
+1221   » _mint_birth_id
+1225   # THE VILLAGE LOG (GAME_BIBLE 5.9)
+1238   » log_event
+1249   # HOUSING (GAME_BIBLE 5.8)
+1271   » villager_name
+1277   » villager_home_id
+1286   » kid_is_housed
+1300   » _couple_expecting
+1306   » update_cottage_families
+1358   » effective_roll_weights
+1373   » roll_regular_stat
+1389   » _ready
+1402   # Audio: a "Master" (Volume) bus and a dedicated "Music" bus routed into it,
+1409   » setup_audio
+1423   » apply_master_volume
+1427   » apply_music_volume
+1434   » set_master_volume
+1439   » set_music_volume
+1444   » save_audio_settings
+1450   » _process
+1470   » skip_hours
+1473   » tick_village_clock
+1500   # Siege scheduling + resolution (runs in every scene)
+1502   » current_siege_tier
+1543   » deep_truly_empty
+1546   » feast_ready
+1563   » arrival_shield_on
+1571   » begin_arrival_shield
+1576   » orin_arrived
+1581   » village_defense_power
+1618   » warrior_count
+1627   # DAY/NIGHT SHIFTS (GAME_BIBLE 7.3)
+1636   » hour_of_day
+1639   » warrior_shift
+1642   » on_duty_shift
+1646   » warrior_on_duty
+1649   » on_duty_warrior_count
+1658   » in_shift_change_window
+1665   » tick_sieges
+1686   » is_black_tide_number
+1689   » next_siege_is_black_tide
+1694   » tick_black_tide_omen
+1704   » trigger_siege
+1734   » tick_deep_catches
+1753   » resolve_siege_offline
+1797   » on_live_siege_ended
+1816   » consume_away_report
+1823   » is_building_operational
+1826   # Food & hunger (Step 1: the hunger loop)
+1859   » food_capacity
+1863   » has_food
+1867   » food_consumption_per_hour
+1871   » farm_worker_count
+1882   » food_production_per_hour
+1891   » dock_worker_count
+1901   » food_days_remaining
+1908   » village_is_starving
+1913   » manual_harvest_food
+1920   # THE VILLAGE FOG (dev decision 2026-07-20): distance is ignorance
+1929   » has_telepathy
+1940   » has_communicator
+1944   » try_build_whisperstone
+1963   » _cost_text
+1969   » village_presence
+1977   » village_info_available
+1983   » notify
+1994   » tick_food
+2012   # Villager needs & morale
+2018   » is_villager_paired
+2034   » villager_needs
+2054   » villager_morale
+2064   # Village-wide morale (0-100 internally, shown to the player as X/10)
+2084   » count_adults
+2091   # PERSONAL MORALE (GAME_BIBLE 5.5b)
+2105   » personal_morale_target
+2156   » get_personal_morale
+2161   » tick_personal_morale
+2170   » village_morale
+2184   » admin_nudge_morale
+2188   » village_morale_10
+2204   » register_villager_deaths
+2230   » register_villagers_added
+2236   » all_buildings_operational
+2242   » update_morale_meter_unlock
+2247   » village_morale_multiplier
+2250   # Morale consequences (rewards & punishments)
+2262   # THE FADING OF DEEPWOOD (dev ask 2026-07-22): the village dying is a felt,
+2277   # CORRUPTION (GAME_BIBLE 10): despair made mechanical, v2
+2309   » is_warrior_villager
+2314   » tick_rot
+2345   » _spread_infection
+2370   » on_wall_broken
+2375   » get_villager_hp
+2378   » village_in_despair
+2382   » village_despair_depth
+2389   » _despair_rate
+2394   » tick_morale_effects
+2489   » notify_urgent
+2497   » tick_village_peril
+2525   » _on_village_emptied
+2537   » rescue_pool_open
+2553   » is_important_figure
+2561   » _trigger_village_lost
+2568   » _show_village_lost_screen
+2612   » transform_villager_to_demon
+2640   » _spawn_demon_at
+2657   » morale_defense_multiplier
+2662   » morale_birth_multiplier
+2667   # High-morale rewards (the carrot)
+2671   » morale_high_factor
+2676   » morale_speed_bonus
+2681   » morale_regen_per_sec
+2688   » village_is_celebrating
+2697   » tick_village_tribute
+2706   » grant_village_tribute
+2716   » count_workers
+2728   » generate_passive_income
+2761   # AUTOSAVE (polish 2026-07-20)
+2770   » autosave
+2788   # "WHAT NOW?" (polish 2026-07-20)
+2794   » next_objective
+2832   # ONE-SHOT SFX (polish pass 2026-07-20)
+2842   » play_sfx
+2865   # BLUEPRINTS (GAME_BIBLE 5.2, dev decision 2026-07-20)
+2879   » has_blueprint
+2886   » grant_blueprint
+2895   # MOVABLE BUILDINGS (GAME_BIBLE 5.2, dev decision 2026-07-20)
+2907   # THE MINE (GAME_BIBLE 5.7, decided 2026-07-20 delegated)
+2915   » tick_mine_yield
+2940   # THE SHRINE (GAME_BIBLE 10, decided 2026-07-20 delegated)
+2949   » shrine_unlocked
+2952   » shrine_ready
+2955   » try_cleanse
+2977   # THE WATCHTOWER (GAME_BIBLE 7.1, decided 2026-07-20 delegated)
+2991   » watchtower_warning_hours
+2995   » siege_clock_visible
+3000   » tick_watchtower_warning
+3012   # THE WANDERER'S POST (GAME_BIBLE 5.6a)
+3032   » grade_rank
+3038   » marketplace_merchant_staffed
+3041   » tick_wanderers
+3054   » _wanderer_dwell_hours
+3060   » _wanderer_pool
+3072   » _wanderer_price
+3085   » _wanderer_arrive
+3109   » wanderer_price_now
+3118   » buy_from_wanderer
+3146   » tick_wages
+3178   » count_leader_holders
+3185   » get_village_income_multiplier
+3188   » get_gestation_speed_multiplier
+3192   » get_school_graduation_speed_multiplier
+3195   » get_barracks_graduation_speed_multiplier
+3200   # LEADERSHIP AUTOMATION
+3218   # Barracks armory
+3229   » arm_value_of
+3233   » armed_warriors
+3237   » forgemaster_supplying
+3241   » deposit_one_arm
+3257   » seated_leaders
+3264   » apply_leadership_automation
+3300   » auto_staff_villagers
+3307   » try_auto_place
+3326   » auto_research
+3335   » auto_sell_surplus
+3350   » auto_heal_villagers
+3357   » auto_enroll_children
+3372   » auto_repair_one
+3390   # VILLAGE SELF-SUFFICIENCY (the time economy, dev vision 2026-07-22)
+3402   » chore_domains
+3434   » village_self_sufficiency
+3451   » tick_self_sufficiency
+3463   » find_available_parents
+3478   » start_pairing
+3494   » update_mating_houses
+3515   » update_pregnancies
+3527   » produce_child
+3559   » remove_npc_avatar
+3564   # School / Barracks enrollment
+3566   # THE TEN (GAME_BIBLE §8)
+3573   # THE HARVEST (GAME_BIBLE 9.3)
+3581   # THE SHADOW COURT (GAME_BIBLE 11)
+3587   » begin_harvest
+3606   » raise_shadow_army
+3619   » settle_shadow_court
+3623   # NG+ (GAME_BIBLE 11): THE REWOUND HOUR
+3639   » rewind_world_keep_player
+3661   # THE CHRONICLE (GAME_BIBLE 11): the 100% ledger
+3667   » chronicle
+3740   » chronicle_check_complete
+3751   » new_game_plus
+3762   # THE FINALE GATE (GAME_BIBLE 9.1)
+3767   » count_ruined_buildings
+3775   » count_empty_role_slots
+3790   » finale_gate_missing
+3804   » finale_gate_open
+3807   » ensure_the_ten
+3812   » ten_freed
+3816   » count_ten_freed
+3824   » all_ten_freed
+3827   » free_one_of_the_ten
+3869   # The Doctor's escalating heal (GAME_BIBLE 5.5a)
+3880   » doctor_heal_price
+3883   » doctor_alive
+3894   » _migrate_starting_civilians
+3914   » decay_doctor_price
+3924   » enroll_villager
+3940   » update_school_enrollments
+3955   » graduate_villager
+3988   » load_deepest_level
+3994   » record_level_reached
+4005   » reset_for_new_game
+4155   » has_save
+4158   » save_game
+4262   » load_game
+4437   » delete_save
+4441   » rescue_villager
+4453   # Villager bonds (personal quests)
+4458   » quest_event
+4480   » find_villager_by_id
+4488   » villager_quest_ready
+4504   » turn_in_villager_quest
+4522   » is_villager_rescued
+4528   » assign_villager_to_role
+4554   » remove_villager_by_id
+4599   » remove_random_villager
+4621   » report_death_toll
+4645   » remove_one_skill_material
 ```
 
 ### boss.gd (4017 lines)
@@ -1210,7 +1209,7 @@ Jump anchors for the files too large to grep comfortably. `#` = section header, 
 1453   » from_save_data
 ```
 
-### main.gd (1460 lines)
+### main.gd (1458 lines)
 ```
 180    » building_names
 224    » _ready
@@ -1221,49 +1220,49 @@ Jump anchors for the files too large to grep comfortably. `#` = section header, 
 422    » create_building
 439    » spawn_placed_torches
 445    » generate_houses
-519    » spawn_existing_villager_avatars
-556    » arm_arrival_battle
-563    » _check_arrival_trigger
-596    » _west_wall_x
-612    » stage_arrival_battle
-651    » trigger_arrival_scene
-667    » activate_arrival_combat
-674    » _on_arrival_raider_died
-702    » _check_arrival_talk
-726    » play_arrival_talk
-767    » _spawn_reveal_survivors
-801    » _autosave_on_arrival
-804    » stamp_rewound_arrival
-813    » orin_midgame_taunt
-826    » warn_wounded_corps
-847    » build_escape_ward
-869    » _on_escape_attempt
-904    » _spawn_gauntlet_wave
-917    » _on_gauntlet_raider_died
-930    » announce_orin_arrival
-946    » spawn_adventurers
-961    » is_villager_busy_mating
-977    » offscreen_spawn
-989    » find_avatar_spawn_position
-1005   » _process
-1013   » start_music
-1021   » apply_save_data
-1060   » generate_harvestables
-1102   » spawn_harvest_node
-1115   » generate_grass
-1126   » generate_traps
-1134   » generate_platform_traps
-1158   » place_trap
-1163   » generate_mountains
-1265   » _extend_ridges_across_world
-1300   » fence_the_camera
-1308   » fit_sky_to_world
-1319   » build_ground_skin
-1371   » _tile_top_padding
-1383   » generate_mountain_shape
-1407   » generate_clouds
-1436   » generate_cloud_shape
-1450   » spawn_tuft
+517    » spawn_existing_villager_avatars
+554    » arm_arrival_battle
+561    » _check_arrival_trigger
+594    » _west_wall_x
+610    » stage_arrival_battle
+649    » trigger_arrival_scene
+665    » activate_arrival_combat
+672    » _on_arrival_raider_died
+700    » _check_arrival_talk
+724    » play_arrival_talk
+765    » _spawn_reveal_survivors
+799    » _autosave_on_arrival
+802    » stamp_rewound_arrival
+811    » orin_midgame_taunt
+824    » warn_wounded_corps
+845    » build_escape_ward
+867    » _on_escape_attempt
+902    » _spawn_gauntlet_wave
+915    » _on_gauntlet_raider_died
+928    » announce_orin_arrival
+944    » spawn_adventurers
+959    » is_villager_busy_mating
+975    » offscreen_spawn
+987    » find_avatar_spawn_position
+1003   » _process
+1011   » start_music
+1019   » apply_save_data
+1058   » generate_harvestables
+1100   » spawn_harvest_node
+1113   » generate_grass
+1124   » generate_traps
+1132   » generate_platform_traps
+1156   » place_trap
+1161   » generate_mountains
+1263   » _extend_ridges_across_world
+1298   » fence_the_camera
+1306   » fit_sky_to_world
+1317   » build_ground_skin
+1369   » _tile_top_padding
+1381   » generate_mountain_shape
+1405   » generate_clouds
+1434   » generate_cloud_shape
+1448   » spawn_tuft
 ```
 
 ### underdark.gd (1181 lines)

@@ -114,9 +114,10 @@ func _ready() -> void:
 	var gs := FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text()
 	check("homes and raised cottages survive the save",
 		gs.contains('"cottage_homes": cottage_homes') and gs.contains('"extra_cottages": extra_cottages'))
-	check("the plot at the row's end exists and charges materials",
-		ResourceLoader.exists("res://cottage_plot.gd")
-		and FileAccess.open("res://cottage_plot.gd", FileAccess.READ).get_as_text().contains("remove_item"))
+	check("cottages are raised from the B menu, charged in gatherable mats",
+		FileAccess.open("res://build_placer.gd", FileAccess.READ).get_as_text().contains("pay_build")
+		and str(GameState.build_cost("Cottage")).contains("wood")
+		and str(GameState.build_cost("Cottage")).contains("stone"))
 
 	# ---- instant grief + drift home ----
 	GameState.register_villager_deaths(5)
@@ -270,7 +271,7 @@ func _ready() -> void:
 		FileAccess.open("res://player.gd", FileAccess.READ).get_as_text().contains("GameState.play_sfx")
 		and FileAccess.open("res://blueprint_pickup.gd", FileAccess.READ).get_as_text().contains("play_sfx")
 		and FileAccess.open("res://watchtower.gd", FileAccess.READ).get_as_text().contains("play_sfx")
-		and FileAccess.open("res://cottage_plot.gd", FileAccess.READ).get_as_text().contains("play_sfx"))
+		and FileAccess.open("res://build_placer.gd", FileAccess.READ).get_as_text().contains("play_sfx"))
 
 	# ---- alignment (5.7): every building's staffing is load-bearing ----
 	var gsrc2 := FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text()
