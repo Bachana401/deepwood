@@ -16,6 +16,7 @@ const HOUSE_PALETTES = [
 ]
 
 var mode := ""              # "" | "build" | "delete"
+var _confirming := false    # a YES/NO panel is open -- let the BUTTONS get the click
 var build_name := ""
 var build_w := 120.0
 var ghost: ColorRect = null
@@ -50,6 +51,7 @@ func start_delete() -> void:
 
 func _clear() -> void:
 	mode = ""
+	_confirming = false
 	GameState.placing_building = false
 	build_name = ""
 	if ghost != null:
@@ -73,7 +75,9 @@ func _process(_d: float) -> void:
 # the world eats it, so a delete/place click always lands (dev: "delete didn't
 # work on ruins").
 func _input(event: InputEvent) -> void:
-	if mode == "":
+	# While the delete-confirm panel is open, do NOT swallow clicks -- the YES/NO
+	# buttons need them (dev: "I press YES/NO, no effect"). Same when idle.
+	if mode == "" or _confirming:
 		return
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_RIGHT:
@@ -155,6 +159,7 @@ func _building_at(x: float):
 
 # The YES/NO panel: "This building will be deleted forever. Continue?"
 func _confirm_delete(bname: String) -> void:
+	_confirming = true          # stop _input swallowing the YES/NO clicks
 	var panel := Panel.new()
 	panel.anchor_left = 0.5; panel.anchor_right = 0.5
 	panel.anchor_top = 0.5; panel.anchor_bottom = 0.5
@@ -185,6 +190,7 @@ func _confirm_delete(bname: String) -> void:
 		panel.queue_free()
 		_clear())
 	no.pressed.connect(func() -> void:
+		_confirming = false
 		panel.queue_free())
 
 func _show_hint(text: String) -> void:
