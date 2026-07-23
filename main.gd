@@ -577,7 +577,14 @@ func begin_arrival_battle(wall_x: float = 4700.0) -> void:
 	for a in get_tree().get_nodes_in_group("adventurer"):
 		a.global_position = Vector2(road_x - 40.0 + line_i * 62.0, -70.0)
 		line_i += 1
-	GameState.notify("⚔ Three of them, fighting at the wall — GO!")
+	# BEAT 2-3 (dev's opening): the player crested the road and SEES the trio
+	# fighting -- their banter plays, ending on "let's help them", then control
+	# returns and the teaching wave is joined.
+	var pl_b = get_tree().get_first_node_in_group("player")
+	if pl_b != null:
+		DialogueBox.play(pl_b, Story.HEROES_BANTER, func(): GameState.notify("⚔ Three of them, holding the gate — GO!"))
+	else:
+		GameState.notify("⚔ Three of them, holding the gate — GO!")
 
 func _on_arrival_raider_died() -> void:
 	_arrival_left -= 1

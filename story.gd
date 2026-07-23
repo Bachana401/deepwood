@@ -26,7 +26,18 @@ const PROLOGUE = [
 	{"speaker": "", "text": "You walked toward Deepwood for one reason only. Not glory. Not answers. A place where a man could close his eyes for a long time — without a thought."},
 	{"speaker": "", "text": "At the treeline, something finds you. It has been following you your whole life — through every escape you never should have survived. Tonight it is done waiting. It pours into you like a held breath finally let go."},
 	{"speaker": "You", "text": "(choking) — what — what did I just swallow—"},
-	{"speaker": "You", "text": "...No. No time. Something's screaming up ahead."},
+	{"speaker": "You", "text": "...No. No time. I see something ahead — that way, to the east. Steel, and screaming. Move."},
+]
+
+# BEAT 2-3 (dev's opening 2026-07-22): the player crests the road and SEES the
+# three defenders already fighting at the ruined gate -- a scene, their words
+# traded mid-swing, ending on the player's choice to wade in.
+const HEROES_BANTER = [
+	{"speaker": "", "text": "Ahead, in the bones of a ruined gate, three figures hold the line — blades flashing against dark things clawing up out of the earth."},
+	{"speaker": "Wren", "text": "They're STRONGER tonight! Stronger than yesterday — since when do they hit like this?!"},
+	{"speaker": "Roland", "text": "Same pit they always crawl from — just angrier. Hold, Wren! HOLD!"},
+	{"speaker": "Castor", "text": "Too many— we can't hold this many alone, not again—"},
+	{"speaker": "You", "text": "...Three of them against all that. Enough running. — Let's help them."},
 ]
 
 # THE TRAP EXPLAINED (2.4.1 beat 2) -- the wave the player helped break was the
@@ -50,7 +61,9 @@ const DEEPWOOD_REVEAL = [
 	{"speaker": "A Survivor", "text": "You're searching for Deepwood, aren't you. Everyone who still breathes is searching for Deepwood. The safe place. The bright place."},
 	{"speaker": "A Survivor", "text": "...Look around you. This IS Deepwood. This is what they left of it. They dragged the strong down into the dark, alive — and killed everyone else."},
 	{"speaker": "", "text": "The word lands like a blade. The haven you crossed a dying world to find — the place where you were finally going to rest — is the ruin you are standing in."},
-	{"speaker": "Roland", "text": "...Then we hold what's left. Friend — one thing before we dig in. That dark. Does it ever come at us from the east road? Both sides at once?"},
+	{"speaker": "A Survivor", "text": "But hear me — the best of us did NOT die. The strong-willed — our scholars, our builders, our great hearts — the dark took them ALIVE and froze them in the deep. We named them the Unbreakables."},
+	{"speaker": "A Survivor", "text": "Free them, and Deepwood breathes again. Every one you carry back out of that pit is a piece of the city returning. THAT is how this ends — not by the blade alone, but by bringing our best ones home."},
+	{"speaker": "Roland", "text": "...Then we hold what's left, and we go down after them. Friend — one thing before we dig in. That dark. Does it ever come at us from the east road? Both sides at once?"},
 	{"speaker": "A Survivor", "text": "No. Never the east — that road's been dead quiet since the fall. It only ever claws UP out of the pit, from the deep in the west. Guard the dungeon mouth and you've guarded Deepwood."},
 	{"speaker": "Castor", "text": "One front, then. Small mercy. We watch the west, and we watch it well."},
 ]
