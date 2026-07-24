@@ -38,6 +38,11 @@ func _ready() -> void:
 	get_tree().paused = false
 
 	seed(20260722)
+	# The marathon models a player LONG past the opening (they're delving floor
+	# 60 by the end) -- the siege clock is gated on opening_done now, and without
+	# this the whole 4.5h ran siege-free ("0 lost to siege" was an artifact,
+	# caught on the 2026-07-23 re-run).
+	GameState.opening_done = true
 	var summaries: Array = []
 	summaries.append(run_marathon("Sword", true))
 	summaries.append(run_marathon("Archer", false))
@@ -75,6 +80,9 @@ func _ready() -> void:
 # ------------------------------------------------------------------ the run
 func run_marathon(cls: String, verbose: bool) -> Dictionary:
 	GameState.reset_for_new_game()
+	# past the opening: the reset re-closes the siege gate, and a marathon player
+	# is hours beyond the tutorial -- re-open it per class run
+	GameState.opening_done = true
 	GameState.village_last_hours_elapsed = 0.0
 	GameState.game_hours = 0.0
 	GameState.chosen_class = cls
@@ -108,11 +116,17 @@ func run_marathon(cls: String, verbose: bool) -> Dictionary:
 		clear_floor(floor)
 		play_min += floor_minutes(floor)
 
-		# village runs on the real clock for the time that passed
-		GameState.in_dungeon = false
+		# village runs on the real clock for the time that passed -- WHILE the
+		# player is still away in the deep, so a siege landing in that window
+		# resolves through the OFFLINE math (resolve_siege_offline) like a real
+		# delve. The old order flipped in_dungeon=false FIRST, so every siege
+		# started as a LIVE battle with real raider nodes the sim never fought,
+		# then was abandoned on the next floor -- "0 lost to siege" was that
+		# artifact, not balance (caught 2026-07-23).
 		grow_village(floor)
 		var pop_before := pop()
 		advance_village(floor_minutes(floor) * PLAYMIN_TO_GAMEHOURS)
+		GameState.in_dungeon = false
 		if pop() < pop_before:
 			losses += pop_before - pop()          # a defender fell (siege / famine)
 		siege_events = losses

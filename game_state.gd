@@ -1677,7 +1677,11 @@ func tick_sieges(hours_passed: float) -> void:
 	# The siege clock does not even START until the opening is over (the prologue,
 	# the arrival fight, the oath, and the build tutorial). A brand-new player is
 	# never hit while still learning to raise the wall (dev 2026-07-23).
-	if not opening_done:
+	# DEV MODE counts as open: the dev sandbox skips the tutorial entirely, so
+	# tutorial_begin() never runs there and opening_done stays false -- without this
+	# the gate silently disabled ALL sieges in --dev and the marathon sim ("0 lost
+	# to siege" was an artifact, caught by the sim re-run 2026-07-23).
+	if not opening_done and not dev_mode:
 		return
 	# Leaving for a dungeon abandons any in-progress live battle -- from here on
 	# sieges resolve abstractly until the player is back in the village.
