@@ -996,14 +996,42 @@ func remove_cottage(house_id: String, x: float) -> void:
 		if d < best_d:
 			best_d = d
 			best_i = i
+	# Erase the home/pairing by the SURVIVING cottage's own stored id, not the id the
+	# caller passed -- the two can differ once ids stopped tracking the index, and it is
+	# the stored id that cottage_homes is really keyed by. Drop id + position together so
+	# the two arrays stay in lockstep and the remaining ids never shift.
+	var gone_id := house_id
 	if best_i >= 0 and best_d < 48.0:
+		if best_i < extra_cottage_ids.size():
+			gone_id = str(extra_cottage_ids[best_i])
+			extra_cottage_ids.remove_at(best_i)
 		extra_cottage_positions.remove_at(best_i)
 	extra_cottages = maxi(0, extra_cottages - 1)
-	if mating_houses.has(house_id):        # a couple mid-cycle here is broken up
-		mating_houses.erase(house_id)
-	if cottage_homes.has(house_id):        # a SETTLED couple loses their home
-		cottage_homes.erase(house_id)
+	for hid in [gone_id, house_id]:        # the couple mid-cycle / settled here loses it
+		if mating_houses.has(hid):
+			mating_houses.erase(hid)
+		if cottage_homes.has(hid):
+			cottage_homes.erase(hid)
 	log_event("village", "A cottage was cleared away — its ground stands empty now.")
+
+# Register a freshly-built cottage on the ground the player chose and hand back its
+# STABLE id. build_placer stamps the node with this; main.gd re-stamps the same id on
+# reload via cottage_id_at(), so cottage_homes always resolves. The seq only ever
+# climbs, so a deleted cottage's id is never handed out again.
+func register_cottage(x: float) -> String:
+	var id := "menu_house_%d" % cottage_id_seq
+	cottage_id_seq += 1
+	extra_cottage_ids.append(id)
+	extra_cottage_positions.append(x)
+	extra_cottages = extra_cottage_ids.size()
+	return id
+
+# The stable id of the j-th surviving extra cottage (what main.gd stamps on reload).
+# Falls back to the legacy index id if an older save never stored one.
+func cottage_id_at(index: int) -> String:
+	if index >= 0 and index < extra_cottage_ids.size():
+		return str(extra_cottage_ids[index])
+	return "menu_house_%d" % index
 
 # Delete a player-raised WALL: drop it from placed_walls by its ground.
 func remove_placed_wall(x: float) -> void:
@@ -1271,6 +1299,15 @@ var extra_cottages: int = 0         # cottages RAISED beyond the starting row (5
 # Index j lines up with the j-th extra cottage; a cottage without a stored spot
 # falls back to the old end-of-row slot. Persisted so a placed home stays put.
 var extra_cottage_positions: Array = []
+# STABLE per-cottage ids, in lockstep with extra_cottage_positions (index j -> the
+# j-th cottage's id). cottage_homes/mating_houses are keyed by these, so the id must
+# NOT be the array index: deleting a middle cottage used to shift the index-derived
+# ids ("menu_house_%d" % j) and orphan a settled couple's home on reload (and collide
+# the next build with a surviving cottage). A monotonic seq gives each cottage an id
+# that never moves or repeats, so a home always resolves to its real cottage. (dev
+# 2026-07-23 cottage-reindex desync — see [[deepwood_build_menu]].)
+var extra_cottage_ids: Array = []
+var cottage_id_seq: int = 0
 # Ramparts the player has BUILT from the menu (walls start removed now — dev
 # 2026-07-22 "build them in the tutorial"). Each is {"x": float, "flank": String};
 # main.gd re-raises them on every scene build, so a built wall stays where it was.
@@ -4072,6 +4109,8 @@ func reset_for_new_game() -> void:
 	cottage_homes = {}
 	extra_cottages = 0
 	extra_cottage_positions = []
+	extra_cottage_ids = []
+	cottage_id_seq = 0
 	placed_walls = []
 	tutorial_step = -1
 	_family_cycle_accum = 0.0
@@ -4242,6 +4281,8 @@ func save_game(player: Node) -> void:
 		"cottage_homes": cottage_homes,
 		"extra_cottages": extra_cottages,
 		"extra_cottage_positions": extra_cottage_positions,
+		"extra_cottage_ids": extra_cottage_ids,
+		"cottage_id_seq": cottage_id_seq,
 		"placed_walls": placed_walls,
 		"tutorial_step": tutorial_step,
 		"village_log": village_log,
@@ -4357,6 +4398,21 @@ func load_game() -> Dictionary:
 		if parsed.has("extra_cottage_positions") and parsed["extra_cottage_positions"] is Array:
 			for cx in parsed["extra_cottage_positions"]:
 				extra_cottage_positions.append(float(cx))
+		# STABLE cottage ids (dev 2026-07-23). Older saves have none -- synth them as the
+		# legacy "menu_house_%d" % j so their existing cottage_homes keys still resolve,
+		# and start the seq past them so a NEW build can never collide a migrated id.
+		extra_cottage_ids = []
+		if parsed.has("extra_cottage_ids") and parsed["extra_cottage_ids"] is Array:
+			for cid in parsed["extra_cottage_ids"]:
+				extra_cottage_ids.append(str(cid))
+		# give every reload slot a stable id: cover both the stored positions and the
+		# saved count (a very old save could carry end-of-row cottages with no position).
+		var want_ids: int = maxi(extra_cottages, extra_cottage_positions.size())
+		while extra_cottage_ids.size() < want_ids:
+			extra_cottage_ids.append("menu_house_%d" % extra_cottage_ids.size())
+		extra_cottages = extra_cottage_ids.size()          # count, ids and (>=) positions agree
+		cottage_id_seq = int(parsed.get("cottage_id_seq", extra_cottage_ids.size()))
+		cottage_id_seq = maxi(cottage_id_seq, extra_cottage_ids.size())
 		placed_walls = []
 		if parsed.has("placed_walls") and parsed["placed_walls"] is Array:
 			for w in parsed["placed_walls"]:

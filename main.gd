@@ -460,12 +460,12 @@ func generate_houses() -> void:
 		var idx = j + 1
 		var palette2 = HOUSE_COLORS[idx % HOUSE_COLORS.size()]
 		var extra = HOUSE_SCRIPT.new()
-		# CRITICAL: the id MUST match the one build_placer stamped on the j-th cottage
-		# ("menu_house_%d" % <count at build> == "menu_house_%d" % j). cottage_homes is
-		# keyed by that id, and house.gd reads occupancy by it -- so a mismatched id on
-		# reload made a settled cottage read EMPTY and get double-booked with a second
-		# couple. Cottages are built ONE way now (the B menu), so there is ONE scheme.
-		extra.house_id = "menu_house_%d" % j
+		# CRITICAL: the id MUST match the one this cottage was built with -- cottage_homes
+		# is keyed by it and house.gd reads occupancy by it, so a mismatched id on reload
+		# made a settled cottage read EMPTY and get double-booked. The id is STABLE now
+		# (stored per-cottage, not derived from the index j), so deleting a middle cottage
+		# no longer shifts the survivors' ids out from under their couples (dev 2026-07-23).
+		extra.house_id = GameState.cottage_id_at(j)
 		extra.house_name = "Cottage %d" % (HOUSE_COUNT + idx)
 		extra.body_color = palette2.body
 		extra.roof_color = palette2.roof

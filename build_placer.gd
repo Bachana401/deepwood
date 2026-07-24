@@ -150,15 +150,16 @@ func _try_place(x: float) -> void:
 	if build_name == "Cottage":
 		var pal = HOUSE_PALETTES[GameState.extra_cottages % HOUSE_PALETTES.size()]
 		var home = HOUSE_SCRIPT.new()
-		home.house_id = "menu_house_%d" % GameState.extra_cottages
 		home.house_name = "Cottage %d" % (6 + GameState.extra_cottages)
 		home.body_color = pal.body
 		home.roof_color = pal.roof
 		home.position = Vector2(x, VILLAGE_Y)
+		# ONE id source: register on the chosen ground and take the STABLE id back (set
+		# before add_child), so a later middle-delete can never shift it or collide the
+		# next build (dev 2026-07-23).
+		home.house_id = GameState.register_cottage(x)
 		var village = get_tree().current_scene.get_node_or_null("Village")
 		(village if village != null else get_tree().current_scene).add_child(home)
-		GameState.extra_cottage_positions.append(x)
-		GameState.extra_cottages += 1
 		GameState.play_sfx(GameState.SFX_YES, 1.0)
 		var st = get_tree().get_first_node_in_group("notification_stack")
 		if st: st.show_notification("🏠 A new cottage is raised.")

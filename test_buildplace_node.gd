@@ -111,12 +111,13 @@ func _ready() -> void:
 		if "house_id" in n and str(n.house_id).begins_with("menu_house_"):
 			found_home = true; cott_node = n; break
 	check("...and it stands in the village", found_home)
-	# reload regenerates cottages with the SAME id scheme the menu stamped
-	# ("menu_house_%d" % j) -- a mismatch made a settled cottage read empty on reload
-	# and get double-booked with a second couple (dev 2026-07-23). ONE build path now.
+	# reload stamps each cottage its STABLE stored id (GameState.cottage_id_at), NOT an
+	# id derived from the array index -- deleting a middle cottage used to shift the
+	# index ids and orphan a settled couple's home / double-book the cottage on reload
+	# (dev 2026-07-23; the runtime behaviour is locked in test_cottageids). ONE id source.
 	var msrc := FileAccess.open("res://main.gd", FileAccess.READ).get_as_text()
-	check("reload reuses the menu's cottage id scheme — no reload double-book",
-		msrc.contains('"menu_house_%d" % j') and not msrc.contains('"extra_house_%d"'))
+	check("reload stamps each cottage its STABLE id — no reload double-book",
+		msrc.contains("GameState.cottage_id_at(j)") and not msrc.contains('"extra_house_%d"'))
 	# ---- and a raised COTTAGE can be DELETED (checked BEFORE any wall exists,
 	# so the delete tool's building/wall/cottage search resolves to the cottage) ----
 	if cott_node != null:
