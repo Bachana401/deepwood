@@ -242,6 +242,7 @@ func _ready() -> void:
 	generate_clouds()
 	fit_sky_to_world()
 	build_ground_skin()
+	build_platform_skins()
 	fence_the_camera()
 	# THE UNDERDARK (§4): the cave is now the only way down -- it retires the
 	# old surface door, carves the mouth, and builds the deep world. Mounted
@@ -1368,6 +1369,61 @@ func build_ground_skin() -> void:
 	s2.region_rect = Rect2(0, 0, span, UNDERGROUND_DEPTH)
 	s2.position = Vector2(WORLD_LEFT, fill_top)
 	$Ground.add_child(s2)
+
+# Dress the floating one-way JUMP platforms (Ground2..6) in the SAME grass+earth
+# tiles as the main ground (dev 2026-07-23, seen with EYES: they read as flat dark
+# slabs floating at night). Reuses the ground tileset -- no new art, honors the
+# freeze -- so a platform reads as a chunk of the same terrain, grass on top.
+const SURFACE_PLATFORMS := ["Ground2", "Ground3", "Ground4", "Ground5", "Ground6"]
+
+func build_platform_skins() -> void:
+	if not ResourceLoader.exists("res://art/environment/ground_tiles.png"):
+		return
+	var sheet: Texture2D = load("res://art/environment/ground_tiles.png")
+	var img: Image = sheet.get_image()
+	if img.is_compressed():
+		img.decompress()
+	var mk_tile = func(x: int, y: int) -> ImageTexture:
+		var t := Image.create(32, 32, false, Image.FORMAT_RGBA8)
+		t.blit_rect(img, Rect2i(x, y, 32, 32), Vector2i.ZERO)
+		return ImageTexture.create_from_image(t)
+	var surf: ImageTexture = mk_tile.call(96, 0)     # grass-capped surface tile
+	var fill: ImageTexture = mk_tile.call(64, 32)    # solid earth fill tile
+	var pad := _tile_top_padding(img, 96, 0)
+	for pname in SURFACE_PLATFORMS:
+		var body = get_node_or_null(pname)
+		if body == null:
+			continue
+		var rect: ColorRect = body.get_node_or_null("ColorRect")
+		if rect == null:
+			continue
+		var w: float = rect.size.x
+		var h: float = rect.size.y
+		var tl: Vector2 = rect.position
+		# earth body first (behind), full platform height...
+		var earth := Sprite2D.new()
+		earth.texture = fill
+		earth.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+		earth.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		earth.centered = false
+		earth.region_enabled = true
+		earth.region_rect = Rect2(0, 0, w, h)
+		earth.position = tl
+		earth.z_index = 0
+		body.add_child(earth)
+		# ...then the grass cap on top, hoisted by the tile's padding so the GRASS
+		# lands right on the platform's walk surface (same trick as the ground)
+		var cap := Sprite2D.new()
+		cap.texture = surf
+		cap.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+		cap.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		cap.centered = false
+		cap.region_enabled = true
+		cap.region_rect = Rect2(0, 0, w, 32)
+		cap.position = Vector2(tl.x, tl.y - float(pad))
+		cap.z_index = 1
+		body.add_child(cap)
+		rect.visible = false
 
 # Rows of transparent padding above a tile's first opaque pixel. Measured rather
 # than hardcoded so re-arting the tileset can't silently float the village again.
