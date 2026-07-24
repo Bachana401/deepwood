@@ -84,6 +84,11 @@ func _ready() -> void:
 		float(low["morale"]) <= 0.01, str(low["morale"]))
 	check("a healthy-but-strained neighbour takes the push, not the fall",
 		absf(float(strained["morale"]) - 4.0) < 0.01, str(strained["morale"]))
+	# "Well-kept" means the SITUATION is good, and a stocked larder is part of that
+	# (personal_morale_target folds in has_food). Without food even an employed,
+	# housed, partnered farmer sits just under the firewall threshold (5.2 < 5.5),
+	# so feed the town before asserting the healthy resist.
+	GameState.village_food = 20.0
 	var sound := {"id": "inf_ok", "name": "Sound", "sex": "Male", "is_kid": false,
 		"stat_name": "Farm", "stat_value": 5, "role_key": "Farm", "role_title": "Farmer",
 		"partner_id": "inf_ok2", "morale": 8.0}

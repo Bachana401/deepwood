@@ -107,6 +107,12 @@ func _ready() -> void:
 		await get_tree().physics_frame
 	GameState.TEST_INSTANT_RESPAWN = true
 	GameState.difficulty = "Medium"
+	# This transition scenario never ran a full new game, so the roster is empty --
+	# and Medium's toll (report_death_toll) can only take a villager if one exists.
+	# Seed one takeable soul so the price can actually be paid and asserted.
+	GameState.rescued_villagers.append({
+		"id": "test_toll_soul", "name": "Tollfolk", "sex": "Male", "is_kid": false,
+		"stat_name": "Farm", "stat_value": 3, "role_key": "", "role_title": ""})
 	var villagers_pre_death: int = GameState.rescued_villagers.size()
 	dp2.currency = 100
 	dp2.god_mode = false

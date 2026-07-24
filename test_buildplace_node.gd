@@ -20,6 +20,13 @@ func _ready() -> void:
 	for i in range(30):
 		await get_tree().process_frame
 
+	# This harness boots main.tscn directly, skipping the new-game flow that runs
+	# reset_for_new_game() -- so the starter blueprints it grants aren't guaranteed
+	# here (leftover save / pending_load left the Cottage/Wall checks flaky). Pin
+	# them to the known starters so the assertions are deterministic, exactly the
+	# fresh-run state a real player holds.
+	GameState.blueprints = GameState.BLUEPRINT_STARTERS.duplicate()
+
 	# ---- the fallen village starts SPARSE (dev 2026-07-23): a few iconic ruins,
 	# no pre-built cottages -- but the whole roster still builds from the menu ----
 	var start_ruins := []

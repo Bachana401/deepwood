@@ -36,6 +36,26 @@ func _ready() -> void:
 		await get_tree().process_frame
 	p.god_mode = true
 
+	# This harness boots main.tscn directly (no new-game flow), so the roster and
+	# its wandering avatars are empty. Seed a farmer and spawn their avatar in the
+	# streets so there is a villager to test the run-and-defend behaviour on.
+	var already_out := false
+	for n in get_tree().get_nodes_in_group("npc"):
+		if is_instance_valid(n) and n.has_method("take_damage") and not n.is_in_building:
+			already_out = true
+			break
+	if not already_out:
+		GameState.rescued_villagers.append({
+			"id": "test_defender", "name": "Fieldhand", "sex": "Male", "is_kid": false,
+			"stat_name": "Farm", "stat_value": 3, "role_key": "", "role_title": ""})
+		var seeded = load("res://npc.gd").new()
+		seeded.villager_id = "test_defender"
+		get_tree().current_scene.add_child(seeded)
+		seeded.global_position = p.global_position + Vector2(60.0, 0.0)
+		for i in range(30):
+			keep_running()
+			await get_tree().process_frame
+
 	var villager: Node = null
 	for n in get_tree().get_nodes_in_group("npc"):
 		if is_instance_valid(n) and n.has_method("take_damage") and not n.is_in_building:
