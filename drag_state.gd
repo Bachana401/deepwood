@@ -57,7 +57,29 @@ func _ready() -> void:
 func register_panel(panel: Node) -> void:
 	registered_panels.append(panel)
 
+# A split pulls items OUT of the source slot into the "hand" (pick_one_more), so if
+# the inventory closes mid-split with nothing to catch it the held items are stranded
+# -- gone from the source, never deposited, the floating icon stuck to the cursor and
+# split_mode jammed true (dev 2026-07-23). No close path (Tab toggle, Esc, the ✕
+# button, a chest closing, a scene change) resolved it. Self-heal here instead: the
+# frame a drag/split finds ITSELF orphaned -- no registered panel visible -- return the
+# held split to its source and drop any drag. A left-drag never removed from the source
+# (the move only happens on drop), so cancelling it loses nothing. This fires while the
+# closed panel's node still lives, so the source inventory is still the live one.
+func _any_panel_visible() -> bool:
+	for panel in registered_panels:
+		if is_instance_valid(panel) and panel.visible:
+			return true
+	return false
+
 func _process(delta: float) -> void:
+	if (active or split_mode) and not _any_panel_visible():
+		if split_mode:
+			return_split_to_source()      # held count back to the source slot/stack
+		if active:
+			cancel_drag()
+		refresh_all_panels()
+		return
 	if active:
 		var mouse_pos = get_viewport().get_mouse_position()
 		icon.position = mouse_pos - icon.size / 2.0
