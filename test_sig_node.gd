@@ -72,6 +72,16 @@ func _ready() -> void:
 		var b = BSCN.instantiate()
 		b.boss_id = bid
 		host.add_child(b)
+		# The test drives each signature FUNCTION directly -- it does not want the
+		# boss's autonomous AI loop. Left running, the AI fires telegraph abilities
+		# that `await create_timer`; when the test then frees the boss mid-telegraph,
+		# the coroutine resumes on a freed node and the process segfaults on exit
+		# (exit 139, intermittent; test logic was always green). Silencing the AI
+		# also makes the direct calls deterministic (no AI interference). NOTE: the
+		# same freed-while-mid-telegraph resume is a real GAME crash vector (exit a
+		# dungeon while a boss telegraphs) -- flagged separately for a guard-hardening.
+		b.set_physics_process(false)
+		b.set_process(false)
 		return b
 
 	var pin := Vector2(1500.0, -100.0)
