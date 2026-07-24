@@ -20,14 +20,13 @@ const PURPOSE := {
 	"Blacksmith": "forges armour and arms for sale",
 	"Tavern": "beds for the newly rescued",
 	"Bar": "songs and drink — the village's spirits",
-	"Marketplace": "trade, and a little coin from every stall",
+	"Marketplace": "trade — and the Wanderer's Post, where road-merchants set up their carts",
 	"Builderhouse": "the builders who raise everything else",
 	"Mine": "digs stone and ore from under the hills",
 	"Shrine": "where sorrow-crystals are cleansed",
 	"Cottage": "a family's home",
 	"Wall": "a rampart the siege breaks against — raise one at the gate the wave comes from",
 	"Watchtower": "eyes on the horizon — early siege warning",
-	"Wanderer's Post": "draws wanderers in from the roads",
 }
 
 var panel: Panel = null
