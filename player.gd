@@ -1527,11 +1527,13 @@ func try_plant_building() -> void:
 		GameState.moving_building = ""
 		return
 	var x := global_position.x
-	# inside the ramparts, with breathing room -- one shared surface band with
-	# can_place_building (de-magic'd 2026-07-24; the old 1e9 east bound let a plant
-	# strand a hall in the void, out of step with the ledger's own 30000 rule)
+	# inside the ramparts, with breathing room (de-magic'd 2026-07-24). The plant
+	# path keeps a FAR east fallback (PLANT_EAST_NO_WALL_X) on purpose: with no east
+	# rampart yet you can walk a packed building well out east onto open ground --
+	# test_construction plants against this very sentinel. (The build menu caps
+	# tighter; the two paths are deliberately different.)
 	var west_x := GameState.SURFACE_WEST_FALLBACK_X
-	var east_x := GameState.SURFACE_EAST_FALLBACK_X
+	var east_x := GameState.PLANT_EAST_NO_WALL_X
 	for w in get_tree().get_nodes_in_group("village_wall"):
 		if "flank" in w and w.flank == "east":
 			east_x = w.global_position.x

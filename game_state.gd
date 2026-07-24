@@ -1092,6 +1092,13 @@ func pay_build(bname: String, player: Node) -> void:
 const SURFACE_WEST_FALLBACK_X := 4700.0
 const SURFACE_EAST_FALLBACK_X := 30000.0
 const BUILD_INSIDE_MARGIN := 160.0          # breathing room just inside a rampart
+# The PLANT/relocate path keeps a far looser east fallback than the build menu:
+# with no east rampart standing (it's shut until Orin is freed) you may walk a
+# packed building well out east and set it down on open ground. This sentinel is
+# the "no east wall = no east cap yet" marker, and test_construction mirrors it
+# exactly -- so the two must stay equal. (The build menu deliberately caps tighter
+# at SURFACE_EAST_FALLBACK_X so a stray CLICK can't fling a hall into the void.)
+const PLANT_EAST_NO_WALL_X := 999999.0
 # A WALL *defines* the perimeter, so it isn't bound by "inside the ramparts" --
 # it may stand anywhere on the real surface band (west road through a built-out
 # eastern town), only clear of the buildings.
