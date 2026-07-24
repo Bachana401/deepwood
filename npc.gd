@@ -113,6 +113,7 @@ func _ready() -> void:
 	# take_damage() below -- reserved for the future village-siege enemies.
 	collision_layer = 0
 	collision_mask = 1
+	_roll_temperament()
 	pick_new_state()
 	build_visual()
 	build_hover_panel()
@@ -397,6 +398,47 @@ func _tick_defence(delta: float) -> void:
 const FLEE_SPEED_MULT := 2.6
 var flee_until := 0.0
 
+# --- ALIVE, NOT ALIKE (dev 2026-07-23: "make them more alive and not lookalike") ---
+# A stable per-villager TEMPERAMENT, hashed from their id so it survives reloads and
+# never re-rolls: how briskly they walk, how long they linger when idle, and how far
+# they like to stray from the middle of their ground. Nothing exotic -- just enough
+# spread that a street of villagers stops moving like one body wearing ten skins.
+var temper_speed := 1.0        # 0.85..1.2 -- amblers and striders
+var temper_idle := 1.0         # 0.7..1.6  -- fidgets and lingerers
+var temper_wander_bias := 0.0  # -60..60 px -- a favourite end of their ground
+
+func _roll_temperament() -> void:
+	var h := hash(villager_id if villager_id != "" else name)
+	temper_speed = 0.85 + float(h % 36) / 100.0            # 0.85 .. 1.20
+	temper_idle = 0.7 + float((h / 37) % 91) / 100.0       # 0.70 .. 1.60
+	temper_wander_bias = float((h / 3391) % 121) - 60.0    # -60 .. +60
+
+# ...and DANGER MAKES THEM RUN ON SIGHT (same dev note: "if attacked or see enemy
+# close they run away from danger"). Being STRUCK already triggered the panic; now
+# an enemy merely coming NEAR does too -- a farmer doesn't wait to be hit. Checked
+# on a short throttle (not every frame): villagers are many and sieges are busy.
+const SIGHT_FLEE_RANGE := 210.0
+const SIGHT_CHECK_INTERVAL := 0.35
+var _sight_check_cd := 0.0
+
+func _tick_flee_on_sight(delta: float) -> void:
+	_sight_check_cd -= delta
+	if _sight_check_cd > 0.0 or is_fleeing():
+		return
+	_sight_check_cd = SIGHT_CHECK_INTERVAL
+	for grp in THREAT_GROUPS:
+		for e in get_tree().get_nodes_in_group(grp):
+			if not is_instance_valid(e) or ("is_dead" in e and e.is_dead):
+				continue
+			# theatrical/staged raiders (the arrival tableau) scare nobody
+			if "theatrical" in e and e.theatrical:
+				continue
+			if global_position.distance_to(e.global_position) <= SIGHT_FLEE_RANGE:
+				flee_until = Time.get_ticks_msec() / 1000.0 + FLEE_SECONDS
+				if randf() < 0.5:
+					SpeechText.spawn(self, ["RUN!", "They're here!", "Get inside!", "Look out!"][randi() % 4])
+				return
+
 func is_fleeing() -> bool:
 	return Time.get_ticks_msec() / 1000.0 < flee_until
 
@@ -489,6 +531,8 @@ func _physics_process(delta: float) -> void:
 		return
 	# indoors is safe; out here, anything that gets its hands on you gets hit
 	_tick_defence(delta)
+	# ...and anything merely SEEN coming sends them running (flee on sight)
+	_tick_flee_on_sight(delta)
 
 	# En route to a building visit: march straight to the door, then slip in.
 	if door_target != null:
@@ -586,11 +630,11 @@ func _physics_process(delta: float) -> void:
 			direction = 1
 		elif global_position.x >= wander_max_x:
 			direction = -1
-		velocity.x = direction * SPEED
+		velocity.x = direction * SPEED * temper_speed   # amblers and striders
 		if body_gfx and direction != 0:
 			body_gfx.scale.x = direction * body_scale_factor
 		# simple walk cycle: arm swings forward while the opposite leg swings back
-		walk_anim_t += delta * 9.0
+		walk_anim_t += delta * 9.0 * temper_speed
 		var swing = sin(walk_anim_t)
 		if l_leg:
 			l_leg.rotation = swing * 0.5
@@ -680,10 +724,14 @@ func _apply_cheer(delta: float) -> void:
 func pick_new_state() -> void:
 	if is_walking:
 		is_walking = false
-		state_timer = randf_range(MIN_IDLE_SECONDS, MAX_IDLE_SECONDS)
+		# temperament: fidgets barely pause, lingerers people-watch a while
+		state_timer = randf_range(MIN_IDLE_SECONDS, MAX_IDLE_SECONDS) * temper_idle
 	else:
 		is_walking = true
-		direction = -1 if randf() < 0.5 else 1
+		# lean toward their favourite end of the ground, not a pure coin flip
+		var mid: float = (wander_min_x + wander_max_x) * 0.5 + temper_wander_bias
+		var toward_favourite := -1 if global_position.x > mid else 1
+		direction = toward_favourite if randf() < 0.65 else -toward_favourite
 		state_timer = randf_range(MIN_WALK_SECONDS, MAX_WALK_SECONDS)
 
 func find_villager_data() -> Dictionary:

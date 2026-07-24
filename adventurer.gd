@@ -41,6 +41,13 @@ var home_x := 0.0            # the anchor this station patrols around
 var patrol_off := 0.0
 var patrol_dir := 1.0
 var _post_offset := 0.0       # a stable per-hero shift so co-stationed heroes don't stack
+# the personal watch rhythm (seeded in _ready -- see there)
+var _patrol_span := 100.0
+var _patrol_speed := 26.0
+var _pause_every := 4.0
+var _pause_len := 1.5
+var _pause_clock := 0.0
+var _pausing := false
 var attack_cd := 0.0
 var is_dead := false
 var player_near := false
@@ -103,6 +110,15 @@ func _ready() -> void:
 	_post_offset = (float(hash(adventurer_id) % 5) - 2.0) * 48.0
 	patrol_off = randf_range(-90.0, 90.0)
 	patrol_dir = 1.0 if (hash(adventurer_id) % 2 == 0) else -1.0
+	# A PERSONAL WATCH RHYTHM (dev 2026-07-23: "walking front, back, stopping --
+	# make sure they don't all do the same"). Each guard gets a stable stride,
+	# beat width and pause habit from their id, so ten warriors on one wall read
+	# as ten different people keeping the same watch, not one drill row.
+	var h := hash(adventurer_id)
+	_patrol_span = 70.0 + float(h % 71)             # 70..140 px of paced ground
+	_patrol_speed = 20.0 + float((h / 71) % 17)     # 20..36 px/s amble
+	_pause_every = 2.5 + float((h / 1207) % 40) / 10.0   # pause each 2.5..6.5s...
+	_pause_len = 0.8 + float((h / 48281) % 22) / 10.0    # ...for 0.8..3.0s
 	collision_mask = 1
 	collision_layer = 0
 	add_to_group("adventurer")
@@ -437,13 +453,26 @@ func _ensure_anchor() -> void:
 func _hold_station(delta: float) -> void:
 	if home_x == 0.0:
 		home_x = _station_anchor_x()
-	# a housed adventurer stands still at the door; the rest pace their post
-	if station == "city":
-		patrol_off += patrol_dir * 24.0 * delta
-		if absf(patrol_off) > 140.0:
-			patrol_dir *= -1.0
+	# a housed adventurer stands still at the door; the rest WALK THE WATCH --
+	# wall and city guards both pace, each to their own rhythm (dev 2026-07-23:
+	# "walking front, back, stopping... make sure they don't all do the same"):
+	# a personal stretch of ground, a personal amble speed, and a personal habit
+	# of stopping to look out for a beat before walking on.
+	if station != "house":
+		_pause_clock += delta
+		if _pausing:
+			if _pause_clock >= _pause_len:
+				_pausing = false
+				_pause_clock = 0.0
+		elif _pause_clock >= _pause_every:
+			_pausing = true
+			_pause_clock = 0.0
+		if not _pausing:
+			patrol_off += patrol_dir * _patrol_speed * delta
+			if absf(patrol_off) > _patrol_span:
+				patrol_dir *= -1.0
 	_ensure_anchor()
-	var dest := home_x + (_post_offset + patrol_off if station == "city" else _post_offset * 0.5)
+	var dest := home_x + _post_offset + (0.0 if station == "house" else patrol_off)
 	# (heroes pass through each other freely -- no peer collision, no separation
 	# push; their own _post_offset just gives each a slightly different resting spot)
 	var dx := dest - global_position.x
@@ -456,22 +485,57 @@ func _hold_station(delta: float) -> void:
 			body_rect.scale.x = face
 
 # How far from their POST a hero will move to meet a threat. A SIEGE is the
-# post's whole reason to exist, so they'll cross the watch to meet it; a WILD
-# east-road mob is only their fight if it's right on top of them -- otherwise
-# they'd sprint 760px down the road after it and abandon the town they guard
-# (dev report: "sometimes running away"). They still defend themselves.
+# post's whole reason to exist -- but HOW they answer it is the station's whole
+# character (dev 2026-07-23: "warriors don't run away but chase enemies only if
+# they enter village; if not entered they simply defend walls"):
+#   wall -- holds the rampart. Fights what reaches the wall (WALL_HOLD_RADIUS
+#          around the post) and chases what BREACHES past it into the town --
+#          never sprints out into the wilds after a raider still on the road.
+#   city -- the inner line: meets anything inside the village proper, plus the
+#          old post-radius watch. Breachers are exactly their job.
+# A WILD east-road mob is only anyone's fight if it's right on top of them.
 const DEFEND_RADIUS := 560.0
 const SELF_DEFENSE_RADIUS := 150.0
+const WALL_HOLD_RADIUS := 300.0     # what "reaches the wall" means for a wall guard
+const WALL_BREACH_CHASE := 1100.0   # how deep past the post a wall guard runs a breacher down
+
+# True if this raider is INSIDE the village -- past every standing rampart's inner
+# face, into the streets. With no walls standing, the whole town is "inside".
+func _breached_into_village(r: Node2D) -> bool:
+	var lo := -INF
+	var hi := INF
+	for w in get_tree().get_nodes_in_group("village_wall"):
+		if not is_instance_valid(w):
+			continue
+		if "flank" in w and str(w.flank) == "east":
+			hi = w.global_position.x
+		else:
+			lo = w.global_position.x
+	return r.global_position.x > lo and r.global_position.x < hi
 
 func _nearest_raider() -> Node2D:
 	var post_x: float = home_x if home_x != 0.0 else global_position.x
 	var best: Node2D = null
-	var best_d := SEEK_RANGE
-	# a siege threatens the post -- meet it anywhere within the post's watch
+	var best_d := 1.0e12
 	for r in get_tree().get_nodes_in_group("siege_enemy"):
 		if not is_instance_valid(r) or ("is_dead" in r and r.is_dead):
 			continue
-		if absf(r.global_position.x - post_x) > DEFEND_RADIUS:
+		# (theatrical raiders stay targetable ON PURPOSE: the staged arrival moves the
+		# trio's post onto the road precisely so they trade blows with the tableau --
+		# see main.stage_arrival_battle. Their swings can't fell a staged raider.)
+		var breached := _breached_into_village(r)
+		var from_post: float = absf(r.global_position.x - post_x)
+		var engage := false
+		if station == "wall":
+			# the wall guard's fight: what reaches the wall, or what BREACHED past it
+			# on their side of town (WALL_BREACH_CHASE around the post). A breacher
+			# deep across the village is the city line's to run down -- the rampart
+			# is never left unmanned for a sprint across town.
+			engage = from_post <= WALL_HOLD_RADIUS or (breached and from_post <= WALL_BREACH_CHASE)
+		else:
+			# the inner line: the post's watch, plus ANY breacher anywhere in town
+			engage = from_post <= DEFEND_RADIUS or breached
+		if not engage:
 			continue
 		var d: float = global_position.distance_to(r.global_position)
 		if d < best_d:
