@@ -474,8 +474,16 @@ func _on_deposit_arm(item_id: String) -> void:
 			notif.show_notification("The armory is full.")
 	refresh()
 
+# THE SEATS (dev 2026-07-24): a post is no longer a text roster but a row of
+# square SEATS -- a filled seat wears its villager's icon, an empty seat is an
+# open square. Below sits the BENCH of eligible villagers as icons; click one to
+# drop them into the next open seat. All the assign/enroll/draft rules are
+# unchanged -- only the presentation is (text lists -> icon squares).
+const SEAT_SIZE := Vector2(46, 46)
+
 func add_role_section(list: VBoxContainer, role_def: Dictionary) -> void:
 	var holders = current_building.get_role_holders(role_def.title)
+	var total: int = current_building.effective_slots(role_def)
 
 	var header = Label.new()
 	header.add_theme_font_size_override("font_size", 14)
@@ -484,20 +492,20 @@ func add_role_section(list: VBoxContainer, role_def: Dictionary) -> void:
 		req_text = " [needs %s]" % role_def.required_stat
 	elif role_def.get("is_enrollment", false):
 		req_text = " [24 in-game hrs to graduate]"
-	header.text = "%s (%d/%d)%s" % [role_def.title, holders.size(), current_building.effective_slots(role_def), req_text]
+	header.text = "%s  (%d/%d)%s" % [role_def.title, holders.size(), total, req_text]
 	list.add_child(header)
 
-	if not holders.is_empty():
-		var holder_names = []
-		for h in holders:
-			holder_names.append(str(h.get("name", "?")))
-		var holder_label = Label.new()
-		holder_label.add_theme_font_size_override("font_size", 11)
-		holder_label.add_theme_color_override("font_color", Color(0.75, 0.85, 0.75, 1))
-		holder_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-		holder_label.text = "  Currently: " + ", ".join(holder_names)
-		list.add_child(holder_label)
+	# the seats: one square per slot, filled first with the villagers on post
+	var seats = HFlowContainer.new()
+	seats.add_theme_constant_override("h_separation", 6)
+	seats.add_theme_constant_override("v_separation", 6)
+	for h in holders:
+		seats.add_child(_villager_seat(h, false, role_def))
+	for _i in range(maxi(total - holders.size(), 0)):
+		seats.add_child(_empty_seat())
+	list.add_child(seats)
 
+	# the bench: eligible villagers as icons you can click into a seat
 	var eligible = current_building.get_eligible_villagers(role_def)
 	if eligible.is_empty():
 		var none_label = Label.new()
@@ -506,18 +514,74 @@ func add_role_section(list: VBoxContainer, role_def: Dictionary) -> void:
 		none_label.text = "  (full)" if current_building.is_role_full(role_def) else "  (no eligible villagers)"
 		list.add_child(none_label)
 	else:
+		var bench_hint = Label.new()
+		bench_hint.add_theme_font_size_override("font_size", 10)
+		bench_hint.add_theme_color_override("font_color", Color(0.62, 0.62, 0.68, 1))
+		bench_hint.text = "  Available — click to seat:"
+		list.add_child(bench_hint)
+		var bench = HFlowContainer.new()
+		bench.add_theme_constant_override("h_separation", 6)
+		bench.add_theme_constant_override("v_separation", 6)
 		for villager in eligible:
-			var row = Button.new()
-			var age_text = "Kid" if villager.get("is_kid", false) else "Adult"
-			var stat_text = villager.get("stat_name", "") if villager.get("stat_name", "") != "" else "no stat"
-			row.text = "  Assign %s (%s, %s, %s)" % [villager.get("name", "?"), villager.get("sex", "?"), age_text, stat_text]
-			row.custom_minimum_size = Vector2(0, 28)
-			row.pressed.connect(_on_assign.bind(villager.get("id", ""), role_def))
-			list.add_child(row)
+			bench.add_child(_villager_seat(villager, true, role_def))
+		list.add_child(bench)
 
 	var spacer = Control.new()
-	spacer.custom_minimum_size = Vector2(0, 10)
+	spacer.custom_minimum_size = Vector2(0, 12)
 	list.add_child(spacer)
+
+# An open post: a plain "+" square, not clickable (you seat from the bench).
+func _empty_seat() -> Control:
+	var b = Button.new()
+	b.custom_minimum_size = SEAT_SIZE
+	b.text = "+"
+	b.disabled = true
+	b.add_theme_font_size_override("font_size", 20)
+	b.add_theme_color_override("font_disabled_color", Color(0.45, 0.45, 0.52, 1))
+	b.tooltip_text = "Open seat"
+	_tint_seat(b, Color(0.18, 0.18, 0.22))
+	return b
+
+# One villager as a square icon: coloured by sex/age, stamped with their initial,
+# full details on hover. `assignable` bench icons seat the villager on click;
+# seated icons are shown disabled (display-only).
+func _villager_seat(villager: Dictionary, assignable: bool, role_def: Dictionary) -> Control:
+	var b = Button.new()
+	b.custom_minimum_size = SEAT_SIZE
+	var nm := str(villager.get("name", "?"))
+	b.text = (nm.substr(0, 1).to_upper() if nm != "" else "?")
+	b.add_theme_font_size_override("font_size", 18)
+	var sex := str(villager.get("sex", ""))
+	var is_kid: bool = villager.get("is_kid", false)
+	var base := (Color(0.4, 0.5, 0.62) if sex == "Male" else Color(0.62, 0.44, 0.55))
+	if is_kid:
+		base = base.lightened(0.18)
+	_tint_seat(b, base)
+	b.add_theme_color_override("font_color", Color(1, 1, 1, 1))
+	b.add_theme_color_override("font_disabled_color", Color(0.95, 0.95, 0.95, 1))
+	var age_text := ("Kid" if is_kid else "Adult")
+	var stat_name := str(villager.get("stat_name", ""))
+	var stat_text := (stat_name if stat_name != "" else "no stat")
+	b.tooltip_text = "%s — %s, %s, %s" % [nm, (sex if sex != "" else "?"), age_text, stat_text]
+	if assignable:
+		b.tooltip_text += "\nClick to seat as %s" % role_def.title
+		b.pressed.connect(_on_assign.bind(str(villager.get("id", "")), role_def))
+	else:
+		b.disabled = true
+		b.tooltip_text += "\n(on post as %s)" % role_def.title
+	return b
+
+# Paint a seat square a solid colour across every button state (so filled seats
+# keep their colour and don't grey out when shown disabled).
+func _tint_seat(b: Button, col: Color) -> void:
+	for state in ["normal", "hover", "pressed", "disabled", "focus"]:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = (col.lightened(0.12) if state == "hover" else col)
+		sb.corner_radius_top_left = 6
+		sb.corner_radius_top_right = 6
+		sb.corner_radius_bottom_left = 6
+		sb.corner_radius_bottom_right = 6
+		b.add_theme_stylebox_override(state, sb)
 
 func _on_assign(villager_id: String, role_def: Dictionary) -> void:
 	if not current_building:
