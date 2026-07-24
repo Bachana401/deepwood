@@ -499,18 +499,27 @@ const SELF_DEFENSE_RADIUS := 150.0
 const WALL_HOLD_RADIUS := 300.0     # what "reaches the wall" means for a wall guard
 const WALL_BREACH_CHASE := 1100.0   # how deep past the post a wall guard runs a breacher down
 
-# True if this raider is INSIDE the village -- past every standing rampart's inner
-# face, into the streets. With no walls standing, the whole town is "inside".
+# True if this raider is INSIDE the village -- past a standing rampart's inner
+# face, into the streets. With NO rampart standing there is nothing to BREACH, so
+# this is false: the post-radius watch (DEFEND_RADIUS) becomes the whole leash,
+# and a raider far out on the open approach is the nearer post's to answer -- not
+# a sprint across the map. (An earlier "no walls = the whole town is inside" made
+# every distant raider count as breached, reinstating the run-away chase that
+# test_advfix exists to prevent.)
 func _breached_into_village(r: Node2D) -> bool:
 	var lo := -INF
 	var hi := INF
+	var have_wall := false
 	for w in get_tree().get_nodes_in_group("village_wall"):
 		if not is_instance_valid(w):
 			continue
+		have_wall = true
 		if "flank" in w and str(w.flank) == "east":
 			hi = w.global_position.x
 		else:
 			lo = w.global_position.x
+	if not have_wall:
+		return false
 	return r.global_position.x > lo and r.global_position.x < hi
 
 func _nearest_raider() -> Node2D:
