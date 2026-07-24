@@ -322,6 +322,8 @@ func _physics_process(delta: float) -> void:
 	if is_dead:
 		return
 	tick_statuses(delta)
+	if is_dead:            # a burn/poison tick can kill mid-frame -- stop before a
+		return             # corpse falls, attacks, or moves (enemy.gd guards this too)
 	if kind != "flyer" and not is_on_floor():
 		velocity.y += GRAVITY * delta
 	if attack_cooldown > 0.0:
