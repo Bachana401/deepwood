@@ -3381,12 +3381,25 @@ func try_auto_place(v: Dictionary, require_stat_match: bool) -> bool:
 				continue
 			if not require_stat_match and need != "":
 				continue
-			if count_leader_holders(bkey, str(rd.get("title", ""))) >= int(rd.get("slots", 0)):
+			if count_leader_holders(bkey, str(rd.get("title", ""))) >= role_capacity(bkey, rd):
 				continue
 			v["role_key"] = bkey
 			v["role_title"] = str(rd.get("title", ""))
 			return true
 	return false
+
+# A worker role's LIVE capacity = the building instance's effective_slots (base +
+# SLOTS_PER_LEVEL per upgrade), exactly what the assign UI + is_role_full enforce.
+# auto-staff used the STATIC base instead (dev 2026-07-23), so the Chancellor could
+# never fill an upgraded worker building past its level-1 count -- the assign panel
+# offered slots the automation refused, and a big auto-run town under-produced (food
+# most of all). Match the manual cap; fall back to base when no node exists (a headless
+# balance sim has no building nodes, so its numbers are unchanged).
+func role_capacity(building_key: String, role_def: Dictionary) -> int:
+	var node = get_tree().get_first_node_in_group("building_role_" + building_key)
+	if node != null and node.has_method("effective_slots"):
+		return int(node.effective_slots(role_def))
+	return int(role_def.get("slots", 0))
 
 func auto_research(n: int) -> void:
 	var done := 0
