@@ -997,13 +997,22 @@ func find_avatar_spawn_position(role_key: String) -> Vector2:
 				return child.global_position + Vector2(randf_range(-18.0, 18.0), -60.0)
 	# the unemployed (the Doctor among them) belong IN the village, not on its
 	# western doorstep -- the old fixed fallback sat ~300px west of the first
-	# building, so they read as standing outside town (dev's report)
+	# building, so they read as standing outside town (dev's report).
+	# SPREAD, don't bunch (dev 2026-07-24): landing every unhoused villager just
+	# past the LEFTMOST building parked them all at the west gate -- right where
+	# the arrival battle is fought -- so after the first wave they read as a row
+	# of "random dark figures" on the doorstep. Fan them across the whole village
+	# span instead, so they stand about town like people, not a huddle at the gate.
 	var first_x := 0.0
+	var last_x := 0.0
 	for child2 in $Village.get_children():
 		if child2.has_method("get_roles"):
-			first_x = child2.global_position.x if first_x == 0.0 else minf(first_x, child2.global_position.x)
+			var cx: float = child2.global_position.x
+			first_x = cx if first_x == 0.0 else minf(first_x, cx)
+			last_x = maxf(last_x, cx)
 	if first_x > 0.0:
-		return Vector2(first_x + randf_range(40.0, 260.0), VILLAGE_FALLBACK_POS.y)
+		var span: float = maxf(last_x - first_x, 200.0)
+		return Vector2(first_x + 120.0 + randf() * span, VILLAGE_FALLBACK_POS.y + randf_range(-24.0, 24.0))
 	return VILLAGE_FALLBACK_POS
 
 func _process(delta: float) -> void:
