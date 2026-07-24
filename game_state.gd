@@ -3451,6 +3451,14 @@ func auto_repair_one() -> void:
 	var worst := ""
 	var worst_stage := TOTAL_BUILD_STAGES
 	for bn in STARTING_BUILDINGS:
+		# Only a building that actually STANDS can be repaired. Buildings are placed
+		# from the B menu now (build-menu rework), and an unplaced one has no node while
+		# building_build_stage defaults it to 0 -- so the old loop treated every un-built
+		# hall as "most ruined" and the crew silently raised it to OPERATIONAL with no
+		# node, running its service (food, tax, healing...) for free and handing the
+		# finale gate every building. Repair only what was actually built (dev 2026-07-23).
+		if get_tree().get_first_node_in_group("building_role_" + bn) == null:
+			continue
 		var st = building_build_stage(bn)
 		if st < worst_stage:
 			worst_stage = st
