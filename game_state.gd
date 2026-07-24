@@ -884,7 +884,8 @@ func clear_wizard_down() -> void:
 var building_health: Dictionary = {}
 
 # Mirrors building.gd's MAX_HEALTH -- kept here so GameState can seed/restore
-# building_health without depending on building.gd. Keep the two in sync.
+# building_health without depending on building.gd. Keep the two in sync: a
+# runtime assert in building.gd._ready() fails loud if they ever drift.
 const BUILDING_MAX_HEALTH = 400
 
 # Construction progress per building, 0..TOTAL_BUILD_STAGES. 0 = ruins; each F
@@ -1082,6 +1083,21 @@ func pay_build(bname: String, player: Node) -> void:
 	for k in build_cost(bname):
 		player.inventory.remove_item(k, int(build_cost(bname)[k]))
 
+# THE SURFACE BAND (de-magic'd 2026-07-24). Before the ramparts exist there is no
+# perimeter to bound a build against, so these name the fallback band a building
+# may stand in. Once a wall of a given flank stands, its REAL position overrides
+# the matching fallback (see can_place_building / player.try_plant_building, which
+# both read them). The east edge is deliberately modest (not 1e9): a huge value
+# let a stray click strand a hall a mile out in the eastern void.
+const SURFACE_WEST_FALLBACK_X := 4700.0
+const SURFACE_EAST_FALLBACK_X := 30000.0
+const BUILD_INSIDE_MARGIN := 160.0          # breathing room just inside a rampart
+# A WALL *defines* the perimeter, so it isn't bound by "inside the ramparts" --
+# it may stand anywhere on the real surface band (west road through a built-out
+# eastern town), only clear of the buildings.
+const WALL_BAND_WEST_X := 2000.0
+const WALL_BAND_EAST_X := 30000.0
+
 # Can a building `bwidth` wide stand centred at x? INSIDE the ramparts and clear
 # of every other structure -- the same rule the old relocate plant used, so a
 # built building can never overlap another. (The village IS the surface, so a
@@ -1093,23 +1109,23 @@ func can_place_building(tree: SceneTree, bwidth: float, x: float, exclude: Node 
 	# anywhere along the village surface, only clear of the buildings. Everything
 	# else must sit INSIDE the ramparts.
 	if not is_wall:
-		var west_x := 4700.0
+		var west_x := SURFACE_WEST_FALLBACK_X
 		# with no east rampart standing, halls are still bound to the same sane
-		# surface band walls use -- 1e9 let a stray click strand a hall a mile out
-		# in the eastern void (dev sweep 2026-07-23)
-		var east_x := 30000.0
+		# surface band walls use (SURFACE_EAST_FALLBACK_X, not 1e9, or a stray click
+		# could strand a hall a mile out in the eastern void -- dev sweep 2026-07-23)
+		var east_x := SURFACE_EAST_FALLBACK_X
 		for w in tree.get_nodes_in_group("village_wall"):
 			if "flank" in w and w.flank == "east":
 				east_x = w.global_position.x
 			else:
 				west_x = w.global_position.x
-		if x < west_x + 160.0 or x > east_x - 160.0:
+		if x < west_x + BUILD_INSIDE_MARGIN or x > east_x - BUILD_INSIDE_MARGIN:
 			return false
 	else:
 		# a sane surface band (west road through the full eastern village + its
 		# cottages, which a built-out town can stretch well past x=14000) so a wall
 		# can't be dropped a mile out in the void, but any real gate is reachable
-		if x < 2000.0 or x > 30000.0:
+		if x < WALL_BAND_WEST_X or x > WALL_BAND_EAST_X:
 			return false
 	var my_half: float = bwidth / 2.0
 	for other in tree.get_nodes_in_group("building"):

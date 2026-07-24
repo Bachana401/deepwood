@@ -1527,15 +1527,17 @@ func try_plant_building() -> void:
 		GameState.moving_building = ""
 		return
 	var x := global_position.x
-	# inside the ramparts, with breathing room
-	var west_x := 4700.0
-	var east_x := 999999.0
+	# inside the ramparts, with breathing room -- one shared surface band with
+	# can_place_building (de-magic'd 2026-07-24; the old 1e9 east bound let a plant
+	# strand a hall in the void, out of step with the ledger's own 30000 rule)
+	var west_x := GameState.SURFACE_WEST_FALLBACK_X
+	var east_x := GameState.SURFACE_EAST_FALLBACK_X
 	for w in get_tree().get_nodes_in_group("village_wall"):
 		if "flank" in w and w.flank == "east":
 			east_x = w.global_position.x
 		else:
 			west_x = w.global_position.x
-	if x < west_x + 160.0 or x > east_x - 160.0:
+	if x < west_x + GameState.BUILD_INSIDE_MARGIN or x > east_x - GameState.BUILD_INSIDE_MARGIN:
 		if stack:
 			stack.show_notification("The %s must stand INSIDE the ramparts." % name)
 		return

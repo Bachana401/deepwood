@@ -59,6 +59,12 @@ const STYLES = {
 	"Tavern": {"roof": "gable", "feature": "sign"},
 	"Marketplace": {"roof": "awning", "feature": "none"},
 	"Builderhouse": {"roof": "gable", "feature": "scaffold"},
+	# Mine & Shrine ship no PixelLab facade, so they draw procedurally (default
+	# case in draw_named_building) -- give them real silhouettes so they stop
+	# reading as generic gable boxes (dev 2026-07-24). Mine: a flat industrial
+	# works with a smelter chimney; Shrine: a domed temple with a bell.
+	"Mine": {"roof": "flat", "feature": "chimney"},
+	"Shrine": {"roof": "domed", "feature": "bell"},
 }
 
 # Per-building window layout so each gets a sensible, tidy count (not a blind
@@ -79,6 +85,8 @@ const WINDOWS = {
 	"Tavern": {"pairs": 2, "rows": 1},
 	"Marketplace": {"pairs": 0, "rows": 0},
 	"Builderhouse": {"pairs": 1, "rows": 1},
+	"Mine": {"pairs": 1, "rows": 1},          # few, small -- an industrial works
+	"Shrine": {"pairs": 1, "rows": 2},        # tall temple lights
 }
 
 # PixelLab facade art (art/buildings/<file>.png) shown for FINISHED buildings;
@@ -169,6 +177,11 @@ func _ready() -> void:
 	if role_key != "":
 		add_to_group("building_role_" + role_key)
 	add_to_group("building")
+
+	# ONE SOURCE OF TRUTH for max building HP (dev 2026-07-24): GameState mirrors this
+	# as BUILDING_MAX_HEALTH to seed/restore health headlessly. A silent drift would
+	# mis-seed every building's HP, so fail loud the instant they diverge.
+	assert(MAX_HEALTH == GameState.BUILDING_MAX_HEALTH, "building.gd MAX_HEALTH (%d) != GameState.BUILDING_MAX_HEALTH (%d) — keep them in sync" % [MAX_HEALTH, GameState.BUILDING_MAX_HEALTH])
 
 	rng.seed = hash(building_name)
 	build_stage = int(GameState.building_stage.get(building_name, 0))
