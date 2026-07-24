@@ -1,16 +1,16 @@
 extends Node
 # EYES (dev 2026-07-23: "you keep saying you checked every angle, but i find bugs
 # in literally 5 seconds of play"). Static sweeps cannot SEE the game; this can.
-# It boots the REAL rendered game (run WINDOWED, not --headless -- screenshots
-# need a live viewport), plays the first minutes through the REAL input actions,
-# and saves a screenshot at every beat for visual inspection.
+# Boots the REAL rendered game (run WINDOWED, not --headless -- screenshots need a
+# live viewport), plays through beats on real input, and saves a screenshot at each
+# for visual inspection.
 #
 #   MONARCH_TEST="res://tool_eyes.gd" Godot.exe --path .        (no --headless!)
 #
-# Shots land in EYES_DIR. Each beat is time-boxed so a stuck beat can never hang
-# the run -- worst case the shot just shows the stuck state, which is the point.
+# v2: robustly clears dialog + forces opening_done before opening the menus (they
+# were blocked by the arrival banter in v1), and covers build/inventory/skill/log.
 
-var shot_dir := "user://eyes"       # overridden by EYES_DIR env if set
+var shot_dir := "user://eyes"
 var _n := 0
 
 func say(t: String) -> void: printerr(t)
@@ -29,68 +29,47 @@ func _ready() -> void:
 	if p == null:
 		say("EYES: no player"); get_tree().quit(1); return
 
-	# ---- beat 1: the opening as the player first sees it (dialog up, HUD hidden)
-	await _settle(1.2)
+	# ---- beat 1: the opening as first seen (dialog up, HUD hidden) ----
+	await _settle(1.0)
 	await _shot("01_opening")
 
-	# ---- advance the prologue the way tests do (finish each box), then look again
-	for i in range(12):
-		_finish_dialog()
-		await _settle(0.3)
-		if not get_tree().paused:
-			break
-	get_tree().paused = false
-	await _shot("02_after_prologue")
+	# ---- fully leave the opening: finish every box, mark it done, unpause ----
+	await _clear_dialog()
+	GameState.opening_done = true
 
-	# ---- beat 2: WALK east on the real input action for a while -- the road
-	Input.action_press("move_right")
-	await _settle(6.0)
-	await _shot("03_road_east")
-
-	# keep walking toward the wall until the arrival scene arms or ~14s pass
-	var t := 0.0
-	while t < 14.0 and not GameState.seen_arrival_battle:
-		if get_tree().paused:
-			break                       # banter began -- stop walking, look at it
-		await _settle(0.5); t += 0.5
-	Input.action_release("move_right")
-	await _shot("04_arrival_scene")
-
-	# ---- the staged fight -> real fight (finish the banter, watch the brawl)
-	for i in range(8):
-		_finish_dialog()
-		await _settle(0.3)
-		if not get_tree().paused:
-			break
-	get_tree().paused = false
-	await _settle(2.0)
-	await _shot("05_gate_fight")
-
-	# ---- beat 3: stand in the village proper and look at it
+	# ---- put us in the village proper, mid-game feel ----
 	var vx := 5600.0
 	for b in get_tree().get_nodes_in_group("building"):
 		vx = b.global_position.x; break
-	p.global_position = Vector2(vx - 200.0, -120.0)
-	await _settle(1.5)
-	await _shot("06_village")
+	p.global_position = Vector2(vx - 120.0, -120.0)
+	await _settle(1.2)
+	await _shot("02_village")
 
-	# ---- beat 4: the build menu, as the player opens it
-	_tap("build_menu")
-	await _settle(1.0)
-	await _shot("07_build_menu")
-	_tap("build_menu")                  # close
+	# ---- the MENUS, each on a clean (dialog-free, unpaused) frame ----
+	await _menu_shot("03_build_menu", "build_menu")
+	await _menu_shot("04_inventory", "toggle_inventory")
+	await _menu_shot("05_village_log", "log_toggle")
 
-	# ---- beat 5: the inventory
-	_tap("toggle_inventory")
-	await _settle(1.0)
-	await _shot("08_inventory")
-	_tap("toggle_inventory")
+	# skill tree toggles on a raw key -> open its panel node directly
+	await _clear_dialog()
+	var st = _find_by_method("build_xp_bar")
+	if st != null and "panel" in st:
+		st.panel.visible = true
+		if st.has_method("refresh"):
+			st.refresh()
+		await _settle(1.0)
+		await _shot("06_skill_tree")
+		st.panel.visible = false
 
-	# ---- beat 6: the village log (L)
-	_tap("log_toggle")
-	await _settle(1.0)
-	await _shot("09_village_log")
-	_tap("log_toggle")
+	# ---- assign panel: click a building to see the worker UI (open by proximity) ----
+	await _clear_dialog()
+	var bld = get_tree().get_first_node_in_group("building")
+	if bld != null:
+		p.global_position = bld.global_position + Vector2(0, -40)
+		await _settle(0.6)
+		_tap("interact")
+		await _settle(1.0)
+		await _shot("07_building_interact")
 
 	say("EYES: done, %d shots in %s" % [_n, shot_dir])
 	get_tree().quit(0)
@@ -99,31 +78,48 @@ func _ready() -> void:
 func _shot(name: String) -> void:
 	await RenderingServer.frame_post_draw
 	var img := get_viewport().get_texture().get_image()
-	var path := shot_dir.path_join(name + ".png")
-	img.save_png(path)
+	img.save_png(shot_dir.path_join(name + ".png"))
 	_n += 1
-	say("EYES: shot %s" % path)
+	say("EYES: shot %s" % name)
 
-# create_timer(process_always=true) so waits keep ticking through pauses
+func _menu_shot(name: String, action: String) -> void:
+	await _clear_dialog()
+	_tap(action)
+	await _settle(1.0)
+	await _shot(name)
+	_tap(action)                 # close
+	await _settle(0.3)
+
 func _settle(sec: float) -> void:
 	await get_tree().create_timer(sec, true).timeout
 
-# fire an action through BOTH input paths: the polled API (is_action_pressed)
-# and the event pipeline (_input / _unhandled_input handlers)
+# finish EVERY dialogue box on screen, then unpause -- repeat, since finishing
+# one box can chain to the next (the opening is a chain of them)
+func _clear_dialog() -> void:
+	for _r in range(16):
+		var found := false
+		for n in get_tree().root.find_children("*", "", true, false):
+			if n.has_method("finish") and n.has_method("show_line"):
+				n.finish()
+				found = true
+		get_tree().paused = false
+		await _settle(0.2)
+		if not found and not get_tree().paused:
+			return
+
 func _tap(action: String) -> void:
 	var ev := InputEventAction.new()
-	ev.action = action
-	ev.pressed = true
+	ev.action = action; ev.pressed = true
 	Input.parse_input_event(ev)
 	Input.action_press(action)
+	await get_tree().process_frame
 	var up := InputEventAction.new()
-	up.action = action
-	up.pressed = false
+	up.action = action; up.pressed = false
 	Input.parse_input_event(up)
 	Input.action_release(action)
 
-func _finish_dialog() -> void:
+func _find_by_method(m: String) -> Node:
 	for n in get_tree().root.find_children("*", "", true, false):
-		if n.has_method("finish") and n.has_method("show_line"):
-			n.finish()
-			return
+		if n.has_method(m):
+			return n
+	return null

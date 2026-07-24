@@ -53,9 +53,29 @@ func _refresh() -> void:
 	# >= 0); and (3) while the town is TURNING (the Harvest, one thing left to do).
 	var show: bool = (GameState.opening_done or GameState.dev_mode) \
 		and GameState.tutorial_step < 0 and not GameState.harvest_at_home
+	# ...and step aside while any full-screen menu is open (build ledger, inventory,
+	# skill tree, assign panel...) -- the banner sat on a higher layer and overlapped
+	# their titles (dev 2026-07-23, seen with EYES). esc_window is the menu group.
+	if show:
+		for w in get_tree().get_nodes_in_group("esc_window"):
+			if is_instance_valid(w) and _is_menu_open(w):
+				show = false
+				break
 	_wrap.visible = show
 	if show:
 		_label.text = "▶  " + GameState.next_objective()
+
+# An esc_window is "open" if its own panel/visibility reads visible. Different
+# windows expose it differently (a `panel` child, an is_open()/is_visible()), so
+# probe the common shapes rather than assume one.
+func _is_menu_open(w: Node) -> bool:
+	if w.has_method("is_open"):
+		return bool(w.is_open())
+	if "panel" in w and w.panel != null and "visible" in w.panel:
+		return bool(w.panel.visible)
+	if w is CanvasItem:
+		return (w as CanvasItem).visible
+	return false
 
 func _bg() -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
