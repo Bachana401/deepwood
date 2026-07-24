@@ -231,6 +231,11 @@ func update_label() -> void:
 		return
 	if GameState.despair_dead:
 		label.text = "☾ The nights are quiet — Despair is dead. Deepwood is yours."
+	elif GameState.harvest_at_home:
+		# THE FINALE OWNS THE TOP OF THE SCREEN (dev 2026-07-23): the Monarch's boss
+		# banner sits top-centre here, and there is no "next siege" to foresee -- the
+		# siege apparatus IS the Harvest now -- so the foresight label stands aside.
+		label.text = ""
 	elif GameState.live_siege_active:
 		label.text = "⚔ SIEGE  -  %d attacker%s left" % [alive_count, "" if alive_count == 1 else "s"]
 	elif not GameState.seen_arrival_battle:

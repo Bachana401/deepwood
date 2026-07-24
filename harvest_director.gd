@@ -181,6 +181,21 @@ func _spawn_monarch() -> void:
 	# output. (The old finale wrote to a nonexistent 'attack_damage' and
 	# silently never weakened him at all -- caught by the error log.)
 	boss.damage_multiplier *= 0.25
+	# THE CLIMAX IS AN EVENT TOO (dev 2026-07-23, seen with EYES). Every dungeon boss
+	# gets the spectacle overlay -- cinematic name-card + the big top-screen health
+	# banner -- but the BossHUD is only ever seated in the dungeon, so the FINAL boss,
+	# fought here in the streets, arrived with none (update_health_bar's set_health
+	# found no boss_hud and no-op'd; only the tiny overhead bar showed). Seat one for
+	# the finale and present him, so the Monarch of Despair enters with more ceremony
+	# than a floor-5 miniboss -- exactly the "every boss an EVENT" rule (boss_hud.gd).
+	var hud = get_tree().get_first_node_in_group("boss_hud")
+	if hud == null:
+		hud = preload("res://boss_hud.gd").new()
+		hud.name = "BossHUD"
+		add_child(hud)                      # CanvasLayer(60): renders over the village
+	if hud.has_method("present"):
+		hud.present("The Monarch of Despair", "Orin — the end of the living",
+			Color(0.58, 0.28, 0.82))         # a royal despair-violet
 
 func _spawn_ally(ten_id: String, override_name: String) -> void:
 	var ally = load("res://ten_ally.gd").new()
