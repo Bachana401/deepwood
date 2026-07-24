@@ -51,7 +51,13 @@ var is_rescued = false
 var crystal: Node2D = null
 
 func _ready() -> void:
-	if GameState.is_villager_rescued(villager_id):
+	# Gone is GONE: already rescued (alive in the roster) OR rescued-then-lost
+	# (permadeath -- lost_souls). Without the second check, a freed hostage who
+	# later died left the roster and their crystal RESPAWNED on the road on the
+	# next Continue (dev 2026-07-23: "after releasing them they should not be
+	# visible"). The dungeon spawner always checked lost_souls; now the
+	# hand-placed road crystals honor it too.
+	if GameState.is_villager_rescued(villager_id) or GameState.lost_souls.has(villager_id):
 		queue_free()
 		return
 	body_entered.connect(_on_body_entered)

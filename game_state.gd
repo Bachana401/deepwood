@@ -2572,6 +2572,13 @@ func rescue_pool_open() -> bool:
 # rescue pool)? A rescued figure who dies is added to lost_souls and never waits
 # in the dark to be freed again -- which is what lets the pool finally empty.
 func is_important_figure(villager_id: String) -> bool:
+	# EVERY named, quest-bearing soul is a one-off: the road hostages hand-placed
+	# in main.tscn (Elin/Milo/Sena...) as much as the deep's chained figures. They
+	# were excluded here, so a freed road hostage who later DIED never entered
+	# lost_souls -- and their Sorrow-Crystal respawned on the road on the next
+	# Continue (dev 2026-07-23, seen with EYES: "[E] free Elin" back on the road).
+	if VillagerQuests.QUEST_DEFS.has(villager_id):
+		return true
 	for lvl in VillagerQuests.IMPORTANT_FIGURES:
 		if str(VillagerQuests.IMPORTANT_FIGURES[lvl].get("villager_id", "")) == villager_id:
 			return true

@@ -45,6 +45,11 @@ const TIER_SPACING = 86.0      # CARD_H + a 10px breathing gap
 func _ready() -> void:
 	layer = 50
 	add_to_group("esc_window")
+	# The always-on XP bar lives on THIS layer, not the main HUD CanvasLayer, so
+	# it leaked through the "chat only" opening (dev 2026-07-23, seen with EYES:
+	# the XP strip + 'skill pts (K)' label sat over the prologue). Join the hide
+	# group so DialogueBox blanks it with the rest of the HUD during any beat.
+	add_to_group("cutscene_hides")
 	build_xp_bar()
 	build_panel()
 	panel.visible = false
