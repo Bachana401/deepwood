@@ -3953,6 +3953,11 @@ func enroll_villager(villager_id: String, role_key: String, role_title: String, 
 	# are. Only the Barracks can. (The UI filters them out too; this guard is
 	# for any other path that reaches enrollment.)
 	var v = find_villager_by_id(villager_id)
+	# Nobody home, nobody enrolled (dev sweep 2026-07-23): a stale UI click --
+	# assign fired the instant that villager died -- otherwise planted a GHOST
+	# enrollment that ticked the full term and graduated no one.
+	if v.is_empty():
+		return
 	if v.get("hero", false) and role_key == "School":
 		var stack = get_tree().get_first_node_in_group("notification_stack")
 		if stack:
