@@ -513,68 +513,6 @@ func _refresh_rubble() -> void:
 			stone.position = mound.position + Vector2(rng.randf_range(-mw * 0.3, mw * 0.3), -rng.randf_range(2.0, mh * 0.5))
 			rubble_layer.add_child(stone)
 
-# E on an uncleared heap: one shovelful of rubble. The third one reveals the
-# building -- its name appears for the first time, and the F-build path opens.
-const CLEAR_WORK_SECONDS = 0.7   # brief lockout so three presses feel like work
-var _clear_busy_until := 0.0
-
-func attempt_clear_rubble() -> void:
-	var now: float = Time.get_ticks_msec() / 1000.0
-	if now < _clear_busy_until:
-		return
-	_clear_busy_until = now + CLEAR_WORK_SECONDS
-	var done: int = GameState.building_clear_progress(building_name) + 1
-	GameState.building_cleared[building_name] = done
-	spawn_clear_dust()
-	var notif = get_tree().get_first_node_in_group("notification_stack")
-	if done >= GameState.CLEAR_STEPS:
-		if notif:
-			notif.show_notification("Rubble cleared (3/3) — this was the %s!" % building_name)
-		GameState.play_sfx(GameState.SFX_YES, 1.15)
-	elif notif:
-		notif.show_notification("Clearing rubble... (%d/%d)" % [done, GameState.CLEAR_STEPS])
-	_refresh_rubble()
-	update_name_label()
-	update_prompt()
-
-# a puff of grey dust so each shovelful visibly does something
-func spawn_clear_dust() -> void:
-	for i in range(7):
-		var mote := ColorRect.new()
-		mote.size = Vector2(4, 4)
-		mote.color = Color(0.55, 0.52, 0.48, 0.85)
-		mote.position = Vector2(randf_range(-eff_w() * 0.4, eff_w() * 0.4), randf_range(-26.0, -4.0))
-		add_child(mote)
-		var tw := create_tween()
-		tw.tween_property(mote, "position", mote.position + Vector2(randf_range(-18, 18), randf_range(-34, -14)), 0.5)
-		tw.parallel().tween_property(mote, "modulate:a", 0.0, 0.5)
-		tw.tween_callback(mote.queue_free)
-
-# Press-F build while standing in a ruined / half-built building.
-func attempt_field_build() -> void:
-	var player = get_tree().get_first_node_in_group("player")
-	if not player:
-		return
-	var notif = get_tree().get_first_node_in_group("notification_stack")
-	# BLUEPRINTS (5.2): a ruin cannot be raised until its plans are found in
-	# the deep -- the survival basics are known, the rest lie at fixed floors
-	if not GameState.has_blueprint(building_name):
-		if notif:
-			notif.show_notification("📜 The %s's blueprint is lost — seek it in the deep." % building_name)
-		return
-	var result = try_build(player)
-	if result == "ok" and notif:
-		if build_stage >= GameState.TOTAL_BUILD_STAGES:
-			notif.show_notification("%s fully built! Its roles are open now." % building_name)
-		else:
-			notif.show_notification("%s -- building... (stage %d/%d)" % [building_name, build_stage, GameState.TOTAL_BUILD_STAGES])
-	elif result == "materials" and notif:
-		notif.show_notification("%s needs: %s" % [building_name, ", ".join(missing_repair_materials(player))])
-	var assign_ui = get_node_or_null("../../AssignUI")
-	if assign_ui and assign_ui.current_building == self:
-		assign_ui.refresh()
-	update_prompt()
-
 # Prompt: mid-build shows "Building...", ruins/half show the F build cost + the
 # stage counter, a finished building shows the E interact prompt.
 func update_prompt() -> void:
