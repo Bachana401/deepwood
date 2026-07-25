@@ -183,8 +183,9 @@ func _build_visual() -> void:
 		var sc := ADV_SPRITE_H / ch
 		_skin_sprite.scale = Vector2(sc, sc)
 		_skin_sprite.offset = Vector2(-EnemySkins.hcenter_px(vskin, ADV_ROOT), -EnemySkins.feet_px(vskin, ADV_ROOT))
-		# tinted toward their own colour, not a uniform blue wash
-		_skin_sprite.modulate = col.lightened(0.35)
+		# NO full-body colour wash -- it read as "poisoned". Their identity colour
+		# lives in the cloak / pauldron / weapon accents instead, not the skin.
+		_skin_sprite.modulate = Color.WHITE
 		if _skin_sprite.sprite_frames.has_animation("idle"):
 			_skin_sprite.animation = "idle"
 			_skin_sprite.play()
