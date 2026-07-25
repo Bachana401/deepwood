@@ -509,7 +509,7 @@ func generate_houses() -> void:
 	for wdata in GameState.placed_walls:
 		var pwall = preload("res://wall.tscn").instantiate()
 		pwall.flank = str(wdata.get("flank", "west"))
-		pwall.position = Vector2(float(wdata.get("x", 4700.0)), VILLAGE_Y)
+		pwall.position = Vector2(float(wdata.get("x", GameState.SURFACE_WEST_FALLBACK_X)), VILLAGE_Y)
 		add_child(pwall)
 
 # NPC world avatars are runtime-only nodes -- nothing about them is written
@@ -587,18 +587,16 @@ func _check_arrival_trigger() -> void:
 	# happen where they belong -- on the road at the village wall.
 	if GameState.in_dungeon or pl.global_position.y > 250.0:
 		return
-	var wall_x := 4700.0
-	for w in get_tree().get_nodes_in_group("village_wall"):
-		if "flank" in w and w.flank == "west":
-			wall_x = w.global_position.x
-			break
+	var wall_x := _west_wall_x()
 	if pl.global_position.x < wall_x - ARRIVAL_TRIGGER_DIST:
 		return
 	_arrival_armed = false
 	trigger_arrival_scene(wall_x)
 
 func _west_wall_x() -> float:
-	var wall_x := 4700.0
+	# the west rampart's real face if one stands, else the shared surface-band
+	# fallback (de-magic'd 2026-07-24; was a bare 4700.0 duplicated in three spots)
+	var wall_x := GameState.SURFACE_WEST_FALLBACK_X
 	for w in get_tree().get_nodes_in_group("village_wall"):
 		if "flank" in w and w.flank == "west":
 			wall_x = w.global_position.x
@@ -714,11 +712,7 @@ func _check_arrival_talk() -> void:
 	if pl == null:
 		return
 	# the west rampart's real face if one stands, else the classic line
-	var wall_x := 4700.0
-	for w in get_tree().get_nodes_in_group("village_wall"):
-		if "flank" in w and w.flank == "west":
-			wall_x = w.global_position.x
-			break
+	var wall_x := _west_wall_x()
 	# Only the RELOAD path reaches here (a save taken between the fight and the
 	# words). The fight itself plays the talk on the spot. Near the wall is the
 	# condition, not past it -- the battle is fought on its western approach.
