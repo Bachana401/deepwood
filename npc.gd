@@ -988,6 +988,12 @@ func tick_building_visits() -> void:
 	# countdown first so bar visits work for the unemployed too
 	if is_in_building:
 		hours_until_exit -= hours_passed
+		# Sick Road: a patient mends over time while inside, faster the better the
+		# ward is staffed; discharged the moment they're whole (or when the visit
+		# cap runs out, so even a slow ward eventually releases them).
+		if _under_treatment:
+			_tick_treatment(hours_passed)
+			return
 		if hours_until_exit <= 0:
 			exit_building()
 		return
@@ -1025,8 +1031,9 @@ func pick_visit_building() -> Node:
 
 var current_visit_building: Node = null
 var door_target: Node = null   # building we're walking to before slipping inside
-var _care_visit := false       # true while this trip is a Sick Road walk to the Hospital
-const CARE_HP_THRESHOLD := 0.5 # wounded below half health -> break off and seek the Hospital
+var _care_visit := false        # true while this trip is a Sick Road walk to the Hospital
+var _under_treatment := false   # true while admitted, mending over time inside the Hospital
+const CARE_HP_THRESHOLD := 0.5  # wounded below half health -> break off and seek the Hospital
 
 # A visit now starts by WALKING to the building's door (see the door_target
 # branch in _physics_process); the actual disappearance happens on arrival in
@@ -1074,6 +1081,27 @@ func _cancel_care() -> void:
 	door_target = null
 	current_visit_building = null
 
+# One tick of Hospital treatment while admitted (Sick Road). Heals toward full at
+# the ward's staffed rate; discharges on full health, or breaks off if the ward
+# was razed out from under them mid-treatment.
+func _tick_treatment(hours_passed: float) -> void:
+	var b = current_visit_building
+	if b == null or not is_instance_valid(b) or (b.has_method("is_operational") and not b.is_operational()):
+		_under_treatment = false
+		exit_building()
+		return
+	var hp: float = GameState.get_villager_hp(villager_id)
+	hp = minf(GameState.VILLAGER_MAX_HP, hp + hours_passed * GameState.hospital_treat_rate())
+	if hp >= GameState.VILLAGER_MAX_HP:
+		GameState.villager_hp.erase(villager_id)   # made whole -> discharged
+		_under_treatment = false
+		exit_building()
+		return
+	GameState.villager_hp[villager_id] = hp
+	if hours_until_exit <= 0:                        # visit-cap safety release
+		_under_treatment = false
+		exit_building()
+
 func _complete_enter() -> void:
 	var building = door_target
 	var was_care := _care_visit
@@ -1081,11 +1109,12 @@ func _complete_enter() -> void:
 	door_target = null
 	is_in_building = true
 	hours_until_exit = randf_range(VISIT_MIN_HOURS, VISIT_MAX_HOURS)
-	# Sick Road: arriving wounded at the Hospital IS the treatment. Step 1 heals
-	# to full on arrival (absent hp == full health); a doctor-scaled, over-time
-	# version comes in a later step.
+	# Sick Road: arriving wounded doesn't snap you whole -- you're admitted, and
+	# mend OVER TIME while inside (see _tick_treatment), faster the better the ward
+	# is staffed. The walk was the cost of getting here; the stay is the cost of
+	# how well you built and staffed the Hospital.
 	if was_care:
-		GameState.villager_hp.erase(villager_id)
+		_under_treatment = true
 	if building and is_instance_valid(building) and building.has_method("play_door_anim"):
 		building.play_door_anim()
 	visible = false
@@ -1095,6 +1124,7 @@ func _complete_enter() -> void:
 
 func exit_building() -> void:
 	is_in_building = false
+	_under_treatment = false
 	visible = true
 	var building = current_visit_building
 	current_visit_building = null

@@ -2339,6 +2339,14 @@ const DESPAIR_MORALE := 20               # below 2/10 == the village is in crisi
 const DESPAIR_GRACE_HOURS := 18.0        # crisis must persist this long before it bites
 const DESPAIR_HP_REGEN_PER_HOUR := 12.0  # a recovered village pulls the sick back up
 const VILLAGER_MAX_HP := 100.0
+# THE SICK ROAD (expansion 2026-07-24): how fast the Hospital mends a patient who
+# walked in wounded. A built ward heals at the base rate even bare-staffed; each
+# villager on the Hospital's roster speeds it, and a seated Chief Physician
+# sharpens the whole ward. So PLACEMENT gets them there fast; STAFFING is how
+# quickly they mend once inside.
+const HOSPITAL_TREAT_BASE_PER_HOUR := 20.0
+const HOSPITAL_TREAT_PER_STAFF := 15.0
+const HOSPITAL_CHIEF_TREAT_MULT := 1.5
 
 # --- THE FADING OF DEEPWOOD (dev ask 2026-07-22): the village dying is a felt,
 # escalating dread that PIERCES the away-fog -- you must be warned even in the
@@ -2455,6 +2463,14 @@ func on_wall_broken(flank: String) -> void:
 
 func get_villager_hp(id: String) -> float:
 	return float(villager_hp.get(id, VILLAGER_MAX_HP))
+
+# HP restored per in-game hour to a patient being treated at the Hospital (Sick
+# Road). Placement gets them there; STAFFING is how fast they mend once inside.
+func hospital_treat_rate() -> float:
+	var rate := HOSPITAL_TREAT_BASE_PER_HOUR + HOSPITAL_TREAT_PER_STAFF * float(count_workers("Hospital"))
+	if seated_leaders("Hospital") > 0:
+		rate *= HOSPITAL_CHIEF_TREAT_MULT
+	return rate
 
 func village_in_despair() -> bool:
 	return low_morale_hours >= DESPAIR_GRACE_HOURS
