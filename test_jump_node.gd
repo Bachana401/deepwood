@@ -8,6 +8,11 @@ extends Node
 # the real numbers rather than trusting JUMP_VELOCITY^2/2g on paper, and the
 # arena suite builds against what it finds.
 
+var fails := 0
+func check(name: String, ok: bool, detail := "") -> void:
+	if ok: printerr("PASS  ", name)
+	else: fails += 1; printerr("FAIL  ", name, "   ", detail)
+
 func _ready() -> void:
 	var p: Node = null
 	for i in range(1200):
@@ -25,9 +30,13 @@ func _ready() -> void:
 			if n.has_method("finish") and n.has_method("show_line"):
 				n.finish(); break
 
+	var paper: float = (p.JUMP_VELOCITY * p.JUMP_VELOCITY) / (2.0 * p.GRAVITY)
 	printerr("JUMP_VELOCITY=", p.JUMP_VELOCITY, "  GRAVITY=", p.GRAVITY)
-	printerr("paper max rise = ", (p.JUMP_VELOCITY * p.JUMP_VELOCITY) / (2.0 * p.GRAVITY))
+	printerr("paper max rise = ", paper)
 	printerr("has_double_jump=", p.has_double_jump)
+	# sane physics constants: jump launches UP (negative y), gravity pulls DOWN
+	check("jump velocity launches upward", p.JUMP_VELOCITY < 0.0, "%.0f" % p.JUMP_VELOCITY)
+	check("gravity pulls down and paper rise is positive", p.GRAVITY > 0.0 and paper > 0.0, "paper %.1f" % paper)
 
 	# land him first
 	for i in range(240):
@@ -45,5 +54,10 @@ func _ready() -> void:
 		peak = minf(peak, p.global_position.y)
 		if p.is_on_floor() and i > 4:
 			break
-	printerr("MEASURED single-jump rise = ", floor_y - peak)
-	get_tree().quit(0)
+	var measured: float = floor_y - peak
+	printerr("MEASURED single-jump rise = ", measured)
+	check("the player can actually jump a real height", measured > 8.0, "%.1f px" % measured)
+	check("measured rise is in the ballpark of the paper prediction (no broken jump)",
+		measured > paper * 0.4 and measured < paper * 1.6, "measured %.1f vs paper %.1f" % [measured, paper])
+	printerr("test_jump : RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
+	get_tree().quit(1 if fails > 0 else 0)
