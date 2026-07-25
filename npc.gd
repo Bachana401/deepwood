@@ -18,6 +18,7 @@ const SPEED = 40.0
 # bounds are derived in _village_span() below.
 const WANDER_MIN_X = 4850.0
 const WANDER_MAX_X = 8000.0
+const WANDER_WALL_INSET = 140.0   # ordinary villagers roam BETWEEN the two walls, kept this far off each
 
 # The real village edges, measured from the buildings themselves (cached; the
 # layout only changes when a building is relocated or a cottage is raised).
@@ -25,7 +26,9 @@ static var _span_lo := 0.0
 static var _span_hi := 0.0
 static var _span_count := -1
 
-func _village_span() -> Vector2:
+# The building cluster -- the CENTRE OF TOWN -- cached. The fallback roam band
+# when the two ramparts aren't both up yet.
+func _town_cluster() -> Vector2:
 	var buildings := get_tree().get_nodes_in_group("building")
 	if buildings.size() != _span_count:
 		var lo := INF
@@ -40,6 +43,29 @@ func _village_span() -> Vector2:
 		_span_lo = lo - 120.0
 		_span_hi = hi + 220.0
 	return Vector2(_span_lo, _span_hi)
+
+# The band BETWEEN THE TWO RAMPARTS, inset on each side -- or ZERO if both walls
+# aren't standing. Fresh each call (cheap: at most two wall nodes).
+func _wall_span(inset: float) -> Vector2:
+	var west_x := INF
+	var east_x := -INF
+	for w in get_tree().get_nodes_in_group("village_wall"):
+		if not is_instance_valid(w):
+			continue
+		if "flank" in w and str(w.flank) == "east":
+			east_x = w.global_position.x
+		else:
+			west_x = w.global_position.x
+	if west_x != INF and east_x != -INF and east_x - west_x > 2.0 * inset + 60.0:
+		return Vector2(west_x + inset, east_x - inset)
+	return Vector2.ZERO
+
+# Where an ORDINARY villager may roam: between the two walls if both stand (kept
+# off each by WANDER_WALL_INSET), else the centre of town. Keeps folk INSIDE the
+# village -- off the gate, out of the void.
+func _village_span() -> Vector2:
+	var walls := _wall_span(WANDER_WALL_INSET)
+	return walls if walls != Vector2.ZERO else _town_cluster()
 const MIN_WALK_SECONDS = 2.0
 const MAX_WALK_SECONDS = 5.0
 const MIN_IDLE_SECONDS = 1.5
@@ -965,13 +991,24 @@ func _monarch_reaction_lines() -> Array:
 # ("only allowed to move in their designated building" -- they don't wander
 # into/near other buildings once employed).
 func refresh_wander_bounds() -> void:
-	var role_key = find_villager_data().get("role_key", "")
+	var data := find_villager_data()
+	# WARRIORS ARE NOT PENNED IN (dev 2026-07-24): they must be free to answer an
+	# invasion and hold the wall, so they range the full wall-to-wall defensive
+	# band -- never the tight workplace neighbourhood nor the inset villager band.
+	if GameState.is_warrior_villager(data):
+		var wspan := _wall_span(0.0)
+		if wspan == Vector2.ZERO:
+			wspan = _town_cluster()
+		wander_min_x = wspan.x
+		wander_max_x = wspan.y
+		return
+	var role_key = str(data.get("role_key", ""))
 	var building = get_building_for_role(role_key) if role_key != "" else null
 	if building:
 		wander_min_x = building.global_position.x - BUILDING_WANDER_RADIUS
 		wander_max_x = building.global_position.x + BUILDING_WANDER_RADIUS
 	else:
-		# the whole village, measured -- not a stale hardcoded strip
+		# stay INSIDE the village: between the walls if both stand, else the centre
 		var span := _village_span()
 		wander_min_x = span.x
 		wander_max_x = span.y
