@@ -287,9 +287,18 @@ func cast_meteor_at(target_pos: Vector2) -> Node2D:
 	var t = meteor.create_tween()
 	t.tween_property(meteor, "global_position", impact_pos, METEOR_FALL_TIME).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	t.parallel().tween_property(rock, "rotation", TAU, METEOR_FALL_TIME)
+	# The meteor takes METEOR_FALL_TIME to land, and if Orin is freed in that window
+	# (killed mid-siege, or his object slot later reused by another node) the
+	# deferred callback would fire with a STALE self -- surfacing as "Nonexistent
+	# function 'apply_meteor_impact' in base ... npc.gd". Capture his instance ID
+	# (an int, so no "lambda capture was freed" either) and re-resolve it at impact:
+	# a dead mage's in-flight meteor simply fizzles instead of erroring.
+	var caster_id := get_instance_id()
 	t.tween_callback(func():
-		apply_meteor_impact(impact_pos)
-		spawn_impact_fx(impact_pos)
+		var caster = instance_from_id(caster_id)
+		if is_instance_valid(caster) and caster.has_method("apply_meteor_impact"):
+			caster.apply_meteor_impact(impact_pos)
+			caster.spawn_impact_fx(impact_pos)
 		if is_instance_valid(meteor):
 			meteor.queue_free())
 	return meteor
