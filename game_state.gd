@@ -1709,7 +1709,12 @@ const SHIFT_CHANGE_HOURS = [6.0, 18.0]
 const SHIFT_CHANGE_WINDOW := 1.0
 
 func hour_of_day() -> float:
-	return fmod(game_hours, 24.0)
+	# THE SHIFT CLOCK RIDES THE VISIBLE DAY: watches must change at the dawn/dusk
+	# the player actually sees. time_of_day() folds in START_TIME_OF_DAY (=22);
+	# the raw fmod(game_hours) used before ran the changeover ~2h early (displayed
+	# 4:00 / 16:00), so the half-manned "weak window" and the off-shift heal gate
+	# were out of step with visible night. (Used only by the shift helpers below.)
+	return time_of_day()
 
 func warrior_shift(vid: String) -> String:
 	return "dawn" if hash(vid) % 2 == 0 else "dusk"

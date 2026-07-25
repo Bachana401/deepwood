@@ -533,7 +533,7 @@ func _ready() -> void:
 		noon_duty + night_duty == corps.size() and noon_duty > 0 and night_duty > 0)
 	GameState.game_hours = 12.0
 	var day_power: float = GameState.village_defense_power()
-	GameState.game_hours = 17.5
+	GameState.game_hours = 19.5   # displays as 17:30 -> within 1h of the 18:00 dusk changeover
 	check("the changeover hour is a real, detectable weak window",
 		GameState.in_shift_change_window())
 	GameState.game_hours = 12.0
