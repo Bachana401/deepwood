@@ -158,7 +158,9 @@ const TREES = {
 		{"id": "mg_m6", "branch": 2, "col": 4.5, "name": "Spellblade", "desc": "KEYSTONE: your wand damage scales with max Mana (+0.2% per point)", "tier": 6, "cost": 4, "prereq": "mg_m5", "materials": {"void_essence": 2}, "effect": {"mana_to_damage": 0.002}, "keystone": true},
 		{"id": "mg_m7", "branch": 2, "col": 4.5, "name": "Avatar of Magic", "desc": "ULTIMATE: +80 HP, +60 mana, +20% barrier, +0.1%/mana wand damage.", "tier": 7, "cost": 6, "prereq": "mg_m6", "materials": {"void_essence": 3, "ancient_relic": 2}, "effect": {"max_health": 80.0, "max_mana": 60.0, "mana_shield": 0.20, "mana_to_damage": 0.001}, "keystone": true},
 	],
-	# Unlockable only after finishing the game -- a locked teaser for now.
+	# The 4th class, fully implemented below. Only the class-SELECT is gated:
+	# it stays locked until the game is beaten (skill_tree_ui: monarch_open,
+	# GameState.game_completed). Once picked, this whole tree is playable.
 	"Shadow Monarch": [
 		{"id": "nc_root", "branch": -1, "col": 2.5, "name": "Shadow's Pact", "desc": "The dead answer you. Slain foes may rise as shades, and +8% all damage.", "tier": 0, "cost": 1, "prereq": "", "materials": {}, "effect": {"shade_unlock": 1.0, "melee_damage": 0.08, "bow_damage": 0.08, "wand_damage": 0.08}},
 		# === Legion (0): a growing army of the dead, ending in a deathless host ===

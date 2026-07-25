@@ -114,7 +114,8 @@ var last_applied_is_kid = true
 # attack, then hides again. Once HP is at/below the danger threshold (30%) it
 # stays visible AND pulses red -- a "about to die" warning. At 0 the villager
 # dies for good (removed from roster + world, see die()). The player can't
-# deal this damage (collision_layer 0); it's reserved for future siege enemies.
+# deal this damage (collision_layer 0); it comes from siege raiders that
+# breach the walls (siege_enemy.gd targets the "npc" group via take_damage).
 const MAX_HEALTH = 100
 const HEALTH_BAR_DANGER_THRESHOLD = 0.30
 const HEALTH_BAR_HIT_REVEAL_SECONDS = 1.6
@@ -136,7 +137,7 @@ func _ready() -> void:
 	call_deferred("_apply_shadow_form")
 	# layer 0 = NOT on any hittable layer, so the player's weapons/arrows can
 	# never target villagers. Damage only ever arrives through the public
-	# take_damage() below -- reserved for the future village-siege enemies.
+	# take_damage() below -- from breaching siege raiders (siege_enemy.gd).
 	collision_layer = 0
 	collision_mask = 1
 	_roll_temperament()

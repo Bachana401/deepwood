@@ -2300,8 +2300,8 @@ func drop_currency_on_death() -> void:
 	get_parent().call_deferred("add_child", pickup)
 
 # Medium/Hard difficulties additionally take something more permanent on
-# death. Both hooks are stubs until the villager/skill-material systems
-# exist -- this just guarantees they fire correctly once they do.
+# death: Medium names a death toll, Hard also burns one identified skill
+# material. Both the toll and the material systems are live (see GameState).
 func apply_difficulty_death_penalty() -> void:
 	# the cost is NAMED (see report_death_toll) -- a silent permanent loss
 	# is the cruellest way to teach a rule
