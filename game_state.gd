@@ -2337,7 +2337,7 @@ func village_morale_multiplier() -> float:
 # faster births, and (see generate_passive_income) up to 1.25x gold.
 const DESPAIR_MORALE := 20               # below 2/10 == the village is in crisis
 const DESPAIR_GRACE_HOURS := 18.0        # crisis must persist this long before it bites
-const DESPAIR_HP_REGEN_PER_HOUR := 12.0  # a recovered village pulls the sick back up
+const DESPAIR_HP_REGEN_PER_HOUR := 3.0   # a LOW everywhere-trickle (base cut 12 -> 3) so nobody stays broken forever -- REAL, fast recovery is the Hospital (the Sick Road)
 const VILLAGER_MAX_HP := 100.0
 # THE SICK ROAD (expansion 2026-07-24): how fast the Hospital mends a patient who
 # walked in wounded. A built ward heals at the base rate even bare-staffed; each
@@ -2565,6 +2565,8 @@ func tick_morale_effects(hours_passed: float) -> void:
 			var is_warrior: bool = v.get("stat_name", "") == "Warrior" or v.get("role_key", "") == "Barracks"
 			if is_warrior and warrior_on_duty(v):
 				continue
+			# passive regen is a low trickle now (base 3); doctors still nudge it up, but
+			# the REAL, fast recovery is the Hospital (the Sick Road)
 			villager_hp[id] = minf(VILLAGER_MAX_HP, hp + hours_passed * DESPAIR_HP_REGEN_PER_HOUR * (1.0 + 0.5 * float(doctors)))
 	# 10: two SEPARATE fates. An empty larder / withered body KILLS -- a death,
 	# with death-shock and a grave. A broken hope CORRUPTS -- that is tick_rot's
