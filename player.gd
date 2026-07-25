@@ -3450,7 +3450,7 @@ func advance_swing_charge(target: Node2D = null, damage_dealt: int = 0) -> void:
 				unleash_ragnarok()
 		"singularity":
 			singularity_counter += 1
-			if singularity_counter % int(active_def.get("unique_value", 5)) == 0:
+			if singularity_counter % maxi(1, int(active_def.get("unique_value", 5))) == 0:
 				collapse_singularity(_unique_impact_point(target),
 					active_def.get("unique_radius", 320.0),
 					damage_dealt if damage_dealt > 0 else int(active_stats.get("damage", 10)))

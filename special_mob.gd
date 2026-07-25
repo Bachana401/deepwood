@@ -155,11 +155,15 @@ func apply_status(status_kind: String, dur: float, mag: float) -> void:
 			status_poison_until = now + dur
 			status_poison_dps = maxf(status_poison_dps if poison_live else 0.0, mag)
 		"slow":
-			status_slow_until = now + dur
-			status_slow_factor = clampf(1.0 - mag, 0.2, 1.0)
+			# keep the STRONGER (lower factor) and LONGER of any overlapping slow --
+			# a weak slow must not un-freeze a frozen mob or cut its timer short
+			var live := now < status_slow_until
+			status_slow_factor = minf(status_slow_factor if live else 1.0, clampf(1.0 - mag, 0.2, 1.0))
+			status_slow_until = maxf(status_slow_until, now + dur)
 		"freeze":
-			status_slow_until = now + dur
-			status_slow_factor = 0.25
+			var live_f := now < status_slow_until
+			status_slow_factor = minf(status_slow_factor if live_f else 1.0, 0.25)
+			status_slow_until = maxf(status_slow_until, now + dur)
 
 func status_slow_mult() -> float:
 	return status_slow_factor if Time.get_ticks_msec() / 1000.0 < status_slow_until else 1.0
@@ -562,7 +566,10 @@ func cast_hex_ring() -> void:
 		return
 	var gap_start = randi() % HEX_BOLTS
 	for i in range(HEX_BOLTS):
-		if i >= gap_start and i < gap_start + HEX_GAP:
+		# the escape gap must WRAP the ring -- a non-wrapping window shrank to as
+		# few as 1 bolt (a near-closed, undodgeable ring) when gap_start was near
+		# the end. This always leaves exactly HEX_GAP bolts open.
+		if (i - gap_start + HEX_BOLTS) % HEX_BOLTS < HEX_GAP:
 			continue
 		var dir = Vector2.RIGHT.rotated(i * TAU / HEX_BOLTS)
 		var arrow = ARROW_SCENE.instantiate()

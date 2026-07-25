@@ -53,11 +53,15 @@ func apply_status(kind: String, dur: float, mag: float) -> void:
 			status_poison_until = now + dur
 			status_poison_dps = maxf(status_poison_dps if poison_live else 0.0, mag)
 		"slow":
-			status_slow_until = now + dur
-			status_slow_factor = clampf(1.0 - mag, 0.2, 1.0)
+			# keep the STRONGER (lower factor) and LONGER of any overlapping slow --
+			# a weak slow must not un-freeze a frozen mob or cut its timer short
+			var live := now < status_slow_until
+			status_slow_factor = minf(status_slow_factor if live else 1.0, clampf(1.0 - mag, 0.2, 1.0))
+			status_slow_until = maxf(status_slow_until, now + dur)
 		"freeze":
-			status_slow_until = now + dur
-			status_slow_factor = 0.25
+			var live_f := now < status_slow_until
+			status_slow_factor = minf(status_slow_factor if live_f else 1.0, 0.25)
+			status_slow_until = maxf(status_slow_until, now + dur)
 
 func status_slow_mult() -> float:
 	return status_slow_factor if Time.get_ticks_msec() / 1000.0 < status_slow_until else 1.0
@@ -370,6 +374,8 @@ func flash_hit() -> void:
 	t.tween_property(body_rect, "color", base, 0.15)
 
 func die() -> void:
+	if is_dead:
+		return   # a second die() would double-emit `died` and drive alive_count negative
 	is_dead = true
 	# THE CLEANSING (10): if this thing was once a villager and the Shrine
 	# stands ready with its shards, putting it down gives them BACK -- the

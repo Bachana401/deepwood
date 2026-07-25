@@ -3995,7 +3995,8 @@ func _boss_hud_banner(text: String) -> void:
 		hud.phase_banner("%s — %s" % [get_display_name(), text])
 
 func die() -> void:
-	# echoes are worth a token amount, not a boss bounty
+	if is_dead:
+		return   # a second die() would double-pay XP and double-emit `died`
 	# echoes and false copies are worth a token amount, not a boss bounty
 	GameState.add_xp(15 if (is_clone or is_false_copy) else int(round(60 * damage_multiplier * GameState.depth_reward_mult())))
 	is_dead = true
