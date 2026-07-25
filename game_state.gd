@@ -552,9 +552,17 @@ func try_craft(item_id: String, player: Node) -> String:
 		var need: int = maxi(1, int(ceil(recipe[ing] * cost_mult)))
 		if player.inventory.get_count(ing) < need:
 			return "Missing %dx %s." % [need, Inventory.get_display_name(ing)]
+	var consumed := {}
 	for ing in recipe.keys():
-		player.inventory.remove_item(ing, maxi(1, int(ceil(recipe[ing] * cost_mult))))
-	player.inventory.add_item(item_id, 1)
+		var take: int = maxi(1, int(ceil(recipe[ing] * cost_mult)))
+		player.inventory.remove_item(ing, take)
+		consumed[ing] = take
+	# add_item returns the leftover; a full bag would eat the crafted result and
+	# the ingredients with it -- so roll the ingredients back and craft nothing
+	if player.inventory.add_item(item_id, 1) > 0:
+		for ing in consumed:
+			player.inventory.add_item(ing, consumed[ing])
+		return "Your bag is full — no room for the result."
 	return ""
 
 # Testing (TEST_SKILL_SANDBOX): mark every skill-tree material as researched so
@@ -1242,6 +1250,11 @@ func can_afford_wall_upgrade(player: Node) -> bool:
 func try_upgrade_wall(player: Node) -> bool:
 	if wall_level >= WALL_MAX_LEVEL:
 		return false
+	# no reinforcing mid-battle: refresh_from_level() full-heals and un-breaches
+	# EVERY rampart, so a mid-siege upgrade was a free full repair of the breached
+	# wall you weren't even paying toward. Repairs come from repelling the wave.
+	if live_siege_active:
+		return false
 	if not can_afford_wall_upgrade(player):
 		return false
 	var cost := wall_upgrade_cost()
@@ -1745,6 +1758,10 @@ func in_shift_change_window() -> bool:
 func tick_sieges(hours_passed: float) -> void:
 	# The Shadow Court (GAME_BIBLE 11): the raids die with their master.
 	if despair_dead:
+		return
+	# The Harvest is the finale's OWN battle, fought at home -- no ordinary raid
+	# (and never a Black Tide) may spawn on top of the Monarch fight.
+	if harvest_at_home:
 		return
 	# The siege clock does not even START until the opening is over (the prologue,
 	# the arrival fight, the oath, and the build tutorial). A brand-new player is
