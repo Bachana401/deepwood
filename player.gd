@@ -2064,6 +2064,12 @@ func wield_weapon(item_id: String) -> bool:
 	$AttackArea/CollisionShape2D.shape.size = stats.area_size
 	if weapon_anim_tween:
 		weapon_anim_tween.kill()
+		# a killed tween SKIPS its pending callbacks -- so clear the attack-state
+		# flags they would have reset. Otherwise swapping weapons mid-swing leaves
+		# the spear-tip area monitoring (phantom hits that read the NEW weapon's
+		# stats) and is_attacking stuck true (the held weapon stops aiming).
+		$SpearTipArea.monitoring = false
+		is_attacking = false
 	$WeaponIcon.size = stats.icon_size
 	$WeaponIcon.color = stats.icon_color
 	$WeaponIcon.rotation_degrees = 0.0
