@@ -1956,9 +1956,14 @@ func food_capacity() -> float:
 func has_food() -> bool:
 	return village_food > 0.0
 
-# Everyone eats: total food burned per in-game hour by the whole population.
+# The living eat: total food burned per in-game hour. Shadow-court villagers
+# (11) hunger for nothing, so they never draw on the larder.
 func food_consumption_per_hour() -> float:
-	return float(rescued_villagers.size()) * FOOD_PER_VILLAGER_PER_DAY / 24.0
+	var eaters := 0
+	for v in rescued_villagers:
+		if not v.get("shadow", false):
+			eaters += 1
+	return float(eaters) * FOOD_PER_VILLAGER_PER_DAY / 24.0
 
 # Villagers employed at the Farm (Leader + Farmers) work the fields.
 func farm_worker_count() -> int:
@@ -2196,6 +2201,11 @@ func count_adults() -> int:
 const MORALE_DRIFT_PER_HOUR := 0.6   # spirits move toward their target on hour-scale
 
 func personal_morale_target(v: Dictionary) -> float:
+	# THE SHADOW COURT (11): a raised villager is fully pledged to the Monarch,
+	# and needless with it -- no hunger, no rot, no want of work, home, love or
+	# fun. Their spirit is simply fixed at the top, forever.
+	if v.get("shadow", false):
+		return 10.0
 	var vid := str(v.get("id", ""))
 	var t := 1.4                                                 # being alive, and free
 	t += 2.0 if has_food() else 0.0                              # a full larder
@@ -2442,7 +2452,9 @@ func tick_rot(_hours_passed: float) -> void:
 	var turned := []
 	for v in rescued_villagers:
 		var id := str(v.get("id", ""))
-		if is_warrior_villager(v):
+		# warriors die in battle, never to despair; shadows are past despair's
+		# reach entirely (pledged, needless) -- neither ever enters the rot
+		if is_warrior_villager(v) or v.get("shadow", false):
 			villager_rot.erase(id)
 			continue
 		var m := get_personal_morale(v)
@@ -2482,7 +2494,7 @@ func _spread_infection(epicenter: Vector2) -> void:
 		near_ids = pool.slice(0, 2)
 	for v in rescued_villagers:
 		var vid := str(v.get("id", ""))
-		if not near_ids.has(vid) or is_warrior_villager(v):
+		if not near_ids.has(vid) or is_warrior_villager(v) or v.get("shadow", false):
 			continue
 		var m := get_personal_morale(v)
 		if m < INFECT_LOW_MORALE:
@@ -2584,6 +2596,9 @@ func tick_morale_effects(hours_passed: float) -> void:
 	var dead: Array = []
 	for v in rescued_villagers:
 		var id = v.get("id", "")
+		# a shadow neither hungers nor withers -- skip the whole drain/regen path
+		if v.get("shadow", false):
+			continue
 		var hp = get_villager_hp(id)
 		if starving:
 			hp -= hours_passed * drain_rate * _despair_rate(id)
@@ -3776,6 +3791,11 @@ func raise_shadow_army() -> void:
 	var raised := harvested_villagers.size()
 	for v in harvested_villagers:
 		v["shadow"] = true
+		# pledged and needless: raise them whole and content, whatever their
+		# fallen state was -- spirit at the top, body mended, no rot clock
+		v["morale"] = 10.0
+		villager_rot.erase(str(v.get("id", "")))
+		villager_hp[str(v.get("id", ""))] = VILLAGER_MAX_HP
 		rescued_villagers.append(v)
 	harvested_villagers = []
 	var stack = get_tree().get_first_node_in_group("notification_stack")
