@@ -256,8 +256,8 @@ One profession stat per building (Farmer, Fisher, Doctor/Nurse, Smith, Builder, 
 | **Housing** | a **Cottage** (§5.8); Tavern lodges the unhoused temporarily | unhoused → morale drain → corruption risk; caps population | ✅ |
 | **Health** | Hospital nurses (roaming, ranged heals); player heals there for gold | wounds/illness kill | ✅ |
 | **Wages** | player income; manual early, Bank/Govt later | workers quit → services stop | ✅ |
-| **Mood** | Bar / village fun | low mood | 📋 later |
-| **Mating-depression** | cottage pairing | long-single villagers sadden | 📋 later |
+| **Mood** | Bar / village fun (Bar +1.0, Ilo's songs, Bar/Tavern hosts, dock fish, 10/10 celebration) | no fun → no lift | ✅ (served by the spirit stack) |
+| **Mating-depression** | cottage pairing | long-single adults sadden: the −2 loneliness DEEPENS toward −3.5 over ~5 days single, pairing lifts it | ✅ (`single_since_hours`, `personal_morale_target`) |
 
 **Potions rule** ✅ built: HP/mana potions drop **only** from pre-boss waves and boss fights — the player enters every boss stocked, and can't potion-spam normal floors.
 

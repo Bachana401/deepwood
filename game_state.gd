@@ -1312,6 +1312,13 @@ func log_event(cat: String, text: String) -> void:
 # the cottages you raise. The Tavern lodges the unhoused, warm but not home.
 const WIDOW_MOURN_HOURS := 48.0     # canon: re-pairable only after the mourning
 const SINGLE_MORALE_PENALTY := 2.0  # canon: a lonely adult carries -2, standing
+# MATING-DEPRESSION (GAME_BIBLE 7): loneliness is not flat -- an adult who stays
+# single SADDENS the longer they go unpaired. The -2 standing penalty deepens
+# toward MAX over DEEPEN_HOURS of solitude, then pairing lifts it entirely. The
+# clock (single_since_hours) is stamped/cleared in tick_personal_morale and
+# rides along in each villager's dict, so it saves with the game for free.
+const SINGLE_MORALE_PENALTY_MAX := 3.5   # the depth of long, unbroken solitude
+const SINGLE_DEEPEN_HOURS := 120.0       # ~5 in-game days single to reach the floor
 # The floor a FED soul never falls below (3b): well clear of the morale-0 rot
 # trigger, so a poor-but-fed village is miserable, not dying. Starvation lifts it.
 const ROT_SAFE_FLOOR := 1.5
@@ -2203,9 +2210,14 @@ func personal_morale_target(v: Dictionary) -> float:
 		else:
 			t -= 1.0
 		# 5.8: loneliness is a STANDING penalty, not a missing bonus -- and a
-		# fresh widow carries the -3 on top, easing off across the mourning
+		# fresh widow carries the -3 on top, easing off across the mourning.
+		# MATING-DEPRESSION (7): the standing -2 DEEPENS toward MAX the longer
+		# they stay single (single_since_hours, stamped in tick). Pure read here:
+		# unstamped -> depth 0 -> the plain -2, so this is safe before any tick.
 		if not is_villager_paired(vid):
-			t -= SINGLE_MORALE_PENALTY
+			var single_since := float(v.get("single_since_hours", game_hours))
+			var depth := clampf((game_hours - single_since) / SINGLE_DEEPEN_HOURS, 0.0, 1.0)
+			t -= lerpf(SINGLE_MORALE_PENALTY, SINGLE_MORALE_PENALTY_MAX, depth)
 		if v.has("widowed_at_hours"):
 			var mourn_left: float = float(v["widowed_at_hours"]) + WIDOW_MOURN_HOURS - game_hours
 			if mourn_left > 0.0:
@@ -2241,10 +2253,29 @@ func get_personal_morale(v: Dictionary) -> float:
 
 func tick_personal_morale(hours_passed: float) -> void:
 	for v in rescued_villagers:
+		_tick_solitude_clock(v)
 		var cur := get_personal_morale(v)
 		var target := personal_morale_target(v)
 		var step: float = MORALE_DRIFT_PER_HOUR * hours_passed
 		v["morale"] = clampf(cur + clampf(target - cur, -step, step), 0.0, 10.0)
+
+# MATING-DEPRESSION bookkeeping: an adult who is unpaired starts a solitude
+# clock the first hour they're seen single; pairing (or childhood) clears it,
+# so their loneliness resets and a later break-up starts the sadness fresh.
+# A widow's clock only starts once mourning ends -- they're barred from re-
+# pairing until then, so it would be unfair to deepen their loneliness meanwhile.
+func _tick_solitude_clock(v: Dictionary) -> void:
+	if v.get("is_kid", false) or is_villager_paired(str(v.get("id", ""))):
+		v.erase("single_since_hours")
+		return
+	if v.has("single_since_hours"):
+		return
+	var start: float = game_hours
+	if v.has("widowed_at_hours"):
+		var mourn_end: float = float(v["widowed_at_hours"]) + WIDOW_MOURN_HOURS
+		if mourn_end > start:
+			start = mourn_end
+	v["single_since_hours"] = start
 
 # The meter: the plain average of every personal value, on the 0-100 scale
 # the HUD/shop/gate already speak. Nothing separate -- just the mean.
