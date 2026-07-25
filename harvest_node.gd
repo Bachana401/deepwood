@@ -154,7 +154,8 @@ func _mine_swing(player: Node) -> void:
 		_notify("A vein of " + Inventory.get_display_name("ember_crystal") + "!")
 	# a relic is too rare to risk to a despawn timer -- straight to the bag
 	if randf() < RELIC_FIND_CHANCE * 0.25 and player.inventory.get_count("relic_mountain") == 0:
-		player.inventory.add_item("relic_mountain", 1)
+		if player.inventory.add_item("relic_mountain", 1) > 0:
+			_drop("relic_mountain", 1)   # bag full -- drop it rather than lose it
 		_notify("Deep in the stone... the Heart of the Mountain!")
 	_apply_reserve_scale()
 	if reserve_left <= 0:
@@ -215,7 +216,8 @@ func _harvest(player: Node) -> void:
 			_drop("herb", 1)
 			got.append("1 " + Inventory.get_display_name("herb"))
 		if randf() < RELIC_FIND_CHANCE and player.inventory.get_count("relic_sylvan") == 0:
-			player.inventory.add_item("relic_sylvan", 1)   # relic straight to the bag
+			if player.inventory.add_item("relic_sylvan", 1) > 0:
+				_drop("relic_sylvan", 1)   # bag full -- drop it rather than lose it
 			_notify("Hidden in the roots... the Sylvan Charm!")
 	else:
 		var stone = randi_range(2, 4)
@@ -230,7 +232,8 @@ func _harvest(player: Node) -> void:
 			_drop("ember_crystal", 1)
 			got.append("1 " + Inventory.get_display_name("ember_crystal"))
 		if randf() < RELIC_FIND_CHANCE and player.inventory.get_count("relic_mountain") == 0:
-			player.inventory.add_item("relic_mountain", 1)
+			if player.inventory.add_item("relic_mountain", 1) > 0:
+				_drop("relic_mountain", 1)   # bag full -- drop it rather than lose it
 			_notify("Deep in the stone... the Heart of the Mountain!")
 	_notify(("Chopped: " if node_type == "tree" else "Mined: ") + ", ".join(got))
 	# wither, wait, regrow in place

@@ -151,8 +151,12 @@ func try_buy_weapon_item(item_id: String, cost: int, display: String) -> void:
 	if player.currency < cost:
 		show_denied_notification("Not enough currency for the " + display + " (need " + str(cost) + "g, have " + str(player.currency) + "g).")
 		return
+	# add FIRST and charge only if it fit -- add_item returns the leftover, so a
+	# full bag (returns 1, nothing deposited) must not silently eat the gold
+	if player.inventory.add_item(item_id, 1) > 0:
+		show_denied_notification("Your bag is full — make room for the " + display + " first.")
+		return
 	player.currency -= cost
-	player.inventory.add_item(item_id, 1)
 	player.update_currency_display()
 	show_notification(display + " added to your inventory! Press its hotbar number to wield it.")
 	refresh_prices()

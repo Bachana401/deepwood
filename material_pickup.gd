@@ -84,12 +84,17 @@ func _process(delta: float) -> void:
 func _collect(p: Node) -> void:
 	if not ("inventory" in p) or p.inventory == null:
 		return
-	var added: int = p.inventory.add_item(item_id, count)
-	if added <= 0:
-		return   # bag full -- leave it on the ground for later
-	count -= added
+	# add_item DEPOSITS what fits and returns the LEFTOVER (0 = it all fit). The
+	# old code read the return as "amount added": on the common all-fit path it
+	# saw 0, hit `if added <= 0: return` WITHOUT freeing, and re-deposited `count`
+	# every frame the pickup sat on the player -- duplicating the drop until the
+	# bag filled. Now: leftover is what remains on the ground.
+	var leftover: int = p.inventory.add_item(item_id, count)
+	if leftover >= count:
+		return   # nothing fit (bag full) -- leave the whole drop for later
+	count = leftover
 	if count > 0:
-		_refresh_count()   # partial pickup; the rest waits
+		_refresh_count()   # partial pickup; the rest waits on the ground
 		return
 	GameState.play_sfx(GameState.SFX_YES, 1.5)
 	queue_free()
