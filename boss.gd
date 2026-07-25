@@ -2564,7 +2564,35 @@ func run_ability(ability_name: String) -> void:
 		"tidal_crush": await do_tidal_crush()
 		"black_sun": await do_black_sun()
 		"unwriting": await do_unwriting()
+		# slam/barrage self-complete like the rest; charge/dive finish over frames
+		# in process_charge/process_dive, so their combo beats wait (capped) for the
+		# sweep. Without these four cases, combo bosses silently dropped every
+		# slam/charge/barrage/dive step to a no-op (e.g. the Gaoler only ever cast
+		# iron_maiden) -- BOSS_COMBOS lists them, so they must actually fire.
+		"slam": await do_slam()
+		"barrage": await do_barrage()
+		"charge": await _combo_charge()
+		"dive": await _combo_dive()
 		_: pass
+
+# A combo beat that fires a frame-driven move, then holds the chain until the
+# move finishes (process_charge/process_dive clears the flag), capped so a freed
+# player mid-sweep can never hang the combo.
+func _combo_charge() -> void:
+	await do_charge()
+	var g := 0
+	while is_charging and not is_dead and g < 240:
+		g += 1
+		await get_tree().physics_frame
+	is_charging = false
+
+func _combo_dive() -> void:
+	await do_dive()
+	var g := 0
+	while is_diving and not is_dead and g < 240:
+		g += 1
+		await get_tree().physics_frame
+	is_diving = false
 
 func start_attack(attack_name: String) -> void:
 	is_busy = true

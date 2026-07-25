@@ -2074,7 +2074,7 @@ func _process(delta: float) -> void:
 		if building_name == "Hospital" and is_operational() and Input.is_action_just_pressed("harvest") and GameState.moving_building == "":
 			var pl = get_tree().get_first_node_in_group("player")
 			if pl != null and GameState.count_workers("Hospital") > 0:
-				var notif2 = get_node_or_null("../CanvasLayer/NotificationStack")
+				var notif2 = get_node_or_null("../../CanvasLayer/NotificationStack")
 				if pl.health >= pl.get_max_health():
 					if notif2: notif2.show_notification("The nurses look you over — not a scratch on you.")
 				elif pl.currency < HOSPITAL_HEAL_PRICE:
@@ -2088,7 +2088,7 @@ func _process(delta: float) -> void:
 		# double-jump / spear / bow unlocks the deleted standalone shop used to sell.
 		# Built is enough to browse; you don't need it staffed.
 		if building_name == "Blacksmith" and Input.is_action_just_pressed("enter_dungeon"):
-			var forge = get_node_or_null("../CanvasLayer/ShopUI")
+			var forge = get_node_or_null("../../CanvasLayer/ShopUI")
 			if forge != null:
 				forge.visible = true
 				if forge.has_method("refresh_prices"):
@@ -2097,7 +2097,7 @@ func _process(delta: float) -> void:
 		# which calling the curriculum leans toward -- capped at 40%, so the
 		# dice never fully leave
 		if building_name == "School" and is_operational() and Input.is_action_just_pressed("harvest") and GameState.moving_building == "":
-			var notif4 = get_node_or_null("../CanvasLayer/NotificationStack")
+			var notif4 = get_node_or_null("../../CanvasLayer/NotificationStack")
 			if GameState.building_level("School") < 2:
 				if notif4:
 					notif4.show_notification("The School teaches what it can — upgrade it to steer the curriculum.")
@@ -2120,7 +2120,7 @@ func _process(delta: float) -> void:
 		# while a seller is in town -- and says so plainly when the stall is bare.
 		if building_name == "Marketplace" and is_operational() and Input.is_action_just_pressed("harvest") and GameState.moving_building == "":
 			if GameState.wanderer.is_empty():
-				var notif3 = get_node_or_null("../CanvasLayer/NotificationStack")
+				var notif3 = get_node_or_null("../../CanvasLayer/NotificationStack")
 				if notif3:
 					notif3.show_notification("The post stands empty — a wanderer will drift in when the road allows.")
 			else:
