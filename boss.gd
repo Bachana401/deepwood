@@ -1105,12 +1105,19 @@ func _plant_trap(at: Vector2) -> void:
 	ring.default_color = Color(m.r, m.g, m.b, 0.85)
 	mark.add_child(ring)
 	# it TELLS you: the ring closes over TRAP_DELAY, then it goes off
+	# The trap lives on `mark` in the scene, so it outlives the boss -- if he is
+	# killed during TRAP_DELAY the callback must not touch his freed self (the
+	# meteor-class bug). Re-resolve the caster by id and bail if he's gone or dead:
+	# a slain boss springs no traps, and never reads state off a stale instance.
+	var boss_id := get_instance_id()
 	var t := mark.create_tween()
 	t.tween_property(ring, "scale", Vector2(0.25, 0.25), TRAP_DELAY)
 	t.tween_callback(func():
-		if is_instance_valid(player) and player.global_position.distance_to(at) <= TRAP_RADIUS \
+		var b = instance_from_id(boss_id)
+		if is_instance_valid(b) and not b.is_dead and is_instance_valid(player) \
+				and player.global_position.distance_to(at) <= TRAP_RADIUS \
 				and player.has_method("take_damage"):
-			player.take_damage(int(round(TRAP_DAMAGE * sqrt(damage_multiplier))))
+			player.take_damage(int(round(TRAP_DAMAGE * sqrt(b.damage_multiplier))))
 		if is_instance_valid(mark):
 			mark.queue_free())
 
