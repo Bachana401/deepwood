@@ -50,6 +50,7 @@ func _ready() -> void:
 	if not sena.is_empty():
 		sena["quest_state"] = "active"
 		sena["quest_progress"] = 1
+	GameState.away_report = {"sieges": 2, "repelled": 1, "villagers_lost": 3, "adventurers_lost": 1, "fallen_names": ["Castor"], "stabilized": 1}
 	GameState.save_game(p)
 
 	# ---- scramble everything, then load ----
@@ -84,6 +85,10 @@ func _ready() -> void:
 		GameState.adventurer_state("adv_roland").get("rescued", false) == true)
 	check("fighting_adventurers still excludes the dead after the trip",
 		not "adv_castor" in GameState.fighting_adventurers())
+	check("the away-report keeps its fallen adventurers through the trip (homecoming lines)",
+		int(GameState.away_report.get("adventurers_lost", 0)) == 1
+		and GameState.away_report.get("fallen_names", []) == ["Castor"]
+		and int(GameState.away_report.get("stabilized", 0)) == 1)
 
 	# ---- a New Game must be a NEW game ----
 	# The state is still maximally dirty from the round trip: freed legends,

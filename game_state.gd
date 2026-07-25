@@ -4619,7 +4619,14 @@ func load_game() -> Dictionary:
 				"sieges": int(ar.get("sieges", 0)),
 				"repelled": int(ar.get("repelled", 0)),
 				"villagers_lost": int(ar.get("villagers_lost", 0)),
+				"adventurers_lost": int(ar.get("adventurers_lost", 0)),
 			}
+			# the homecoming lines need these too -- kept optional, exactly as the
+			# runtime writes them (only when someone actually fell / was saved)
+			if ar.has("fallen_names") and ar["fallen_names"] is Array:
+				away_report["fallen_names"] = ar["fallen_names"].duplicate()
+			if ar.has("stabilized"):
+				away_report["stabilized"] = int(ar.get("stabilized", 0))
 		if parsed.has("building_health") and parsed["building_health"] is Dictionary:
 			building_health = {}
 			for k in parsed["building_health"].keys():
