@@ -3815,6 +3815,10 @@ func settle_shadow_court() -> void:
 # everything you carry. Clean prestige loop.
 var ng_plus_cycles := 0
 var just_rewound := false      # transient: stamps one arrival line, never saved
+# THE TRUE ENDING (11/12): once the player SHATTERS the Rewound Hour instead of
+# turning it, the cycle is over for good on this save -- no rewind, and no new
+# hourglass is ever granted again. Persisted; a fresh New Game clears it.
+var cycle_broken := false
 
 # the Player node's position in main.tscn -- the rewound player wakes where
 # every first arrival begins
@@ -3947,6 +3951,19 @@ func new_game_plus(player: Node) -> void:
 	save_game(player)
 	pending_load = true
 	get_tree().change_scene_to_file.call_deferred("res://main.tscn")
+
+# THE OTHER ROAD (11/12): shatter the Rewound Hour instead of turning it. The
+# cycle ends for good -- the flag persists, no further hourglass is ever granted
+# (see the guarded victory grants), and the player stays in the won world, which
+# will now simply stand. The true-ending dialogue is played by the caller; this
+# just makes the world's end permanent. Idempotent.
+func break_the_cycle(player: Node = null) -> void:
+	if cycle_broken:
+		return
+	cycle_broken = true
+	log_event("people", "The Rewound Hour was shattered. Deepwood will stand, un-rewound, forever — the last cage broken.")
+	if player != null:
+		save_game(player)
 
 # --- THE FINALE GATE (GAME_BIBLE 9.1) ---
 # Level 100 opens only to a PERFECT village -- because a perfect village is
@@ -4305,6 +4322,7 @@ func reset_for_new_game() -> void:
 	despair_dead = false
 	_gold_accum = 0.0
 	ng_plus_cycles = 0
+	cycle_broken = false
 	seen_chronicle_100 = false
 	maera_stabilized_this_siege = false
 	_deep_catch_accum = 0.0
@@ -4379,6 +4397,7 @@ func save_game(player: Node) -> void:
 		"harvest_done": harvest_done,
 		"despair_dead": despair_dead,
 		"ng_plus_cycles": ng_plus_cycles,
+		"cycle_broken": cycle_broken,
 		"seen_chronicle_100": seen_chronicle_100,
 		"harvested_villagers": harvested_villagers,
 		"seen_orin_arrival": seen_orin_arrival,
@@ -4485,6 +4504,7 @@ func load_game() -> Dictionary:
 		harvest_done = bool(parsed.get("harvest_done", false))
 		despair_dead = bool(parsed.get("despair_dead", false))
 		ng_plus_cycles = int(parsed.get("ng_plus_cycles", 0))
+		cycle_broken = bool(parsed.get("cycle_broken", false))
 		seen_chronicle_100 = bool(parsed.get("seen_chronicle_100", false))
 		harvested_villagers = parsed.get("harvested_villagers", [])
 		seen_orin_arrival = bool(parsed.get("seen_orin_arrival", false))

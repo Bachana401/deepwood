@@ -183,8 +183,9 @@ func _ready() -> void:
 	GameState.ng_plus_cycles = k_cycles
 	# the ceremony and its wiring
 	var pl := FileAccess.open("res://player.gd", FileAccess.READ).get_as_text()
-	check("two uses to end a world, never one",
-		pl.contains("_rewind_armed_until") and pl.contains("GameState.new_game_plus(self)"))
+	check("the Rewound Hour offers a real turn-or-shatter choice, never a misclick",
+		pl.contains("_open_hourglass_choice") and pl.contains("GameState.new_game_plus(self)")
+		and pl.contains("GameState.break_the_cycle") and ResourceLoader.exists("res://choice_prompt.gd"))
 	check("the ceremony saves the carried life and reloads home",
 		gs.contains("func new_game_plus") and gs.contains("save_game(player)")
 		and gs.contains("pending_load = true"))

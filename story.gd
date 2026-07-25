@@ -166,3 +166,18 @@ const ENDING = [
 	{"speaker": "The Shadow Monarch", "text": "I remember now. The throne. The name. The war that broke the first world. I searched the ages for the one soul shaped like mine — and found him already fighting my war, alone, with a mortal's hands."},
 	{"speaker": "The Shadow Monarch", "text": "But I saved Deepwood as a man. I will keep it as one. One Monarch is ended. Somewhere beyond this world, another still waits — they say the strongest of us now. Let him wait a little longer."},
 ]
+
+# THE TRUE ENDING (GAME_BIBLE 11/12): the Rewound Hour is the last cage, and the
+# only one of your own making. Turning it forever is what every Monarch before
+# you did with hope, with time, with worlds -- Orin's trap cut from the same
+# glass. Choosing to SHATTER it -- to let a won world simply be, and end -- is
+# the one victory none of them ever managed. Played when the player breaks the
+# cycle for good; afterward Deepwood stands, un-rewound, forever.
+const TRUE_ENDING = [
+	{"speaker": "", "text": "The Rewound Hour rests in your palm, warm as a held breath. Its sands whisper the oldest promise power ever made: turn me, and nothing need ever be final. Lose it all, win it all, again and again — flawless, endless, and never once let go."},
+	{"speaker": "The Shadow Monarch", "text": "...I know this weight. Every crown before mine carried it. A world you will not permit to simply END — hope kept turning and turning so its keeper never has to grieve it. Orin's cage was cut from this same glass. I did not break his cycle to build my own."},
+	{"speaker": "", "text": "You close your hand. The glass does not so much shatter as SPEND — its sand going to ordinary dust, drifting between your fingers and gone. For the first time since the first world broke, an hour simply passes. And does not come again."},
+	{"speaker": "Ilo, the Nameless Bard", "text": "...Oh, now THAT is a verse the ages never got to sing. Every throne I ever knew hoarded its forever. You are the first soul crowned who handed one BACK. I'll want a new name for you — 'the Monarch Who Let It End.' The tavern will weep into their cups. It will be perfect."},
+	{"speaker": "", "text": "No sands left to turn. No run to run again. Only Deepwood as it stands: walls whole, tables full, its people yours and safe and going nowhere at all. It will grow old. It will never be unmade. It was always, always going to be enough."},
+	{"speaker": "The Shadow Monarch", "text": "Let the throne beyond the world keep waiting. I am staying home."},
+]

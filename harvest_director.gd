@@ -309,7 +309,7 @@ func _victory() -> void:
 		return
 	DialogueBox.play(p, Story.ENDING, func():
 		GameState.raise_shadow_army()
-		if p and "inventory" in p and p.inventory and p.inventory.get_count("relic_rewound_hour") == 0:
+		if p and "inventory" in p and p.inventory and p.inventory.get_count("relic_rewound_hour") == 0 and not GameState.cycle_broken:
 			p.inventory.add_item("relic_rewound_hour", 1)
 			_notify("Among the spoils: ⌛ THE REWOUND HOUR. The world can be made to start again — and you would be immune.")
 		_notify("Deepwood stands. The Shadow Monarch has returned — a new class awaits your next journey.")

@@ -1435,7 +1435,6 @@ func _impact_feedback(strong: bool) -> void:
 
 # --- Timed buffs (from food). active_buffs[key] = {"v": amount, "until": t}. ---
 var active_buffs: Dictionary = {}
-var _rewind_armed_until := 0.0   # THE REWOUND HOUR's two-use confirm window
 
 # --- RIFTWEAVING (Mage, mg_p1..p3): the two doors, Z to weave ---
 # Open the orange rift where you stand, the blue one elsewhere, step into
@@ -1609,13 +1608,10 @@ func use_item(item_id: String) -> bool:
 			if stack:
 				stack.show_notification("The sands refuse to turn while the Harvest rages.")
 			return false
-		if _now() < _rewind_armed_until:
-			inventory.remove_item(item_id, 1)
-			GameState.new_game_plus(self)
-			return true
-		_rewind_armed_until = _now() + 5.0
-		if stack:
-			stack.show_notification("⌛ The sands begin to turn... use THE REWOUND HOUR again within 5s and the world rewinds. You keep yourself and everything you carry.")
+		# THE TWO ROADS (GAME_BIBLE 11/12): turn the glass and run the world again,
+		# stronger -- or shatter it, break the cycle, and let Deepwood stand for
+		# good. A world-ending choice deserves a real prompt, never a stray click.
+		_open_hourglass_choice(item_id)
 		return true
 	if eff.has("heal_hp"):
 		health = min(get_max_health(), health + int(eff.heal_hp))
@@ -1634,6 +1630,32 @@ func use_item(item_id: String) -> bool:
 	if inv_ui and inv_ui.has_method("refresh"):
 		inv_ui.refresh()
 	return true
+
+# THE REWOUND HOUR's two roads (11/12). Both only reachable post-victory, since
+# the hourglass is only ever granted as a victory spoil.
+func _open_hourglass_choice(item_id: String) -> void:
+	ChoicePrompt.open(self, "⌛ THE REWOUND HOUR",
+		"The sands wait on your word. Turn the glass and the world begins again from ruin — and you keep everything you are, everything you carry. Or shatter it, break the cycle, and let Deepwood stand as it is: won, whole, and never unmade.",
+		[
+			{"label": "Turn it — rewind the world, run it again stronger", "cb": func():
+				inventory.remove_item(item_id, 1)
+				GameState.new_game_plus(self)},
+			{"label": "Shatter it — end the cycle forever", "danger": true, "cb": func():
+				_confirm_shatter_hourglass(item_id)},
+			{"label": "Not yet", "cb": func(): return},
+		])
+
+# A world ends only on a deliberate, doubled yes.
+func _confirm_shatter_hourglass(item_id: String) -> void:
+	ChoicePrompt.open(self, "SHATTER THE HOURGLASS?",
+		"This cannot be undone. There will be no more turnings, no more runs — only Deepwood, standing, forever yours. Break it?",
+		[
+			{"label": "Shatter it — let Deepwood stand forever", "danger": true, "cb": func():
+				inventory.remove_item(item_id, inventory.get_count(item_id))
+				GameState.break_the_cycle(self)
+				DialogueBox.play(self, Story.TRUE_ENDING)},
+			{"label": "Keep it", "cb": func(): return},
+		])
 
 func buff_bonus(key: String) -> float:
 	var b = active_buffs.get(key, null)
