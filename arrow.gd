@@ -30,10 +30,9 @@ const HOMING_RANGE = 460.0
 const HOMING_GROUPS = ["course_enemy", "dungeon_combatant", "siege_enemy"]
 
 func _ready() -> void:
-	# So the world can FIND a player shot in flight. Nothing could before, which
-	# meant a mirror boss (boss.gd tick_mirror) had nothing to reflect -- it
-	# would have looked implemented and silently done nothing forever.
-	add_to_group("player_projectile")
+	# The "player_projectile" tag now happens in setup() and ONLY for the player's
+	# own arrows -- enemy and boss arrows reuse this same scene, and tagging them
+	# here made a mirror boss (boss.gd tick_mirror) reflect its OWN volley.
 	start_position = global_position
 	rotation = direction.angle()
 	apply_girth()
@@ -64,6 +63,11 @@ func setup(dir: Vector2, dmg: int, kb_min: float, kb_max: float, target_mask: in
 	knockback_min = kb_min
 	knockback_max = kb_max
 	$HitArea.collision_mask = target_mask
+	# Only the PLAYER's arrows are reflectable "player projectiles". A player arrow
+	# targets the ENEMY layer (4) and never the player (layer 2); enemy/boss arrows
+	# include layer 2 in their mask, so this cleanly excludes them.
+	if (target_mask & 2) == 0:
+		add_to_group("player_projectile")
 	pierces_terrain = pierce_terrain
 	if pierces_terrain:
 		collision_mask = 0

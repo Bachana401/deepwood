@@ -2182,7 +2182,13 @@ func open_assign_ui() -> void:
 func _on_child_produced(child_id: String) -> void:
 	var npc = NPC_SCRIPT.new()
 	npc.villager_id = child_id
-	npc.global_position = global_position + Vector2(randf_range(-18.0, 18.0), -60.0)
+	# NOBODY POPS INTO EXISTENCE IN FRONT OF YOU (main.gd rule): a newborn walks in
+	# from off-screen rather than materialising a few steps from the player.
+	var spot: Vector2 = global_position + Vector2(randf_range(-18.0, 18.0), -60.0)
+	var scn = get_tree().current_scene
+	if scn and scn.has_method("offscreen_spawn"):
+		spot = scn.offscreen_spawn(spot)
+	npc.global_position = spot
 	get_parent().add_child(npc)
 	var notif = get_node_or_null("../../CanvasLayer/NotificationStack")
 	if notif:

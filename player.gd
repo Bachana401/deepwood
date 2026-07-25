@@ -3283,8 +3283,11 @@ func channel_beam(delta: float) -> bool:
 	beam_tick_timer += delta
 	while beam_tick_timer >= BEAM_TICK:
 		beam_tick_timer -= BEAM_TICK
-		# at ramp 1.0 the beam matches the wand's ordinary DPS; the ramp is the gain
-		var dps = float(stats.damage) / maxf(0.1, stats.cooldown)
+		# at ramp 1.0 the beam matches the wand's ordinary DPS; the ramp is the gain.
+		# Wand damage lives in the special/def dict (active_def.damage) -- reading
+		# weapon_stats.damage here was ALWAYS 0 for wands, so ramp/skills/power all
+		# multiplied 0 and the beam dealt a flat 1/tick. Match cast_wand_projectile.
+		var dps = float(active_def.get("damage", stats.damage)) / maxf(0.1, stats.cooldown)
 		var amount = maxi(1, int(round(dps * BEAM_TICK * beam_ramp_mult() * skill_damage_mult("wand"))))
 		var cr = roll_crit(amount)
 		if is_instance_valid(target) and target.has_method("take_damage"):
@@ -3538,12 +3541,15 @@ func apply_excellent_effect(target: Node2D, damage_dealt: int) -> void:
 			spawn_shock_ring(target.global_position, radius)
 		return
 	if effect == "radiance":
-		# Dawnbreaker -- heal on hit + a piercing sun-slash
+		# Dawnbreaker -- heal on hit + a piercing sun-slash. The slash must NOT re-spawn
+		# from its OWN hits, or each pierced enemy launches another and it cascades into
+		# an exponential flood of slashes + heals. Guard mirrors ragnarok's above.
 		var heal = int(round(damage_dealt * active_def.get("unique_value", 0.2)))
 		if heal > 0:
 			health = min(get_max_health(), health + heal)
 			update_health_display()
-		launch_projectile({"type": "flying_slash", "speed": 540.0, "range": 460.0}, get_aim_direction(), int(round(damage_dealt * 0.5)))
+		if not _in_projectile_unique:
+			launch_projectile({"type": "flying_slash", "speed": 540.0, "range": 460.0}, get_aim_direction(), int(round(damage_dealt * 0.5)))
 		return
 	if effect == "lifesteal":
 		var heal = int(round(damage_dealt * active_def.get("unique_value", 0.0)))

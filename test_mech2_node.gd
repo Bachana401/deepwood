@@ -124,6 +124,10 @@ func _ready() -> void:
 	# reads as "flew 4000px" and it deletes itself.
 	probe.position = Vector2(-4000, -1500)
 	host.add_child(probe)
+	# Real player arrows are tagged "player_projectile" in setup() (2026-07-25: the tag
+	# moved there and is gated so enemy/boss arrows aren't mislabelled and reflected by
+	# their own mirror). Call setup() as the game does so the probe is a real player shot.
+	probe.setup(Vector2.RIGHT, 10, 5.0, 10.0)
 	await get_tree().process_frame
 	check("a player arrow is FINDABLE in flight (the silent-no-op trap)",
 		probe.is_in_group("player_projectile"),
@@ -133,6 +137,7 @@ func _ready() -> void:
 	a.direction = Vector2.RIGHT
 	a.position = mi.position + Vector2(20, 0)
 	host.add_child(a)
+	a.setup(Vector2.RIGHT, 10, 5.0, 10.0)   # tag it a player projectile (see above) so the mirror can find + reflect it
 	for i in range(4):
 		await get_tree().physics_frame
 		if a.is_in_group("hostile_projectile"):

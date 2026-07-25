@@ -255,6 +255,12 @@ func _ready() -> void:
 	spawn_placed_torches()
 	start_music()
 	if GameState.pending_load:
+		# ONE-SHOT: consume the flag immediately. It was only ever cleared on the New
+		# Game path, so on a Continue/NG+ it stayed hot and EVERY return from a dungeon
+		# (which reloads main.tscn) re-applied the STALE on-disk save over the live run
+		# -- wiping dungeon loot/gold/XP since the last autosave and rewinding the clock.
+		# Clearing it here loads the save exactly once; dungeon returns keep carry-over.
+		GameState.pending_load = false
 		apply_save_data()
 	spawn_existing_villager_avatars()
 	spawn_adventurers()
@@ -755,7 +761,6 @@ func play_arrival_talk(pl: Node) -> void:
 	# REVEALED as Deepwood itself (the 180-degree reality check) -> the
 	# oath the whole game executes, sworn aloud once
 	DialogueBox.play(pl, Story.ARRIVAL_TRAP, func():
-		_spawn_reveal_survivors(pl)
 		DialogueBox.play(pl, Story.DEEPWOOD_REVEAL, func():
 			DialogueBox.play(pl, Story.THE_OATH, func():
 				# beat 8: the oath sworn, the trio teach the player the ropes -- then
@@ -763,40 +768,11 @@ func play_arrival_talk(pl: Node) -> void:
 				DialogueBox.play(pl, Story.TUTORIAL_INTRO, func():
 					GameState.tutorial_begin()))))
 
-# BEAT 6 (dev's opening 2026-07-22): villagerS step out of the ruins for the
-# reveal -- thin, hollow-eyed survivors who hid through the fight, fading up and
-# shuffling toward the player. Cutscene dressing (no data, no save); they linger
-# through the reveal + oath, then quietly drift back into the ruin they came from.
-func _spawn_reveal_survivors(pl: Node) -> void:
-	if pl == null:
-		return
-	var palettes := [Color(0.5, 0.42, 0.36), Color(0.44, 0.4, 0.48), Color(0.4, 0.46, 0.4), Color(0.52, 0.46, 0.38)]
-	var base_x: float = pl.global_position.x
-	for i in range(4):
-		var fig := Node2D.new()
-		fig.z_index = 3
-		var cloak := ColorRect.new()
-		cloak.size = Vector2(18, 34)
-		cloak.position = Vector2(-9, -34)
-		cloak.color = palettes[i % palettes.size()].darkened(0.15)
-		fig.add_child(cloak)
-		var head := ColorRect.new()
-		head.size = Vector2(11, 11)
-		head.position = Vector2(-5, -45)
-		head.color = Color(0.78, 0.66, 0.56)
-		fig.add_child(head)
-		# they come FROM the ruins (east/right of the gate); fade up, then shuffle in
-		var target_x: float = base_x + 80.0 + i * 58.0 + randf_range(-12.0, 12.0)
-		fig.position = Vector2(target_x + 46.0, VILLAGE_Y)
-		fig.modulate.a = 0.0
-		add_child(fig)
-		var tw := fig.create_tween()
-		tw.tween_interval(0.2 + i * 0.28)
-		tw.tween_property(fig, "modulate:a", 1.0, 0.9)
-		tw.parallel().tween_property(fig, "position:x", target_x, 1.2).set_trans(Tween.TRANS_SINE)
-		tw.tween_interval(26.0)
-		tw.tween_property(fig, "modulate:a", 0.0, 1.6)
-		tw.tween_callback(fig.queue_free)
+# (The BEAT-6 "reveal survivors" cutscene figures were REMOVED 2026-07-25 on dev's
+# call. They were bare ColorRect placeholder boxes whose fade tweens were pausable,
+# so they stayed frozen-invisible through the paused reveal/oath dialogue and then
+# leaked into free play as loitering boxes that faded out ~26s later. The real
+# survivor who speaks the reveal is the actual npc avatar handled above.)
 
 # NG+ arrival: one line the moment the rewound player wakes, then the world
 # treats them like any first arrival. Transient flag -- never saved, so a

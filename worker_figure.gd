@@ -57,7 +57,9 @@ var body_scale := 1.0
 # below, so this is safe with no art shipped.
 const VILLAGER_ROOT := "res://art/villagers/"
 const VILLAGER_VARIANTS := ["man", "man2", "man3", "man4", "man5",
-	"woman", "woman2", "woman3", "woman4", "woman5"]
+	"man6", "man7", "man8", "man9", "man10", "man11", "man12", "man13",
+	"woman", "woman2", "woman3", "woman4", "woman5",
+	"woman6", "woman7", "woman8", "woman9", "woman10", "woman11", "woman12", "woman13"]
 # The sprite is normalised to the SAME height the ColorRect person is drawn at,
 # so body_scale keeps sizing the worker exactly as before and every mode's tool
 # coordinates (the rod, the broom, the crate) still land in the hands.

@@ -1290,6 +1290,16 @@ func _reflect(pr: Node2D) -> void:
 	pr.add_to_group("hostile_projectile")
 	if "owner_is_player" in pr:
 		pr.owner_is_player = false
+	# RETARGET its hit-detection at the PLAYER (layer 2). Flipping velocity/direction
+	# alone left the mask on the enemy layer (4), so the returned shot flew straight
+	# THROUGH the player and dealt nothing -- the whole "eat your own arrows" reflect
+	# was inert. Cover both projectile shapes: an arrow (HitArea child Area2D) and a
+	# weapon_projectile (the Area2D itself carries the hit mask).
+	var _ha = pr.get_node_or_null("HitArea")
+	if _ha != null and "collision_mask" in _ha:
+		_ha.collision_mask = 2
+	elif "collision_mask" in pr:
+		pr.collision_mask = 2
 	var flash := Line2D.new()
 	var pts := PackedVector2Array()
 	for i in range(14):

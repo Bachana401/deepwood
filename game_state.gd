@@ -1156,6 +1156,27 @@ func can_place_building(tree: SceneTree, bwidth: float, x: float, exclude: Node 
 			continue
 		if absf(x - other.global_position.x) < my_half + float(other.width) / 2.0 + RELOCATE_CLEARANCE:
 			return false
+	# ...and (for HALLS/COTTAGES, not walls) don't bury a cottage / watchtower / road
+	# marker either -- those are "village_structure", not "building", so the loop above
+	# missed them and a menu-placed cottage could be dropped straight on top of another
+	# (dev sweep 2026-07-25). Walls are EXEMPT: a rampart defines the edge and stands
+	# among the road markers at the gate. Only SAME-SURFACE structures count -- the
+	# Underdark's chests are village_structures a kilometre down and mustn't reserve
+	# the ground above them.
+	if not is_wall:
+		var surface_y := INF
+		for b in tree.get_nodes_in_group("building"):
+			if is_instance_valid(b):
+				surface_y = b.global_position.y
+				break
+		for node in tree.get_nodes_in_group("village_structure"):
+			if node == exclude or not is_instance_valid(node):
+				continue
+			if surface_y != INF and absf(node.global_position.y - surface_y) > 300.0:
+				continue
+			var ohalf: float = (float(node.width) / 2.0) if ("width" in node) else 60.0
+			if absf(x - node.global_position.x) < my_half + ohalf + RELOCATE_CLEARANCE:
+				return false
 	return true
 
 # --- THE OPENING TUTORIAL (step-gated, dev polish 2026-07-22) ---
@@ -3441,13 +3462,27 @@ func deposit_one_arm(player: Node, item_id: String) -> int:
 		return 0
 	if barracks_arms >= BARRACKS_ARMS_CAP:
 		return 0
+	# Don't DESTROY value: only accept the piece if its FULL arm value fits under the
+	# cap. Previously it consumed the whole item and credited only the clamped
+	# remainder, so depositing a grade-4 weapon at 98/99 gave +1 and burned the rest.
+	# Refusing here keeps the gear in the player's bag instead (dev bug-sweep 2026-07-25).
+	var v := arm_value_of(item_id)
+	if barracks_arms + v > BARRACKS_ARMS_CAP:
+		return 0
 	player.inventory.remove_item(item_id, 1)
-	var v = min(arm_value_of(item_id), BARRACKS_ARMS_CAP - barracks_arms)
 	barracks_arms += v
 	return v
 
 # How many VIP leaders are currently seated at a building's top post(s).
+# A RAZED / not-yet-built building provides NOTHING even if its leader villager is
+# still assigned: siege take_damage() zeroes the build stage but doesn't clear the
+# leader's role_key, so without this gate a destroyed Bank kept minting gold, a
+# ruined Hospital kept healing, a rubble Marketplace kept auto-selling (and silently
+# spending) the player's materials, etc. Every leadership automation routes through
+# here, so gating operational once fixes all of them (dev bug-sweep 2026-07-25).
 func seated_leaders(role_key: String) -> int:
+	if not is_building_operational(role_key):
+		return 0
 	var n := 0
 	for rd in BuildingRoles.get_roles(role_key):
 		if rd.get("leadership", false):
@@ -4803,7 +4838,12 @@ func turn_in_villager_quest(villager_id: String, player: Node) -> String:
 	if int(def.get("reward_gold", 0)) > 0 and player and player.has_method("add_currency"):
 		player.add_currency(int(def.get("reward_gold")))
 	if str(def.get("reward_item", "")) != "" and player and "inventory" in player and player.inventory:
-		player.inventory.add_item(str(def.get("reward_item")), int(def.get("reward_count", 1)))
+		# add_item returns the UN-added leftover; a full bag was silently eating the
+		# bond reward while the turn-in still reported success (dev sweep 2026-07-25).
+		var _rleft: int = player.inventory.add_item(str(def.get("reward_item")), int(def.get("reward_count", 1)))
+		if _rleft > 0:
+			var _st = get_tree().get_first_node_in_group("notification_stack")
+			if _st: _st.show_notification("Your bag was full — part of the bond's reward couldn't be carried.")
 	return str(def.get("reward_line", ""))
 
 func is_villager_rescued(villager_id: String) -> bool:

@@ -81,6 +81,10 @@ func _ready() -> void:
 	# ---- STAFFING: a seated Chancellor seats the rest for you ----
 	roster.append({"id": "ss_gov", "name": "Chancellor", "sex": "Male", "is_kid": false,
 		"stat_name": "Chancellor", "stat_value": 9, "role_key": "Government", "role_title": "Chancellor"})
+	# A Chancellor only runs the town from a BUILT Government. seated_leaders gained an
+	# operational gate 2026-07-25 (a razed/unbuilt building's leader provides nothing),
+	# so this suite must raise the Government before seating them.
+	GameState.building_stage["Government"] = GameState.TOTAL_BUILD_STAGES
 	check("the Chancellor is seated", GameState.seated_leaders("Government") > 0)
 	GameState.tick_self_sufficiency()
 	check("seating the Chancellor lights the LABOUR chore",

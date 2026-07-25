@@ -95,6 +95,11 @@ var _fallback_until := 0.0
 var _rally_until := 0.0
 var _song_until := 0.0
 var body_rect: ColorRect = null
+# Where a beaten legend falls back to breathe -- their post at the Harvest LINE,
+# captured on the first physics frame. Was a hardcoded x=300 (a leftover DUNGEON-arena
+# coordinate) that sent them ~4000px offscreen, out of the village finale for ~50s.
+var _rally_x := 0.0
+var _rally_set := false
 
 func _resolve_kit() -> Dictionary:
 	var k := _DEFAULT.duplicate()
@@ -135,6 +140,9 @@ func _ready() -> void:
 	add_child(nl)
 
 func _physics_process(delta: float) -> void:
+	if not _rally_set:                       # remember the post they start at (their fall-back point)
+		_rally_set = true
+		_rally_x = global_position.x
 	if not is_on_floor():
 		velocity.y += GRAVITY * delta
 	if attack_cd > 0.0:
@@ -142,7 +150,7 @@ func _physics_process(delta: float) -> void:
 	var now := Time.get_ticks_msec() / 1000.0
 	if now < _fallback_until:
 		# beaten to the ground, not out of the fight: breathe at the gate
-		velocity.x = clampf(300.0 - global_position.x, -float(kit.speed), float(kit.speed))
+		velocity.x = clampf(_rally_x - global_position.x, -float(kit.speed), float(kit.speed))
 		move_and_slide()
 		return
 	if hp <= 0.0:
@@ -276,12 +284,15 @@ func _spawn_bolt(from: Vector2, to: Vector2) -> void:
 # A legend cannot be killed here -- despair already tried for years. Beaten to
 # nothing, they fall back, breathe, and return at 60%.
 func take_damage(amount: int) -> void:
+	var was_down := hp <= 0.0
 	hp -= float(amount)
 	if body_rect:
 		body_rect.color = Color(0.85, 0.45, 0.35)
 		var restore: Color = Color(0.65, 0.7, 0.85) if override_name != "" else kit.color
 		var t = create_tween()
 		t.tween_property(body_rect, "color", restore, 0.3)
-	if hp <= 0.0:
+	# arm the breather only on the TRANSITION to down. Re-setting it on every hit while
+	# already floored meant a legend kept under fire never got its 8s to recover (dev sweep).
+	if hp <= 0.0 and not was_down:
 		_fallback_until = Time.get_ticks_msec() / 1000.0 + FALLBACK_SECONDS
 		FloatingText.spawn_word(get_parent(), global_position + Vector2(0, -50), "UNBROKEN — FALLING BACK", Color(1.0, 0.85, 0.4))

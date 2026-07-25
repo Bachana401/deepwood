@@ -75,6 +75,10 @@ func _process(_d: float) -> void:
 	var p = get_tree().get_first_node_in_group("player")
 	var ok := GameState.can_place_building(get_tree(), build_w, mx, null, build_name == "Wall") \
 		and p != null and GameState.can_afford_build(build_name, p)
+	# a flank that already holds a wall can't take a second (you upgrade at the gate) --
+	# the ghost must read RED there too, or "green always means it will build" is broken.
+	if ok and build_name == "Wall" and _flank_has_wall(_flank_for_x(mx)):
+		ok = false
 	ghost.color = Color(0.35, 0.9, 0.5, 0.42) if ok else Color(0.95, 0.3, 0.3, 0.42)
 	# A WALL's hint reads the ground LIVE: which gate would this spot guard? The
 	# tutorial says "the west" but nothing at placement-time did (dev 2026-07-23:
@@ -180,8 +184,15 @@ func _try_place(x: float) -> void:
 			node = scene.create_building(build_name, x)
 	if node != null:
 		node.global_position.x = x
-		if node.has_method("rebuild_geometry"): node.rebuild_geometry()
-		if node.has_method("refresh_visual"): node.refresh_visual()
+		# fully re-raise the LIVE node, not just its geometry: without this the node kept
+		# build_stage=0/health=0 (still is_ruined + not operational -> no E-panel, no
+		# workers, drawn as rubble) until a scene reload, so rebuilding a razed hall from
+		# the B-menu did nothing visible (dev bug-sweep 2026-07-25).
+		if node.has_method("restore_full"):
+			node.restore_full()
+		else:
+			if node.has_method("rebuild_geometry"): node.rebuild_geometry()
+			if node.has_method("refresh_visual"): node.refresh_visual()
 	GameState.play_sfx(GameState.SFX_YES, 1.0)
 	if stack: stack.show_notification("🏗 The %s is raised on its new ground." % build_name)
 	GameState.log_event("village", "The %s was raised from the build menu." % build_name)
@@ -269,8 +280,15 @@ func _flank_has_wall(flank: String) -> bool:
 	return false
 
 func _do_delete(target, kind: String) -> void:
+	if not is_instance_valid(target):
+		return   # target freed while the confirm panel was open -- don't deref it below
 	match kind:
 		"building":
+			# clear a stale relocate: if you packed this building then deleted it, its
+			# name lingered in moving_building and suppressed Hospital/School/Marketplace
+			# H-features until the next H-press (dev sweep 2026-07-25).
+			if GameState.moving_building == str(target.building_name):
+				GameState.moving_building = ""
 			GameState.remove_building(str(target.building_name))
 		"wall":
 			GameState.remove_placed_wall(target.global_position.x)

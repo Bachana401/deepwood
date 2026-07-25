@@ -499,6 +499,7 @@ const DEFEND_RADIUS := 560.0
 const SELF_DEFENSE_RADIUS := 150.0
 const WALL_HOLD_RADIUS := 300.0     # what "reaches the wall" means for a wall guard
 const WALL_BREACH_CHASE := 1100.0   # how deep past the post a wall guard runs a breacher down
+const CITY_BREACH_CHASE := 2600.0   # the inner line ranges wider than a wall guard, but still BOUNDED
 
 # True if this raider is INSIDE the village -- past a standing rampart's inner
 # face, into the streets. With NO rampart standing there is nothing to BREACH, so
@@ -543,8 +544,11 @@ func _nearest_raider() -> Node2D:
 			# is never left unmanned for a sprint across town.
 			engage = from_post <= WALL_HOLD_RADIUS or (breached and from_post <= WALL_BREACH_CHASE)
 		else:
-			# the inner line: the post's watch, plus ANY breacher anywhere in town
-			engage = from_post <= DEFEND_RADIUS or breached
+			# the inner line: the post's watch, plus a breacher within a BOUNDED chase.
+			# Uncapped "or breached" let a lone west wall (hi = +INF in _breached_into_village)
+			# send a city defender sprinting a raider to infinity east -- the very run-away
+			# chase the wall guards are capped against (dev sweep 2026-07-25).
+			engage = from_post <= DEFEND_RADIUS or (breached and from_post <= CITY_BREACH_CHASE)
 		if not engage:
 			continue
 		var d: float = global_position.distance_to(r.global_position)

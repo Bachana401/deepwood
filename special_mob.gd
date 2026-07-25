@@ -740,8 +740,14 @@ func apply_knockback(direction_sign: int, distance: float) -> void:
 		return
 	is_knocked_back = true
 	velocity.x = direction_sign * (distance / KNOCKBACK_DURATION)
+	# Re-resolve self through its id after the wait: a DoT tick can kill+queue_free
+	# this mob mid-knockback, and writing is_knocked_back on the freed instance when
+	# the timer resumes is a use-after-free. instance_from_id returns null once freed.
+	var id := get_instance_id()
 	await get_tree().create_timer(KNOCKBACK_DURATION).timeout
-	is_knocked_back = false
+	var s = instance_from_id(id)
+	if s != null and is_instance_valid(s) and not s.is_dead:
+		s.is_knocked_back = false
 
 func die() -> void:
 	if is_dead:

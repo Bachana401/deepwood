@@ -2353,8 +2353,13 @@ func roll_material_drop(guaranteed: bool = false) -> void:
 	if not player:
 		return
 	var mat_id = get_material_for_level(current_level)
-	player.inventory.add_item(mat_id, 1)
-	show_notification("Found: " + Inventory.get_display_name(mat_id))
+	# add_item returns the un-added leftover -- a full bag was destroying the drop
+	# while still toasting "Found:" (dev sweep 2026-07-25).
+	var _mleft: int = player.inventory.add_item(mat_id, 1)
+	if _mleft > 0:
+		show_notification("A " + Inventory.get_display_name(mat_id) + " drops, but your bag is full.")
+	else:
+		show_notification("Found: " + Inventory.get_display_name(mat_id))
 
 # --- Gear loot ---
 # Every boss also drops one piece of real gear, drawn from level-gated pools
@@ -2404,9 +2409,18 @@ func roll_gear_drop() -> void:
 		return
 	# THE POTIONS RULE (5.5): a felled boss always restocks the belt -- you
 	# leave every boss fight provisioned for the next block's climb
-	player.inventory.add_item("potion_health", 2)
-	player.inventory.add_item("potion_mana", 1)
-	show_notification("The boss's cache: 2 health potions, 1 mana potion.")
+	# add_item returns the un-added leftover -- a full bag was eating the guaranteed
+	# restock while still claiming "2 health, 1 mana" (dev sweep 2026-07-25). Be honest.
+	var _hleft: int = player.inventory.add_item("potion_health", 2)
+	var _mleft2: int = player.inventory.add_item("potion_mana", 1)
+	var _hg: int = 2 - _hleft
+	var _mg: int = 1 - _mleft2
+	if _hg + _mg <= 0:
+		show_notification("The boss's cache spills — but your bag is full. Make room!")
+	elif _hleft > 0 or _mleft2 > 0:
+		show_notification("The boss's cache (bag nearly full): took %d health + %d mana potion(s)." % [_hg, _mg])
+	else:
+		show_notification("The boss's cache: 2 health potions, 1 mana potion.")
 	if current_level >= EXCELLENT_MIN_LEVEL and randf() < EXCELLENT_DROP_CHANCE:
 		var excellents = _gear_unowned(GEAR_EXCELLENT_IDS, player)
 		if not excellents.is_empty():

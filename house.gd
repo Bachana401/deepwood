@@ -158,5 +158,11 @@ func _on_couple_departed(departing_house_id: String, male_id: String, female_id:
 func spawn_departing_npc(villager_id: String) -> void:
 	var npc = NPC_SCRIPT.new()
 	npc.villager_id = villager_id
-	npc.global_position = global_position + Vector2(randf_range(-18.0, 18.0), -60.0)
+	# NOBODY POPS INTO EXISTENCE IN FRONT OF YOU (main.gd rule): the departing pair
+	# walk in from off-screen instead of materialising beside the player.
+	var spot: Vector2 = global_position + Vector2(randf_range(-18.0, 18.0), -60.0)
+	var scn = get_tree().current_scene
+	if scn and scn.has_method("offscreen_spawn"):
+		spot = scn.offscreen_spawn(spot)
+	npc.global_position = spot
 	get_parent().add_child(npc)

@@ -32,6 +32,10 @@ static func is_per_frame(skin: String, root: String = DEFAULT_ROOT) -> bool:
 const ANIMS := {
 	"idle":   {"fps": 8.0,  "loop": true},
 	"walk":   {"fps": 12.0, "loop": true},
+	# a villager's DANGER sprint -- played only while fleeing (npc.gd is_fleeing).
+	# Skins without run_N.png simply skip it and fall back to walk, so the old
+	# front-facing man/woman/kid are unaffected.
+	"run":    {"fps": 14.0, "loop": true},
 	"attack": {"fps": 12.0, "loop": false},
 	"hurt":   {"fps": 14.0, "loop": false},
 	"death":  {"fps": 10.0, "loop": false},

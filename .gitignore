@@ -6,3 +6,7 @@ test_output.log
 # Export/build output — the compiled game is rebuilt on demand and far exceeds
 # GitHub's 100 MB file cap. Never version it; keep it local only.
 build/
+
+# PixelLab scratch (drafts, payloads, api spec)
+pl_work/
+pl_openapi.json

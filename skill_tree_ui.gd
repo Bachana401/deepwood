@@ -177,6 +177,11 @@ func _on_switch_class() -> void:
 	refresh()
 
 func _on_reset_potion() -> void:
+	# On the class-select screen there are no skills to refund, but the Reset button
+	# stays visible -- clicking it used to burn 150g on a no-op (dev sweep 2026-07-25).
+	if GameState.chosen_class == "":
+		notify("Pick a class first — there's nothing to reset yet.")
+		return
 	var player = get_tree().get_first_node_in_group("player")
 	if not player or player.currency < RESET_POTION_COST:
 		notify("Not enough gold for a Reset Potion (%dg)." % RESET_POTION_COST)

@@ -281,19 +281,29 @@ func apply_size() -> void:
 # art/villagers/man2 ... man5 / woman2 ... woman5 automatically widens the pool
 # with no code change. Kids share one sprite.
 const VILLAGER_VARIANTS := {
-	"Male": ["man", "man2", "man3", "man4", "man5"],
-	"Female": ["woman", "woman2", "woman3", "woman4", "woman5"],
+	"Male": ["man", "man2", "man3", "man4", "man5",
+		"man6", "man7", "man8", "man9", "man10", "man11", "man12", "man13"],
+	"Female": ["woman", "woman2", "woman3", "woman4", "woman5",
+		"woman6", "woman7", "woman8", "woman9", "woman10", "woman11", "woman12", "woman13"],
+}
+# Kids now have their own varied roster too (art/villagers/boy1.. / girl1..), picked
+# by sex like the adults. The original single gender-neutral "kid" stays as the
+# safety fallback when none of the sexed kid art is present.
+const KID_VARIANTS := {
+	"Male": ["boy1", "boy2", "boy3", "boy4", "boy5", "boy6", "boy7",
+		"boy8", "boy9", "boy10", "boy11", "boy12", "boy13"],
+	"Female": ["girl1", "girl2", "girl3", "girl4", "girl5", "girl6", "girl7",
+		"girl8", "girl9", "girl10", "girl11", "girl12", "girl13"],
 }
 func _villager_skin(is_kid: bool, sex: String) -> String:
-	if is_kid:
-		return "kid"
-	var candidates: Array = VILLAGER_VARIANTS.get(sex, VILLAGER_VARIANTS["Female"])
+	var pool: Dictionary = KID_VARIANTS if is_kid else VILLAGER_VARIANTS
+	var candidates: Array = pool.get(sex, pool["Female"])
 	var have: Array = []
 	for v in candidates:
 		if EnemySkins.is_per_frame(v, VILLAGER_ROOT):
 			have.append(v)
 	if have.is_empty():
-		return candidates[0]
+		return "kid" if is_kid else candidates[0]
 	return have[abs(hash(villager_id)) % have.size()]
 
 # Builds the AnimatedSprite2D villager body under body_gfx: normalised to
@@ -315,13 +325,26 @@ func _build_villager_sprite(vskin: String) -> void:
 	body_gfx.add_child(spr)
 	villager_sprite = spr
 
-# Skinned villagers swap idle<->walk from the movement state each frame.
+# Skinned villagers pick run (fleeing) > walk (moving) > idle each frame. The new
+# side-view villagers ship a run clip; the older skins don't, so run gracefully
+# degrades to walk, then idle, for anyone missing the wanted animation.
 func _update_villager_anim() -> void:
 	if villager_sprite == null:
 		return
-	var want := "walk" if is_walking else "idle"
 	var sf := villager_sprite.sprite_frames
-	if sf and sf.has_animation(want) and villager_sprite.animation != want:
+	if sf == null:
+		return
+	# run only while actually MOVING in panic; a cowering (stationary) villager
+	# plays idle, not the run cycle jogging on the spot.
+	var want := "idle"
+	if is_walking:
+		want = "run" if is_fleeing() else "walk"
+	if not sf.has_animation(want):
+		if want == "run":
+			want = "walk"
+		if not sf.has_animation(want):
+			want = "idle"
+	if sf.has_animation(want) and villager_sprite.animation != want:
 		villager_sprite.play(want)
 
 func refresh_size_if_needed() -> void:
@@ -448,11 +471,11 @@ const SIGHT_FLEE_RANGE := 210.0
 const SIGHT_CHECK_INTERVAL := 0.35
 var _sight_check_cd := 0.0
 
-func _tick_flee_on_sight(delta: float) -> void:
-	_sight_check_cd -= delta
-	if _sight_check_cd > 0.0 or is_fleeing():
-		return
-	_sight_check_cd = SIGHT_CHECK_INTERVAL
+# Nearest live, non-theatrical threat within `reach` px, or null. Used both to
+# decide WHETHER to flee and (in the flee branch) which way is AWAY from danger.
+func _nearest_threat_within(reach: float) -> Node2D:
+	var best: Node2D = null
+	var best_d := reach
 	for grp in THREAT_GROUPS:
 		for e in get_tree().get_nodes_in_group(grp):
 			if not is_instance_valid(e) or ("is_dead" in e and e.is_dead):
@@ -460,11 +483,27 @@ func _tick_flee_on_sight(delta: float) -> void:
 			# theatrical/staged raiders (the arrival tableau) scare nobody
 			if "theatrical" in e and e.theatrical:
 				continue
-			if global_position.distance_to(e.global_position) <= SIGHT_FLEE_RANGE:
-				flee_until = Time.get_ticks_msec() / 1000.0 + FLEE_SECONDS
-				if randf() < 0.5:
-					SpeechText.spawn(self, ["RUN!", "They're here!", "Get inside!", "Look out!"][randi() % 4])
-				return
+			var d: float = global_position.distance_to(e.global_position)
+			if d < best_d:
+				best_d = d
+				best = e
+	return best
+
+func _tick_flee_on_sight(delta: float) -> void:
+	_sight_check_cd -= delta
+	if _sight_check_cd > 0.0:
+		return
+	_sight_check_cd = SIGHT_CHECK_INTERVAL
+	# REFRESH the panic every check while a raider is still in sight -- previously
+	# this bailed the moment is_fleeing() was true, so the 6s timer ran out with the
+	# enemy still right there and the villager lapsed back into a calm pace (the
+	# "back and forth like an npc" the dev flagged 2026-07-25). Now the fright holds
+	# as long as danger is visible.
+	var was_fleeing := is_fleeing()
+	if _nearest_threat_within(SIGHT_FLEE_RANGE) != null:
+		flee_until = Time.get_ticks_msec() / 1000.0 + FLEE_SECONDS
+		if not was_fleeing and randf() < 0.6:
+			SpeechText.spawn(self, ["RUN!", "They're here!", "Get inside!", "Look out!"][randi() % 4])
 
 func is_fleeing() -> bool:
 	return Time.get_ticks_msec() / 1000.0 < flee_until
@@ -566,6 +605,14 @@ func _physics_process(delta: float) -> void:
 	# ...and anything merely SEEN coming sends them running (flee on sight)
 	_tick_flee_on_sight(delta)
 
+	# Fleeing overrides every errand: a spooked villager on a routine Bar/workplace
+	# visit DROPS it rather than calmly marching to the door through raiders (dev
+	# 2026-07-25 "smarter npc"). Care trips are cancelled just below; this catches
+	# ordinary visits, whose door_target used to survive and be walked in the branch
+	# further down BEFORE the flee branch ever ran.
+	if is_fleeing() and door_target != null and not _care_visit:
+		door_target = null
+		current_visit_building = null
 	# THE SICK ROAD: a wounded villager breaks off for the nearest Hospital.
 	# Fleeing always wins -- a threat mid-trek cancels the trip; otherwise, when
 	# idle and hurt, set out (this sets door_target, and the branch below walks it).
@@ -614,14 +661,24 @@ func _physics_process(delta: float) -> void:
 	if not is_on_floor():
 		velocity.y += GRAVITY * delta
 
-	# PANIC: struck villagers run for the heart of the village and do not
-	# stop to chat, wander or clock in until the fright wears off.
+	# PANIC (smarter 2026-07-25: dev "make them a smarter npc"): a spooked villager
+	# sprints directly AWAY from the nearest raider toward the safe interior -- NOT
+	# toward a fixed town-centre that might sit past the enemy, which is what made
+	# them jog back and forth into the very thing chasing them. Pinned against the
+	# far edge with nowhere left to run, they cower STILL (idle), not jog on the spot.
 	if is_fleeing():
 		var span := _village_span()
-		var haven: float = (span.x + span.y) * 0.5
-		var dxh: float = haven - global_position.x
-		if absf(dxh) > 24.0:
-			direction = signf(dxh)
+		var threat := _nearest_threat_within(SIGHT_FLEE_RANGE * 1.5)
+		var away := 0.0
+		if threat != null:
+			away = signf(global_position.x - threat.global_position.x)
+		if away == 0.0:                          # no threat located / dead-on: fall back to the interior
+			away = signf((span.x + span.y) * 0.5 - global_position.x)
+		if away == 0.0:
+			away = 1.0
+		var target_x: float = clampf(global_position.x + away * 260.0, span.x, span.y)
+		if absf(target_x - global_position.x) > 6.0:
+			direction = signf(target_x - global_position.x)
 			velocity.x = direction * SPEED * FLEE_SPEED_MULT
 			is_walking = true
 			if body_gfx:
@@ -636,8 +693,13 @@ func _physics_process(delta: float) -> void:
 				r_arm.rotation = flee_swing * 0.6
 			move_and_slide()
 			return
-		velocity.x = 0.0                        # made it home -- cower here
+		velocity.x = 0.0                        # cornered at the edge -- cower, don't jog on the spot
 		is_walking = false
+		if l_leg:
+			l_leg.rotation = lerpf(l_leg.rotation, 0.0, 0.3)
+			r_leg.rotation = lerpf(r_leg.rotation, 0.0, 0.3)
+			l_arm.rotation = lerpf(l_arm.rotation, 0.0, 0.3)
+			r_arm.rotation = lerpf(r_arm.rotation, 0.0, 0.3)
 		_update_villager_anim()
 		move_and_slide()
 		return
