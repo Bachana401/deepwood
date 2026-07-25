@@ -1837,6 +1837,8 @@ func clear_crowd_control() -> void:
 	poison_dps = 0.0
 	_poison_accum = 0.0
 	pull_vel_x = 0.0
+	enemy_slow_until = 0.0     # a caster's chill dies with the rest on respawn
+	enemy_slow_factor = 1.0
 
 func player_slow_mult() -> float:
 	if _now() < enemy_slow_until:

@@ -4592,16 +4592,16 @@ func load_game() -> Dictionary:
 		if parsed.has("school_enrollments"):
 			school_enrollments = parsed["school_enrollments"]
 		if parsed.has("highest_unlocked_level"):
-			highest_unlocked_level = parsed["highest_unlocked_level"]
+			highest_unlocked_level = int(parsed["highest_unlocked_level"])
 		if parsed.has("floors_cleared") and parsed["floors_cleared"] is Dictionary:
 			floors_cleared = parsed["floors_cleared"]
 		waystone_unlocked = bool(parsed.get("waystone_unlocked", false))
 		if TEST_UNLOCK_ALL_LEVELS:
 			highest_unlocked_level = max(highest_unlocked_level, 999)
-		player_xp = parsed.get("player_xp", player_xp)
-		player_level = parsed.get("player_level", player_level)
+		player_xp = int(parsed.get("player_xp", player_xp))
+		player_level = int(parsed.get("player_level", player_level))
 		monarch_stage_announced = monarch_stage()   # already-reached stages don't re-toast
-		skill_points = parsed.get("skill_points", skill_points)
+		skill_points = int(parsed.get("skill_points", skill_points))
 		chosen_class = parsed.get("chosen_class", chosen_class)
 		unlocked_skills = parsed.get("unlocked_skills", unlocked_skills)
 		researched_materials = parsed.get("researched_materials", researched_materials)

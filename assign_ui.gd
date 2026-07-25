@@ -15,6 +15,7 @@ func open_for_building(building: Node) -> void:
 
 func close() -> void:
 	current_building = null
+	_draft_armed = ""   # a pending draft warning must not survive the panel closing
 	visible = false
 
 func esc_is_open() -> bool:

@@ -339,6 +339,12 @@ func dissolve() -> void:
 	if _dying:
 		return
 	_dying = true
+	# free any airborne bolts -- once the shade dissolves, _tick_bolts stops
+	# running, so scriptless bolt nodes would linger in the world forever
+	for b in _bolts:
+		if is_instance_valid(b.get("n")):
+			b["n"].queue_free()
+	_bolts.clear()
 	# Volatile Dead: a falling shade erupts, harming everything around where it
 	# stood -- so the Legion keeps working even as it's whittled down
 	if explode_frac > 0.0:
