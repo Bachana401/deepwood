@@ -2297,6 +2297,7 @@ func die() -> void:
 		body_anim.position = Vector2(0, anim_base_y)
 	invincible = false
 	is_dead = false
+	undying_used = false    # a new life re-arms the once-per-life Living Fortress save
 	clear_crowd_control()   # never let a boss CC survive a death
 	update_health_display()
 
