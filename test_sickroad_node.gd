@@ -89,7 +89,15 @@ func _ready() -> void:
 	# ---- Hospital to the WEST becomes the target; villager sets out ----
 	var hosp := _make_hospital_stub(host, base.x)
 	check("the nearest operational Hospital is found", npc._nearest_hospital() == hosp)
-	check("a wounded villager sets out for the Hospital",
+	# DANGER FIRST: no one limps out to the ward mid-siege -- only once the wave is
+	# repelled (live_siege_active flips false) may the wounded go to heal
+	GameState.live_siege_active = true
+	npc.door_target = null
+	npc._care_visit = false
+	check("during a siege, the wounded stay put (no Sick Road)",
+		not npc._try_seek_care() and npc.door_target == null)
+	GameState.live_siege_active = false
+	check("once the danger is gone, a wounded villager sets out for the Hospital",
 		npc._try_seek_care() and npc.door_target == hosp and npc._care_visit)
 
 	# ---- walks toward it ----

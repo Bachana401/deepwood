@@ -542,7 +542,7 @@ func _physics_process(delta: float) -> void:
 	# THE SICK ROAD: a wounded villager breaks off for the nearest Hospital.
 	# Fleeing always wins -- a threat mid-trek cancels the trip; otherwise, when
 	# idle and hurt, set out (this sets door_target, and the branch below walks it).
-	if _care_visit and is_fleeing():
+	if _care_visit and (is_fleeing() or GameState.live_siege_active):
 		_cancel_care()
 	elif door_target == null and not is_in_building and not is_fleeing():
 		_try_seek_care()
@@ -1077,7 +1077,10 @@ func _nearest_hospital() -> Node:
 # one started. With no operational Hospital it does nothing (the slow passive
 # regen does what it can).
 func _try_seek_care() -> bool:
-	if _care_visit or is_in_building or not _is_wounded():
+	# only once the DANGER has passed: no villager limps out to the ward mid-siege
+	# -- they hide until the wall's defenders and the player clear the wave (and
+	# live_siege_active flips false the instant the last raider falls)
+	if _care_visit or is_in_building or GameState.live_siege_active or not _is_wounded():
 		return false
 	var hosp := _nearest_hospital()
 	if hosp == null:
