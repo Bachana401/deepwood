@@ -60,6 +60,13 @@ func _ready() -> void:
 	GameState.seen_failed_escape = false
 	GameState.adventurers["adv_wren"]["station"] = "wall"
 	GameState.adventurers["adv_castor"]["dead"] = false
+	# GameState is an autoload that survives Quit-to-Menu, so transient run-flags
+	# from the pre-menu session must NOT leak into the continued game (a quit
+	# inside a dungeon / mid-Harvest once left these set, disabling live sieges /
+	# soft-locking the finale). load_game must clear them.
+	GameState.in_dungeon = true
+	GameState.harvest_at_home = true
+	GameState.feast_glow = true
 	GameState.load_game()
 	if GameState.has_method("apply_save_to_player"):
 		GameState.apply_save_to_player(p)
@@ -76,6 +83,8 @@ func _ready() -> void:
 		str(GameState.adventurers["adv_wren"]["station"]) == "house")
 	check("a DEAD adventurer stays dead through the trip -- permadeath is sacred",
 		bool(GameState.adventurers["adv_castor"]["dead"]))
+	check("Continue clears the transient run-flags (no leak from a quit-to-menu)",
+		not GameState.in_dungeon and not GameState.harvest_at_home and not GameState.feast_glow)
 	if not sena.is_empty():
 		var sena2 = GameState.find_villager_by_id("sena_ward")
 		check("quest progress survives (JSON floats cast back cleanly)",

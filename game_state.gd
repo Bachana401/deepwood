@@ -386,6 +386,9 @@ func add_xp(amount: int) -> void:
 	player_xp += boosted
 	var leveled := false
 	while player_xp >= xp_to_next_level():
+		if player_level >= PLAYER_LEVEL_CAP:
+			player_xp = 0   # the counter must never tick past the cap, even on a huge grant
+			break
 		player_xp -= xp_to_next_level()
 		player_level += 1
 		skill_points += 1
@@ -981,9 +984,14 @@ func remove_building(bname: String) -> void:
 			v["role_key"] = ""
 			v["role_title"] = ""
 			freed += 1
-	# kids schooled here lose their desk too (the School is gone)
-	if bname == "School":
-		school_enrollments.clear()
+	# School students AND Barracks recruits share school_enrollments (each tagged
+	# with its enrollment's role_key). Clear only THIS building's trainees -- razing
+	# the School must not wipe Barracks recruits, and razing the Barracks must not
+	# leave recruits training a hall that no longer stands. (.keys() is a copy, so
+	# erasing mid-iteration is safe.)
+	for vid in school_enrollments.keys():
+		if str(school_enrollments[vid].get("role_key", "School")) == bname:
+			school_enrollments.erase(vid)
 	log_event("village", "%s was cleared away — its ground stands empty now." % bname)
 	if freed > 0:
 		log_event("village", "%d worker%s laid off — the %s no longer stands." % [freed, "s" if freed != 1 else "", bname])
@@ -1671,6 +1679,8 @@ func village_defense_power() -> float:
 	# nightly defense is the adventurers and whatever warriors it has raised
 	var power = SIEGE_DEF_WIZARD if orin_arrived() else 0.0
 	for v in rescued_villagers:
+		if v.get("role_title", "") == "Recruit":
+			continue   # still in training -- doesn't fight yet (matches warrior_count)
 		if v.get("stat_name", "") == "Warrior" or v.get("role_key", "") == "Barracks":
 			# 7.3: the on-shift holds the wall at full worth; the off-shift
 			# scrambles from their bunks at half
@@ -2915,6 +2925,8 @@ func generate_passive_income() -> void:
 			var rk := str(villager.get("role_key", ""))
 			if rk == "" or rk == "Government" or not is_building_operational(rk):
 				continue
+			if school_enrollments.has(str(villager.get("id", ""))):
+				continue   # trainees aren't taxable working employees yet
 			var share := TAX_PER_EMPLOYED * building_output_multiplier(rk)
 			if villager.get("bond", false):
 				share *= BOND_INCOME_MULT
@@ -3329,7 +3341,9 @@ func tick_wages(hours_passed: float) -> void:
 	wage_accum_hours -= 24.0
 	var staff := []
 	for v in rescued_villagers:
-		if str(v.get("role_key", "")) != "":
+		# a School student / Barracks recruit isn't a working, waged employee yet
+		# -- they're IN school_enrollments, training toward their role
+		if str(v.get("role_key", "")) != "" and not school_enrollments.has(str(v.get("id", ""))):
 			staff.append(v)
 	if staff.is_empty():
 		return
@@ -4627,6 +4641,17 @@ func load_game() -> Dictionary:
 		game_hours = float(parsed.get("game_hours", 0.0))
 		hours_until_next_siege = float(parsed.get("hours_until_next_siege", SIEGE_FIRST_HOURS))
 		live_siege_active = false
+		# Continue loads you standing in the VILLAGE -- but GameState is an autoload
+		# that survives Quit-to-Menu, so transient run-flags from the pre-menu
+		# session leak in (reset_for_new_game clears these; load_game must too).
+		# Without this, quitting inside a dungeon left in_dungeon=true (live sieges
+		# silently resolved off-screen, arrival suppressed); quitting mid-Harvest
+		# left harvest_at_home/feast_glow set (finale soft-lock / morale pinned 100).
+		in_dungeon = false
+		harvest_at_home = false
+		feast_glow = false
+		_warned_no_food = false
+		_warned_low_morale = false
 		# start the village-clock baseline at the loaded time so the first
 		# tick after loading doesn't see a giant false "hours passed".
 		village_last_hours_elapsed = game_hours
@@ -4821,6 +4846,7 @@ func remove_villager_by_id(villager_id: String) -> void:
 			death_pos = npc.global_position
 			break
 	villager_rot.erase(villager_id)
+	villager_hp.erase(villager_id)   # clear HP too, or dead ids pile up in the save
 	for entry in rescued_villagers:
 		if entry.get("id") == villager_id:
 			rescued_villagers.erase(entry)
