@@ -1926,7 +1926,12 @@ func is_building_operational(building_key: String) -> bool:
 const FOOD_PER_VILLAGER_PER_DAY := 1.0       # everyone eats this much per in-game day
 const FOOD_PER_FARMER_PER_DAY := 6.0         # each farm worker feeds this many villagers
 const FOOD_PER_FISHER_PER_DAY := 4.0        # the sea never has a bad harvest, but feeds fewer per hand
-const FOOD_DAYS_CAP := 4.0                   # the larder holds at most this many days of food
+const FOOD_DAYS_CAP := 5.0                   # the larder holds at most this many days of food
+# ^ 5, not 4: the opening larder IS this cap (village_food starts at food_capacity),
+# so a fresh 3-soul town with nobody working must survive PAST 5 untouched days
+# before hunger takes anyone (a new player's learning runway, per the balance sim's
+# S1). A 4-day larder + the ~1-day morale-crash cascade landed the first loss at
+# exactly day 5 -- a hair short. One more day of pantry gives the intended grace.
 const FOOD_MANUAL_HARVEST_YIELD := 4.0       # food produced by one hand-harvest action
 const FOOD_STARVE_GRACE_HOURS := 30.0        # empty larder must persist this long before HP drains
 const FOOD_STARVE_HP_DRAIN_PER_HOUR := 5.0   # then hunger eats HP (x _despair_rate, staggered)
