@@ -722,6 +722,11 @@ func _check_arrival_talk() -> void:
 	play_arrival_talk(pl)
 
 func play_arrival_talk(pl: Node) -> void:
+	# clear the pending flag up front: the live path (the fight) arms it then
+	# calls straight in, and _check_arrival_talk runs again the instant the
+	# dialogue unpauses -- without this the whole trap/reveal/oath/tutorial chain
+	# (and _spawn_reveal_survivors + tutorial_begin) replayed a second time.
+	_arrival_talk_pending = false
 	GameState.seen_arrival_talk = true   # delivered exactly once, survives saves
 	# WITH the adventurer: the nearest defender steps to the player's side for
 	# the scene, so the words are exchanged between people, not thin air.

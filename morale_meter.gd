@@ -18,7 +18,6 @@ const BAR_H := 12.0
 var fill: ColorRect = null
 var label: Label = null
 var glance: Label = null
-var tab_open := false
 var cur_morale := 50
 
 func _ready() -> void:
@@ -58,23 +57,21 @@ func _ready() -> void:
 	add_child(glance)
 	visible = false
 
-# Toggle alongside the inventory/equipment panels on TAB.
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("toggle_inventory"):
-		tab_open = not tab_open
-		refresh()
-
 func _process(_delta: float) -> void:
-	if tab_open:
-		refresh()
+	refresh()
 
 func refresh() -> void:
 	if not is_instance_valid(fill):
 		return
-	# hidden until the town is fully built, then only while TAB is open --
+	# The meter mirrors the ACTUAL inventory panel rather than tracking its own
+	# TAB flag -- otherwise closing the bag by any other means (the X button, Esc)
+	# left it stranded on screen, since only a TAB press cleared the old flag.
+	var inv := get_tree().get_first_node_in_group("inventory_ui")
+	var bag_open: bool = inv != null and inv.visible
+	# hidden until the town is fully built, then only while the bag is open --
 	# and only when the village is KNOWABLE (at home, or Telepathy): the
 	# fog rule means the meter is something you check by being there
-	visible = GameState.morale_meter_unlocked and tab_open and GameState.village_info_available()
+	visible = GameState.morale_meter_unlocked and bag_open and GameState.village_info_available()
 	if not visible:
 		return
 	cur_morale = GameState.village_morale()

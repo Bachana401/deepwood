@@ -151,6 +151,7 @@ func _tick_spike() -> void:
 				_boom()
 				if _player_over(p, span * 0.5, 46.0):
 					_hit(p, damage, 40.0, 9.0)
+					_hit_cd = 0.4   # or the "up" re-step check double-hits next frame
 		"up":
 			_spikes.modulate = Color(1, 1, 1, 1)
 			_spikes.position.y = -24.0

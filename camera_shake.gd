@@ -10,6 +10,13 @@ func shake(strength: float, duration: float) -> void:
 func _process(delta: float) -> void:
 	if shake_timer > 0:
 		shake_timer -= delta
-		offset = Vector2(randf_range(-shake_strength, shake_strength), randf_range(-shake_strength, shake_strength))
+		if shake_timer <= 0:
+			# the shake is over -- clear BOTH, or max() would ratchet every future
+			# shake up to the strongest ever requested (a stray boss-strength jitter
+			# on every little hit for the rest of the session)
+			shake_strength = 0.0
+			offset = Vector2.ZERO
+		else:
+			offset = Vector2(randf_range(-shake_strength, shake_strength), randf_range(-shake_strength, shake_strength))
 	elif offset != Vector2.ZERO:
 		offset = Vector2.ZERO

@@ -99,5 +99,11 @@ func _choose(cb: Callable) -> void:
 		cb.call()
 
 # Esc / the shared close key dismisses the prompt as "no choice made".
+# esc_is_open() is REQUIRED: pause_menu.close_open_windows() only calls esc_close
+# on group members that report open -- without it, Esc fell through to toggling
+# the pause menu behind this modal and desynced the pause state.
+func esc_is_open() -> bool:
+	return true
+
 func esc_close() -> void:
 	_choose(Callable())
