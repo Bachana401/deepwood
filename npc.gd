@@ -534,6 +534,14 @@ func _physics_process(delta: float) -> void:
 	# ...and anything merely SEEN coming sends them running (flee on sight)
 	_tick_flee_on_sight(delta)
 
+	# THE SICK ROAD: a wounded villager breaks off for the nearest Hospital.
+	# Fleeing always wins -- a threat mid-trek cancels the trip; otherwise, when
+	# idle and hurt, set out (this sets door_target, and the branch below walks it).
+	if _care_visit and is_fleeing():
+		_cancel_care()
+	elif door_target == null and not is_in_building and not is_fleeing():
+		_try_seek_care()
+
 	# En route to a building visit: march straight to the door, then slip in.
 	if door_target != null:
 		if not is_instance_valid(door_target):
@@ -996,7 +1004,7 @@ func tick_building_visits() -> void:
 	while not visit_times_this_cycle.is_empty() and cycle_elapsed_hours >= visit_times_this_cycle[0]:
 		visit_times_this_cycle.pop_front()
 		visit_due = true
-	if visit_due:
+	if visit_due and not _care_visit:   # a Sick Road trip outranks a routine visit
 		var target = pick_visit_building()
 		if target:
 			enter_building_node(target)
@@ -1017,6 +1025,8 @@ func pick_visit_building() -> Node:
 
 var current_visit_building: Node = null
 var door_target: Node = null   # building we're walking to before slipping inside
+var _care_visit := false       # true while this trip is a Sick Road walk to the Hospital
+const CARE_HP_THRESHOLD := 0.5 # wounded below half health -> break off and seek the Hospital
 
 # A visit now starts by WALKING to the building's door (see the door_target
 # branch in _physics_process); the actual disappearance happens on arrival in
@@ -1025,11 +1035,57 @@ func enter_building_node(building: Node) -> void:
 	current_visit_building = building
 	door_target = building
 
+# --- THE SICK ROAD (expansion 2026-07-24) --------------------------------------
+# A wounded villager breaks off and WALKS to the nearest operational Hospital to
+# be treated, then returns to life. The cost is the walk itself: a Hospital near
+# where people get hurt (the Barracks, the homes) means quick recovery; one
+# across town means a long, exposed trek. Reuses the door_target walk-and-enter
+# rail; healing lands on arrival, in _complete_enter.
+func _is_wounded() -> bool:
+	return GameState.get_villager_hp(villager_id) < GameState.VILLAGER_MAX_HP * CARE_HP_THRESHOLD
+
+func _nearest_hospital() -> Node:
+	var best: Node = null
+	var best_d := 1.0e12
+	for h in get_tree().get_nodes_in_group("building_role_Hospital"):
+		if is_instance_valid(h) and h.has_method("is_operational") and h.is_operational():
+			var d: float = absf(h.global_position.x - global_position.x)
+			if d < best_d:
+				best_d = d
+				best = h
+	return best
+
+# Begin a Sick Road trip if hurt and a working Hospital stands. Returns true if
+# one started. With no operational Hospital it does nothing (the slow passive
+# regen does what it can).
+func _try_seek_care() -> bool:
+	if _care_visit or is_in_building or not _is_wounded():
+		return false
+	var hosp := _nearest_hospital()
+	if hosp == null:
+		return false
+	current_visit_building = hosp
+	door_target = hosp
+	_care_visit = true
+	return true
+
+func _cancel_care() -> void:
+	_care_visit = false
+	door_target = null
+	current_visit_building = null
+
 func _complete_enter() -> void:
 	var building = door_target
+	var was_care := _care_visit
+	_care_visit = false
 	door_target = null
 	is_in_building = true
 	hours_until_exit = randf_range(VISIT_MIN_HOURS, VISIT_MAX_HOURS)
+	# Sick Road: arriving wounded at the Hospital IS the treatment. Step 1 heals
+	# to full on arrival (absent hp == full health); a doctor-scaled, over-time
+	# version comes in a later step.
+	if was_care:
+		GameState.villager_hp.erase(villager_id)
 	if building and is_instance_valid(building) and building.has_method("play_door_anim"):
 		building.play_door_anim()
 	visible = false
