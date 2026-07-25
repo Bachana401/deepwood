@@ -65,6 +65,21 @@ func _ready() -> void:
 	GameState.villager_hp["sick_test"] = 20.0
 	check("below half health, the villager IS wounded", npc._is_wounded())
 
+	# ---- Step 3 polish: a wounded villager WEARS the hurt (pale tint) ----
+	# (isolate the wound: rot's grey pulse legitimately outranks it, so clear any
+	# rot the bare-scenario corruption tick may have opened on this test villager)
+	GameState.villager_rot.erase("sick_test")
+	npc.apply_despair_visual()
+	check("a wounded villager wears a hurt tint",
+		npc.body_gfx != null and npc.body_gfx.modulate.is_equal_approx(Color(0.95, 0.78, 0.78)),
+		str(npc.body_gfx.modulate) if npc.body_gfx else "no body_gfx")
+	GameState.villager_hp.erase("sick_test")
+	GameState.villager_rot.erase("sick_test")
+	npc.apply_despair_visual()
+	check("...and the colour returns once mended",
+		npc.body_gfx != null and npc.body_gfx.modulate.is_equal_approx(Color(1, 1, 1)))
+	GameState.villager_hp["sick_test"] = 20.0   # re-wound for the walk that follows
+
 	# ---- no Hospital -> no trip (graceful fallback) ----
 	npc.door_target = null
 	npc._care_visit = false
@@ -133,6 +148,11 @@ func _ready() -> void:
 	npc._tick_treatment(1.0)
 	check("a razed Hospital breaks off treatment (patient discharged)",
 		not npc.is_in_building and not npc._under_treatment)
+
+	# ---- Step 3 polish: the feature wires visible feedback ----
+	var src := FileAccess.open("res://npc.gd", FileAccess.READ).get_as_text()
+	check("the Hospital shows floating care feedback", src.contains("FloatingText.spawn_word"))
+	check("wounded villagers limp on the Sick Road", src.contains("LIMPS") and src.contains("bad leg drags"))
 
 	npc.queue_free()
 	printerr("test_sickroad : RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)

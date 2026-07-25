@@ -486,6 +486,11 @@ func apply_despair_visual() -> void:
 			body_gfx.modulate = Color(0.72, 0.76, 0.8)   # grey, wasting away
 	elif body_gfx and body_gfx.modulate != Color(1, 1, 1):
 		body_gfx.modulate = Color(1, 1, 1)               # colour returns once fed
+	# THE SICK ROAD: a hurt villager wears it -- a pale, blood-drained tint laid
+	# over the normal look (the rot pulse above still wins) so the wounded read at
+	# a glance as they limp toward the Hospital, and lose it once mended.
+	if body_gfx and _is_wounded():
+		body_gfx.modulate = Color(0.95, 0.78, 0.78)
 
 # Called every frame. Bar is shown while a recent-hit reveal is counting down,
 # or permanently (pulsing red) once HP is in the danger zone.
@@ -554,7 +559,11 @@ func _physics_process(delta: float) -> void:
 				_complete_enter()
 				return
 			direction = 1 if door_dx > 0.0 else -1
-			velocity.x = direction * SPEED
+			# THE SICK ROAD: a wounded villager LIMPS to the Hospital -- slower, the
+			# bad leg barely lifting, with a downward hitch each step, so you can read
+			# the hurt heading for care at a glance.
+			var hurt: bool = _care_visit and _is_wounded()
+			velocity.x = direction * SPEED * (0.6 if hurt else 1.0)
 			# A villager sent to their building keeps whatever walk/idle state the
 			# wander AI last picked, so anyone summoned mid-idle marched to the
 			# door playing their IDLE animation -- sliding along like a statue on
@@ -563,13 +572,15 @@ func _physics_process(delta: float) -> void:
 			if body_gfx:
 				body_gfx.scale.x = direction * body_scale_factor
 			_update_villager_anim()
-			walk_anim_t += delta * 9.0
+			walk_anim_t += delta * (5.5 if hurt else 9.0)
 			var door_swing = sin(walk_anim_t)
 			if l_leg:
-				l_leg.rotation = door_swing * 0.5
+				l_leg.rotation = door_swing * (0.25 if hurt else 0.5)   # bad leg drags
 				r_leg.rotation = -door_swing * 0.5
 				l_arm.rotation = -door_swing * 0.42
 				r_arm.rotation = door_swing * 0.42
+			if body_gfx:
+				body_gfx.position.y = 18.0 * body_scale_factor + (absf(sin(walk_anim_t)) * 2.4 * body_scale_factor if hurt else 0.0)
 			move_and_slide()
 			return
 
@@ -1095,6 +1106,8 @@ func _tick_treatment(hours_passed: float) -> void:
 	if hp >= GameState.VILLAGER_MAX_HP:
 		GameState.villager_hp.erase(villager_id)   # made whole -> discharged
 		_under_treatment = false
+		if b and is_instance_valid(b):
+			FloatingText.spawn_word(b.get_parent(), b.global_position + Vector2(0.0, -92.0), "♥", Color(0.72, 1.0, 0.78))
 		exit_building()
 		return
 	GameState.villager_hp[villager_id] = hp
@@ -1115,6 +1128,9 @@ func _complete_enter() -> void:
 	# how well you built and staffed the Hospital.
 	if was_care:
 		_under_treatment = true
+		# a care symbol rises over the ward as the patient is admitted
+		if building and is_instance_valid(building):
+			FloatingText.spawn_word(building.get_parent(), building.global_position + Vector2(0.0, -92.0), "✚", Color(0.6, 0.95, 0.72))
 	if building and is_instance_valid(building) and building.has_method("play_door_anim"):
 		building.play_door_anim()
 	visible = false
