@@ -44,6 +44,10 @@ var _blink := 0.0
 var _pointer: SpeakerIndicator = null   # the chevron hovering over the live speaker
 
 static func play(host: Node, script_lines: Array, on_finished := Callable()) -> void:
+	# a deferred opening beat can fire during a scene swap, when host has left the tree and
+	# host.get_tree() is null -- there's nowhere to mount the box, so abort quietly.
+	if host == null or not host.is_inside_tree():
+		return
 	if script_lines.is_empty():
 		if on_finished.is_valid():
 			on_finished.call()

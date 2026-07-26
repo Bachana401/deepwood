@@ -58,6 +58,10 @@ func _ready() -> void:
 	call_deferred("_recompute_bounds")
 
 func _recompute_bounds() -> void:
+	# _ready schedules this via call_deferred; a scene swap (village -> underground) can
+	# free us before it fires, leaving get_tree() null. Bail if we're no longer in the tree.
+	if not is_inside_tree():
+		return
 	var bs = get_tree().get_nodes_in_group("building")
 	if bs.is_empty():
 		return

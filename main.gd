@@ -328,6 +328,11 @@ func _maybe_begin_feast() -> void:
 # Summarises any sieges that resolved off-screen while the player was in a
 # dungeon (see GameState.resolve_siege_offline) and clears the tally.
 func show_away_report() -> void:
+	# guard BEFORE consuming the report: this runs on the return-to-village flow, which can
+	# fire as the scene is torn down (get_tree() null). Don't eat the report if we can't show
+	# it -- leave it to be reported once we're properly in the tree.
+	if not is_inside_tree():
+		return
 	var report = GameState.consume_away_report()
 	var stack = get_tree().get_first_node_in_group("notification_stack")
 	if not stack:
