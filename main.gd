@@ -636,6 +636,13 @@ func stage_arrival_battle(wall_x: float = -1.0) -> void:
 		wall_x = _west_wall_x()
 	var road_x: float = wall_x - 620.0
 	_arrival_staged = true
+	# ARM THE APPROACH TRIGGER HERE (softlock fix 2026-07-25). On a fresh game the
+	# prologue calls arm_arrival_battle(); on a CONTINUE the prologue never replays,
+	# and staging turns on the shield (arrival_battle_active), which then blocked
+	# _check_arrival_trigger from ever re-arming -- so activate_arrival_combat never
+	# fired and the raiders stayed theatrical=true (invincible) forever. Arming the
+	# moment we stage makes the reload path trigger the fight exactly like a new game.
+	_arrival_armed = true
 	_arrival_left = 4
 	GameState.begin_arrival_shield()   # nobody dies in the teaching wave
 	for i in range(4):
@@ -695,6 +702,9 @@ func _on_arrival_raider_died() -> void:
 		return
 	GameState.seen_arrival_battle = true
 	GameState.arrival_battle_active = false   # from here on, they are mortal
+	# bank the win at once (softlock fix 2026-07-25): even if the player quits during
+	# the reveal talk that follows, Continue must not replay the (now-won) wave.
+	GameState.autosave("the first wave broke")
 	# release the trio from the road post we pinned them to for the staged fight,
 	# so they drift back to their proper stations (home_x = 0 -> re-resolves)
 	for a in get_tree().get_nodes_in_group("adventurer"):

@@ -1203,6 +1203,12 @@ func tutorial_begin() -> void:
 	tutorial_step = 0
 	# the on-screen card (tutorial_overlay.gd) carries the live instructions now --
 	# no toast needed to start, it appears the moment the step goes non-negative
+	# BANK THE OPENING (softlock fix 2026-07-25). Until now nothing saved when the
+	# opening finished, so a player who beat the first wave and quit before the next
+	# 180s autosave came back to a PRE-arrival save -- Continue replayed the arrival
+	# (and its raiders were invincible). Writing the save here means Continue resumes
+	# in the village with the opening done: no re-fight, no repeated dialogue.
+	autosave("the oath sworn")
 
 # Called when a building is raised. If it's what the current step wants, tick it
 # and point at the next -- or close the tutorial on the last.
