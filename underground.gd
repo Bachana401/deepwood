@@ -61,6 +61,7 @@ var _chasm: FastNoiseLite               # vertical chasms / drops
 var _ore: FastNoiseLite                 # mineral vein pockets
 var _loaded := {}                      # Vector2i(chunk) -> true
 var _edits := {}                       # Vector2i(cell) -> kind (AIR = dug)
+var _flags := {}                       # puzzle/lever state: id(String) -> true (persisted)
 var _hp := {}
 var _cur_chunk := Vector2i(999999, 999999)
 var _entry := Vector2.ZERO
@@ -252,6 +253,20 @@ func _populate_chunk(c: Vector2i) -> void:
 			if mc != null and _player != null \
 					and _map.to_global(_map.map_to_local(mc)).distance_to(_player.global_position) > 380.0:
 				nodes.append(_spawn_mob(mc, biome, rng))
+	# SPECIAL SET-PIECES (rare): a lever-vault PUZZLE, a crystal GEODE, a mushroom
+	# GROVE -- discovery + variety as you explore.
+	if rng.randf() < 0.06:
+		var vc = _find_floor_cell(c, rng)
+		if vc != null:
+			nodes.append_array(_spawn_vault(vc, biome, rng))
+	if rng.randf() < 0.05:
+		var gc = _find_floor_cell(c, rng)
+		if gc != null:
+			nodes.append_array(_spawn_geode(gc, biome, rng))
+	if rng.randf() < 0.05:
+		var mgc = _find_floor_cell(c, rng)
+		if mgc != null:
+			nodes.append_array(_spawn_grove(mgc, biome, rng))
 	# FLOOR-DOORS on the true path: one per dungeon level by depth (deeper = higher
 	# floor). The frontier door -- the deepest you can currently enter -- wears a
 	# beacon, so the way down is always clear. Leaving a floor returns you here.
@@ -358,6 +373,151 @@ func _spawn_mob(cell: Vector2i, biome: int, rng: RandomNumberGenerator) -> Node:
 		e.detection_range_current = e.DETECTION_RANGE * sight
 	return e
 
+func _disc(r: float) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	for i in range(16):
+		var a := TAU * float(i) / 16.0
+		pts.append(Vector2(cos(a), sin(a)) * r)
+	return pts
+
+# ── PUZZLE: the lever-vault. A locked treasure chest + a lever a few tiles away;
+# pull the lever (E) to unseal the vault. State persists in _flags. ──────────────
+func _spawn_vault(cell: Vector2i, biome: int, rng: RandomNumberGenerator) -> Array:
+	var out := []
+	var vid := "ugv_%d_%d" % [cell.x, cell.y]
+	var pulled: bool = _flags.has(vid)
+	# the vault chest (ornate, gold; richer loot + a guaranteed gem)
+	var chest := Node2D.new()
+	chest.global_position = _map.to_global(_map.map_to_local(cell)) + Vector2(0, 2)
+	chest.z_index = 8
+	chest.add_to_group("ug_chest")
+	chest.set_meta("chest_id", vid + "_c")
+	chest.set_meta("vault_id", vid)
+	chest.set_meta("opened", GameState.chest_contents.has(vid + "_c"))
+	chest.set_meta("locked", not pulled)
+	var lid := Polygon2D.new()
+	lid.polygon = PackedVector2Array([Vector2(-13, -17), Vector2(13, -17), Vector2(13, -1), Vector2(-13, -1)])
+	lid.color = Color(0.50, 0.38, 0.18)
+	chest.add_child(lid)
+	var band := Polygon2D.new()
+	band.polygon = PackedVector2Array([Vector2(-13, -11), Vector2(13, -11), Vector2(13, -7), Vector2(-13, -7)])
+	band.color = Color(0.96, 0.80, 0.34)
+	chest.add_child(band)
+	if not bool(chest.get_meta("opened")):
+		var loot := []
+		var table: Array = LOOT[clampi(biome, 0, LOOT.size() - 1)]
+		for i in range(rng.randi_range(3, 5)):
+			loot.append(table[rng.randi_range(0, table.size() - 1)])
+		loot.append(ORE_DROP[clampi(biome, 0, ORE_DROP.size() - 1)])
+		chest.set_meta("loot", loot)
+	add_child(chest)
+	out.append(chest)
+	# the lever, on a floor a short way to one side
+	var lc := _floor_near(cell.x + (11 if rng.randf() < 0.5 else -11), cell.y)
+	if lc.x > -9000:
+		var lever := Node2D.new()
+		lever.global_position = _map.to_global(_map.map_to_local(lc))
+		lever.z_index = 8
+		lever.add_to_group("ug_lever")
+		lever.set_meta("vault_id", vid)
+		lever.set_meta("pulled", pulled)
+		var basep := Polygon2D.new()
+		basep.polygon = PackedVector2Array([Vector2(-6, -1), Vector2(6, -1), Vector2(5, -9), Vector2(-5, -9)])
+		basep.color = Color(0.30, 0.30, 0.34)
+		lever.add_child(basep)
+		var handle := Polygon2D.new()
+		handle.name = "Handle"
+		handle.polygon = PackedVector2Array([Vector2(-2, -7), Vector2(2, -7), Vector2(2, -22), Vector2(-2, -22)])
+		handle.color = Color(0.42, 0.82, 0.45) if pulled else Color(0.92, 0.5, 0.2)
+		handle.rotation = 0.7 if pulled else -0.7
+		lever.add_child(handle)
+		var lbl := Label.new()
+		lbl.text = "⚙ pull the lever (E)"
+		lbl.add_theme_font_size_override("font_size", 11)
+		lbl.add_theme_color_override("font_color", Color(0.95, 0.85, 0.5))
+		lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+		lbl.add_theme_constant_override("outline_size", 4)
+		lbl.position = Vector2(-40, -44)
+		lever.add_child(lbl)
+		add_child(lever)
+		out.append(lever)
+	return out
+
+func _pull_lever(lv: Node) -> void:
+	var vid := String(lv.get_meta("vault_id", ""))
+	lv.set_meta("pulled", true)
+	_flags[vid] = true
+	_save()
+	var h = lv.get_node_or_null("Handle")
+	if h != null:
+		h.rotation = 0.7
+		h.color = Color(0.42, 0.82, 0.45)
+	for ch in get_tree().get_nodes_in_group("ug_chest"):
+		if is_instance_valid(ch) and String(ch.get_meta("vault_id", "")) == vid:
+			ch.set_meta("locked", false)
+			for c in ch.get_children():
+				if c is Polygon2D:
+					c.color = c.color.lightened(0.12)
+	GameState.notify("⚙ A grind of stone — the vault unseals nearby.")
+
+# ── SPECIAL POCKET: a crystal geode -- glowing shards around a treasure chest. ──
+func _spawn_geode(cell: Vector2i, biome: int, rng: RandomNumberGenerator) -> Array:
+	var out := []
+	var node := Node2D.new()
+	node.global_position = _map.to_global(_map.map_to_local(cell))
+	node.z_index = 7
+	var gem: Color = ORE_GEM[clampi(biome, 0, ORE_GEM.size() - 1)]
+	var add_mat := CanvasItemMaterial.new()
+	add_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var glow := Polygon2D.new()
+	glow.polygon = _disc(38.0)
+	glow.color = Color(gem.r, gem.g, gem.b, 0.13)
+	glow.material = add_mat
+	glow.position = Vector2(0, -14)
+	node.add_child(glow)
+	for i in range(rng.randi_range(5, 8)):
+		var sh := Polygon2D.new()
+		var wdt := rng.randf_range(2.5, 5.0)
+		var hh := rng.randf_range(9.0, 22.0)
+		sh.polygon = PackedVector2Array([Vector2(-wdt, 0), Vector2(wdt, 0), Vector2(wdt * 0.4, -hh), Vector2(-wdt * 0.4, -hh)])
+		sh.color = gem.lightened(0.18)
+		sh.position = Vector2(rng.randf_range(-30, 30), -1)
+		sh.rotation = rng.randf_range(-0.4, 0.4)
+		node.add_child(sh)
+	add_child(node)
+	out.append(node)
+	out.append(_spawn_chest(cell, biome, rng))   # treasure amid the crystals
+	return out
+
+# ── SPECIAL POCKET: a glowing mushroom grove -- pure atmosphere/variety. ────────
+func _spawn_grove(cell: Vector2i, biome: int, rng: RandomNumberGenerator) -> Array:
+	var node := Node2D.new()
+	node.global_position = _map.to_global(_map.map_to_local(cell))
+	node.z_index = 7
+	var add_mat := CanvasItemMaterial.new()
+	add_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var glowc := Color(0.42, 0.95, 0.72)
+	for i in range(rng.randi_range(5, 8)):
+		var mx := rng.randf_range(-42.0, 42.0)
+		var stem := Polygon2D.new()
+		stem.polygon = PackedVector2Array([Vector2(-1.5, 0), Vector2(1.5, 0), Vector2(1.5, -8), Vector2(-1.5, -8)])
+		stem.color = Color(0.86, 0.86, 0.72)
+		stem.position = Vector2(mx, 0)
+		node.add_child(stem)
+		var cap := Polygon2D.new()
+		cap.polygon = PackedVector2Array([Vector2(-5, -8), Vector2(5, -8), Vector2(3, -14), Vector2(-3, -14)])
+		cap.color = glowc
+		cap.position = Vector2(mx, 0)
+		node.add_child(cap)
+		var g := Polygon2D.new()
+		g.polygon = _disc(10.0)
+		g.color = Color(glowc.r, glowc.g, glowc.b, 0.14)
+		g.material = add_mat
+		g.position = Vector2(mx, -10)
+		node.add_child(g)
+	add_child(node)
+	return [node]
+
 func _try_loot_chest() -> bool:
 	if _player == null:
 		return false
@@ -366,6 +526,9 @@ func _try_loot_chest() -> bool:
 			continue
 		if _player.global_position.distance_to(ch.global_position) > 62.0:
 			continue
+		if bool(ch.get_meta("locked", false)):
+			GameState.notify("🔒 Locked. Find the lever that opens this vault.")
+			return true
 		var loot: Array = ch.get_meta("loot", [])
 		var got := {}
 		for id in loot:
@@ -478,19 +641,30 @@ func _load_save() -> void:
 		return
 	var f := FileAccess.open(SAVE_PATH, FileAccess.READ)
 	var data = JSON.parse_string(f.get_as_text())
-	if typeof(data) == TYPE_DICTIONARY:
-		for k in data.keys():
+	if typeof(data) != TYPE_DICTIONARY:
+		return
+	# new format {"edits":{...},"flags":{...}}; old format was the edits dict itself
+	var edits = data.get("edits", data)
+	if typeof(edits) == TYPE_DICTIONARY:
+		for k in edits.keys():
 			var parts: PackedStringArray = String(k).split(",")
 			if parts.size() == 2:
-				_edits[Vector2i(int(parts[0]), int(parts[1]))] = int(data[k])
+				_edits[Vector2i(int(parts[0]), int(parts[1]))] = int(edits[k])
+	var flags = data.get("flags", {})
+	if typeof(flags) == TYPE_DICTIONARY:
+		for k in flags.keys():
+			_flags[String(k)] = true
 
 func _save() -> void:
-	var out := {}
+	var e := {}
 	for cell in _edits.keys():
-		out["%d,%d" % [cell.x, cell.y]] = _edits[cell]
+		e["%d,%d" % [cell.x, cell.y]] = _edits[cell]
+	var fl := {}
+	for id in _flags.keys():
+		fl[id] = 1
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f != null:
-		f.store_string(JSON.stringify(out))
+		f.store_string(JSON.stringify({"edits": e, "flags": fl}))
 
 func _exit_tree() -> void:
 	_save()
@@ -636,6 +810,12 @@ func _unhandled_input(e: InputEvent) -> void:
 				and _player.global_position.distance_to(_exit_area.global_position) < 70.0:
 			_return_to_village()
 			return
+		if _player != null:
+			for lv in get_tree().get_nodes_in_group("ug_lever"):
+				if is_instance_valid(lv) and not bool(lv.get_meta("pulled", false)) \
+						and _player.global_position.distance_to(lv.global_position) < 52.0:
+					_pull_lever(lv)
+					return
 		_try_loot_chest()
 
 func _return_to_village() -> void:
