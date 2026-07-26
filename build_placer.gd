@@ -17,6 +17,7 @@ const HOUSE_PALETTES = [
 
 var mode := ""              # "" | "build" | "delete"
 var _confirming := false    # a YES/NO panel is open -- let the BUTTONS get the click
+var _confirm_panel: Node = null   # tracked so _clear() can tear down a stale delete dialog
 var build_name := ""
 var build_w := 120.0
 var ghost: ColorRect = null
@@ -66,6 +67,11 @@ func _clear() -> void:
 	if hint != null:
 		hint.queue_free()
 		hint = null
+	# a delete confirm left open when a new build/delete starts would linger, still wired to
+	# the OLD target -- clicking its YES then deletes the wrong building. Tear it down.
+	if _confirm_panel != null and is_instance_valid(_confirm_panel):
+		_confirm_panel.queue_free()
+	_confirm_panel = null
 
 func _process(_d: float) -> void:
 	if mode != "build" or ghost == null:
@@ -112,6 +118,7 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 	elif event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
 		_clear()
+		get_viewport().set_input_as_handled()   # else the same Esc also toggles the pause menu
 
 func _try_place(x: float) -> void:
 	var p = get_tree().get_first_node_in_group("player")
@@ -322,6 +329,7 @@ func _confirm_delete(target: Node) -> void:
 	msg.add_theme_font_size_override("font_size", 15)
 	msg.position = Vector2(20, 22); msg.size = Vector2(420, 60)
 	panel.add_child(msg)
+	_confirm_panel = panel
 	var yes := Button.new()
 	yes.text = "YES, delete it"
 	yes.position = Vector2(40, 108); yes.size = Vector2(170, 34)
@@ -335,10 +343,12 @@ func _confirm_delete(target: Node) -> void:
 		GameState.play_sfx(GameState.SFX_THUD, 1.0)
 		var stack = get_tree().get_first_node_in_group("notification_stack")
 		if stack: stack.show_notification("The %s was cleared away." % label)
+		_confirm_panel = null
 		panel.queue_free()
 		_clear())
 	no.pressed.connect(func() -> void:
 		_confirming = false
+		_confirm_panel = null
 		panel.queue_free())
 
 func _show_hint(text: String) -> void:

@@ -624,7 +624,13 @@ func _physics_process(delta: float) -> void:
 	# En route to a building visit: march straight to the door, then slip in.
 	if door_target != null:
 		if not is_instance_valid(door_target):
-			door_target = null
+			# the target building was freed mid-walk (e.g. the Hospital was razed). Clear
+			# the care flag too, else _try_seek_care stays blocked and the villager never
+			# seeks another ward until an unrelated flee/siege resets it.
+			if _care_visit:
+				_cancel_care()
+			else:
+				door_target = null
 		else:
 			if not is_on_floor():
 				velocity.y += GRAVITY * delta

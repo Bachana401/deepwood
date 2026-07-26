@@ -1972,6 +1972,11 @@ func consume_away_report() -> Dictionary:
 # A building generates income / functions only once it is FULLY built (all 3
 # construction stages done). A ruined or half-built building does nothing.
 func is_building_operational(building_key: String) -> bool:
+	# a player-deleted hall stays down until rebuilt: remove_building never zeroes the
+	# stage, so without this a deleted Bar/Blacksmith/etc. still inflates morale, fills
+	# role slots and passes the finale gate. removed_buildings is erased on rebuild.
+	if removed_buildings.has(building_key):
+		return false
 	return int(building_stage.get(building_key, 0)) >= TOTAL_BUILD_STAGES
 
 # --- Food & hunger (Step 1: the hunger loop) ---
@@ -4330,6 +4335,7 @@ func reset_for_new_game() -> void:
 	placed_walls = []
 	tutorial_step = -1
 	_family_cycle_accum = 0.0
+	_doctor_decay_accum = 0.0    # was missing here -> a stale value carried into a New Game
 	village_log = []
 	log_unread = 0
 	wage_accum_hours = 0.0
@@ -4510,6 +4516,10 @@ func save_game(player: Node) -> void:
 		"village_log": village_log,
 		"log_unread": log_unread,
 		"wage_accum_hours": wage_accum_hours,
+		# persist the passive-birth + doctor-price timers so a full quit->Continue doesn't
+		# silently discard progress toward the next cottage birth / price decay.
+		"family_cycle_accum": _family_cycle_accum,
+		"doctor_decay_accum": _doctor_decay_accum,
 		"villager_rot": villager_rot,
 		"wanderer": wanderer,
 		"wanderer_next_at_hours": wanderer_next_at_hours,
@@ -4646,6 +4656,8 @@ func load_game() -> Dictionary:
 			village_log = parsed["village_log"]
 		log_unread = int(parsed.get("log_unread", 0))
 		wage_accum_hours = float(parsed.get("wage_accum_hours", 0.0))
+		_family_cycle_accum = float(parsed.get("family_cycle_accum", 0.0))
+		_doctor_decay_accum = float(parsed.get("doctor_decay_accum", 0.0))
 		villager_rot = {}
 		if parsed.has("villager_rot") and parsed["villager_rot"] is Dictionary:
 			for k in parsed["villager_rot"].keys():

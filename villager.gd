@@ -146,8 +146,12 @@ func rescue() -> void:
 	var pl = get_tree().get_first_node_in_group("player")
 	if pl and "inventory" in pl and pl.inventory:
 		var shards := 2 if stat_value >= 5 else 1
-		pl.inventory.add_item("sorrowshard", shards)
-		SpeechText.spawn(self, "+%d Sorrowshard" % shards)
+		var left: int = pl.inventory.add_item("sorrowshard", shards)
+		var got := shards - left
+		if got > 0:
+			SpeechText.spawn(self, "+%d Sorrowshard" % got)
+		if left > 0:
+			GameState.notify("Your bag is full — %d sorrowshard(s) left behind." % left)
 	spawn_world_avatar()
 	# A rescue is hard-won -- bank it NOW. The autosave is otherwise only every 180s
 	# (and on floor-clear), so freeing someone then pressing Continue before that

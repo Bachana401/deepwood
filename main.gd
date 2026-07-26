@@ -251,6 +251,11 @@ func _ready() -> void:
 	add_child(UNDERDARK_SCRIPT.new())
 	generate_village()
 	generate_houses()
+	# A newborn's avatar is normally spawned by the Hospital's child_produced hook, but the
+	# Hospital is optional -- listen here too so a child born with no Hospital still gets a
+	# walking avatar (the handler no-ops when a Hospital exists, so the two never double up).
+	if not GameState.child_produced.is_connected(_on_village_child_born):
+		GameState.child_produced.connect(_on_village_child_born)
 	generate_harvestables()
 	spawn_placed_torches()
 	start_music()
@@ -559,6 +564,18 @@ func spawn_existing_villager_avatars() -> void:
 		npc.villager_id = villager_id
 		npc.global_position = offscreen_spawn(find_avatar_spawn_position(villager.get("role_key", "")))
 		$Village.add_child(npc)
+
+# A newborn with no Hospital to host the birth still needs a world avatar -- else it is an
+# invisible roster entry (counting for population/wages/morale) until the next village
+# reload. building.gd's Hospital hook covers the Hospital case; this covers its absence,
+# guarded so the two never both spawn.
+func _on_village_child_born(child_id: String) -> void:
+	if get_tree().get_first_node_in_group("building_role_Hospital") != null:
+		return
+	var npc = NPC_SCRIPT.new()
+	npc.villager_id = child_id
+	npc.global_position = offscreen_spawn(find_avatar_spawn_position(""))
+	$Village.add_child(npc)
 
 # FORESHADOWING (GAME_BIBLE 9.8): the mid-game taunt -- Orin WANTS you to grow,
 # and once, around the halfway mark, he says so almost plainly. Reads as a

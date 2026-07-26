@@ -1767,6 +1767,10 @@ func on_enemy_killed() -> void:
 func apply_slow(duration: float, factor: float) -> void:
 	# a status-resistance relic cuts the slow's duration
 	var resist = clamp(GameState.get_bonus_total("status_resistance"), 0.0, 0.9)
+	# reset a lapsed slow first, else a strong-but-expired factor sticks onto a later weak
+	# slow for its whole (extended) window.
+	if _now() >= enemy_slow_until:
+		enemy_slow_factor = 1.0
 	enemy_slow_until = max(enemy_slow_until, _now() + duration * (1.0 - resist))
 	enemy_slow_factor = min(enemy_slow_factor, factor)
 
@@ -1793,6 +1797,10 @@ func apply_disorient(duration: float) -> void:
 
 func apply_poison(duration: float, dps: float) -> void:
 	if god_mode or is_dead: return
+	# a lapsed poison must not lend its magnitude to the next: reset first if the prior
+	# poison already expired, else a later WEAK poison inherits an earlier STRONG dps.
+	if _now() >= poison_until:
+		poison_dps = 0.0
 	poison_until = max(poison_until, _now() + _cc_dur(duration))
 	poison_dps = max(poison_dps, dps)
 

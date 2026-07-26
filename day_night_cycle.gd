@@ -380,6 +380,11 @@ func _process(_delta: float) -> void:
 	update_visuals()
 
 func handle_debug_time_input() -> void:
+	# Dev-only: these keys ([ ] \ in the input map) drive the master clock and can rewind
+	# it, which rewinds training/pregnancies/wages via negative hours_passed. A player must
+	# never reach them.
+	if not GameState.dev_mode:
+		return
 	# Debug keys nudge the master clock; time_of_day/total_hours_elapsed follow.
 	if Input.is_action_just_pressed("time_forward"):
 		GameState.skip_hours(1.0)

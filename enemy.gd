@@ -307,6 +307,8 @@ func _retarget(delta: float) -> void:
 	if p != null:
 		player = p
 
+var _base_scale := Vector2.ONE   # configured body scale (archetype/elite) -- restored on respawn
+
 func _ready() -> void:
 	start_x = global_position.x
 	spawn_position = global_position
@@ -326,6 +328,7 @@ func _ready() -> void:
 	preload("res://char_shadow.gd").attach(self, 0.5, SPRITE_GROUND_Y)
 	if is_elite:
 		_become_super_mob()
+	_base_scale = scale   # after archetype + elite scaling: the size respawn() must restore
 
 func update_body_color() -> void:
 	var cr = get_node_or_null("ColorRect")
@@ -609,7 +612,7 @@ func _physics_process(delta: float) -> void:
 			effective_detection_range += WALL_DETECTION_BONUS
 		if instant_aggro:
 			effective_detection_range = INF
-		if player != null and global_position.distance_to(player.global_position) < effective_detection_range:
+		if player != null and is_instance_valid(player) and global_position.distance_to(player.global_position) < effective_detection_range:
 			var dist_to_player = global_position.distance_to(player.global_position)
 			var dx = player.global_position.x - global_position.x
 			var player_above = player.global_position.y < global_position.y - JUMP_SEE_HEIGHT
@@ -694,8 +697,9 @@ func count_nearby_enemies() -> int:
 	return count
 
 func check_bump() -> void:
-	# prey is not always the player (see _pick_prey) -- never assume its API
-	if is_knocked_back or is_attacking or player == null:
+	# prey is not always the player (see _pick_prey) -- never assume its API, and it can
+	# be a villager/adventurer freed on death before the next 0.8s retarget.
+	if is_knocked_back or is_attacking or player == null or not is_instance_valid(player):
 		return
 	if "is_knocked_back" in player and player.is_knocked_back:
 		return
@@ -1416,7 +1420,7 @@ func respawn() -> void:
 	jump_cooldown_remaining = 0.0
 	is_dead = false
 	visible = true
-	scale = Vector2.ONE
+	scale = _base_scale   # not Vector2.ONE: a Bone Golem / elite must keep its bigger body + hitbox
 	$ColorRect.modulate = Color(1, 1, 1, 1)
 	if use_sprite and enemy_sprite != null:
 		enemy_sprite.modulate = Color(1, 1, 1, 1)

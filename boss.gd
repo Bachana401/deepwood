@@ -323,6 +323,14 @@ func tick_statuses(delta: float) -> void:
 		health -= chunk
 		update_health_bar()
 		if health <= 0:
+			# an undivided soul cannot be destroyed by a DoT either: the final Monarch
+			# reforms around a killing tick landed OUTSIDE the wand's mortal window, the
+			# same gate take_damage() enforces -- else ignite/poison bypasses the Soul
+			# Split Wand and ends the finale boss for free.
+			if is_final_monarch() and not in_mortal_window():
+				health = 1
+				update_health_bar()
+				return
 			die()
 # The boss's HP before floor scaling. Stagger armour is measured against this,
 # not against the inflated pool -- see stagger_threshold().
