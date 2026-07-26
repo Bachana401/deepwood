@@ -2777,6 +2777,14 @@ func perform_attack() -> void:
 				best_dx = dx
 		if best != null:
 			best.take_tool_hit(tool_type, self)
+		# TILE-DIG FEEL TEST (2026-07-25): the Miner's Pickaxe also carves the
+		# diggable tile mound in the village -- swing it toward the cursor to dig.
+		# (A throwaway proving patch for the coming Underdark tile mining.)
+		if tool_type == "pickaxe":
+			for mg in get_tree().get_nodes_in_group("minable_ground"):
+				if is_instance_valid(mg) and mg.has_method("mine_toward"):
+					mg.mine_toward(global_position, get_aim_direction(), float(stats.range_offset) + 64.0, 1, self)
+					break
 	elif not GameState.seen_gather_hint:
 		# swinging a plain WEAPON at a tree/rock -- the new player who doesn't know
 		# gathering needs a tool. Teach it ONCE, at the exact moment of confusion, so

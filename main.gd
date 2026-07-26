@@ -282,6 +282,13 @@ func _ready() -> void:
 		add_child(way)
 		way.global_position = Vector2(VILLAGE_START_X - 170.0, VILLAGE_Y)
 		GameState.waystone_home_pos = way.global_position
+	# TILE-DIG FEEL TEST (2026-07-25): a diggable tile mound just east of the
+	# village gate so the Miner's Pickaxe can carve terrain -- a feel test for the
+	# coming Underdark tile mining. Throwaway; remove when the real mining lands.
+	if not GameState.in_dungeon:
+		var dig_patch = preload("res://minable_ground.gd").new()
+		add_child(dig_patch)
+		dig_patch.global_position = Vector2(VILLAGE_START_X + 320.0, VILLAGE_Y)
 	# a quiet objective ticker at the top of the screen -- a new player never has
 	# to guess the next step (it reads GameState.next_objective live)
 	add_child(preload("res://objective_banner.gd").new())
