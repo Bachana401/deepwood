@@ -1,9 +1,13 @@
 extends Node2D
-# TILE-DIG FEEL TEST (2026-07-25): a small mound of diggable tile-terrain dropped
-# into the real village so the Miner's Pickaxe can carve it Terraria-style. This
-# is a throwaway proving patch for the coming Underdark tile-mining rework -- 16px
-# tiles (matched to the 32x48 player), tiered rock, and the pickaxe-power gate.
-# Spawned by main.gd; remove once the real Underdark mining lands.
+# TILE-DIG FEEL TEST (2026-07-25): a diggable tile patch dropped into the CAVE
+# (Underdark) so the Miner's Pickaxe can carve terrain Terraria-style. Only the
+# underground is minable -- never the village. This is a throwaway proving patch
+# for the coming Underdark tile-mining rework: 16px tiles (matched to the 32x48
+# player), tiered rock, and the pickaxe-power gate.
+#
+# It builds DOWNWARD from its origin (the cave floor): the top row is flush with
+# the floor and walkable, so it never blocks the 1-D corridor -- you stand on it
+# and dig DOWN into a pit. Remove once the real Underdark mining lands.
 
 const TILE := 16
 enum { DIRT, STONE, DEEP, OBSID }
@@ -11,8 +15,9 @@ const HARD := {DIRT: 2, STONE: 4, DEEP: 6, OBSID: 9}     # hits to break
 const TIER := {DIRT: 0, STONE: 0, DEEP: 1, OBSID: 2}     # pickaxe grade required
 const NAMES := {DIRT: "Dirt", STONE: "Stone", DEEP: "Deeprock", OBSID: "Obsidian"}
 
-const MW := 22          # mound width in tiles
-const MH := 16          # mound height in tiles
+# set by the spawner before add_child if it wants a different size
+var MW := 24            # patch width  in tiles
+var MH := 14            # patch depth  in tiles
 
 var _map: TileMapLayer
 var _hp := {}
@@ -21,7 +26,8 @@ var _last_msg := 0.0
 func _ready() -> void:
 	add_to_group("minable_ground")
 	_build_tileset()
-	_fill_mound()
+	_fill_patch()
+	_add_hint()
 
 func _build_tileset() -> void:
 	var cols := {DIRT: Color(0.42,0.30,0.18), STONE: Color(0.40,0.41,0.45),
@@ -62,49 +68,63 @@ func _build_tileset() -> void:
 	_map = TileMapLayer.new()
 	_map.tile_set = ts
 	_map.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_map.z_index = 5          # over the drawn cave floor
 	add_child(_map)
 
-func _fill_mound() -> void:
-	# a block sitting ON the ground (origin = ground point): rows go UP from y=-1
-	# (near the ground) to y=-MH (the grassy top). Dirt on top, obsidian core at base.
+func _fill_patch() -> void:
+	# rows go DOWN from y=0 (the floor, walkable) to y=MH-1 (deep). Each layer is a
+	# harder terrain, so digging straight down walks you through the pickaxe gate.
 	for tx in range(-MW / 2, MW / 2):
-		for ty in range(1, MH + 1):
-			var depth_from_top := MH - ty            # 0 at the top row
+		for ty in range(0, MH):
 			var kind := DIRT
-			if depth_from_top >= 12:
+			if ty >= 11:
 				kind = OBSID
-			elif depth_from_top >= 8:
+			elif ty >= 7:
 				kind = DEEP
-			elif depth_from_top >= 3:
+			elif ty >= 3:
 				kind = STONE
-			# obsidian only as a small central core, so most of the base is deeprock
-			if kind == OBSID and (tx < -3 or tx > 2):
+			if kind == OBSID and (tx < -3 or tx > 2):   # obsidian only as a core
 				kind = DEEP
-			_map.set_cell(Vector2i(tx, -ty), 0, Vector2i(kind, 0))
+			_map.set_cell(Vector2i(tx, ty), 0, Vector2i(kind, 0))
 
-# Called by the player's pickaxe swing. Carves the solid tile nearest along the
-# aim within reach, gated by the pickaxe's grade.
+func _add_hint() -> void:
+	var l := Label.new()
+	l.text = "⛏ DIG HERE — swing the Miner's Pickaxe downward"
+	l.add_theme_font_size_override("font_size", 18)
+	l.add_theme_color_override("font_color", Color(0.98, 0.9, 0.55))
+	l.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	l.add_theme_constant_override("outline_size", 6)
+	l.z_index = 20
+	l.position = Vector2(-MW * TILE / 2.0, -46.0)
+	add_child(l)
+
+# Called by the player's pickaxe swing. Carves the nearest solid tile within reach
+# in the aim direction (forgiving -- you don't have to pixel-aim a single tile),
+# gated by the pickaxe's grade.
 func mine_toward(from: Vector2, aim: Vector2, reach_px: float, pick_tier: int, player: Node) -> bool:
 	if _map == null:
 		return false
-	var dir := aim.normalized() if aim.length() > 0.01 else Vector2.RIGHT
-	var best_cell := Vector2i(0, 0)
+	var dir := aim.normalized() if aim.length() > 0.01 else Vector2.DOWN
+	var best := Vector2i(0, 0)
 	var have := false
-	var best_d := 1.0e9
-	for step in range(1, 9):
-		var wp := from + dir * (float(step) * TILE * 0.7)
-		var cell := _map.local_to_map(_map.to_local(wp))
-		if _map.get_cell_source_id(cell) != -1:
-			var c := _map.to_global(_map.map_to_local(cell))
-			var d := from.distance_to(c)
-			if d <= reach_px and d < best_d:
-				best_d = d
-				best_cell = cell
-				have = true
+	var best_score := 1.0e9
+	for cell in _map.get_used_cells():
+		var c := _map.to_global(_map.map_to_local(cell))
+		var d := from.distance_to(c)
+		if d > reach_px:
+			continue
+		var toward := (c - from)
+		if toward.length() > 0.01 and dir.dot(toward.normalized()) < -0.25:
+			continue                              # ignore tiles clearly behind you
+		var score := d - dir.dot(toward.normalized()) * 10.0   # bias toward the aim
+		if score < best_score:
+			best_score = score
+			best = cell
+			have = true
 	if not have:
 		return false
-	var kind := _map.get_cell_atlas_coords(best_cell).x
-	var center := _map.to_global(_map.map_to_local(best_cell))
+	var kind := _map.get_cell_atlas_coords(best).x
+	var center := _map.to_global(_map.map_to_local(best))
 	if pick_tier < int(TIER.get(kind, 0)):
 		var now := Time.get_ticks_msec() / 1000.0
 		if now - _last_msg > 1.2:
@@ -112,16 +132,16 @@ func mine_toward(from: Vector2, aim: Vector2, reach_px: float, pick_tier: int, p
 			GameState.notify("%s is too hard for the Miner's Pickaxe — you'll need a stronger one." % NAMES[kind])
 		_chips(center, true)
 		return false
-	var left := int(_hp.get(best_cell, int(HARD.get(kind, 3))))
+	var left := int(_hp.get(best, int(HARD.get(kind, 3))))
 	left -= 1
 	_chips(center, false)
 	if left <= 0:
-		_hp.erase(best_cell)
-		_map.erase_cell(best_cell)
+		_hp.erase(best)
+		_map.erase_cell(best)
 		if player != null and "inventory" in player and player.inventory != null:
 			player.inventory.add_item("stone", 1)
 	else:
-		_hp[best_cell] = left
+		_hp[best] = left
 	return true
 
 func _chips(at: Vector2, spark: bool) -> void:
@@ -130,6 +150,7 @@ func _chips(at: Vector2, spark: bool) -> void:
 		p.size = Vector2(3, 3)
 		p.color = Color(1, 0.9, 0.5) if spark else Color(0.6, 0.55, 0.45)
 		p.global_position = at
+		p.z_index = 21
 		add_child(p)
 		var t := create_tween()
 		t.set_parallel(true)
