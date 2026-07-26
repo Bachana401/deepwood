@@ -66,6 +66,7 @@ var _hp := {}
 var _cur_chunk := Vector2i(999999, 999999)
 var _entry := Vector2.ZERO
 var _spawn_pos := Vector2.ZERO
+var _lava_cd := 0.0
 var _content := {}                     # Vector2i(chunk) -> [spawned content nodes]
 
 func _ready() -> void:
@@ -267,6 +268,19 @@ func _populate_chunk(c: Vector2i) -> void:
 		var mgc = _find_floor_cell(c, rng)
 		if mgc != null:
 			nodes.append_array(_spawn_grove(mgc, biome, rng))
+	if rng.randf() < 0.05:
+		var rvc = _find_floor_cell(c, rng)
+		if rvc != null:
+			nodes.append_array(_spawn_runevault(rvc, biome, rng))
+	if rng.randf() < 0.05:
+		var plc = _find_floor_cell(c, rng)
+		if plc != null:
+			nodes.append_array(_spawn_pool(plc, biome, rng))
+	# an ELITE mob now and then -- tougher, glowing, a real threat
+	if rng.randf() < 0.10 and _player != null:
+		var ec = _find_floor_cell(c, rng)
+		if ec != null and _map.to_global(_map.map_to_local(ec)).distance_to(_player.global_position) > 400.0:
+			nodes.append(_spawn_mob(ec, biome, rng, true))
 	# FLOOR-DOORS on the true path: one per dungeon level by depth (deeper = higher
 	# floor). The frontier door -- the deepest you can currently enter -- wears a
 	# beacon, so the way down is always clear. Leaving a floor returns you here.
@@ -354,15 +368,20 @@ func _spawn_trap(cell: Vector2i) -> Node:
 	t.global_position = _map.to_global(_map.map_to_local(cell)) + Vector2(0, 4)
 	return t
 
-func _spawn_mob(cell: Vector2i, biome: int, rng: RandomNumberGenerator) -> Node:
+func _spawn_mob(cell: Vector2i, biome: int, rng: RandomNumberGenerator, elite := false) -> Node:
 	var e = ENEMY_SCENE.instantiate()
 	if "respawns" in e: e.respawns = false
 	if "is_wild" in e: e.is_wild = true
 	var wx: float = _map.to_global(_map.map_to_local(cell)).x
 	if "wild_home_x" in e: e.wild_home_x = wx
 	var depth := float(biome) / float(BIOMES.size() - 1)
-	if "wave_hp_multiplier" in e: e.wave_hp_multiplier = lerpf(1.2, 5.0, depth) * rng.randf_range(0.9, 1.15)
-	if "wave_damage_multiplier" in e: e.wave_damage_multiplier = lerpf(1.1, 3.4, depth) * rng.randf_range(0.9, 1.1)
+	var hp_m := lerpf(1.2, 5.0, depth) * rng.randf_range(0.9, 1.15)
+	var dm_m := lerpf(1.1, 3.4, depth) * rng.randf_range(0.9, 1.1)
+	if elite:
+		hp_m *= 2.4
+		dm_m *= 1.8
+	if "wave_hp_multiplier" in e: e.wave_hp_multiplier = hp_m
+	if "wave_damage_multiplier" in e: e.wave_damage_multiplier = dm_m
 	if "wave_speed_multiplier" in e: e.wave_speed_multiplier = lerpf(1.0, 1.35, depth)
 	if e.has_method("apply_block_archetype"): e.apply_block_archetype(mini(int(depth * 9.0), 8))
 	e.add_to_group("course_enemy")
@@ -371,6 +390,18 @@ func _spawn_mob(cell: Vector2i, biome: int, rng: RandomNumberGenerator) -> Node:
 	if "detection_range_current" in e and "DETECTION_RANGE" in e:
 		var sight: float = e.WILD_SIGHT_MULT if "WILD_SIGHT_MULT" in e else 1.0
 		e.detection_range_current = e.DETECTION_RANGE * sight
+	if elite:
+		e.add_to_group("ug_elite")
+		if "modulate" in e:
+			e.modulate = Color(1.25, 0.82, 0.82)      # a menacing flush
+		var add_mat := CanvasItemMaterial.new()
+		add_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		var aura := Polygon2D.new()
+		aura.polygon = _disc(26.0)
+		aura.color = Color(1.0, 0.45, 0.2, 0.24)
+		aura.material = add_mat
+		aura.z_index = -1
+		e.add_child(aura)
 	return e
 
 func _disc(r: float) -> PackedVector2Array:
@@ -460,6 +491,112 @@ func _pull_lever(lv: Node) -> void:
 					c.color = c.color.lightened(0.12)
 	GameState.notify("⚙ A grind of stone — the vault unseals nearby.")
 
+# ── PUZZLE: a rune-sealed vault. A locked chest opened by lighting all 3 rune
+# stones scattered around it (E on each). Each rune's state persists in _flags. ──
+func _spawn_runevault(cell: Vector2i, biome: int, rng: RandomNumberGenerator) -> Array:
+	var out := []
+	var vid := "ugr_%d_%d" % [cell.x, cell.y]
+	var total := 3
+	var lit := 0
+	for i in range(total):
+		if _flags.has(vid + "_%d" % i):
+			lit += 1
+	var unlocked := lit >= total
+	var chest := Node2D.new()
+	chest.global_position = _map.to_global(_map.map_to_local(cell)) + Vector2(0, 2)
+	chest.z_index = 8
+	chest.add_to_group("ug_chest")
+	chest.set_meta("chest_id", vid + "_c")
+	chest.set_meta("vault_id", vid)
+	chest.set_meta("opened", GameState.chest_contents.has(vid + "_c"))
+	chest.set_meta("locked", not unlocked)
+	var lid := Polygon2D.new()
+	lid.polygon = PackedVector2Array([Vector2(-13, -17), Vector2(13, -17), Vector2(13, -1), Vector2(-13, -1)])
+	lid.color = Color(0.30, 0.20, 0.40)
+	chest.add_child(lid)
+	var band := Polygon2D.new()
+	band.polygon = PackedVector2Array([Vector2(-13, -11), Vector2(13, -11), Vector2(13, -7), Vector2(-13, -7)])
+	band.color = Color(0.62, 0.42, 0.96)
+	chest.add_child(band)
+	if not bool(chest.get_meta("opened")):
+		var loot := []
+		var table: Array = LOOT[clampi(biome, 0, LOOT.size() - 1)]
+		for i in range(rng.randi_range(3, 5)):
+			loot.append(table[rng.randi_range(0, table.size() - 1)])
+		loot.append(ORE_DROP[clampi(biome, 0, ORE_DROP.size() - 1)])
+		chest.set_meta("loot", loot)
+	add_child(chest)
+	out.append(chest)
+	var offs := [-12, 12, 21]
+	for i in range(total):
+		var rid := vid + "_%d" % i
+		var rcell := _floor_near(cell.x + offs[i], cell.y)
+		if rcell.x < -9000:
+			rcell = cell + Vector2i(offs[i], 0)
+		var rune := Node2D.new()
+		rune.global_position = _map.to_global(_map.map_to_local(rcell))
+		rune.z_index = 8
+		rune.add_to_group("ug_rune")
+		rune.set_meta("rune_id", rid)
+		rune.set_meta("vault_id", vid)
+		rune.set_meta("rune_total", total)
+		var is_lit: bool = _flags.has(rid)
+		rune.set_meta("lit", is_lit)
+		var stone := Polygon2D.new()
+		stone.polygon = PackedVector2Array([Vector2(-5, 0), Vector2(5, 0), Vector2(4, -16), Vector2(-4, -16)])
+		stone.color = Color(0.22, 0.20, 0.26)
+		rune.add_child(stone)
+		var gem := Polygon2D.new()
+		gem.name = "Gem"
+		gem.polygon = PackedVector2Array([Vector2(-3, -7), Vector2(3, -7), Vector2(0, -13)])
+		gem.color = Color(0.95, 0.80, 0.35) if is_lit else Color(0.35, 0.55, 0.90)
+		rune.add_child(gem)
+		if is_lit:
+			var am := CanvasItemMaterial.new()
+			am.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+			var gl := Polygon2D.new()
+			gl.polygon = _disc(10.0)
+			gl.color = Color(1, 0.85, 0.4, 0.25)
+			gl.material = am
+			gl.position = Vector2(0, -9)
+			rune.add_child(gl)
+		add_child(rune)
+		out.append(rune)
+	return out
+
+func _light_rune(rune: Node) -> void:
+	var rid := String(rune.get_meta("rune_id"))
+	var vid := String(rune.get_meta("vault_id"))
+	var total := int(rune.get_meta("rune_total", 3))
+	rune.set_meta("lit", true)
+	_flags[rid] = true
+	_save()
+	var gem = rune.get_node_or_null("Gem")
+	if gem != null:
+		gem.color = Color(0.95, 0.80, 0.35)
+	var am := CanvasItemMaterial.new()
+	am.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var gl := Polygon2D.new()
+	gl.polygon = _disc(10.0)
+	gl.color = Color(1, 0.85, 0.4, 0.25)
+	gl.material = am
+	gl.position = Vector2(0, -9)
+	rune.add_child(gl)
+	var lit := 0
+	for i in range(total):
+		if _flags.has(vid + "_%d" % i):
+			lit += 1
+	if lit >= total:
+		for ch in get_tree().get_nodes_in_group("ug_chest"):
+			if is_instance_valid(ch) and String(ch.get_meta("vault_id", "")) == vid:
+				ch.set_meta("locked", false)
+				for c in ch.get_children():
+					if c is Polygon2D:
+						c.color = c.color.lightened(0.15)
+		GameState.notify("✦ The runes align — the sealed vault opens.")
+	else:
+		GameState.notify("✦ A rune kindles. (%d / %d)" % [lit, total])
+
 # ── SPECIAL POCKET: a crystal geode -- glowing shards around a treasure chest. ──
 func _spawn_geode(cell: Vector2i, biome: int, rng: RandomNumberGenerator) -> Array:
 	var out := []
@@ -518,6 +655,46 @@ func _spawn_grove(cell: Vector2i, biome: int, rng: RandomNumberGenerator) -> Arr
 	add_child(node)
 	return [node]
 
+# ── HAZARD: a liquid pool on a cave floor. Deep biomes (Emberdeep+) pool LAVA that
+# burns you; shallower biomes pool harmless glowing water. ──────────────────────
+func _spawn_pool(cell: Vector2i, biome: int, rng: RandomNumberGenerator) -> Array:
+	var is_lava := biome >= 3
+	var width := rng.randi_range(6, 14)
+	var depth := 2
+	var node := Node2D.new()
+	node.z_index = 6
+	node.global_position = _map.to_global(_map.map_to_local(cell)) + Vector2(0, 2)
+	var liq := ColorRect.new()
+	liq.color = Color(0.98, 0.36, 0.10, 0.62) if is_lava else Color(0.24, 0.52, 0.92, 0.42)
+	liq.position = Vector2(-width * TILE / 2.0, -depth * TILE)
+	liq.size = Vector2(width * TILE, depth * TILE + 4)
+	node.add_child(liq)
+	if is_lava:
+		var add_mat := CanvasItemMaterial.new()
+		add_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		var glow := ColorRect.new()
+		glow.color = Color(1.0, 0.42, 0.12, 0.20)
+		glow.material = add_mat
+		glow.position = Vector2(-width * TILE / 2.0 - 6, -depth * TILE - 8)
+		glow.size = Vector2(width * TILE + 12, depth * TILE + 14)
+		node.add_child(glow)
+	var area := Area2D.new()
+	area.collision_mask = 2
+	area.add_to_group("ug_hazard")
+	area.set_meta("lava", is_lava)
+	area.set_meta("in", false)
+	var cs := CollisionShape2D.new()
+	var r := RectangleShape2D.new()
+	r.size = Vector2(width * TILE, depth * TILE)
+	cs.shape = r
+	cs.position = Vector2(0, -depth * TILE / 2.0)
+	area.add_child(cs)
+	area.body_entered.connect(func(b): if b.is_in_group("player"): area.set_meta("in", true))
+	area.body_exited.connect(func(b): if b.is_in_group("player"): area.set_meta("in", false))
+	node.add_child(area)
+	add_child(node)
+	return [node]
+
 func _try_loot_chest() -> bool:
 	if _player == null:
 		return false
@@ -554,9 +731,20 @@ func _process(delta: float) -> void:
 	if pc != _cur_chunk:
 		_cur_chunk = pc
 		_stream_around(pc)
+	var b := _biome_of(int(_player.global_position.y / TILE))
 	if _bg != null:
-		var b := _biome_of(int(_player.global_position.y / TILE))
 		_bg.color = _bg.color.lerp(_biome_backdrop(b), clampf(delta * 1.5, 0.0, 1.0))
+	if _cm != null:
+		_cm.color = _cm.color.lerp(_biome_ambient(b), clampf(delta * 1.2, 0.0, 1.0))
+	# LAVA burns while you stand in it
+	_lava_cd -= delta
+	if _lava_cd <= 0.0:
+		_lava_cd = 0.4
+		for hz in get_tree().get_nodes_in_group("ug_hazard"):
+			if is_instance_valid(hz) and bool(hz.get_meta("lava", false)) and bool(hz.get_meta("in", false)):
+				if _player.has_method("take_damage"):
+					_player.take_damage(7)
+				break
 
 # ── mining API (called by the player's pickaxe swing) ─────────────────────────
 # Terraria feel: dig the tile at the CURSOR within reach; smart=true auto-targets
@@ -747,10 +935,19 @@ func _build_wallmap() -> void:
 	_wallmap.z_index = -5
 	add_child(_wallmap)
 
+var _cm: CanvasModulate = null
 func _ensure_dark() -> void:
-	var cm := CanvasModulate.new()
-	cm.color = Color(0.72, 0.70, 0.74)     # a dim underworld, not pitch black
-	add_child(cm)
+	_cm = CanvasModulate.new()
+	_cm.color = _biome_ambient(0)          # a dim underworld, tinted by biome (see _process)
+	add_child(_cm)
+
+# each biome bathes the caves in its own mood: warm earth, cold stone, sickly
+# green fungus, ember-red, violet blight.
+const BIOME_AMBIENT := [
+	Color(0.74, 0.69, 0.60), Color(0.66, 0.69, 0.75), Color(0.58, 0.78, 0.66),
+	Color(0.84, 0.60, 0.48), Color(0.66, 0.54, 0.80)]
+func _biome_ambient(b: int) -> Color:
+	return BIOME_AMBIENT[clampi(b, 0, BIOME_AMBIENT.size() - 1)]
 
 # A dark cave behind everything so open air reads as depth, not flat grey. Tinted
 # toward the current biome as you descend (see _process) for atmosphere.
@@ -811,6 +1008,11 @@ func _unhandled_input(e: InputEvent) -> void:
 			_return_to_village()
 			return
 		if _player != null:
+			for rn in get_tree().get_nodes_in_group("ug_rune"):
+				if is_instance_valid(rn) and not bool(rn.get_meta("lit", false)) \
+						and _player.global_position.distance_to(rn.global_position) < 46.0:
+					_light_rune(rn)
+					return
 			for lv in get_tree().get_nodes_in_group("ug_lever"):
 				if is_instance_valid(lv) and not bool(lv.get_meta("pulled", false)) \
 						and _player.global_position.distance_to(lv.global_position) < 52.0:
