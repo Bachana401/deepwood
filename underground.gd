@@ -11,7 +11,7 @@ extends Node2D
 # Materials are natural-looking, biome by depth. Group "tile_world" so the pickaxe
 # swing (player.gd) can carve it.
 
-const TILE := 16
+const TILE := 12                       # smaller blocks (was 16) -> finer terrain, player reads bigger
 const CHUNK := 32
 const LOAD_R := 3                      # chunks kept live around the player (bounded collision)
 const WIDTH := 4200                    # world width in tiles (Terraria "small" ~= 4200x1200)
@@ -43,12 +43,12 @@ const LOOT := [
 	["ember_crystal", "relic_mountain", "ember_crystal", "iron_shard"],
 ]
 
-var _map: TileMapLayer
+var _map: TileMapLayer                  # foreground: solid, minable blocks
+var _wallmap: TileMapLayer              # background: dark cave back-walls (no collision)
 var _player: Node = null
-var _worm1: FastNoiseLite               # fine worm tunnels
-var _worm2: FastNoiseLite               # broader cross tunnels
-var _cav: FastNoiseLite                 # big caverns
-var _ore: FastNoiseLite                 # richer pockets
+var _caverns: FastNoiseLite             # big organic open caverns
+var _tunnels: FastNoiseLite             # long winding tunnels between them
+var _ore: FastNoiseLite                 # mineral vein pockets
 var _loaded := {}                      # Vector2i(chunk) -> true
 var _edits := {}                       # Vector2i(cell) -> kind (AIR = dug)
 var _hp := {}
@@ -60,11 +60,30 @@ var _content := {}                     # Vector2i(chunk) -> [spawned content nod
 func _ready() -> void:
 	add_to_group("tile_world")
 	GameState.in_dungeon = true          # so village-only ticks stay quiet
-	_worm1 = FastNoiseLite.new(); _worm1.seed = 0xCA7E; _worm1.frequency = 0.050
-	_worm2 = FastNoiseLite.new(); _worm2.seed = 0x51DE; _worm2.frequency = 0.031
-	_cav = FastNoiseLite.new();   _cav.seed = 0x0F0F;   _cav.frequency = 0.013
-	_ore = FastNoiseLite.new();   _ore.seed = 0xACE1;   _ore.frequency = 0.09
+	# BIG ORGANIC CAVERNS: low-freq domain-warped fbm blobs -> large open rooms with
+	# wandering edges (not TV-static holes).
+	_caverns = FastNoiseLite.new()
+	_caverns.seed = 0x0F0F
+	_caverns.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	_caverns.frequency = 0.014
+	_caverns.fractal_type = FastNoiseLite.FRACTAL_FBM
+	_caverns.fractal_octaves = 4
+	_caverns.domain_warp_enabled = true
+	_caverns.domain_warp_amplitude = 42.0
+	_caverns.domain_warp_fractal_octaves = 3
+	# LONG WINDING TUNNELS: low-freq |fbm| ridges that snake for a long way and
+	# stitch the caverns together.
+	_tunnels = FastNoiseLite.new()
+	_tunnels.seed = 0xCA7E
+	_tunnels.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	_tunnels.frequency = 0.012
+	_tunnels.fractal_type = FastNoiseLite.FRACTAL_FBM
+	_tunnels.fractal_octaves = 2
+	_tunnels.domain_warp_enabled = true
+	_tunnels.domain_warp_amplitude = 30.0
+	_ore = FastNoiseLite.new(); _ore.seed = 0xACE1; _ore.frequency = 0.10
 	_build_backdrop()        # a dark cave behind the tiles (so air isn't flat grey)
+	_build_wallmap()         # dark textured back-walls behind everything (Terraria look)
 	_build_tileset()
 	_ensure_dark()
 	_build_hud_frame()       # BEFORE the player: its _ready writes to ../CanvasLayer/*
@@ -98,25 +117,41 @@ func _truepath_x(y: int) -> float:
 func _gen_kind(x: int, y: int) -> int:
 	if x < 2 or x >= WIDTH - 2 or y >= DEPTH:
 		return _biome_of(clampi(y, 0, DEPTH - 1))     # solid walls / bedrock floor
-	# ENTRY LEDGE: a small solid shelf at the top of the true path (checked BEFORE
-	# any carve) so the player lands instead of dropping down the shaft on spawn.
-	if y >= ENTRY_ROW and y <= ENTRY_ROW + 1 and absf(float(x) - _truepath_x(ENTRY_ROW)) < 7.0:
-		return _biome_of(y)
 	if y < 1:
-		return AIR                                    # open ceiling above the ledge
-	# THE TRUE PATH: a walkable carved corridor around the switchback line, open the
-	# whole way down so you can always descend (and mine sideways off it).
-	if absf(float(x) - _truepath_x(y)) < 3.6:
+		return AIR                                    # open sky above the entry
+	# ENTRY CHAMBER: an open room at the top with a solid ledge to stand on, so you
+	# spawn able to walk around and pick a direction (not buried, not free-falling).
+	if absf(float(x) - _truepath_x(ENTRY_ROW)) < 13.0:
+		if y < ENTRY_ROW:
+			return AIR
+		if y <= ENTRY_ROW + 1:
+			return _biome_of(y)
+	var b := _biome_of(y)
+	# PICKAXE-GATE SEAL: a solid band of the hardest rock at the MOUTH of the deepest
+	# biome. Free exploration gets you this far; to go deeper you must DIG through it
+	# with a strong enough pickaxe. (The way down is otherwise open.)
+	if int(BIOMES[b].tier) >= 3 and (y - b * BIOME_H) < 10:
+		return b
+	# DELICATE, ORGANIC CAVERNS: a cell opens only if MOST of its 3x3 neighbourhood
+	# reads open (one cellular-automata smoothing pass over the noise). This melts
+	# the single-tile speckle into big, smooth, sweeping caverns + tunnels -- one
+	# connected system you explore freely, opening up with depth.
+	var open := 0
+	for oy in range(-1, 2):
+		for ox in range(-1, 2):
+			if _raw_open(x + ox, y + oy):
+				open += 1
+	if open >= 5:
 		return AIR
-	# 2-D CAVE NETWORK: two worm systems (thin |noise|) crossing in all directions,
-	# plus big caverns (low-freq blobs). Dense + interconnected, like Terraria.
-	if absf(_worm1.get_noise_2d(float(x), float(y))) < 0.052:
-		return AIR
-	if absf(_worm2.get_noise_2d(float(x), float(y))) < 0.040:
-		return AIR
-	if _cav.get_noise_2d(float(x), float(y)) > 0.56:
-		return AIR
-	return _biome_of(y)
+	return b
+
+func _raw_open(x: int, y: int) -> bool:
+	var open_bias := float(y) / float(DEPTH) * 0.06
+	if _caverns.get_noise_2d(float(x), float(y)) > 0.0 - open_bias:
+		return true
+	if absf(_tunnels.get_noise_2d(float(x), float(y))) < 0.05:
+		return true
+	return false
 
 func _cell_kind(cell: Vector2i) -> int:
 	return int(_edits.get(cell, _gen_kind(cell.x, cell.y)))
@@ -145,16 +180,19 @@ func _load_chunk(c: Vector2i) -> void:
 	for ly in range(CHUNK):
 		for lx in range(CHUNK):
 			var cell := Vector2i(c.x * CHUNK + lx, c.y * CHUNK + ly)
+			_wallmap.set_cell(cell, 0, Vector2i(_biome_of(cell.y), 0))   # back-wall always
 			var kind := _cell_kind(cell)
 			if kind != AIR:
-				_map.set_cell(cell, 0, Vector2i(kind, 0))
+				_map.set_cell(cell, 0, Vector2i(kind, 0))               # solid block on top
 	_populate_chunk(c)
 
 func _unload_chunk(c: Vector2i) -> void:
 	_depopulate_chunk(c)
 	for ly in range(CHUNK):
 		for lx in range(CHUNK):
-			_map.erase_cell(Vector2i(c.x * CHUNK + lx, c.y * CHUNK + ly))
+			var cell := Vector2i(c.x * CHUNK + lx, c.y * CHUNK + ly)
+			_map.erase_cell(cell)
+			_wallmap.erase_cell(cell)
 	_loaded.erase(c)
 
 # ── streamed content: chests (loot), depth-scaled mobs, traps ─────────────────
@@ -173,12 +211,12 @@ func _populate_chunk(c: Vector2i) -> void:
 		var tc = _find_floor_cell(c, rng)
 		if tc != null:
 			nodes.append(_spawn_trap(tc))
-	var mob_count := 1 + int(biome / 2)            # deeper -> more, tougher mobs
+	var mob_count := 3 + biome                     # MORE mobs, and more with depth
 	for i in range(mob_count):
-		if rng.randf() < 0.6:
+		if rng.randf() < 0.7:
 			var mc = _find_floor_cell(c, rng)
 			if mc != null and _player != null \
-					and _map.to_global(_map.map_to_local(mc)).distance_to(_player.global_position) > 460.0:
+					and _map.to_global(_map.map_to_local(mc)).distance_to(_player.global_position) > 380.0:
 				nodes.append(_spawn_mob(mc, biome, rng))
 	# FLOOR-DOORS on the true path: one per dungeon level by depth (deeper = higher
 	# floor). The frontier door -- the deepest you can currently enter -- wears a
@@ -188,7 +226,9 @@ func _populate_chunk(c: Vector2i) -> void:
 	var l_hi := mini(100, int(float(c.y * CHUNK + CHUNK - 1) / level_h))
 	for L in range(l_lo, l_hi + 1):
 		var dy := int(float(L) * level_h)
-		var dx := int(_truepath_x(dy))
+		# scatter each level's door across the width -- you FIND them by exploring,
+		# not walk a line of doors. Deterministic per level so returns land right.
+		var dx := 8 + (hash(L * 2654435761) & 0x7fffffff) % (WIDTH - 16)
 		if dx >= c.x * CHUNK and dx < (c.x + 1) * CHUNK:
 			var dcell := _floor_near(dx, dy)
 			if dcell.x > -9000:
@@ -419,47 +459,68 @@ func _build_tileset() -> void:
 	var img := Image.create(BIOMES.size() * TILE, TILE, false, Image.FORMAT_RGBA8)
 	for c in range(BIOMES.size()):
 		var base: Color = BIOMES[c].base
-		var accent: Color = BIOMES[c].accent
 		for x in range(TILE):
 			for y in range(TILE):
-				var col := base
-				# a soft top-edge shade so blocks read as blocks without a harsh grid
-				if y == 0:
-					col = base.lightened(0.12)
-				elif y == TILE - 1 or x == 0 or x == TILE - 1:
-					col = base.darkened(0.22)
-				# natural grain: a few flecks + veins in the biome accent
-				var h := (x * 928371 + y * 1237 + c * 99991)
-				if h % 17 == 0:
-					col = base.lightened(0.10)
-				elif h % 23 == 0:
-					col = base.darkened(0.12)
-				if h % 41 == 0:
-					col = accent.lerp(base, 0.45)     # subtle mineral fleck
+				var t := float(y) / float(TILE - 1)
+				var col := base.lightened(0.10 * (1.0 - t)).darkened(0.16 * t)
+				if y <= 1:
+					col = base.lightened(0.20)                 # grassy top lip
+				var h := ((x * 73856093) ^ (y * 19349663) ^ (c * 83492791)) & 0x7fffffff
+				if h % 34 == 0:
+					col = base.darkened(0.24)                  # a sparse crack
+				elif h % 57 == 0:
+					col = base.lightened(0.07)
 				img.set_pixel(c * TILE + x, y, col)
+	_map = TileMapLayer.new()
+	_map.tile_set = _make_tileset(img, true)
+	_map.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	add_child(_map)
+
+func _make_tileset(img: Image, collide: bool) -> TileSet:
 	var tex := ImageTexture.create_from_image(img)
 	var ts := TileSet.new()
 	ts.tile_size = Vector2i(TILE, TILE)
-	ts.add_physics_layer()
-	ts.set_physics_layer_collision_layer(0, 1)
-	ts.set_physics_layer_collision_mask(0, 0)
+	if collide:
+		ts.add_physics_layer()
+		ts.set_physics_layer_collision_layer(0, 1)
+		ts.set_physics_layer_collision_mask(0, 0)
 	var src := TileSetAtlasSource.new()
 	src.texture = tex
 	src.texture_region_size = Vector2i(TILE, TILE)
 	ts.add_source(src, 0)
 	var sq := PackedVector2Array([
-		Vector2(-TILE/2.0, -TILE/2.0), Vector2(TILE/2.0, -TILE/2.0),
-		Vector2(TILE/2.0, TILE/2.0), Vector2(-TILE/2.0, TILE/2.0)])
+		Vector2(-TILE / 2.0, -TILE / 2.0), Vector2(TILE / 2.0, -TILE / 2.0),
+		Vector2(TILE / 2.0, TILE / 2.0), Vector2(-TILE / 2.0, TILE / 2.0)])
 	for c in range(BIOMES.size()):
 		var coord := Vector2i(c, 0)
 		src.create_tile(coord)
-		var td := src.get_tile_data(coord, 0)
-		td.add_collision_polygon(0)
-		td.set_collision_polygon_points(0, 0, sq)
-	_map = TileMapLayer.new()
-	_map.tile_set = ts
-	_map.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	add_child(_map)
+		if collide:
+			var td := src.get_tile_data(coord, 0)
+			td.add_collision_polygon(0)
+			td.set_collision_polygon_points(0, 0, sq)
+	return ts
+
+# Dark textured back-wall behind EVERYTHING, so the big open caverns read as
+# carved rock, not dead black (Terraria's back walls).
+func _build_wallmap() -> void:
+	var img := Image.create(BIOMES.size() * TILE, TILE, false, Image.FORMAT_RGBA8)
+	for c in range(BIOMES.size()):
+		var wall: Color = (BIOMES[c].base as Color).darkened(0.64)
+		for x in range(TILE):
+			for y in range(TILE):
+				var col := wall
+				var off := ((int(y) / 6) % 2) * 8
+				if y % 6 == 0 or (x + off) % 16 == 0:
+					col = wall.darkened(0.26)
+				var h := ((x * 12345 + y * 6789 + c * 271)) & 0x7fffffff
+				if h % 31 == 0:
+					col = wall.lightened(0.06)
+				img.set_pixel(c * TILE + x, y, col)
+	_wallmap = TileMapLayer.new()
+	_wallmap.tile_set = _make_tileset(img, false)
+	_wallmap.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_wallmap.z_index = -5
+	add_child(_wallmap)
 
 func _ensure_dark() -> void:
 	var cm := CanvasModulate.new()
@@ -491,7 +552,7 @@ func _spawn_player() -> void:
 	_player.global_position = _spawn_pos
 	var cam = _player.get_node_or_null("Camera2D")
 	if cam != null:
-		cam.zoom = Vector2(1.2, 1.2)         # tighter Terraria-style view underground
+		cam.zoom = Vector2(0.6, 0.6)         # match the village so the player reads the same size
 	# make sure a Miner's Pickaxe is in the bag so digging is possible right away
 	if "inventory" in _player and _player.inventory != null:
 		if _player.inventory.get_count("tool_pickaxe") == 0:
