@@ -743,19 +743,38 @@ func _try_loot_chest() -> bool:
 			return true
 		var loot: Array = ch.get_meta("loot", [])
 		var got := {}
+		var kept := []          # loot that didn't fit a FULL bag -- left for a return trip
 		for id in loot:
+			var sid := String(id)
+			var landed := true
 			if "inventory" in _player and _player.inventory != null:
-				_player.inventory.add_item(String(id), 1)
-			got[String(id)] = int(got.get(String(id), 0)) + 1
-		ch.set_meta("opened", true)
-		GameState.chest_contents[String(ch.get_meta("chest_id"))] = {}   # persist: emptied
-		for c in ch.get_children():
-			if c is Polygon2D:
-				c.color = c.color.darkened(0.5)
-		var parts := []
-		for id in got:
-			parts.append("%s ×%d" % [Inventory.get_display_name(id), got[id]])
-		GameState.notify("⛏ Chest looted: " + ", ".join(parts))
+				if _player.inventory.add_item(sid, 1) > 0:
+					# it didn't fit. A duplicate one-of-a-kind (e.g. a tier pickaxe you
+					# already carry, max_stack 1) is discarded silently; otherwise the BAG is
+					# full, so leave it in the chest rather than destroy it or claim you got it.
+					var mdef: Dictionary = Inventory.get_item_def(sid)
+					if int(mdef.get("max_stack", 99)) <= 1 and _player.inventory.get_count(sid) >= 1:
+						landed = false                       # already own it -> drop the dup
+					else:
+						kept.append(sid); landed = false     # bag full -> keep in the chest
+			if landed:
+				got[sid] = int(got.get(sid, 0)) + 1
+		if kept.is_empty():
+			ch.set_meta("loot", [])
+			ch.set_meta("opened", true)
+			GameState.chest_contents[String(ch.get_meta("chest_id"))] = {}   # persist: emptied
+			for c in ch.get_children():
+				if c is Polygon2D:
+					c.color = c.color.darkened(0.5)
+		else:
+			ch.set_meta("loot", kept)   # some didn't fit -> the chest stays openable
+		if not got.is_empty():
+			var parts := []
+			for id in got:
+				parts.append("%s ×%d" % [Inventory.get_display_name(id), got[id]])
+			GameState.notify("⛏ Chest looted: " + ", ".join(parts))
+		if not kept.is_empty():
+			GameState.notify("🎒 Your bag is full — the chest still holds the rest.")
 		return true
 	return false
 
@@ -844,8 +863,11 @@ func _break(cell: Vector2i, pick_tier: int, player: Node) -> bool:
 		_map.erase_cell(cell)
 		if player != null and "inventory" in player and player.inventory != null:
 			if is_ore:
-				player.inventory.add_item(ORE_DROP[bi], 1)
-				GameState.notify("⛏ Struck a vein — " + Inventory.get_display_name(ORE_DROP[bi]) + "!")
+				# only celebrate the vein if the drop actually landed -- a full bag or a
+				# max_stack-1 drop already held (Blightcore ore = relic_mountain, now
+				# reachable via the tier-3 pickaxe) must not claim a haul it didn't give.
+				if player.inventory.add_item(ORE_DROP[bi], 1) <= 0:
+					GameState.notify("⛏ Struck a vein — " + Inventory.get_display_name(ORE_DROP[bi]) + "!")
 			else:
 				player.inventory.add_item("stone", 1)
 	else:
