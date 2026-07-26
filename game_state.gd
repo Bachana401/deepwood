@@ -164,6 +164,10 @@ var pre_dungeon_position = Vector2.ZERO
 # boot (true only right after leaving dungeon_interior.tscn -- false on a
 # normal New Game/Continue boot, where position comes from elsewhere).
 var returning_from_dungeon = false
+# TERRARIA UNDERGROUND (2026-07-25): true when a floor was entered from the tile
+# underground (vs the village), so exiting that floor returns you to the
+# underground at the door instead of the village. Transient.
+var came_from_underground := false
 var pending_player_state: Dictionary = {}
 
 # --- XP / skill tree ---

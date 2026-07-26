@@ -2586,7 +2586,12 @@ func exit_dungeon() -> void:
 		GameState.pending_player_state = GameState.capture_player_state(player)
 	GameState.in_dungeon = false
 	GameState.returning_from_dungeon = true
-	get_tree().change_scene_to_file.call_deferred("res://main.tscn")
+	# a floor entered from the tile underground returns THERE (to its door), not
+	# the village (see underground.gd _ready, which restores pre_dungeon_position).
+	if GameState.came_from_underground:
+		get_tree().change_scene_to_file.call_deferred("res://underground.tscn")
+	else:
+		get_tree().change_scene_to_file.call_deferred("res://main.tscn")
 
 func update_level_label() -> void:
 	var label = get_node_or_null("CanvasLayer/LevelLabel")

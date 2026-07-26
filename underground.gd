@@ -54,6 +54,7 @@ var _edits := {}                       # Vector2i(cell) -> kind (AIR = dug)
 var _hp := {}
 var _cur_chunk := Vector2i(999999, 999999)
 var _entry := Vector2.ZERO
+var _spawn_pos := Vector2.ZERO
 var _content := {}                     # Vector2i(chunk) -> [spawned content nodes]
 
 func _ready() -> void:
@@ -71,7 +72,12 @@ func _ready() -> void:
 	# entry: a solid ledge at the top of the true path, so you don't fall straight in
 	var ex := int(_truepath_x(ENTRY_ROW))
 	_entry = Vector2(ex * TILE, (ENTRY_ROW - 2) * TILE)
-	_stream_around(_chunk_of(_entry))
+	# returning from a floor entered down here? come back at that very door.
+	_spawn_pos = _entry
+	if GameState.came_from_underground and GameState.pre_dungeon_position != Vector2.ZERO:
+		_spawn_pos = GameState.pre_dungeon_position + Vector2(0, -30.0)
+		GameState.came_from_underground = false
+	_stream_around(_chunk_of(_spawn_pos))
 	_spawn_player()
 	_spawn_exit()
 	_build_hud_extras()      # hotbar + console, after the player exists
@@ -174,8 +180,40 @@ func _populate_chunk(c: Vector2i) -> void:
 			if mc != null and _player != null \
 					and _map.to_global(_map.map_to_local(mc)).distance_to(_player.global_position) > 460.0:
 				nodes.append(_spawn_mob(mc, biome, rng))
+	# FLOOR-DOORS on the true path: one per dungeon level by depth (deeper = higher
+	# floor). The frontier door -- the deepest you can currently enter -- wears a
+	# beacon, so the way down is always clear. Leaving a floor returns you here.
+	var level_h := float(DEPTH) / 100.0
+	var l_lo := maxi(1, int(ceil(float(c.y * CHUNK) / level_h)))
+	var l_hi := mini(100, int(float(c.y * CHUNK + CHUNK - 1) / level_h))
+	for L in range(l_lo, l_hi + 1):
+		var dy := int(float(L) * level_h)
+		var dx := int(_truepath_x(dy))
+		if dx >= c.x * CHUNK and dx < (c.x + 1) * CHUNK:
+			var dcell := _floor_near(dx, dy)
+			if dcell.x > -9000:
+				nodes.append(_spawn_floor_door(dcell, L))
 	if not nodes.is_empty():
 		_content[c] = nodes
+
+func _floor_near(x: int, y0: int) -> Vector2i:
+	for r in range(0, 10):
+		for sx in [x + r, x - r]:
+			for dy in range(-3, 8):
+				var cell := Vector2i(sx, y0 + dy)
+				if _cell_kind(cell) == AIR and _cell_kind(cell + Vector2i(0, 1)) != AIR \
+						and _cell_kind(cell + Vector2i(0, -1)) == AIR and _cell_kind(cell + Vector2i(0, -2)) == AIR:
+					return cell
+	return Vector2i(-9999, -9999)
+
+func _spawn_floor_door(cell: Vector2i, level: int) -> Node:
+	var d = preload("res://underdark_door.gd").new()
+	d.target_level = level
+	d.add_to_group("ug_door")
+	add_child(d)
+	d.global_position = _map.to_global(_map.map_to_local(cell)) + Vector2(0, 6)
+	d.z_index = 6
+	return d
 
 func _depopulate_chunk(c: Vector2i) -> void:
 	if not _content.has(c):
@@ -450,7 +488,7 @@ func _biome_backdrop(b: int) -> Color:
 func _spawn_player() -> void:
 	_player = preload("res://player.tscn").instantiate()
 	add_child(_player)                       # its _ready auto-applies pending_player_state
-	_player.global_position = _entry
+	_player.global_position = _spawn_pos
 	var cam = _player.get_node_or_null("Camera2D")
 	if cam != null:
 		cam.zoom = Vector2(1.2, 1.2)         # tighter Terraria-style view underground

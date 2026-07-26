@@ -146,4 +146,7 @@ func _try_enter() -> void:
 	GameState.pending_player_state = GameState.capture_player_state(pl)
 	GameState.pre_dungeon_position = global_position
 	GameState.active_dungeon_level = target_level
+	# if this door stands in the tile UNDERGROUND, remember to return there (not the
+	# village) when the floor is left.
+	GameState.came_from_underground = get_tree().get_first_node_in_group("tile_world") != null
 	get_tree().change_scene_to_file.call_deferred("res://dungeon_interior.tscn")
