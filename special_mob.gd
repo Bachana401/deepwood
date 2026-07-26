@@ -230,6 +230,7 @@ var tp_timer := 0.0
 var state := "seek"          # generic small state machine (stalker)
 var state_timer := 0.0
 var lunge_dir := 1
+var burrow_elapsed := 0.0    # burrower: max time it may stay burrowed/untouchable
 var is_casting := false
 var pending_tp := Vector2.ZERO
 
@@ -771,7 +772,10 @@ func act_burrower(delta: float) -> void:
 			collision_layer = 0                    # burrowed: weapons pass through
 			if visual: visual.modulate.a = 0.22
 			velocity.x = sign(dx) * move_speed if absf(dx) > 8.0 else 0.0
-			if absf(dx) < 46.0 and tp_timer <= 0.0:
+			burrow_elapsed += delta
+			# surface when you're overhead OR after a timeout -- so a player it can't
+			# reach (a ledge, behind terrain) can never leave it untouchable forever.
+			if (absf(dx) < 46.0 and tp_timer <= 0.0) or burrow_elapsed > 6.0:
 				state = "mark"
 				state_timer = 0.7
 				spawn_sigil(Vector2(global_position.x, player.global_position.y), 52.0, 0.7, accent_color)
@@ -788,10 +792,12 @@ func act_burrower(delta: float) -> void:
 				state = "cool"
 				state_timer = 2.2
 		"cool":
+			collision_layer = 4                    # stays hittable through the recovery
 			velocity.x = 0.0
 			if state_timer <= 0.0:
 				state = "seek"
 				tp_timer = BURROW_INTERVAL
+				burrow_elapsed = 0.0
 	face_player()
 
 # GRAVEWELL -- stationary; telegraphs, then YANKS you toward it, then bites.
@@ -838,15 +844,22 @@ func spawn_gas(pos: Vector2) -> void:
 	cloud.global_position = pos
 	cloud.z_index = 3
 	get_parent().add_child(cloud)
-	var life = 5.0
-	var t = 0.0
-	while t < life and is_instance_valid(cloud):
-		if is_instance_valid(player) and player.global_position.distance_to(pos) < 44.0:
-			if player.has_method("apply_poison"): player.apply_poison(2.0, 4.0)
-		await get_tree().create_timer(0.5).timeout
-		t += 0.5
-		if is_instance_valid(cloud): cloud.modulate.a = 1.0 - t / life
-	if is_instance_valid(cloud): cloud.queue_free()
+	# SELF-MANAGING: a Timer on the cloud applies poison, fades, and frees it -- so
+	# the cloud outlives (and never touches) this mob after spawn. No mob-coroutine,
+	# so no use-after-free / leak if the plaguebearer dies while its gas lingers.
+	var pl := player
+	var timer := Timer.new()
+	timer.wait_time = 0.5
+	timer.autostart = true
+	cloud.add_child(timer)
+	var elapsed := [0.0]
+	timer.timeout.connect(func():
+		elapsed[0] += 0.5
+		if is_instance_valid(pl) and pl.global_position.distance_to(pos) < 44.0 and pl.has_method("apply_poison"):
+			pl.apply_poison(2.0, 4.0)
+		cloud.modulate.a = maxf(0.0, 1.0 - elapsed[0] / 5.0)
+		if elapsed[0] >= 5.0:
+			cloud.queue_free())
 
 # WAILER -- shrieks an expanding sonic ring that DISORIENTS if it catches you.
 func act_wailer(delta: float) -> void:
@@ -894,7 +907,7 @@ func ballista_fire() -> void:
 	await get_tree().create_timer(BALLISTA_WINDUP).timeout
 	if is_instance_valid(sight): sight.queue_free()
 	clear_flash()
-	if is_dead:
+	if is_dead or not is_instance_valid(player):
 		is_casting = false
 		return
 	var shot_dir = (player.global_position - global_position).normalized()
@@ -955,13 +968,20 @@ func spawn_frost_patch(pos: Vector2) -> void:
 	patch.global_position = pos
 	patch.z_index = 3
 	get_parent().add_child(patch)
-	var t = 0.0
-	while t < 4.0 and is_instance_valid(patch):
-		if is_instance_valid(player) and player.global_position.distance_to(pos) < 50.0:
-			if player.has_method("apply_slow"): player.apply_slow(0.5, 0.5)
-		await get_tree().create_timer(0.35).timeout
-		t += 0.35
-	if is_instance_valid(patch): patch.queue_free()
+	# self-managing (see spawn_gas): the patch slows whoever stands on it, then frees.
+	var pl := player
+	var timer := Timer.new()
+	timer.wait_time = 0.35
+	timer.autostart = true
+	patch.add_child(timer)
+	var elapsed := [0.0]
+	timer.timeout.connect(func():
+		elapsed[0] += 0.35
+		if is_instance_valid(pl) and pl.global_position.distance_to(pos) < 50.0 and pl.has_method("apply_slow"):
+			pl.apply_slow(0.5, 0.5)
+		patch.modulate.a = maxf(0.0, 1.0 - elapsed[0] / 4.0)
+		if elapsed[0] >= 4.0:
+			patch.queue_free())
 
 # --- caster/teleport helpers ---
 

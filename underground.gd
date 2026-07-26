@@ -72,6 +72,7 @@ var _content := {}                     # Vector2i(chunk) -> [spawned content nod
 func _ready() -> void:
 	add_to_group("tile_world")
 	GameState.in_dungeon = true          # so village-only ticks stay quiet
+	GameState.returning_from_dungeon = false   # we own the return here; don't hand the village a stale flag
 	# BIG ORGANIC CAVERNS: low-freq domain-warped fbm blobs -> large open rooms with
 	# wandering edges (not TV-static holes).
 	_caverns = FastNoiseLite.new()
@@ -151,6 +152,11 @@ func _gen_kind(x: int, y: int) -> int:
 			return AIR
 		if y <= ENTRY_ROW + 1:
 			return _biome_of(y)
+	# THE TRUE PATH: a walkable corridor carved the whole way down. It PIERCES the
+	# seal bands so you can ALWAYS descend (even before you've earned a stronger
+	# pickaxe) -- the seal still walls off the rock to either side, gated for loot.
+	if absf(float(x) - _truepath_x(y)) < 4.0:
+		return AIR
 	var b := _biome_of(y)
 	# PICKAXE-GATE SEAL: a solid band of the hardest rock at the MOUTH of the deepest
 	# biome. Free exploration gets you this far; to go deeper you must DIG through it
@@ -443,35 +449,38 @@ func _spawn_vault(cell: Vector2i, biome: int, rng: RandomNumberGenerator) -> Arr
 		chest.set_meta("loot", loot)
 	add_child(chest)
 	out.append(chest)
-	# the lever, on a floor a short way to one side
-	var lc := _floor_near(cell.x + (11 if rng.randf() < 0.5 else -11), cell.y)
-	if lc.x > -9000:
-		var lever := Node2D.new()
-		lever.global_position = _map.to_global(_map.map_to_local(lc))
-		lever.z_index = 8
-		lever.add_to_group("ug_lever")
-		lever.set_meta("vault_id", vid)
-		lever.set_meta("pulled", pulled)
-		var basep := Polygon2D.new()
-		basep.polygon = PackedVector2Array([Vector2(-6, -1), Vector2(6, -1), Vector2(5, -9), Vector2(-5, -9)])
-		basep.color = Color(0.30, 0.30, 0.34)
-		lever.add_child(basep)
-		var handle := Polygon2D.new()
-		handle.name = "Handle"
-		handle.polygon = PackedVector2Array([Vector2(-2, -7), Vector2(2, -7), Vector2(2, -22), Vector2(-2, -22)])
-		handle.color = Color(0.42, 0.82, 0.45) if pulled else Color(0.92, 0.5, 0.2)
-		handle.rotation = 0.7 if pulled else -0.7
-		lever.add_child(handle)
-		var lbl := Label.new()
-		lbl.text = "⚙ pull the lever (E)"
-		lbl.add_theme_font_size_override("font_size", 11)
-		lbl.add_theme_color_override("font_color", Color(0.95, 0.85, 0.5))
-		lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0))
-		lbl.add_theme_constant_override("outline_size", 4)
-		lbl.position = Vector2(-40, -44)
-		lever.add_child(lbl)
-		add_child(lever)
-		out.append(lever)
+	# the lever, on a floor a short way to one side. ALWAYS spawn one (a fallback
+	# cell if no floor is found) -- otherwise the vault would be locked forever.
+	var loff := 11 if rng.randf() < 0.5 else -11
+	var lc := _floor_near(cell.x + loff, cell.y)
+	if lc.x < -9000:
+		lc = cell + Vector2i(loff, 0)
+	var lever := Node2D.new()
+	lever.global_position = _map.to_global(_map.map_to_local(lc))
+	lever.z_index = 8
+	lever.add_to_group("ug_lever")
+	lever.set_meta("vault_id", vid)
+	lever.set_meta("pulled", pulled)
+	var basep := Polygon2D.new()
+	basep.polygon = PackedVector2Array([Vector2(-6, -1), Vector2(6, -1), Vector2(5, -9), Vector2(-5, -9)])
+	basep.color = Color(0.30, 0.30, 0.34)
+	lever.add_child(basep)
+	var handle := Polygon2D.new()
+	handle.name = "Handle"
+	handle.polygon = PackedVector2Array([Vector2(-2, -7), Vector2(2, -7), Vector2(2, -22), Vector2(-2, -22)])
+	handle.color = Color(0.42, 0.82, 0.45) if pulled else Color(0.92, 0.5, 0.2)
+	handle.rotation = 0.7 if pulled else -0.7
+	lever.add_child(handle)
+	var lbl := Label.new()
+	lbl.text = "⚙ pull the lever (E)"
+	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.add_theme_color_override("font_color", Color(0.95, 0.85, 0.5))
+	lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	lbl.add_theme_constant_override("outline_size", 4)
+	lbl.position = Vector2(-40, -44)
+	lever.add_child(lbl)
+	add_child(lever)
+	out.append(lever)
 	return out
 
 func _pull_lever(lv: Node) -> void:
@@ -756,20 +765,28 @@ func mine_at(cursor: Vector2, from: Vector2, reach_px: float, smart: bool, pick_
 	if smart:
 		var dir := (cursor - from)
 		dir = dir.normalized() if dir.length() > 0.01 else Vector2.DOWN
+		# scan only the small tile box within reach of the player (not the whole
+		# loaded map -- that was thousands of cells every dig tick).
+		var center := _map.local_to_map(_map.to_local(from))
+		var rad := int(ceil(reach_px / float(TILE))) + 1
 		var best := Vector2i.ZERO
 		var have := false
 		var best_score := 1.0e9
-		for used in _map.get_used_cells():
-			var c := _map.to_global(_map.map_to_local(used))
-			var d := from.distance_to(c)
-			if d > reach_px:
-				continue
-			var tw := (c - from)
-			if tw.length() > 0.01 and dir.dot(tw.normalized()) < -0.25:
-				continue
-			var score := d - dir.dot(tw.normalized()) * 10.0
-			if score < best_score:
-				best_score = score; best = used; have = true
+		for oy in range(-rad, rad + 1):
+			for ox in range(-rad, rad + 1):
+				var used := center + Vector2i(ox, oy)
+				if _map.get_cell_source_id(used) == -1:
+					continue
+				var c := _map.to_global(_map.map_to_local(used))
+				var d := from.distance_to(c)
+				if d > reach_px:
+					continue
+				var tw := (c - from)
+				if tw.length() > 0.01 and dir.dot(tw.normalized()) < -0.25:
+					continue
+				var score := d - dir.dot(tw.normalized()) * 10.0
+				if score < best_score:
+					best_score = score; best = used; have = true
 		if not have:
 			return false
 		cell = best
