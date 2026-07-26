@@ -31,6 +31,14 @@ const BIOMES := [
 ]
 const DEPTH := BIOME_H * 5
 
+# ORE VEINS: the atlas holds a second copy of each biome block, salted with bright
+# gems, at column ORE_COL + biome. Mining ore drops a good material.
+const ORE_COL := 5
+const ORE_GEM := [
+	Color(0.86, 0.55, 0.24), Color(0.80, 0.83, 0.92), Color(0.35, 0.95, 0.66),
+	Color(1.00, 0.72, 0.20), Color(0.80, 0.46, 1.00)]
+const ORE_DROP := ["iron_shard", "iron_shard", "ember_crystal", "ember_crystal", "relic_mountain"]
+
 # ── content (streamed per chunk, like the terrain) ────────────────────────────
 const ENEMY_SCENE := preload("res://enemy.tscn")
 const TRAP_SCENE := preload("res://trap.tscn")
@@ -158,6 +166,9 @@ func _gen_kind(x: int, y: int) -> int:
 				open += 1
 	if open >= 5:
 		return AIR
+	# solid rock -- salt in clustered ORE VEINS for a reward when you dig
+	if _ore.get_noise_2d(float(x) * 1.3, float(y) * 1.3) > 0.42:
+		return ORE_COL + b
 	return b
 
 func _raw_open(x: int, y: int) -> bool:
@@ -421,21 +432,28 @@ func mine_at(cursor: Vector2, from: Vector2, reach_px: float, smart: bool, pick_
 
 func _break(cell: Vector2i, pick_tier: int, player: Node) -> bool:
 	var kind := _map.get_cell_atlas_coords(cell).x
-	var biome: Dictionary = BIOMES[clampi(kind, 0, BIOMES.size() - 1)]
+	var is_ore := kind >= ORE_COL
+	var bi := (kind - ORE_COL) if is_ore else kind
+	var biome: Dictionary = BIOMES[clampi(bi, 0, BIOMES.size() - 1)]
 	var center := _map.to_global(_map.map_to_local(cell))
 	if pick_tier < int(biome.tier):
 		GameState.notify("%s is too hard for your pickaxe — you'll need a stronger one." % biome.name)
 		_chips(center, biome.accent, true)
 		return false
-	var left := int(_hp.get(cell, int(biome.hard)))
+	var hard := int(biome.hard) + (2 if is_ore else 0)   # ore is a bit tougher
+	var left := int(_hp.get(cell, hard))
 	left -= 1
-	_chips(center, biome.base, false)
+	_chips(center, (ORE_GEM[bi] if is_ore else biome.base), false)
 	if left <= 0:
 		_hp.erase(cell)
 		_edits[cell] = AIR
 		_map.erase_cell(cell)
 		if player != null and "inventory" in player and player.inventory != null:
-			player.inventory.add_item("stone", 1)
+			if is_ore:
+				player.inventory.add_item(ORE_DROP[bi], 1)
+				GameState.notify("⛏ Struck a vein — " + Inventory.get_display_name(ORE_DROP[bi]) + "!")
+			else:
+				player.inventory.add_item("stone", 1)
 	else:
 		_hp[cell] = left
 	return true
@@ -479,9 +497,11 @@ func _exit_tree() -> void:
 
 # ── the tileset (one natural-looking block per biome) ─────────────────────────
 func _build_tileset() -> void:
-	var img := Image.create(BIOMES.size() * TILE, TILE, false, Image.FORMAT_RGBA8)
-	for c in range(BIOMES.size()):
+	var n := BIOMES.size()
+	var img := Image.create(n * 2 * TILE, TILE, false, Image.FORMAT_RGBA8)
+	for c in range(n):
 		var base: Color = BIOMES[c].base
+		var gem: Color = ORE_GEM[c]
 		for x in range(TILE):
 			for y in range(TILE):
 				var t := float(y) / float(TILE - 1)
@@ -493,7 +513,15 @@ func _build_tileset() -> void:
 					col = base.darkened(0.24)                  # a sparse crack
 				elif h % 57 == 0:
 					col = base.lightened(0.07)
-				img.set_pixel(c * TILE + x, y, col)
+				img.set_pixel(c * TILE + x, y, col)            # plain biome block
+				# ORE variant: the same block, salted with bright gem clusters
+				var oc := col
+				var oh := ((x * 40503) ^ (y * 20441) ^ (c * 12553)) & 0x7fffffff
+				if oh % 6 == 0:
+					oc = gem
+				elif oh % 13 == 0:
+					oc = gem.darkened(0.35)
+				img.set_pixel((ORE_COL + c) * TILE + x, y, oc)
 	_map = TileMapLayer.new()
 	_map.tile_set = _make_tileset(img, true)
 	_map.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -514,7 +542,7 @@ func _make_tileset(img: Image, collide: bool) -> TileSet:
 	var sq := PackedVector2Array([
 		Vector2(-TILE / 2.0, -TILE / 2.0), Vector2(TILE / 2.0, -TILE / 2.0),
 		Vector2(TILE / 2.0, TILE / 2.0), Vector2(-TILE / 2.0, TILE / 2.0)])
-	for c in range(BIOMES.size()):
+	for c in range(int(img.get_width() / TILE)):
 		var coord := Vector2i(c, 0)
 		src.create_tile(coord)
 		if collide:
