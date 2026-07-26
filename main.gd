@@ -536,12 +536,11 @@ func spawn_existing_villager_avatars() -> void:
 	# opening, so it peoples the village at once.
 	var hide_starters := not GameState.seen_arrival_battle and not GameState.dev_mode
 	for villager in GameState.rescued_villagers:
-		if hide_starters:
-			continue
 		var villager_id = villager.get("id", "")
 		# THE THAW (4.2a): a crystal-freed hostage's stats stay wrapped until
 		# they stand at home -- this is home. Unwrap the gift, and say what
-		# the gamble paid.
+		# the gamble paid. This ALWAYS runs (independent of whether the opening's
+		# starter avatars are shown yet) -- the reveal is roster state, not visuals.
 		if villager.get("stats_hidden", false):
 			villager.erase("stats_hidden")
 			var stat := str(villager.get("stat_name", ""))
@@ -550,6 +549,10 @@ func spawn_existing_villager_avatars() -> void:
 					villager.get("name", "?"), stat, int(villager.get("stat_value", 0))])
 				GameState.log_event("people", "%s thawed at home — a %s of %d." % [
 					villager.get("name", "?"), stat, int(villager.get("stat_value", 0))])
+		# THE EMPTY RUINS: keep the starter avatars hidden until the first wave --
+		# suppress only the avatar spawn, never the thaw above.
+		if hide_starters:
+			continue
 		if is_villager_busy_mating(villager_id):
 			continue
 		var npc = NPC_SCRIPT.new()
