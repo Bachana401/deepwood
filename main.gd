@@ -1102,7 +1102,13 @@ func apply_save_data() -> void:
 	# spawned underground, fell forever"). Continue always lands you safe on the
 	# surface, at the village threshold. In-session floor exit is unaffected -- it
 	# uses the live pre_dungeon_position, not this saved point.
-	if player.global_position.y > 250.0:
+	# The same net also catches a below-ground / (0,0) origin save: a stale or
+	# interrupted write (e.g. one made before the player was placed) leaves the
+	# origin, which sits UNDER the village floor (surface y=-39, standing centre
+	# y=-63) and falls just the same. The surface never sits below y=-50, so any
+	# saved y greater than that is not on it. (dev report 2026-07-25: "pressed
+	# Continue, spawned below ground, fell endlessly".)
+	if player.global_position.y > -50.0:
 		player.global_position = GameState.VILLAGE_SPAWN
 	player.has_dash = data.get("has_dash", player.has_dash)
 	player.has_double_jump = data.get("has_double_jump", player.has_double_jump)

@@ -65,8 +65,9 @@ func _ready() -> void:
 	var raw := FileAccess.open(GameState.SAVE_PATH, FileAccess.READ)
 	var save: Dictionary = JSON.parse_string(raw.get_as_text())
 	raw.close()
-	save["position_x"] = 5200.0
-	save["position_y"] = 9000.0                        # ...but underground, like the bug's save
+	save["position_x"] = 0.0
+	save["position_y"] = 0.0                            # the ACTUAL bug: a (0,0) origin save,
+	                                                    # below the village floor (surface y=-39)
 	var w := FileAccess.open(GameState.SAVE_PATH, FileAccess.WRITE)
 	w.store_string(JSON.stringify(save))
 	w.close()
@@ -75,7 +76,9 @@ func _ready() -> void:
 	for i in range(360):        # let the old scene free and the new one boot + apply_save_data
 		await get_tree().process_frame
 	var np: Node = get_tree().get_first_node_in_group("player")
-	check("Continue on an underground save lands you SAFE on the surface", np != null and np.global_position.y <= 250.0,
+	# must land ON the surface (y <= -50), not merely shallower than the deep -- a (0,0)
+	# origin is well above 250 yet still under the floor, so the old >250 clamp missed it.
+	check("Continue on a below-ground (0,0) save lands you SAFE on the surface", np != null and np.global_position.y <= -50.0,
 		"player at %s" % (str(np.global_position) if np else "null"))
 
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)

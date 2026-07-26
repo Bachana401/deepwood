@@ -4458,7 +4458,10 @@ func save_game(player: Node) -> void:
 	# live deep position. Either would drop the player underground on load (and into
 	# the void before the deep is built). Persist a safe village spawn instead; the
 	# in-session floor exit still uses the live pre_dungeon_position, unaffected.
-	if save_pos.y > 250.0:
+	# Same threshold guards against writing a below-village-ground position at all:
+	# the surface never sits below y=-50 (standing centre y=-63), so anything greater
+	# is underground or an invalid spot that would drop the player through the floor.
+	if save_pos.y > -50.0:
 		save_pos = VILLAGE_SPAWN
 	var data = {
 		"currency": player.currency,
