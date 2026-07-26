@@ -41,6 +41,7 @@ var _full_text := ""      # the whole current line
 var _shown := 0.0         # characters revealed so far (float for smooth typing)
 var _typing := false
 var _blink := 0.0
+var _pointer: SpeakerIndicator = null   # the chevron hovering over the live speaker
 
 static func play(host: Node, script_lines: Array, on_finished := Callable()) -> void:
 	if script_lines.is_empty():
@@ -196,6 +197,75 @@ func show_line() -> void:
 	text_label.text = _full_text
 	text_label.visible_characters = 0
 	caret.visible = false
+	_point_at_speaker(speaker, accent)
+
+# Hover the chevron over the body that owns this line, so the player can tell who
+# is speaking. Hidden for the narrator ("") and for any speaker with no avatar on
+# screen (e.g. a beat delivered before the cast has spawned).
+func _point_at_speaker(speaker: String, tint: Color) -> void:
+	var found := _find_speaker(speaker)
+	if found.is_empty():
+		if _pointer != null and is_instance_valid(_pointer):
+			_pointer.visible = false
+		return
+	var node = found[0]
+	var yoff: float = found[1]
+	if node == null or not is_instance_valid(node):
+		if _pointer != null and is_instance_valid(_pointer):
+			_pointer.visible = false
+		return
+	if _pointer == null or not is_instance_valid(_pointer):
+		var host := get_tree().current_scene
+		if host == null:
+			return
+		_pointer = SpeakerIndicator.new()
+		host.add_child(_pointer)
+	_pointer.place(node.global_position + Vector2(0.0, yoff), tint)
+
+# Resolve a speaker name to its on-screen body, plus how far above the origin the
+# chevron should sit. Returns [] when nobody matches (graceful -> no chevron).
+func _find_speaker(speaker: String) -> Array:
+	var t := get_tree()
+	if t == null or speaker == "":
+		return []
+	if speaker == "You":
+		var p = t.get_first_node_in_group("player")
+		return [p, -86.0] if p != null else []
+	if speaker == "Orin":
+		for w in t.get_nodes_in_group("village_defender"):
+			if w.has_method("cast_meteor_at"):        # the wizard's signature ability
+				return [w, -96.0]
+		return []
+	# adventurers carry their FULL display name on `def` ("Roland Ashmark"), while a
+	# story speaker is the first name ("Roland") -- match either the whole name or
+	# its leading word.
+	for a in t.get_nodes_in_group("adventurer"):
+		if "is_dead" in a and a.is_dead:
+			continue
+		if not ("def" in a) or a.def == null:
+			continue
+		var full := str(a.def.get("name", ""))
+		if full == "":
+			continue
+		if full == speaker or full.split(" ", false)[0] == speaker:
+			return [a, -82.0]
+	# villagers: "A Survivor" and any "Doctor ..." line belong to the Doctor, who
+	# speaks the arrival reveal; otherwise match a villager by name
+	var want_doc := (speaker == "A Survivor" or speaker.begins_with("Doctor"))
+	for n in t.get_nodes_in_group("npc"):
+		if not is_instance_valid(n):
+			continue
+		if want_doc and str(n.get("villager_id")) == "doctor_maren":
+			return [n, -76.0]
+		if n.has_method("find_villager_data"):
+			var d: Dictionary = n.find_villager_data()
+			if str(d.get("name", "")) == speaker:
+				return [n, -76.0]
+	if want_doc:                                        # doctor gone? any survivor will do
+		for n in t.get_nodes_in_group("npc"):
+			if is_instance_valid(n):
+				return [n, -76.0]
+	return []
 
 func _process(delta: float) -> void:
 	if _typing:
@@ -226,9 +296,18 @@ func _unhandled_input(event: InputEvent) -> void:
 	index += 1
 	show_line()
 
+func _exit_tree() -> void:
+	# never strand the world-space chevron if this box leaves the tree
+	if _pointer != null and is_instance_valid(_pointer):
+		_pointer.queue_free()
+	_pointer = null
+
 func finish() -> void:
 	var t := get_tree()
 	t.paused = false
+	if _pointer != null and is_instance_valid(_pointer):
+		_pointer.queue_free()             # the speaker chevron dies with the box
+	_pointer = null
 	var cb = _on_finished
 	queue_free()                              # deferred: this box still counts below
 	if cb.is_valid():
