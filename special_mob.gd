@@ -76,6 +76,34 @@ const KINDS = {
 		"hp": 48, "dmg": 13, "speed": 40.0, "reward": 12, "xp": 13,
 		"main": Color(0.15, 0.19, 0.32), "accent": Color(0.5, 0.5, 1.0),
 	},
+	# --- 9 more, each a distinct trick (2026-07-26) ---
+	# Weaver -- a spider-mage; snares you ROOTED in a web from range.
+	"weaver": {"hp": 52, "dmg": 10, "speed": 40.0, "reward": 11, "xp": 12,
+		"main": Color(0.20, 0.24, 0.16), "accent": Color(0.72, 0.95, 0.4)},
+	# Grave Leech -- latches a tether that DRAINS your mana and heals itself.
+	"leech": {"hp": 60, "dmg": 6, "speed": 60.0, "reward": 12, "xp": 13,
+		"main": Color(0.30, 0.14, 0.18), "accent": Color(0.95, 0.30, 0.42)},
+	# Burrower -- tunnels unseen (untouchable), then ERUPTS up beneath you.
+	"burrower": {"hp": 66, "dmg": 20, "speed": 152.0, "reward": 12, "xp": 13,
+		"main": Color(0.30, 0.22, 0.14), "accent": Color(0.92, 0.6, 0.28)},
+	# Gravewell -- warps space to YANK you into its reach.
+	"warper": {"hp": 56, "dmg": 15, "speed": 40.0, "reward": 12, "xp": 13,
+		"main": Color(0.16, 0.14, 0.26), "accent": Color(0.55, 0.4, 1.0)},
+	# Plaguebearer -- trails clouds of POISON gas that linger where it walks.
+	"plague": {"hp": 62, "dmg": 8, "speed": 46.0, "reward": 12, "xp": 13,
+		"main": Color(0.22, 0.28, 0.14), "accent": Color(0.7, 0.95, 0.25)},
+	# Wailer -- shrieks a sonic ring that DISORIENTS; flee its range.
+	"wailer": {"hp": 50, "dmg": 9, "speed": 40.0, "reward": 11, "xp": 12,
+		"main": Color(0.28, 0.20, 0.30), "accent": Color(0.9, 0.6, 1.0)},
+	# Bone Ballista -- a siege corpse: a long charge, then a PIERCING line-bolt.
+	"ballista": {"hp": 72, "dmg": 26, "speed": 20.0, "reward": 12, "xp": 13,
+		"main": Color(0.34, 0.32, 0.26), "accent": Color(1.0, 0.85, 0.4)},
+	# Hive Maw -- coughs up a SWARM of homing gnats.
+	"swarm": {"hp": 54, "dmg": 6, "speed": 34.0, "reward": 12, "xp": 13,
+		"main": Color(0.22, 0.24, 0.14), "accent": Color(0.82, 0.9, 0.3)},
+	# Rimewisp -- a frost sprite; FREEZES you and leaves ice underfoot.
+	"frostling": {"hp": 44, "dmg": 10, "speed": 72.0, "reward": 11, "xp": 12,
+		"main": Color(0.20, 0.28, 0.36), "accent": Color(0.62, 0.9, 1.0)},
 }
 
 # injected before _ready
@@ -317,6 +345,12 @@ func build_collision() -> void:
 		"stalker": rect.size = Vector2(30, 42)
 		"blink_archer": rect.size = Vector2(28, 42)
 		"hexer", "runecaster", "warlock": rect.size = Vector2(32, 44)
+		"weaver", "wailer", "plague": rect.size = Vector2(34, 42)
+		"leech", "frostling": rect.size = Vector2(28, 36)
+		"burrower": rect.size = Vector2(40, 26)
+		"warper": rect.size = Vector2(30, 44)
+		"ballista": rect.size = Vector2(46, 34)
+		"swarm": rect.size = Vector2(38, 32)
 		_: rect.size = Vector2(30, 30)
 	shape.shape = rect
 	shape.position = Vector2(0, -rect.size.y / 2.0)
@@ -353,6 +387,15 @@ func _physics_process(delta: float) -> void:
 			"hexer": act_hexer(delta)
 			"runecaster": act_runecaster(delta)
 			"warlock": act_warlock(delta)
+			"weaver": act_weaver(delta)
+			"leech": act_leech(delta)
+			"burrower": act_burrower(delta)
+			"warper": act_warper(delta)
+			"plague": act_plague(delta)
+			"wailer": act_wailer(delta)
+			"ballista": act_ballista(delta)
+			"swarm": act_swarm(delta)
+			"frostling": act_frostling(delta)
 
 	if velocity.x > 1.0:
 		facing = 1
@@ -627,6 +670,299 @@ func act_warlock(delta: float) -> void:
 			orb.position = position + Vector2(0, -18)
 			get_parent().add_child(orb)
 
+# ============ 9 MORE SPECIAL MOBS (2026-07-26) -- each a distinct trick ========
+const WEAVER_CD = 4.0
+const WEAVER_TELEGRAPH = 0.7
+const WEAVER_RADIUS = 46.0
+const LEECH_CD = 4.5
+const LEECH_RANGE = 440.0
+const BURROW_INTERVAL = 3.0
+const WARPER_CD = 3.8
+const WARPER_TELEGRAPH = 0.5
+const PLAGUE_GAS_CD = 1.3
+const WAILER_CD = 4.0
+const WAILER_TELEGRAPH = 0.55
+const WAILER_RADIUS = 220.0
+const BALLISTA_WINDUP = 1.4
+const BALLISTA_CD = 3.6
+const SWARM_CD = 4.2
+const SWARM_COUNT = 6
+const FROST_CD = 3.2
+
+# a generic expanding burst ring (reused by several of the new mobs)
+func _burst(pos: Vector2, radius: float, color: Color) -> void:
+	var b = poly(circle_points(radius, 24))
+	b.color = Color(color.r, color.g, color.b, 0.5)
+	b.global_position = pos
+	b.z_index = 6
+	b.scale = Vector2(0.2, 0.2)
+	get_parent().add_child(b)
+	var t = b.create_tween()
+	t.set_parallel(true)
+	t.tween_property(b, "scale", Vector2.ONE, 0.22)
+	t.tween_property(b, "modulate:a", 0.0, 0.3)
+	t.chain().tween_callback(b.queue_free)
+
+# WEAVER -- keeps mid-range, casts a web at your feet that ROOTS you.
+func act_weaver(delta: float) -> void:
+	face_player()
+	var dist = global_position.distance_to(player.global_position)
+	var dx = player.global_position.x - global_position.x
+	if dist < 240.0: velocity.x = -sign(dx) * move_speed
+	elif dist > 460.0: velocity.x = sign(dx) * move_speed
+	else: velocity.x = 0.0
+	if cast_timer <= 0.0 and not is_casting and dist < 520.0:
+		cast_timer = WEAVER_CD
+		cast_web()
+
+func cast_web() -> void:
+	is_casting = true
+	set_flash(accent_color)
+	var target = Vector2(player.global_position.x, player.global_position.y)
+	spawn_sigil(target, WEAVER_RADIUS, WEAVER_TELEGRAPH, accent_color)
+	await get_tree().create_timer(WEAVER_TELEGRAPH).timeout
+	clear_flash()
+	if is_dead:
+		is_casting = false
+		return
+	_burst(target, WEAVER_RADIUS, accent_color)
+	if is_instance_valid(player) and player.global_position.distance_to(target) < WEAVER_RADIUS:
+		if player.has_method("take_damage"): player.take_damage(int(round(attack_damage * 0.5)))
+		if player.has_method("apply_root"): player.apply_root(1.3)
+	is_casting = false
+
+# GRAVE LEECH -- closes to mid, latches a tether that drains mana + heals it.
+func act_leech(delta: float) -> void:
+	face_player()
+	var dist = global_position.distance_to(player.global_position)
+	var dx = player.global_position.x - global_position.x
+	if dist < 200.0: velocity.x = -sign(dx) * move_speed
+	elif dist > 360.0: velocity.x = sign(dx) * move_speed
+	else: velocity.x = 0.0
+	if cast_timer <= 0.0 and not is_casting and dist < LEECH_RANGE:
+		cast_timer = LEECH_CD
+		leech_tether()
+
+func leech_tether() -> void:
+	is_casting = true
+	var beam = Line2D.new()
+	beam.width = 3.0
+	beam.default_color = Color(accent_color.r, accent_color.g, accent_color.b, 0.75)
+	beam.z_index = 5
+	get_parent().add_child(beam)
+	var elapsed = 0.0
+	while elapsed < 1.6 and not is_dead and is_instance_valid(player):
+		beam.points = PackedVector2Array([global_position + Vector2(0, -18), player.global_position + Vector2(0, -24)])
+		if global_position.distance_to(player.global_position) < LEECH_RANGE:
+			if player.has_method("take_damage"): player.take_damage(2)
+			if "mana" in player: player.mana = maxf(0.0, player.mana - 7.0)
+			health = mini(max_health, health + 3)
+			update_health_bar()
+		await get_tree().create_timer(0.3).timeout
+		elapsed += 0.3
+	if is_instance_valid(beam): beam.queue_free()
+	is_casting = false
+
+# BURROWER -- races under you UNTOUCHABLE, then bursts up in a telegraphed erupt.
+func act_burrower(delta: float) -> void:
+	var dx = player.global_position.x - global_position.x
+	match state:
+		"seek":
+			collision_layer = 0                    # burrowed: weapons pass through
+			if visual: visual.modulate.a = 0.22
+			velocity.x = sign(dx) * move_speed if absf(dx) > 8.0 else 0.0
+			if absf(dx) < 46.0 and tp_timer <= 0.0:
+				state = "mark"
+				state_timer = 0.7
+				spawn_sigil(Vector2(global_position.x, player.global_position.y), 52.0, 0.7, accent_color)
+		"mark":
+			velocity.x = 0.0
+			if state_timer <= 0.0:
+				collision_layer = 4                # surfaces -- now it can be hit
+				if visual: visual.modulate.a = 1.0
+				var at = Vector2(global_position.x, player.global_position.y)
+				_burst(at, 56.0, accent_color)
+				if is_instance_valid(player) and player.global_position.distance_to(at) < 62.0:
+					if player.has_method("take_damage"): player.take_damage(attack_damage)
+					if player.has_method("apply_knockback"): player.apply_knockback(sign(dx) if dx != 0 else 1, 220.0)
+				state = "cool"
+				state_timer = 2.2
+		"cool":
+			velocity.x = 0.0
+			if state_timer <= 0.0:
+				state = "seek"
+				tp_timer = BURROW_INTERVAL
+	face_player()
+
+# GRAVEWELL -- stationary; telegraphs, then YANKS you toward it, then bites.
+func act_warper(delta: float) -> void:
+	face_player()
+	var dist = global_position.distance_to(player.global_position)
+	var dx = player.global_position.x - global_position.x
+	velocity.x = 0.0
+	if dist < 58.0 and attack_cooldown <= 0.0:
+		deal_contact_damage()
+		attack_cooldown = 0.9
+	if cast_timer <= 0.0 and not is_casting and dist > 120.0 and dist < 640.0:
+		cast_timer = WARPER_CD
+		warp_pull()
+
+func warp_pull() -> void:
+	is_casting = true
+	set_flash(accent_color)
+	spawn_sigil(global_position + Vector2(0, -18), 40.0, WARPER_TELEGRAPH, accent_color)
+	await get_tree().create_timer(WARPER_TELEGRAPH).timeout
+	clear_flash()
+	if is_dead or not is_instance_valid(player):
+		is_casting = false
+		return
+	if player.has_method("apply_knockback"):
+		var toward = sign(global_position.x - player.global_position.x)
+		player.apply_knockback(toward if toward != 0 else 1, 360.0)
+	is_casting = false
+
+# PLAGUEBEARER -- shambles toward you, leaving a trail of poison gas.
+func act_plague(delta: float) -> void:
+	var dx = player.global_position.x - global_position.x
+	velocity.x = sign(dx) * move_speed if absf(dx) > 6.0 else 0.0
+	if global_position.distance_to(player.global_position) < 46.0 and attack_cooldown <= 0.0:
+		deal_contact_damage()
+		attack_cooldown = 0.9
+	if cast_timer <= 0.0:
+		cast_timer = PLAGUE_GAS_CD
+		spawn_gas(global_position + Vector2(0, -12))
+
+func spawn_gas(pos: Vector2) -> void:
+	var cloud = poly(circle_points(38.0, 20))
+	cloud.color = Color(accent_color.r, accent_color.g, accent_color.b, 0.28)
+	cloud.global_position = pos
+	cloud.z_index = 3
+	get_parent().add_child(cloud)
+	var life = 5.0
+	var t = 0.0
+	while t < life and is_instance_valid(cloud):
+		if is_instance_valid(player) and player.global_position.distance_to(pos) < 44.0:
+			if player.has_method("apply_poison"): player.apply_poison(2.0, 4.0)
+		await get_tree().create_timer(0.5).timeout
+		t += 0.5
+		if is_instance_valid(cloud): cloud.modulate.a = 1.0 - t / life
+	if is_instance_valid(cloud): cloud.queue_free()
+
+# WAILER -- shrieks an expanding sonic ring that DISORIENTS if it catches you.
+func act_wailer(delta: float) -> void:
+	face_player()
+	var dist = global_position.distance_to(player.global_position)
+	var dx = player.global_position.x - global_position.x
+	velocity.x = -sign(dx) * move_speed if dist < 180.0 else 0.0
+	if cast_timer <= 0.0 and not is_casting:
+		cast_timer = WAILER_CD
+		wail()
+
+func wail() -> void:
+	is_casting = true
+	set_flash(accent_color)
+	spawn_sigil(global_position + Vector2(0, -18), WAILER_RADIUS, WAILER_TELEGRAPH, accent_color)
+	await get_tree().create_timer(WAILER_TELEGRAPH).timeout
+	clear_flash()
+	if is_dead:
+		is_casting = false
+		return
+	_burst(global_position + Vector2(0, -18), WAILER_RADIUS, accent_color)
+	if is_instance_valid(player) and global_position.distance_to(player.global_position) < WAILER_RADIUS:
+		if player.has_method("take_damage"): player.take_damage(int(round(attack_damage * 0.6)))
+		if player.has_method("apply_disorient"): player.apply_disorient(2.0)
+	is_casting = false
+
+# BONE BALLISTA -- roots, telegraphs a long aim line, then fires a fast piercing bolt.
+func act_ballista(delta: float) -> void:
+	velocity.x = 0.0
+	face_player()
+	if cast_timer <= 0.0 and not is_casting and global_position.distance_to(player.global_position) < 900.0:
+		cast_timer = BALLISTA_CD
+		ballista_fire()
+
+func ballista_fire() -> void:
+	is_casting = true
+	var dir = (player.global_position - global_position).normalized()
+	var sight = Line2D.new()
+	sight.width = 2.0
+	sight.default_color = Color(accent_color.r, accent_color.g, accent_color.b, 0.5)
+	sight.z_index = 5
+	sight.points = PackedVector2Array([global_position + Vector2(0, -18), global_position + Vector2(0, -18) + dir * 900.0])
+	get_parent().add_child(sight)
+	set_flash(accent_color)
+	await get_tree().create_timer(BALLISTA_WINDUP).timeout
+	if is_instance_valid(sight): sight.queue_free()
+	clear_flash()
+	if is_dead:
+		is_casting = false
+		return
+	var shot_dir = (player.global_position - global_position).normalized()
+	var arrow = ARROW_SCENE.instantiate()
+	arrow.position = global_position + Vector2(0, -18) + shot_dir * 24.0
+	arrow.setup(shot_dir, attack_damage, 22.0, 34.0, 6, true, 1100.0)   # fast, big, pierces
+	get_parent().add_child(arrow)
+	is_casting = false
+
+# HIVE MAW -- coughs a burst of homing gnats (small cursed orbs).
+func act_swarm(delta: float) -> void:
+	face_player()
+	var dist = global_position.distance_to(player.global_position)
+	var dx = player.global_position.x - global_position.x
+	velocity.x = -sign(dx) * move_speed if dist < 240.0 else 0.0
+	if cast_timer <= 0.0 and dist < 620.0:
+		cast_timer = SWARM_CD
+		for i in range(SWARM_COUNT):
+			var base = (player.global_position - global_position).normalized()
+			var d = base.rotated(deg_to_rad(randf_range(-40.0, 40.0)))
+			var orb = MAGIC_ORB.new()
+			orb.setup(d, maxi(1, int(round(attack_damage * 0.6))), accent_color, 165.0)
+			orb.position = position + Vector2(randf_range(-8, 8), -16)
+			get_parent().add_child(orb)
+
+# RIMEWISP -- kites; a frost bolt that FREEZES + drops a lingering ice patch.
+func act_frostling(delta: float) -> void:
+	face_player()
+	var dist = global_position.distance_to(player.global_position)
+	var dx = player.global_position.x - global_position.x
+	if dist < 220.0: velocity.x = -sign(dx) * move_speed
+	elif dist > 460.0: velocity.x = sign(dx) * move_speed
+	else: velocity.x = 0.0
+	if cast_timer <= 0.0 and not is_casting and dist < 560.0:
+		cast_timer = FROST_CD
+		frost_cast()
+
+func frost_cast() -> void:
+	is_casting = true
+	set_flash(accent_color)
+	var at = Vector2(player.global_position.x, player.global_position.y)
+	spawn_sigil(at, 40.0, 0.6, accent_color)
+	await get_tree().create_timer(0.6).timeout
+	clear_flash()
+	if is_dead:
+		is_casting = false
+		return
+	_burst(at, 44.0, accent_color)
+	if is_instance_valid(player) and player.global_position.distance_to(at) < 48.0:
+		if player.has_method("take_damage"): player.take_damage(int(round(attack_damage * 0.6)))
+		if player.has_method("apply_freeze"): player.apply_freeze(0.9)
+	spawn_frost_patch(at)
+	is_casting = false
+
+func spawn_frost_patch(pos: Vector2) -> void:
+	var patch = poly(circle_points(46.0, 20))
+	patch.color = Color(accent_color.r, accent_color.g, accent_color.b, 0.30)
+	patch.global_position = pos
+	patch.z_index = 3
+	get_parent().add_child(patch)
+	var t = 0.0
+	while t < 4.0 and is_instance_valid(patch):
+		if is_instance_valid(player) and player.global_position.distance_to(pos) < 50.0:
+			if player.has_method("apply_slow"): player.apply_slow(0.5, 0.5)
+		await get_tree().create_timer(0.35).timeout
+		t += 0.35
+	if is_instance_valid(patch): patch.queue_free()
+
 # --- caster/teleport helpers ---
 
 func face_player() -> void:
@@ -799,6 +1135,15 @@ func build_visual() -> void:
 		"hexer": build_hexer_visual()
 		"runecaster": build_runecaster_visual()
 		"warlock": build_warlock_visual()
+		"weaver": build_weaver_visual()
+		"leech": build_leech_visual()
+		"burrower": build_burrower_visual()
+		"warper": build_warper_visual()
+		"plague": build_plague_visual()
+		"wailer": build_wailer_visual()
+		"ballista": build_ballista_visual()
+		"swarm": build_swarm_visual()
+		"frostling": build_frostling_visual()
 
 # Skinned mob body: normalized to MOB_SPRITE_H, feet planted on visual-local
 # y=0 (the same ground line the polygon builds draw up from). Facing rides the
@@ -989,6 +1334,70 @@ func build_warlock_visual() -> void:
 
 func _robe(color: Color) -> void:
 	add_part(poly(PackedVector2Array([Vector2(-14, 0), Vector2(14, 0), Vector2(10, -30), Vector2(-10, -30)])), color)
+
+# --- the 9 new mobs' silhouettes (simple, distinct) ---
+func build_weaver_visual() -> void:      # bulbous spider-mage
+	var ab = poly(circle_points(14.0)); ab.position = Vector2(0, -12); add_part(ab, main_color)
+	var head = poly(circle_points(8.0)); head.position = Vector2(0, -26); add_part(head, main_color.darkened(0.15))
+	for sx in [-3, 3]:
+		var e = poly(circle_points(2.0)); e.position = Vector2(sx, -27); add_part(e, accent_color)
+	for lx in [-1, 1]:
+		for ly in [-8, -16]:
+			var leg = Line2D.new(); leg.points = PackedVector2Array([Vector2(lx * 10, ly), Vector2(lx * 24, ly - 6)])
+			leg.width = 1.5; leg.default_color = main_color.darkened(0.3); visual.add_child(leg)
+
+func build_leech_visual() -> void:       # segmented worm with a sucker maw
+	add_part(poly(PackedVector2Array([Vector2(-9, 0), Vector2(9, 0), Vector2(7, -30), Vector2(-7, -30)])), main_color)
+	for ry in [-6, -14, -22]:
+		var seg = Line2D.new(); seg.points = PackedVector2Array([Vector2(-8, ry), Vector2(8, ry)])
+		seg.width = 1.5; seg.default_color = main_color.darkened(0.2); visual.add_child(seg)
+	var maw = poly(circle_points(5.0)); maw.position = Vector2(0, -30); add_part(maw, accent_color)
+
+func build_burrower_visual() -> void:    # low armoured digger with claws
+	add_part(poly(PackedVector2Array([Vector2(-20, 0), Vector2(20, 0), Vector2(14, -20), Vector2(-14, -20)])), main_color)
+	add_part(poly(PackedVector2Array([Vector2(-22, -6), Vector2(-30, -2), Vector2(-20, -12)])), BONE)
+	add_part(poly(PackedVector2Array([Vector2(22, -6), Vector2(30, -2), Vector2(20, -12)])), BONE)
+	for sx in [-6, 6]:
+		var e = poly(circle_points(2.0)); e.position = Vector2(sx, -13); add_part(e, accent_color)
+
+func build_warper_visual() -> void:      # rift-mage with a swirling core
+	_robe(main_color)
+	add_part(poly(PackedVector2Array([Vector2(-10, -26), Vector2(10, -26), Vector2(6, -44), Vector2(-6, -44)])), main_color.darkened(0.2))
+	var rift = poly(circle_points(7.0)); rift.position = Vector2(0, -16); add_part(rift, accent_color)
+	for sx in [-3, 3]:
+		var e = poly(circle_points(1.6)); e.position = Vector2(sx, -36); add_part(e, accent_color)
+
+func build_plague_visual() -> void:      # bloated boil-covered corpse
+	add_part(poly(PackedVector2Array([Vector2(-15, 0), Vector2(15, 0), Vector2(11, -26), Vector2(-11, -30), Vector2(-15, -14)])), main_color)
+	for p in [Vector2(-7, -16), Vector2(6, -10), Vector2(-2, -24), Vector2(9, -20), Vector2(0, -6)]:
+		var boil = poly(circle_points(3.0)); boil.position = p; add_part(boil, accent_color)
+
+func build_wailer_visual() -> void:      # gaunt screamer, wide maw
+	_robe(main_color)
+	var head = poly(circle_points(8.0)); head.position = Vector2(0, -34); add_part(head, main_color.darkened(0.1))
+	add_part(poly(PackedVector2Array([Vector2(-4, -33), Vector2(4, -33), Vector2(3, -26), Vector2(-3, -26)])), Color(0.05, 0.03, 0.06))
+	for sx in [-3, 3]:
+		var e = poly(circle_points(1.6)); e.position = Vector2(sx, -38); add_part(e, accent_color)
+
+func build_ballista_visual() -> void:    # squat siege corpse with a bolt-arm
+	add_part(poly(PackedVector2Array([Vector2(-22, 0), Vector2(22, 0), Vector2(16, -22), Vector2(-16, -22)])), main_color)
+	var arm = Line2D.new(); arm.points = PackedVector2Array([Vector2(-18, -14), Vector2(20, -14)])
+	arm.width = 4.0; arm.default_color = BONE.darkened(0.1); visual.add_child(arm)
+	add_part(poly(PackedVector2Array([Vector2(18, -17), Vector2(34, -14), Vector2(18, -11)])), accent_color)
+	for sx in [-8, 8]:
+		var e = poly(circle_points(2.4)); e.position = Vector2(sx, -15); add_part(e, accent_color)
+
+func build_swarm_visual() -> void:       # a gaping hive-maw
+	add_part(poly(PackedVector2Array([Vector2(-18, 0), Vector2(18, 0), Vector2(14, -26), Vector2(-14, -26)])), main_color)
+	var maw = poly(circle_points(9.0)); maw.position = Vector2(0, -13); add_part(maw, Color(0.04, 0.05, 0.02))
+	for p in [Vector2(-11, -6), Vector2(11, -8), Vector2(0, -22)]:
+		var cell = poly(circle_points(2.2)); cell.position = p; add_part(cell, accent_color)
+
+func build_frostling_visual() -> void:   # a jagged ice sprite
+	add_part(poly(PackedVector2Array([Vector2(-8, 0), Vector2(8, 0), Vector2(10, -16), Vector2(0, -30), Vector2(-10, -16)])), main_color)
+	for p in [Vector2(-9, -10), Vector2(9, -12), Vector2(0, -22)]:
+		var shard = poly(PackedVector2Array([Vector2(-2, 0), Vector2(2, 0), Vector2(0, -8)])); shard.position = p; add_part(shard, accent_color)
+	var core = poly(circle_points(3.0)); core.position = Vector2(0, -14); add_part(core, accent_color.lightened(0.2))
 
 # A pulsing additive halo that marks an elite at a glance.
 func build_elite_glow() -> void:
