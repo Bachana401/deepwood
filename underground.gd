@@ -31,6 +31,18 @@ const BIOMES := [
 ]
 const DEPTH := BIOME_H * 5
 
+# ── content (streamed per chunk, like the terrain) ────────────────────────────
+const ENEMY_SCENE := preload("res://enemy.tscn")
+const TRAP_SCENE := preload("res://trap.tscn")
+# chest loot by biome depth -- all ids the harvest/gather system already drops
+const LOOT := [
+	["wood", "stone", "stone", "resin"],
+	["stone", "stone", "iron_shard", "iron_shard"],
+	["iron_shard", "iron_shard", "ember_crystal", "stone"],
+	["ember_crystal", "ember_crystal", "iron_shard", "relic_mountain"],
+	["ember_crystal", "relic_mountain", "ember_crystal", "iron_shard"],
+]
+
 var _map: TileMapLayer
 var _player: Node = null
 var _worm1: FastNoiseLite               # fine worm tunnels
@@ -42,6 +54,7 @@ var _edits := {}                       # Vector2i(cell) -> kind (AIR = dug)
 var _hp := {}
 var _cur_chunk := Vector2i(999999, 999999)
 var _entry := Vector2.ZERO
+var _content := {}                     # Vector2i(chunk) -> [spawned content nodes]
 
 func _ready() -> void:
 	add_to_group("tile_world")
@@ -129,12 +142,135 @@ func _load_chunk(c: Vector2i) -> void:
 			var kind := _cell_kind(cell)
 			if kind != AIR:
 				_map.set_cell(cell, 0, Vector2i(kind, 0))
+	_populate_chunk(c)
 
 func _unload_chunk(c: Vector2i) -> void:
+	_depopulate_chunk(c)
 	for ly in range(CHUNK):
 		for lx in range(CHUNK):
 			_map.erase_cell(Vector2i(c.x * CHUNK + lx, c.y * CHUNK + ly))
 	_loaded.erase(c)
+
+# ── streamed content: chests (loot), depth-scaled mobs, traps ─────────────────
+func _populate_chunk(c: Vector2i) -> void:
+	if c.y < 1:
+		return                                    # keep the entry a safe landing
+	var rng := RandomNumberGenerator.new()
+	rng.seed = (hash(c) ^ 0x9E3779B9) & 0x7fffffff
+	var biome := _biome_of(c.y * CHUNK + CHUNK / 2)
+	var nodes := []
+	if rng.randf() < 0.16:                         # a loot chest
+		var fc = _find_floor_cell(c, rng)
+		if fc != null:
+			nodes.append(_spawn_chest(fc, biome, rng))
+	if rng.randf() < 0.14:                         # a trap
+		var tc = _find_floor_cell(c, rng)
+		if tc != null:
+			nodes.append(_spawn_trap(tc))
+	var mob_count := 1 + int(biome / 2)            # deeper -> more, tougher mobs
+	for i in range(mob_count):
+		if rng.randf() < 0.6:
+			var mc = _find_floor_cell(c, rng)
+			if mc != null and _player != null \
+					and _map.to_global(_map.map_to_local(mc)).distance_to(_player.global_position) > 460.0:
+				nodes.append(_spawn_mob(mc, biome, rng))
+	if not nodes.is_empty():
+		_content[c] = nodes
+
+func _depopulate_chunk(c: Vector2i) -> void:
+	if not _content.has(c):
+		return
+	for n in _content[c]:
+		if is_instance_valid(n):
+			n.queue_free()
+	_content.erase(c)
+
+# a floor spot inside the chunk: an AIR cell with solid below and headroom above
+func _find_floor_cell(c: Vector2i, rng: RandomNumberGenerator):
+	for attempt in range(24):
+		var cell := Vector2i(c.x * CHUNK + rng.randi_range(1, CHUNK - 2),
+			c.y * CHUNK + rng.randi_range(1, CHUNK - 2))
+		if _cell_kind(cell) == AIR and _cell_kind(cell + Vector2i(0, 1)) != AIR \
+				and _cell_kind(cell + Vector2i(0, -1)) == AIR:
+			return cell
+	return null
+
+func _spawn_chest(cell: Vector2i, biome: int, rng: RandomNumberGenerator) -> Node:
+	var id := "ug_c_%d_%d" % [cell.x, cell.y]
+	var opened: bool = GameState.chest_contents.has(id)
+	var chest := Node2D.new()
+	chest.global_position = _map.to_global(_map.map_to_local(cell)) + Vector2(0, 2)
+	chest.z_index = 8
+	chest.add_to_group("ug_chest")
+	chest.set_meta("chest_id", id)
+	chest.set_meta("opened", opened)
+	var lid := Polygon2D.new()
+	lid.polygon = PackedVector2Array([Vector2(-11, -15), Vector2(11, -15), Vector2(11, -1), Vector2(-11, -1)])
+	lid.color = Color(0.30, 0.24, 0.16) if opened else Color(0.62, 0.45, 0.22)
+	chest.add_child(lid)
+	var band := Polygon2D.new()
+	band.polygon = PackedVector2Array([Vector2(-11, -9), Vector2(11, -9), Vector2(11, -6), Vector2(-11, -6)])
+	band.color = Color(0.85, 0.7, 0.35) if not opened else Color(0.4, 0.35, 0.22)
+	chest.add_child(band)
+	if not opened:
+		var loot := []
+		var table: Array = LOOT[clampi(biome, 0, LOOT.size() - 1)]
+		for i in range(rng.randi_range(2, 4)):
+			loot.append(table[rng.randi_range(0, table.size() - 1)])
+		chest.set_meta("loot", loot)
+	add_child(chest)
+	return chest
+
+func _spawn_trap(cell: Vector2i) -> Node:
+	var t = TRAP_SCENE.instantiate()
+	add_child(t)
+	t.global_position = _map.to_global(_map.map_to_local(cell)) + Vector2(0, 4)
+	return t
+
+func _spawn_mob(cell: Vector2i, biome: int, rng: RandomNumberGenerator) -> Node:
+	var e = ENEMY_SCENE.instantiate()
+	if "respawns" in e: e.respawns = false
+	if "is_wild" in e: e.is_wild = true
+	var wx: float = _map.to_global(_map.map_to_local(cell)).x
+	if "wild_home_x" in e: e.wild_home_x = wx
+	var depth := float(biome) / float(BIOMES.size() - 1)
+	if "wave_hp_multiplier" in e: e.wave_hp_multiplier = lerpf(1.2, 5.0, depth) * rng.randf_range(0.9, 1.15)
+	if "wave_damage_multiplier" in e: e.wave_damage_multiplier = lerpf(1.1, 3.4, depth) * rng.randf_range(0.9, 1.1)
+	if "wave_speed_multiplier" in e: e.wave_speed_multiplier = lerpf(1.0, 1.35, depth)
+	if e.has_method("apply_block_archetype"): e.apply_block_archetype(mini(int(depth * 9.0), 8))
+	e.add_to_group("course_enemy")
+	add_child(e)
+	e.global_position = _map.to_global(_map.map_to_local(cell)) + Vector2(0, -22)
+	if "detection_range_current" in e and "DETECTION_RANGE" in e:
+		var sight: float = e.WILD_SIGHT_MULT if "WILD_SIGHT_MULT" in e else 1.0
+		e.detection_range_current = e.DETECTION_RANGE * sight
+	return e
+
+func _try_loot_chest() -> bool:
+	if _player == null:
+		return false
+	for ch in get_tree().get_nodes_in_group("ug_chest"):
+		if not is_instance_valid(ch) or bool(ch.get_meta("opened", false)):
+			continue
+		if _player.global_position.distance_to(ch.global_position) > 62.0:
+			continue
+		var loot: Array = ch.get_meta("loot", [])
+		var got := {}
+		for id in loot:
+			if "inventory" in _player and _player.inventory != null:
+				_player.inventory.add_item(String(id), 1)
+			got[String(id)] = int(got.get(String(id), 0)) + 1
+		ch.set_meta("opened", true)
+		GameState.chest_contents[String(ch.get_meta("chest_id"))] = {}   # persist: emptied
+		for c in ch.get_children():
+			if c is Polygon2D:
+				c.color = c.color.darkened(0.5)
+		var parts := []
+		for id in got:
+			parts.append("%s ×%d" % [Inventory.get_display_name(id), got[id]])
+		GameState.notify("⛏ Chest looted: " + ", ".join(parts))
+		return true
+	return false
 
 func _process(delta: float) -> void:
 	if _player == null or not is_instance_valid(_player):
@@ -349,6 +485,8 @@ func _unhandled_input(e: InputEvent) -> void:
 		if _player != null and _exit_area != null \
 				and _player.global_position.distance_to(_exit_area.global_position) < 70.0:
 			_return_to_village()
+			return
+		_try_loot_chest()
 
 func _return_to_village() -> void:
 	_save()
