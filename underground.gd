@@ -48,6 +48,8 @@ var _wallmap: TileMapLayer              # background: dark cave back-walls (no c
 var _player: Node = null
 var _caverns: FastNoiseLite             # big organic open caverns
 var _tunnels: FastNoiseLite             # long winding tunnels between them
+var _region: FastNoiseLite              # slow field: tight warrens <-> grand caverns
+var _chasm: FastNoiseLite               # vertical chasms / drops
 var _ore: FastNoiseLite                 # mineral vein pockets
 var _loaded := {}                      # Vector2i(chunk) -> true
 var _edits := {}                       # Vector2i(cell) -> kind (AIR = dug)
@@ -81,6 +83,19 @@ func _ready() -> void:
 	_tunnels.fractal_octaves = 2
 	_tunnels.domain_warp_enabled = true
 	_tunnels.domain_warp_amplitude = 30.0
+	# REGION FIELD: a slow-varying value that shapes each area's character -- from
+	# tight winding warrens (solid, thin passages) to grand open caverns.
+	_region = FastNoiseLite.new()
+	_region.seed = 0x2B1E
+	_region.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	_region.frequency = 0.006
+	_region.fractal_type = FastNoiseLite.FRACTAL_FBM
+	_region.fractal_octaves = 2
+	# CHASMS: vertically-stretched cracks that drop you between levels.
+	_chasm = FastNoiseLite.new()
+	_chasm.seed = 0x9D71
+	_chasm.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	_chasm.frequency = 0.02
 	_ore = FastNoiseLite.new(); _ore.seed = 0xACE1; _ore.frequency = 0.10
 	_build_backdrop()        # a dark cave behind the tiles (so air isn't flat grey)
 	_build_wallmap()         # dark textured back-walls behind everything (Terraria look)
@@ -146,10 +161,18 @@ func _gen_kind(x: int, y: int) -> int:
 	return b
 
 func _raw_open(x: int, y: int) -> bool:
-	var open_bias := float(y) / float(DEPTH) * 0.06
-	if _caverns.get_noise_2d(float(x), float(y)) > 0.0 - open_bias:
+	# the REGION shapes local character: r>0 -> grand open caverns, r<0 -> tight
+	# solid warrens with only thin passages. Deeper = a touch more open overall.
+	var r := _region.get_noise_2d(float(x), float(y))
+	var thr := -0.02 - float(y) / float(DEPTH) * 0.06 - r * 0.34
+	if _caverns.get_noise_2d(float(x), float(y)) > thr:
 		return true
-	if absf(_tunnels.get_noise_2d(float(x), float(y))) < 0.05:
+	# winding tunnels always stitch the world together (thinner inside warrens)
+	var tun := 0.032 if r < -0.25 else 0.05
+	if absf(_tunnels.get_noise_2d(float(x), float(y))) < tun:
+		return true
+	# vertical CHASMS: y-squashed noise -> tall narrow shafts you can drop down
+	if absf(_chasm.get_noise_2d(float(x), float(y) * 0.22)) < 0.02:
 		return true
 	return false
 
