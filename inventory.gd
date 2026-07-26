@@ -1068,6 +1068,11 @@ static func paint_icon(target: ColorRect, item_id: String) -> void:
 		"resin": _icon_resin(target, w, h)
 		"herb": _icon_leaf(target, w, h)
 		"raw_meat": _icon_meat(target, w, h)
+		"slime": _icon_blob(target, w, h, col)
+		"iron_shard", "sorrowshard": _icon_shard(target, w, h, col)
+		"ember_crystal": _icon_crystal(target, w, h, col)
+		"void_essence": _icon_orb(target, w, h, col)
+		"ancient_relic": _icon_runestone(target, w, h, col)
 		_:
 			if get_category(item_id) == "consumable":
 				_icon_potion(target, w, h, col)
@@ -1363,6 +1368,45 @@ static func _icon_gem(t: Control, w: float, h: float, col: Color) -> void:
 		Vector2(w * 0.5, h * 0.18), Vector2(w * 0.72, h * 0.44),
 		Vector2(w * 0.28, h * 0.44)]), col.lightened(0.22))
 	_icircle(t, Vector2(w * 0.42, h * 0.34), w * 0.04, Color(1, 1, 1, 0.7))
+
+# --- material symbols (drop-loot that used to render as a flat coloured square) ---
+static func _icon_blob(t: Control, w: float, h: float, col: Color) -> void:
+	_icircle(t, Vector2(w * 0.5, h * 0.57), w * 0.30, col)                          # gooey body
+	_icircle(t, Vector2(w * 0.34, h * 0.43), w * 0.12, col.lightened(0.10))         # top-left bulge
+	_icircle(t, Vector2(w * 0.66, h * 0.47), w * 0.10, col.lightened(0.05))         # top-right bulge
+	_icircle(t, Vector2(w * 0.41, h * 0.49), w * 0.05, Color(1, 1, 1, 0.6))         # wet shine
+
+static func _icon_shard(t: Control, w: float, h: float, col: Color) -> void:
+	_ipoly(t, PackedVector2Array([                                                  # angular sliver
+		Vector2(w * 0.46, h * 0.14), Vector2(w * 0.64, h * 0.5),
+		Vector2(w * 0.54, h * 0.86), Vector2(w * 0.40, h * 0.6)]), col)
+	_iline(t, PackedVector2Array([Vector2(w * 0.49, h * 0.22), Vector2(w * 0.51, h * 0.76)]),
+		max(1.0, w * 0.02), col.lightened(0.32))                                    # facet ridge
+	_icircle(t, Vector2(w * 0.5, h * 0.32), w * 0.035, Color(1, 1, 1, 0.6))         # glint
+
+static func _icon_crystal(t: Control, w: float, h: float, col: Color) -> void:
+	_ipoly(t, PackedVector2Array([                                                  # tall prism
+		Vector2(w * 0.5, h * 0.12), Vector2(w * 0.66, h * 0.4),
+		Vector2(w * 0.6, h * 0.82), Vector2(w * 0.4, h * 0.82),
+		Vector2(w * 0.34, h * 0.4)]), col)
+	_ipoly(t, PackedVector2Array([                                                  # bright facet
+		Vector2(w * 0.5, h * 0.12), Vector2(w * 0.34, h * 0.4),
+		Vector2(w * 0.42, h * 0.82), Vector2(w * 0.5, h * 0.4)]), col.lightened(0.25))
+	_icircle(t, Vector2(w * 0.5, h * 0.16), w * 0.05, col.lightened(0.45))          # glowing tip
+
+static func _icon_orb(t: Control, w: float, h: float, col: Color) -> void:
+	_icircle(t, Vector2(w * 0.5, h * 0.5), w * 0.32, col.darkened(0.35))            # dark halo
+	_icircle(t, Vector2(w * 0.5, h * 0.5), w * 0.24, col)                           # orb
+	_icircle(t, Vector2(w * 0.5, h * 0.5), w * 0.11, col.lightened(0.35))           # inner glow
+	_icircle(t, Vector2(w * 0.43, h * 0.43), w * 0.04, Color(1, 1, 1, 0.5))         # shine
+
+static func _icon_runestone(t: Control, w: float, h: float, col: Color) -> void:
+	_irect(t, Vector2(w * 0.30, h * 0.20), Vector2(w * 0.40, h * 0.60), col.darkened(0.25))  # tablet edge
+	_irect(t, Vector2(w * 0.34, h * 0.24), Vector2(w * 0.32, h * 0.52), col)                 # face
+	var glow := col.lightened(0.4)
+	_iline(t, PackedVector2Array([Vector2(w * 0.40, h * 0.33), Vector2(w * 0.60, h * 0.33)]), max(1.0, w * 0.025), glow)
+	_iline(t, PackedVector2Array([Vector2(w * 0.50, h * 0.33), Vector2(w * 0.50, h * 0.60)]), max(1.0, w * 0.025), glow)
+	_iline(t, PackedVector2Array([Vector2(w * 0.42, h * 0.60), Vector2(w * 0.58, h * 0.60)]), max(1.0, w * 0.025), glow)
 
 const DEFAULT_MAX_STACK = 99
 
