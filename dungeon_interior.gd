@@ -386,6 +386,7 @@ var current_ceiling := CEILING_Y
 const GATE_SCRIPT = preload("res://dungeon_gate.gd")
 
 func _ready() -> void:
+	add_to_group("level_director")   # mid-fight summoned minions register here to join alive_count
 	# the village diary is readable even down here -- what happened up top
 	# while you delved is exactly what it exists to answer (5.9)
 	add_child(preload("res://village_log_ui.gd").new())
@@ -2462,6 +2463,16 @@ func _give_gear(player: Node, item_id: String, excellent: bool) -> void:
 		show_notification("EXCELLENT find: %s!" % Inventory.get_display_name(item_id))
 	else:
 		show_notification("Gear drop: %s!" % Inventory.get_display_name(item_id))
+
+# A combatant spawned MID-FIGHT (e.g. a summoner's minions) joins the live count, so the
+# floor isn't declared cleared while it's still alive and hostile -- and then left to linger,
+# un-counted and unkillable-of-consequence, on a floor recorded as cleared.
+func register_extra_combatant(e) -> void:
+	if e == null or not is_instance_valid(e) or not level_in_progress:
+		return
+	if not e.died.is_connected(_on_combatant_died):
+		e.died.connect(_on_combatant_died)
+	alive_count += 1
 
 func _on_combatant_died() -> void:
 	# bosses always drop a material; regular enemies drop rarely

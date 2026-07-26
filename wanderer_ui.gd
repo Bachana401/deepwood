@@ -89,5 +89,8 @@ func refresh() -> void:
 
 func _on_buy(index: int) -> void:
 	var player = get_tree().get_first_node_in_group("player")
-	if GameState.buy_from_wanderer(index, player):
-		refresh()
+	GameState.buy_from_wanderer(index, player)
+	# refresh EITHER way: if the seller has since left, refresh() collapses the panel via
+	# its empty guard instead of leaving a dead cart whose Buy silently does nothing; a
+	# failed buy also re-reads current stock/prices.
+	refresh()

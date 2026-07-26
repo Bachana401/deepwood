@@ -459,7 +459,7 @@ func prime_and_explode() -> void:
 	t.tween_callback(clear_flash)
 	t.tween_interval(BOMBER_PRIME_TIME / 6.0)
 	await get_tree().create_timer(BOMBER_PRIME_TIME).timeout
-	if is_dead:
+	if not is_instance_valid(self) or is_dead:   # died mid-prime -> the freed mob can't explode
 		return
 	explode()
 
@@ -604,6 +604,8 @@ func cast_hex_ring() -> void:
 	is_casting = true
 	set_flash(accent_color)
 	await get_tree().create_timer(HEX_TELEGRAPH).timeout
+	if not is_instance_valid(self):        # died mid-telegraph -> don't touch the freed mob
+		return
 	clear_flash()
 	if is_dead:
 		is_casting = false
@@ -641,6 +643,8 @@ func cast_runes() -> void:
 	for x in xs:
 		spawn_sigil(Vector2(x, gy), RUNE_RADIUS, RUNE_TELEGRAPH, accent_color)
 	await get_tree().create_timer(RUNE_TELEGRAPH).timeout
+	if not is_instance_valid(self):        # died mid-telegraph -> don't touch the freed mob
+		return
 	clear_flash()
 	if is_dead:
 		is_casting = false
@@ -917,7 +921,9 @@ func ballista_fire() -> void:
 	get_parent().add_child(sight)
 	set_flash(accent_color)
 	await get_tree().create_timer(BALLISTA_WINDUP).timeout
-	if is_instance_valid(sight): sight.queue_free()
+	if is_instance_valid(sight): sight.queue_free()   # free the sight line even if self died
+	if not is_instance_valid(self):        # died mid-windup -> don't touch the freed mob
+		return
 	clear_flash()
 	if is_dead or not is_instance_valid(player):
 		is_casting = false

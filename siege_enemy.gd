@@ -270,6 +270,15 @@ func nearest_defender() -> Node2D:
 				continue
 			if "is_dead" in d and d.is_dead:
 				continue
+			# skip targets that can't actually TAKE damage right now -- else a raider parks
+			# on an invulnerable target forever and the live siege never ends (softlock that
+			# wedges live_siege_active: blocks future sieges, the Black Tide, care-seeking):
+			#  - a villager sheltered inside a building (npc.take_damage no-ops)
+			#  - a ruined/unfinished building (building.take_damage no-ops)
+			if "is_in_building" in d and d.is_in_building:
+				continue
+			if "build_stage" in d and (int(d.build_stage) < GameState.TOTAL_BUILD_STAGES or int(d.health) <= 0):
+				continue
 			var dist = global_position.distance_to(d.global_position)
 			if dist < best_d:
 				best_d = dist
@@ -358,8 +367,13 @@ func apply_knockback(direction_sign: int, distance: float) -> void:
 		return
 	is_knocked_back = true
 	velocity.x = direction_sign * (distance / KNOCKBACK_DURATION)
+	# a DoT tick can kill+free a non-skinned raider (die() frees immediately, no anim await)
+	# mid-knockback; re-resolve self after the wait so we never write to a freed instance.
+	var id := get_instance_id()
 	await get_tree().create_timer(KNOCKBACK_DURATION).timeout
-	is_knocked_back = false
+	var s = instance_from_id(id)
+	if s != null and is_instance_valid(s) and not s.is_dead:
+		s.is_knocked_back = false
 
 func flash_hit() -> void:
 	if skin_sprite != null:

@@ -109,7 +109,10 @@ func _spawn_raider(hp: int, dmg: int, tier: int, wall, pos: Vector2) -> void:
 # One soldier/hero body, posted to a flank: west defenders sally just east
 # of the west rampart facing the wild; east defenders mirror it.
 func _post_for_flank(west_wall, east_wall, index: int) -> Dictionary:
-	var to_east: bool = east_wall != null and index % 2 == 1
+	# match where the RAIDERS actually are: pre-Orin the east front is shut (all raiders
+	# spawn west), so posting half the garrison to the east wall left it defending an empty
+	# flank while the west took the whole wave. Gate on two_fronts, not merely east_wall.
+	var to_east: bool = GameState.orin_arrived() and east_wall != null and index % 2 == 1
 	if to_east:
 		return {"wall": east_wall, "facing": 1,
 			"x": east_wall.west_face_x() + SOLDIER_SALLY_OFFSET + (index / 2) * randf_range(30.0, 55.0)}

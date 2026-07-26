@@ -131,6 +131,12 @@ func perform_drop(mouse_pos: Vector2) -> void:
 					refresh_all_panels()
 					cancel_drag()
 					return
+				if _would_strip_wielded(source_inventory, str(s.item_id)):
+					var stkw = get_tree().get_first_node_in_group("notification_stack")
+					if stkw: stkw.show_notification("You can't discard the weapon in your hands — wield another first.")
+					refresh_all_panels()
+					cancel_drag()
+					return
 				var nm: String = Inventory.get_display_name(str(s.item_id))
 				source_inventory.slots[source_index] = null
 				var stack = get_tree().get_first_node_in_group("notification_stack")
@@ -149,6 +155,16 @@ func perform_drop(mouse_pos: Vector2) -> void:
 			target_index = idx
 			break
 	if target_inventory != null and source_inventory != null:
+		# stowing the wielded weapon in a chest/other inventory would strip it from the bag
+		# yet leave it "wielded" (phantom swing + stale bonuses, and a dupe of the moved copy)
+		if target_inventory != source_inventory:
+			var moving = source_inventory.slots[source_index]
+			if moving != null and _would_strip_wielded(source_inventory, str(moving.item_id)):
+				var stkm = get_tree().get_first_node_in_group("notification_stack")
+				if stkm: stkm.show_notification("You can't stow the weapon in your hands — wield another first.")
+				refresh_all_panels()
+				cancel_drag()
+				return
 		source_inventory.transfer_slot(source_index, target_inventory, target_index)
 	refresh_all_panels()
 	cancel_drag()
@@ -159,6 +175,14 @@ func cancel_drag() -> void:
 	source_index = -1
 	icon.visible = false
 	count_label.visible = false
+
+# True if removing item_id from `inv` would strip the player's currently-wielded weapon out
+# of their own bag (leaving active_weapon_id dangling). Used to block trash/stow of it.
+func _would_strip_wielded(inv, item_id: String) -> bool:
+	var pl = get_tree().get_first_node_in_group("player")
+	if pl == null or not ("active_weapon_id" in pl) or not ("inventory" in pl):
+		return false
+	return inv == pl.inventory and item_id != "" and item_id == str(pl.active_weapon_id)
 
 func start_or_continue_split(inventory: Inventory, index: int) -> void:
 	if active:

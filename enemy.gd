@@ -1060,6 +1060,12 @@ func summon_minions() -> void:
 		m.position = global_position + Vector2(randf_range(-70, 70), -10)
 		m.add_to_group(group)
 		get_parent().add_child(m)
+		# in a dungeon, a summoned minion must JOIN the floor's live count, or the floor is
+		# declared cleared while it's still alive (and it lingers, un-counted, forever).
+		if group == "dungeon_combatant":
+			var director = get_tree().get_first_node_in_group("level_director")
+			if director != null and director.has_method("register_extra_combatant"):
+				director.register_extra_combatant(m)
 		summoned_minions.append(m)
 	spawn_status_spark(Color(0.8, 0.4, 1.0))
 

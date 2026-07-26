@@ -330,14 +330,22 @@ func unequip_slot(slot: String, player: Node, relic_index: int = -1) -> void:
 		if relic_index < 0 or relic_index >= RELIC_MAX_SLOTS:
 			return
 		item_id = equipment.relics[relic_index]
-		equipment.relics[relic_index] = ""
 	else:
 		if not equipment.has(slot):
 			return
 		item_id = equipment[slot]
-		equipment[slot] = ""
+	# put the piece back in the bag FIRST -- if it's full, refuse rather than DESTROY a
+	# (possibly mythic) relic/armor piece. Every other caller checks add_item's leftover.
 	if item_id != "":
-		player.inventory.add_item(item_id, 1)
+		var left: int = player.inventory.add_item(item_id, 1)
+		if left > 0:
+			notify("Your bag is full — make room before unequipping.")
+			return
+	# only now vacate the slot (the piece is safely in the bag)
+	if slot == "relic":
+		equipment.relics[relic_index] = ""
+	else:
+		equipment[slot] = ""
 	if player.has_method("on_equipment_changed"):
 		player.on_equipment_changed()
 
@@ -2521,8 +2529,10 @@ func tick_rot(_hours_passed: float) -> void:
 	for v in rescued_villagers:
 		var id := str(v.get("id", ""))
 		# warriors die in battle, never to despair; shadows are past despair's
-		# reach entirely (pledged, needless) -- neither ever enters the rot
-		if is_warrior_villager(v) or v.get("shadow", false):
+		# reach entirely (pledged, needless); the Ten are UNBREAKABLE -- hope not even
+		# a starving village can kill (every other loss path already exempts them).
+		# None ever enters the rot.
+		if is_warrior_villager(v) or v.get("shadow", false) or v.get("unbreakable", false):
 			villager_rot.erase(id)
 			continue
 		var m := get_personal_morale(v)
@@ -2556,13 +2566,13 @@ func _spread_infection(epicenter: Vector2) -> void:
 	if near_ids.is_empty():
 		var pool := []
 		for v in rescued_villagers:
-			if not is_warrior_villager(v):
+			if not is_warrior_villager(v) and not v.get("unbreakable", false):
 				pool.append(str(v.get("id", "")))
 		pool.shuffle()
 		near_ids = pool.slice(0, 2)
 	for v in rescued_villagers:
 		var vid := str(v.get("id", ""))
-		if not near_ids.has(vid) or is_warrior_villager(v) or v.get("shadow", false):
+		if not near_ids.has(vid) or is_warrior_villager(v) or v.get("shadow", false) or v.get("unbreakable", false):
 			continue
 		var m := get_personal_morale(v)
 		if m < INFECT_LOW_MORALE:
