@@ -1170,10 +1170,14 @@ func _tick_cave_mouth() -> void:
 			if stack:
 				stack.show_notification("The road runs on to the village, just east — reach it first. There is nothing for you below yet.")
 			return
-		pl.global_position = Vector2(DESCENT_X + 40.0, TUNNEL_TOP_Y - 60.0)
+		# INTO THE TERRARIA UNDERGROUND (rework 2026-07-25): the mouth now leads to
+		# the real 2-D minable tile world (its own scene), not the old flat stair.
 		_at_mouth = false
 		_cave_prompt.visible = false
-		GameState.notify("The air turns cold. The floor slopes away east.")
+		GameState.pending_player_state = GameState.capture_player_state(pl)
+		GameState.in_dungeon = true
+		get_tree().change_scene_to_file.call_deferred("res://underground.tscn")
+		return
 	else:
 		pl.global_position = Vector2(MOUTH_X + 30.0, -70.0)
 		_at_head = false

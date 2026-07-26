@@ -2120,6 +2120,29 @@ func get_aim_direction() -> Vector2:
 		return Vector2(facing_direction, 0)
 	return to_mouse.normalized()
 
+# TERRARIA MINING (2026-07-25): while a pickaxe is wielded, HOLD left-click to dig
+# the tile at the cursor in a minable tile world (group "tile_world"). Hold SHIFT
+# for smart-cursor -- it auto-targets the nearest tile toward the aim, no
+# pixel-precise pointing. Only fires when such a world exists (the underground),
+# so it never touches the village.
+const DIG_INTERVAL := 0.14
+const DIG_REACH := 6.0 * 16.0
+var _dig_cd := 0.0
+func _tick_dig(delta: float) -> void:
+	_dig_cd -= delta
+	if typeof(active_def) != TYPE_DICTIONARY or str(active_def.get("tool_type", "")) != "pickaxe":
+		return
+	if not Input.is_action_pressed("attack") or GameState.placing_building:
+		return
+	if _dig_cd > 0.0:
+		return
+	var world = get_tree().get_first_node_in_group("tile_world")
+	if world == null or not world.has_method("mine_at"):
+		return
+	_dig_cd = DIG_INTERVAL
+	var smart := Input.is_key_pressed(KEY_SHIFT)
+	world.mine_at(get_global_mouse_position(), global_position, DIG_REACH, smart, 1, self)
+
 func update_weapon_visual(offset: float) -> void:
 	if not has_weapon():
 		$WeaponIcon.visible = false
@@ -2529,6 +2552,7 @@ func _physics_process(delta: float) -> void:
 			perform_attack()
 	else:
 		stop_beam()
+	_tick_dig(delta)
 
 	# right-click = the admin Ruin Wand's no-aim percent burst (see below)
 	if Input.is_action_just_pressed("secondary_attack") and not cc_hard:
