@@ -1054,7 +1054,9 @@ static func paint_icon(target: ColorRect, item_id: String) -> void:
 		"wpn_bow": _icon_bow(target, w, h)
 		"wpn_wand": _icon_wand(target, w, h)
 		"tool_axe": _icon_axe(target, w, h)
-		"tool_pickaxe", "tool_pickaxe_ember", "tool_pickaxe_blight": _icon_pickaxe(target, w, h)
+		"tool_pickaxe": _icon_pickaxe(target, w, h)
+		"tool_pickaxe_ember": _icon_pickaxe_ember(target, w, h)
+		"tool_pickaxe_blight": _icon_pickaxe_blight(target, w, h)
 		"exc_hook": _icon_hook(target, w, h)
 		"exc_boomerang": _icon_boomerang(target, w, h)
 		"exc_wizardsbane": _icon_runeblade(target, w, h)
@@ -1236,6 +1238,28 @@ static func _icon_pickaxe(t: Control, w: float, h: float) -> void:
 		Vector2(w * 0.16, h * 0.3), Vector2(w * 0.5, h * 0.12),
 		Vector2(w * 0.84, h * 0.3), Vector2(w * 0.78, h * 0.36),
 		Vector2(w * 0.5, h * 0.24), Vector2(w * 0.22, h * 0.36)]), Color(0.72, 0.74, 0.8))
+
+# The tiered pickaxes: same silhouette as the Miner's, but a coloured head with glowing
+# tips so they read apart at a glance in the belt (procedural, no art asset).
+static func _icon_pickaxe_ember(t: Control, w: float, h: float) -> void:
+	_irect(t, Vector2(w * 0.46, h * 0.18), Vector2(w * 0.09, h * 0.7), Color(0.30, 0.20, 0.14))  # scorched haft
+	_ipoly(t, PackedVector2Array([                                                  # ember-forged head
+		Vector2(w * 0.16, h * 0.3), Vector2(w * 0.5, h * 0.12),
+		Vector2(w * 0.84, h * 0.3), Vector2(w * 0.78, h * 0.36),
+		Vector2(w * 0.5, h * 0.24), Vector2(w * 0.22, h * 0.36)]), Color(0.95, 0.5, 0.2))
+	_icircle(t, Vector2(w * 0.17, h * 0.31), w * 0.055, Color(1.0, 0.72, 0.28, 0.92))   # molten left tip
+	_icircle(t, Vector2(w * 0.83, h * 0.31), w * 0.055, Color(1.0, 0.72, 0.28, 0.92))   # molten right tip
+	_icircle(t, Vector2(w * 0.5, h * 0.17), w * 0.045, Color(1.0, 0.86, 0.42, 0.9))     # heat at the crown
+
+static func _icon_pickaxe_blight(t: Control, w: float, h: float) -> void:
+	_irect(t, Vector2(w * 0.46, h * 0.18), Vector2(w * 0.09, h * 0.7), Color(0.22, 0.16, 0.28))  # tainted haft
+	_ipoly(t, PackedVector2Array([                                                  # corrupted crystal head
+		Vector2(w * 0.16, h * 0.3), Vector2(w * 0.5, h * 0.12),
+		Vector2(w * 0.84, h * 0.3), Vector2(w * 0.78, h * 0.36),
+		Vector2(w * 0.5, h * 0.24), Vector2(w * 0.22, h * 0.36)]), Color(0.82, 0.42, 1.0))
+	_icircle(t, Vector2(w * 0.17, h * 0.31), w * 0.055, Color(0.72, 0.36, 1.0, 0.92))  # blight left tip
+	_icircle(t, Vector2(w * 0.83, h * 0.31), w * 0.055, Color(0.72, 0.36, 1.0, 0.92))  # blight right tip
+	_icircle(t, Vector2(w * 0.5, h * 0.17), w * 0.045, Color(0.92, 0.62, 1.0, 0.9))    # rune at the crown
 
 static func _icon_ragnarok(t: Control, w: float, h: float) -> void:
 	# a fiery blade ringed by little flame-sparks (the storm it carries)
