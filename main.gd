@@ -527,7 +527,17 @@ func generate_houses() -> void:
 # a cottage, or gestating) is skipped -- they don't have a wandering avatar
 # during that time even in a live, non-reloaded session (see house.gd).
 func spawn_existing_villager_avatars() -> void:
+	# THE EMPTY RUINS (2026-07-25): a fresh arrival opens on a dead village. The
+	# starting souls (Doctor Maren + the two farmhands) exist in the roster from
+	# frame one so every system that counts them works, but their AVATARS stay
+	# hidden until the first wave is broken -- then they creep from the wreckage
+	# in the arrival cutscene (_on_arrival_raider_died -> _emerge_arrival_survivors,
+	# which calls this again with the flag now set). dev_mode skips the whole
+	# opening, so it peoples the village at once.
+	var hide_starters := not GameState.seen_arrival_battle and not GameState.dev_mode
 	for villager in GameState.rescued_villagers:
+		if hide_starters:
+			continue
 		var villager_id = villager.get("id", "")
 		# THE THAW (4.2a): a crystal-freed hostage's stats stay wrapped until
 		# they stand at home -- this is home. Unwrap the gift, and say what
@@ -691,12 +701,18 @@ func _on_arrival_raider_died() -> void:
 		if "home_x" in a:
 			a.home_x = 0.0
 	GameState.log_event("combat", "Your first wave broke at the gate — you fought it beside Roland, Wren and Castor.")
+	# THE SURVIVORS EMERGE (2026-07-25): the ruin stood empty through the fight;
+	# now that the gate holds, the people who hid from the raiders creep out --
+	# the Doctor and the two farmhands. Spawn their avatars beside the gate so the
+	# reveal that follows is spoken by real bodies, and the village is peopled from
+	# here on. Their walk-in reads as the moment life returns to Deepwood.
+	var pl0 = get_tree().get_first_node_in_group("player")
+	_emerge_arrival_survivors(pl0)
 	# THE TALK FOLLOWS THE FIGHT, because the fight is now AT the wall (dev
 	# 2026-07-21: "only after defeating them dialogue starts"). An earlier pass
 	# made the player walk to the rampart first -- correct when the battle was
 	# staged out on the open road, pointless now that it is fought at the gate.
 	_arrival_talk_pending = true
-	var pl0 = get_tree().get_first_node_in_group("player")
 	if pl0 != null:
 		play_arrival_talk(pl0)
 
@@ -727,6 +743,69 @@ func _check_arrival_talk() -> void:
 	_arrival_talk_pending = false
 	play_arrival_talk(pl)
 
+# THE SURVIVORS EMERGE. Fired once, the instant the arrival wave breaks. Now that
+# seen_arrival_battle is true, re-running the spawn peoples the village for the
+# first time (spawn_existing_villager_avatars' hide_starters guard is now false),
+# so the Doctor and the two farmhands appear. Gather them just inside the gate,
+# on-screen beside the player, so the reveal cutscene that follows is spoken by
+# real bodies stepping out of the ruin rather than thin air.
+func _emerge_arrival_survivors(pl: Node) -> void:
+	spawn_existing_villager_avatars()
+	_stage_arrival_tableau(pl)
+
+# Arrange the arrival cutscene as a tableau: the three defenders gathered at the
+# player's WEST shoulder (toward the gate they just held), turned east to face
+# him; the survivors at his EAST shoulder (stepping out of the ruined town),
+# turned west, the Doctor nearest since she speaks the reveal. Positions and
+# facings are set DIRECTLY, not left to each body's own _process -- the dialogue
+# box pauses the whole tree the same frame this runs, so nothing would tick to
+# apply them. Shared by the live path (_emerge_arrival_survivors) and the reload
+# path (play_arrival_talk), so the scene composes the same either way.
+func _stage_arrival_tableau(pl: Node) -> void:
+	if pl == null:
+		return
+	var px: float = pl.global_position.x
+	var ai := 0
+	for a in get_tree().get_nodes_in_group("adventurer"):
+		if "is_dead" in a and a.is_dead:
+			continue
+		a.global_position = Vector2(px - 96.0 - 74.0 * float(ai), a.global_position.y)
+		_face_entity(a, 1.0)                       # look east, toward the player
+		ai += 1
+	var survivors: Array = []
+	var doc: Node = null
+	for n in get_tree().get_nodes_in_group("npc"):
+		if not is_instance_valid(n):
+			continue
+		if str(n.get("villager_id")) == "doctor_maren":
+			doc = n
+		else:
+			survivors.append(n)
+	if doc != null:
+		survivors.push_front(doc)                  # the Doctor stands closest
+	var ni := 0
+	for n in survivors:
+		n.global_position = Vector2(px + 108.0 + 72.0 * float(ni), n.global_position.y)
+		_face_entity(n, -1.0)                       # look west, toward the player
+		ni += 1
+
+# Turn a character to face left (dir<0) or right (dir>0). Covers both body kinds:
+# villager npcs (Node2D body_gfx scaled by direction) and adventurers (an
+# AnimatedSprite2D _skin_sprite, or a body_rect fallback).
+func _face_entity(node: Node, dir: float) -> void:
+	var s := signf(dir)
+	if "direction" in node:
+		node.direction = int(s)
+	if "body_gfx" in node and node.body_gfx != null:
+		var f := 1.0
+		if "body_scale_factor" in node:
+			f = absf(float(node.body_scale_factor))
+		node.body_gfx.scale.x = s * f
+	if "_skin_sprite" in node and node._skin_sprite != null:
+		node._skin_sprite.scale.x = absf(node._skin_sprite.scale.x) * s
+	if "body_rect" in node and node.body_rect != null:
+		node.body_rect.scale.x = s
+
 func play_arrival_talk(pl: Node) -> void:
 	# clear the pending flag up front: the live path (the fight) arms it then
 	# calls straight in, and _check_arrival_talk runs again the instant the
@@ -734,29 +813,12 @@ func play_arrival_talk(pl: Node) -> void:
 	# (and _spawn_reveal_survivors + tutorial_begin) replayed a second time.
 	_arrival_talk_pending = false
 	GameState.seen_arrival_talk = true   # delivered exactly once, survives saves
-	# WITH the adventurer: the nearest defender steps to the player's side for
-	# the scene, so the words are exchanged between people, not thin air.
-	var nearest: Node = null
-	var best := 1.0e9
-	for a in get_tree().get_nodes_in_group("adventurer"):
-		if "is_dead" in a and a.is_dead:
-			continue
-		var d: float = a.global_position.distance_to(pl.global_position)
-		if d < best:
-			best = d
-			nearest = a
-	if nearest != null:
-		nearest.global_position = pl.global_position + Vector2(-70.0, 0.0)
-	# the SPEAKER MUST HAVE A BODY (live-playtest lesson): the frightened
-	# survivor "creeps from the wreckage" -- a real villager avatar walks up
-	# beside the player for the reveal, then drifts home on his own.
-	var survivor: Node = null
-	for n in get_tree().get_nodes_in_group("npc"):
-		if n.has_method("find_villager_data"):
-			survivor = n
-			break
-	if survivor != null:
-		survivor.global_position = pl.global_position + Vector2(140.0, 0.0)
+	# Compose the scene: defenders and survivors gathered around the player, each
+	# turned to face the exchange (the RELOAD path reaches here without _emerge
+	# having run, so the tableau is staged here too -- idempotent, safe to repeat).
+	# The SPEAKER MUST HAVE A BODY (live-playtest lesson): the reveal is spoken by
+	# a real villager avatar, the Doctor, standing at the player's side.
+	_stage_arrival_tableau(pl)
 	# the full arrival chain (new canon): the trap named -> the ruin
 	# REVEALED as Deepwood itself (the 180-degree reality check) -> the
 	# oath the whole game executes, sworn aloud once

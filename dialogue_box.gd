@@ -1,20 +1,46 @@
 class_name DialogueBox
 extends CanvasLayer
 
-# A small, reusable conversation box (bottom of screen): speaker name + one line,
-# advanced with E / Space / click, pausing the game while open. NOT a cutscene
-# engine -- STORY.md says the story is earned through the loop and delivered in
-# brief exchanges, so this just carries Deepwood's few scripted beats (the
-# opening plea, the Level-100 reveal, the ending). Epic/mythic tone.
+# A small, reusable conversation box (bottom of screen): a brass name-plate, one
+# line of typewritten pixel text, and a blinking caret -- advanced with E / Space
+# / click, pausing the game while open. NOT a cutscene engine -- STORY.md says the
+# story is earned through the loop and delivered in brief exchanges, so this just
+# carries Deepwood's few scripted beats (the opening plea, the arrival cutscene,
+# the Level-100 reveal, the ending). Epic/mythic tone, retro-pixel presentation.
 #
 #   DialogueBox.play(some_node, [{"speaker": "...", "text": "..."}, ...], on_done)
+
+const FONT_BODY := preload("res://art/fonts/PixelifySans.ttf")
+const FONT_NAME := preload("res://art/fonts/Silkscreen-Regular.ttf")
+
+# Type speed (characters per second) and how the box reads each speaker.
+const TYPE_CPS := 42.0
+# Per-speaker accent + a short role tag for the plate. Anyone not listed falls to
+# the default. "" is the narrator (scene description) -- no plate, centred text.
+const SPEAKERS := {
+	"You":            {"color": Color(0.96, 0.86, 0.45), "tag": "You"},
+	"Roland":         {"color": Color(0.62, 0.78, 0.98), "tag": "Roland · Blade"},
+	"Wren":           {"color": Color(0.66, 0.92, 0.62), "tag": "Wren · Scout"},
+	"Castor":         {"color": Color(0.98, 0.80, 0.52), "tag": "Castor · Shield"},
+	"A Survivor":     {"color": Color(0.95, 0.72, 0.74), "tag": "A Survivor"},
+	"Doctor Maren Hollis": {"color": Color(0.95, 0.72, 0.74), "tag": "Doctor Maren"},
+	"Orin":           {"color": Color(0.80, 0.60, 0.98), "tag": "Orin"},
+}
+const DEFAULT_ACCENT := Color(0.82, 0.68, 0.34)
 
 var lines: Array = []
 var index := 0
 var panel: Panel
+var name_plate: Panel
 var speaker_label: Label
 var text_label: Label
+var caret: Label
 var _on_finished: Callable
+
+var _full_text := ""      # the whole current line
+var _shown := 0.0         # characters revealed so far (float for smooth typing)
+var _typing := false
+var _blink := 0.0
 
 static func play(host: Node, script_lines: Array, on_finished := Callable()) -> void:
 	if script_lines.is_empty():
@@ -28,11 +54,11 @@ static func play(host: Node, script_lines: Array, on_finished := Callable()) -> 
 
 func _ready() -> void:
 	layer = 60
-	process_mode = Node.PROCESS_MODE_ALWAYS   # keep running while the tree is paused
+	process_mode = Node.PROCESS_MODE_ALWAYS   # keep running (and typing) while paused
 	add_to_group("dialogue_box")
 	build_ui()
 	get_tree().paused = true
-	_set_cutscene_hud_hidden(true)            # ONLY CHAT while a scripted beat plays
+	_set_cutscene_hud_hidden(true)            # ONLY the conversation while a beat plays
 	show_line()
 
 # The opening (and every scripted beat) should read as chat, not chat-over-a-HUD:
@@ -48,8 +74,8 @@ func _set_cutscene_hud_hidden(hidden: bool) -> void:
 			n.visible = not hidden
 
 func build_ui() -> void:
-	var shade = ColorRect.new()   # dim the world a touch behind the box
-	shade.color = Color(0, 0, 0, 0.28)
+	var shade = ColorRect.new()   # dim the world behind the box (deeper during a beat)
+	shade.color = Color(0, 0, 0, 0.42)
 	shade.anchor_right = 1.0
 	shade.anchor_bottom = 1.0
 	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -60,64 +86,145 @@ func build_ui() -> void:
 	panel.anchor_right = 1.0
 	panel.anchor_top = 1.0
 	panel.anchor_bottom = 1.0
-	panel.offset_left = 48
-	panel.offset_right = -48
-	panel.offset_top = -184
-	panel.offset_bottom = -28
+	panel.offset_left = 56
+	panel.offset_right = -56
+	panel.offset_top = -172
+	panel.offset_bottom = -34
 	var style = StyleBoxFlat.new()
-	style.bg_color = Color(0.05, 0.05, 0.08, 0.96)
+	style.bg_color = Color(0.055, 0.06, 0.085, 0.98)
 	style.border_color = Color(0.82, 0.68, 0.34, 1.0)
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(6)
+	style.set_border_width_all(3)
+	style.set_corner_radius_all(3)
+	style.shadow_color = Color(0, 0, 0, 0.55)
+	style.shadow_size = 10
+	style.content_margin_left = 28
+	style.content_margin_top = 30
+	style.content_margin_right = 28
+	style.content_margin_bottom = 22
 	panel.add_theme_stylebox_override("panel", style)
 	add_child(panel)
 
+	# the name-plate: a small brass tab riding the top-left border of the panel
+	name_plate = Panel.new()
+	name_plate.position = Vector2(18, -18)
+	name_plate.size = Vector2(220, 32)
+	var plate_style = StyleBoxFlat.new()
+	plate_style.bg_color = Color(0.11, 0.12, 0.16, 1.0)
+	plate_style.border_color = DEFAULT_ACCENT
+	plate_style.set_border_width_all(2)
+	plate_style.set_corner_radius_all(3)
+	plate_style.content_margin_left = 12
+	plate_style.content_margin_right = 12
+	plate_style.content_margin_top = 4
+	plate_style.content_margin_bottom = 4
+	name_plate.add_theme_stylebox_override("panel", plate_style)
+	panel.add_child(name_plate)
+
 	speaker_label = Label.new()
-	speaker_label.position = Vector2(22, 12)
-	speaker_label.add_theme_font_size_override("font_size", 18)
-	speaker_label.add_theme_color_override("font_color", Color(0.95, 0.78, 0.4, 1))
-	panel.add_child(speaker_label)
+	speaker_label.add_theme_font_override("font", FONT_NAME)
+	speaker_label.add_theme_font_size_override("font_size", 16)
+	speaker_label.add_theme_color_override("font_color", DEFAULT_ACCENT)
+	speaker_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	speaker_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	speaker_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	name_plate.add_child(speaker_label)
 
 	text_label = Label.new()
-	text_label.position = Vector2(22, 44)
-	text_label.size = Vector2(0, 96)
-	text_label.anchor_right = 1.0
-	text_label.offset_right = -22
+	text_label.add_theme_font_override("font", FONT_BODY)
+	text_label.add_theme_font_size_override("font_size", 22)
+	text_label.add_theme_color_override("font_color", Color(0.94, 0.94, 0.97, 1))
+	text_label.add_theme_constant_override("line_spacing", 6)
+	text_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	# A plain Panel does NOT inset its children by the stylebox content margins the
+	# way a Container would, so pad the text rect explicitly -- otherwise the body
+	# text sits flush against the left border, out of line with the name-plate. The
+	# left edge (30) matches the name-plate's text start (plate x=18 + its 12px
+	# margin) so speaker and line share ONE left margin. TOP-aligned so every beat
+	# begins at the SAME spot regardless of length -- no vertical jump between lines.
+	text_label.offset_left = 30
+	text_label.offset_top = 24
+	text_label.offset_right = -30
+	text_label.offset_bottom = -16
 	text_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	text_label.add_theme_font_size_override("font_size", 15)
-	text_label.add_theme_color_override("font_color", Color(0.93, 0.93, 0.95, 1))
+	text_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	panel.add_child(text_label)
 
-	var hint = Label.new()
-	hint.anchor_left = 1.0
-	hint.anchor_top = 1.0
-	hint.anchor_right = 1.0
-	hint.anchor_bottom = 1.0
-	hint.offset_left = -170
-	hint.offset_top = -26
-	hint.offset_right = -14
-	hint.offset_bottom = -6
-	hint.add_theme_font_size_override("font_size", 11)
-	hint.add_theme_color_override("font_color", Color(0.6, 0.6, 0.66, 1))
-	hint.text = "E / Space  ▸"
-	panel.add_child(hint)
+	# the blinking "press E" caret, bottom-right of the panel
+	caret = Label.new()
+	caret.add_theme_font_override("font", FONT_NAME)
+	caret.add_theme_font_size_override("font_size", 12)
+	caret.add_theme_color_override("font_color", Color(0.72, 0.66, 0.5, 1))
+	caret.text = "E / SPACE  ▸"
+	caret.anchor_left = 1.0
+	caret.anchor_top = 1.0
+	caret.anchor_right = 1.0
+	caret.anchor_bottom = 1.0
+	caret.offset_left = -168
+	caret.offset_top = -26
+	caret.offset_right = -14
+	caret.offset_bottom = -6
+	panel.add_child(caret)
 
 func show_line() -> void:
 	if index >= lines.size():
 		finish()
 		return
 	var l = lines[index]
-	speaker_label.text = str(l.get("speaker", ""))
-	text_label.text = str(l.get("text", ""))
+	var speaker := str(l.get("speaker", ""))
+	_full_text = str(l.get("text", ""))
+	_shown = 0.0
+	_typing = true
+	# style by speaker
+	var info: Dictionary = SPEAKERS.get(speaker, {})
+	var accent: Color = info.get("color", DEFAULT_ACCENT)
+	if speaker == "":
+		# narrator: no plate, centred amber prose
+		name_plate.visible = false
+		text_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		text_label.add_theme_color_override("font_color", Color(0.86, 0.8, 0.62, 1))
+	else:
+		name_plate.visible = true
+		speaker_label.text = str(info.get("tag", speaker)).to_upper()
+		speaker_label.add_theme_color_override("font_color", accent)
+		var ps: StyleBoxFlat = name_plate.get_theme_stylebox("panel")
+		ps.border_color = accent
+		# widen the plate to the name
+		name_plate.size.x = maxf(120.0, speaker_label.get_theme_font("font").get_string_size(
+			speaker_label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x + 28.0)
+		text_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		text_label.add_theme_color_override("font_color", Color(0.94, 0.94, 0.97, 1))
+	text_label.text = _full_text
+	text_label.visible_characters = 0
+	caret.visible = false
+
+func _process(delta: float) -> void:
+	if _typing:
+		_shown += delta * TYPE_CPS
+		var n := int(_shown)
+		if n >= _full_text.length():
+			text_label.visible_characters = -1
+			_typing = false
+		else:
+			text_label.visible_characters = n
+	else:
+		# blink the continue caret once the line is fully shown
+		_blink += delta
+		caret.visible = fmod(_blink, 0.9) < 0.55
 
 func _unhandled_input(event: InputEvent) -> void:
 	var advance = event.is_action_pressed("interact") or event.is_action_pressed("ui_accept")
 	if not advance and event is InputEventMouseButton and event.pressed:
 		advance = true
-	if advance:
-		index += 1
-		show_line()
-		get_viewport().set_input_as_handled()
+	if not advance:
+		return
+	get_viewport().set_input_as_handled()
+	if _typing:
+		# first press: finish typing this line instantly (E as a fast-forward)
+		_typing = false
+		text_label.visible_characters = -1
+		return
+	index += 1
+	show_line()
 
 func finish() -> void:
 	var t := get_tree()
