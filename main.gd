@@ -575,6 +575,10 @@ func spawn_existing_villager_avatars() -> void:
 # reload. building.gd's Hospital hook covers the Hospital case; this covers its absence,
 # guarded so the two never both spawn.
 func _on_village_child_born(child_id: String) -> void:
+	# child_produced is a persistent AUTOLOAD signal; a birth resolving as this village
+	# scene is torn down would run us out-of-tree (null get_tree() / $Village).
+	if not is_inside_tree():
+		return
 	if get_tree().get_first_node_in_group("building_role_Hospital") != null:
 		return
 	var npc = NPC_SCRIPT.new()

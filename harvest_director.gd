@@ -100,6 +100,10 @@ func begin_false_victory() -> void:
 
 # ---- 2. THE REVEAL AT THE FEAST ----
 func begin_reveal() -> void:
+	# a SceneTree timer callback (the feast timer outlives us): if the player quit to menu
+	# during the ~7s unpaused feast, we're out of the tree and get_tree() is null.
+	if not is_inside_tree():
+		return
 	if _revealed:
 		return
 	_revealed = true
@@ -292,6 +296,10 @@ func _apply_devour_tier() -> void:
 
 # ---- 4. VICTORY: the return, and the Shadow Army ----
 func _victory() -> void:
+	# called via call_deferred from _physics_process the frame the Monarch dies; a
+	# quit-to-menu that same frame detaches us before the deferred flush -> get_tree() null.
+	if not is_inside_tree():
+		return
 	GameState.harvest_at_home = false
 	for a in get_tree().get_nodes_in_group("ten_ally"):
 		if is_instance_valid(a):

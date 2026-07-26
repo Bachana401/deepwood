@@ -17,6 +17,11 @@ var _body := ""
 var _options: Array = []
 
 static func open(host: Node, title: String, body: String, options: Array) -> void:
+	# same guard as DialogueBox.play: a null/out-of-tree host has no tree to mount into.
+	# Callers pass an in-tree player today, but this keeps the static twin safe if a
+	# deferred caller is ever added.
+	if host == null or not host.is_inside_tree():
+		return
 	var box = ChoicePrompt.new()
 	box._title = title
 	box._body = body
