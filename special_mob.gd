@@ -722,6 +722,8 @@ func cast_web() -> void:
 	var target = Vector2(player.global_position.x, player.global_position.y)
 	spawn_sigil(target, WEAVER_RADIUS, WEAVER_TELEGRAPH, accent_color)
 	await get_tree().create_timer(WEAVER_TELEGRAPH).timeout
+	if not is_instance_valid(self):        # died mid-telegraph -> don't touch the freed mob
+		return
 	clear_flash()
 	if is_dead:
 		is_casting = false
@@ -751,6 +753,12 @@ func leech_tether() -> void:
 	beam.default_color = Color(accent_color.r, accent_color.g, accent_color.b, 0.75)
 	beam.z_index = 5
 	get_parent().add_child(beam)
+	# Failsafe free: the beam lives under the LEVEL, not the mob, so a mid-tether death
+	# (common -- 60 HP, drains every 0.3s) frees the mob and aborts this coroutine before
+	# the cleanup below, leaking a frozen line from the death spot to the player. A
+	# SceneTree timer frees the beam regardless; the early free below auto-drops this
+	# connection (Godot clears a freed object's signal links), so there is no double free.
+	get_tree().create_timer(1.75).timeout.connect(beam.queue_free)
 	var elapsed = 0.0
 	while elapsed < 1.6 and not is_dead and is_instance_valid(player):
 		beam.points = PackedVector2Array([global_position + Vector2(0, -18), player.global_position + Vector2(0, -24)])
@@ -818,6 +826,8 @@ func warp_pull() -> void:
 	set_flash(accent_color)
 	spawn_sigil(global_position + Vector2(0, -18), 40.0, WARPER_TELEGRAPH, accent_color)
 	await get_tree().create_timer(WARPER_TELEGRAPH).timeout
+	if not is_instance_valid(self):        # died mid-telegraph -> don't touch the freed mob
+		return
 	clear_flash()
 	if is_dead or not is_instance_valid(player):
 		is_casting = false
@@ -876,6 +886,8 @@ func wail() -> void:
 	set_flash(accent_color)
 	spawn_sigil(global_position + Vector2(0, -18), WAILER_RADIUS, WAILER_TELEGRAPH, accent_color)
 	await get_tree().create_timer(WAILER_TELEGRAPH).timeout
+	if not is_instance_valid(self):        # died mid-telegraph -> don't touch the freed mob
+		return
 	clear_flash()
 	if is_dead:
 		is_casting = false
@@ -951,6 +963,8 @@ func frost_cast() -> void:
 	var at = Vector2(player.global_position.x, player.global_position.y)
 	spawn_sigil(at, 40.0, 0.6, accent_color)
 	await get_tree().create_timer(0.6).timeout
+	if not is_instance_valid(self):        # died mid-telegraph -> don't touch the freed mob
+		return
 	clear_flash()
 	if is_dead:
 		is_casting = false

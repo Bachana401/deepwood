@@ -4430,6 +4430,7 @@ func reset_for_new_game() -> void:
 	_warned_low_morale = false
 	in_dungeon = false
 	returning_from_dungeon = false
+	came_from_underground = false
 	active_dungeon_level = 1
 	pre_dungeon_position = Vector2.ZERO
 	income_timer = 0.0
@@ -4696,6 +4697,11 @@ func load_game() -> Dictionary:
 		# silently resolved off-screen, arrival suppressed); quitting mid-Harvest
 		# left harvest_at_home/feast_glow set (finale soft-lock / morale pinned 100).
 		in_dungeon = false
+		# a floor entered from the tile underground sets this so exit_dungeon returns
+		# THERE, not the village. It must NOT survive a Quit-to-Menu: else a later
+		# village-launched floor would wrongly exit into the underground scene and drop
+		# the player at a stale coord in the freshly-regenerated world.
+		came_from_underground = false
 		harvest_at_home = false
 		feast_glow = false
 		_warned_no_food = false

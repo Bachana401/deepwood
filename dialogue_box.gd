@@ -283,7 +283,11 @@ func _process(delta: float) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	var advance = event.is_action_pressed("interact") or event.is_action_pressed("ui_accept")
-	if not advance and event is InputEventMouseButton and event.pressed:
+	# a real click (left/right) advances -- but NOT mouse-wheel notches, which also arrive
+	# as a pressed InputEventMouseButton and would blow through several lines in one scroll,
+	# skipping the scripted opening (which is marked delivered up front and never replays).
+	if not advance and event is InputEventMouseButton and event.pressed \
+			and event.button_index in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT]:
 		advance = true
 	if not advance:
 		return

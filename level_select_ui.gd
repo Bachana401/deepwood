@@ -103,4 +103,8 @@ func _on_level_selected(level: int) -> void:
 	GameState.pending_player_state = GameState.capture_player_state(player)
 	GameState.pre_dungeon_position = player.global_position
 	GameState.active_dungeon_level = level
+	# a floor launched from the village Waystone returns to the VILLAGE. Declare that
+	# explicitly (as underdark_door.gd does for the underground) so a stale true left by
+	# a prior underground trip can't misroute this floor's exit into the underground.
+	GameState.came_from_underground = false
 	get_tree().change_scene_to_file.call_deferred("res://dungeon_interior.tscn")

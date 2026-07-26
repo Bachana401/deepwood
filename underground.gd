@@ -122,8 +122,14 @@ func _ready() -> void:
 	if GameState.came_from_underground and GameState.pre_dungeon_position != Vector2.ZERO:
 		_spawn_pos = GameState.pre_dungeon_position + Vector2(0, -30.0)
 		GameState.came_from_underground = false
-	_stream_around(_chunk_of(_spawn_pos))
+	# Spawn the player BEFORE the first stream: _populate_chunk gates mob/elite spawns on
+	# `_player != null`, so streaming first left the WHOLE initial LOAD_R bubble monster-
+	# free until those chunks were unloaded and later reloaded. Player _ready does no
+	# physics; the stream below builds collision before the first physics frame, so the
+	# player still lands on the entry ledge.
 	_spawn_player()
+	_cur_chunk = _chunk_of(_spawn_pos)
+	_stream_around(_cur_chunk)
 	_spawn_exit()
 	_build_hud_extras()      # hotbar + console, after the player exists
 	start_music()
@@ -210,9 +216,16 @@ func _stream_around(center: Vector2i) -> void:
 	for c in want.keys():
 		if not _loaded.has(c):
 			_load_chunk(c)
+	# Unload with a one-chunk dead-band (keep radius > load radius): a player pacing a
+	# chunk seam would otherwise thrash the edge chunks, and re-populating a chunk resets
+	# its mobs to full HP and repositions them on every crossing.
+	var keep := {}
+	for cy in range(center.y - LOAD_R - 1, center.y + LOAD_R + 2):
+		for cx in range(center.x - LOAD_R - 1, center.x + LOAD_R + 2):
+			keep[Vector2i(cx, cy)] = true
 	var drop := []
 	for c in _loaded.keys():
-		if not want.has(c):
+		if not keep.has(c):
 			drop.append(c)
 	for c in drop:
 		_unload_chunk(c)
@@ -300,6 +313,11 @@ func _populate_chunk(c: Vector2i) -> void:
 		var dx := 8 + (hash(L * 2654435761) & 0x7fffffff) % (WIDTH - 16)
 		if dx >= c.x * CHUNK and dx < (c.x + 1) * CHUNK:
 			var dcell := _floor_near(dx, dy)
+			if dcell.x <= -9000:
+				# the scattered column was solid rock (a dense warren) -> retry at this
+				# chunk's mid-column so the level still gets its door, kept LOCAL to chunk
+				# c (it must unload/respawn WITH c, not blink with a distant chunk).
+				dcell = _floor_near(c.x * CHUNK + CHUNK / 2, dy)
 			if dcell.x > -9000:
 				nodes.append(_spawn_floor_door(dcell, L))
 	if not nodes.is_empty():
