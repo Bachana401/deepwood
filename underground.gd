@@ -382,6 +382,14 @@ func _spawn_chest(cell: Vector2i, biome: int, rng: RandomNumberGenerator) -> Nod
 		var table: Array = LOOT[clampi(biome, 0, LOOT.size() - 1)]
 		for i in range(rng.randi_range(2, 4)):
 			loot.append(table[rng.randi_range(0, table.size() - 1)])
+		# THE DEEP PICKAXES (2026-07-26): the biome the CURRENT tier can mine hides the
+		# pickaxe for the NEXT one, so you earn your way down. Fungal Hollow -> Embersteel
+		# (opens Emberdeep); Emberdeep -> Blightbreaker (opens Blightcore). max_stack 1, so a
+		# duplicate is harmlessly rejected on pickup once you already carry it.
+		if biome == 2 and rng.randf() < 0.5:
+			loot.append("tool_pickaxe_ember")
+		elif biome == 3 and rng.randf() < 0.5:
+			loot.append("tool_pickaxe_blight")
 		chest.set_meta("loot", loot)
 	add_child(chest)
 	return chest

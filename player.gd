@@ -2149,7 +2149,8 @@ func _tick_dig(delta: float) -> void:
 		return
 	_dig_cd = DIG_INTERVAL
 	var smart := Input.is_key_pressed(KEY_SHIFT)
-	world.mine_at(get_global_mouse_position(), global_position, DIG_REACH, smart, 1, self)
+	var tier: int = int(active_def.get("pick_tier", 1))   # deeper biomes gate on the pickaxe tier
+	world.mine_at(get_global_mouse_position(), global_position, DIG_REACH, smart, tier, self)
 
 func update_weapon_visual(offset: float) -> void:
 	if not has_weapon():

@@ -248,9 +248,23 @@ const ITEM_DEFS = {
 		"unique_desc": "Chops trees for Wood and Resin.",
 	},
 	"tool_pickaxe": {
-		"name": "Miner's Pickaxe", "category": "weapon", "weapon_type": "melee", "tool_type": "pickaxe", "max_stack": 1, "color": Color(0.6, 0.6, 0.66, 1.0),
+		"name": "Miner's Pickaxe", "category": "weapon", "weapon_type": "melee", "tool_type": "pickaxe", "pick_tier": 1, "max_stack": 1, "color": Color(0.6, 0.6, 0.66, 1.0),
 		"weapon_stats": {"damage": 6, "cooldown": 0.5, "range_offset": 46, "area_size": Vector2(60, 36), "knockback_min": 20.0, "knockback_max": 40.0, "icon_size": Vector2(40, 10), "icon_color": Color(0.55, 0.55, 0.6), "icon_offset": 18.0},
-		"unique_desc": "Mines rocks for Stone and rare minerals.",
+		"unique_desc": "Mines rocks for Stone and rare minerals. Tier 1 — cuts down to the Fungal Hollow.",
+	},
+	# TIERED PICKAXES (2026-07-26): the deep biomes gate on pick_tier (see underground.gd
+	# BIOMES). Each is FOUND in the deepest biome the previous tier can already mine, so you
+	# earn your way down: Embersteel from Fungal Hollow chests opens the Emberdeep;
+	# Blightbreaker from Emberdeep chests opens the Blightcore.
+	"tool_pickaxe_ember": {
+		"name": "Embersteel Pickaxe", "category": "weapon", "weapon_type": "melee", "tool_type": "pickaxe", "pick_tier": 2, "max_stack": 1, "color": Color(0.95, 0.5, 0.2, 1.0),
+		"weapon_stats": {"damage": 10, "cooldown": 0.45, "range_offset": 46, "area_size": Vector2(62, 38), "knockback_min": 24.0, "knockback_max": 46.0, "icon_size": Vector2(42, 11), "icon_color": Color(0.95, 0.5, 0.2), "icon_offset": 18.0},
+		"unique_desc": "Tier 2 — its heat-forged head bites the Emberdeep's scorched rock.",
+	},
+	"tool_pickaxe_blight": {
+		"name": "Blightbreaker Pickaxe", "category": "weapon", "weapon_type": "melee", "tool_type": "pickaxe", "pick_tier": 3, "max_stack": 1, "color": Color(0.82, 0.42, 1.0, 1.0),
+		"weapon_stats": {"damage": 14, "cooldown": 0.4, "range_offset": 48, "area_size": Vector2(64, 40), "knockback_min": 28.0, "knockback_max": 52.0, "icon_size": Vector2(44, 12), "icon_color": Color(0.82, 0.42, 1.0), "icon_offset": 18.0},
+		"unique_desc": "Tier 3 — the only edge that breaks the cursed Blightcore stone at the world's bottom.",
 	},
 	# --- Excellent weapons (classless, unique effects, no skill scaling) ---
 	"exc_vampiric": {
@@ -527,7 +541,7 @@ const GRADE_PASSIVES = {
 const ITEM_GRADES = {
 	# weapons
 	"wpn_sword": "common", "wpn_spear": "common", "wpn_bow": "common", "wpn_wand": "common",
-	"tool_axe": "common", "tool_pickaxe": "common", "wpn_admin_ruin": "mythic",
+	"tool_axe": "common", "tool_pickaxe": "common", "tool_pickaxe_ember": "rare", "tool_pickaxe_blight": "epic", "wpn_admin_ruin": "mythic",
 	"wpn_windcutter": "rare", "wpn_sunderer": "rare", "wpn_stormlance": "rare",
 	"wpn_stormvolley": "rare", "wpn_seeker": "rare", "wpn_emberstaff": "rare", "wpn_iciclewand": "rare",
 	"wpn_claymore": "epic", "wpn_recurve": "epic", "wpn_scepter": "epic",
@@ -1040,7 +1054,7 @@ static func paint_icon(target: ColorRect, item_id: String) -> void:
 		"wpn_bow": _icon_bow(target, w, h)
 		"wpn_wand": _icon_wand(target, w, h)
 		"tool_axe": _icon_axe(target, w, h)
-		"tool_pickaxe": _icon_pickaxe(target, w, h)
+		"tool_pickaxe", "tool_pickaxe_ember", "tool_pickaxe_blight": _icon_pickaxe(target, w, h)
 		"exc_hook": _icon_hook(target, w, h)
 		"exc_boomerang": _icon_boomerang(target, w, h)
 		"exc_wizardsbane": _icon_runeblade(target, w, h)
