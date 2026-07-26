@@ -169,14 +169,6 @@ func _ready() -> void:
 	# ...and the living-cave dressing is dead last, on NO rng at all (plain randf),
 	# so it can never perturb the audited layout above it.
 	_build_cave_life()
-	# TILE-DIG FEEL TEST (2026-07-25): a diggable tile patch on the first band's
-	# floor, just east of where the entry stair lets out -- ONLY the underground is
-	# minable, never the village. Stand on it and swing the Miner's Pickaxe DOWN to
-	# carve a pit through dirt/stone/deeprock (obsidian core resists). Throwaway;
-	# remove when the real Underdark tile mining lands.
-	var dig_patch = preload("res://minable_ground.gd").new()
-	add_child(dig_patch)
-	dig_patch.global_position = Vector2(ud_left + 240.0, band_floor_y(0))
 
 func band_floor_y(band: int) -> float:
 	return UD_TOP + (band + 1) * BAND_H - 180.0
