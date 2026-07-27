@@ -29,6 +29,7 @@ func setup(dir: Vector2, dmg: int, orb_color: Color, orb_speed := 130.0) -> void
 
 func _ready() -> void:
 	player = get_tree().get_first_node_in_group("player")
+	add_to_group("enemy_projectile")   # enemy-cast (boss/special_mob) -> the player's shades can block it
 	build_visual()
 
 func build_visual() -> void:

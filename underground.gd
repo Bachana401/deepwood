@@ -314,7 +314,7 @@ func _populate_chunk(c: Vector2i) -> void:
 	var l_lo := maxi(1, int(ceil(float(c.y * CHUNK) / level_h)))
 	var l_hi := mini(100, int(float(c.y * CHUNK + CHUNK - 1) / level_h))
 	for L in range(l_lo, l_hi + 1):
-		var dy := int(float(L) * level_h)
+		var dy := mini(int(float(L) * level_h), DEPTH - 2)   # keep L=100 off the bedrock row (dy=DEPTH has no floor)
 		# scatter each level's door across the width -- you FIND them by exploring,
 		# not walk a line of doors. Deterministic per level so returns land right.
 		var dx := 8 + (hash(L * 2654435761) & 0x7fffffff) % (WIDTH - 16)

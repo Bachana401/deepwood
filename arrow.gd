@@ -68,6 +68,8 @@ func setup(dir: Vector2, dmg: int, kb_min: float, kb_max: float, target_mask: in
 	# include layer 2 in their mask, so this cleanly excludes them.
 	if (target_mask & 2) == 0:
 		add_to_group("player_projectile")
+	else:
+		add_to_group("enemy_projectile")   # targets the player -> the player's DEFEND shades can body-block it
 	pierces_terrain = pierce_terrain
 	if pierces_terrain:
 		collision_mask = 0

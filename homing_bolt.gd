@@ -17,6 +17,7 @@ var _age := 0.0
 
 func _ready() -> void:
 	z_index = 30
+	add_to_group("enemy_projectile")   # enemy-cast -> the player's shades can block it
 	var v := Polygon2D.new()
 	v.polygon = PackedVector2Array([Vector2(-9, 0), Vector2(0, -6), Vector2(9, 0), Vector2(0, 6)])
 	v.color = color

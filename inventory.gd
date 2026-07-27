@@ -16,7 +16,7 @@ extends RefCounted
 # "unique_effect" (see player.gd). The base sword/spear/bow/wand are NOT
 # items -- they stay the purchasable 1-4 kit.
 const ITEM_DEFS = {
-	"coin_gold": {"name": "Gold Coin", "category": "currency", "max_stack": 999, "color": Color(1.0, 0.85, 0.2, 1.0)},
+	"coin_gold": {"name": "Gold Coin", "category": "currency", "max_stack": 9999999, "color": Color(1.0, 0.85, 0.2, 1.0)},
 	"coin_silver": {"name": "Silver Coin", "category": "currency", "max_stack": 999, "color": Color(0.78, 0.8, 0.84, 1.0)},
 	"coin_bronze": {"name": "Bronze Coin", "category": "currency", "max_stack": 999, "color": Color(0.72, 0.45, 0.22, 1.0)},
 	# Skill-tree materials, dropped rarely in the dungeon by level bracket

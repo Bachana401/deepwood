@@ -201,6 +201,8 @@ func apply_status(kind: String, duration: float, magnitude: float = 0.0) -> void
 		"freeze":
 			status_freeze_until = max(status_freeze_until, until)
 		"slow":
+			if _now_s() >= status_slow_until:      # reset a lapsed slow first, else a strong
+				status_slow_factor = 1.0           # expired factor sticks to a later weak slow
 			status_slow_until = max(status_slow_until, until)
 			status_slow_factor = min(status_slow_factor, magnitude if magnitude > 0.0 else 0.5)
 		"petrify":
