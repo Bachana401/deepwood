@@ -1618,11 +1618,18 @@ func apply_master_volume() -> void:
 	AudioServer.set_bus_volume_db(0, linear_to_db(max(master_volume, 0.0001)))
 	AudioServer.set_bus_mute(0, master_volume <= 0.0)
 
+# The music sat too quiet against the sfx (dev call 2026-07-27): +20% on the bus
+# rather than on the setting, so the 0..1 slider keeps meaning "none .. full" and
+# a saved preference is not silently rescaled. Slight headroom clamp so a full
+# slider plus the gain can't clip the Master bus.
+const MUSIC_GAIN := 1.2
+
 func apply_music_volume() -> void:
 	var mi = AudioServer.get_bus_index("Music")
 	if mi < 0:
 		return
-	AudioServer.set_bus_volume_db(mi, linear_to_db(max(music_volume, 0.0001)))
+	var lin: float = min(max(music_volume, 0.0001) * MUSIC_GAIN, 1.6)
+	AudioServer.set_bus_volume_db(mi, linear_to_db(lin))
 	AudioServer.set_bus_mute(mi, music_volume <= 0.0)
 
 func set_master_volume(v: float) -> void:

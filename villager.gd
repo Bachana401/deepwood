@@ -219,6 +219,12 @@ func spawn_world_avatar() -> void:
 	npc.villager_id = villager_id
 	npc.global_position = find_avatar_spawn_position(village)
 	village.add_child(npc)
+	# feet on the floor: an npc's collision box is centred on its origin, so its
+	# feet sit 18*scale below -- a rough spawn y leaves them hanging in mid-air
+	# for as long as anything has the tree paused (see main._npc_ground_y)
+	var main := village.get_parent()
+	if main != null and main.has_method("_npc_ground_y"):
+		npc.global_position.y = main._npc_ground_y(npc)
 
 func find_avatar_spawn_position(village: Node) -> Vector2:
 	if role_key != "":

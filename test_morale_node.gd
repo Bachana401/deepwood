@@ -198,12 +198,21 @@ func _ready() -> void:
 	GameState.rescued_villagers = obj_saved_roster
 	GameState.village_food = obj_saved_food
 	check("the advisor always says SOMETHING true", GameState.next_objective().length() > 5)
-	# ---- the hover card must actually be CALLED, and the flee must run ----
+	# ---- the villager CARD: read from the right-click sheet now, not a hover ----
+	# (dev 2026-07-27: the 182px hover card was too small for its own contents and
+	# got sat on by the villager's speech bubble. Hovering is gone; villager_menu
+	# -> villager_sheet owns it, and the sheet takes their VOICE while it is open.)
 	var nsrc := FileAccess.open("res://npc.gd", FileAccess.READ).get_as_text()
-	check("the hover card is driven from _process, not dead code after a return",
-		nsrc.contains("func _process(delta: float) -> void:\n\t# THE HOVER CARD NEVER RAN"))
-	check("...and no unreachable hover call survives the quest turn-in",
-		not nsrc.contains("\treturn true\n\tupdate_hover_panel"))
+	check("the mouse-hover card is gone for good",
+		not nsrc.contains("func update_hover_panel") and not nsrc.contains("hover_panel.visible"))
+	check("right-click opens the villager menu",
+		nsrc.contains("func open_menu") and FileAccess.file_exists("res://villager_menu.gd"))
+	check("the sheet exists and shows the whole card",
+		FileAccess.file_exists("res://villager_sheet.gd")
+		and FileAccess.open("res://villager_sheet.gd", FileAccess.READ).get_as_text().contains("info_fields"))
+	check("a villager's speech goes INTO an open sheet instead of over it",
+		nsrc.contains("func speak_or_notify") and nsrc.contains("sheet.show_speech(line)")
+		and not nsrc.contains("\tSpeechText.spawn(self, lines[randi()"))
 	check("the card shows the talent's VALUE, not just its name",
 		nsrc.contains('stat_text = "%s %d" % [str(data.get("stat_name")), int(data.get("stat_value", 0))]'))
 	check("a struck villager RUNS FOR HOME",

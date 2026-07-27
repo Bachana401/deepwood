@@ -2173,6 +2173,30 @@ var _dig_cd := 0.0
 # dragging bag items over an opaque panel fired spells / mined real tiles the
 # player couldn't see. Any open esc-window panel blocks attack/secondary/dig;
 # movement stays free on purpose (walking out of a zone is how its panel closes).
+# How close you must stand to right-click a villager into conversation. Roughly
+# the same reach the E-prompt uses, so "close enough to talk" reads the same way
+# whichever button you press.
+const VILLAGER_MENU_RANGE := 150.0
+
+# Opens the nearest in-range villager's menu. Returns true if it took the click,
+# so the caller knows not to also swing/cast with it.
+func _try_open_villager_menu() -> bool:
+	var best: Node = null
+	var best_d := VILLAGER_MENU_RANGE
+	for n in get_tree().get_nodes_in_group("npc"):
+		if not is_instance_valid(n) or not n.has_method("open_menu"):
+			continue
+		if "is_in_building" in n and n.is_in_building:
+			continue          # indoors: nobody to talk to out here
+		var d: float = global_position.distance_to(n.global_position)
+		if d < best_d:
+			best_d = d
+			best = n
+	if best == null:
+		return false
+	best.open_menu()
+	return true
+
 func ui_blocks_world_input() -> bool:
 	var f := get_viewport().gui_get_focus_owner()
 	if f != null and (f is LineEdit or f is TextEdit):
@@ -2618,10 +2642,15 @@ func _physics_process(delta: float) -> void:
 		stop_beam()
 	_tick_dig(delta)
 
-	# right-click = the admin Ruin Wand's no-aim percent burst (see below)
+	# right-click near a VILLAGER opens their menu (Talk / Ask for Quest / Show me
+	# stats / Leave the village -- villager_menu.gd). Handled HERE, ahead of the
+	# off-hand attack, so one press can't both open the menu and fire a spell:
+	# attacks are polled from the Input singleton, so a menu opening elsewhere in
+	# the same frame could not consume the click.
 	if Input.is_action_just_pressed("secondary_attack") and not cc_hard \
 			and not ui_blocks_world_input():
-		perform_secondary_attack()
+		if not _try_open_villager_menu():
+			perform_secondary_attack()
 
 	move_and_slide()
 	handle_fall_landing()

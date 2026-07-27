@@ -93,13 +93,11 @@ func _set_cutscene_hud_hidden(hidden: bool) -> void:
 			n.remove_meta("cutscene_was_visible")
 
 func build_ui() -> void:
-	var shade = ColorRect.new()   # dim the world behind the box (deeper during a beat)
-	shade.color = Color(0, 0, 0, 0.42)
-	shade.anchor_right = 1.0
-	shade.anchor_bottom = 1.0
-	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(shade)
-
+	# NO DIMMING (dev call 2026-07-27: "don't dim the background when dialogue is
+	# on, let it stay in same color"). There used to be a full-screen 42%-black
+	# ColorRect here. It also made the speaker chevron look broken: this box is a
+	# CanvasLayer, which always draws OVER world nodes whatever their z_index, so
+	# the shade washed the world-space indicator out no matter how bright it was.
 	panel = Panel.new()
 	panel.anchor_left = 0.0
 	panel.anchor_right = 1.0

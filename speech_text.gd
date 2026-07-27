@@ -37,6 +37,7 @@ static func spawn(speaker: Node2D, text: String) -> void:
 	speaker.set_meta("active_speech", speech)
 
 func show_text(text: String) -> void:
+	add_to_group("speech_text")   # so live bubbles are findable (tests, sweeps)
 	z_index = 200
 	var label = Label.new()
 	label.text = text

@@ -99,9 +99,8 @@ var hours_until_exit = 0.0
 # Small hover tooltip, attached above the NPC's head -- shown while the
 # mouse is over them, no click needed (left-click already swings the
 # player's weapon, so a click-to-inspect would double as an attack).
-const HOVER_BOUNDS = Rect2(-20.0, -40.0, 40.0, 44.0)
-var hover_panel: Panel = null
-var hover_label: Label = null
+## (HOVER_BOUNDS / hover_panel / hover_label died with the hover card -- a
+## villager is read through their sheet now. See the note in _process.)
 
 # Kids are drawn/collide smaller than adults (see apply_size) -- graduating
 # school/barracks flips is_kid to false well after spawn, so this tracks the
@@ -143,7 +142,6 @@ func _ready() -> void:
 	_roll_temperament()
 	pick_new_state()
 	build_visual()
-	build_hover_panel()
 	build_health_bar()
 	refresh_wander_bounds()
 	# NPCs can spawn well after in-game time has already been ticking (e.g. a
@@ -352,29 +350,8 @@ func refresh_size_if_needed() -> void:
 	if data.get("is_kid", true) != last_applied_is_kid:
 		apply_size()
 
-func build_hover_panel() -> void:
-	hover_panel = Panel.new()
-	hover_panel.visible = false
-	hover_panel.z_index = 100
-	hover_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hover_panel.position = Vector2(-78, -108)
-	hover_panel.size = Vector2(156, 82)
-	var style = StyleBoxFlat.new()
-	style.bg_color = Color(0.06, 0.06, 0.09, 0.9)
-	style.border_color = Color(0.65, 0.65, 0.7, 1.0)
-	style.set_border_width_all(1)
-	style.set_corner_radius_all(4)
-	hover_panel.add_theme_stylebox_override("panel", style)
-	add_child(hover_panel)
-
-	hover_label = Label.new()
-	hover_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hover_label.position = Vector2(8, 6)
-	hover_label.size = Vector2(128, 54)
-	hover_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-	hover_label.add_theme_font_size_override("font_size", 11)
-	hover_label.add_theme_color_override("font_color", Color(1, 1, 1, 1))
-	hover_panel.add_child(hover_label)
+## (build_hover_panel / update_hover_panel were removed with the hover card --
+## the sheet in villager_sheet.gd replaces them. See the note in _process.)
 
 func build_health_bar() -> void:
 	health_bar_bg = ColorRect.new()
@@ -451,7 +428,7 @@ func _tick_defence(delta: float) -> void:
 	if absf(dx) > 1.0:
 		direction = signf(dx)
 	threat.take_damage(DEFEND_DAMAGE)
-	SpeechText.spawn(self, ["Get BACK!", "Leave us alone!", "Not today!", "Aaagh!"][randi() % 4])
+	speak_or_notify(["Get BACK!", "Leave us alone!", "Not today!", "Aaagh!"][randi() % 4])
 const FLEE_SPEED_MULT := 2.6
 var flee_until := 0.0
 
@@ -510,7 +487,7 @@ func _tick_flee_on_sight(delta: float) -> void:
 	if _nearest_threat_within(SIGHT_FLEE_RANGE) != null:
 		flee_until = Time.get_ticks_msec() / 1000.0 + FLEE_SECONDS
 		if not was_fleeing and randf() < 0.6:
-			SpeechText.spawn(self, ["RUN!", "They're here!", "Get inside!", "Look out!"][randi() % 4])
+			speak_or_notify(["RUN!", "They're here!", "Get inside!", "Look out!"][randi() % 4])
 
 func is_fleeing() -> bool:
 	return Time.get_ticks_msec() / 1000.0 < flee_until
@@ -848,7 +825,7 @@ func _apply_cheer(delta: float) -> void:
 		cheer_bubble_cd = randf_range(1.6, 3.4)
 		if randf() < 0.55:
 			var lines = ["Hooray!", "Woo!", "For the hero!", "Long live Deepwood!", "Best day ever!"]
-			SpeechText.spawn(self, lines[randi() % lines.size()])
+			speak_or_notify(lines[randi() % lines.size()])
 
 func pick_new_state() -> void:
 	if is_walking:
@@ -890,19 +867,17 @@ func _on_body_exited(body: Node) -> void:
 		player_inside = false
 
 func _process(delta: float) -> void:
-	# THE HOVER CARD NEVER RAN. Its only call site sat AFTER a `return true`
-	# inside the quest turn-in -- unreachable code, so the panel was built,
-	# sized and filled and then never shown to anybody (dev reported the
-	# missing stats twice; sizing the card was not the bug, calling it was).
-	update_hover_panel(get_global_mouse_position())
+	# NO MORE MOUSE HOVER (dev call 2026-07-27). Reading a villager used to mean
+	# holding the cursor over them for a 182px card that was too small for its
+	# own contents and got sat on by their speech bubble. Their sheet now opens
+	# from the right-click menu instead (villager_menu.gd -> villager_sheet.gd),
+	# which has room for every line and takes their voice while it is open.
 	refresh_size_if_needed()
 	update_health_bar_display(delta)
 	apply_despair_visual()
 	refresh_wander_bounds()
 	tick_building_visits()
 	if is_in_building:
-		if hover_panel:
-			hover_panel.visible = false
 		return
 	if player_inside and Input.is_action_just_pressed("interact"):
 		if not try_doctor_heal() and not try_bond_interaction():
@@ -921,7 +896,7 @@ func maybe_recount_news() -> void:
 		return
 	var recent: Array = GameState.village_log.slice(0, min(6, GameState.village_log.size()))
 	var e = recent[randi() % recent.size()]
-	SpeechText.spawn(self, "You were gone, but —\n" + str(e.get("text", "...")))
+	speak_or_notify("You were gone, but —\n" + str(e.get("text", "...")))
 
 # E on the Doctor (GAME_BIBLE 5.5a): a full heal at an escalating price. Every
 # purchase raises the next by half again; a day of peace forgives one step.
@@ -990,7 +965,7 @@ func try_bond_interaction() -> bool:
 	var def = VillagerQuests.get_def(str(data.get("id", "")))
 	if GameState.villager_quest_ready(data, pl):
 		var line = GameState.turn_in_villager_quest(str(data.get("id", "")), pl)
-		SpeechText.spawn(self, line if line != "" else "Thank you.")
+		speak_or_notify(line if line != "" else "Thank you.")
 		var notif = get_node_or_null("../CanvasLayer/NotificationStack")
 		if notif == null:
 			notif = get_tree().get_first_node_in_group("notification_stack")
@@ -1002,7 +977,7 @@ func try_bond_interaction() -> bool:
 		if pl and pl.has_method("update_currency_display"):
 			pl.update_currency_display()
 	else:
-		SpeechText.spawn(self, str(def.get("giver", "")) + "\n(" + VillagerQuests.objective_text(def) + ")")
+		speak_or_notify(str(def.get("giver", "")) + "\n(" + VillagerQuests.objective_text(def) + ")")
 	return true
 
 # --- mood talk ---
@@ -1030,7 +1005,7 @@ func say_mood_line() -> void:
 	var lines = mood_lines()
 	if lines.is_empty():
 		return
-	SpeechText.spawn(self, lines[randi() % lines.size()])
+	speak_or_notify(lines[randi() % lines.size()])
 
 func mood_lines() -> Array:
 	var data = find_villager_data()
@@ -1287,7 +1262,12 @@ func exit_building() -> void:
 		# step out through the door, not out of thin air
 		if building.has_method("play_door_anim"):
 			building.play_door_anim()
-		global_position = building.global_position + Vector2(randf_range(-5.0, 5.0), -30.0)
+		# feet on the DOORSTEP, not above it: this collision box is centred on the
+		# origin, so standing means 18*scale below it -- the old flat -30 left them
+		# a dozen pixels in the air (invisible while the world runs, but a villager
+		# stepping out during a paused cutscene would just hang there)
+		global_position = building.global_position \
+			+ Vector2(randf_range(-5.0, 5.0), -18.0 * body_scale_factor)
 	pick_new_state()
 
 # Small info fields shared by both the Press-E notification (joined with
@@ -1365,32 +1345,27 @@ func show_info() -> void:
 		return
 	# the NPC introducing themselves is speech -- floating text above their
 	# head that follows them as they wander, not a corner notification
-	SpeechText.spawn(self, " -- ".join(fields))
+	speak_or_notify(" -- ".join(fields))
 
-# Takes an explicit world position (rather than always reading the live
-# mouse cursor) so this can be exercised directly in headless tests, where
-# there is no real viewport/cursor to move.
-func is_hovering(mouse_world_pos: Vector2) -> bool:
-	return HOVER_BOUNDS.has_point(mouse_world_pos - global_position)
-
-func update_hover_panel(mouse_world_pos: Vector2) -> void:
-	if not hover_panel:
+# ONE MOUTH, TWO PLACES (dev call 2026-07-27: "if npc talks at the same time as
+# player is checking their stats, 2 texts are overlaid"). While this villager's
+# sheet is open their words are printed INSIDE it; otherwise they float over
+# their head as before. Either way a line is never drawn on top of their stats.
+func speak_or_notify(line: String) -> void:
+	var sheet := open_sheet()
+	if sheet != null:
+		sheet.show_speech(line)
 		return
-	if is_hovering(mouse_world_pos):
-		var fields = info_fields()
-		if fields.is_empty():
-			hover_panel.visible = false
-			return
-		hover_label.text = "\n".join(fields)
-		# the card GREW (spirit, home, watch, bond...) but the panel stayed
-		# 156x82 -- everything past the fourth line was silently clipped
-		# (live playtest: "they don't really show their stats"). Size the
-		# panel to the card, and keep it floating above the head.
-		var line_h := 15.0
-		var panel_h: float = 12.0 + float(fields.size()) * line_h
-		hover_panel.size = Vector2(182.0, panel_h)
-		hover_panel.position = Vector2(-91.0, -(panel_h + 30.0))
-		hover_label.size = Vector2(166.0, panel_h - 10.0)
-		hover_panel.visible = true
-	else:
-		hover_panel.visible = false
+	SpeechText.spawn(self, line)
+
+# This villager's stat sheet, if the player has it open right now.
+func open_sheet() -> Node:
+	for s in get_tree().get_nodes_in_group("villager_sheet"):
+		if is_instance_valid(s) and str(s.villager_id) == str(villager_id):
+			return s
+	return null
+
+# Right-click near this villager opens their menu (see villager_menu.gd). Driven
+# from player.gd so the same click can't also fire the player's off-hand attack.
+func open_menu() -> void:
+	load("res://villager_menu.gd").open_for(self, self)

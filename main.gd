@@ -635,6 +635,10 @@ func spawn_existing_villager_avatars() -> void:
 		npc.villager_id = villager_id
 		npc.global_position = offscreen_spawn(find_avatar_spawn_position(villager.get("role_key", "")))
 		$Village.add_child(npc)
+		# plant the feet AFTER _ready has sized the body (kid vs adult): the spawn
+		# helpers aim a rough y, and anything above the floor hangs in mid-air for
+		# as long as the tree is paused (a cutscene) instead of falling
+		npc.global_position.y = _npc_ground_y(npc)
 
 # A newborn with no Hospital to host the birth still needs a world avatar -- else it is an
 # invisible roster entry (counting for population/wages/morale) until the next village
@@ -651,6 +655,7 @@ func _on_village_child_born(child_id: String) -> void:
 	npc.villager_id = child_id
 	npc.global_position = offscreen_spawn(find_avatar_spawn_position(""))
 	$Village.add_child(npc)
+	npc.global_position.y = _npc_ground_y(npc)   # feet on the floor, never mid-air
 
 # FORESHADOWING (GAME_BIBLE 9.8): the mid-game taunt -- Orin WANTS you to grow,
 # and once, around the halfway mark, he says so almost plainly. Reads as a
@@ -894,11 +899,45 @@ func _stage_arrival_tableau(pl: Node) -> void:
 			survivors.append(n)
 	if doc != null:
 		survivors.push_front(doc)                  # the Doctor stands closest
+	# THEY COME OUT OF THE RUINS, ON THE GROUND (dev call 2026-07-27: "villagers
+	# spawn mid air, i want them to come out from ruins"). Two faults stacked
+	# here. (1) Their spawn y sat 40-60px ABOVE the village floor: an npc's
+	# collision box is CENTRED on its origin (npc.apply_size), so its feet are
+	# 18*scale BELOW it -- standing y is VILLAGE_Y - 18*scale, not VILLAGE_Y - 60.
+	# (2) The dialogue box pauses the whole tree the same frame this runs, so
+	# gravity never pulled them down and they hung in the air for the whole beat.
+	# Now each survivor is planted ON the floor AT a ruin -- nearest ruins first,
+	# fanned along the facade -- so the reveal reads as people stepping out of the
+	# wreckage of their own town rather than materialising beside the player.
+	var ruins: Array = []
+	for b in get_tree().get_nodes_in_group("building"):
+		if is_instance_valid(b):
+			ruins.append(b)
+	ruins.sort_custom(func(r1, r2):
+		return absf(r1.global_position.x - px) < absf(r2.global_position.x - px))
 	var ni := 0
 	for n in survivors:
-		n.global_position = Vector2(px + 108.0 + 72.0 * float(ni), n.global_position.y)
-		_face_entity(n, -1.0)                       # look west, toward the player
+		var gy := _npc_ground_y(n)
+		if ruins.is_empty():
+			n.global_position = Vector2(px + 108.0 + 72.0 * float(ni), gy)
+		else:
+			var ruin = ruins[ni % ruins.size()]
+			var lane := int(ni / ruins.size())      # a second lap stands further out
+			var half: float = (ruin.eff_w() * 0.5) if ruin.has_method("eff_w") else 60.0
+			# step out of the side of the ruin that FACES the player
+			var side: float = -1.0 if ruin.global_position.x >= px else 1.0
+			n.global_position = Vector2(
+				ruin.global_position.x + side * (half * 0.6 + 30.0 * float(lane)), gy)
+		var toward: float = signf(px - n.global_position.x)
+		_face_entity(n, toward if toward != 0.0 else -1.0)   # turn to the player
 		ni += 1
+
+# An npc's collision box is CENTRED on its origin (npc.apply_size sizes it
+# 36*scale tall), so its feet sit 18*scale below -- that is the offset the
+# village floor has to meet. Kids are scaled 0.65, so they need their own value.
+func _npc_ground_y(n: Node) -> float:
+	var s: float = float(n.body_scale_factor) if "body_scale_factor" in n else 1.0
+	return VILLAGE_Y - 18.0 * s
 
 # Turn a character to face left (dir<0) or right (dir>0). Covers both body kinds:
 # villager npcs (Node2D body_gfx scaled by direction) and adventurers (an
