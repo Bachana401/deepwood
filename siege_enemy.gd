@@ -221,7 +221,7 @@ func _physics_process(delta: float) -> void:
 	if skin_attack_timer > 0.0:
 		skin_attack_timer -= delta
 
-	var target = current_target()
+	var target = _cached_target()
 	if target == null:
 		# nothing to hit yet -> raiders push into the village (+x), soldiers march
 		# out to meet them (-x)
@@ -247,6 +247,28 @@ func _physics_process(delta: float) -> void:
 
 # Raider: the wall while it stands, but retaliate against a soldier already in
 # its face; then the nearest defender. Village soldier: the nearest raider.
+# Retarget throttle (mirrors enemy.gd's 0.8s prey cache): the group scans below iterate the
+# large npc/building/siege_enemy groups, and running them every physics frame for every
+# combatant is the siege's worst per-frame cost. Cache the target and only re-scan every
+# ~0.5s -- but drop the cache the instant it goes invalid/dead/undamageable, so a raider
+# never sticks to a freed node or hammers a sheltered villager.
+var _target_cache: Node2D = null
+var _retarget_cd := 0.0
+func _cached_target() -> Node2D:
+	if _target_cache != null:
+		var bad := not is_instance_valid(_target_cache)
+		if not bad and ("is_dead" in _target_cache) and _target_cache.is_dead: bad = true
+		if not bad and ("is_in_building" in _target_cache) and _target_cache.is_in_building: bad = true
+		if not bad and ("build_stage" in _target_cache) and int(_target_cache.build_stage) < GameState.TOTAL_BUILD_STAGES: bad = true
+		if bad:
+			_target_cache = null
+			_retarget_cd = 0.0
+	_retarget_cd -= get_physics_process_delta_time()
+	if _retarget_cd <= 0.0 or _target_cache == null:
+		_retarget_cd = 0.5
+		_target_cache = current_target()
+	return _target_cache
+
 func current_target() -> Node2D:
 	if faction == "village":
 		return nearest_raider()

@@ -89,6 +89,8 @@ var mana_orb: Control = null
 # The light the player carries -- a warm pool so the Terraria-dark dungeon is
 # always readable right around the hero. On only where it's dark (the dungeon).
 var player_light: PointLight2D = null
+var _tile_world_checked := false     # cache: a scene either has a tile_world or never will
+var _in_tile_world := false
 var mana_label: Label = null
 const BOUNCE_DURATION = 0.1
 const INVINCIBILITY_DURATION = 1.0
@@ -2429,8 +2431,10 @@ func _physics_process(delta: float) -> void:
 		# (deep below the surface, where main.tscn's own CanvasModulate dims it)
 		# carry the torch through the dark places: dungeons, AND the tile Underground (now
 		# Terraria-dim, so the light is needed to see past a small radius).
-		player_light.enabled = GameState.in_dungeon or global_position.y > 300.0 \
-			or (is_inside_tree() and get_tree().get_first_node_in_group("tile_world") != null)
+		if not _tile_world_checked:
+			_tile_world_checked = true    # query the group ONCE, not every physics frame
+			_in_tile_world = is_inside_tree() and get_tree().get_first_node_in_group("tile_world") != null
+		player_light.enabled = GameState.in_dungeon or global_position.y > 300.0 or _in_tile_world
 	if is_dead:
 		return
 	# both rift doors standing = the drain runs (Riftweaving)

@@ -417,6 +417,7 @@ const DEFEND_DAMAGE := 4
 const DEFEND_COOLDOWN := 1.2
 const THREAT_GROUPS := ["siege_enemy", "course_enemy", "dungeon_combatant"]
 var defend_cd := 0.0
+var _threat_scan_cd := 0.0   # throttle the peacetime 3-group threat scan (see _tick_defence)
 
 func _nearest_threat() -> Node2D:
 	var best: Node2D = null
@@ -435,6 +436,12 @@ func _tick_defence(delta: float) -> void:
 	if defend_cd > 0.0:
 		defend_cd -= delta
 		return
+	# throttle the 3-group scan: in peacetime (no threat -> defend_cd never set) this ran
+	# every frame on every villager for nothing. ~0.2s is plenty for a 52px defence reach.
+	_threat_scan_cd -= delta
+	if _threat_scan_cd > 0.0:
+		return
+	_threat_scan_cd = 0.2
 	var threat := _nearest_threat()
 	if threat == null or not threat.has_method("take_damage"):
 		return

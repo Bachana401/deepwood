@@ -89,7 +89,14 @@ func operational_buildings() -> Array:
 	out.sort_custom(func(a, c): return a.global_position.x < c.global_position.x)
 	return out
 
+var _decor_recheck_cd := 0.0
 func _update_decor() -> void:
+	# the operational-building set only changes when one finishes / is razed, yet this
+	# rebuilt + sorted a fresh Array every frame just to compare its size. Poll ~1s instead.
+	_decor_recheck_cd -= get_process_delta_time()
+	if _decor_recheck_cd > 0.0:
+		return
+	_decor_recheck_cd = 1.0
 	var ops = operational_buildings()
 	if ops.size() == built_tier:
 		return
