@@ -170,7 +170,11 @@ func _on_difficulty_chosen(difficulty: String) -> void:
 	GameState.difficulty = difficulty
 	if pending_delete_save:
 		GameState.delete_save()
-		GameState.reset_for_new_game()
+	# ALWAYS reset for a fresh run: BOTH Start (first-ever launch, no save file) and New Game
+	# reach here, and without this a fresh install boots on bare var defaults -- no seeded
+	# villagers, no starter blueprints, an empty larder, no Ten -- a broken first game.
+	# Continue never comes through this path (it goes straight to _on_continue).
+	GameState.reset_for_new_game()
 	GameState.pending_load = false
 	$DifficultyPanel.visible = false
 	$ProloguePanel.visible = true

@@ -3389,7 +3389,7 @@ func tick_wages(hours_passed: float) -> void:
 	for v in rescued_villagers:
 		# a School student / Barracks recruit isn't a working, waged employee yet
 		# -- they're IN school_enrollments, training toward their role
-		if str(v.get("role_key", "")) != "" and not school_enrollments.has(str(v.get("id", ""))):
+		if str(v.get("role_key", "")) != "" and not school_enrollments.has(str(v.get("id", ""))) and is_building_operational(str(v.get("role_key", ""))):
 			staff.append(v)
 	if staff.is_empty():
 		return
@@ -4724,6 +4724,7 @@ func load_game() -> Dictionary:
 		# village-launched floor would wrongly exit into the underground scene and drop
 		# the player at a stale coord in the freshly-regenerated world.
 		came_from_underground = false
+		moving_building = ""   # a packed-for-relocation flag must not leak past Continue (else H hijacked)
 		harvest_at_home = false
 		feast_glow = false
 		_warned_no_food = false
