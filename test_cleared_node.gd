@@ -51,14 +51,18 @@ func _ready() -> void:
 	check("an unswept floor spawns its holders", di.alive_count > 0, "%d alive" % di.alive_count)
 	check("...and is not marked cleared yet", not GameState.floor_is_cleared(2))
 
-	# ---- 2. clear it the way a player does: kill everything ----
-	for e in get_tree().get_nodes_in_group("dungeon_combatant"):
-		if is_instance_valid(e) and e.has_method("take_damage"):
-			e.take_damage(999999)
-	for i in range(180):
-		keep_running()
-		await get_tree().physics_frame
-		if di.level_cleared:
+	# ---- 2. clear it the way a player does: kill everything -- re-scanning each pass so a
+	# splitter (a slain Brood spawns two more) is finished off too, not left standing ----
+	for attempt in range(24):
+		var any := false
+		for e in get_tree().get_nodes_in_group("dungeon_combatant"):
+			if is_instance_valid(e) and e.has_method("take_damage") and not ("is_dead" in e and e.is_dead):
+				e.take_damage(999999)
+				any = true
+		for i in range(6):
+			keep_running()
+			await get_tree().physics_frame
+		if di.level_cleared or not any:
 			break
 	check("killing the floor clears it", di.level_cleared, "alive %d" % di.alive_count)
 	check("...and the clear is RECORDED, not just local", GameState.floor_is_cleared(2))

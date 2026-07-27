@@ -33,6 +33,9 @@ func _ready() -> void:
 		check("%s lives and acts (incl. its cast) without error" % k,
 			is_instance_valid(m) and not m.is_dead and m.health > 0,
 			"invalid or dead")
+		check("%s has a drawn procedural body (Godot polys, no PixelLab)" % k,
+			is_instance_valid(m) and m.visual != null and m.visual.get_child_count() > 0,
+			"no visual parts")
 		var got := [false]
 		if is_instance_valid(m):
 			m.died.connect(func(): got[0] = true)

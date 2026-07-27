@@ -2063,9 +2063,15 @@ func spawn_deep_rescue() -> void:
 # the intended 60/40 OP-to-annoying split. The very first block is capped
 # gentler (~35% OP) while the player learns. Grunts, flyers and spitters make
 # up the annoying-but-not-weak 40%.
-const OP_KINDS_BASE = ["bomber", "charger", "weaver", "plague", "brood", "vampire"]
-const OP_KINDS_MID = ["stalker", "hexer", "warper", "wailer", "frostling", "sentinel", "gazer", "warchief", "voidling"]                   # from level 5
-const OP_KINDS_LATE = ["blink_archer", "runecaster", "warlock", "leech", "burrower", "ballista", "swarm", "arcbinder", "skycaller", "juggernaut"]  # from level 8
+# The special-mob roster, curated into FIVE depth-biomes of 20 floors each, so a given
+# stretch of the dungeon fields only a FEW themed types (still mixed together per floor)
+# instead of the whole bestiary everywhere. Each kind lives in one or two adjacent biomes;
+# the skinned grunts + flyer/spitter stay the shared backbone (ANNOYING_KINDS).
+const OP_BAND_1 = ["bomber", "charger", "weaver", "plague", "brood", "vampire"]               # 1-20   rot & beasts
+const OP_BAND_2 = ["stalker", "blink_archer", "hexer", "wailer", "frostling", "gazer"]         # 21-40  haunts & gazes
+const OP_BAND_3 = ["burrower", "warper", "leech", "swarm", "voidling", "warchief"]             # 41-60  the warren
+const OP_BAND_4 = ["runecaster", "warlock", "ballista", "sentinel", "arcbinder", "skycaller"]  # 61-80  the arcane siege
+const OP_BAND_5 = ["juggernaut", "sentinel", "skycaller", "arcbinder", "warlock", "warper"]    # 81-100 the apex
 const ANNOYING_KINDS = ["grunt", "flyer", "spitter"]
 # Levels whose grunt is a downloaded sprite-skin (Orc/Blood Fiend/Demon blocks);
 # on these, about half of spawns are grunts so the skinned mob is prominent.
@@ -2078,12 +2084,21 @@ func block_position(level: int) -> int:
 	return (level - 1) % 5 + 1     # 1..4 = normal levels, 5 = boss
 
 func op_pool_for_level(level: int) -> Array:
-	var pool = OP_KINDS_BASE.duplicate()
-	if level >= 5:
-		pool.append_array(OP_KINDS_MID)
-	if level >= 8:
-		pool.append_array(OP_KINDS_LATE)
+	# five depth-biomes of 20 floors; the last 4 floors of a biome blend in the NEXT biome's
+	# roster so the theme eases over rather than swapping the whole cast in one step.
+	var band := clampi(int(float(level - 1) / 20.0), 0, 4)
+	var pool: Array = _op_band(band).duplicate()
+	if band < 4 and (level - 1) % 20 >= 16:
+		pool.append_array(_op_band(band + 1))
 	return pool
+
+func _op_band(band: int) -> Array:
+	match band:
+		0: return OP_BAND_1
+		1: return OP_BAND_2
+		2: return OP_BAND_3
+		3: return OP_BAND_4
+		_: return OP_BAND_5
 
 func op_fraction(level: int) -> float:
 	var p = block_position(level)
