@@ -253,7 +253,14 @@ func _unload_chunk(c: Vector2i) -> void:
 # ── streamed content: chests (loot), depth-scaled mobs, traps ─────────────────
 func _populate_chunk(c: Vector2i) -> void:
 	if c.y < 1:
-		return                                    # keep the entry a safe landing
+		# the entry stays a SAFE LANDING (no mobs/traps/chests), but its floor-doors --
+		# levels 1-2 fall in chunk-row 0 -- must still spawn, or those two entrances AND
+		# the early frontier BEACON are silently missing (dev 2026-07-26).
+		var top_nodes: Array = []
+		_place_floor_doors(c, top_nodes)
+		if not top_nodes.is_empty():
+			_content[c] = top_nodes
+		return
 	var rng := RandomNumberGenerator.new()
 	rng.seed = (hash(c) ^ 0x9E3779B9) & 0x7fffffff
 	var biome := _biome_of(c.y * CHUNK + CHUNK / 2)
@@ -307,31 +314,34 @@ func _populate_chunk(c: Vector2i) -> void:
 			var lc = _find_floor_cell(c, rng)
 			if lc != null:
 				nodes.append(_spawn_torch(lc))
-	# FLOOR-DOORS on the true path: one per dungeon level by depth (deeper = higher
-	# floor). The frontier door -- the deepest you can currently enter -- wears a
-	# beacon, so the way down is always clear. Leaving a floor returns you here.
+	_place_floor_doors(c, nodes)
+	if not nodes.is_empty():
+		_content[c] = nodes
+
+# FLOOR-DOORS on the true path: one per dungeon level by depth (deeper = higher floor). The
+# frontier door -- the deepest you can currently enter -- wears a beacon, so the way down is
+# always clear. Leaving a floor returns you here. Extracted so chunk-row 0 (levels 1-2) can
+# place its doors while staying a mob-free safe landing.
+func _place_floor_doors(c: Vector2i, nodes: Array) -> void:
 	var level_h := float(DEPTH) / 100.0
 	var l_lo := maxi(1, int(ceil(float(c.y * CHUNK) / level_h)))
 	var l_hi := mini(100, int(float(c.y * CHUNK + CHUNK - 1) / level_h))
 	for L in range(l_lo, l_hi + 1):
-		var dy := mini(int(float(L) * level_h), DEPTH - 2)   # keep L=100 off the bedrock row (dy=DEPTH has no floor)
-		# scatter each level's door across the width -- you FIND them by exploring,
-		# not walk a line of doors. Deterministic per level so returns land right.
+		var dy := mini(int(float(L) * level_h), DEPTH - 2)   # keep L=100 off the bedrock row
+		# scatter each level's door across the width -- FOUND by exploring, deterministic
+		# per level so returns land right.
 		var dx := 8 + (hash(L * 2654435761) & 0x7fffffff) % (WIDTH - 16)
 		if dx >= c.x * CHUNK and dx < (c.x + 1) * CHUNK:
 			var dcell := _floor_near(dx, dy)
 			if dcell.x <= -9000:
-				# the scattered column was solid rock (a dense warren) -> retry at this
-				# chunk's mid-column so the level still gets its door, kept LOCAL to chunk
-				# c (it must unload/respawn WITH c, not blink with a distant chunk).
+				# the scattered column was solid rock -> scan across the chunk (kept local
+				# to c so it unloads/respawns with it, no cross-chunk blink).
 				for sx in [c.x * CHUNK + CHUNK / 2, c.x * CHUNK + 6, c.x * CHUNK + CHUNK - 7]:
-					dcell = _floor_near(sx, dy)   # scan across the whole chunk, not just mid
+					dcell = _floor_near(sx, dy)
 					if dcell.x > -9000:
 						break
 			if dcell.x > -9000:
 				nodes.append(_spawn_floor_door(dcell, L))
-	if not nodes.is_empty():
-		_content[c] = nodes
 
 func _floor_near(x: int, y0: int) -> Vector2i:
 	for r in range(0, 10):

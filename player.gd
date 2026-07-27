@@ -4005,6 +4005,8 @@ func spawn_arrow(stats: Dictionary, aim_dir: Vector2) -> void:
 		arrow.is_crit = cr[1]
 		arrow.homing = homing
 		arrow.enemy_statuses = arrow_statuses
+		arrow.execute_threshold = GameState.get_bonus_total("execute_threshold")   # Killshot
+		arrow.execute_heal = GameState.get_bonus_total("execute_heal")             # Headhunter
 		arrow.pierce_count = pierce_count
 		arrow.poison_spread = spreads_poison
 		# grade presence: a heavier shaft that carries further (set BEFORE

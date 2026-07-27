@@ -3094,7 +3094,7 @@ func do_clone() -> void:
 	var room = allowed_clones() - living_clones()
 	for i in range(min(CLONES_PER_CAST, room)):
 		var c = load("res://boss.tscn").instantiate()
-		c.boss_id = "wizard"
+		c.boss_id = boss_id   # clone THIS boss -- Twin Despair's split spawned WIZARDS before
 		c.is_clone = true
 		c.level_hp_mult = level_hp_mult
 		c.damage_multiplier = damage_multiplier * CLONE_DMG_FRAC

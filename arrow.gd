@@ -16,6 +16,8 @@ var pierces_terrain := false
 var is_crit := false   # set by the player when it rolls a crit for this arrow
 var slows_player := false   # caster enemies fire chilling bolts that slow you
 var enemy_statuses := []   # Warden keystones: list of {"kind","dur","mag"} applied on hit
+var execute_threshold := 0.0   # Archer keystone Killshot: execute a non-boss below this HP frac
+var execute_heal := 0.0        # Headhunter: heal this frac of max HP on an execute
 var pierce_count := 0   # Marksman Piercing Shot / Skyfall: pass through this many foes
 var poison_spread := false   # Warden Contagion: poison also splashes onto nearby foes
 var pierced_bodies := []   # bodies already struck this flight (so pierce never double-hits)
@@ -153,6 +155,18 @@ func _on_hit_area_body_entered(body: Node2D) -> void:
 			var landed = body.take_damage(damage)
 			if landed == null or landed:
 				FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+	# KILLSHOT (Archer keystone): arrows execute a low-HP non-boss, same as apply_melee_skills
+	# does for melee -- routed here because arrows never go through that path (dev 2026-07-26).
+	if execute_threshold > 0.0 and not body.is_in_group("player") and not ("boss_id" in body) \
+			and "max_health" in body and "health" in body and body.has_method("take_damage"):
+		if float(body.health) <= float(body.max_health) * execute_threshold and float(body.health) > 0.0:
+			body.take_damage(999999)
+			if execute_heal > 0.0:
+				var pl = get_tree().get_first_node_in_group("player")
+				if pl != null and "health" in pl and pl.has_method("get_max_health"):
+					pl.health = mini(pl.get_max_health(), pl.health + int(round(pl.get_max_health() * execute_heal)))
+					if pl.has_method("update_health_display"):
+						pl.update_health_display()
 	if slows_player and body.has_method("apply_slow"):
 		body.apply_slow(3.0, 0.55)
 	if body.has_method("apply_status"):
