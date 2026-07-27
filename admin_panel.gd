@@ -213,9 +213,14 @@ func _toggle_true_form() -> void:
 
 # Jump the character level so a stage's aura/pallor/power shows instantly.
 func _set_level(lvl: int) -> void:
+	# grant only the points the LEVEL JUMP earns (audit fix): the old
+	# `max(points, lvl-1)` ignored spent skills, so a level-50 character with
+	# a fully-bought tree who clicked a stage button walked away with 99 free
+	# points ON TOP of the tree -- and P is reachable in normal play.
+	var gained := maxi(0, lvl - GameState.player_level)
 	GameState.player_level = lvl
 	GameState.player_xp = 0
-	GameState.skill_points = max(GameState.skill_points, lvl - 1)
+	GameState.skill_points += gained
 	GameState.announce_monarch_awakening()
 	var pl = _player()
 	if pl and pl.has_method("update_health_display"):

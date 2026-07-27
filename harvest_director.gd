@@ -50,11 +50,19 @@ func _ready() -> void:
 		_ground_y = m.VILLAGE_Y
 	if m != null and "village_right_edge" in m:
 		_east_x = float(m.village_right_edge) + 300.0
+	# claim the flag only once a PLAYER exists to run the beat (audit fix): the
+	# bailouts below queue_free() this director, and a flag set before them
+	# stayed stuck for the session -- sieges off, the deep sealed, and the
+	# feast unable to ever fire again until a Quit -> Continue cleared it.
+	if get_tree().get_first_node_in_group("player") == null:
+		queue_free()
+		return
 	GameState.harvest_at_home = true
 	if resume:
 		_revealed = true
 		var p = get_tree().get_first_node_in_group("player")
 		if p == null:
+			GameState.harvest_at_home = false
 			queue_free()
 			return
 		# the wand guard holds on the resume road too
@@ -88,6 +96,7 @@ func resume_fight() -> void:
 func begin_false_victory() -> void:
 	var p = get_tree().get_first_node_in_group("player")
 	if p == null:
+		GameState.harvest_at_home = false   # never strand the flag with the director
 		queue_free()
 		return
 	DialogueBox.play(p, Story.FALSE_VICTORY, func():
@@ -113,6 +122,7 @@ func begin_reveal() -> void:
 	_revealed = true
 	var p = get_tree().get_first_node_in_group("player")
 	if p == null:
+		GameState.harvest_at_home = false   # never strand the flag with the director
 		queue_free()
 		return
 	GameState.play_sfx(GameState.SFX_THUD, 0.6)   # the lightning's answer

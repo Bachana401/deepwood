@@ -447,6 +447,21 @@ func _on_node_pressed(node: Dictionary) -> void:
 	if SkillTreeData.is_exclusive_blocked(node):
 		notify("You chose the other side of this fork — that path is locked.")
 		return
+	# Affordability BEFORE the fork warning (audit fix): a player who couldn't
+	# pay used to burn the two-click confirmation on a purchase that was going
+	# to be refused anyway. In the testing sandbox every node is free: skip the
+	# point + material gates (the fork/prereq gates still apply, on purpose).
+	if not GameState.TEST_SKILL_SANDBOX:
+		if GameState.skill_points < node.cost:
+			notify("Not enough skill points (%d needed)." % node.cost)
+			return
+		for mat_id in node.materials.keys():
+			if not GameState.researched_materials.has(mat_id):
+				notify("Requires an unresearched material -- take your finds to the Science Lab.")
+				return
+			if player.inventory.get_count(mat_id) < node.materials[mat_id]:
+				notify("Missing materials: needs %dx %s." % [node.materials[mat_id], Inventory.get_display_name(mat_id)])
+				return
 	# A FORK IS FOREVER (polish 2026-07-20): taking one side of a crossroads
 	# locks its sibling for the rest of the run, and this used to happen on
 	# a single click -- one misclick could quietly end a build. Confirm it
@@ -464,19 +479,6 @@ func _on_node_pressed(node: Dictionary) -> void:
 				str(node.name), " / ".join(sibling_names)])
 			return
 	_fork_armed = ""
-	# In the testing sandbox every node is free: skip the point + material gates
-	# here too (but the fork/prereq gates above still apply, on purpose).
-	if not GameState.TEST_SKILL_SANDBOX:
-		if GameState.skill_points < node.cost:
-			notify("Not enough skill points (%d needed)." % node.cost)
-			return
-		for mat_id in node.materials.keys():
-			if not GameState.researched_materials.has(mat_id):
-				notify("Requires an unresearched material -- take your finds to the Science Lab.")
-				return
-			if player.inventory.get_count(mat_id) < node.materials[mat_id]:
-				notify("Missing materials: needs %dx %s." % [node.materials[mat_id], Inventory.get_display_name(mat_id)])
-				return
 	if GameState.try_unlock_skill(node, player):
 		notify("Unlocked: " + node.name + "!")
 		player.update_health_display()

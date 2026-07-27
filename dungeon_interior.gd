@@ -55,7 +55,8 @@ const BOSS_LADDER = {
 	# --- the finale gauntlet ---
 	95: "seraph", 98: "leviathan", 99: "eclipse", 100: "wizard",
 }
-const FINALE_BOSSES = {95: "seraph", 98: "leviathan", 99: "eclipse", 100: "wizard"}
+# (FINALE_BOSSES was removed by the audit: superseded by BOSS_LADDER above,
+# read by nothing.)
 
 # The deepest N boss levels have NO weapon counter (mastery of every weapon is
 # required); only the shallower boss levels get a countering weapon assigned.
@@ -320,7 +321,6 @@ const HP_SOFTCAP_LEVEL = 20
 const HP_SCALE_AFTER = 0.02
 const DMG_SOFTCAP_LEVEL = 30
 const DMG_SCALE_AFTER = 0.02
-const LEVEL_CLEAR_DELAY = 2.5
 const MAX_LEVEL = 100
 
 # How far past each side wall the cave fill runs. The camera can sit up to half
@@ -615,7 +615,12 @@ func _theme_gauntlet(out: Array, rng: RandomNumberGenerator) -> void:
 	for k in range(n):
 		var x: float = lerpf(REG_L + 110.0, REG_R - 110.0, float(k) / float(n - 1))
 		if k % 2 == 0:
-			out.append(pillar(x, rng.randf_range(46.0, 64.0), 88.0))
+			# 78, not the 88 cap (audit fix): the measured jump clears 92.25px
+			# at the current tick rate but only 88.9 in closed form -- pillars
+			# at EXACTLY the cap made every Gauntlet floor a chain of
+			# pixel-perfect max-height vaults one physics tweak away from a
+			# wall. A real margin costs the theme nothing.
+			out.append(pillar(x, rng.randf_range(46.0, 64.0), 78.0))
 		else:
 			_ledge(out, x, GROUND_Y - rng.randf_range(60.0, 86.0), rng.randf_range(120.0, 160.0))
 
@@ -686,7 +691,11 @@ func _theme_cascade(out: Array, rng: RandomNumberGenerator) -> void:
 		_ledge(out, rng.randf_range(REG_L + 200.0, REG_R - 200.0), GROUND_Y - rng.randf_range(56.0, 78.0), rng.randf_range(140.0, 180.0))
 
 func total_boss_levels() -> int:
-	return int(MAX_LEVEL / 5)
+	# 22, not MAX_LEVEL/5 = 20 (audit fix): floors 98 and 99 are boss floors
+	# too. The old undercount made COUNTER_IMMUNE_TAIL=12 actually leave 14
+	# bosses immune -- counters stopped at floor 40 instead of the documented
+	# "deepest 12 have none" (i.e. 55 and beyond).
+	return BOSS_LADDER.size()
 
 # Finale levels (95/98/99/100) use their reserved unique boss; every other
 # boss level cycles the six standard bosses.
@@ -711,6 +720,11 @@ func get_boss_id(level: int) -> String:
 # Which weapon (if any) counters the boss on this level. "" for the deep,
 # counter-immune levels. Sequence is precomputed in build_counter_sequence().
 func get_boss_counter(level: int) -> String:
+	# the finale gauntlet is ALWAYS counter-immune -- and 95/98/99 all collapse
+	# to int(level/5)==19, so if counters ever reached that deep, three
+	# different bosses would silently inherit one matchup (audit fix)
+	if level >= 95:
+		return ""
 	var n = int(level / 5)
 	if n >= 1 and n <= boss_counter_seq.size():
 		return boss_counter_seq[n - 1]
@@ -1846,11 +1860,23 @@ func place_hazards(level: int, boss: bool) -> void:
 	var n := clampi(1 + int(level / 22), 1, 3)
 	var placed := 0
 	var tries := 0
+	var used_x: Array = []
 	while placed < n and tries < 40:
 		tries += 1
 		var x := rng.randf_range(360.0, current_width - 320.0)
 		if absf(x - ENTRY_X) < MINE_SAFE_ZONE or absf(x - (current_width - 46.0)) < 200.0:
 			continue
+		# keep hazards APART (audit fix): nothing stopped 2-3 landing on one x,
+		# stacking their telegraphs into unreadable noise (damage was capped,
+		# but a tell you cannot read is not a tell)
+		var too_close := false
+		for ux in used_x:
+			if absf(x - float(ux)) < 260.0:
+				too_close = true
+				break
+		if too_close:
+			continue
+		used_x.append(x)
 		var hz = HAZARD_SCRIPT.new()
 		hz.kind = pool[rng.randi() % pool.size()]
 		hz.damage = mini(int(round(16 + level * 0.6)), 70)   # scales with depth, capped, never a one-shot
@@ -2595,6 +2621,11 @@ func _straggler_hint() -> String:
 		if not is_instance_valid(e) or e.is_in_group("player"):
 			continue
 		if "is_dead" in e and e.is_dead:
+			continue
+		# only COUNTED combatants (audit fix): a boss's summons join the group
+		# without registering, so "⚔ 1 left" could point the arrow at a minion
+		# while the boss -- the actual last tally entry -- stood the other way
+		if not e.died.is_connected(_on_combatant_died):
 			continue
 		var d: float = absf(e.global_position.x - player.global_position.x)
 		if d < best_d:

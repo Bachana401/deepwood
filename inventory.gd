@@ -1545,4 +1545,14 @@ func from_save_data(data: Array) -> void:
 	for i in range(min(data.size(), capacity)):
 		var entry = data[i]
 		if entry != null and typeof(entry) == TYPE_DICTIONARY:
-			slots[i] = {"item_id": entry.get("item_id", ""), "count": entry.get("count", 0)}
+			# the same hardening add_item has (audit fix): a save carrying a
+			# since-renamed/removed id -- or a zero count -- used to reload
+			# into a permanent PHANTOM slot (no name, no icon, uncleanable)
+			# that survived every later save cycle and cost one of the 55.
+			var iid := str(entry.get("item_id", ""))
+			var cnt := int(entry.get("count", 0))
+			if iid == "" or cnt <= 0 or not ITEM_DEFS.has(iid):
+				if iid != "" and not ITEM_DEFS.has(iid):
+					push_warning("save held unknown item '%s' x%d -- slot dropped" % [iid, cnt])
+				continue
+			slots[i] = {"item_id": iid, "count": cnt}

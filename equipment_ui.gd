@@ -375,9 +375,7 @@ func _eligible_items(slot_key: String) -> Array:
 		var matches = false
 		if slot_key == "relic":
 			matches = cat == "relic"
-		elif slot_key == "weapon":
-			matches = cat == "weapon"
-		else:  # helmet/chest/pants
+		else:  # helmet/chest/pants/gloves/boots ("weapon" gear died with the hotbar migration)
 			matches = cat == "armor" and Inventory.get_equip_slot(item_id) == slot_key
 		if matches:
 			seen[item_id] = true

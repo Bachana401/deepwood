@@ -55,6 +55,11 @@ func _ready() -> void:
 	add_child(count_label)
 
 func register_panel(panel: Node) -> void:
+	# prune the dead on the way in (audit fix): this autoload outlives every
+	# scene, and each village<->dungeon transition re-registered two panels
+	# without ever removing the freed ones -- a long session walked hundreds of
+	# dead entries on every mouse release
+	registered_panels = registered_panels.filter(func(p): return is_instance_valid(p))
 	registered_panels.append(panel)
 
 # A split pulls items OUT of the source slot into the "hand" (pick_one_more), so if

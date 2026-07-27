@@ -69,6 +69,12 @@ func _refresh() -> void:
 # windows expose it differently (a `panel` child, an is_open()/is_visible()), so
 # probe the common shapes rather than assume one.
 func _is_menu_open(w: Node) -> bool:
+	# the group's OWN contract first (audit fix): every esc_window implements
+	# esc_is_open() -- this probe used to guess at shapes instead, and
+	# CanvasLayer windows holding a $Panel CHILD (the bag, chest windows)
+	# matched none of them, so the banner never stepped aside for the bag
+	if w.has_method("esc_is_open"):
+		return bool(w.esc_is_open())
 	if w.has_method("is_open"):
 		return bool(w.is_open())
 	if "panel" in w and w.panel != null and "visible" in w.panel:

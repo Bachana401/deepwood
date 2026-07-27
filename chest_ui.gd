@@ -49,14 +49,20 @@ func _ready() -> void:
 # downward), then resize the panel and drop the buttons below the grid. Most
 # chests are the standard 24; the Proving Grounds vaults are much bigger, so the
 # grid has to grow to fit them rather than hiding items past slot 24.
+# the inset dark fills, tracked like the other three per-slot nodes (audit
+# fix: they were added to $Panel and forgotten, so every grid RESIZE -- open a
+# huge Proving vault, then a normal 24-slot chest -- orphaned a vault's worth
+# of phantom squares onto the panel, growing with each differently-sized chest)
+var slot_fills: Array = []
+
 func _ensure_grid(count: int) -> void:
 	if slot_bgs.size() == count:
 		return
-	for arr in [slot_bgs, slot_icons, slot_counts]:
+	for arr in [slot_bgs, slot_icons, slot_counts, slot_fills]:
 		for n in arr:
 			if is_instance_valid(n):
 				n.queue_free()
-	slot_bgs.clear(); slot_icons.clear(); slot_counts.clear()
+	slot_bgs.clear(); slot_icons.clear(); slot_counts.clear(); slot_fills.clear()
 	build_slots(count)
 
 func _layout_panel(count: int) -> void:
@@ -104,6 +110,7 @@ func build_slots(count: int) -> void:
 		fill.position = pos + Vector2(2.0, 2.0)
 		fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		$Panel.add_child(fill)
+		slot_fills.append(fill)
 
 		var icon = ColorRect.new()
 		icon.size = Vector2(SLOT_SIZE - ICON_MARGIN * 2, SLOT_SIZE - ICON_MARGIN * 2)
@@ -265,6 +272,10 @@ func _on_deposit_matching() -> void:
 # SHIFT-CLICK: flick one whole stack across without dragging.
 func quick_transfer_from_chest(index: int) -> void:
 	if not current_chest or index >= current_chest.inventory.slots.size():
+		return
+	# same guard its siblings carry (audit fix): this was the one path that
+	# dereferenced player.inventory without checking the player exists
+	if player == null or not is_instance_valid(player) or player.inventory == null:
 		return
 	var slot = current_chest.inventory.slots[index]
 	if slot == null:

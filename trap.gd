@@ -49,7 +49,13 @@ func explode() -> void:
 			player.apply_knockback(away, randf_range(KNOCKBACK_MIN, KNOCKBACK_MAX))
 		if player.has_node("Camera2D"):
 			player.get_node("Camera2D").shake(9.0, 0.3)
+	# freed-safe rearm (audit fix): mines cluster near the entry corridor, so
+	# tripping one and using the leave gate inside the 14s window was the
+	# COMMON case -- the timer then resumed into a freed node's $Plate.
+	var iid := get_instance_id()
 	await get_tree().create_timer(REARM_DELAY).timeout
+	if instance_from_id(iid) == null or not is_inside_tree():
+		return
 	rearm()
 
 func play_explosion_effects() -> void:

@@ -114,6 +114,10 @@ var placed_torches: Array = []
 var harvest_seed := 0
 var harvest_states: Dictionary = {}
 
+# Rampart wounds by flank ("west"/"east" -> hp; absent = whole). Audit fix:
+# wall HP was runtime-only, so any scene rebuild repaired a breached wall free.
+var wall_hp: Dictionary = {}
+
 func ensure_harvest_seed() -> int:
 	if harvest_seed == 0:
 		harvest_seed = randi() | 1   # never 0, so "unset" stays distinguishable
@@ -212,7 +216,12 @@ const RELIC_MAX_SLOTS = 6
 # a slot can't leave a stale copy behind -- which is exactly how gloves/boots got
 # dropped from reset_for_new_game and blew up every stat query on a new game.
 const ARMOUR_SLOTS = ["helmet", "chest", "pants", "gloves", "boots"]
-const GEAR_SLOTS = ["helmet", "chest", "pants", "gloves", "boots", "weapon"]
+# "weapon" removed by the audit: the hotbar migration left it as a vestige --
+# allocated, saved, walked by every gear loop -- yet UNFILLABLE (is_equippable
+# only ever admits armor/relic, so equip_item rejected weapons at line one).
+# A live trap for anyone re-adding weapon gear: wire is_equippable + the
+# equipment_ui slot together with it if that day comes.
+const GEAR_SLOTS = ["helmet", "chest", "pants", "gloves", "boots"]
 
 static func empty_equipment() -> Dictionary:
 	var e := {}
@@ -1064,7 +1073,18 @@ func remove_cottage(house_id: String, x: float) -> void:
 			gone_id = str(extra_cottage_ids[best_i])
 			extra_cottage_ids.remove_at(best_i)
 		extra_cottage_positions.remove_at(best_i)
-	extra_cottages = maxi(0, extra_cottages - 1)
+	else:
+		# no positional match (a drifted save, a moved home): fall back to the
+		# id itself. Decrementing the count WITHOUT trimming the arrays used to
+		# silently delete the LAST cottage on the next village rebuild instead
+		# of the one the player actually chose (audit fix).
+		var idx := extra_cottage_ids.find(house_id)
+		if idx >= 0:
+			extra_cottage_ids.remove_at(idx)
+			if idx < extra_cottage_positions.size():
+				extra_cottage_positions.remove_at(idx)
+	# ONE source of truth for the count -- exactly how load_game normalises it
+	extra_cottages = extra_cottage_ids.size()
 	for hid in [gone_id, house_id]:        # the couple mid-cycle / settled here loses it
 		if mating_houses.has(hid):
 			mating_houses.erase(hid)
@@ -3686,9 +3706,18 @@ func auto_heal_villagers(physicians: int) -> void:
 func auto_enroll_children(principals: int) -> void:
 	if not is_building_operational("School"):
 		return
+	# the Principal's automation obeys the same Student cap the assign UI
+	# enforces by hand (audit fix: it used to over-enroll past the slots)
+	var cap := 0
+	for rd in BuildingRoles.get_roles("School"):
+		if str(rd.get("title", "")) == "Student":
+			cap = role_capacity("School", rd)
+			break
 	var budget = AUTO_ENROLL_PER_PRINCIPAL * principals
 	for v in rescued_villagers:
 		if budget <= 0:
+			return
+		if cap > 0 and school_enrollments.size() >= cap:
 			return
 		if v.get("is_kid", false) and str(v.get("role_key", "")) == "" and not school_enrollments.has(v.get("id")):
 			enroll_villager(str(v.get("id")), "School", "Student", "random")
@@ -4424,6 +4453,8 @@ func reset_for_new_game() -> void:
 	_arrival_shield_until = 0.0
 	harvest_seed = 0        # re-rolled by the first village build of the new run
 	harvest_states = {}
+	wall_hp = {}
+	waystone_home_pos = Vector2.ZERO   # a rewound world's shrines forget the old anchor
 	_family_cycle_accum = 0.0
 	_doctor_decay_accum = 0.0    # was missing here -> a stale value carried into a New Game
 	village_log = []
@@ -4617,6 +4648,7 @@ func save_game(player: Node) -> void:
 		"watchtower_tier": watchtower_tier,
 		"harvest_seed": harvest_seed,
 		"harvest_states": harvest_states,
+		"wall_hp": wall_hp,
 		"blueprints": blueprints,
 		"building_positions": building_positions,
 		"pregnancies": pregnancies,
@@ -4761,6 +4793,7 @@ func load_game() -> Dictionary:
 		_doctor_decay_accum = float(parsed.get("doctor_decay_accum", 0.0))
 		harvest_seed = int(parsed.get("harvest_seed", 0))   # 0 = old save: rolled fresh on build
 		harvest_states = parsed.get("harvest_states", {}) if parsed.get("harvest_states", {}) is Dictionary else {}
+		wall_hp = parsed.get("wall_hp", {}) if parsed.get("wall_hp", {}) is Dictionary else {}
 		villager_rot = {}
 		if parsed.has("villager_rot") and parsed["villager_rot"] is Dictionary:
 			for k in parsed["villager_rot"].keys():

@@ -266,8 +266,11 @@ func _build_visual() -> void:
 	prompt.add_theme_constant_override("outline_size", 3)
 	prompt.visible = false
 	add_child(prompt)
-	# a slim health bar: wounds persist between sieges, so the player needs to
-	# SEE who is hurt to decide who gets housed before the next wave
+	# a slim health bar: wounds show DURING a fight (and steer who you shelter
+	# mid-siege); a fully REPELLED siege patches every survivor back up
+	# (game_state.on_live_siege_ended), so the bar reads current danger, not
+	# history. (audit: the old comment here promised persistent wounds --
+	# the heal-on-repel is the actual, deliberate behavior)
 	_hp_bg = ColorRect.new()
 	_hp_bg.size = Vector2(30, 4)
 	_hp_bg.position = Vector2(-15, -50)

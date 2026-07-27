@@ -266,7 +266,12 @@ func _harvest(player: Node) -> void:
 		if randf() < 0.22:
 			_drop("resin", 1)
 			got.append("1 Resin")
-		if randf() < 0.15:   # wild herbs for cooking (crafting ingredient) -- occasional
+		# wild herbs for cooking -- occasional; Sylvara, the Grovekeeper (the
+		# Ten) doubles the find: "wild herbs return to the overworld" was her
+		# boon's OTHER half, promised but never wired (audit fix; the farm
+		# half always worked)
+		var herb_chance := 0.30 if GameState.ten_freed("ten_sylvara") else 0.15
+		if randf() < herb_chance:
 			_drop("herb", 1)
 			got.append("1 " + Inventory.get_display_name("herb"))
 		if randf() < RELIC_FIND_CHANCE and player.inventory.get_count("relic_sylvan") == 0:

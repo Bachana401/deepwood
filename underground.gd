@@ -341,8 +341,26 @@ func _place_floor_doors(c: Vector2i, nodes: Array) -> void:
 					dcell = _floor_near(sx, dy)
 					if dcell.x > -9000:
 						break
-			if dcell.x > -9000:
-				nodes.append(_spawn_floor_door(dcell, L))
+			if dcell.x <= -9000:
+				# sweep the WHOLE chunk row before giving up (audit fix): each
+				# level's door exists in exactly ONE chunk, so a level whose
+				# scatter column AND all three fallbacks hit rock simply had no
+				# door anywhere -- breaking the one-door-per-floor promise.
+				var sx2 := c.x * CHUNK + 4
+				while dcell.x <= -9000 and sx2 < (c.x + 1) * CHUNK - 4:
+					dcell = _floor_near(sx2, dy)
+					sx2 += 6
+			if dcell.x <= -9000:
+				# LAST RESORT: the band is solid -- carve a small pocket. The
+				# door promise outranks untouched terrain.
+				var px := c.x * CHUNK + CHUNK / 2
+				for ax in range(px - 1, px + 2):
+					for ay in range(dy - 2, dy + 1):
+						var acell := Vector2i(ax, ay)
+						_edits[acell] = AIR
+						_map.erase_cell(acell)
+				dcell = Vector2i(px, dy)
+			nodes.append(_spawn_floor_door(dcell, L))
 
 func _floor_near(x: int, y0: int) -> Vector2i:
 	for r in range(0, 10):
@@ -776,14 +794,26 @@ func _spawn_grove(cell: Vector2i, biome: int, rng: RandomNumberGenerator) -> Arr
 # burns you; shallower biomes pool harmless glowing water. ──────────────────────
 func _spawn_pool(cell: Vector2i, biome: int, rng: RandomNumberGenerator) -> Array:
 	var is_lava := biome >= 3
-	var width := rng.randi_range(6, 14)
+	# the pool fills only CONNECTED open floor (audit fix): the fixed rectangle
+	# used to burn the player through a rock wall into a sealed neighbouring
+	# air pocket. Walk outward from the centre; stop at the first wall each
+	# way. (Same rng draw as before, so chunk layouts are unchanged.)
+	var want := rng.randi_range(6, 14)
+	var left := 0
+	while left < want / 2 and _cell_kind(cell + Vector2i(-(left + 1), 0)) == AIR:
+		left += 1
+	var right := 0
+	while right < want / 2 and _cell_kind(cell + Vector2i(right + 1, 0)) == AIR:
+		right += 1
+	var width := maxi(2, left + right + 1)
+	var px_off := (float(right - left) / 2.0) * TILE   # centre on the real span
 	var depth := 2
 	var node := Node2D.new()
 	node.z_index = 6
 	node.global_position = _map.to_global(_map.map_to_local(cell)) + Vector2(0, 2)
 	var liq := ColorRect.new()
 	liq.color = Color(0.98, 0.36, 0.10, 0.62) if is_lava else Color(0.24, 0.52, 0.92, 0.42)
-	liq.position = Vector2(-width * TILE / 2.0, -depth * TILE)
+	liq.position = Vector2(px_off - width * TILE / 2.0, -depth * TILE)
 	liq.size = Vector2(width * TILE, depth * TILE + 4)
 	node.add_child(liq)
 	if is_lava:
@@ -792,7 +822,7 @@ func _spawn_pool(cell: Vector2i, biome: int, rng: RandomNumberGenerator) -> Arra
 		var glow := ColorRect.new()
 		glow.color = Color(1.0, 0.42, 0.12, 0.20)
 		glow.material = add_mat
-		glow.position = Vector2(-width * TILE / 2.0 - 6, -depth * TILE - 8)
+		glow.position = Vector2(px_off - width * TILE / 2.0 - 6, -depth * TILE - 8)
 		glow.size = Vector2(width * TILE + 12, depth * TILE + 14)
 		node.add_child(glow)
 	var area := Area2D.new()
@@ -804,7 +834,7 @@ func _spawn_pool(cell: Vector2i, biome: int, rng: RandomNumberGenerator) -> Arra
 	var r := RectangleShape2D.new()
 	r.size = Vector2(width * TILE, depth * TILE)
 	cs.shape = r
-	cs.position = Vector2(0, -depth * TILE / 2.0)
+	cs.position = Vector2(px_off, -depth * TILE / 2.0)
 	area.add_child(cs)
 	area.body_entered.connect(func(b): if b.is_in_group("player"): area.set_meta("in", true))
 	area.body_exited.connect(func(b): if b.is_in_group("player"): area.set_meta("in", false))

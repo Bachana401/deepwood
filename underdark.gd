@@ -703,9 +703,22 @@ func _place_doors(_rng: RandomNumberGenerator) -> void:
 			var here: Array = buckets[si]
 			for j in range(here.size()):
 				var frac: float = (float(j) + 0.5) / float(here.size())
+				var dx: float = lerpf(s.x0 + 90.0, s.x1 - 90.0, frac)
+				# never over a hole (audit fix): shafts and pit mouths stamp
+				# floor_hole on their segment and _slab_with_hole genuinely
+				# omits that stretch of floor -- a door parked there DROPPED
+				# the player a band instead of opening. Nudge to the roomier
+				# side of the hole; consumes no rng, so the layout holds.
+				if s.has("floor_hole"):
+					var hole: Vector2 = s["floor_hole"]
+					if dx > hole.x - 50.0 and dx < hole.y + 50.0:
+						var west_room: float = hole.x - s.x0
+						var east_room: float = s.x1 - hole.y
+						dx = (hole.x - 60.0) if west_room >= east_room else (hole.y + 60.0)
+						dx = clampf(dx, s.x0 + 70.0, s.x1 - 70.0)
 				var door := preload("res://underdark_door.gd").new()
 				door.target_level = int(here[j])
-				door.position = Vector2(lerpf(s.x0 + 90.0, s.x1 - 90.0, frac), s.floor_y)
+				door.position = Vector2(dx, s.floor_y)
 				add_child(door)
 
 # --- ore seams --------------------------------------------------------------
@@ -714,9 +727,19 @@ func _place_seams(rng: RandomNumberGenerator) -> void:
 		for s in _plan[b]:
 			if rng.randf() > 0.26:
 				continue
+			var sx: float = lerpf(s.x0 + 60.0, s.x1 - 60.0, rng.randf())
+			# same hole-nudge as the doors: a seam has no gravity, so one placed
+			# over a shaft/pit mouth hung in mid-air (audit fix; no rng consumed)
+			if s.has("floor_hole"):
+				var hole: Vector2 = s["floor_hole"]
+				if sx > hole.x - 40.0 and sx < hole.y + 40.0:
+					var west_room: float = hole.x - s.x0
+					var east_room: float = s.x1 - hole.y
+					sx = (hole.x - 50.0) if west_room >= east_room else (hole.y + 50.0)
+					sx = clampf(sx, s.x0 + 60.0, s.x1 - 60.0)
 			var node = HARVEST_NODE_SCRIPT.new()
 			node.node_type = "rock"
-			node.position = Vector2(lerpf(s.x0 + 60.0, s.x1 - 60.0, rng.randf()), s.floor_y)
+			node.position = Vector2(sx, s.floor_y)
 			node.z_index = -4
 			add_child(node)
 
@@ -1096,15 +1119,28 @@ func _build_rune_vaults(rng: RandomNumberGenerator) -> void:
 		_vault_runes[b] = 3 if is_open else 0
 		# the prize (the chest's own looted-state persists via chest_contents)
 		_add_chest(Vector2(gx + 110.0, vault.floor_y - 16.0), b, "vault", rng)
-		# three runes, spread across the band's earlier tunnels
+		# three runes, spread across the band's earlier tunnels -- DIFFERENT
+		# tunnels each (audit fix): two independent draws could land in one
+		# segment, and two 110px triggers overlapping meant a single E press
+		# lit both, collapsing the sweep-the-band design. The dedup walk
+		# consumes NO rng draws, so the audited layout stream is untouched.
+		var used := {}
+		var hi: int = maxi(1, segs.size() - 4)
 		for i in range(3):
-			var s: Dictionary = segs[rng.randi_range(1, maxi(1, segs.size() - 4))]
+			var si: int = rng.randi_range(1, hi)
+			var fr: float = rng.randf()
+			var guard := 0
+			while used.has(si) and guard <= hi:
+				si = 1 + (si % hi)
+				guard += 1
+			used[si] = true
+			var s: Dictionary = segs[si]
 			var rune := preload("res://underdark_rune.gd").new()
 			rune.band = b
 			rune.host = self
 			rune.start_lit = is_open
 			add_child(rune)
-			rune.global_position = Vector2(lerpf(s.x0 + 90.0, s.x1 - 90.0, rng.randf()),
+			rune.global_position = Vector2(lerpf(s.x0 + 90.0, s.x1 - 90.0, fr),
 				s.floor_y - 24.0)
 
 # called by a rune when the player lights it

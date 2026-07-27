@@ -492,6 +492,14 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		return
 
+	# the never-one-shot cap was a SNAPSHOT taken at spawn -- a mob spawned
+	# while the player node wasn't resolvable carried NO cap at all (audit
+	# hardening): re-resolve and cap the moment the player exists
+	if player == null or not is_instance_valid(player):
+		player = get_tree().get_first_node_in_group("player")
+		if player != null and player.has_method("get_max_health"):
+			attack_damage = mini(attack_damage, int(round(player.get_max_health() * MAX_HIT_FRACTION)))
+
 	if player != null and is_instance_valid(player):
 		match kind:
 			"flyer": act_flyer(delta)
@@ -733,7 +741,11 @@ func act_blink_archer(delta: float) -> void:
 	velocity.x = 0.0
 	face_player()
 	var dist = global_position.distance_to(player.global_position)
-	if dist < BLINK_MIN_RANGE or tp_timer <= 0.0:
+	# the panic blink keeps a SHORT cooldown of its own (audit fix): with the
+	# player pinned at an arena edge, a flank roll could land the archer ~30px
+	# away, re-satisfy dist < 200 the very next physics frame, and machine-gun
+	# teleport puffs every frame until a coin flip broke the loop.
+	if (dist < BLINK_MIN_RANGE and tp_timer <= BLINK_TP_INTERVAL - 0.5) or tp_timer <= 0.0:
 		blink_to_flank()
 		tp_timer = BLINK_TP_INTERVAL
 	if dist < BLINK_SHOOT_RANGE and attack_cooldown <= 0.0:

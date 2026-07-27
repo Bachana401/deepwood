@@ -228,11 +228,23 @@ func _find_building(bname: String):
 # then cottages -- so ANY placeable can be removed, not just the 15 halls (dev ask
 # 2026-07-23: "make them deletable").
 func _building_at(x: float):
+	# NEAREST hall wins, at its EFFECTIVE width (audit fix): the old
+	# first-match-at-base-width walk made a level-6 building's outer 30%
+	# unclickable and could resolve a click between two close halls to
+	# whichever happened to come first in the group, not the one under
+	# the cursor.
+	var best: Node = null
+	var best_d := 1.0e9
 	for b in get_tree().get_nodes_in_group("building"):
 		if not ("building_name" in b and "width" in b):
 			continue
-		if absf(x - b.global_position.x) <= float(b.width) / 2.0 + 24.0:
-			return b
+		var half: float = (b.eff_w() if b.has_method("eff_w") else float(b.width)) / 2.0
+		var d: float = absf(x - b.global_position.x)
+		if d <= half + 24.0 and d < best_d:
+			best_d = d
+			best = b
+	if best != null:
+		return best
 	for w in get_tree().get_nodes_in_group("village_wall"):
 		if is_instance_valid(w) and absf(x - w.global_position.x) <= 46.0:
 			return w

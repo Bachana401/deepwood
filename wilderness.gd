@@ -34,17 +34,19 @@ const WILD_MARGIN = 500.0          # a breath of clear road outside the gate
 var wild_start := WILD_FALLBACK_START
 
 func _resolve_wild_start() -> void:
-	var east_x := -1.0
+	# The line only ever moves OUTWARD (audit fix). WILD_FALLBACK_START is the
+	# tuned end of the village band, so it is the floor -- deriving purely from
+	# the furthest building could pull the wilds INSIDE the town (a village
+	# whose last hall sits at 15k would have had mobs streaming among the
+	# houses). A rampart or a building further east than the band pushes it
+	# out; nothing pulls it in.
+	var east_x := 0.0
 	for w in get_tree().get_nodes_in_group("village_wall"):
 		if "flank" in w and w.flank == "east":
-			east_x = w.global_position.x
-			break
-	if east_x < 0.0:
-		# no east rampart in this layout: fall back to the far side of the
-		# furthest building rather than a magic number
-		for b in get_tree().get_nodes_in_group("building"):
-			east_x = maxf(east_x, b.global_position.x)
-	wild_start = (east_x + WILD_MARGIN) if east_x > 0.0 else WILD_FALLBACK_START
+			east_x = maxf(east_x, w.global_position.x)
+	for b in get_tree().get_nodes_in_group("building"):
+		east_x = maxf(east_x, b.global_position.x)
+	wild_start = maxf(WILD_FALLBACK_START, east_x + WILD_MARGIN)
 
 # Sector bookkeeping. One sector is a stretch of road with its own population.
 const SECTOR_W = 900.0

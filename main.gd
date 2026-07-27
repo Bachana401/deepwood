@@ -237,6 +237,11 @@ func _ready() -> void:
 	if GameState.pending_load:
 		GameState.pending_load = false
 		apply_save_data()
+		# children _ready before this ran, so the day/night cycle seeded itself
+		# from the PRE-load clock -- re-seed it now that the real hours are in
+		var dn = get_tree().get_first_node_in_group("day_night")
+		if dn != null and dn.has_method("sync_from_master"):
+			dn.sync_from_master()
 	# the village diary rides along in every scene (5.9, press L)
 	add_child(preload("res://village_log_ui.gd").new())
 	# F8 field journal: bug notes with context attached (marathon playtest)

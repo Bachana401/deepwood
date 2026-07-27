@@ -134,7 +134,8 @@ var active_weapon_id: String = ""
 var active_weapon_type: String = ""   # "melee" | "spear" | "bow" | "wand"
 var active_stats: Dictionary = {}
 var active_def: Dictionary = {}
-var selected_hotbar_slot: int = 0
+# (selected_hotbar_slot removed by the audit: written on every hotbar press,
+# read by nothing -- the hotbar highlight derives from active_weapon_id.)
 
 var attack_cooldown_remaining = 0.0
 var weapon_anim_tween: Tween = null
@@ -147,13 +148,12 @@ var is_attacking = false
 # stats (range_offset / area_size), so melee stays melee: a spear outranges a
 # dagger because a spear is longer, and no skill can drag your blade across
 # the room.
-# How long the aim pose lingers after the last mouse move before he settles
-# back to idle. Moving the cursor keeps refreshing it.
-const MOUSE_AIM_HOLD = 0.35
-var mouse_aim_timer := 0.0      # >0 briefly after the mouse moves -> play the aim frames
-var aim_retract_timer := 0.0    # after the mouse stops, play the aim frames in REVERSE (hand retracts)
-var aim_was_forward := false    # was he aiming last frame? (edge-detects the "mouse stopped" moment)
-var aim_reversed := false       # currently playing the aim animation backwards?
+# (The mouse-aim-pose subsystem -- MOUSE_AIM_HOLD, mouse_aim_timer, the
+# retract/reverse flags, _aim_length() and the _input that fed them -- was
+# removed by the audit: nothing ever consumed any of it (current_anim_state
+# never read the timer, ANIM_DEFS has no "aim" state), yet the node subscribed
+# to every mouse-motion event to keep it warm. Re-add alongside a real aim
+# animation if one ships.)
 
 func get_weapon_stats() -> Dictionary:
 	return active_stats
@@ -192,7 +192,17 @@ var currency: int:
 	set(value):
 		var delta = value - inventory.get_count("coin_gold")
 		if delta > 0:
-			inventory.add_item("coin_gold", delta)
+			var left := inventory.add_item("coin_gold", delta)
+			if left > 0:
+				# a FULL bag holding zero gold has no stack to grow -- awarded
+				# coin was silently DESTROYED here (the one edge the raised
+				# max_stack doesn't cover). Spill it at the player's feet
+				# instead, exactly like death does; it waits until space frees.
+				var pickup = CURRENCY_PICKUP_SCRIPT.new()
+				pickup.global_position = global_position
+				pickup.setup(left, true)
+				if get_parent() != null:
+					get_parent().call_deferred("add_child", pickup)
 		elif delta < 0:
 			inventory.remove_item("coin_gold", -delta)
 
@@ -935,15 +945,6 @@ func update_wings(flying: bool) -> void:
 	wings_left.rotation = flap
 	wings_right.rotation = -flap
 
-# Duration of one play-through of the aim animation (used to time the retract).
-func _aim_length() -> float:
-	if body_anim and body_anim.sprite_frames.has_animation("aim"):
-		var n = body_anim.sprite_frames.get_frame_count("aim")
-		var fps = body_anim.sprite_frames.get_animation_speed("aim")
-		if fps > 0.0:
-			return float(n) / fps
-	return 0.3
-
 # Swaps the placeholder box for the pixel-art sprite when the art exists.
 # Scaled by height and feet-aligned to the bottom of the collision body so it
 # stands on the ground; falls back to the ColorRect box if the file is missing.
@@ -1142,12 +1143,6 @@ func _add_anim(sf: SpriteFrames, anim: String, textures: Array, fps: float, loop
 # move direction. When a state has no real frames of its own, a small bob keeps
 # the single idle frame from sliding around lifelessly.
 # Which action the player is doing right now, mapped to an animation name.
-# Moving the mouse means the player is telekinetically aiming the levitated
-# object, so refresh the aim-pose timer (consumed in current_anim_state).
-func _input(event: InputEvent) -> void:
-	if event is InputEventMouseMotion:
-		mouse_aim_timer = MOUSE_AIM_HOLD
-
 func current_anim_state() -> String:
 	if is_dead:
 		return "death"
@@ -1848,7 +1843,16 @@ func _poison_tick(dmg: int) -> void:
 	if dmg <= 0: return
 	if health - dmg <= 0:
 		health = maxi(1, health)   # let take_damage run the full death cascade
+		# a lethal DoT must not be dodged by hit-i-frames (audit fix): during
+		# the 1s invincibility window take_damage returned untouched, so boss
+		# poison could literally never finish a player who was ALSO being hit
+		# by anything else. Death-saves (Long Dark / Undying / Phoenix) still
+		# run -- only the i-frame gate steps aside for the tick.
+		var was_inv: bool = invincible
+		invincible = false
 		take_damage(9999)
+		if not is_dead:
+			invincible = invincible or was_inv
 		return
 	health -= dmg
 	update_health_display()
@@ -2111,14 +2115,20 @@ func wield_weapon(item_id: String) -> bool:
 	on_equipment_changed()
 	return true
 
-# Hotbar select: index 0-9 = inventory slots 1-10. Wields the weapon in that
-# slot; a non-weapon (or empty) slot does nothing.
+# Hotbar select: index 0-9 = inventory slots 1-10. Wields a weapon; DRINKS a
+# consumable (audit fix: the keys used to silently do nothing on a potion slot
+# even though the hotbar happily displayed it -- the TAB bag's right-click was
+# the only way to use one). Anything else (or empty) does nothing.
 func select_hotbar_slot(index: int) -> void:
-	selected_hotbar_slot = index
 	if index >= inventory.slots.size():
 		return
 	var slot = inventory.slots[index]
-	if slot == null or Inventory.get_category(slot.item_id) != "weapon":
+	if slot == null:
+		return
+	if Inventory.get_category(slot.item_id) == "consumable":
+		use_item(slot.item_id)
+		return
+	if Inventory.get_category(slot.item_id) != "weapon":
 		return
 	if slot.item_id == active_weapon_id:
 		return

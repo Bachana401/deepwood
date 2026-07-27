@@ -276,7 +276,14 @@ func _tick_bolts(delta: float) -> void:
 			n.queue_free()
 			_bolts.remove_at(i)
 			continue
+		# a hit consumes THIS bolt only (audit fix): the old `return` bailed out
+		# of the whole tick on the first connect, freezing every other airborne
+		# bolt for the frame -- dropped hit tests on 420px/s projectiles once a
+		# Legion build had several in the air.
+		var hit := false
 		for g in HOSTILE_GROUPS:
+			if hit:
+				break
 			for e in get_tree().get_nodes_in_group(g):
 				if not is_instance_valid(e) or not e.has_method("take_damage"):
 					continue
@@ -286,7 +293,8 @@ func _tick_bolts(delta: float) -> void:
 					e.take_damage(b["dmg"])
 					n.queue_free()
 					_bolts.remove_at(i)
-					return
+					hit = true
+					break
 
 func _nearest_enemy() -> Node2D:
 	var best: Node2D = null

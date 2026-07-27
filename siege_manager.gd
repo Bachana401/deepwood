@@ -55,6 +55,11 @@ func wall_for_flank(flank: String) -> Node:
 # side) -- and only once Orin is freed (floor 15) does the east road open as a
 # second, unannounced front (see two_fronts below).
 func start_live_siege(tier: int, is_black := false) -> void:
+	# idempotence guard (audit hardening): tick_sieges is the sole caller today
+	# and gates on GameState.live_siege_active itself, but a second entry point
+	# would have zeroed alive_count with raiders standing and ended it early
+	if GameState.live_siege_active:
+		return
 	siege_number += 1
 	# a Black Tide (3c) fields a visibly BIGGER horde -- past the usual cap
 	var cap = MAX_COUNT + (6 if is_black else 0)

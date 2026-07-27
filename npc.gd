@@ -863,11 +863,23 @@ func pick_new_state() -> void:
 		direction = toward_favourite if randf() < 0.65 else -toward_favourite
 		state_timer = randf_range(MIN_WALK_SECONDS, MAX_WALK_SECONDS)
 
+var _vd_cache: Dictionary = {}
+var _vd_cache_at := 0.0
+
 func find_villager_data() -> Dictionary:
-	for v in GameState.rescued_villagers:
-		if v.get("id") == villager_id:
-			return v
-	return {}
+	# cached REFERENCE, re-resolved twice a second (audit fix): three per-frame
+	# helpers each walked the whole roster per avatar -- O(avatars x roster)
+	# work every frame in a big village. Dictionaries are references, so the
+	# cached entry stays live; the re-resolve only covers removal/re-add.
+	var now := Time.get_ticks_msec() / 1000.0
+	if _vd_cache.is_empty() or now - _vd_cache_at > 0.5:
+		_vd_cache_at = now
+		_vd_cache = {}
+		for v in GameState.rescued_villagers:
+			if v.get("id") == villager_id:
+				_vd_cache = v
+				break
+	return _vd_cache
 
 func _on_body_entered(body: Node) -> void:
 	if body.is_in_group("player"):

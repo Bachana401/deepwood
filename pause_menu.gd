@@ -205,9 +205,14 @@ func _on_music_changed(value: float) -> void:
 func _on_quit_to_menu() -> void:
 	get_tree().paused = false
 	GameState.save_game($"../Player")
+	# quitting skips exit_dungeon(), the only other place this unlatches --
+	# left hot, the next real floor after Continue built the admin test arena
+	# instead of the dungeon (audit fix; in_dungeon is repaired on load already)
+	GameState.proving_grounds = false
 	get_tree().change_scene_to_file("res://main_menu.tscn")
 
 func _on_quit_game() -> void:
 	get_tree().paused = false
 	GameState.save_game($"../Player")
+	GameState.proving_grounds = false
 	get_tree().quit()

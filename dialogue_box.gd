@@ -78,9 +78,19 @@ func _set_cutscene_hud_hidden(hidden: bool) -> void:
 	var t := get_tree()
 	if t == null:
 		return
+	# remember what was ALREADY hidden (audit fix): the restore used to
+	# force-show every member, so anything legitimately invisible when a beat
+	# started was revealed when it ended
 	for n in t.get_nodes_in_group("cutscene_hides"):
-		if is_instance_valid(n):
-			n.visible = not hidden
+		if not is_instance_valid(n):
+			continue
+		if hidden:
+			if not n.has_meta("cutscene_was_visible"):
+				n.set_meta("cutscene_was_visible", n.visible)
+			n.visible = false
+		else:
+			n.visible = bool(n.get_meta("cutscene_was_visible", true))
+			n.remove_meta("cutscene_was_visible")
 
 func build_ui() -> void:
 	var shade = ColorRect.new()   # dim the world behind the box (deeper during a beat)

@@ -188,9 +188,16 @@ func _ready() -> void:
 	if wall == null and not arrival_mode:
 		wall = get_tree().get_first_node_in_group("village_wall")
 
-	if skin != "":
+	# NEVER an invisible raider (audit fix): a missing/renamed skin folder used
+	# to yield an empty SpriteFrames with no procedural body built at all --
+	# a fully lethal attacker the player could not see. Fall back instead.
+	var skin_frames = EnemySkins.frames_for(skin) if skin != "" else null
+	if skin_frames != null and skin_frames.has_animation("idle") and skin_frames.get_frame_count("idle") > 0:
 		build_skin_visual()
 	else:
+		if skin != "":
+			push_warning("raider skin '%s' has no usable frames -- procedural body kept" % skin)
+			skin = ""
 		build_visual()
 	build_health_bar()
 	# a hero announces themselves: name overhead, and Warcry lands on arrival
@@ -483,7 +490,7 @@ func die() -> void:
 func _finish_death() -> void:
 	spawn_death_particles()
 	died.emit()
-	if skin_sprite != null:
+	if skin_sprite != null and skin_sprite.sprite_frames.has_animation("death"):
 		skin_sprite.play("death")
 		var t = skin_sprite.create_tween()
 		t.tween_property(skin_sprite, "modulate:a", 0.0, 0.45).set_delay(0.18)
@@ -518,7 +525,8 @@ func _update_skin_anim() -> void:
 		want = "attack"
 	elif absf(velocity.x) > 5.0:
 		want = "walk"
-	if skin_sprite.animation != want:
+	# a skin may ship idle-only -- never play() an animation it doesn't have
+	if skin_sprite.animation != want and skin_sprite.sprite_frames.has_animation(want):
 		skin_sprite.play(want)
 
 func spawn_death_particles() -> void:

@@ -48,10 +48,21 @@ var _player_near := false
 func _ready() -> void:
 	add_to_group("village_wall")
 	max_health = GameState.wall_max_health()
-	health = max_health
+	# WOUNDS PERSIST across scene rebuilds (audit fix): _ready used to reset to
+	# full, so stepping into a dungeon and straight back out repaired a
+	# breached rampart for free. Absent entry = a fresh, whole wall.
+	health = clampi(int(GameState.wall_hp.get(str(flank), max_health)), 0, max_health)
 	build_visual()
 	build_health_bar()
 	_build_prompt()
+	if health <= 0:
+		# restore the breach SILENTLY (no fresh "breached!" alarm on reload)
+		breached = true
+		if intact_gfx:
+			intact_gfx.visible = false
+		if rubble_gfx:
+			rubble_gfx.visible = true
+		update_health_bar_fill()
 
 func _process(delta: float) -> void:
 	# the bar only matters once the wall is hurt or down
@@ -190,6 +201,7 @@ func take_damage(amount: int) -> void:
 	if breached:
 		return
 	health -= amount
+	GameState.wall_hp[str(flank)] = maxi(health, 0)   # wounds survive scene swaps
 	update_health_bar_fill()
 	if health <= 0:
 		health = 0
@@ -212,6 +224,7 @@ func breach() -> void:
 func repair_fully() -> void:
 	health = max_health
 	breached = false
+	GameState.wall_hp.erase(str(flank))   # whole again: no entry to carry
 	if intact_gfx:
 		intact_gfx.visible = true
 	if rubble_gfx:
@@ -228,6 +241,7 @@ func refresh_from_level() -> void:
 	max_health = GameState.wall_max_health()
 	health = max_health
 	breached = false
+	GameState.wall_hp.erase(str(flank))   # an upgrade rebuilds it whole
 	if intact_gfx:
 		intact_gfx.queue_free()
 		intact_gfx = null

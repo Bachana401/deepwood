@@ -454,6 +454,12 @@ func restore_full() -> void:
 	current_state = State.PRISTINE
 	if gfx:
 		gfx.scale = Vector2.ONE
+	# a hall raised from the B menu must LOOK raised NOW, not on the next scene
+	# load (audit fix): the ruin's rubble mounds were built at _ready and only a
+	# geometry rebuild clears them, and the name label only re-evaluates in
+	# update_name_label -- both used to lag until the next village rebuild.
+	rebuild_geometry()
+	update_name_label()
 	update_health_bar()
 	refresh_visual()
 	update_torches()

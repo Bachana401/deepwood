@@ -202,6 +202,19 @@ func spawn_world_avatar() -> void:
 	var village = get_node_or_null("../Village")
 	if not village:
 		return
+	# THE THAW runs on this path too (audit fix): a road crystal shattered
+	# AFTER the arrival battle spawns its avatar here, and only main's spawner
+	# used to unwrap stats_hidden -- the hover card read "still thawing" until
+	# the next village reload while the assign bench leaked the real stat.
+	var vd = GameState.find_villager_by_id(villager_id)
+	if not vd.is_empty() and vd.get("stats_hidden", false):
+		vd.erase("stats_hidden")
+		var stat := str(vd.get("stat_name", ""))
+		if stat != "":
+			GameState.notify("❄→☀ %s thaws fully — a %s of %d!" % [
+				vd.get("name", "?"), stat, int(vd.get("stat_value", 0))])
+			GameState.log_event("people", "%s thawed at home — a %s of %d." % [
+				vd.get("name", "?"), stat, int(vd.get("stat_value", 0))])
 	var npc = NPC_SCRIPT.new()
 	npc.villager_id = villager_id
 	npc.global_position = find_avatar_spawn_position(village)

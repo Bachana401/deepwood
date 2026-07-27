@@ -132,10 +132,18 @@ func _ready() -> void:
 	var old_sun = get_node_or_null("../Background/Sun")
 	if old_sun:
 		old_sun.visible = false
-	# sync the clock from the master BEFORE the first draw -- else the scene
-	# renders one frame at the 8.0 default (bright day) before _process
-	# corrects it, and if a dialogue pauses the tree on frame one (the
-	# prologue!) that bright frame is what the player sees. (start-scene fix)
+	add_to_group("day_night")   # so main can resync us after a Continue load
+	sync_from_master()
+
+# Sync the clock from the master BEFORE the first draw -- else the scene
+# renders one frame at the 8.0 default (bright day) before _process corrects
+# it, and if a dialogue pauses the tree on frame one (the prologue!) that
+# bright frame is what the player sees. (start-scene fix)
+# EXTRACTED (audit fix): children _ready before main._ready applies a Continue
+# save, so on a fresh launch this seeded from the PRE-load game_hours (0.0) --
+# possibly re-rolling the moon across a night boundary the real clock never
+# crossed. main.gd calls this again right after the save lands.
+func sync_from_master() -> void:
 	total_hours_elapsed = GameState.game_hours
 	time_of_day = fposmod(GameState.START_TIME_OF_DAY + GameState.game_hours, 24.0)
 	was_night = is_night()

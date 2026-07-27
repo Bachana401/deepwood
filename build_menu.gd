@@ -51,6 +51,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		panel.visible = not panel.visible
 		if panel.visible:
 			refresh()
+			# opening the ledger CANCELS a live place/delete mode (audit fix):
+			# the placer's _input runs before GUI dispatch, so with delete mode
+			# still armed, a click on a ledger button ALSO popped a delete
+			# confirm for whatever building sat under the cursor in world space
+			var placer = get_tree().get_first_node_in_group("build_placer")
+			if placer != null and placer.has_method("_clear"):
+				placer._clear()
 		get_viewport().set_input_as_handled()
 
 func _build_panel() -> void:
@@ -145,7 +152,11 @@ func refresh() -> void:
 	var standing := 0
 	for nm in names:
 		rows_box.add_child(_build_row(str(nm), by_name.get(str(nm), null)))
-		if GameState.building_build_stage(str(nm)) >= GameState.TOTAL_BUILD_STAGES:
+		# a razed hall keeps its stage on purpose (remove_building never zeroes
+		# it) -- so the tally must ALSO ask "and is it still standing?", else
+		# deleted buildings inflated "%d of %d built" forever (audit fix)
+		if GameState.building_build_stage(str(nm)) >= GameState.TOTAL_BUILD_STAGES \
+				and not GameState.building_removed(str(nm)):
 			standing += 1
 	title.text = "THE BUILDER'S LEDGER — %d of %d built" % [standing, names.size()]
 

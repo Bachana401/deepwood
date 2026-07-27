@@ -40,6 +40,15 @@ func _ready() -> void:
 	rows.custom_minimum_size = Vector2(464, 0)
 	rows.add_theme_constant_override("separation", 8)
 	scroll.add_child(rows)
+	# a visible way OUT (audit fix): this was the only window in the game with
+	# neither a close button nor a toggle key -- ESC via the pause sweep was
+	# the sole, undiscoverable exit
+	var close := Button.new()
+	close.text = "✕"
+	close.position = Vector2(panel.size.x - 40.0, 8.0)
+	close.size = Vector2(30, 30)
+	close.pressed.connect(esc_close)
+	panel.add_child(close)
 
 func esc_is_open() -> bool:
 	return panel.visible

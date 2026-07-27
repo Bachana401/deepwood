@@ -10,8 +10,6 @@ const DETECTION_RANGE = 191.0
 const KNOCKBACK_DURATION = 0.12
 const MAX_HEALTH = 60
 const BUMP_THRESHOLD = 42.0
-const RESPAWN_DELAY = 3.0
-const GROWTH_PER_RESPAWN = 1.085
 const BOW_RETREAT_RANGE = 90.0
 const BOW_HOLD_RANGE = 180.0
 const JUMP_VELOCITY = -380.0
@@ -97,7 +95,9 @@ const ENEMY_ROSTERS = [
 
 @export var weapon_type: String = "sword"
 @export var base_color: Color = Color(0.6236201, 0.18110216, 0.10793113)
-@export var respawns: bool = true
+# kept for spawner compatibility (every spawner writes it), but death is
+# FINAL now regardless -- the in-place respawn machinery was removed (audit)
+@export var respawns: bool = false
 @export var instant_aggro: bool = false
 
 # --- WILDERNESS MOBS (the lands east of the village) ---
@@ -122,7 +122,6 @@ var health = MAX_HEALTH
 var max_health = MAX_HEALTH
 var damage_multiplier = 1.0
 var detection_range_current = DETECTION_RANGE
-var generation = 0
 var is_dead = false
 var is_knocked_back = false
 var facing_direction = 1
@@ -344,7 +343,7 @@ func _ready() -> void:
 func update_body_color() -> void:
 	var cr = get_node_or_null("ColorRect")
 	if cr:
-		cr.color = base_color.darkened(clamp(generation * 0.15, 0.0, 0.6))
+		cr.color = base_color
 
 func play_sfx(stream: AudioStream) -> void:
 	var sfx = get_node_or_null("SFXPlayer")   # null on a headless-built enemy
@@ -393,9 +392,9 @@ func build_character() -> void:
 	if has_node("Features"):
 		$Features.queue_free()
 	# A downloaded-spritesheet archetype hides the procedural body entirely and
-	# animates from strips instead.
-	if sprite_skin != "":
-		_build_sprite_visual()
+	# animates from strips instead -- but a skin with no usable frames falls
+	# through to the procedural face below (see _build_sprite_visual).
+	if sprite_skin != "" and _build_sprite_visual():
 		return
 	var f := Node2D.new()
 	f.name = "Features"
@@ -478,14 +477,23 @@ func _add_dot(parent: Node2D, pos: Vector2, r: float, color: Color) -> void:
 # Hide the procedural body/weapon and drive an AnimatedSprite2D from combat
 # state. The strips live in art/enemies/<skin>/; SpriteFrames are built once per
 # skin and shared across every enemy wearing it.
-func _build_sprite_visual() -> void:
+func _build_sprite_visual() -> bool:
+	var frames := EnemySkins.frames_for(sprite_skin)
+	# NEVER an invisible enemy (audit fix): a missing/renamed skin folder used
+	# to yield an empty SpriteFrames AFTER the procedural body was already
+	# hidden -- a fully lethal monster the player literally could not see.
+	# Report failure so the caller keeps the procedural body instead.
+	if frames == null or not frames.has_animation("idle") or frames.get_frame_count("idle") == 0:
+		push_warning("enemy skin '%s' has no usable frames -- keeping the procedural body" % sprite_skin)
+		sprite_skin = ""
+		return false
 	use_sprite = true
 	$ColorRect.visible = false
 	$WeaponIcon.visible = false
 	$BowVisual.visible = false
 	var spr := AnimatedSprite2D.new()
 	spr.name = "Skin"
-	spr.sprite_frames = EnemySkins.frames_for(sprite_skin)
+	spr.sprite_frames = frames
 	spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST   # keep pixel art crisp
 	# PixelLab skins normalise to a consistent on-screen height (their frames pack
 	# the character tightly); CraftPix strip skins keep their approved fixed scale.
@@ -503,6 +511,7 @@ func _build_sprite_visual() -> void:
 	var bar_y = -(EnemySkins.content_height(sprite_skin) * sc) - 12.0
 	$HealthBarBG.position.y = bar_y
 	$HealthBarFill.position.y = bar_y
+	return true
 
 # Pick idle/walk/attack from state each frame, and face the player. (Death and
 # hurt are driven from die()/flash_hit().)
@@ -515,7 +524,8 @@ func _update_enemy_anim() -> void:
 		want = "attack"
 	elif absf(velocity.x) > 5.0:
 		want = "walk"
-	if enemy_sprite.animation != want:
+	# a skin may ship idle-only -- never play() an animation it doesn't have
+	if enemy_sprite.animation != want and enemy_sprite.sprite_frames.has_animation(want):
 		enemy_sprite.play(want)
 
 func setup_weapon_visual() -> void:
@@ -1177,9 +1187,11 @@ func take_damage(amount: int) -> void:
 		return
 	# Shielded enemies halve damage taken from the FRONT -- the player has to
 	# get around behind them (or burst through) to punish. Attacks from the
-	# back land full.
-	if behavior == "shield" and player != null and is_instance_valid(player):
-		var from_front = sign(player.global_position.x - global_position.x) == facing_direction
+	# back land full. Measured against the real HERO (audit fix): since the
+	# prey rework `player` can be an adventurer or villager the mob is chasing,
+	# and the guard is a lesson for the human holding the sword, not the prey.
+	if behavior == "shield" and real_player != null and is_instance_valid(real_player):
+		var from_front = sign(real_player.global_position.x - global_position.x) == facing_direction
 		if from_front:
 			# 60% off the FRONT -- but NEVER to zero. With the honest weak start the
 			# player's base hit is ~1, and int(round(1 * 0.4)) == 0 made a shielded
@@ -1203,7 +1215,14 @@ func apply_knockback(direction_sign: int, distance: float) -> void:
 		return
 	is_knocked_back = true
 	velocity.x = direction_sign * (distance / KNOCKBACK_DURATION)
+	# freed-safe resume (audit fix): a DoT tick or a scene teardown can free
+	# this mob during the wait -- special_mob and siege_enemy both carry this
+	# guard; this was the one combatant script that never got it.
+	var iid := get_instance_id()
 	await get_tree().create_timer(KNOCKBACK_DURATION).timeout
+	var still = instance_from_id(iid)
+	if still == null or not is_instance_valid(still) or is_dead:
+		return
 	is_knocked_back = false
 
 func flash_hit() -> void:
@@ -1215,7 +1234,7 @@ func flash_hit() -> void:
 		return
 	$ColorRect.color = Color(1, 1, 1)
 	var tween = create_tween()
-	tween.tween_property($ColorRect, "color", base_color.darkened(clamp(generation * 0.15, 0.0, 0.6)), 0.15)
+	tween.tween_property($ColorRect, "color", base_color, 0.15)
 	if has_node("Features"):
 		$Features.modulate = Color(2.2, 2.2, 2.2)
 		create_tween().tween_property($Features, "modulate", Color(1, 1, 1), 0.15)
@@ -1252,8 +1271,9 @@ func die() -> void:
 	# (caught 2026-07-21 the moment mobs and defenders met on the east road).
 	var hero: Node2D = real_player if (real_player != null and is_instance_valid(real_player)) else null
 	if hero != null and "inventory" in hero:
-		# low-rate construction-material drop (tougher gens roll a little better)
-		var mat = GameState.roll_construction_drop(hero, 1.0 + 0.15 * generation)
+		# low-rate construction-material drop (the old generation bonus died
+		# with the respawn machinery -- it was always 0 for spawned mobs)
+		var mat = GameState.roll_construction_drop(hero, 1.0)
 		if mat != "":
 			spawn_material_popup(mat)
 		# raw meat (cooking ingredient)
@@ -1283,40 +1303,15 @@ func die() -> void:
 	died.emit()
 	await play_death_animation()
 	visible = false
-	if not respawns:
-		await get_tree().create_timer(0.5).timeout
-		queue_free()
-		return
-	await get_tree().create_timer(RESPAWN_DELAY).timeout
-	var mgr = get_tree().get_first_node_in_group("dungeon_manager")
-	while mgr != null and mgr.started:
-		await get_tree().create_timer(1.0).timeout
-	# NOTHING COMES BACK WHILE YOU ARE WATCHING (dev report 2026-07-21: "evil
-	# npc are still respawning on player POV"). respawn() puts this body back on
-	# its ORIGINAL spot -- which is usually exactly where you just killed it and
-	# are still standing. Three seconds later it blinked back into existence in
-	# front of you. Wait for its spot to be off-screen first. The wilderness and
-	# the Underdark already obey this rule when they stream; this is the last
-	# spawner in the game that did not.
-	await _wait_until_unwatched()
-	respawn()
-
-# How far the player must be from a point before something may appear there.
-# Half the 1152-wide base viewport is 576, so this clears the screen edge with
-# room to spare -- the same margin the streamed spawners use.
-const UNWATCHED_DISTANCE = 760.0
-const UNWATCHED_PATIENCE = 45.0   # ...but never wait forever
-
-func _wait_until_unwatched() -> void:
-	var waited := 0.0
-	while waited < UNWATCHED_PATIENCE:
-		var pl = get_tree().get_first_node_in_group("player")
-		if pl == null or not is_instance_valid(pl):
-			return
-		if spawn_position.distance_to(pl.global_position) > UNWATCHED_DISTANCE:
-			return
-		await get_tree().create_timer(0.5).timeout
-		waited += 0.5
+	# DEATH IS FINAL (audit cleanup): the in-place respawn machinery --
+	# respawn(), generation growth, _wait_until_unwatched() -- was dead code:
+	# every spawner in the game (dungeon, wilderness, underdark, underground,
+	# harvest, summons) sets respawns = false, and if ever revived it would
+	# have rebuilt stats from bare MAX_HEALTH, discarding the wave/elite/roster
+	# scaling. Streamed spawners own repopulation now. Removed with it:
+	# RESPAWN_DELAY, GROWTH_PER_RESPAWN, generation, the UNWATCHED_* consts.
+	await get_tree().create_timer(0.5).timeout
+	queue_free()
 
 func play_death_animation() -> void:
 	spawn_death_particles()
@@ -1437,27 +1432,4 @@ func spawn_material_popup(mat_id: String) -> void:
 	tween.parallel().tween_property(popup, "modulate:a", 0.0, 0.9)
 	tween.tween_callback(popup.queue_free)
 
-func respawn() -> void:
-	generation += 1
-	max_health = int(round(MAX_HEALTH * pow(GROWTH_PER_RESPAWN, generation)))
-	damage_multiplier = pow(GROWTH_PER_RESPAWN, generation)
-	detection_range_current = DETECTION_RANGE * pow(GROWTH_PER_RESPAWN, generation)
-	health = max_health
-	global_position = spawn_position
-	start_x = spawn_position.x
-	direction = 1
-	velocity = Vector2.ZERO
-	is_knocked_back = false
-	attack_cooldown_remaining = 0.0
-	jump_cooldown_remaining = 0.0
-	is_dead = false
-	visible = true
-	scale = _base_scale   # not Vector2.ONE: a Bone Golem / elite must keep its bigger body + hitbox
-	$ColorRect.modulate = Color(1, 1, 1, 1)
-	if use_sprite and enemy_sprite != null:
-		enemy_sprite.modulate = Color(1, 1, 1, 1)
-		enemy_sprite.play("idle")
-	$CollisionShape2D.set_deferred("disabled", false)
-	update_health_bar()
-	update_body_color()
-	print(name, " respawned: generation=", generation, " max_health=", max_health, " damage_x", damage_multiplier)
+# (respawn() removed by the audit -- see the note in die().)

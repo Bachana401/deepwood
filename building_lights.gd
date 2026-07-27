@@ -50,50 +50,64 @@ const SIGN_SPOTS := {
 }
 var _signs: Array = []
 
+# Per-session facade cache (audit fix): a facade's pixels never change, yet
+# every refresh_visual -- each upgrade, each damage-state flip -- re-decoded
+# the whole PNG and walked it pixel by pixel. Decode + cluster ONCE per
+# (texture, content-rect) and reuse.
+static var _facade_cache := {}
+
 func build(tex: Texture2D, content: Rect2, spr_pos: Vector2, spr_scale: Vector2, bname: String = "") -> void:
 	_bname = bname
-	var img := tex.get_image()
-	if img == null:
-		return
-	if img.is_compressed():
-		img.decompress()
-	if img.get_format() != Image.FORMAT_RGBA8:
-		img.convert(Image.FORMAT_RGBA8)
-	# 1) warm-pixel mask on a coarse grid: cell -> warm pixel count
-	var cells := {}
-	var x0 := int(content.position.x)
-	var y0 := int(content.position.y)
-	for y in range(int(content.size.y)):
-		for x in range(int(content.size.x)):
-			var c := img.get_pixel(x0 + x, y0 + y)
-			if c.a > 0.5 and c.r > 0.55 and c.r > c.b * 1.35 and c.g > c.b:
-				var key := Vector2i(x / CELL, y / CELL)
-				cells[key] = cells.get(key, 0) + 1
-	# 2) flood-merge adjacent cells into cluster rects
-	var seen := {}
-	var clusters: Array = []
-	for start in cells:
-		if seen.has(start):
-			continue
-		var q: Array = [start]
-		var mn: Vector2i = start
-		var mx: Vector2i = start
-		var count := 0
-		while not q.is_empty():
-			var p: Vector2i = q.pop_back()
-			if seen.has(p) or not cells.has(p):
+	var cache_key := "%d|%s" % [tex.get_instance_id(), content]
+	var img: Image
+	var clusters: Array
+	if _facade_cache.has(cache_key):
+		img = _facade_cache[cache_key]["img"]
+		clusters = _facade_cache[cache_key]["clusters"]
+	else:
+		img = tex.get_image()
+		if img == null:
+			return
+		if img.is_compressed():
+			img.decompress()
+		if img.get_format() != Image.FORMAT_RGBA8:
+			img.convert(Image.FORMAT_RGBA8)
+		# 1) warm-pixel mask on a coarse grid: cell -> warm pixel count
+		var cells := {}
+		var x0 := int(content.position.x)
+		var y0 := int(content.position.y)
+		for y in range(int(content.size.y)):
+			for x in range(int(content.size.x)):
+				var c := img.get_pixel(x0 + x, y0 + y)
+				if c.a > 0.5 and c.r > 0.55 and c.r > c.b * 1.35 and c.g > c.b:
+					var key := Vector2i(x / CELL, y / CELL)
+					cells[key] = cells.get(key, 0) + 1
+		# 2) flood-merge adjacent cells into cluster rects
+		var seen := {}
+		clusters = []
+		for start in cells:
+			if seen.has(start):
 				continue
-			seen[p] = true
-			count += cells[p]
-			mn = Vector2i(mini(mn.x, p.x), mini(mn.y, p.y))
-			mx = Vector2i(maxi(mx.x, p.x), maxi(mx.y, p.y))
-			for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1),
-					Vector2i(1, 1), Vector2i(-1, 1), Vector2i(1, -1), Vector2i(-1, -1)]:
-				q.append(p + d)
-		if count >= MIN_PIXELS:
-			clusters.append({"mn": mn, "mx": mx, "count": count})
-	# biggest light sources first, respect the node budget
-	clusters.sort_custom(func(a, b): return a["count"] > b["count"])
+			var q: Array = [start]
+			var mn: Vector2i = start
+			var mx: Vector2i = start
+			var count := 0
+			while not q.is_empty():
+				var p: Vector2i = q.pop_back()
+				if seen.has(p) or not cells.has(p):
+					continue
+				seen[p] = true
+				count += cells[p]
+				mn = Vector2i(mini(mn.x, p.x), mini(mn.y, p.y))
+				mx = Vector2i(maxi(mx.x, p.x), maxi(mx.y, p.y))
+				for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1),
+						Vector2i(1, 1), Vector2i(-1, 1), Vector2i(1, -1), Vector2i(-1, -1)]:
+					q.append(p + d)
+			if count >= MIN_PIXELS:
+				clusters.append({"mn": mn, "mx": mx, "count": count})
+		# biggest light sources first, respect the node budget
+		clusters.sort_custom(func(a, b): return a["count"] > b["count"])
+		_facade_cache[cache_key] = {"img": img, "clusters": clusters}
 	# 3) one additive region-sprite per cluster, mapped exactly like the facade
 	var add_mat := CanvasItemMaterial.new()
 	add_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD

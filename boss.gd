@@ -322,6 +322,16 @@ func tick_statuses(delta: float) -> void:
 		_dot_accum -= float(chunk)
 		health -= chunk
 		update_health_bar()
+		# the TURN thresholds must fire however the HP got there (audit fix): a
+		# Warden/Ignite build could burn a boss across 60%/25% without it ever
+		# enraging or frenzying -- no gear shift, no banner -- because only
+		# take_damage checked. (Deliberately NOT the reactive phase/guard
+		# machinery: see the header comment above.)
+		var _enrage_at := 0.6 if is_apex else ENRAGE_THRESHOLD
+		if not is_enraged and health > 0 and health <= max_health * _enrage_at:
+			enrage()
+		if is_apex and not is_frenzied and health > 0 and health <= max_health * 0.25:
+			frenzy()
 		if health <= 0:
 			# an undivided soul cannot be destroyed by a DoT either: the final Monarch
 			# reforms around a killing tick landed OUTSIDE the wand's mortal window, the
@@ -1194,6 +1204,7 @@ func _do_false_split() -> void:
 		t.speed_multiplier = speed_multiplier
 		t.boss_floor = boss_floor
 		t.position = global_position + Vector2(randf_range(-TWIN_SPREAD, TWIN_SPREAD), 0.0)
+		t.position.x = clampf(t.position.x, 100.0, arena_width() - 100.0)   # never spawn out of bounds
 		t.add_to_group("dungeon_combatant")
 		get_parent().add_child(t)
 		_twins.append(t)
@@ -1241,6 +1252,10 @@ func tick_soulbind(_delta: float) -> void:
 
 func _bind_runes() -> void:
 	_clear_rune_links()
+	# prune the fallen before appending (audit hardening): rebinds pushed every
+	# new add into `minions` and nothing ever removed the dead ones, so a long
+	# Choir/Mourncaller fight grew the death-sweep list without bound
+	minions = minions.filter(func(x): return is_instance_valid(x) and not (("is_dead" in x) and x.is_dead))
 	for i in range(SOULBIND_ADDS):
 		var m = MINION_SCENE.instantiate()
 		m.respawns = false
@@ -1533,15 +1548,25 @@ func enter_phase() -> void:
 	phase_ready_at = phase_until + PHASE_COOLDOWN
 	_refresh_phase_visual()
 
+var _phase_visual_on := false
+var _pre_phase_modulate := Color(1, 1, 1, 1)
+
 func _refresh_phase_visual() -> void:
 	var gfx: CanvasItem = boss_sprite if boss_sprite != null else self
 	if is_phased():
+		if not _phase_visual_on:
+			_phase_visual_on = true
+			_pre_phase_modulate = gfx.modulate
 		# ghosted, and washed toward its own magic colour so it reads as the
 		# boss having stepped sideways out of the world rather than gone dim
 		var m: Color = current_def.get("magic", Color(0.7, 0.7, 1.0))
 		gfx.modulate = Color(m.r, m.g, m.b, 0.38)
-	else:
-		gfx.modulate = Color(1, 1, 1, 1)
+	elif _phase_visual_on:
+		_phase_visual_on = false
+		# restore what stood BEFORE the ghost (audit fix): the hard white reset
+		# here erased an unskinned clone's identifying tint -- the false-twin
+		# mechanic's TELL, not decoration -- the first time it phased.
+		gfx.modulate = _pre_phase_modulate
 var aura_particles: CPUParticles2D = null
 var aura_timer := 0.0
 # the aura rides a trailing anchor that chases the boss with a slight delay,
@@ -2329,6 +2354,11 @@ func arena_width() -> float:
 	var s = get_tree().current_scene
 	if s != null and "current_width" in s:
 		return s.current_width
+	# the Harvest is fought in the VILLAGE, which has no current_width -- use
+	# its real right edge rather than an effectively-unbounded 15000, so the
+	# Monarch's containment clamp and blink bounds still mean something there
+	if s != null and "village_right_edge" in s:
+		return float(s.village_right_edge) + 400.0
 	return 15000.0
 
 # Movement speed after the mage-counter's hex slow (and level scaling).
@@ -4101,10 +4131,13 @@ func _boss_hud_banner(text: String) -> void:
 func die() -> void:
 	if is_dead:
 		return   # a second die() would double-pay XP and double-emit `died`
-	# echoes and false copies are worth a token amount, not a boss bounty
-	GameState.add_xp(15 if (is_clone or is_false_copy) else int(round(60 * damage_multiplier * GameState.depth_reward_mult())))
 	is_dead = true
 	is_busy = true
+	# XP paid AFTER the flag flips (audit hardening): every caller is
+	# synchronous today, so the guard above carried it -- but one `await`
+	# inserted between the old payout and the flag would have double-paid.
+	# echoes and false copies are worth a token amount, not a boss bounty
+	GameState.add_xp(15 if (is_clone or is_false_copy) else int(round(60 * damage_multiplier * GameState.depth_reward_mult())))
 	$CollisionShape2D.set_deferred("disabled", true)
 	play_sfx(SFX_DEATH)
 	# the kill flourish (the real boss only -- an echo dying is not the fight ending)
