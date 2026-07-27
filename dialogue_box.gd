@@ -42,6 +42,7 @@ var _shown := 0.0         # characters revealed so far (float for smooth typing)
 var _typing := false
 var _blink := 0.0
 var _pointer: SpeakerIndicator = null   # the chevron hovering over the live speaker
+var _host_scene: Node = null            # the scene whose beat this is (see _process)
 
 static func play(host: Node, script_lines: Array, on_finished := Callable()) -> void:
 	# a deferred opening beat can fire during a scene swap, when host has left the tree and
@@ -55,6 +56,9 @@ static func play(host: Node, script_lines: Array, on_finished := Callable()) -> 
 	var box = DialogueBox.new()
 	box.lines = script_lines
 	box._on_finished = on_finished
+	# root-mounted on purpose (survives pauses, owns layer 60) -- but remember
+	# WHOSE beat this is, so a scene change can dissolve it (see _process)
+	box._host_scene = host.get_tree().current_scene
 	host.get_tree().root.add_child(box)
 
 func _ready() -> void:
@@ -272,6 +276,15 @@ func _find_speaker(speaker: String) -> Array:
 	return []
 
 func _process(delta: float) -> void:
+	# THE BEAT DIES WITH ITS SCENE. We are parented to root (survives scene
+	# swaps by design), so a Quit-to-Menu or dungeon exit mid-beat used to
+	# strand this box -- full-screen shade + panel eating input over the next
+	# scene, and a finish() whose callback fired into freed nodes. If the scene
+	# that spoke us is gone, dissolve: drop the callback, release the pause.
+	if _host_scene != null and not is_instance_valid(_host_scene):
+		_on_finished = Callable()
+		finish()
+		return
 	if _typing:
 		_shown += delta * TYPE_CPS
 		var n := int(_shown)
@@ -312,7 +325,11 @@ func _exit_tree() -> void:
 
 func finish() -> void:
 	var t := get_tree()
-	t.paused = false
+	# release the pause -- UNLESS the pause menu is open on top of us (ESC works
+	# during a beat): blind-unpausing here left the world running behind a
+	# visible pause menu, desynced from its own toggle.
+	var pm = t.get_first_node_in_group("pause_menu")
+	t.paused = pm != null and is_instance_valid(pm) and pm.visible
 	if _pointer != null and is_instance_valid(_pointer):
 		_pointer.queue_free()             # the speaker chevron dies with the box
 	_pointer = null

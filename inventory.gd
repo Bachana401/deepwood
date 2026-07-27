@@ -459,8 +459,13 @@ const ITEM_DEFS = {
 	"wpn_huntingbow": {"name": "Hunting Bow", "category": "weapon", "weapon_type": "bow", "max_stack": 1, "color": Color(0.62, 0.5, 0.34, 1.0),
 		"weapon_stats": {"damage": 15, "cooldown": 0.5, "range_offset": 92, "area_size": Vector2(110, 40), "knockback_min": 22.0, "knockback_max": 44.0, "icon_size": Vector2(15, 15), "icon_color": Color(0.62, 0.5, 0.34), "icon_offset": 18.0},
 		"unique_desc": "A steady woodland bow."},
+	# NOTE (audit fix): a wand with NO "special" key is routed to the ADMIN
+	# screen-nuke by perform_attack -- these three loot wands shipped without one
+	# and one-clicked the whole dungeon to death. Their damage now lives in a real
+	# bolt special (weapon_stats.damage 0, like every other special wand).
 	"wpn_sparkwand": {"name": "Spark Wand", "category": "weapon", "weapon_type": "wand", "max_stack": 1, "color": Color(0.6, 0.7, 0.95, 1.0), "mana_cost": 4,
-		"weapon_stats": {"damage": 10, "cooldown": 0.44, "range_offset": 30, "area_size": Vector2(10, 10), "knockback_min": 0.0, "knockback_max": 0.0, "icon_size": Vector2(48, 8), "icon_color": Color(0.6, 0.7, 0.95), "icon_offset": 20.0},
+		"weapon_stats": {"damage": 0, "cooldown": 0.44, "range_offset": 30, "area_size": Vector2(10, 10), "knockback_min": 0.0, "knockback_max": 0.0, "icon_size": Vector2(48, 8), "icon_color": Color(0.6, 0.7, 0.95), "icon_offset": 20.0},
+		"special": {"type": "frost_shard", "damage": 10, "speed": 560.0, "range": 460.0},
 		"unique_desc": "A cheap caster's spark -- light on mana."},
 	# UNCOMMON melee
 	"wpn_falchion": {"name": "Falchion", "category": "weapon", "weapon_type": "melee", "max_stack": 1, "color": Color(0.8, 0.72, 0.55, 1.0),
@@ -489,8 +494,9 @@ const ITEM_DEFS = {
 		"weapon_stats": {"damage": 12, "cooldown": 0.4, "range_offset": 92, "area_size": Vector2(110, 40), "knockback_min": 18.0, "knockback_max": 36.0, "icon_size": Vector2(15, 15), "icon_color": Color(0.68, 0.56, 0.38), "icon_offset": 18.0},
 		"unique_desc": "A fast flatbow -- a quicker draw for less punch."},
 	"wpn_frostwand": {"name": "Novice Frost Wand", "category": "weapon", "weapon_type": "wand", "max_stack": 1, "color": Color(0.6, 0.85, 1.0, 1.0), "mana_cost": 7,
-		"weapon_stats": {"damage": 13, "cooldown": 0.5, "range_offset": 30, "area_size": Vector2(10, 10), "knockback_min": 0.0, "knockback_max": 0.0, "icon_size": Vector2(50, 8), "icon_color": Color(0.6, 0.85, 1.0), "icon_offset": 20.0},
-		"unique_desc": "A chill bolt for a beginner cryomancer."},
+		"weapon_stats": {"damage": 0, "cooldown": 0.5, "range_offset": 30, "area_size": Vector2(10, 10), "knockback_min": 0.0, "knockback_max": 0.0, "icon_size": Vector2(50, 8), "icon_color": Color(0.6, 0.85, 1.0), "icon_offset": 20.0},
+		"special": {"type": "frost_shard", "damage": 13, "speed": 580.0, "range": 500.0, "status": {"kind": "slow", "dur": 1.6, "mag": 0.75}},
+		"unique_desc": "A chill bolt for a beginner cryomancer -- briefly slows what it strikes."},
 	# THE SOUL SPLIT WAND (GAME_BIBLE 9.7, design locked) -- a novelty that splits
 	# anything into 7 harmless mini-clones for 4 seconds. Deliberately useless
 	# against every creature in the game... except the one it was made for: the
@@ -503,7 +509,8 @@ const ITEM_DEFS = {
 		"special": {"type": "soul_split", "speed": 640.0, "range": 620.0},
 		"unique_desc": "Splits whatever it strikes into 7 tiny spinning copies for 4 seconds -- completely harmless. The Ten swear it matters. An undivided soul cannot be destroyed."},
 	"wpn_channelwand": {"name": "Channeling Wand", "category": "weapon", "weapon_type": "wand", "max_stack": 1, "color": Color(0.8, 0.6, 0.95, 1.0), "mana_cost": 3,
-		"weapon_stats": {"damage": 8, "cooldown": 0.28, "range_offset": 30, "area_size": Vector2(10, 10), "knockback_min": 0.0, "knockback_max": 0.0, "icon_size": Vector2(48, 8), "icon_color": Color(0.8, 0.6, 0.95), "icon_offset": 20.0},
+		"weapon_stats": {"damage": 0, "cooldown": 0.28, "range_offset": 30, "area_size": Vector2(10, 10), "knockback_min": 0.0, "knockback_max": 0.0, "icon_size": Vector2(48, 8), "icon_color": Color(0.8, 0.6, 0.95), "icon_offset": 20.0},
+		"special": {"type": "frost_shard", "damage": 8, "speed": 620.0, "range": 440.0},
 		"unique_desc": "Rapid little bolts -- cheap and fast."},
 }
 

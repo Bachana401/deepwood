@@ -407,6 +407,14 @@ func _ready() -> void:
 		return
 	boss_counter_seq = build_counter_sequence()
 	current_level = GameState.active_dungeon_level
+	# "Descend to the Nth gate" bonds credit on ARRIVAL. The only other emitter
+	# is the last-kill of a FIRST clear, and cleared floors return early there
+	# ("what you killed STAYS killed") -- so a VIP freed after their target
+	# depth was already swept had a permanently uncompletable bond (Alaric
+	# 95->99, Ollin 45->55), which also barred the Chronicle's "every bond
+	# honored" line. Standing at the gate is the deed; progress is max()-kept,
+	# so re-emitting is idempotent.
+	GameState.quest_event("reach_level", "", current_level)
 	_ensure_ambient()          # a dark cave, before the torches carve it back
 	build_level_visuals(current_level)
 	place_player_at_entry(false)
@@ -954,11 +962,16 @@ func gen_hollow_choir(w: float, h: float) -> Array:
 		plats.append({"x": x, "y": -620.0, "w": 300.0})
 		x += 1500.0
 	# access stacks, kept OUT of the central floor band on purpose: low ledges
-	# there would hide the very feet you are trying to look at
+	# there would hide the very feet you are trying to look at.
+	# ≤90px risers all the way to the first gallery tier (audit fix): the old
+	# two-step stack (-155/-295) wasn't even self-climbable with the 92px jump,
+	# so the galleries -- this arena's stated mechanic -- were levitation-only.
 	for sx in [560.0, w * 0.18, w * 0.82, w - 560.0]:
 		if absf(sx - c) > w * 0.3:
-			plats.append({"x": sx, "y": -155.0, "w": 210.0})
-			plats.append({"x": sx, "y": -295.0, "w": 175.0})
+			plats.append({"x": sx, "y": -120.0, "w": 210.0})
+			plats.append({"x": sx, "y": -210.0, "w": 175.0})
+			plats.append({"x": sx, "y": -300.0, "w": 160.0})
+			plats.append({"x": sx, "y": -390.0, "w": 150.0})
 	return add_sky_tier(plats, w, h)
 
 # Ashen Penitent -- riposte + famine. It stands still at the bottom of a narrow
@@ -982,9 +995,11 @@ func gen_ashen_penitent(w: float, h: float) -> Array:
 			plats.append({"x": c - side * (w * 0.08), "y": y - 80.0, "w": 150.0})
 		y -= 165.0
 		i += 1
-	# the prayer dais: a low lip around it, the one bit of ground worth contesting
-	plats.append({"x": c - 330.0, "y": -140.0, "w": 200.0})
-	plats.append({"x": c + 330.0, "y": -140.0, "w": 200.0})
+	# the prayer dais: a low lip around it, the one bit of ground worth
+	# contesting -- at -120 it is actually JUMPABLE from the floor (audit fix:
+	# -140 was past the 92px jump, so the "mana-safe ground" cost mana to reach)
+	plats.append({"x": c - 330.0, "y": -120.0, "w": 200.0})
+	plats.append({"x": c + 330.0, "y": -120.0, "w": 200.0})
 	return plats
 
 # Gaoler -- tether + stagger_armour. THE cover arena. The tether is a line of
@@ -1249,10 +1264,13 @@ func gen_seraph(w: float, h: float) -> Array:
 	var x := 700.0
 	var i := 0
 	while x < w - 700.0:
-		# column: a climbable three-step tower
-		plats.append({"x": x, "y": -150.0, "w": 190.0})
-		plats.append({"x": x + 60.0, "y": -300.0, "w": 150.0})
-		plats.append({"x": x - 60.0, "y": -450.0, "w": 150.0})
+		# column: a climbable three-step tower. ≤90px risers (audit fix): the
+		# old 150px steps broke this arena's own promise ("towers you can climb
+		# even without relics") -- floor->-150 was already past the 92px jump,
+		# so without double jump the whole climb was levitation-only.
+		plats.append({"x": x, "y": -120.0, "w": 190.0})
+		plats.append({"x": x + 60.0, "y": -210.0, "w": 150.0})
+		plats.append({"x": x - 60.0, "y": -300.0, "w": 150.0})
 		# isles drifting between the column tops, alternating heights
 		if i % 2 == 0:
 			plats.append({"x": x + 560.0, "y": -620.0, "w": 130.0})
@@ -2167,20 +2185,13 @@ func spawn_special_mob(kind: String, pos: Vector2) -> void:
 	mob.died.connect(_on_combatant_died)
 	alive_count += 1
 
-# ===================== THE HARVEST (GAME_BIBLE 9.3 / 9.4) =====================
-# The turned village, streamed as waves; the Devourer eating the living; the
-# Ten holding lanes. Population is 150+ at full staffing -- NEVER all at once.
-const HARVEST_WAVE_GAP := 6.0     # seconds between waves
-const HARVEST_WAVE_SIZE := 4
-const HARVEST_LIVE_CAP := 12      # living transformed on screen at most
-const DEVOUR_INTERVAL := 5.0      # the Monarch eats one living transformed
-const DEVOUR_TIERS := 20          # +1 tier per 5% of the population consumed
-var _harvest_pool: Array = []
-var _harvest_total := 1
-var _harvest_wave_timer := 0.0
-var _devour_timer := 0.0
-var _devoured := 0
-var _monarch: Node = null
+# (THE HARVEST left this arena for the village streets: harvest_director.gd is
+# the ONE live home of the wave-streaming, Devourer and ally machinery. The
+# in-dungeon copy that used to sit here -- ~80 lines of consts, a _monarch that
+# no code ever assigned, _spawn_transformed, _apply_devour_tier -- was fully
+# unreachable dead code, and a live-looking trap: tuning DEVOUR_TIERS or
+# HARVEST_LIVE_CAP here changed nothing. Removed rather than kept as a decoy,
+# same as the Ten's lane spawn before it.)
 
 func _physics_process(delta: float) -> void:
 	# the straggler hint tracks the player, so refresh it a few times a
@@ -2190,83 +2201,6 @@ func _physics_process(delta: float) -> void:
 		if _hint_timer <= 0.0:
 			_hint_timer = 0.35
 			update_level_label()
-	if _monarch == null or not is_instance_valid(_monarch) or _monarch.is_dead:
-		return
-	# stream the town in, wave by named wave
-	_harvest_wave_timer -= delta
-	if _harvest_wave_timer <= 0.0 and not _harvest_pool.is_empty():
-		_harvest_wave_timer = HARVEST_WAVE_GAP
-		var living := get_tree().get_nodes_in_group("transformed").filter(func(t): return is_instance_valid(t) and not t.is_dead).size()
-		for i in range(mini(HARVEST_WAVE_SIZE, HARVEST_LIVE_CAP - living)):
-			if _harvest_pool.is_empty():
-				break
-			_spawn_transformed(str(_harvest_pool.pop_back()))
-	# the Devourer race: he eats the LIVING transformed; your kills deny him
-	_devour_timer -= delta
-	if _devour_timer <= 0.0:
-		_devour_timer = DEVOUR_INTERVAL
-		var prey: Node = null
-		var best := 999999.0
-		for t in get_tree().get_nodes_in_group("transformed"):
-			if not is_instance_valid(t) or t.is_dead:
-				continue
-			var d: float = _monarch.global_position.distance_to(t.global_position)
-			if d < best:
-				best = d
-				prey = t
-		if prey != null:
-			_devoured += 1
-			FloatingText.spawn_word(self, prey.global_position + Vector2(0, -40), "DEVOURED", Color(0.7, 0.3, 0.9))
-			prey.queue_free()
-			_apply_devour_tier()
-
-# Every 5% of the population consumed = +1 power tier: bigger, tougher, harder.
-# Rush the horde and you starve him; turtle and face a titan. Winnable either way.
-func _apply_devour_tier() -> void:
-	var tier := int(floor(float(_devoured) / float(_harvest_total) * float(DEVOUR_TIERS)))
-	if _monarch == null or not is_instance_valid(_monarch):
-		return
-	_monarch.max_health += int(_monarch.max_health * 0.04)
-	_monarch.health = mini(_monarch.health + int(_monarch.max_health * 0.06), _monarch.max_health)
-	_monarch.damage_multiplier *= 1.1025   # +5% output (damage scales by sqrt)
-	_monarch.scale = Vector2.ONE * minf(1.0 + float(tier) * 0.05, 2.0)
-	if _monarch.has_method("update_health_bar"):
-		_monarch.update_health_bar()
-	show_notification("The Devourer swells — tier %d (%d souls eaten). Every kill of yours is one he can't." % [tier, _devoured])
-
-# One turned villager, wearing their NAME -- you know exactly who you're
-# cutting down, and exactly who the Shadow Army will give back.
-func _spawn_transformed(v_name: String) -> void:
-	var enemy = ENEMY_SCENE.instantiate()
-	enemy.weapon_type = WEAPON_TYPES[randi() % WEAPON_TYPES.size()]
-	enemy.respawns = false
-	enemy.instant_aggro = true
-	var scaling = get_level_scaling()
-	enemy.wave_hp_multiplier = scaling.hp
-	enemy.wave_damage_multiplier = scaling.dmg
-	enemy.wave_speed_multiplier = scaling.speed
-	enemy.apply_block_archetype(19)
-	assign_enemy_behavior(enemy)
-	enemy.position = Vector2(randf_range(400.0, current_width - 400.0), GROUND_Y - 60.0)
-	enemy.add_to_group("dungeon_combatant")
-	enemy.add_to_group("transformed")
-	$LevelContainer.add_child(enemy)
-	enemy.died.connect(_on_combatant_died)
-	alive_count += 1
-	var nl := Label.new()
-	nl.text = v_name
-	nl.position = Vector2(-50, -74)
-	nl.size = Vector2(100, 14)
-	nl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	nl.add_theme_font_size_override("font_size", 9)
-	nl.add_theme_color_override("font_color", Color(0.85, 0.55, 0.95))
-	nl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	nl.add_theme_constant_override("outline_size", 3)
-	enemy.add_child(nl)
-
-# (The Ten's lane-holding spawn moved to harvest_director._spawn_ally when the
-# Harvest moved from this arena into the village. The dungeon copy was left
-# behind with no callers -- removed rather than kept as a decoy.)
 
 func spawn_enemy(at = null) -> void:
 	var enemy = ENEMY_SCENE.instantiate()
@@ -2485,8 +2419,13 @@ func _give_gear(player: Node, item_id: String, excellent: bool) -> void:
 func register_extra_combatant(e) -> void:
 	if e == null or not is_instance_valid(e) or not level_in_progress:
 		return
-	if not e.died.is_connected(_on_combatant_died):
-		e.died.connect(_on_combatant_died)
+	# count ONCE per combatant: the connect guard exists precisely because a
+	# double registration is anticipated -- but the increment ran anyway, and a
+	# single doubled call would pin alive_count above zero forever: the floor
+	# could never clear, with no other route back to level_cleared.
+	if e.died.is_connected(_on_combatant_died):
+		return
+	e.died.connect(_on_combatant_died)
 	alive_count += 1
 
 func _on_combatant_died() -> void:

@@ -37,7 +37,15 @@ var status_poison_until := 0.0
 var status_poison_dps := 0.0
 var status_slow_until := 0.0
 var status_slow_factor := 1.0
+var status_slow_deep_until := 0.0   # when the CURRENT factor's own duration ends
 var _dot_accum := 0.0
+
+# PETRIFY (Gorgon's Gaze): rooted + brittle (+50% damage taken) while it holds.
+var status_petrify_until := 0.0
+const PETRIFY_DAMAGE_MULT := 1.5
+
+func is_petrified() -> bool:
+	return Time.get_ticks_msec() / 1000.0 < status_petrify_until
 
 func apply_status(kind: String, dur: float, mag: float) -> void:
 	if is_dead:
@@ -53,15 +61,32 @@ func apply_status(kind: String, dur: float, mag: float) -> void:
 			status_poison_until = now + dur
 			status_poison_dps = maxf(status_poison_dps if poison_live else 0.0, mag)
 		"slow":
-			# keep the STRONGER (lower factor) and LONGER of any overlapping slow --
-			# a weak slow must not un-freeze a frozen mob or cut its timer short
-			var live := now < status_slow_until
-			status_slow_factor = minf(status_slow_factor if live else 1.0, clampf(1.0 - mag, 0.2, 1.0))
+			# CONVENTION: mag IS the resulting speed factor (<1), exactly as
+			# enemy.gd reads it and as every caller passes it -- this file used
+			# to read it inverted (fraction removed), halving strong slows and
+			# doubling weak ones on every raider.
+			# The deepest slow carries ITS OWN expiry (audit fix): a repeating
+			# weak aura used to keep a one-off hard slow's factor pinned forever.
+			var mag_in := clampf(mag, 0.2, 1.0)
+			if now >= status_slow_until or now >= status_slow_deep_until:
+				status_slow_factor = 1.0
 			status_slow_until = maxf(status_slow_until, now + dur)
+			if mag_in <= status_slow_factor:
+				status_slow_factor = mag_in
+				status_slow_deep_until = now + dur
 		"freeze":
+			# a weak slow must not un-freeze a frozen mob or cut its timer short:
+			# the freeze holds the deep slot for its whole duration
 			var live_f := now < status_slow_until
 			status_slow_factor = minf(status_slow_factor if live_f else 1.0, 0.25)
 			status_slow_until = maxf(status_slow_until, now + dur)
+			status_slow_deep_until = maxf(status_slow_deep_until, now + dur)
+		"petrify":
+			# Gorgon's Gaze reaches raiders too (audit fix): the relic's caller
+			# burns its 13s cooldown whenever apply_status exists, but this
+			# match had no branch -- the proc did nothing here. Mirrors
+			# enemy.gd: rooted + brittle for the duration.
+			status_petrify_until = maxf(status_petrify_until, now + dur)
 
 func status_slow_mult() -> float:
 	return status_slow_factor if Time.get_ticks_msec() / 1000.0 < status_slow_until else 1.0
@@ -217,6 +242,11 @@ func _physics_process(delta: float) -> void:
 	if is_knocked_back:
 		move_and_slide()
 		return
+	# petrified: stone can't act -- rooted for the duration (enemy.gd's gate)
+	if is_petrified():
+		velocity.x = 0.0
+		move_and_slide()
+		return
 
 	if skin_attack_timer > 0.0:
 		skin_attack_timer -= delta
@@ -370,6 +400,9 @@ func take_damage(amount: int) -> void:
 		return
 	if theatrical:
 		return                        # a staged shadow-raider can't be felled yet
+	# stone is brittle: bonus damage while petrified (mirrors enemy.gd)
+	if is_petrified():
+		amount = int(round(amount * PETRIFY_DAMAGE_MULT))
 	health -= amount
 	update_health_bar_fill()
 	if health <= 0:

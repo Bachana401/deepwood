@@ -16,6 +16,7 @@ var rune: ColorRect = null
 var beacon: Node2D = null
 
 func _ready() -> void:
+	add_to_group("underdark_floor_door")   # so the strip can sleep them topside
 	collision_mask = 2
 	var cs := CollisionShape2D.new()
 	var rect := RectangleShape2D.new()

@@ -160,6 +160,11 @@ func _build_row(bn: String, node) -> Control:
 	if built:
 		btn.text = "  %s   —   ✓ built" % bn
 		btn.add_theme_color_override("font_color", Color(0.6, 0.8, 0.62))
+	elif bn == "Blacksmith" and not GameState.blacksmith_unlocked():
+		# mid-game gate: the blueprint drops at floor 16 but the Forge only takes
+		# fire at depth 35 -- say so instead of offering a Build that will refuse
+		btn.text = "  %s   —   🔒 sealed (clear floor %d)" % [bn, GameState.BLACKSMITH_UNLOCK_DEPTH]
+		btn.add_theme_color_override("font_color", Color(0.72, 0.58, 0.42))
 	elif GameState.has_blueprint(bn):
 		btn.text = "  %s   —   Build (%s)" % [bn, _cost_text(bn)]
 	else:
@@ -183,6 +188,9 @@ func _on_build_pressed(bn: String, node, built: bool) -> void:
 		return
 	if not GameState.has_blueprint(bn):
 		_set_detail("You haven't found the %s's blueprint yet — it lies somewhere in the deep." % bn)
+		return
+	if bn == "Blacksmith" and not GameState.blacksmith_unlocked():
+		_set_detail("The Forge's fire won't take yet — its secrets lie at dungeon depth %d." % GameState.BLACKSMITH_UNLOCK_DEPTH)
 		return
 	_start_build(bn, node)
 

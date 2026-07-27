@@ -522,8 +522,16 @@ func take_damage(amount: int) -> void:
 	flee_until = Time.get_ticks_msec() / 1000.0 + FLEE_SECONDS
 	health -= amount
 	if health <= 0:
-		die()
-		return
+		# THE UNBREAKABLES CANNOT BE BROKEN. Every other loss path (sieges, rot,
+		# infection, the Harvest, random deaths) already exempts the Ten -- this
+		# was the one that didn't, so a wall-breach raider or street demon could
+		# permanently erase a freed legend in about five hits. They are beaten to
+		# the door of death and no further: pinned at 1 HP, still fleeing.
+		if bool(find_villager_data().get("unbreakable", false)):
+			health = 1
+		else:
+			die()
+			return
 	# flash the bar into view briefly so the player sees they're taking hits
 	hp_reveal_timer = HEALTH_BAR_HIT_REVEAL_SECONDS
 	update_health_bar_fill()

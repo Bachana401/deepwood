@@ -380,8 +380,20 @@ func _update_hp_bar() -> void:
 
 func _cycle_station() -> void:
 	var idx = Adventurers.STATIONS.find(station)
-	station = Adventurers.STATIONS[(idx + 1) % Adventurers.STATIONS.size()]
-	GameState.set_adventurer_station(adventurer_id, station)
+	# GameState is the AUTHORITY on posts (a full wall refuses). The old code
+	# mutated the local station first and ignored the refusal, so a "sheltered"
+	# hero marched to the rampart and fought -- permadeath-exposed -- while the
+	# roster and take_damage's house-shield both still said they were safe.
+	# A refused station is SKIPPED (not a dead end), so the cycle always moves.
+	var next := station
+	for step in range(1, Adventurers.STATIONS.size()):
+		var cand: String = Adventurers.STATIONS[(idx + step) % Adventurers.STATIONS.size()]
+		if GameState.set_adventurer_station(adventurer_id, cand):
+			next = cand
+			break
+	if next == station:
+		return   # nowhere accepted us (set_adventurer_station said why)
+	station = next
 	_apply_station_groups()
 	home_x = _station_anchor_x()
 	_refresh_prompt()

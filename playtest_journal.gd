@@ -43,25 +43,43 @@ func _ready() -> void:
 	hint.position = Vector2(14, 76)
 	panel.add_child(hint)
 
+var _was_paused := false
+
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_F8:
 			toggle()
 			get_viewport().set_input_as_handled()
 		elif event.keycode == KEY_ESCAPE and panel.visible:
-			panel.visible = false
+			_close()
 			get_viewport().set_input_as_handled()
 
 func toggle() -> void:
-	panel.visible = not panel.visible
 	if panel.visible:
-		input.text = ""
-		hint.visible = false
-		input.grab_focus()
+		_close()
+		return
+	panel.visible = true
+	input.text = ""
+	hint.visible = false
+	input.grab_focus()
+	# FREEZE THE WORLD WHILE TYPING (audit fix): gameplay keys are polled via
+	# the Input singleton, which ignores the LineEdit consuming events -- typing
+	# "wall gets stuck" used to walk and jump the character, spend wood+resin on
+	# G, and open the skill tree on K, mid-report (in a dungeon it walked you
+	# into enemies). The journal already runs while paused by design, so the
+	# pause is the clean gate; the previous pause owner (menu, dialogue) is
+	# restored on close.
+	_was_paused = get_tree().paused
+	get_tree().paused = true
+
+func _close() -> void:
+	panel.visible = false
+	if get_tree() != null:
+		get_tree().paused = _was_paused
 
 func _on_submit(text: String) -> void:
 	if text.strip_edges() == "":
-		panel.visible = false
+		_close()
 		return
 	_append_note(text.strip_edges())
 	hint.text = "noted ✓"
@@ -70,7 +88,7 @@ func _on_submit(text: String) -> void:
 	# stay open a beat so "noted" is seen, then close on a short timer
 	var tw := create_tween()
 	tw.tween_interval(0.7)
-	tw.tween_callback(func(): panel.visible = false)
+	tw.tween_callback(_close)
 
 func _context_stamp() -> String:
 	var p = get_tree().get_first_node_in_group("player")

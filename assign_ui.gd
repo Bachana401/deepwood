@@ -335,7 +335,11 @@ func _on_research(item_id: String) -> void:
 # gear of EVERY slot -- weapons of all types, helm/chest/pants, gloves, boots --
 # but only up to Rare grade. The OP tiers (Epic+, set weapons, Excellents) stay
 # dungeon-drop only, so the Forge fills gaps without spoiling the loot chase.
-const SMITHY_PRICE_BY_GRADE = {"common": 25, "uncommon": 60, "rare": 130}
+# Epic exists on the rack only with Toren at the anvil (see smithy_max_rank) --
+# and it must be priced. The old table stopped at rare, so every Epic fell
+# through to smithy_price's 40g default while the Marketplace stall PAYS 100g
+# for an Epic: buy 40 / sell 100, an unbounded gold printer.
+const SMITHY_PRICE_BY_GRADE = {"common": 25, "uncommon": 60, "rare": 130, "epic": 240}
 const SMITHY_MAX_RANK = 3   # rare (see Inventory.GRADE_DEFS ranks)
 
 # Every equippable item at or below the Forge's tier cap, tidy-sorted (grade,
@@ -354,6 +358,12 @@ func smithy_stock() -> Array:
 		if cat != "armor" and cat != "weapon":
 			continue
 		if base_kit.has(id) or id == "wpn_admin_ruin" or def.get("excellent", false):
+			continue
+		# SET pieces and set weapons stay dungeon-drop only at ANY rank -- Toren
+		# raises the Forge's grade cap to Epic, not its exclusivity rules (the
+		# file's own contract above). Without this, his boon put all three full
+		# Epic sets and their set weapons on a reliable vendor rack.
+		if def.has("set"):
 			continue
 		var grade = Inventory.get_grade(id)
 		if not Inventory.GRADE_DEFS.has(grade) or int(Inventory.GRADE_DEFS[grade].rank) > smithy_max_rank():

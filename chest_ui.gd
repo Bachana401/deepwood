@@ -180,6 +180,15 @@ func open_chest(chest: Node) -> void:
 
 func close() -> void:
 	if current_chest:
+		# Resolve any in-flight right-click split BEFORE the snapshot: a split has
+		# already pulled its items out of the source inventory into the hand, so
+		# saving first wrote a chest state WITHOUT them -- DragState's orphan
+		# self-heal then returned them to the live Inventory object a frame
+		# later, and nothing ever re-serialised it. Walk out of the chest's
+		# radius mid-split, take one dungeon trip: those items were gone.
+		if DragState.split_mode:
+			DragState.return_split_to_source()
+			DragState.refresh_all_panels()
 		current_chest.save_contents()
 	current_chest = null
 	visible = false

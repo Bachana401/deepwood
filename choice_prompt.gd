@@ -15,6 +15,7 @@ extends CanvasLayer
 var _title := ""
 var _body := ""
 var _options: Array = []
+var _host_scene: Node = null   # the scene whose choice this is (see _process)
 
 static func open(host: Node, title: String, body: String, options: Array) -> void:
 	# same guard as DialogueBox.play: a null/out-of-tree host has no tree to mount into.
@@ -26,6 +27,9 @@ static func open(host: Node, title: String, body: String, options: Array) -> voi
 	box._title = title
 	box._body = body
 	box._options = options
+	# root-mounted like the DialogueBox -- remember whose choice this is, so a
+	# scene change dissolves it instead of stranding it (see _process)
+	box._host_scene = host.get_tree().current_scene
 	host.get_tree().root.add_child(box)
 
 func _ready() -> void:
@@ -35,6 +39,13 @@ func _ready() -> void:
 	add_to_group("esc_window")                    # closable like the game's other panels
 	_build()
 	get_tree().paused = true
+
+func _process(_delta: float) -> void:
+	# same contract as DialogueBox: the modal dies with the scene that opened it,
+	# dropping its callbacks (they point into freed nodes) and releasing the pause
+	if _host_scene != null and not is_instance_valid(_host_scene):
+		get_tree().paused = false
+		queue_free()
 
 func _build() -> void:
 	var shade = ColorRect.new()

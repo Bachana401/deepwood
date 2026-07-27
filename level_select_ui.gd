@@ -4,8 +4,19 @@ const LEVEL_COUNT = 100
 
 func _ready() -> void:
 	visible = false
+	# the one window that never joined esc_window: ESC used to stack the pause
+	# menu ON TOP of the 100-button grid instead of closing it -- and the new
+	# world-input gate (player.ui_blocks_world_input) keys off this group too,
+	# so clicking a floor button no longer also swings the wielded weapon
+	add_to_group("esc_window")
 	build_level_grid()
 	$Panel/CloseButton.pressed.connect(close)
+
+func esc_is_open() -> bool:
+	return visible
+
+func esc_close() -> void:
+	close()
 
 func build_level_grid() -> void:
 	var grid = $Panel/ScrollContainer/GridContainer

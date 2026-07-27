@@ -98,6 +98,13 @@ func _travel(floor: int) -> void:
 	# is combat-free at the entry where the shrine stands -- no special flag needed
 	GameState.pending_player_state = GameState.capture_player_state(player)
 	GameState.pre_dungeon_position = _return_pos
+	# pre_dungeon_position is now a VILLAGE-space point, so the floor's exit must
+	# route to the village. Without this, a floor first entered through a tile-
+	# underground door kept came_from_underground=true and its exit gate warped
+	# into underground.tscn at village coordinates -- solid rock, ~19,000px from
+	# the ladder. (level_select_ui clears the flag the same way; the shrine was
+	# the one launch route that didn't.)
+	GameState.came_from_underground = false
 	GameState.active_dungeon_level = floor
 	_warp_to("res://dungeon_interior.tscn")
 
@@ -105,14 +112,23 @@ func _go_home() -> void:
 	var player = get_tree().get_first_node_in_group("player")
 	if player != null:
 		GameState.pending_player_state = GameState.capture_player_state(player)
+	# Land somewhere REAL. main.gd applies pre_dungeon_position verbatim on the
+	# returning_from_dungeon path, and for a floor entered via a tile-underground
+	# door that was a deep-underground coordinate -- applied in the village scene
+	# it put the player in empty sky (or worse), falling forever. _return_pos is
+	# always a village-space point (the Waystone if one stands, else the spawn).
+	GameState.pre_dungeon_position = _return_pos
+	GameState.came_from_underground = false
 	GameState.in_dungeon = false
 	GameState.returning_from_dungeon = true
 	_warp_to("res://main.tscn")
 
 # A quick warp flash before the hard cut -- the screen floods with the shrine's
-# light and you are elsewhere. Unpauses first so the tween can run.
+# light and you are elsewhere. The tree STAYS paused through the flash (this
+# layer is PROCESS_MODE_ALWAYS and the tween is told to tick through the pause),
+# so the 0.3s window is not live gameplay the player can't answer -- a Waystone
+# leap started during a siege used to eat 300ms of unanswerable damage here.
 func _warp_to(scene_path: String) -> void:
-	get_tree().paused = false
 	for c in get_children():
 		if c is Control:
 			c.mouse_filter = Control.MOUSE_FILTER_IGNORE      # no stray clicks mid-warp
@@ -121,7 +137,14 @@ func _warp_to(scene_path: String) -> void:
 	flash.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(flash)
 	var tw := create_tween()
+	tw.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 	tw.tween_property(flash, "color:a", 1.0, 0.30).set_trans(Tween.TRANS_SINE)
-	await tw.finished
-	if get_tree() != null:
-		get_tree().change_scene_to_file(scene_path)
+	# The cut rides a TREE-owned timer, not an await on this node: if something
+	# frees this layer mid-flash (a quit), an awaited coroutine would die and
+	# strand the tree paused forever. SceneTreeTimers tick through pause.
+	var tree := get_tree()
+	tree.create_timer(0.30).timeout.connect(func():
+		if not is_instance_valid(self):
+			return   # whatever freed us owns the pause/scene state now
+		tree.paused = false
+		tree.change_scene_to_file(scene_path))

@@ -35,7 +35,10 @@ func _physics_process(delta: float) -> void:
 		dir = dir.rotated(clampf(diff, -turn * delta, turn * delta)).normalized()
 		if global_position.distance_to(p.global_position) < hit_radius:
 			if p.has_method("take_damage"):
-				p.take_damage(int(round(damage * damage_multiplier)))
+				# sqrt discipline: every other boss hit scales by
+				# sqrt(damage_multiplier) (see boss.deal_player_damage) -- the
+				# raw multiplier made a floor-60 wisp land at 2.1x its band
+				p.take_damage(int(round(damage * sqrt(maxf(damage_multiplier, 0.0)))))
 			queue_free()
 			return
 	global_position += dir * speed * delta

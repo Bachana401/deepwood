@@ -103,6 +103,22 @@ const POPULATE_STAFF_FRACTION = 0.55
 # array of {x, y}. Respawned by main.gd on scene load; saved with the game.
 var placed_torches: Array = []
 
+# --- Harvest-node persistence (audit fix) ------------------------------------
+# Trees and ore seams used to be runtime-only: every rebuild of main.tscn (any
+# dungeon round trip) regrew the whole world to full, an unbounded materials
+# farm that sidestepped the 150s/420s regrow clocks. The village-area jitter is
+# now seeded per run so each node has a stable identity, and any TOUCHED node
+# records itself here (see harvest_node.gd): id -> {hits, reserve, depleted,
+# size_mult, regrow_at}. regrow_at is a game-hours deadline, so time away
+# counts toward the regrow. Untouched (full) nodes carry no entry.
+var harvest_seed := 0
+var harvest_states: Dictionary = {}
+
+func ensure_harvest_seed() -> int:
+	if harvest_seed == 0:
+		harvest_seed = randi() | 1   # never 0, so "unset" stays distinguishable
+	return harvest_seed
+
 const POPULATE_NAMES = ["Ash", "Bram", "Cora", "Dain", "Edda", "Finn", "Gwen",
 	"Hale", "Iris", "Jory", "Kira", "Lorn", "Mira", "Nash", "Orla", "Pike",
 	"Quinn", "Rook", "Sage", "Tess", "Ulf", "Vera", "Wren", "Yara", "Zed",
@@ -603,7 +619,7 @@ func reset_skills() -> void:
 var in_dungeon = false
 
 func capture_player_state(player: Node) -> Dictionary:
-	return {
+	var st := {
 		"inventory": player.inventory.to_save_data(),
 		"active_weapon_id": player.active_weapon_id,
 		"has_dash": player.has_dash,
@@ -611,6 +627,19 @@ func capture_player_state(player: Node) -> Dictionary:
 		"health": player.health,
 		"mana": player.mana,
 	}
+	# TRANSIENTS THAT MUST SURVIVE THE SWAP (audit fix): a dungeon entry/exit
+	# re-instances the Player node, so every relic/skill cooldown re-armed
+	# (Phoenix Heart and the once-per-life Living Fortress became once-per-
+	# FLOOR exploits) and every food buff was silently destroyed with the
+	# potion already spent. The deadlines ride the process clock
+	# (ticks_msec), which keeps running across an in-session scene change.
+	for f in ["phoenix_ready_at", "aegis_ready_at", "gorgon_ready_at",
+			"monarch_long_dark_ready_at", "undying_used", "rampage_stacks"]:
+		if f in player:
+			st[f] = player.get(f)
+	if "active_buffs" in player:
+		st["active_buffs"] = player.active_buffs.duplicate(true)
+	return st
 
 # Set once on the New Game / difficulty-picker screen, saved with the game,
 # and never changed mid-playthrough. Controls death-penalty severity only
@@ -1166,17 +1195,27 @@ func can_place_building(tree: SceneTree, bwidth: float, x: float, exclude: Node 
 	for other in tree.get_nodes_in_group("building"):
 		if other == exclude or not ("width" in other):
 			continue
-		if absf(x - other.global_position.x) < my_half + float(other.width) / 2.0 + RELOCATE_CLEARANCE:
+		# clearance uses the EFFECTIVE width: footprints grow with upgrades (up
+		# to x1.4 at level 6) while `width` stays the base, so two green-lit
+		# placements could end up permanently drawn inside each other once
+		# levelled -- the exact overlap the auto-layout reserves x1.4 to prevent
+		var other_half: float = (other.eff_w() if other.has_method("eff_w") else float(other.width)) / 2.0
+		if absf(x - other.global_position.x) < my_half + other_half + RELOCATE_CLEARANCE:
 			return false
-	# ...and (for HALLS/COTTAGES, not walls) don't bury a cottage / watchtower / road
-	# marker either -- those are "village_structure", not "building", so the loop above
-	# missed them and a menu-placed cottage could be dropped straight on top of another
-	# (dev sweep 2026-07-25). Walls are EXEMPT: a rampart defines the edge and stands
-	# among the road markers at the gate. Only SAME-SURFACE structures count -- the
-	# Underdark's chests are village_structures a kilometre down and mustn't reserve
-	# the ground above them.
+	# ...and (for HALLS/COTTAGES, not walls) don't bury a cottage / watchtower /
+	# road marker either -- those are "village_structure", not "building", so
+	# the loop above missed them and a menu-placed cottage could be dropped
+	# straight on top of another (dev sweep 2025-07-25). Walls stay EXEMPT by
+	# design ("a rampart defines the edge and stands among the road markers at
+	# the gate", and test_buildplace pins it); the E-press conflict a stacked
+	# wall used to cause is arbitrated in wall.gd instead. Only SAME-SURFACE
+	# structures count -- the Underdark's chests are village_structures a
+	# kilometre down and mustn't reserve the ground above them; with NO
+	# building standing the surface falls back to the village ground line
+	# instead of matching everything (an empty village once let deep caches
+	# paint the whole surface red).
 	if not is_wall:
-		var surface_y := INF
+		var surface_y := -39.0   # the village ground line (main.VILLAGE_Y)
 		for b in tree.get_nodes_in_group("building"):
 			if is_instance_valid(b):
 				surface_y = b.global_position.y
@@ -1184,7 +1223,7 @@ func can_place_building(tree: SceneTree, bwidth: float, x: float, exclude: Node 
 		for node in tree.get_nodes_in_group("village_structure"):
 			if node == exclude or not is_instance_valid(node):
 				continue
-			if surface_y != INF and absf(node.global_position.y - surface_y) > 300.0:
+			if absf(node.global_position.y - surface_y) > 300.0:
 				continue
 			var ohalf: float = (float(node.width) / 2.0) if ("width" in node) else 60.0
 			if absf(x - node.global_position.x) < my_half + ohalf + RELOCATE_CLEARANCE:
@@ -2292,23 +2331,33 @@ func personal_morale_target(v: Dictionary) -> float:
 			t -= 0.5 if is_building_operational("Tavern") else 1.5
 	else:
 		t += 2.2 if str(v.get("role_key", "")) != "" else 0.0    # purpose
-		# 5.8 housing: a cottage of your own 1.6; the Tavern's spare bed 0.8;
-		# the street costs you
-		if villager_home_id(vid) != "":
+		# THE TEN ARE ABOVE THE DOMESTIC LOOP (audit fix): they can never pair
+		# (find_available_parents skips unbreakable, by design) and never own a
+		# cottage, so the solitude penalty + street housing capped a legend's
+		# spirit at ~8.2 FOREVER -- and with all Ten freed (mandatory for the
+		# finale) village morale could never round back to 100: the celebration
+		# layer and the Chronicle's "peak" line were mathematically dead. A
+		# freed legend stands content: housed by their own legend, whole alone.
+		if v.get("unbreakable", false):
 			t += 1.6
-		elif is_building_operational("Tavern"):
-			t += 0.8
 		else:
-			t -= 1.0
-		# 5.8: loneliness is a STANDING penalty, not a missing bonus -- and a
-		# fresh widow carries the -3 on top, easing off across the mourning.
-		# MATING-DEPRESSION (7): the standing -2 DEEPENS toward MAX the longer
-		# they stay single (single_since_hours, stamped in tick). Pure read here:
-		# unstamped -> depth 0 -> the plain -2, so this is safe before any tick.
-		if not is_villager_paired(vid):
-			var single_since := float(v.get("single_since_hours", game_hours))
-			var depth := clampf((game_hours - single_since) / SINGLE_DEEPEN_HOURS, 0.0, 1.0)
-			t -= lerpf(SINGLE_MORALE_PENALTY, SINGLE_MORALE_PENALTY_MAX, depth)
+			# 5.8 housing: a cottage of your own 1.6; the Tavern's spare bed 0.8;
+			# the street costs you
+			if villager_home_id(vid) != "":
+				t += 1.6
+			elif is_building_operational("Tavern"):
+				t += 0.8
+			else:
+				t -= 1.0
+			# 5.8: loneliness is a STANDING penalty, not a missing bonus -- and a
+			# fresh widow carries the -3 on top, easing off across the mourning.
+			# MATING-DEPRESSION (7): the standing -2 DEEPENS toward MAX the longer
+			# they stay single (single_since_hours, stamped in tick). Pure read here:
+			# unstamped -> depth 0 -> the plain -2, so this is safe before any tick.
+			if not is_villager_paired(vid):
+				var single_since := float(v.get("single_since_hours", game_hours))
+				var depth := clampf((game_hours - single_since) / SINGLE_DEEPEN_HOURS, 0.0, 1.0)
+				t -= lerpf(SINGLE_MORALE_PENALTY, SINGLE_MORALE_PENALTY_MAX, depth)
 		if v.has("widowed_at_hours"):
 			var mourn_left: float = float(v["widowed_at_hours"]) + WIDOW_MOURN_HOURS - game_hours
 			if mourn_left > 0.0:
@@ -2681,7 +2730,15 @@ func tick_morale_effects(hours_passed: float) -> void:
 		if starving:
 			hp -= hours_passed * drain_rate * _despair_rate(id)
 			if hp <= 0.0:
-				if CORRUPTION_ENABLED:
+				# THE UNBREAKABLES CANNOT BE BROKEN: every other loss path
+				# (sieges, rot, infection, the Harvest, random deaths) exempts
+				# the Ten -- this drain was the one that didn't, so a freed
+				# legend could quietly starve out of the roster and leave the
+				# finale a legend short with no recovery. Hunger sickens them
+				# to the brink and no further.
+				if v.get("unbreakable", false):
+					villager_hp[id] = 1.0
+				elif CORRUPTION_ENABLED:
 					dead.append(id)
 				else:
 					# kill-switch: misery sickens but can't finish them
@@ -3910,6 +3967,17 @@ func raise_shadow_army() -> void:
 func settle_shadow_court() -> void:
 	if despair_dead and harvested_villagers.size() > 0:
 		raise_shadow_army()
+	# Catch-up for the other half of a victory interrupted mid-ENDING: the
+	# hourglass is granted before the dialogue now, but saves already written by
+	# the old order (won, quit during the six lines, no relic) would stay locked
+	# out of NG+ forever. Same guard as the grant itself, player-inventory
+	# permitting (this runs from main._ready, after the save is applied).
+	if despair_dead and not cycle_broken:
+		var tree := Engine.get_main_loop() as SceneTree
+		var p = tree.get_first_node_in_group("player") if tree else null
+		if p and "inventory" in p and p.inventory \
+				and p.inventory.get_count("relic_rewound_hour") == 0:
+			p.inventory.add_item("relic_rewound_hour", 1)
 
 # --- NG+ (GAME_BIBLE 11): THE REWOUND HOUR ---
 # Among the victory spoils is time-reversal loot: the world rewinds for a new
@@ -4350,6 +4418,12 @@ func reset_for_new_game() -> void:
 	cottage_id_seq = 0
 	placed_walls = []
 	tutorial_step = -1
+	# the opening's transient shield: left hot, entering the opening then Quit ->
+	# New Game permanently suppressed the whole arrival cutscene for that run
+	arrival_battle_active = false
+	_arrival_shield_until = 0.0
+	harvest_seed = 0        # re-rolled by the first village build of the new run
+	harvest_states = {}
 	_family_cycle_accum = 0.0
 	_doctor_decay_accum = 0.0    # was missing here -> a stale value carried into a New Game
 	village_log = []
@@ -4541,6 +4615,8 @@ func save_game(player: Node) -> void:
 		"wanderer_next_at_hours": wanderer_next_at_hours,
 		"wanderers_seen": wanderers_seen,
 		"watchtower_tier": watchtower_tier,
+		"harvest_seed": harvest_seed,
+		"harvest_states": harvest_states,
 		"blueprints": blueprints,
 		"building_positions": building_positions,
 		"pregnancies": pregnancies,
@@ -4627,6 +4703,15 @@ func load_game() -> Dictionary:
 		seen_arrival_battle = bool(parsed.get("seen_arrival_battle", true))   # old saves: don't replay
 		seen_arrival_talk = bool(parsed.get("seen_arrival_talk", seen_arrival_battle))   # old saves heard it with the battle
 		opening_done = bool(parsed.get("opening_done", true))   # old saves are long past the opening
+		# REPAIR a save written by the old mid-chain quit bug: the talk was banked at
+		# the START of the arrival chain, so quitting during it persisted
+		# seen_arrival_talk=true with opening_done=false -- and tick_sieges() gates on
+		# opening_done, silently disabling every siege for the rest of the run.
+		# tutorial_begin() sets opening_done the moment the chain completes, so this
+		# pair can only mean the chain never finished: un-bank the talk and let the
+		# wall approach replay it.
+		if seen_arrival_talk and not opening_done:
+			seen_arrival_talk = false
 		seen_empty_throne = bool(parsed.get("seen_empty_throne", false))
 		escape_attempts = int(parsed.get("escape_attempts", 0))
 		school_favoured_stat = str(parsed.get("school_favoured_stat", ""))
@@ -4674,6 +4759,8 @@ func load_game() -> Dictionary:
 		wage_accum_hours = float(parsed.get("wage_accum_hours", 0.0))
 		_family_cycle_accum = float(parsed.get("family_cycle_accum", 0.0))
 		_doctor_decay_accum = float(parsed.get("doctor_decay_accum", 0.0))
+		harvest_seed = int(parsed.get("harvest_seed", 0))   # 0 = old save: rolled fresh on build
+		harvest_states = parsed.get("harvest_states", {}) if parsed.get("harvest_states", {}) is Dictionary else {}
 		villager_rot = {}
 		if parsed.has("villager_rot") and parsed["villager_rot"] is Dictionary:
 			for k in parsed["villager_rot"].keys():
@@ -4733,6 +4820,9 @@ func load_game() -> Dictionary:
 		moving_building = ""   # a packed-for-relocation flag must not leak past Continue (else H hijacked)
 		harvest_at_home = false
 		feast_glow = false
+		# the admin god-form toggle is a live-session convenience, never saved --
+		# but it wasn't cleared here either, so it leaked across Quit -> Continue
+		monarch_true_form_forced = false
 		_warned_no_food = false
 		_warned_low_morale = false
 		# start the village-clock baseline at the loaded time so the first
@@ -4866,6 +4956,14 @@ func villager_quest_ready(v: Dictionary, player: Node) -> bool:
 		if player == null or not ("inventory" in player) or player.inventory == null:
 			return false
 		return player.inventory.get_count(str(def.get("key", ""))) >= count
+	if str(def.get("kind", "")) == "reunite":
+		# a reunion is a STATE, not an event: quest_event only fires at the
+		# instant the partner is rescued, so a giver freed AFTER their partner
+		# (free Bram on floor 8, then shatter Sena's road crystal) activated at
+		# progress 0 with no event left to ever fire -- "Sena's Sister" could
+		# never be claimed. Read the roster live instead.
+		return int(v.get("quest_progress", 0)) >= count \
+			or is_villager_rescued(str(def.get("key", "")))
 	return int(v.get("quest_progress", 0)) >= count
 
 # Claim a ready bond: consume gather items, reveal the hidden stat, pay the

@@ -136,6 +136,13 @@ func _ready() -> void:
 				life = n; break
 	check("VillageLife found", life != null)
 	if life != null:
+		# Drive the decor rebuild DIRECTLY before sampling: _update_decor polls on
+		# a ~1s cadence (perf fix), and this test only waits ~20 frames after
+		# finishing the buildings, so the lantern registration hadn't happened yet
+		# -- the same pause/timing reasoning as driving _update_lanterns below. In
+		# play the up-to-1s decor lag after a build completes is imperceptible.
+		life._decor_recheck_cd = 0.0
+		life._update_decor()
 		check("street lanterns registered", life._lanterns.size() > 0, "got %d" % life._lanterns.size())
 		if life._lanterns.size() > 0:
 			GameState.game_hours = _hours_until(2.0)

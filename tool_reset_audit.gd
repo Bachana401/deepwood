@@ -55,9 +55,13 @@ func _ready() -> void:
 		if ALLOWED.has(k):
 			continue
 		# an assignment anywhere in the reset body counts -- `x = []`,
-		# `x = {}`, `x = 0.0`, or a rebuild via `x = whatever()`
+		# `x = {}`, `x = 0.0`, or a rebuild via `x = whatever()`. A saved key may
+		# live in a PRIVATE var (`_family_cycle_accum` saved as
+		# "family_cycle_accum"), so tolerate one leading underscore -- without it
+		# this scan cried wolf on keys that were in fact reset, and a red that
+		# lies once stops being read at all.
 		var assign := RegEx.new()
-		assign.compile("(^|\\n)\\t+" + k + "\\s*=[^=]")
+		assign.compile("(^|\\n)\\t+_?" + k + "\\s*=[^=]")
 		if assign.search(reset_body) == null:
 			note("saved key '%s' is never re-initialized in reset_for_new_game() -- it will leak into every fresh run" % k)
 

@@ -48,13 +48,20 @@ func _ready() -> void:
 	# ground surface is at y=-39, so parking him at a bare boss's y=0 drops him
 	# under the map and he falls forever (which is what silently voided the
 	# grounded check below).
-	# player in FRONT (boss faces +x by default, player to its right = front)
+	# FACING IS EXPLICIT now (audit fix): the ward reads facing_direction (the
+	# real facing driver) instead of a flip_h flag nothing set, and _ready's
+	# first frame already turned the boss toward the player -- so "faces +x by
+	# default" stopped being true. Pin the facing AI-free and test the contract.
+	# player in FRONT (boss faces +x, player to its right = its face)
 	dw.global_position = p.global_position + Vector2(-60, 0)
+	dw.facing_direction = 1
 	var h0: int = dw.health
 	dw.take_damage(80)
 	check("dread_ward: hitting its FACE does nothing", dw.health == h0, "%d -> %d" % [h0, dw.health])
-	# player BEHIND it
+	# player BEHIND it (boss still faces +x, player now on its back side --
+	# the dash-through-mid-attack window, when facing is locked)
 	dw.global_position = p.global_position + Vector2(60, 0)
+	dw.facing_direction = 1
 	dw.take_damage(80)
 	check("dread_ward: flanking it WORKS", dw.health < h0, "%d -> %d" % [h0, dw.health])
 

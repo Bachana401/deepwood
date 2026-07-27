@@ -42,6 +42,7 @@ const ORE_DROP := ["iron_shard", "iron_shard", "ember_crystal", "ember_crystal",
 # ── content (streamed per chunk, like the terrain) ────────────────────────────
 const ENEMY_SCENE := preload("res://enemy.tscn")
 const TRAP_SCENE := preload("res://trap.tscn")
+const MATERIAL_PICKUP := preload("res://material_pickup.gd")
 # chest loot by biome depth -- all ids the harvest/gather system already drops
 const LOOT := [
 	["wood", "stone", "stone", "resin"],
@@ -381,7 +382,13 @@ func _find_floor_cell(c: Vector2i, rng: RandomNumberGenerator):
 	return null
 
 func _spawn_chest(cell: Vector2i, biome: int, rng: RandomNumberGenerator) -> Node:
-	var id := "ug_c_%d_%d" % [cell.x, cell.y]
+	# The id is keyed to the CHUNK, not the landing cell: _find_floor_cell is
+	# terrain-dependent, so digging near a chest used to move it to a new cell
+	# on the next chunk build -- minting a NEW id, respawning an emptied chest
+	# with fresh loot (dupe), and orphaning the old entry. One chest rolls per
+	# chunk, so the chunk coordinate is a unique, dig-proof identity.
+	var ch := Vector2i(floori(float(cell.x) / CHUNK), floori(float(cell.y) / CHUNK))
+	var id := "ug_c_%d_%d" % [ch.x, ch.y]
 	var opened: bool = GameState.chest_contents.has(id)
 	var chest := Node2D.new()
 	chest.global_position = _map.to_global(_map.map_to_local(cell)) + Vector2(0, 2)
@@ -937,14 +944,21 @@ func _break(cell: Vector2i, pick_tier: int, player: Node) -> bool:
 		_edits[cell] = AIR
 		_map.erase_cell(cell)
 		if player != null and "inventory" in player and player.inventory != null:
-			if is_ore:
+			var drop_id: String = ORE_DROP[bi] if is_ore else "stone"
+			var leftover: int = player.inventory.add_item(drop_id, 1)
+			if is_ore and leftover <= 0:
 				# only celebrate the vein if the drop actually landed -- a full bag or a
 				# max_stack-1 drop already held (Blightcore ore = relic_mountain, now
 				# reachable via the tier-3 pickaxe) must not claim a haul it didn't give.
-				if player.inventory.add_item(ORE_DROP[bi], 1) <= 0:
-					_notify("⛏ Struck a vein — " + Inventory.get_display_name(ORE_DROP[bi]) + "!")
-			else:
-				player.inventory.add_item("stone", 1)
+				_notify("⛏ Struck a vein — " + Inventory.get_display_name(drop_id) + "!")
+			if leftover > 0:
+				# the tile is already AIR by this line -- a full bag used to simply
+				# DESTROY the ore/stone with it (the chest path keeps unfit loot;
+				# mining didn't). Pop it out as a world pickup instead, exactly
+				# like every surface harvest node.
+				var d = MATERIAL_PICKUP.new()
+				add_child(d)
+				d.setup(drop_id, leftover, center + Vector2(0, -8.0))
 	else:
 		_hp[cell] = left
 	return true

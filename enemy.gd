@@ -156,6 +156,7 @@ var status_poison_dps := 0.0
 var status_freeze_until := 0.0
 var status_slow_until := 0.0
 var status_slow_factor := 1.0
+var status_slow_deep_until := 0.0   # when the CURRENT factor's own duration ends
 # PETRIFY (Gorgon's Gaze relic, WEAPONS.md §6): turned to stone -- can't act like
 # a freeze, but ALSO takes bonus damage while stoned. Its own timer + grey overlay.
 var status_petrify_until := 0.0
@@ -201,10 +202,18 @@ func apply_status(kind: String, duration: float, magnitude: float = 0.0) -> void
 		"freeze":
 			status_freeze_until = max(status_freeze_until, until)
 		"slow":
-			if _now_s() >= status_slow_until:      # reset a lapsed slow first, else a strong
-				status_slow_factor = 1.0           # expired factor sticks to a later weak slow
+			# the deepest slow carries ITS OWN expiry (audit fix): resetting the
+			# factor only when the whole timer lapsed meant any repeating aura
+			# (Dread Sovereign, every 0.5s) kept a one-off Frostbite's 0.5
+			# factor pinned forever -- a stated 3s hard-slow became permanent
+			# for as long as the player stood near.
+			var mag_in: float = magnitude if magnitude > 0.0 else 0.5
+			if _now_s() >= status_slow_until or _now_s() >= status_slow_deep_until:
+				status_slow_factor = 1.0           # the strong slow's own time is up
 			status_slow_until = max(status_slow_until, until)
-			status_slow_factor = min(status_slow_factor, magnitude if magnitude > 0.0 else 0.5)
+			if mag_in <= status_slow_factor:
+				status_slow_factor = mag_in
+				status_slow_deep_until = until
 		"petrify":
 			status_petrify_until = max(status_petrify_until, until)
 	_refresh_status_overlay()
@@ -556,8 +565,12 @@ func _physics_process(delta: float) -> void:
 	if not is_on_floor():
 		velocity.y += GRAVITY * delta
 
-	# frozen OR petrified: rooted, can't act (still falls with gravity)
-	if is_frozen() or is_petrified():
+	# frozen OR petrified: rooted, can't act (still falls with gravity).
+	# SPLIT is in this gate too (audit fix): the wand's promise is "completely
+	# harmless", but only take_damage read _split_until -- a split mob kept
+	# chasing and hitting at full damage while untouchable for 4s, making the
+	# finale's own reward weapon strictly worse than not firing it.
+	if is_frozen() or is_petrified() or is_split():
 		velocity.x = 0
 		move_and_slide()
 		return
@@ -750,6 +763,14 @@ func finish_attack() -> void:
 	update_weapon_icon_position()
 
 func try_deal_melee_damage(stats: Dictionary) -> void:
+	# a KILLED enemy's swing must die with it (audit fix): this is a tween
+	# callback scheduled ~0.25s into the wind-up, and die() never kills that
+	# tween -- so a corpse, already fading with its hitbox off and its death
+	# counted, still landed a full-damage blow "out of nothing". The arrow and
+	# elite-slam paths in this file were both guarded; the melee one wasn't.
+	# (is_split: the wand's harmless promise covers a swing already in flight.)
+	if is_dead or is_split():
+		return
 	if player != null and _melee_connects(stats.range) and player.has_method("take_damage"):
 		player.take_damage(int(stats.damage * damage_multiplier))
 		if player.has_method("apply_knockback"):
@@ -1124,6 +1145,9 @@ func spawn_status_spark(col: Color) -> void:
 # copies for 4 seconds, completely invulnerable, completely harmless -- pure
 # disco. On every creature in the game but one, this is ALL it does.
 var _split_until := 0.0
+
+func is_split() -> bool:
+	return Time.get_ticks_msec() / 1000.0 < _split_until
 
 func on_soul_split_wand() -> void:
 	if is_dead:

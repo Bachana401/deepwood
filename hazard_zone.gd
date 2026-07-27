@@ -49,7 +49,10 @@ func _physics_process(delta: float) -> void:
 	if p.global_position.distance_to(global_position) > radius:
 		return
 	if p.has_method("take_damage"):
-		p.take_damage(int(round(damage * damage_multiplier)))
+		# sqrt discipline: every other boss hit scales by sqrt(damage_multiplier)
+		# (see boss.deal_player_damage) -- the raw multiplier made a floor-100
+		# void tear tick 74 instead of 32 against a 160-HP player
+		p.take_damage(int(round(damage * sqrt(maxf(damage_multiplier, 0.0)))))
 	match on_kind:
 		"poison":
 			if p.has_method("apply_poison"): p.apply_poison(on_dur, on_mag)

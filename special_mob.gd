@@ -195,7 +195,16 @@ var status_poison_until := 0.0
 var status_poison_dps := 0.0
 var status_slow_until := 0.0
 var status_slow_factor := 1.0
+var status_slow_deep_until := 0.0   # when the CURRENT factor's own duration ends
 var _dot_accum := 0.0
+
+# PETRIFY (Gorgon's Gaze): turned to stone -- rooted, and brittle (+50% damage
+# taken) while it holds. Same contract as enemy.gd's implementation.
+var status_petrify_until := 0.0
+const PETRIFY_DAMAGE_MULT := 1.5
+
+func is_petrified() -> bool:
+	return Time.get_ticks_msec() / 1000.0 < status_petrify_until
 
 func apply_status(status_kind: String, dur: float, mag: float) -> void:
 	if is_dead:
@@ -211,15 +220,34 @@ func apply_status(status_kind: String, dur: float, mag: float) -> void:
 			status_poison_until = now + dur
 			status_poison_dps = maxf(status_poison_dps if poison_live else 0.0, mag)
 		"slow":
-			# keep the STRONGER (lower factor) and LONGER of any overlapping slow --
-			# a weak slow must not un-freeze a frozen mob or cut its timer short
-			var live := now < status_slow_until
-			status_slow_factor = minf(status_slow_factor if live else 1.0, clampf(1.0 - mag, 0.2, 1.0))
+			# CONVENTION: mag IS the resulting speed factor (<1), exactly as
+			# enemy.gd reads it and as every caller passes it (ten_ally kits,
+			# on_hit_slow, the Dread aura). This file used to read it INVERTED
+			# (fraction removed), so a 0.35-factor hammer slow arrived as a
+			# gentle 0.65 here and vice versa.
+			# The deepest slow carries ITS OWN expiry (audit fix): a repeating
+			# weak aura used to keep a one-off hard slow's factor pinned forever.
+			var mag_in := clampf(mag, 0.2, 1.0)
+			if now >= status_slow_until or now >= status_slow_deep_until:
+				status_slow_factor = 1.0
 			status_slow_until = maxf(status_slow_until, now + dur)
+			if mag_in <= status_slow_factor:
+				status_slow_factor = mag_in
+				status_slow_deep_until = now + dur
 		"freeze":
+			# a weak slow must not un-freeze a frozen mob or cut its timer short:
+			# the freeze holds the deep slot for its whole duration
 			var live_f := now < status_slow_until
 			status_slow_factor = minf(status_slow_factor if live_f else 1.0, 0.25)
 			status_slow_until = maxf(status_slow_until, now + dur)
+			status_slow_deep_until = maxf(status_slow_deep_until, now + dur)
+		"petrify":
+			# Gorgon's Gaze reaches special mobs too (audit fix): the relic's
+			# caller sets its 13s cooldown the moment apply_status exists, but
+			# this match had no branch -- the proc silently did NOTHING against
+			# all 27 kinds while still burning the cooldown. Mirrors enemy.gd:
+			# rooted + brittle for the duration.
+			status_petrify_until = maxf(status_petrify_until, now + dur)
 
 func status_slow_mult() -> float:
 	return status_slow_factor if Time.get_ticks_msec() / 1000.0 < status_slow_until else 1.0
@@ -246,6 +274,9 @@ var attack_cooldown := 0.0
 # flyer
 var hover_offset := Vector2.ZERO
 var bob_time := 0.0
+var _swoop_timer := 0.0      # hover time until the next committed dive
+var _swoop_elapsed := 0.0
+var _swooping := false
 # bomber
 var is_priming := false
 # charger
@@ -453,6 +484,13 @@ func _physics_process(delta: float) -> void:
 	if is_knocked_back:
 		move_and_slide()
 		return
+	# petrified: stone can't act -- rooted for the duration (enemy.gd's gate)
+	if is_petrified():
+		velocity.x = 0.0
+		if kind == "flyer":
+			velocity = Vector2.ZERO   # a stoned flyer just hangs
+		move_and_slide()
+		return
 
 	if player != null and is_instance_valid(player):
 		match kind:
@@ -518,7 +556,33 @@ func _physics_process(delta: float) -> void:
 
 # --- per-kind behaviour ---
 
+const FLYER_SWOOP_EVERY := 3.2   # seconds of hover between committed dives
+const FLYER_SWOOP_MAX := 1.6     # a dive that can't connect is abandoned
+
 func act_flyer(delta: float) -> void:
+	# THE DIVE IS THE DEAL (audit fix): a flyer that only hovers 150-240px
+	# overhead is untouchable by the honest starting kit (sword reach ~68px,
+	# jump ~92px; bow and double jump are optional purchases) -- it held a
+	# floor's clear-counter hostage forever. So it must come to you: every few
+	# seconds it commits to a swoop through melee height, which is both its
+	# real bite and the player's window to cut it down.
+	var dist = global_position.distance_to(player.global_position)
+	if _swooping:
+		_swoop_elapsed += delta
+		var dive_to = (player.global_position + Vector2(0, -10.0)) - global_position
+		velocity = dive_to.normalized() * (move_speed * 2.6)
+		if dist < FLYER_CONTACT_RANGE and attack_cooldown <= 0.0:
+			deal_contact_damage()
+			attack_cooldown = 1.0
+		if dist < FLYER_CONTACT_RANGE or _swoop_elapsed >= FLYER_SWOOP_MAX:
+			_swooping = false
+			_swoop_timer = 0.0
+		return
+	_swoop_timer += delta
+	if _swoop_timer >= FLYER_SWOOP_EVERY:
+		_swooping = true
+		_swoop_elapsed = 0.0
+		return
 	var target = player.global_position + hover_offset
 	var to_target = target - global_position
 	if to_target.length() > 30.0:
@@ -526,7 +590,6 @@ func act_flyer(delta: float) -> void:
 	else:
 		velocity = Vector2.ZERO
 	velocity.y += sin(bob_time * 2.5) * 22.0
-	var dist = global_position.distance_to(player.global_position)
 	if dist < FLYER_CONTACT_RANGE and attack_cooldown <= 0.0:
 		deal_contact_damage()
 		attack_cooldown = 1.0
@@ -1465,6 +1528,9 @@ func fire_projectile(dir: Vector2, dmg: int) -> void:
 func take_damage(amount: int) -> void:
 	if is_dead:
 		return
+	# stone is brittle: bonus damage while petrified (mirrors enemy.gd)
+	if is_petrified():
+		amount = int(round(amount * PETRIFY_DAMAGE_MULT))
 	# Ironclad: nearly every blow rings off its raised guard -- only when it drops to slam
 	# (_jug_open) is it truly vulnerable. Never fully immune (min 1), so it can't stall.
 	if kind == "juggernaut" and not _jug_open:
@@ -1472,13 +1538,21 @@ func take_damage(amount: int) -> void:
 	# Bulwark: a fifth of every blow rings off its hide
 	if affix == "bulwark":
 		amount = maxi(1, int(round(amount * (1.0 - BULWARK_FRAC))))
+	var hp_before := health
 	health -= amount
 	update_health_bar()
-	# Thorned: striking it up close bites back
+	# Thorned: striking it up close bites back. The bite is bounded twice: it
+	# reflects only the damage the mob could actually ABSORB (never the overkill
+	# -- an execute keystone's literal 999999 used to reflect ~200k and delete
+	# the player from full HP through every cap), and it obeys the same
+	# never-one-shot line as the mob's own blows, at a passive-affix fraction.
 	if affix == "thorned" and is_instance_valid(player) and not ("is_dead" in player and player.is_dead) \
 			and global_position.distance_to(player.global_position) <= THORN_RANGE \
 			and player.has_method("take_damage"):
-		player.take_damage(maxi(1, int(round(amount * THORN_FRAC))))
+		var bite := int(round(float(mini(amount, maxi(hp_before, 1))) * THORN_FRAC))
+		if player.has_method("get_max_health"):
+			bite = mini(bite, int(round(player.get_max_health() * MAX_HIT_FRACTION * 0.5)))
+		player.take_damage(maxi(1, bite))
 	if health <= 0:
 		die()
 	else:

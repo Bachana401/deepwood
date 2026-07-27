@@ -222,6 +222,21 @@ const VILLAGE_FALLBACK_POS = Vector2(4900.0, -100.0)
 var music: AudioStreamWAV = preload("res://audio/ambient_music.wav")
 
 func _ready() -> void:
+	# LOAD FIRST, BUILD SECOND. On a fresh process launch, Continue swaps to this
+	# scene with pending_load hot and GameState still at its defaults -- every
+	# generator below (village, houses, torches, walls, the Underdark's chests
+	# and vaults) reads GameState, so applying the save AFTER them rebuilt the
+	# world from empty state: player-built halls vanished, razed ruins returned,
+	# emptied chests re-stocked. The save must be in memory before the first
+	# generator runs.
+	# ONE-SHOT: consume the flag immediately. It was only ever cleared on the New
+	# Game path, so on a Continue/NG+ it stayed hot and EVERY return from a dungeon
+	# (which reloads main.tscn) re-applied the STALE on-disk save over the live run
+	# -- wiping dungeon loot/gold/XP since the last autosave and rewinding the clock.
+	# Clearing it here loads the save exactly once; dungeon returns keep carry-over.
+	if GameState.pending_load:
+		GameState.pending_load = false
+		apply_save_data()
 	# the village diary rides along in every scene (5.9, press L)
 	add_child(preload("res://village_log_ui.gd").new())
 	# F8 field journal: bug notes with context attached (marathon playtest)
@@ -259,14 +274,13 @@ func _ready() -> void:
 	generate_harvestables()
 	spawn_placed_torches()
 	start_music()
-	if GameState.pending_load:
-		# ONE-SHOT: consume the flag immediately. It was only ever cleared on the New
-		# Game path, so on a Continue/NG+ it stayed hot and EVERY return from a dungeon
-		# (which reloads main.tscn) re-applied the STALE on-disk save over the live run
-		# -- wiping dungeon loot/gold/XP since the last autosave and rewinding the clock.
-		# Clearing it here loads the save exactly once; dungeon returns keep carry-over.
-		GameState.pending_load = false
-		apply_save_data()
+	# a coronation interrupted by a quit finishes here, at home -- and it must
+	# settle BEFORE the avatar pass below: settle_shadow_court() appends the
+	# whole harvested roster back into rescued_villagers, so running it after
+	# spawn_existing_villager_avatars left the raised Shadow Army bodiless (in
+	# the roster, wages and all, but not one of them walking the streets) until
+	# the next village reload.
+	GameState.settle_shadow_court()
 	spawn_existing_villager_avatars()
 	spawn_adventurers()
 	# THE ARRIVAL IS STAGED FROM THE FIRST FRAME (dev 2026-07-22): the trio and
@@ -294,8 +308,7 @@ func _ready() -> void:
 	add_child(preload("res://tutorial_overlay.gd").new())
 	warn_wounded_corps()
 	orin_midgame_taunt()
-	# a coronation interrupted by a quit finishes here, at home
-	GameState.settle_shadow_court()
+	# (settle_shadow_court moved up: it must run before the avatar spawn pass)
 	stamp_rewound_arrival()
 	# coming home is the other milestone worth banking (autosave); deferred
 	# so the arriving player's state is fully restored before it's written
@@ -320,9 +333,15 @@ func _maybe_begin_feast() -> void:
 		GameState.returning_from_dungeon = false
 		# only restore a real recorded spot -- the default (0,0) is below the
 		# ground line and would spawn the player embedded in the floor. If it was
-		# never set, keep the scene's own on-ground spawn instead.
+		# never set, keep the scene's own on-ground spawn instead. And NEVER a
+		# below-surface point (same net as apply_save_data): a floor entered via a
+		# tile-underground door records that door's deep coordinate, which in THIS
+		# scene is empty sky / dead Underdark strip -- an unrecoverable fall. The
+		# village surface never sits below y=-50.
 		if GameState.pre_dungeon_position != Vector2.ZERO:
 			$Player.global_position = GameState.pre_dungeon_position
+			if $Player.global_position.y > -50.0:
+				$Player.global_position = GameState.VILLAGE_SPAWN
 	show_away_report()
 
 # Summarises any sieges that resolved off-screen while the player was in a
@@ -415,18 +434,22 @@ func generate_village() -> void:
 		if GameState.building_positions.has(def.name):
 			building.position.x = float(GameState.building_positions[def.name])
 		$Village.add_child(building)
+		# ATTACHMENTS FOLLOW THE BUILDING, not the layout cursor (audit fix): a
+		# relocated Dock used to leave its ~1100px collision deck rebuilding on
+		# the empty default slot every load, and a moved Farm's pasture (with
+		# its animals) materialised hundreds of pixels from the farmhouse.
 		# walkable stairs->bridge->stairs crossing over the dock's water
 		if def.name == "Fishing Dock":
 			var bridge = DOCK_BRIDGE_SCRIPT.new()
 			bridge.span = reserve + 110.0   # stairs land on dry ground each side
-			bridge.position = Vector2(cursor + reserve / 2.0, VILLAGE_Y)
+			bridge.position = Vector2(building.position.x, VILLAGE_Y)
 			$Village.add_child(bridge)
 		cursor += reserve + VILLAGE_GAP
 		# the Farm gets a fenced pasture with animals right beside it
 		if def.name == "Farm":
 			var pen = FARM_PEN_SCRIPT.new()
 			pen.pen_width = FARM_PEN_WIDTH
-			pen.position = Vector2(cursor + FARM_PEN_WIDTH / 2.0, VILLAGE_Y)
+			pen.position = Vector2(building.position.x + reserve / 2.0 + VILLAGE_GAP + FARM_PEN_WIDTH / 2.0, VILLAGE_Y)
 			$Village.add_child(pen)
 			cursor += FARM_PEN_WIDTH + VILLAGE_GAP
 	village_right_edge = cursor
@@ -454,6 +477,22 @@ func create_building(bname: String, x: float) -> Node:
 	b.body_color = def.color
 	b.position = Vector2(x, VILLAGE_Y)
 	$Village.add_child(b)
+	# LIVE ATTACHMENTS on this path too (audit fix): only generate_village used
+	# to build them, so a Farm raised fresh from the B menu had NO pasture (and
+	# no animals) until the next scene load, and a fresh Dock had no bridge --
+	# a walkable deck the village literally routes over.
+	if b.building_name == "Fishing Dock":
+		var water_max = 1.0 + (BUILDING_SCRIPT.MAX_LEVEL - 1) * BUILDING_SCRIPT.DOCK_WATER_PER_LEVEL
+		var reserve = maxf(b.width * MAX_UPGRADE_FACTOR, b.width * 2.0 * BUILDING_SCRIPT.DOCK_WATER_HALF * water_max)
+		var bridge = DOCK_BRIDGE_SCRIPT.new()
+		bridge.span = reserve + 110.0
+		bridge.position = Vector2(x, VILLAGE_Y)
+		$Village.add_child(bridge)
+	elif b.building_name == "Farm":
+		var pen = FARM_PEN_SCRIPT.new()
+		pen.pen_width = FARM_PEN_WIDTH
+		pen.position = Vector2(x + b.width * MAX_UPGRADE_FACTOR / 2.0 + VILLAGE_GAP + FARM_PEN_WIDTH / 2.0, VILLAGE_Y)
+		$Village.add_child(pen)
 	return b
 
 # Re-plant every standing torch the player has placed (G key) -- they persist
@@ -545,6 +584,15 @@ func spawn_existing_villager_avatars() -> void:
 	# which calls this again with the flag now set). dev_mode skips the whole
 	# opening, so it peoples the village at once.
 	var hide_starters := not GameState.seen_arrival_battle and not GameState.dev_mode
+	# NO DOUBLES: this spawner runs more than once per scene life (arrival
+	# emerge, post-victory), and a crystal freed on the road already spawned its
+	# own body via villager.spawn_world_avatar -- without this check each such
+	# villager got a twin (two hover cards, two E-prompts, double defence hits),
+	# and the endgame pass duplicated all Ten.
+	var has_body := {}
+	for n in get_tree().get_nodes_in_group("npc"):
+		if is_instance_valid(n) and "villager_id" in n:
+			has_body[str(n.villager_id)] = true
 	for villager in GameState.rescued_villagers:
 		var villager_id = villager.get("id", "")
 		# THE THAW (4.2a): a crystal-freed hostage's stats stay wrapped until
@@ -562,6 +610,8 @@ func spawn_existing_villager_avatars() -> void:
 		# THE EMPTY RUINS: keep the starter avatars hidden until the first wave --
 		# suppress only the avatar spawn, never the thaw above.
 		if hide_starters:
+			continue
+		if has_body.has(str(villager_id)):
 			continue
 		if is_villager_busy_mating(villager_id):
 			continue
@@ -760,11 +810,17 @@ func _on_arrival_raider_died() -> void:
 # between the fight and the wall, the reload replays from seen_arrival_battle
 # and the talk is delivered by the fallback below.
 var _arrival_talk_pending := false
+# The chain is in flight right now (transient, never saved). This is the replay
+# guard while the boxes play -- seen_arrival_talk is only persisted once the LAST
+# box lands, so a quit mid-chain replays the whole talk on Continue instead of
+# stranding opening_done=false forever (which silently disabled every siege).
+var _arrival_talk_running := false
 const ARRIVAL_TALK_FALLBACK_X = 5400.0   # past the wall, however a save moved it
 
 func _check_arrival_talk() -> void:
 	# reload guard: a save made between the fight and the wall re-arms the walk
-	if not _arrival_talk_pending and GameState.seen_arrival_battle \
+	if not _arrival_talk_pending and not _arrival_talk_running \
+			and GameState.seen_arrival_battle \
 			and not GameState.seen_arrival_talk and not GameState.dev_mode:
 		_arrival_talk_pending = true
 	if not _arrival_talk_pending:
@@ -851,7 +907,7 @@ func play_arrival_talk(pl: Node) -> void:
 	# dialogue unpauses -- without this the whole trap/reveal/oath/tutorial chain
 	# (and _spawn_reveal_survivors + tutorial_begin) replayed a second time.
 	_arrival_talk_pending = false
-	GameState.seen_arrival_talk = true   # delivered exactly once, survives saves
+	_arrival_talk_running = true   # replay guard while the boxes play (transient)
 	# Compose the scene: defenders and survivors gathered around the player, each
 	# turned to face the exchange (the RELOAD path reaches here without _emerge
 	# having run, so the tableau is staged here too -- idempotent, safe to repeat).
@@ -867,6 +923,11 @@ func play_arrival_talk(pl: Node) -> void:
 				# beat 8: the oath sworn, the trio teach the player the ropes -- then
 				# the tutorial becomes a step-gated checklist (wall -> farm -> home)
 				DialogueBox.play(pl, Story.TUTORIAL_INTRO, func():
+					# only NOW is the talk banked: a quit anywhere above replays the
+					# chain on Continue rather than losing tutorial_begin (and with
+					# it opening_done -- i.e. the entire siege half of the game)
+					GameState.seen_arrival_talk = true
+					_arrival_talk_running = false
 					GameState.tutorial_begin()))))
 
 # (The BEAT-6 "reveal survivors" cutscene figures were REMOVED 2026-07-25 on dev's
@@ -1152,22 +1213,33 @@ func apply_save_data() -> void:
 	player.update_currency_display()
 	player.update_health_display()
 
+# running id for harvest nodes: incremented on every spawn CALL (even skipped
+# ones), so a node's id depends only on its position in the fixed spawn order
+var _harvest_id_seq := 0
+
 func generate_harvestables() -> void:
+	_harvest_id_seq = 0
+	# PER-RUN seeded jitter (audit fix): these offsets were unseeded, so every
+	# scene rebuild grew a different forest and no per-node depletion state
+	# could ever persist -- one dungeon round trip regrew the whole world to
+	# full. One roll per run (saved), and the grove holds still.
+	var jrng := RandomNumberGenerator.new()
+	jrng.seed = GameState.ensure_harvest_seed()
 	# trees spread along the whole combat course...
 	var spacing = (HARVEST_SPAN_END - HARVEST_SPAN_START) / float(TREE_COUNT)
 	for i in range(TREE_COUNT):
-		var x = HARVEST_SPAN_START + (i + 0.5) * spacing + randf_range(-spacing * 0.3, spacing * 0.3)
+		var x = HARVEST_SPAN_START + (i + 0.5) * spacing + jrng.randf_range(-spacing * 0.3, spacing * 0.3)
 		spawn_harvest_node("tree", x)
 	# ...with rocks interleaved between them on their own rhythm
 	var rock_spacing = (HARVEST_SPAN_END - HARVEST_SPAN_START) / float(ROCK_COUNT)
 	for i in range(ROCK_COUNT):
-		var x = HARVEST_SPAN_START + (i + 0.15) * rock_spacing + randf_range(-rock_spacing * 0.25, rock_spacing * 0.25)
+		var x = HARVEST_SPAN_START + (i + 0.15) * rock_spacing + jrng.randf_range(-rock_spacing * 0.25, rock_spacing * 0.25)
 		spawn_harvest_node("rock", x)
 	# a small grove and outcrop just before the village gate
 	for i in range(3):
-		spawn_harvest_node("tree", GROVE_START_X + i * 120.0 + randf_range(-25.0, 25.0))
+		spawn_harvest_node("tree", GROVE_START_X + i * 120.0 + jrng.randf_range(-25.0, 25.0))
 	for i in range(2):
-		spawn_harvest_node("rock", GROVE_START_X + 60.0 + i * 200.0 + randf_range(-25.0, 25.0))
+		spawn_harvest_node("rock", GROVE_START_X + 60.0 + i * 200.0 + jrng.randf_range(-25.0, 25.0))
 	# THE WILDS WERE BARREN (dev report 2026-07-21: "I don't see random trees
 	# or stone mining places"). Harvestables stopped at x=4300 -- the east's
 	# 33,000px had not one tree or seam. Now the whole world is forageable:
@@ -1195,6 +1267,9 @@ func generate_harvestables() -> void:
 		x += rng.randf_range(320.0, 620.0)
 
 func spawn_harvest_node(kind: String, x: float) -> void:
+	# the id ticks on every CALL (skipped spawns included), so it depends only
+	# on the fixed spawn order -- stable across builds, per-node state hangs off it
+	_harvest_id_seq += 1
 	# nothing roots over the cave: the rock mound is scenery the tree would
 	# clip through, and the arch is the way in. Skip the whole mound footprint,
 	# not just the mouth -- the original grove/rock span (-350..4300) overlaps
@@ -1203,6 +1278,7 @@ func spawn_harvest_node(kind: String, x: float) -> void:
 		return
 	var node = HARVEST_NODE_SCRIPT.new()
 	node.node_type = kind
+	node.state_id = "hv_%s_%d" % [kind, _harvest_id_seq]
 	node.position = Vector2(x, GROUND_Y)
 	node.z_index = -4   # behind the player and combat, in front of the mountains
 	$Decorations.add_child(node)

@@ -106,6 +106,37 @@ func _ready() -> void:
 	check("most floors give a real vertical climb, not just low stones",
 		high_ledge_floors >= 40, "%d floors with a high ledge" % high_ledge_floors)
 
+	# ---- 3. THE 92-PIXEL RULE ON SOLIDS -- every floor, BOSS ARENAS INCLUDED ----
+	# A side-scroller has no way AROUND a pillar: any SOLID obstacle taller than
+	# one jump seals the corridor for good (an uncompletable floor). Regular
+	# floors route cover through pillar() (clamped to 88), but that convention
+	# had no net under it -- and the flood-fill above skips boss arenas AND
+	# every solid, which is exactly where the VAULT_HEIGHT comment says this
+	# failure already shipped once. This is that net (audit fix).
+	var solid_bad := 0
+	var solid_seen := 0
+	for level in range(1, 101):
+		var layout: Array
+		if dgn.is_boss_level(level):
+			var bid: String = dgn.get_boss_id(level)
+			var adef: Dictionary = dgn.BOSS_ARENAS.get(bid, {})
+			layout = dgn.generate_boss_platforms(bid,
+				float(adef.get("width", WIDTH)), float(adef.get("height", CEIL)))
+		else:
+			layout = dgn.generate_regular_layout(level)
+		for plat in layout:
+			if not plat.get("solid", false):
+				continue
+			solid_seen += 1
+			var sh: float = plat.get("h", PH)
+			var stop: float = float(plat.y) - sh * 0.5
+			if GROUND - stop > JUMP:
+				solid_bad += 1
+				check("floor %d: solid obstacle too tall to vault" % level, false,
+					"top %.0fpx above the floor (max %.0f)" % [GROUND - stop, JUMP])
+	check("every solid obstacle on all 100 floors is vaultable (the 92px rule)",
+		solid_bad == 0, "%d of %d solids too tall" % [solid_bad, solid_seen])
+
 	dgn.free()
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

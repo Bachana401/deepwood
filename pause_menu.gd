@@ -2,6 +2,9 @@ extends CanvasLayer
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	# discoverable by DialogueBox.finish(): a beat that ends under an open pause
+	# menu must leave the tree paused (the menu owns it), not blind-unpause
+	add_to_group("pause_menu")
 	visible = false
 	$Panel/VBox/ResumeButton.pressed.connect(_on_resume)
 	$Panel/VBox/ExitDungeonButton.pressed.connect(_on_exit_dungeon)

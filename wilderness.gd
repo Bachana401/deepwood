@@ -75,13 +75,23 @@ func _ready() -> void:
 	var main := get_parent()
 	if main != null and "WORLD_RIGHT" in main:
 		world_right = float(main.WORLD_RIGHT)
-	_resolve_wild_start()
+	# DEFERRED on purpose (audit fix): this node is added BEFORE main._ready
+	# runs generate_village(), so walls and buildings weren't in their groups
+	# yet -- the whole derivation always came up empty and silently fell back
+	# to the hardcoded 23200 (mobs spawned on top of a far-east village; a
+	# compact one got ~700px of dead road). Deferred calls flush after the
+	# scene's _ready pass, when the village actually stands.
+	call_deferred("_resolve_wild_start")
 
 func _process(delta: float) -> void:
 	_scan_timer -= delta
 	if _scan_timer > 0.0:
 		return
 	_scan_timer = 0.5          # streaming is cheap, but it doesn't need 60Hz
+	# keep the boundary LIVE: buildings are player-placed and movable and the
+	# east rampart can rise mid-session -- two tiny group scans per half-second
+	# keep the wilds starting where the village actually ends
+	_resolve_wild_start()
 	if _player == null or not is_instance_valid(_player):
 		_player = get_tree().get_first_node_in_group("player")
 		if _player == null:

@@ -100,6 +100,17 @@ func _tick_interact() -> void:
 	if not _is_nearest_wall(p):
 		_prompt.visible = false
 		return
+	# ONE PRESS, ONE ANSWER (audit fix): a rampart may legally stand right among
+	# the gate's road markers and the Watchtower plot (placement allows it by
+	# design), so their small E-zones can sit inside the wall's big 130px one.
+	# When a POINT structure has the player standing in its own zone, the wall
+	# yields -- otherwise a single keypress charged a wall tier AND a tower
+	# tier, or upgraded the rampart mid-teleport.
+	for s in get_tree().get_nodes_in_group("village_structure"):
+		if is_instance_valid(s) and s != self and "player_inside" in s and s.player_inside \
+				and s.global_position.distance_to(global_position) < 400.0:
+			_prompt.visible = false
+			return
 	_prompt.visible = true
 	_prompt.text = _prompt_text()
 	_prompt.size = Vector2.ZERO   # let it shrink-wrap

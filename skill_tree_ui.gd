@@ -59,12 +59,18 @@ func esc_is_open() -> bool:
 
 func esc_close() -> void:
 	panel.visible = false
+	_fork_armed = ""   # closing the tree disarms any pending keystone confirm
 
 func _process(_delta: float) -> void:
 	if Input.is_action_just_pressed("toggle_skill_tree"):
 		panel.visible = not panel.visible
 		if panel.visible:
 			refresh()
+		else:
+			# the "click again to commit" arm must NOT survive a close: reopen
+			# the tree ten minutes later and a single misclick on the same node
+			# used to commit an irreversible exclusive fork with no warning
+			_fork_armed = ""
 	update_xp_bar()
 
 func build_xp_bar() -> void:
@@ -148,7 +154,7 @@ func build_panel() -> void:
 	close.text = "Close (K)"
 	close.position = Vector2(16, 550)
 	close.size = Vector2(110, 32)
-	close.pressed.connect(func(): panel.visible = false)
+	close.pressed.connect(esc_close)   # also disarms a pending keystone confirm
 	panel.add_child(close)
 
 	var reset = Button.new()
@@ -189,6 +195,14 @@ func _on_reset_potion() -> void:
 	player.currency -= RESET_POTION_COST
 	player.update_currency_display()
 	GameState.reset_skills()
+	# same aftercare as the potion ITEM (player.gd's use path): the wipe can
+	# drop max HP/mana by hundreds, so current values must re-clamp and the HUD
+	# must re-read -- without this a respecced Guardian kept 245 phantom
+	# hitpoints and a stale x/max readout until something else refreshed it
+	if player.has_method("on_equipment_changed"):
+		player.on_equipment_changed()
+	if player.has_method("update_health_display"):
+		player.update_health_display()
 	notify("All skill points refunded. Choose your class anew.")
 	refresh()
 

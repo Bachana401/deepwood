@@ -863,8 +863,13 @@ func apply_fear_aura(magnitude: float) -> void:
 				continue
 			if global_position.distance_to(e.global_position) > FEAR_AURA_RADIUS:
 				continue
-			if e.has_method("apply_slow"):
-				e.apply_slow(FEAR_AURA_PERIOD + 0.4, clampf(magnitude, 0.1, 0.85))
+			# apply_status is the CC interface every enemy family actually has --
+			# the old apply_slow call matched a method NO enemy implements, so the
+			# whole Dominion fear line (keystone, fork and the 6-point ultimate)
+			# silently did nothing. Magnitude here is slow STRENGTH (more fear =
+			# slower); apply_status("slow") wants the resulting speed FACTOR.
+			if e.has_method("apply_status"):
+				e.apply_status("slow", FEAR_AURA_PERIOD + 0.4, clampf(1.0 - magnitude, 0.15, 0.9))
 				slowed = true
 	if slowed and randf() < 0.25:
 		spawn_shock_ring(global_position, FEAR_AURA_RADIUS, Color(0.35, 0.1, 0.6, 0.35))
@@ -1286,6 +1291,14 @@ func apply_pending_player_state() -> void:
 	var eq = str(data.get("active_weapon_id", "wpn_sword"))
 	if not wield_weapon(eq):
 		wield_weapon("wpn_sword")
+	# restore the swap-surviving transients (see GameState.capture_player_state):
+	# relic/skill cooldowns, the once-per-life save, and live food buffs
+	for f in ["phoenix_ready_at", "aegis_ready_at", "gorgon_ready_at",
+			"monarch_long_dark_ready_at", "undying_used", "rampage_stacks"]:
+		if data.has(f):
+			set(f, data[f])
+	if data.has("active_buffs") and data["active_buffs"] is Dictionary:
+		active_buffs = data["active_buffs"]
 
 func play_sfx(stream: AudioStream) -> void:
 	$SFXPlayer.stream = stream
@@ -1544,12 +1557,16 @@ func try_plant_building() -> void:
 		if stack:
 			stack.show_notification("The %s must stand INSIDE the ramparts." % name)
 		return
-	# clear of every other structure: buildings, cottages, the tower
-	var my_half: float = float(mover.width) / 2.0
+	# clear of every other structure: buildings, cottages, the tower.
+	# EFFECTIVE widths on both sides (audit fix): footprints grow up to x1.4
+	# with upgrades while `width` stays the base, so base-width tests let two
+	# upgraded halls end up permanently drawn inside each other.
+	var my_half: float = (mover.eff_w() if mover.has_method("eff_w") else float(mover.width)) / 2.0
 	for other in get_tree().get_nodes_in_group("building"):
 		if other == mover:
 			continue
-		if absf(x - other.global_position.x) < my_half + float(other.width) / 2.0 + GameState.RELOCATE_CLEARANCE:
+		var other_half: float = (other.eff_w() if other.has_method("eff_w") else float(other.width)) / 2.0
+		if absf(x - other.global_position.x) < my_half + other_half + GameState.RELOCATE_CLEARANCE:
 			if stack:
 				stack.show_notification("Too close to the %s — find clearer ground." % other.building_name)
 			return
@@ -2138,11 +2155,30 @@ func get_aim_direction() -> Vector2:
 const DIG_INTERVAL := 0.14
 const DIG_REACH := 6.0 * 16.0
 var _dig_cd := 0.0
+
+# --- UI input guard (audit fix) ----------------------------------------------
+# World mouse actions are POLLED (Input.is_action_pressed), which ignores both
+# Control focus and set_input_as_handled -- so clicking a skill node also swung
+# the wielded weapon (a five-node shopping trip drained the mana pool), and
+# dragging bag items over an opaque panel fired spells / mined real tiles the
+# player couldn't see. Any open esc-window panel blocks attack/secondary/dig;
+# movement stays free on purpose (walking out of a zone is how its panel closes).
+func ui_blocks_world_input() -> bool:
+	var f := get_viewport().gui_get_focus_owner()
+	if f != null and (f is LineEdit or f is TextEdit):
+		return true
+	for w in get_tree().get_nodes_in_group("esc_window"):
+		if is_instance_valid(w) and w.has_method("esc_is_open") and w.esc_is_open():
+			return true
+	return false
+
 func _tick_dig(delta: float) -> void:
 	_dig_cd -= delta
 	if typeof(active_def) != TYPE_DICTIONARY or str(active_def.get("tool_type", "")) != "pickaxe":
 		return
 	if not Input.is_action_pressed("attack") or GameState.placing_building:
+		return
+	if ui_blocks_world_input():
 		return
 	if _dig_cd > 0.0:
 		return
@@ -2560,10 +2596,12 @@ func _physics_process(delta: float) -> void:
 	# hand flares each shot. (The dedicated attack body pose -- the future
 	# two-hands-up frame -- isn't wired yet; these frames are now the aim pose.)
 	# Root still lets you swing; only stun/freeze (cc_hard) locks attacks out.
-	if Input.is_action_pressed("attack") and not cc_hard and not GameState.placing_building:
+	if Input.is_action_pressed("attack") and not cc_hard and not GameState.placing_building \
+			and not ui_blocks_world_input():
 		# a channelling Sage pours a beam instead of firing bolts; everyone
 		# else falls through to the normal per-cooldown attack
-		# (a click that places/deletes a building must not ALSO swing a weapon)
+		# (a click that places/deletes a building must not ALSO swing a weapon,
+		# and a click on an OPEN PANEL must not reach the world at all)
 		if not channel_beam(delta):
 			perform_attack()
 	else:
@@ -2571,7 +2609,8 @@ func _physics_process(delta: float) -> void:
 	_tick_dig(delta)
 
 	# right-click = the admin Ruin Wand's no-aim percent burst (see below)
-	if Input.is_action_just_pressed("secondary_attack") and not cc_hard:
+	if Input.is_action_just_pressed("secondary_attack") and not cc_hard \
+			and not ui_blocks_world_input():
 		perform_secondary_attack()
 
 	move_and_slide()
@@ -2754,7 +2793,16 @@ func perform_attack() -> void:
 			return
 		attack_cooldown_remaining = stats.cooldown * skill_cooldown_mult(active_weapon_type)
 		if special.is_empty():
-			cast_wand()   # ADMIN screen-nuke (instakill everything)
+			# ONLY the two admin test wands may nuke. "No special authored" used
+			# to route here for ANY wand -- three ordinary loot wands shipped
+			# without one and one-clicked every enemy on screen to death for 4
+			# mana. An unrecognised special-less wand now fails safe: a plain
+			# force bolt from its own weapon_stats damage.
+			if active_weapon_id == "wpn_wand" or active_weapon_id == "wpn_admin_ruin":
+				cast_wand()   # ADMIN screen-nuke (instakill everything)
+			else:
+				cast_wand_projectile({"type": "frost_shard",
+					"damage": stats.damage, "speed": 560.0, "range": 460.0})
 		elif special_type == "nuke":
 			cast_wand_nuke(special)   # Runeweave Scepter -- big FINITE screen AoE
 		else:
@@ -3324,10 +3372,16 @@ func channel_beam(delta: float) -> bool:
 	while beam_tick_timer >= BEAM_TICK:
 		beam_tick_timer -= BEAM_TICK
 		# at ramp 1.0 the beam matches the wand's ordinary DPS; the ramp is the gain.
-		# Wand damage lives in the special/def dict (active_def.damage) -- reading
-		# weapon_stats.damage here was ALWAYS 0 for wands, so ramp/skills/power all
-		# multiplied 0 and the beam dealt a flat 1/tick. Match cast_wand_projectile.
-		var dps = float(active_def.get("damage", stats.damage)) / maxf(0.1, stats.cooldown)
+		# Wand damage lives in special.damage (weapon_stats.damage is 0 on every
+		# special wand) -- the previous "fix" read a top-level active_def.damage
+		# key that NO weapon def has, so the fallback was still weapon_stats' 0
+		# and the beam dealt a flat 1/tick at full mana cost, silently replacing
+		# the wand's real attack. Pull from the same place cast_wand_projectile
+		# does, with plain-stats wands (no special) falling back to stats.damage.
+		var wand_dmg := float(active_def.get("special", {}).get("damage", 0.0))
+		if wand_dmg <= 0.0:
+			wand_dmg = float(stats.damage)
+		var dps = wand_dmg / maxf(0.1, stats.cooldown)
 		var amount = maxi(1, int(round(dps * BEAM_TICK * beam_ramp_mult() * skill_damage_mult("wand"))))
 		var cr = roll_crit(amount)
 		if is_instance_valid(target) and target.has_method("take_damage"):
@@ -3993,6 +4047,13 @@ func spawn_arrow(stats: Dictionary, aim_dir: Vector2) -> void:
 	var pierce_count = int(GameState.get_bonus_total("arrow_pierce"))
 	var spreads_poison = GameState.get_bonus_total("poison_spread") > 0.0
 	var spread = deg_to_rad(float(special.get("spread_deg", 0.0)))
+	# skill-granted multishot on a PLAIN bow (no authored spread) used to spawn
+	# every arrow at the identical position/direction/speed -- permanent
+	# lockstep, one invisible fat arrow into one target. The whole Ranger spec
+	# silently degraded to a single-target multiplier. Default the fan so
+	# Twin Shot / Arrow Storm / Tempest visibly fan on any bow.
+	if count > 1 and spread <= 0.0:
+		spread = deg_to_rad(4.0 * float(count - 1))
 	for i in range(count):
 		var dir = aim_dir
 		if count > 1:

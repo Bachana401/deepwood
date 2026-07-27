@@ -56,7 +56,11 @@ func _process(_delta: float) -> void:
 		try_upgrade()
 
 func try_upgrade() -> void:
-	var notif = get_node_or_null("../CanvasLayer/NotificationStack")
+	# by GROUP, like every other village script: this node is parented under
+	# $Village, so the old relative path ("../CanvasLayer/...") resolved to a
+	# CanvasLayer that doesn't exist there -- every tower message (costs,
+	# refusals, what each tier actually bought) was silently swallowed
+	var notif = get_tree().get_first_node_in_group("notification_stack")
 	var tier: int = GameState.watchtower_tier
 	if tier >= 3:
 		if notif:

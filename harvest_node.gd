@@ -38,10 +38,12 @@ const ROCK_MIN_SCALE = 0.34        # how small a nearly-spent seam looks
 const ROCK_REGROW_SECONDS = 420.0  # a whole deposit takes far longer to return
 
 var node_type := "tree"   # "tree" | "rock"
+var state_id := ""        # stable id from main.spawn_harvest_node -- "" = untracked
 var hits_left := HITS_TO_HARVEST
 var reserve_left := ROCK_RESERVE
 var size_mult := 1.0      # trees vary a LITTLE: a bigger one is a couple more swings
 var depleted := false
+var _regrow_at := 0.0     # game-hours deadline while depleted (0 = not depleted)
 var visual_root: Node2D = null
 var shake_tween: Tween = null
 
@@ -65,6 +67,51 @@ func _ready() -> void:
 		hits_left = int(round(HITS_TO_HARVEST * size_mult))
 	else:
 		build_rock_visual()
+	_restore_state()
+
+# --- persistence (audit fix) -------------------------------------------------
+# Depletion used to be runtime-only: any rebuild of main.tscn (every dungeon
+# round trip) regrew the whole world to full -- an unbounded materials farm
+# that sidestepped the regrow clocks entirely. A TOUCHED node records itself in
+# GameState.harvest_states under its stable id; regrow deadlines live on the
+# GAME clock, so time away counts toward the regrow and a node whose hour has
+# passed comes back full on the next build.
+
+func _regrow_hours() -> float:
+	var secs: float = ROCK_REGROW_SECONDS if node_type == "rock" else REGROW_SECONDS
+	return secs * GameState.HOURS_PER_SECOND
+
+func _save_state() -> void:
+	if state_id == "":
+		return
+	GameState.harvest_states[state_id] = {
+		"hits": hits_left, "reserve": reserve_left, "depleted": depleted,
+		"size_mult": size_mult, "regrow_at": _regrow_at,
+	}
+
+func _restore_state() -> void:
+	if state_id == "" or not GameState.harvest_states.has(state_id):
+		return
+	var st: Dictionary = GameState.harvest_states[state_id]
+	size_mult = float(st.get("size_mult", size_mult))
+	hits_left = int(st.get("hits", hits_left))
+	reserve_left = int(st.get("reserve", reserve_left))
+	_regrow_at = float(st.get("regrow_at", 0.0))
+	if node_type == "tree":
+		visual_root.scale = Vector2(size_mult, size_mult)
+	if bool(st.get("depleted", false)):
+		if GameState.game_hours >= _regrow_at:
+			_regrow()   # its hour already passed while we were away
+		else:
+			depleted = true
+			visual_root.modulate.a = 0.12 if node_type == "tree" else 0.0
+			# resume the countdown for the REMAINDER, pause-respecting
+			var secs: float = (_regrow_at - GameState.game_hours) / GameState.HOURS_PER_SECOND
+			get_tree().create_timer(maxf(secs, 0.5), false).timeout.connect(_regrow)
+	elif node_type == "rock":
+		# a part-worked seam comes back part-shrunk, not full-size
+		var frac: float = clampf(float(reserve_left) / float(ROCK_RESERVE), 0.0, 1.0)
+		visual_root.scale = Vector2.ONE * lerpf(ROCK_MIN_SCALE, 1.0, frac)
 
 # --- visuals (origin sits on the ground line; everything drawn upward) ---
 
@@ -139,6 +186,8 @@ func take_tool_hit(tool_type: String, player: Node) -> void:
 	hits_left -= 1
 	if hits_left <= 0:
 		_harvest(player)
+	else:
+		_save_state()
 
 # One pickaxe swing into a seam: it pays immediately, shrinks a little, and
 # only vanishes once the whole reserve is worked out.
@@ -160,6 +209,8 @@ func _mine_swing(player: Node) -> void:
 	_apply_reserve_scale()
 	if reserve_left <= 0:
 		_exhaust_seam()
+	else:
+		_save_state()
 
 # The visible gauge: a full seam stands tall, a spent one is a stub.
 func _apply_reserve_scale() -> void:
@@ -170,10 +221,13 @@ func _apply_reserve_scale() -> void:
 
 func _exhaust_seam() -> void:
 	depleted = true
+	_regrow_at = GameState.game_hours + _regrow_hours()
+	_save_state()
 	_notify("The seam is worked out.")
 	var fade = create_tween()
 	fade.tween_property(visual_root, "modulate:a", 0.0, 0.5)
-	get_tree().create_timer(ROCK_REGROW_SECONDS).timeout.connect(_regrow)
+	# process_always=false: the regrow clock waits with the world when paused
+	get_tree().create_timer(ROCK_REGROW_SECONDS, false).timeout.connect(_regrow)
 
 func _shake() -> void:
 	if shake_tween:
@@ -236,17 +290,23 @@ func _harvest(player: Node) -> void:
 				_drop("relic_mountain", 1)   # bag full -- drop it rather than lose it
 			_notify("Deep in the stone... the Heart of the Mountain!")
 	_notify(("Chopped: " if node_type == "tree" else "Mined: ") + ", ".join(got))
-	# wither, wait, regrow in place
+	_regrow_at = GameState.game_hours + _regrow_hours()
+	_save_state()
+	# wither, wait, regrow in place (pause-respecting, like the seam clock)
 	var fade = create_tween()
 	fade.tween_property(visual_root, "modulate:a", 0.12, 0.4)
-	get_tree().create_timer(REGROW_SECONDS).timeout.connect(_regrow)
+	get_tree().create_timer(REGROW_SECONDS, false).timeout.connect(_regrow)
 
 func _regrow() -> void:
 	if not is_instance_valid(self):
 		return
 	depleted = false
+	_regrow_at = 0.0
 	hits_left = int(round(HITS_TO_HARVEST * size_mult))
 	reserve_left = ROCK_RESERVE
+	# a full node needs no record -- drop the entry rather than carry it forever
+	if state_id != "":
+		GameState.harvest_states.erase(state_id)
 	visual_root.scale = Vector2(size_mult, size_mult)   # back to its own size
 	var grow = create_tween()
 	grow.tween_property(visual_root, "modulate:a", 1.0, 0.6)

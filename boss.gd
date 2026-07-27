@@ -678,7 +678,10 @@ const BOSSES = {
 		"magic": Color(0.6, 0.6, 0.7),
 		"body": Vector2(80, 180), "hp": 1300, "speed": 145.0, "shape": "crown",
 		"abilities": ["charge", "teleport", "volley", "nova"],
-		"passives": ["rhythm_punish", "phase", "covenant"],
+		# riposte, not covenant: he has no second body to bind (no clone/summon),
+		# so covenant was a named-but-never-firing key -- and a counter-parry IS
+		# his identity (take_damage even carries his signature PARRIED stance).
+		"passives": ["rhythm_punish", "phase", "riposte"],
 	},
 	"seraph": {
 		"name": "Seraphiel, the Last Light",
@@ -687,6 +690,10 @@ const BOSSES = {
 		"body": Vector2(140, 220), "hp": 2400, "speed": 130.0, "shape": "angel",
 		"flying": true, "apex": true, "sprite": "seraph",
 		"abilities": ["dive", "volley", "rain", "nova"],
+		# BOSSES.md §3 finale spec (+dread_ward) -- the three finale bosses
+		# shipped with NO passives key at all, so floors 95/98/99 carried fewer
+		# reactive mechanics than floor 10.
+		"passives": ["dread_ward"],
 	},
 	# A LONG skeletal abyss-wyrm; its "meteors" are teal water-spouts and its
 	# vortex a drowning whirlpool -- water powers for a water beast.
@@ -697,6 +704,7 @@ const BOSSES = {
 		"body": Vector2(340, 120), "hp": 2800, "speed": 150.0, "shape": "serpent",
 		"flying": true, "apex": true,
 		"abilities": ["charge", "vortex", "meteors", "summon"],
+		"passives": ["skyfall", "tether"],   # BOSSES.md §3 finale spec
 	},
 	# The biggest creature in the game: a dead god crowned by a black sun.
 	"eclipse": {
@@ -707,6 +715,7 @@ const BOSSES = {
 		"body": Vector2(260, 340), "hp": 3300, "speed": 90.0, "shape": "titan",
 		"apex": true, "sprite": "eclipse",
 		"abilities": ["beam", "pillars", "meteors", "teleport", "summon"],
+		"passives": ["phase", "false_twin"],   # BOSSES.md §3 finale spec
 	},
 	# The level-100 finale: barely taller than the adventurer -- his power is
 	# his magic, not his bulk. Pitch-black robes wreathed in a crumbling red
@@ -720,7 +729,9 @@ const BOSSES = {
 		"magic": Color(1.0, 0.22, 0.12),
 		"body": Vector2(34, 52), "hp": 4000, "speed": 120.0, "shape": "wizard",
 		"flying": true, "apex": true, "sprite": "fallen_wizard",
-		"passives": ["crumbling_aura", "blink_on_hit", "soul_split"],
+		# +covenant/+riposte per BOSSES.md §3: covenant binds him to his mirror
+		# legion (do_clone pairs them), riposte punishes swings into his tells
+		"passives": ["crumbling_aura", "blink_on_hit", "soul_split", "covenant", "riposte"],
 		"abilities": ["curse", "beam", "meteors", "teleport", "volley", "doomring", "clone"],
 	},
 }
@@ -1008,7 +1019,12 @@ func _do_rhythm_counter() -> void:
 func _hit_from_behind() -> bool:
 	if player == null or not is_instance_valid(player):
 		return true          # nothing to flank: don't make it immortal
-	var facing: float = -1.0 if (boss_sprite != null and boss_sprite.flip_h) else 1.0
+	# facing_direction is what actually drives the boss's facing (rendered via
+	# rig.scale.x each frame). The old read of boss_sprite.flip_h keyed on a flag
+	# nothing sets for facing -- and both dread_ward bosses have no sprite at all,
+	# so "facing" was pinned +1 forever: the ward degraded to "damageable only
+	# from world-west", i.e. permanently invincible from the east.
+	var facing: float = -1.0 if facing_direction < 0 else 1.0
 	var to_player: float = signf(player.global_position.x - global_position.x)
 	return to_player != 0.0 and to_player != facing
 
@@ -1282,6 +1298,10 @@ func _spawn_soulbind_feed() -> void:
 	t.parallel().tween_property(glow, "modulate:a", 0.0, 0.3)
 	t.tween_callback(glow.queue_free)
 
+# what a mirrored shot may carry back, before the boss's own sqrt scaling --
+# in the band of the boss's other ranged hits (keening 11, arrows ~14)
+const MIRROR_RETURN_BASE := 16.0
+
 func _reflect(pr: Node2D) -> void:
 	# turn it around: flip whatever it uses to travel, and hand it to the player
 	if "velocity" in pr:
@@ -1291,6 +1311,15 @@ func _reflect(pr: Node2D) -> void:
 	if "dir" in pr:
 		pr.dir = -pr.dir
 	pr.rotation += PI
+	# THE ONE BOSS DAMAGE PATH THAT SKIPPED THE SQRT RULE: the returned shot
+	# carried the player's full geared roll (crit included), so a mirror boss's
+	# output scaled with the PLAYER'S gear instead of the floor curve -- a
+	# reflected crit at floor 85 landed in the same band as the player's whole
+	# HP pool. Clamp it into the boss's own ranged band.
+	if "damage" in pr:
+		pr.damage = mini(int(pr.damage), int(round(MIRROR_RETURN_BASE * sqrt(maxf(damage_multiplier, 0.0)))))
+	if "is_crit" in pr:
+		pr.is_crit = false
 	# it belongs to the boss now
 	for g in PLAYER_PROJECTILE_GROUPS:
 		if pr.is_in_group(g):
@@ -2433,8 +2462,36 @@ func drive_wizard(delta: float) -> void:
 			_drive_profile(global_position.distance_to(player.global_position), delta)
 		else:
 			velocity.x = 0
+		# ...and breathes the occasional SOLO beat: choose_attack (the only
+		# reader of `abilities`) is unreachable for a combo boss, so any move
+		# authored on the boss but absent from its combo chains never fired at
+		# all -- Seraphiel never dove once. Roughly one orphan beat every other
+		# recovery window, range- and cooldown-checked like any chosen attack.
+		if not is_busy and not is_dead and player != null and is_instance_valid(player) \
+				and randf() < delta * 0.5:
+			var orphans := _orphan_abilities()
+			if not orphans.is_empty():
+				var a: String = orphans[randi() % orphans.size()]
+				var meta = ABILITY_META.get(a, null)
+				var dist := global_position.distance_to(player.global_position)
+				if meta != null and dist >= meta["min"] and dist <= meta["max"] \
+						and ability_cd.get(a, 0.0) <= 0.0:
+					start_attack(a)
 		return
 	run_combo()
+
+# The abilities this boss owns that appear in none of its combo chains -- the
+# ones only choose_attack could ever fire, which a combo boss never reaches.
+func _orphan_abilities() -> Array:
+	var in_combos := {}
+	for chain in active_combos():
+		for s in chain:
+			in_combos[s] = true
+	var out := []
+	for a in abilities:
+		if not in_combos.has(a):
+			out.append(a)
+	return out
 
 # The movement personality. Sets velocity from the boss's `profile` so no two
 # bosses cross the floor the same way. (See the profile vocabulary up top.)
@@ -2533,6 +2590,17 @@ func run_combo() -> void:
 	var steps: Array = active_combos()[last_combo_index]
 	var gap = combo_step_gap()
 	for step in steps:
+		if is_dead or player == null or not is_instance_valid(player):
+			break
+		# a sword-counter stagger or a Gorgon petrify PAUSES the sentence: this
+		# coroutine is timer-driven, so without the wait the chain kept casting
+		# straight through its own stun -- the counter's whole reward on the 12
+		# deep bosses, and apply_petrify's stated contract ("locks their
+		# attacks"), silently did nothing mid-combo. Capped so nothing can hang.
+		var stun_guard := 0
+		while stun_timer > 0.0 and not is_dead and stun_guard < 600:
+			stun_guard += 1
+			await get_tree().physics_frame
 		if is_dead or player == null or not is_instance_valid(player):
 			break
 		await run_ability(step)
@@ -3104,6 +3172,13 @@ func do_clone() -> void:
 		get_parent().add_child(c)
 		clones.append(c)
 		minions.append(c)   # swept away when the real wizard dies
+		# COVENANT finally has a partner: "two bodies, one soul" binds the real
+		# boss to its newest echo (covenant_partner was never assigned by any
+		# gameplay code, so tick_covenant returned on its first line every frame
+		# and Twin Despair's whole identity mechanic never ran).
+		if has_covenant and (covenant_partner == null or not is_instance_valid(covenant_partner) or covenant_partner.is_dead):
+			covenant_partner = c
+			c.covenant_partner = self
 		spawn_shockwave(70.0, magic_color)
 	set_cd("clone")
 	is_busy = false
@@ -3803,6 +3878,17 @@ func check_bump() -> void:
 		player.apply_knockback(away, randf_range(30.0, 45.0))
 
 func flash_telegraph(color: Color) -> void:
+	# The tell IS the riposte window. has_riposte gates on `telegraphing`, which
+	# no gameplay code ever raised -- the counter was implemented, advertised on
+	# three bosses, and could never fire. Every ability wind-up calls this, so
+	# the flag lives exactly as long as the flash (freed-safe via instance id;
+	# set BEFORE the rig check so unskinned bosses keep the mechanic).
+	telegraphing = true
+	var iid := get_instance_id()
+	get_tree().create_timer(0.5).timeout.connect(func():
+		var s := instance_from_id(iid)
+		if s != null and is_instance_valid(s):
+			s.telegraphing = false)
 	if rig == null:
 		return
 	var tween = create_tween()
@@ -4026,9 +4112,20 @@ func die() -> void:
 		var hud = get_tree().get_first_node_in_group("boss_hud")
 		if hud:
 			hud.slain(get_display_name())
-	# clear any minions this boss summoned so they don't linger after the fight
+	# clear any minions this boss summoned so they don't linger after the fight.
+	# The sweep must be UNDODGEABLE: a boss-type minion (a Twin Despair clone)
+	# runs the full defensive gauntlet in take_damage -- phase and sidestep both
+	# shrugged the 999999 off, leaving a live, fully-armed hostile on a floor
+	# already marked cleared, invisible to the tally. Boss minions get their
+	# defenses stripped first; plain enemies never dodge, so 999999 stands.
 	for m in minions:
-		if is_instance_valid(m) and m.has_method("take_damage"):
+		if not is_instance_valid(m):
+			continue
+		if "has_phase" in m: m.has_phase = false
+		if "has_sidestep" in m: m.has_sidestep = false
+		if "phase_until" in m: m.phase_until = 0.0
+		if "parry_until" in m: m.parry_until = 0.0
+		if m.has_method("take_damage"):
 			m.take_damage(999999)
 	died.emit()
 	await play_death_animation()

@@ -457,10 +457,24 @@ func _plan_shafts(rng: RandomNumberGenerator) -> void:
 			if sx - 90.0 < maxf(top_seg.x0, bot_seg.x0) + 60.0 \
 					or sx + 90.0 > minf(top_seg.x1, bot_seg.x1) - 60.0:
 				continue
+			# NEVER through a rune vault (audit fix): a shaft whose bottom lands
+			# in a vault segment drops the player in BEHIND the bars, and one
+			# whose top holes the vault's floor gives the shaft ladder a way up
+			# into it -- both collapse the three-rune puzzle to zero runes.
+			# (Pits already skip the vault segment; shafts didn't.)
+			if _is_vault_segment(b, top_seg) or _is_vault_segment(b + 1, bot_seg):
+				continue
 			top_seg["floor_hole"] = Vector2(sx - 90.0, sx + 90.0)
 			bot_seg["ceil_hole"] = Vector2(sx - 90.0, sx + 90.0)
 			xs.append(sx)
 		_shafts[b] = xs
+
+# the vault lives in segs[size-2] of its band (see _build_rune_vaults)
+func _is_vault_segment(band: int, seg: Dictionary) -> bool:
+	if band < 0 or band >= BANDS:
+		return false
+	var segs: Array = _plan[band]
+	return segs.size() >= 8 and seg == segs[segs.size() - 2]
 
 func _build_shaft_ladders() -> void:
 	for b in _shafts.keys():
@@ -725,6 +739,8 @@ func _hold_the_dark_lit() -> void:
 	var c: Color = cm.color
 	modulate = Color(1.0 / maxf(c.r, 0.05), 1.0 / maxf(c.g, 0.05), 1.0 / maxf(c.b, 0.05), 1.0)
 
+var _doors_awake := true
+
 func _stream_tick(delta: float) -> void:
 	_scan_timer -= delta
 	if _scan_timer > 0.0:
@@ -734,6 +750,18 @@ func _stream_tick(delta: float) -> void:
 		_player = get_tree().get_first_node_in_group("player")
 		if _player == null:
 			return
+	# THE STRIP SLEEPS TOPSIDE (audit fix): this legacy deep still builds (its
+	# one-door-per-floor contract is load-bearing and tested) but the cave mouth
+	# routes to underground.tscn now, so its 100 door beacons were running
+	# _process every frame -- each allocating a Color and reading GameState --
+	# for a world nothing walks. Wake them only while someone is actually down
+	# here; this 0.5s cadence is the natural place to flip the switch.
+	var below: bool = _player.global_position.y > UD_TOP - 200.0
+	if below != _doors_awake:
+		_doors_awake = below
+		for d in get_tree().get_nodes_in_group("underdark_floor_door"):
+			if is_instance_valid(d):
+				d.set_process(below)
 	if GameState.in_dungeon or _player.global_position.y < UD_TOP - 120.0:
 		return
 	_stream(_player.global_position)
@@ -833,9 +861,19 @@ func _trap(pos: Vector2) -> void:
 # live in GameState.chest_contents under a position-stable id, so a chest you
 # emptied stays empty and one you left full is still full when you come back --
 # the same promise the cleared floors make.
-func _stock_chest(chest: Node, band: int, rng: RandomNumberGenerator) -> void:
+func _stock_chest(chest: Node, band: int, _layout_rng: RandomNumberGenerator) -> void:
 	if GameState.chest_contents.has(chest.chest_id):
 		return                      # already rolled in an earlier session
+	# Roll contents from a CHEST-LOCAL rng seeded by the chest's own id -- NEVER
+	# from the shared layout stream. Stocking used to consume a VARIABLE number of
+	# layout draws (zero for an already-rolled chest, 1+2N otherwise), so from the
+	# second session on every later position randf() landed at a shifted stream
+	# offset: chests slid to new x's, minted NEW ids, re-rolled fresh loot, and
+	# grew the persisted chest_contents on every village rebuild -- with no player
+	# action at all. With contents draws off the layout stream, placement is
+	# byte-identical every session and an id rolls exactly once, ever.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(str(chest.chest_id)) ^ UD_SEED
 	# A FOUND cache pays better than a floor one; a GUARDED cache better still --
 	# the reward scaling with the effort. Loft (climb) and stash (drop) are +1 tier
 	# and +1 roll; an ambush cache (fight) is +2 tiers and +2 rolls.
@@ -1033,17 +1071,23 @@ func _build_rune_vaults(rng: RandomNumberGenerator) -> void:
 		# the seed-driven layout of the rest of the deep never shifts.
 		var is_open: bool = GameState.underdark_vaults_open.has(b)
 		if not is_open:
-			# the bars: two slabs the player cannot pass until the runes are lit
+			# the bars: a slab the player cannot pass until the runes are lit.
+			# FLOOR-TO-CEILING on purpose (audit fix): at 200px tall, the same
+			# room's own climb stacks (chamber rungs to -240, arena towers to
+			# -320) let the player walk in OVER the gate with zero runes lit --
+			# 440px clears every rung plus the 92px jump, and bars sunk into
+			# the rock above still read as bars.
 			var gate := StaticBody2D.new()
 			var gcs := CollisionShape2D.new()
 			var grect := RectangleShape2D.new()
-			grect.size = Vector2(24.0, 200.0)
+			grect.size = Vector2(24.0, 440.0)
 			gcs.shape = grect
+			gcs.position = Vector2(0.0, -120.0)
 			gate.add_child(gcs)
 			var gvis := ColorRect.new()
 			gvis.color = Color(0.36, 0.33, 0.2)
-			gvis.size = Vector2(24.0, 200.0)
-			gvis.position = Vector2(-12.0, -100.0)
+			gvis.size = Vector2(24.0, 440.0)
+			gvis.position = Vector2(-12.0, -340.0)
 			gvis.z_index = -1
 			gate.add_child(gvis)
 			add_child(gate)

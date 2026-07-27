@@ -123,6 +123,13 @@ func _input(event: InputEvent) -> void:
 func _try_place(x: float) -> void:
 	var p = get_tree().get_first_node_in_group("player")
 	var stack = get_tree().get_first_node_in_group("notification_stack")
+	# THE FORGE IS MID-GAME (dungeon depth 35). The old ruin-repair path checked
+	# blacksmith_unlocked() but became dead code when ruins went inert -- this,
+	# the only LIVE build path, never did, so the blueprint (floor 16) raised a
+	# fully-stocked gear vendor 19 floors early. Checked before anything charges.
+	if build_name == "Blacksmith" and not GameState.blacksmith_unlocked():
+		if stack: stack.show_notification("The Forge's fire won't take — its secrets lie deeper. (Clear dungeon floor %d.)" % GameState.BLACKSMITH_UNLOCK_DEPTH)
+		return
 	if not GameState.can_place_building(get_tree(), build_w, x, null, build_name == "Wall"):
 		if stack: stack.show_notification("Can't build there — need clear ground inside the walls.")
 		return

@@ -95,7 +95,11 @@ func begin_false_victory() -> void:
 		GameState.log_event("people", "The deep stood silent — Deepwood feasted, believing the war was won.")
 		_notify("🏮 Deepwood feasts. Morale has never been higher.")
 		GameState.play_sfx(GameState.SFX_CHIME, 1.4)
-		var t := get_tree().create_timer(FEAST_SECONDS)
+		# process_always=FALSE: create_timer defaults to ticking THROUGH a pause,
+		# so the reveal used to fire over an open pause menu -- and closing that
+		# menu then unpaused straight into the Monarch fight the player thought
+		# was held. The feast clock now waits with the world.
+		var t := get_tree().create_timer(FEAST_SECONDS, false)
 		t.timeout.connect(begin_reveal))
 
 # ---- 2. THE REVEAL AT THE FEAST ----
@@ -179,6 +183,12 @@ func _spawn_monarch() -> void:
 	var px: float = p.global_position.x if p != null else (_west_x + _east_x) / 2.0
 	boss.position = Vector2(clampf(px + 420.0, _west_x, _east_x), _ground_y - 220.0)
 	add_child(boss)
+	# HE MUST BE A TARGET. boss.gd never self-registers, and every group-scanning
+	# ally and weapon in the game (shades, the 12 adventurers, auras, novas,
+	# excellent-weapon splash, villager flee) looks for course_enemy /
+	# dungeon_combatant / siege_enemy -- without this the whole Shadow Army stood
+	# inert through the finale while the Monarch's own summons DID join the group.
+	boss.add_to_group("dungeon_combatant")
 	_monarch = boss
 	# the Devourer starts WEAK (9.4): his power must be EATEN, not given.
 	# boss damage scales by sqrt(damage_multiplier), so x0.25 halves his
@@ -233,6 +243,9 @@ func _spawn_transformed(v_name: String) -> void:
 	var from_west := randf() < 0.5
 	enemy.position = Vector2(_west_x if from_west else _east_x, _ground_y - 60.0)
 	enemy.add_to_group("transformed")
+	# same as the dungeon-side _spawn_transformed: without a hostile group the
+	# horde is invisible to shades, defenders and every group-scanning weapon
+	enemy.add_to_group("dungeon_combatant")
 	add_child(enemy)
 	var nl := Label.new()
 	nl.text = v_name
@@ -281,14 +294,28 @@ func _physics_process(delta: float) -> void:
 			prey.queue_free()
 			_apply_devour_tier()
 
+# power tiers already granted -- the growth curve is PER TIER and hard-capped
+var _devour_tier_applied := 0
+
 func _apply_devour_tier() -> void:
-	var tier := int(floor(float(_devoured) / float(_harvest_total) * float(DEVOUR_TIERS)))
+	var tier := mini(DEVOUR_TIERS,
+		int(floor(float(_devoured) / float(maxi(1, _harvest_total)) * float(DEVOUR_TIERS))))
 	if _monarch == null or not is_instance_valid(_monarch):
 		return
-	_monarch.max_health += int(_monarch.max_health * 0.04)
+	# every soul still FEEDS him (the sustain race the fight is about)...
 	_monarch.health = mini(_monarch.health + int(_monarch.max_health * 0.06), _monarch.max_health)
-	# +5% damage OUTPUT per tier: sqrt(x1.1025) = x1.05
-	_monarch.damage_multiplier *= 1.1025
+	# ...but POWER rises once per TIER and stops at the cap. The old code
+	# multiplied damage per SOUL eaten with no cap at all (DEVOUR_TIERS only
+	# capped the notification text and his sprite scale), so a 40-soul village
+	# compounded x66 damage and his ordinary beam crossed the one-shot line
+	# (player 160 HP) about two minutes in. At the cap the curve tops out at
+	# 1.1025^20 = x7.04 -- sqrt discipline makes that x2.65 output: nasty,
+	# never lethal in one hit.
+	while _devour_tier_applied < tier:
+		_devour_tier_applied += 1
+		_monarch.max_health += int(_monarch.max_health * 0.04)
+		# +5% damage OUTPUT per tier: sqrt(x1.1025) = x1.05
+		_monarch.damage_multiplier *= 1.1025
 	_monarch.scale = Vector2.ONE * minf(1.0 + float(tier) * 0.05, 2.0)
 	if _monarch.has_method("update_health_bar"):
 		_monarch.update_health_bar()
@@ -315,11 +342,15 @@ func _victory() -> void:
 	if p == null:
 		queue_free()
 		return
+	# Grant the hourglass BEFORE the ending dialogue: a quit (or crash) while the
+	# six lines play used to skip the callback and lock NG+ / the true ending out
+	# of that save forever (settle_shadow_court never granted it). The autosave on
+	# the next arrival banks it.
+	if p and "inventory" in p and p.inventory and p.inventory.get_count("relic_rewound_hour") == 0 and not GameState.cycle_broken:
+		p.inventory.add_item("relic_rewound_hour", 1)
+		_notify("Among the spoils: ⌛ THE REWOUND HOUR. The world can be made to start again — and you would be immune.")
 	DialogueBox.play(p, Story.ENDING, func():
 		GameState.raise_shadow_army()
-		if p and "inventory" in p and p.inventory and p.inventory.get_count("relic_rewound_hour") == 0 and not GameState.cycle_broken:
-			p.inventory.add_item("relic_rewound_hour", 1)
-			_notify("Among the spoils: ⌛ THE REWOUND HOUR. The world can be made to start again — and you would be immune.")
 		_notify("Deepwood stands. The Shadow Monarch has returned — a new class awaits your next journey.")
 		var m = get_parent()
 		if m != null and m.has_method("spawn_existing_villager_avatars"):
