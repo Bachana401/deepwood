@@ -294,10 +294,17 @@ func apply_status(kind: String, dur: float, mag: float) -> void:
 			status_poison_until = _time_now() + dur
 			status_poison_dps = maxf(status_poison_dps if poison_live else 0.0, mag)
 		"slow", "freeze":
-			# freeze on a boss is just a hard slow -- it never stops acting
+			# freeze on a boss is just a hard slow -- it never stops acting.
+			# DEEPEST WINS, LONGEST WINS -- the same convention enemy.gd,
+			# special_mob.gd and siege_enemy.gd follow. Plain assignment let a
+			# later WEAKER slow (a repeating hazard patch, an ally kit's 0.9)
+			# overwrite a strong one AND cut its timer short, which is the exact
+			# inversion of the rule the other three files enforce.
 			var factor := maxf(BOSS_SLOW_FLOOR, 1.0 - (1.0 - (mag if kind == "slow" else 0.5)) * 0.5)
-			status_slow_until = _time_now() + (dur if kind == "slow" else minf(dur, 1.2))
-			status_slow_factor = factor
+			var until := _time_now() + (dur if kind == "slow" else minf(dur, 1.2))
+			var live := _time_now() < status_slow_until
+			status_slow_factor = minf(status_slow_factor if live else 1.0, factor)
+			status_slow_until = maxf(status_slow_until, until)
 		"petrify":
 			apply_petrify(dur)
 
@@ -1024,19 +1031,49 @@ func _do_rhythm_counter() -> void:
 	if stack and stack.has_method("show_notification"):
 		stack.show_notification("It has learned your rhythm.")
 
-# DREAD WARD: is the player actually behind it? It faces the player by default,
-# so "behind" means the player is on the side its back is turned to.
+# DREAD WARD: is the player actually behind it? The ward has its OWN facing that
+# turns SLOWLY (WARD_TURN_SECONDS), and that is the whole mechanic: get behind it
+# and you have a real window to hit before its guard comes round.
+#
+# It must never read facing_direction. That field is re-derived from the player's
+# own position every physics frame (see _physics_process), so "the side the boss
+# faces" and "the side the player stands on" are the same value by construction:
+# the ward answered "not flanked" from EVERY angle and the boss could not be hurt
+# at all except by DoT (which bypasses take_damage). A ward that tracks you
+# instantly is not a flank puzzle, it is invulnerability.
+const WARD_TURN_SECONDS := 1.1     # how long the guard takes to come round
+var _ward_facing := 0              # 0 = not yet initialised
+var _ward_cross_at := 0.0          # 0 = the player is in front; else when the turn completes
+
+func _ward_side() -> int:
+	if player == null or not is_instance_valid(player):
+		return _ward_facing
+	var to_player := int(signf(player.global_position.x - global_position.x))
+	if to_player == 0:
+		return _ward_facing
+	if _ward_facing == 0:
+		_ward_facing = to_player            # first sighting: it is already looking at you
+		_ward_cross_at = 0.0
+		return _ward_facing
+	if to_player == _ward_facing:
+		_ward_cross_at = 0.0                # back in front of it: the turn is abandoned
+		return _ward_facing
+	# the player is BEHIND it. The guard starts coming round the moment they get
+	# there, and only completes a full WARD_TURN_SECONDS later -- that gap is the
+	# flank window the mechanic is made of.
+	if _ward_cross_at == 0.0:
+		_ward_cross_at = _time_now() + WARD_TURN_SECONDS
+	elif _time_now() >= _ward_cross_at:
+		_ward_facing = to_player
+		_ward_cross_at = 0.0
+	return _ward_facing
+
 func _hit_from_behind() -> bool:
 	if player == null or not is_instance_valid(player):
 		return true          # nothing to flank: don't make it immortal
-	# facing_direction is what actually drives the boss's facing (rendered via
-	# rig.scale.x each frame). The old read of boss_sprite.flip_h keyed on a flag
-	# nothing sets for facing -- and both dread_ward bosses have no sprite at all,
-	# so "facing" was pinned +1 forever: the ward degraded to "damageable only
-	# from world-west", i.e. permanently invincible from the east.
-	var facing: float = -1.0 if facing_direction < 0 else 1.0
-	var to_player: float = signf(player.global_position.x - global_position.x)
-	return to_player != 0.0 and to_player != facing
+	var facing := _ward_side()
+	var to_player := int(signf(player.global_position.x - global_position.x))
+	return to_player != 0 and to_player != facing
 
 # --- ticked mechanics --------------------------------------------------------
 
@@ -1642,9 +1679,24 @@ func configure_from_def(def: Dictionary) -> void:
 		abilities = CLONE_KIT.duplicate()
 		max_health = max(1, int(round(max_health * CLONE_HP_FRAC)))
 		health = max_health
+		# "no passives" means NO passives (the false-copy block below already did
+		# this; the clone path only cleared three flags). An echo that inherited
+		# phase + sidestep was a 742-HP add that is intangible ~30% of the time
+		# and dodges the rest, and an echo that inherited riposte countered for
+		# ~64 damage EACH -- one AoE across three echoes was 128-192 against a
+		# 160 HP pool, from a source with no tell of its own.
 		has_aura = false
 		has_blink_on_hit = false
 		has_soul_split = false
+		has_phase = false
+		has_sidestep = false
+		has_riposte = false
+		has_covenant = false
+		has_mirror = false
+		has_dread_ward = false
+		has_soulbind = false
+		has_stagger_armour = false
+		has_rhythm_punish = false
 		modulate = Color(1.0, 0.85, 1.0, 0.75)
 
 	# A FAKE of a false_twin boss. Deliberately NOT tinted: it has to look
@@ -2246,6 +2298,12 @@ func _physics_process(delta: float) -> void:
 
 	tick_phase()   # drop back to solid when the ghost window closes
 	tick_statuses(delta)   # burn/poison chip -- the DoT specs' anti-boss tool
+	if is_dead:
+		# a DoT tick can kill mid-frame: stop before the rest of this frame runs
+		# on a corpse (gravity, cooldowns, move_and_slide, the arena clamp and the
+		# anim driver all executed after die() had disabled the collider and begun
+		# shrinking the body). enemy/special_mob/siege_enemy all carry this check.
+		return
 	tick_tether(delta)
 	tick_famine(delta)
 	tick_traps(delta)
@@ -2959,7 +3017,7 @@ func do_summon() -> void:
 	is_busy = false
 
 func do_pillars() -> void:
-	flash_telegraph(Color(1.0, 0.5, 0.15))
+	flash_telegraph(Color(1.0, 0.5, 0.15), PILLAR_TELEGRAPH)
 	if player == null or not is_instance_valid(player):
 		is_busy = false
 		set_cd("pillars")
@@ -3036,7 +3094,7 @@ func do_volley() -> void:
 
 # Meteor storm: like rain but heavier, wider, and falling from far higher.
 func do_meteors() -> void:
-	flash_telegraph(Color(1.0, 0.4, 0.1))
+	flash_telegraph(Color(1.0, 0.4, 0.1), METEOR_TELEGRAPH)
 	if is_dead or player == null or not is_instance_valid(player):
 		is_busy = false
 		set_cd("meteors")
@@ -3093,7 +3151,7 @@ func do_beam() -> void:
 		return
 	var band_y = player.global_position.y - 20.0
 	var arena_w := arena_width()
-	flash_telegraph(Color(1.0, 0.25, 0.15))
+	flash_telegraph(Color(1.0, 0.25, 0.15), BEAM_TELEGRAPH)
 	var band = ColorRect.new()
 	band.position = Vector2(-100.0, band_y - BEAM_HALF_HEIGHT)
 	band.size = Vector2(arena_w + 200.0, BEAM_HALF_HEIGHT * 2.0)
@@ -3216,7 +3274,7 @@ func do_clone() -> void:
 # ===================== SIGNATURE ABILITIES (BOSSES.md §6) =====================
 
 # A lingering hazard patch (magma/web/fire). The boss drops it and forgets it.
-func spawn_hazard(pos: Vector2, radius: float, dmg: int, lifetime: float, color: Color, kind := "", dur := 1.0, mag := 0.0) -> void:
+func spawn_hazard(pos: Vector2, radius: float, dmg: int, lifetime: float, color: Color, kind := "", dur := 1.0, mag := 0.0, once := false) -> void:
 	var h = HAZARD_SCENE.new()
 	h.radius = radius
 	h.damage = dmg
@@ -3226,6 +3284,7 @@ func spawn_hazard(pos: Vector2, radius: float, dmg: int, lifetime: float, color:
 	h.on_kind = kind
 	h.on_dur = dur
 	h.on_mag = mag
+	h.on_once = once     # a lock lands ONCE, then the patch is merely sticky
 	get_parent().add_child(h)
 	h.global_position = pos
 
@@ -3279,7 +3338,7 @@ func do_rime_lance() -> void:
 func do_magma_wake() -> void:
 	if player == null or not is_instance_valid(player):
 		set_cd("magma_wake"); is_busy = false; return
-	flash_telegraph(Color(1.0, 0.4, 0.1))
+	flash_telegraph(Color(1.0, 0.4, 0.1), 0.35)
 	await get_tree().create_timer(0.35).timeout
 	if is_dead:
 		return
@@ -3303,9 +3362,13 @@ func do_web_snare() -> void:
 	await get_tree().create_timer(WEB_TELEGRAPH).timeout
 	if is_dead:
 		return
-	# the web lingers and re-roots anyone standing in it
+	# The web SNARES once, then holds you sticky. It used to re-apply a 0.6s ROOT
+	# on a 0.4s tick, which re-armed faster than it expired -- so standing in it
+	# was a full 4 seconds of zero input, and root is exactly what stops you
+	# obeying the mechanic's own instruction ("get off it fast"). The catch still
+	# roots; the rest of the patch only drags at you.
 	spawn_hazard(spot, WEB_RADIUS, WEB_DAMAGE, WEB_LIFETIME,
-		Color(0.85, 0.9, 0.75, 0.4), "root", 0.6)
+		Color(0.85, 0.9, 0.75, 0.4), "root", 0.6, 0.0, true)
 	set_cd("web_snare"); is_busy = false
 
 # STORMCALLER 25 -- Thunderstrike: telegraphed bolts drop on your CURRENT spot a
@@ -3388,7 +3451,7 @@ func do_dissonant_scream() -> void:
 # ASHEN PENITENT 40 -- Prayer Pyre: a ring of fire EXPANDS out from it in pulses,
 # forcing you to range (it barely moves, so it makes the near ground lethal).
 func do_prayer_pyre() -> void:
-	flash_telegraph(Color(1.0, 0.55, 0.15))
+	flash_telegraph(Color(1.0, 0.55, 0.15), PYRE_STEPS * PYRE_STEP_TIME)
 	for i in range(PYRE_STEPS):
 		if is_dead:
 			return
@@ -3521,6 +3584,9 @@ func do_ambush() -> void:
 func do_impale() -> void:
 	if player == null or not is_instance_valid(player):
 		set_cd("impale"); is_busy = false; return
+	# this whole track-then-drop IS a wind-up, so it opens the riposte window --
+	# Warden of Nails carries riposte and this is its signature tell
+	flash_telegraph(Color(0.9, 0.85, 0.4), IMPALE_TRACK + IMPALE_TELEGRAPH)
 	var marker := _zone_marker(player.global_position, IMPALE_RADIUS, Color(0.9, 0.85, 0.4, 0.28))
 	var t := 0.0
 	while t < IMPALE_TRACK and not is_dead and is_instance_valid(player):
@@ -3907,18 +3973,29 @@ func check_bump() -> void:
 	if player.has_method("apply_knockback"):
 		player.apply_knockback(away, randf_range(30.0, 45.0))
 
-func flash_telegraph(color: Color) -> void:
-	# The tell IS the riposte window. has_riposte gates on `telegraphing`, which
-	# no gameplay code ever raised -- the counter was implemented, advertised on
-	# three bosses, and could never fire. Every ability wind-up calls this, so
-	# the flag lives exactly as long as the flash (freed-safe via instance id;
-	# set BEFORE the rig check so unskinned bosses keep the mechanic).
+# The tell IS the riposte window. has_riposte gates on `telegraphing`, which no
+# gameplay code ever raised -- the counter was implemented, advertised on three
+# bosses, and could never fire.
+#
+# The window is a DEADLINE, not a fixed 0.5s timer. A flat half-second was
+# shorter than six of the wind-ups it is meant to guard (BEAM 0.9, METEOR 0.8,
+# PILLAR/MAIDEN 0.7, PYRE 1.36, IMPALE 0.75), so those bosses did not punish
+# their own slowest tells; and because each call armed its own timer, the FIRST
+# one cleared the flag partway through the SECOND wind-up during a combo. A
+# caller that knows its wind-up passes it; the deadline only ever extends.
+var _telegraph_until := 0.0
+
+func flash_telegraph(color: Color, windup := 0.5) -> void:
 	telegraphing = true
+	_telegraph_until = maxf(_telegraph_until, _time_now() + windup)
 	var iid := get_instance_id()
-	get_tree().create_timer(0.5).timeout.connect(func():
+	get_tree().create_timer(windup).timeout.connect(func():
 		var s := instance_from_id(iid)
-		if s != null and is_instance_valid(s):
-			s.telegraphing = false)
+		if s == null or not is_instance_valid(s):
+			return
+		if s._time_now() < s._telegraph_until - 0.01:
+			return          # a longer/newer tell is still up -- it owns the flag
+		s.telegraphing = false)
 	if rig == null:
 		return
 	var tween = create_tween()

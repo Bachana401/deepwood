@@ -3327,7 +3327,13 @@ func siege_clock_visible() -> bool:
 func tick_watchtower_warning() -> void:
 	if watchtower_tier < 1 or despair_dead or live_siege_active:
 		return
-	var lead := watchtower_warning_hours()
+	# The lead can NEVER exceed the gap between waves. hours_until_next_siege is
+	# capped at SIEGE_INTERVAL_HOURS (12), so a tier-3 lead of 24 made the re-arm
+	# test `> 24` unsatisfiable: the top tier tolled once and then stayed silent
+	# for the rest of the run -- strictly worse than the tier below it, for
+	# 2 ember crystals. Clamp the lead so every tier still re-arms; the deepest
+	# tier simply warns as early as the schedule physically allows.
+	var lead: float = minf(watchtower_warning_hours(), SIEGE_INTERVAL_HOURS - 0.5)
 	if hours_until_next_siege > lead:
 		_tower_bell_armed = true       # quiet road: re-arm for the next wave
 	elif _tower_bell_armed:
@@ -3688,12 +3694,24 @@ func auto_research(n: int) -> void:
 			researched_materials.append(item_id)
 			done += 1
 
+# The Merchant Prince's automation must never sell what the game SPENDS. Skill
+# nodes, wall tiers and crafting all draw on these, and the tier-4 rampart alone
+# wants 20 iron shards -- with a 12-item cap firing every 20 seconds the player
+# had a 20-second window to assemble any cost, and hard-won floor-80 relics were
+# being dumped at 4 gold while they were still down there earning them.
+const AUTO_SELL_NEVER := ["iron_shard", "ember_crystal", "void_essence",
+	"ancient_relic", "sorrowshard"]
+
 func auto_sell_surplus(player) -> void:
 	if not ("inventory" in player) or player.inventory == null:
 		return
+	if in_dungeon:
+		return          # never rifle the player's bag while they are still delving
 	var earned := 0
 	for item_id in Inventory.ITEM_DEFS.keys():
 		if not Inventory.ITEM_DEFS[item_id].get("is_material", false):
+			continue
+		if AUTO_SELL_NEVER.has(item_id):
 			continue
 		var have = player.inventory.get_count(item_id)
 		if have > AUTO_SELL_KEEP:

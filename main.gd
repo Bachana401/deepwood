@@ -909,9 +909,21 @@ func _stage_arrival_tableau(pl: Node) -> void:
 	# Now each survivor is planted ON the floor AT a ruin -- nearest ruins first,
 	# fanned along the facade -- so the reveal reads as people stepping out of the
 	# wreckage of their own town rather than materialising beside the player.
+	# ...but ONLY a ruin the player can actually SEE. The first version of this
+	# sorted every building by distance and used the nearest -- and on a fresh
+	# arrival the four standing ruins are 5.2k/8.9k/11.7k/14.9k while the fight
+	# ends at x~4100, so the survivors were flung 1,000-7,400px away and the
+	# reveal was spoken by bodies off the edge of the screen (the function's own
+	# contract is that the speaker must have a visible body). A ruin only counts
+	# if it is inside the view; otherwise they step out beside the player, which
+	# is what the shot needs above all.
+	var half_view: float = get_viewport_rect().size.x * 0.5
+	var cam := get_viewport().get_camera_2d()
+	if cam != null:
+		half_view = half_view / maxf(cam.zoom.x, 0.05)
 	var ruins: Array = []
 	for b in get_tree().get_nodes_in_group("building"):
-		if is_instance_valid(b):
+		if is_instance_valid(b) and absf(b.global_position.x - px) <= half_view - 120.0:
 			ruins.append(b)
 	ruins.sort_custom(func(r1, r2):
 		return absf(r1.global_position.x - px) < absf(r2.global_position.x - px))
@@ -919,6 +931,7 @@ func _stage_arrival_tableau(pl: Node) -> void:
 	for n in survivors:
 		var gy := _npc_ground_y(n)
 		if ruins.is_empty():
+			# no ruin on screen: the old staging, at the player's east shoulder
 			n.global_position = Vector2(px + 108.0 + 72.0 * float(ni), gy)
 		else:
 			var ruin = ruins[ni % ruins.size()]
@@ -926,8 +939,10 @@ func _stage_arrival_tableau(pl: Node) -> void:
 			var half: float = (ruin.eff_w() * 0.5) if ruin.has_method("eff_w") else 60.0
 			# step out of the side of the ruin that FACES the player
 			var side: float = -1.0 if ruin.global_position.x >= px else 1.0
+			var sx: float = ruin.global_position.x + side * (half * 0.6 + 30.0 * float(lane))
+			# and never past the edge of the shot
 			n.global_position = Vector2(
-				ruin.global_position.x + side * (half * 0.6 + 30.0 * float(lane)), gy)
+				clampf(sx, px - half_view + 90.0, px + half_view - 90.0), gy)
 		var toward: float = signf(px - n.global_position.x)
 		_face_entity(n, toward if toward != 0.0 else -1.0)   # turn to the player
 		ni += 1

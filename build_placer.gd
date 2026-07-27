@@ -101,9 +101,27 @@ func _process(_d: float) -> void:
 # the world eats it, so a delete/place click always lands (dev: "delete didn't
 # work on ruins").
 func _input(event: InputEvent) -> void:
-	# While the delete-confirm panel is open, do NOT swallow clicks -- the YES/NO
-	# buttons need them (dev: "I press YES/NO, no effect"). Same when idle.
-	if mode == "" or _confirming:
+	# While the delete-confirm panel is open, do NOT swallow CLICKS -- the YES/NO
+	# buttons need them (dev: "I press YES/NO, no effect"). ESC and right-click
+	# still have to cancel it though: without this the obvious escape key fell
+	# through to the pause menu and paused the game UNDER a modal whose buttons
+	# are pausable, i.e. the dialog stopped responding until you unpaused.
+	if _confirming:
+		if (event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE) \
+				or (event is InputEventMouseButton and event.pressed \
+					and event.button_index == MOUSE_BUTTON_RIGHT):
+			_cancel_confirm()
+			get_viewport().set_input_as_handled()
+		return
+	if mode == "":
+		return
+	# ...and NEVER steal a click that belongs to an open window. This runs before
+	# GUI dispatch by design, so with a mode armed it used to eat the press meant
+	# for whatever panel was on screen: clicking "Upgrade" in the assign panel
+	# instead popped "this building will be deleted FOREVER" for whatever sat
+	# under the WORLD cursor. Cancelling on the Ledger alone was not enough --
+	# any esc_window counts.
+	if _a_window_is_open():
 		return
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_RIGHT:
@@ -119,6 +137,14 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
 		_clear()
 		get_viewport().set_input_as_handled()   # else the same Esc also toggles the pause menu
+
+# Is any of the game's windows on screen right now? (Same group the player's
+# world-input guard uses, so the two can never disagree about "a panel is open".)
+func _a_window_is_open() -> bool:
+	for w in get_tree().get_nodes_in_group("esc_window"):
+		if is_instance_valid(w) and w.has_method("esc_is_open") and w.esc_is_open():
+			return true
+	return false
 
 func _try_place(x: float) -> void:
 	var p = get_tree().get_first_node_in_group("player")
@@ -365,10 +391,14 @@ func _confirm_delete(target: Node) -> void:
 		_confirm_panel = null
 		panel.queue_free()
 		_clear())
-	no.pressed.connect(func() -> void:
-		_confirming = false
-		_confirm_panel = null
-		panel.queue_free())
+	no.pressed.connect(_cancel_confirm)
+
+# "NO, keep it" -- also what ESC and right-click do while the dialog is open.
+func _cancel_confirm() -> void:
+	_confirming = false
+	if _confirm_panel != null and is_instance_valid(_confirm_panel):
+		_confirm_panel.queue_free()
+	_confirm_panel = null
 
 func _show_hint(text: String) -> void:
 	hint = Label.new()

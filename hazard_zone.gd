@@ -15,6 +15,14 @@ var damage_multiplier := 1.0          # inherited from the boss's scaling
 var on_kind := ""                     # "" | "poison" | "root" | "slow" | "freeze"
 var on_dur := 1.0
 var on_mag := 0.0                     # slow factor, or poison dps
+# A LOCK APPLIES ONCE, then degrades to a sticky slow. A root/freeze re-applied
+# on every 0.4s tick never lapses while you stand in it -- and since root is
+# exactly what stops you leaving, "get off it fast" became impossible: the
+# Weaver's web was 4 seconds of guaranteed zero input. The snare still lands,
+# the escape still exists.
+var on_once := false
+var _cc_spent := false
+const ONCE_FOLLOWUP_SLOW := 0.4       # speed factor once the lock has been spent
 
 var _age := 0.0
 var _acc := 0.0
@@ -53,12 +61,21 @@ func _physics_process(delta: float) -> void:
 		# (see boss.deal_player_damage) -- the raw multiplier made a floor-100
 		# void tear tick 74 instead of 32 against a 160-HP player
 		p.take_damage(int(round(damage * sqrt(maxf(damage_multiplier, 0.0)))))
+	# a spent one-shot lock keeps the patch sticky instead of re-locking
+	if on_once and _cc_spent and (on_kind == "root" or on_kind == "freeze"):
+		if p.has_method("apply_slow"):
+			p.apply_slow(tick * 1.6, ONCE_FOLLOWUP_SLOW)
+		return
 	match on_kind:
 		"poison":
 			if p.has_method("apply_poison"): p.apply_poison(on_dur, on_mag)
 		"root":
-			if p.has_method("apply_root"): p.apply_root(on_dur)
+			if p.has_method("apply_root"):
+				p.apply_root(on_dur)
+				_cc_spent = true
 		"slow":
 			if p.has_method("apply_slow"): p.apply_slow(on_dur, on_mag)
 		"freeze":
-			if p.has_method("apply_freeze"): p.apply_freeze(on_dur)
+			if p.has_method("apply_freeze"):
+				p.apply_freeze(on_dur)
+				_cc_spent = true

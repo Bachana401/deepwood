@@ -130,12 +130,18 @@ func add_relocate_section(list: VBoxContainer) -> void:
 		btn.disabled = true
 	else:
 		btn.text = "📦 Relocate (%dg + %d wood at the plant)" % [GameState.RELOCATE_GOLD, GameState.RELOCATE_WOOD]
+		# read the NAME FIRST: close() nulls current_building, so reading it after
+		# the close threw ("Invalid access ... on a base object of type 'Nil'"),
+		# the lambda aborted, and the one instruction the player ever gets about
+		# H-to-plant was never shown -- while the building really was packed and
+		# the Hospital/School/Marketplace H features had gone quiet.
+		var bname := str(current_building.building_name)
 		btn.pressed.connect(func():
-			GameState.moving_building = current_building.building_name
+			GameState.moving_building = bname
 			close()
 			var stack = get_tree().get_first_node_in_group("notification_stack")
 			if stack:
-				stack.show_notification("📦 The %s is packed. Walk to the new ground and press H to plant it." % current_building.building_name))
+				stack.show_notification("📦 The %s is packed. Walk to the new ground and press H to plant it." % bname))
 	list.add_child(btn)
 
 # Shown while a building is being raised: it takes several construction stages,

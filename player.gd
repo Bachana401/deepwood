@@ -889,6 +889,9 @@ func apply_fear_aura(magnitude: float) -> void:
 func enter_long_dark() -> void:
 	health = 1
 	update_health_display()
+	# claim the shared window for the WHOLE knit-back, so an ordinary hit's
+	# 1-second timer can't resume mid-Long-Dark and switch invulnerability off
+	_iframe_until = maxf(_iframe_until, _now() + LONG_DARK_DURATION)
 	invincible = true
 	stop_invincibility_flash()
 	body_visual.modulate = Color(0.08, 0.02, 0.16, 0.85)
@@ -908,7 +911,9 @@ func enter_long_dark() -> void:
 		health = mini(get_max_health(), maxi(health, int(round(lerpf(1.0, float(heal_target), float(i + 1) / steps)))))
 		update_health_display()
 	body_visual.modulate = Color(1, 1, 1, 1)
-	invincible = false
+	# only drop the guard if no LONGER window is still running (see grant_iframes)
+	if _now() >= _iframe_until - 0.01:
+		invincible = false
 
 # Two feathered wings on the character's back, hidden until the Aetherwing
 # relic is equipped. They sit behind the body (z -1) and flap -- fast while
@@ -1842,17 +1847,13 @@ func _poison_tick(dmg: int) -> void:
 	dmg = int(round(dmg * (1.0 - clamp(GameState.get_bonus_total("damage_reduction"), 0.0, 0.75))))
 	if dmg <= 0: return
 	if health - dmg <= 0:
-		health = maxi(1, health)   # let take_damage run the full death cascade
-		# a lethal DoT must not be dodged by hit-i-frames (audit fix): during
-		# the 1s invincibility window take_damage returned untouched, so boss
-		# poison could literally never finish a player who was ALSO being hit
-		# by anything else. Death-saves (Long Dark / Undying / Phoenix) still
-		# run -- only the i-frame gate steps aside for the tick.
-		var was_inv: bool = invincible
-		invincible = false
-		take_damage(9999)
-		if not is_dead:
-			invincible = invincible or was_inv
+		# A lethal DoT is not dodged by hit-i-frames (poison does not care that
+		# something else just hit you), and it does NOT go back through
+		# take_damage: that would run the mitigation/mana-shield/thorns pipeline
+		# on a fake number. Straight to the shared death cascade instead.
+		health = 0
+		update_health_display()
+		suffer_lethal()
 		return
 	health -= dmg
 	update_health_display()
@@ -2308,37 +2309,60 @@ func take_damage(amount: int) -> void:
 	if thorns_frac > 0.0:
 		reflect_thorns(int(round(amount * thorns_frac)))
 	if health <= 0:
-		# The Long Dark (6/7+): a lethal blow cannot kill what is already
-		# shadow. Outranks Living Fortress so the skill charge is kept.
-		if GameState.monarch_stage() >= 6 and _now() >= monarch_long_dark_ready_at:
-			monarch_long_dark_ready_at = _now() + LONG_DARK_COOLDOWN
-			enter_long_dark()
-			return
-		# Living Fortress (undying): once per life, refuse to fall -- snap back
-		# to 20% HP with a burst of i-frames instead of dying.
-		if GameState.get_bonus_total("undying") > 0.0 and not undying_used:
-			undying_used = true
-			health = maxi(1, int(get_max_health() * 0.20))
-			update_health_display()
-			spawn_shock_ring(global_position, 200.0, Color(1.0, 0.85, 0.3, 0.95))
-			var stack = get_tree().get_first_node_in_group("notification_stack")
-			if stack:
-				stack.show_notification("Living Fortress: you refuse to fall!")
-			invincible = true
-			start_invincibility_flash()
-			var ut = get_tree().create_timer(INVINCIBILITY_DURATION * 2.0)
-			ut.timeout.connect(func():
-				if not is_dead:
-					stop_invincibility_flash()
-					invincible = false)
-			return
-		die()
+		suffer_lethal()
 		return
+	grant_iframes(INVINCIBILITY_DURATION)
+
+# THE DEATH CASCADE, in ONE place. Reached either by a blow that empties the bar
+# or by a lethal damage-over-time tick -- a DoT must NOT be routed back through
+# take_damage() with a huge sentinel number, because everything above this line
+# (damage_reduction, Mana Barrier, Thorns) would then run on that sentinel: a
+# 9999 "kill me" reflected ~3,100 thorns damage to every enemy in range and
+# drained the whole mana pool in one tick.
+func suffer_lethal() -> void:
+	if is_dead:
+		return
+	# The Long Dark (6/7+): a lethal blow cannot kill what is already shadow.
+	# Outranks Living Fortress so the skill charge is kept.
+	if GameState.monarch_stage() >= 6 and _now() >= monarch_long_dark_ready_at:
+		monarch_long_dark_ready_at = _now() + LONG_DARK_COOLDOWN
+		enter_long_dark()
+		return
+	# Living Fortress (undying): once per life, refuse to fall -- snap back
+	# to 20% HP with a burst of i-frames instead of dying.
+	if GameState.get_bonus_total("undying") > 0.0 and not undying_used:
+		undying_used = true
+		health = maxi(1, int(get_max_health() * 0.20))
+		update_health_display()
+		spawn_shock_ring(global_position, 200.0, Color(1.0, 0.85, 0.3, 0.95))
+		var stack = get_tree().get_first_node_in_group("notification_stack")
+		if stack:
+			stack.show_notification("Living Fortress: you refuse to fall!")
+		grant_iframes(INVINCIBILITY_DURATION * 2.0)
+		return
+	die()
+
+# INVULNERABILITY IS OWNED BY ITS DEADLINE, never by whichever timer happens to
+# fire first. Each grant pushes a shared deadline forward and only the timer that
+# finds the deadline actually reached clears the flag -- otherwise an ordinary
+# 1-second hit window, granted BEFORE a death save, resumed a second later and
+# switched off the Long Dark's 2.6s (or Living Fortress's 2s) protection, killing
+# a player the design says cannot die and spending the charge for nothing.
+var _iframe_until := 0.0
+
+func grant_iframes(seconds: float) -> void:
+	_iframe_until = maxf(_iframe_until, _now() + seconds)
 	invincible = true
 	start_invincibility_flash()
-	await get_tree().create_timer(INVINCIBILITY_DURATION).timeout
-	stop_invincibility_flash()
-	invincible = false
+	var iid := get_instance_id()
+	get_tree().create_timer(seconds).timeout.connect(func():
+		var s = instance_from_id(iid)
+		if s == null or not is_instance_valid(s) or s.is_dead:
+			return
+		if s._now() < s._iframe_until - 0.01:
+			return          # a longer window is still running -- it owns the flag
+		s.stop_invincibility_flash()
+		s.invincible = false)
 
 func start_invincibility_flash() -> void:
 	if invincibility_tween:
@@ -3377,6 +3401,18 @@ func draw_beam(end_point: Vector2) -> void:
 # skips the ordinary attack).
 func channel_beam(delta: float) -> bool:
 	if not has_beam() or not has_weapon() or active_weapon_type != "wand":
+		return false
+	# A WAND WITH A JOB OF ITS OWN IS NOT A BEAM EMITTER. The Focusing Lens used
+	# to swallow the left-click of EVERY wand, the Soul Split Wand included --
+	# and that wand is the only thing that opens the Monarch's mortal window, so
+	# a Sage who took the keystone could never finish the game (the finale boss
+	# resets to 1 HP on every killing blow). The screen-wipes are the same story:
+	# their whole cast is the payload, not a sustained ray. Those wands keep
+	# their own attack; every ordinary wand still channels.
+	var sp: Dictionary = active_def.get("special", {})
+	var st := str(sp.get("type", ""))
+	if st == "soul_split" or st == "nuke" or st == "percent_burst":
+		stop_beam()
 		return false
 	var stats = active_stats
 	# planting your feet is the cost -- any movement cuts the channel

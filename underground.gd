@@ -399,14 +399,20 @@ func _find_floor_cell(c: Vector2i, rng: RandomNumberGenerator):
 			return cell
 	return null
 
-func _spawn_chest(cell: Vector2i, biome: int, rng: RandomNumberGenerator) -> Node:
-	# The id is keyed to the CHUNK, not the landing cell: _find_floor_cell is
-	# terrain-dependent, so digging near a chest used to move it to a new cell
-	# on the next chunk build -- minting a NEW id, respawning an emptied chest
-	# with fresh loot (dupe), and orphaning the old entry. One chest rolls per
-	# chunk, so the chunk coordinate is a unique, dig-proof identity.
-	var ch := Vector2i(floori(float(cell.x) / CHUNK), floori(float(cell.y) / CHUNK))
-	var id := "ug_c_%d_%d" % [ch.x, ch.y]
+# The CHUNK a cell belongs to. Every persistent id down here keys off this, not
+# off the landing cell: _find_floor_cell is terrain-dependent, so digging near a
+# chest moved it to a new cell on the next chunk build -- minting a NEW id,
+# respawning an emptied chest with fresh loot (dupe) and orphaning the old entry.
+func _chunk_of_cell(cell: Vector2i) -> Vector2i:
+	return Vector2i(floori(float(cell.x) / CHUNK), floori(float(cell.y) / CHUNK))
+
+# `prefix` keeps the chunk-keyed ids of the DIFFERENT chest kinds apart. A chunk
+# rolls its plain chest, its geode and its vaults independently, so they can all
+# exist in one chunk: sharing "ug_c_x_y" between the plain chest and the geode's
+# meant looting one silently emptied the other, permanently.
+func _spawn_chest(cell: Vector2i, biome: int, rng: RandomNumberGenerator, prefix := "ug_c") -> Node:
+	var ch := _chunk_of_cell(cell)
+	var id := "%s_%d_%d" % [prefix, ch.x, ch.y]
 	var opened: bool = GameState.chest_contents.has(id)
 	var chest := Node2D.new()
 	chest.global_position = _map.to_global(_map.map_to_local(cell)) + Vector2(0, 2)
@@ -547,7 +553,10 @@ func _disc(r: float) -> PackedVector2Array:
 # pull the lever (E) to unseal the vault. State persists in _flags. ──────────────
 func _spawn_vault(cell: Vector2i, biome: int, rng: RandomNumberGenerator) -> Array:
 	var out := []
-	var vid := "ugv_%d_%d" % [cell.x, cell.y]
+	# chunk-keyed, like every other persistent id down here: the cell moves when
+	# the player digs near it, which re-minted the id and re-stocked the vault
+	var vch := _chunk_of_cell(cell)
+	var vid := "ugv_%d_%d" % [vch.x, vch.y]
 	var pulled: bool = _flags.has(vid)
 	# the vault chest (ornate, gold; richer loot + a guaranteed gem)
 	var chest := Node2D.new()
@@ -575,12 +584,23 @@ func _spawn_vault(cell: Vector2i, biome: int, rng: RandomNumberGenerator) -> Arr
 		chest.set_meta("loot", loot)
 	add_child(chest)
 	out.append(chest)
-	# the lever, on a floor a short way to one side. ALWAYS spawn one (a fallback
-	# cell if no floor is found) -- otherwise the vault would be locked forever.
+	# the lever, on a floor a short way to one side. ALWAYS spawn one -- otherwise
+	# the vault would be locked forever. The fallback must still be REACHABLE: a
+	# blind `cell + (loff,0)` could sit inside solid rock, and a lever buried in
+	# stone cannot be pressed (the E check needs the player within 52px), so the
+	# vault it guards was locked for good. Try the far side, then walk inward
+	# toward the chest until a real floor cell turns up.
 	var loff := 11 if rng.randf() < 0.5 else -11
 	var lc := _floor_near(cell.x + loff, cell.y)
 	if lc.x < -9000:
-		lc = cell + Vector2i(loff, 0)
+		lc = _floor_near(cell.x - loff, cell.y)
+	var step := 1 if loff < 0 else -1
+	var probe := loff
+	while lc.x < -9000 and absf(probe) > 1.0:
+		probe += step
+		lc = _floor_near(cell.x + probe, cell.y)
+	if lc.x < -9000:
+		lc = cell            # last resort: ON the chest, always reachable
 	var lever := Node2D.new()
 	lever.global_position = _map.to_global(_map.map_to_local(lc))
 	lever.z_index = 8
@@ -630,7 +650,10 @@ func _pull_lever(lv: Node) -> void:
 # stones scattered around it (E on each). Each rune's state persists in _flags. ──
 func _spawn_runevault(cell: Vector2i, biome: int, rng: RandomNumberGenerator) -> Array:
 	var out := []
-	var vid := "ugr_%d_%d" % [cell.x, cell.y]
+	# chunk-keyed for the same reason as the lever vault: a dig near the chest
+	# used to re-mint this id, re-locking a solved puzzle and re-stocking the loot
+	var rch := _chunk_of_cell(cell)
+	var vid := "ugr_%d_%d" % [rch.x, rch.y]
 	var total := 3
 	var lit := 0
 	for i in range(total):
@@ -666,8 +689,17 @@ func _spawn_runevault(cell: Vector2i, biome: int, rng: RandomNumberGenerator) ->
 	for i in range(total):
 		var rid := vid + "_%d" % i
 		var rcell := _floor_near(cell.x + offs[i], cell.y)
+		# a rune buried in solid rock cannot be lit (the E check needs the player
+		# within 46px), and ALL THREE are needed -- one unreachable stone locked
+		# the chest forever. Walk inward toward the vault for real floor instead
+		# of planting it blind.
+		var rstep := 1 if offs[i] < 0 else -1
+		var rprobe: int = offs[i]
+		while rcell.x < -9000 and absf(rprobe) > 1.0:
+			rprobe += rstep
+			rcell = _floor_near(cell.x + rprobe, cell.y)
 		if rcell.x < -9000:
-			rcell = cell + Vector2i(offs[i], 0)
+			rcell = cell + Vector2i(0, 0)   # last resort: at the vault, reachable
 		var rune := Node2D.new()
 		rune.global_position = _map.to_global(_map.map_to_local(rcell))
 		rune.z_index = 8
@@ -758,7 +790,9 @@ func _spawn_geode(cell: Vector2i, biome: int, rng: RandomNumberGenerator) -> Arr
 		node.add_child(sh)
 	add_child(node)
 	out.append(node)
-	out.append(_spawn_chest(cell, biome, rng))   # treasure amid the crystals
+	# its OWN id prefix -- a chunk can roll a plain chest and a geode, and
+	# sharing an id meant looting one permanently emptied the other
+	out.append(_spawn_chest(cell, biome, rng, "ug_g"))   # treasure amid the crystals
 	return out
 
 # ── SPECIAL POCKET: a glowing mushroom grove -- pure atmosphere/variety. ────────
