@@ -501,10 +501,16 @@ func _physics_process(delta: float) -> void:
 	# a Warchief's RAGE aura whips it (and its neighbours) into a faster stride
 	if Time.get_ticks_msec() / 1000.0 < _rage_until:
 		_sm *= WARCHIEF_RAGE_MULT
+	# apply slow/rage to horizontal speed only while GROUNDED (flyers always -- they re-aim
+	# every frame). A hop/pounce preserves its launch velocity.x across airborne frames, so
+	# scaling it every frame would COMPOUND the multiplier -- hurling the mob into the wall
+	# under rage/Frenzied, or dropping it straight down under slow.
 	if not is_equal_approx(_sm, 1.0):
-		velocity.x *= _sm
 		if kind == "flyer":
+			velocity.x *= _sm
 			velocity.y *= _sm
+		elif is_on_floor():
+			velocity.x *= _sm
 	move_and_slide()
 	# hard containment: no mob (flyer, teleporter, or otherwise) ever ends a
 	# frame outside the level walls
@@ -1274,7 +1280,10 @@ func act_gazer(delta: float) -> void:
 		if _gaze_accum >= GAZE_FREEZE_TIME:
 			if player.has_method("apply_freeze"): player.apply_freeze(0.8)
 			if player.has_method("take_damage"): player.take_damage(int(round(attack_damage * 0.5)))
-			_gaze_accum = 0.0
+			# a NEGATIVE reset guarantees a real free window after the 0.8s freeze wears off:
+			# the player can't leave the cone while frozen, so without this the gaze re-locks
+			# almost at once -- and the game never permanently locks control.
+			_gaze_accum = -GAZE_FREEZE_TIME * 0.5
 	else:
 		_gaze_accum = maxf(0.0, _gaze_accum - delta * 1.5)
 
