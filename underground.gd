@@ -300,6 +300,13 @@ func _populate_chunk(c: Vector2i) -> void:
 		var ec = _find_floor_cell(c, rng)
 		if ec != null and _map.to_global(_map.map_to_local(ec)).distance_to(_player.global_position) > 400.0:
 			nodes.append(_spawn_mob(ec, biome, rng, true))
+	# TORCHES (dev 2026-07-26): ~30% of sampled floor spots get a wall torch, so the now-dark
+	# caves have frequent warm light pools with dark stretches between (Terraria-style).
+	for _ti in range(5):
+		if rng.randf() < 0.3:
+			var lc = _find_floor_cell(c, rng)
+			if lc != null:
+				nodes.append(_spawn_torch(lc))
 	# FLOOR-DOORS on the true path: one per dungeon level by depth (deeper = higher
 	# floor). The frontier door -- the deepest you can currently enter -- wears a
 	# beacon, so the way down is always clear. Leaving a floor returns you here.
@@ -400,6 +407,54 @@ func _spawn_trap(cell: Vector2i) -> Node:
 	t.global_position = _map.to_global(_map.map_to_local(cell)) + Vector2(0, 4)
 	return t
 
+# a soft radial light texture, shared by every placed torch (built once)
+static var _torch_tex: GradientTexture2D = null
+static func _make_torch_tex() -> GradientTexture2D:
+	if _torch_tex == null:
+		var g := Gradient.new()
+		g.offsets = PackedFloat32Array([0.0, 0.35, 0.7, 1.0])
+		g.colors = PackedColorArray([Color(1, 1, 1, 0.9), Color(1, 1, 1, 0.45), Color(1, 1, 1, 0.12), Color(1, 1, 1, 0.0)])
+		_torch_tex = GradientTexture2D.new()
+		_torch_tex.gradient = g
+		_torch_tex.width = 96
+		_torch_tex.height = 96
+		_torch_tex.fill = GradientTexture2D.FILL_RADIAL
+		_torch_tex.fill_from = Vector2(0.5, 0.5)
+		_torch_tex.fill_to = Vector2(1.0, 0.5)
+	return _torch_tex
+
+# A placed torch: a warm PointLight2D pool + a little bobbing additive flame on a stick,
+# planted on a floor cell. Streamed and freed with its chunk like all other content.
+func _spawn_torch(cell: Vector2i) -> Node:
+	var t := Node2D.new()
+	t.global_position = _map.to_global(_map.map_to_local(cell)) + Vector2(0, -8)
+	t.z_index = 6
+	add_child(t)
+	var light := PointLight2D.new()
+	light.texture = _make_torch_tex()
+	light.texture_scale = 2.6
+	light.color = Color(1.0, 0.80, 0.45)
+	light.energy = 0.95
+	light.shadow_enabled = false
+	t.add_child(light)
+	var stick := ColorRect.new()
+	stick.size = Vector2(2, 9)
+	stick.position = Vector2(-1, 1)
+	stick.color = Color(0.30, 0.20, 0.12)
+	t.add_child(stick)
+	var mat := CanvasItemMaterial.new()
+	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var flame := Polygon2D.new()
+	flame.polygon = PackedVector2Array([Vector2(-3, 2), Vector2(3, 2), Vector2(0, -9)])
+	flame.color = Color(1.0, 0.70, 0.25, 0.95)
+	flame.material = mat
+	flame.position = Vector2(0, -1)
+	t.add_child(flame)
+	var tw := t.create_tween().set_loops()
+	tw.tween_property(flame, "scale", Vector2(1.05, 1.18), 0.5).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(flame, "scale", Vector2(0.95, 0.9), 0.5).set_trans(Tween.TRANS_SINE)
+	return t
+
 func _spawn_mob(cell: Vector2i, biome: int, rng: RandomNumberGenerator, elite := false) -> Node:
 	var e = ENEMY_SCENE.instantiate()
 	if "respawns" in e: e.respawns = false
@@ -415,7 +470,14 @@ func _spawn_mob(cell: Vector2i, biome: int, rng: RandomNumberGenerator, elite :=
 	if "wave_hp_multiplier" in e: e.wave_hp_multiplier = hp_m
 	if "wave_damage_multiplier" in e: e.wave_damage_multiplier = dm_m
 	if "wave_speed_multiplier" in e: e.wave_speed_multiplier = lerpf(1.0, 1.35, depth)
-	if e.has_method("apply_block_archetype"): e.apply_block_archetype(mini(int(depth * 9.0), 8))
+	# VARIETY (dev 2026-07-26): keep the difficulty band from depth, but MIX the LOOK across a
+	# ~6-wide window so each biome fields 5-6 distinct mob types instead of a wall of clones.
+	# apply_mixed_archetype modulos the visual index, so an over-range value just wraps around.
+	if e.has_method("apply_mixed_archetype"):
+		var stat_b := mini(int(depth * 9.0), 8)
+		e.apply_mixed_archetype(stat_b, maxi(0, stat_b + rng.randi_range(-2, 3)))
+	elif e.has_method("apply_block_archetype"):
+		e.apply_block_archetype(mini(int(depth * 9.0), 8))
 	e.add_to_group("course_enemy")
 	add_child(e)
 	e.global_position = _map.to_global(_map.map_to_local(cell)) + Vector2(0, -22)
@@ -1011,8 +1073,13 @@ func _ensure_dark() -> void:
 const BIOME_AMBIENT := [
 	Color(0.74, 0.69, 0.60), Color(0.66, 0.69, 0.75), Color(0.58, 0.78, 0.66),
 	Color(0.84, 0.60, 0.48), Color(0.66, 0.54, 0.80)]
+# Terraria-dim (dev 2026-07-26): the caves are DARK now -- the biome tint is scaled well
+# down so you can't see far unaided. The player's carried torch and the placed wall torches
+# (_spawn_torch, ~30% of spots) light the rest back up in warm pools.
+const AMBIENT_DARK := 0.40
 func _biome_ambient(b: int) -> Color:
-	return BIOME_AMBIENT[clampi(b, 0, BIOME_AMBIENT.size() - 1)]
+	var c: Color = BIOME_AMBIENT[clampi(b, 0, BIOME_AMBIENT.size() - 1)]
+	return Color(c.r * AMBIENT_DARK, c.g * AMBIENT_DARK, c.b * AMBIENT_DARK, 1.0)
 
 # A dark cave behind everything so open air reads as depth, not flat grey. Tinted
 # toward the current biome as you descend (see _process) for atmosphere.

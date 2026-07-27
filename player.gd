@@ -2427,7 +2427,10 @@ func _physics_process(delta: float) -> void:
 	if player_light:
 		# carry a light through the dark places: the dungeon, and the Underdark
 		# (deep below the surface, where main.tscn's own CanvasModulate dims it)
-		player_light.enabled = GameState.in_dungeon or global_position.y > 300.0
+		# carry the torch through the dark places: dungeons, AND the tile Underground (now
+		# Terraria-dim, so the light is needed to see past a small radius).
+		player_light.enabled = GameState.in_dungeon or global_position.y > 300.0 \
+			or (is_inside_tree() and get_tree().get_first_node_in_group("tile_world") != null)
 	if is_dead:
 		return
 	# both rift doors standing = the drain runs (Riftweaving)
