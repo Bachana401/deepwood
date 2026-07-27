@@ -94,8 +94,6 @@ const CLOUD_MAX_SPEED = 10.0
 const CLOUD_COLOR = Color(0.97, 0.97, 1.0, 1.0)
 const CLOUD_Z_INDEX = -25
 
-const MUSIC_LOOP_SAMPLES = 441000
-
 const TRAP_SCENE = preload("res://trap.tscn")
 const TRAP_COUNT = 12   # dev call 2026-07-21: mines HALVED world-wide (was 25)
 const TRAP_SPAN_START = -670.0
@@ -219,7 +217,20 @@ const NPC_SCRIPT = preload("res://npc.gd")
 # the village entrance rather than glued to any one building.
 const VILLAGE_FALLBACK_POS = Vector2(4900.0, -100.0)
 
-var music: AudioStreamWAV = preload("res://audio/ambient_music.wav")
+var music: AudioStreamOggVorbis = preload("res://audio/ground_theme.ogg")
+# THE HEALTHY VILLAGE THEME (dev-supplied "Theme for a Triangle", 2026-07-27).
+# The surface has TWO voices now: the plain ground theme while Deepwood is still
+# a wound, and this one once the town is genuinely well. It is the ear's version
+# of the same thing the flower boxes and lanterns say -- you fixed this place.
+var healthy_music: AudioStreamMP3 = preload("res://audio/healthy_village_theme.mp3")
+# 5/10 on the player-facing meter (village_morale is 0-100). OFF sits lower than
+# ON so a village hovering exactly at the line doesn't flip tracks every second.
+const HEALTHY_MORALE_ON := 50
+const HEALTHY_MORALE_OFF := 44
+const MUSIC_FADE := 1.2                # seconds of cross-fade either way
+var _music_healthy := false
+var _music_check_cd := 0.0
+var _music_fade_tween: Tween = null
 
 func _ready() -> void:
 	# LOAD FIRST, BUILD SECOND. On a fresh process launch, Continue swaps to this
@@ -1164,14 +1175,55 @@ func _process(delta: float) -> void:
 			cloud.position.x = CLOUD_SPAN_START
 	_check_arrival_trigger()
 	_check_arrival_talk()
+	_tick_music(delta)
 
 func start_music() -> void:
-	music.loop_mode = AudioStreamWAV.LOOP_FORWARD
-	music.loop_begin = 0
-	music.loop_end = MUSIC_LOOP_SAMPLES
-	$MusicPlayer.stream = music
+	# THE SURFACE THEME (dev-supplied, 2026-07-27). Ogg/MP3 streams, so looping
+	# is a property on the resource rather than WAV loop-point samples.
+	music.loop = true
+	healthy_music.loop = true
+	# pick the right voice on the FIRST frame: walking home to a thriving town
+	# should already sound thriving, not switch a second later
+	_music_healthy = _village_is_healthy()
+	$MusicPlayer.stream = healthy_music if _music_healthy else music
 	$MusicPlayer.bus = "Music"   # so the Music volume slider controls it
+	$MusicPlayer.volume_db = 0.0
 	$MusicPlayer.play()
+
+# Is the town well enough to have earned the better theme? Hysteresis: once the
+# healthy theme is on it takes a real slide (not a wobble at the line) to lose it.
+func _village_is_healthy() -> bool:
+	# the finale owns its own dramaturgy -- the false-victory feast pins morale
+	# at 100, and the Harvest that follows must NOT sound like a healthy village
+	if GameState.harvest_at_home or GameState.feast_glow:
+		return _music_healthy and not GameState.harvest_at_home
+	var m: int = GameState.village_morale()
+	return m >= (HEALTHY_MORALE_OFF if _music_healthy else HEALTHY_MORALE_ON)
+
+# Swap the surface theme when the town's health crosses the line, cross-faded so
+# it reads as the place lifting rather than a track being changed.
+func _tick_music(delta: float) -> void:
+	_music_check_cd -= delta
+	if _music_check_cd > 0.0:
+		return
+	_music_check_cd = 1.0
+	var want := _village_is_healthy()
+	if want == _music_healthy:
+		return
+	_music_healthy = want
+	var mp: AudioStreamPlayer = $MusicPlayer
+	var next: AudioStream = healthy_music if want else music
+	if _music_fade_tween != null and _music_fade_tween.is_valid():
+		_music_fade_tween.kill()
+	_music_fade_tween = create_tween()
+	_music_fade_tween.tween_property(mp, "volume_db", -40.0, MUSIC_FADE * 0.5)
+	_music_fade_tween.tween_callback(func():
+		mp.stream = next
+		mp.play())
+	_music_fade_tween.tween_property(mp, "volume_db", 0.0, MUSIC_FADE * 0.5)
+	if want:
+		GameState.notify("🎵 Deepwood sounds like a village again.")
+		GameState.log_event("village", "The town found its song again — Deepwood is healthy.")
 
 func apply_save_data() -> void:
 	var data = GameState.load_game()

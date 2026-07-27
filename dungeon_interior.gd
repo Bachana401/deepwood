@@ -360,7 +360,7 @@ const CRYSTAL_GLOW := Color(0.62, 0.42, 1.0)
 const MOSS_COLOR := Color(0.27, 0.42, 0.22)
 const ROOT_COLOR := Color(0.20, 0.15, 0.12)
 
-var music: AudioStreamWAV = preload("res://audio/dungeon_music.wav")
+var music: AudioStreamOggVorbis = preload("res://audio/cave_theme.ogg")
 
 # pause_menu.gd (shared with the overworld) reads these off whichever node
 # is named "DungeonManager" -- this scene's root plays that role here, and
@@ -434,15 +434,12 @@ func setup_exit_button() -> void:
 		exit_button.visible = true
 		exit_button.pressed.connect(exit_dungeon)
 
-# 10 seconds of 16-bit mono at 44.1kHz -- must match the synthesized file.
-const DUNGEON_MUSIC_LOOP_SAMPLES = 441000
-
 func start_music() -> void:
-	music.loop_mode = AudioStreamWAV.LOOP_FORWARD
-	# loop_end defaults to 0, and a [0,0] loop region plays as pure silence --
-	# the loop bounds have to be set explicitly (same as main.gd's music).
-	music.loop_begin = 0
-	music.loop_end = DUNGEON_MUSIC_LOOP_SAMPLES
+	# THE CAVE THEME (dev-supplied, 2026-07-27): one voice for everything below
+	# ground -- these floors and the tile caves alike. An Ogg stream, so looping
+	# is a resource property rather than WAV loop-point samples. The depth-pitch
+	# slide below is untouched: the same theme sags lower the deeper you go.
+	music.loop = true
 	$MusicPlayer.stream = music
 	$MusicPlayer.bus = "Music"   # controlled by the Music volume slider
 	$MusicPlayer.pitch_scale = music_pitch_for(current_level)

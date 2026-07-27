@@ -1283,5 +1283,19 @@ func _build_hud_extras() -> void:
 	add_child(preload("res://hotbar_ui.gd").new())
 	add_child(preload("res://admin_panel.gd").new())
 
+# THE CAVE THEME (dev-supplied, 2026-07-27). This world used to run in total
+# silence -- the stub below was never filled in. underground.tscn has no
+# MusicPlayer node, so the player is made here; the same track the dungeon
+# floors use, so "below ground" has one voice throughout.
+# a var, not a const: `loop` is set on the resource below, and GDScript refuses
+# property assignment through a const reference
+var cave_music: AudioStreamOggVorbis = preload("res://audio/cave_theme.ogg")
+
 func start_music() -> void:
-	pass
+	var mp := AudioStreamPlayer.new()
+	mp.name = "MusicPlayer"
+	cave_music.loop = true
+	mp.stream = cave_music
+	mp.bus = "Music"          # controlled by the Music volume slider
+	add_child(mp)
+	mp.play()
