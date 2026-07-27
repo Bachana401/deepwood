@@ -267,6 +267,12 @@ var _rage_until := 0.0       # warchief aura: this mob moves faster until this t
 var _dodge_ready_at := 0.0   # voidling
 var _gaze_accum := 0.0       # gazer: seconds the player has held our gaze
 var _jug_open := false       # juggernaut: guard dropped -> vulnerable + attacking
+# distinct locomotion (2026-07-27): each new kind MOVES differently, not just "walk at you"
+var _hop_cd := 0.0           # brood: a bouncing hop gait
+var _pounce_cd := 0.0        # vampire: a leaper -- pounces in arcs, creeps between
+var _drum_until := 0.0       # warchief: plants and drums while it rallies
+var _turn_cd := 0.0          # gazer: turns its head SLOWLY, so you can hold its blind side
+var _void_repos_cd := 1.2    # voidling: flickers to a flank on its own, hard to pin
 const SENTINEL_CD := 3.4
 const SENTINEL_TELEGRAPH := 0.5
 const SENTINEL_RANGE := 520.0
@@ -1137,9 +1143,17 @@ func sentinel_sweep() -> void:
 		s2.is_casting = false
 
 # ── BROOD: rushes in; on death it SPLITS into two smaller broods (see die()) ──
-func act_brood(_delta: float) -> void:
+func act_brood(delta: float) -> void:
 	var dx = player.global_position.x - global_position.x
-	velocity.x = sign(dx) * move_speed if absf(dx) > 6.0 else 0.0
+	if is_on_floor():                                   # a bloated sac BOUNCES toward you in hops
+		if _hop_cd <= 0.0:
+			_hop_cd = 0.7
+			velocity.y = -260.0
+			velocity.x = signf(dx) * move_speed * 2.2
+		else:
+			_hop_cd -= delta
+			velocity.x = move_toward(velocity.x, 0.0, move_speed * 5.0 * delta)
+	# airborne: keep the hop's momentum (don't touch velocity.x)
 	if global_position.distance_to(player.global_position) < 44.0 and attack_cooldown <= 0.0:
 		deal_contact_damage()
 		attack_cooldown = 0.8
@@ -1192,12 +1206,17 @@ func arc_strike() -> void:
 # ── WARCHIEF: melee + a periodic RAGE pulse whipping nearby special mobs faster ──
 func act_warchief(_delta: float) -> void:
 	var dx = player.global_position.x - global_position.x
-	velocity.x = sign(dx) * move_speed if absf(dx) > 6.0 else 0.0
+	var now := Time.get_ticks_msec() / 1000.0
+	if now < _drum_until:                               # PLANTS and drums while it rallies
+		velocity.x = 0.0
+	else:                                               # otherwise a slow, heavy war-march
+		velocity.x = signf(dx) * move_speed if absf(dx) > 6.0 else 0.0
 	if global_position.distance_to(player.global_position) < 46.0 and attack_cooldown <= 0.0:
 		deal_contact_damage()
 		attack_cooldown = 1.0
 	if cast_timer <= 0.0:
 		cast_timer = WARCHIEF_CD
+		_drum_until = now + 0.6
 		rally()
 
 func rally() -> void:
@@ -1210,12 +1229,20 @@ func rally() -> void:
 			m._rage_until = now + WARCHIEF_RAGE_TIME
 
 # ── VOIDLING: darts in for a jab; BLINKS away when struck (see take_damage) ──
-func act_voidling(_delta: float) -> void:
+func act_voidling(delta: float) -> void:
 	face_player()
 	var dist = global_position.distance_to(player.global_position)
 	var dx = player.global_position.x - global_position.x
+	# shifty: it FLICKERS to a flank on its own now and then, never where you swung last
+	if _void_repos_cd <= 0.0 and dist < 320.0:
+		_void_repos_cd = randf_range(1.4, 2.4)
+		spawn_teleport_puff(global_position)
+		blink_to_flank()
+		spawn_teleport_puff(global_position)
+	else:
+		_void_repos_cd -= delta
 	if dist > 66.0:
-		velocity.x = sign(dx) * move_speed
+		velocity.x = signf(dx) * move_speed
 	else:
 		velocity.x = 0.0
 		if attack_cooldown <= 0.0:
@@ -1224,10 +1251,16 @@ func act_voidling(_delta: float) -> void:
 
 # ── GAZER: its STARE freezes -- linger in its facing cone and you slow, then freeze ──
 func act_gazer(delta: float) -> void:
-	var dx = player.global_position.x - global_position.x
-	if absf(dx) > 4.0:                       # turns to face SLOWLY, so you can slip behind
-		facing = 1 if dx > 0 else -1
-	velocity.x = 0.0
+	velocity.x = 0.0                         # rooted, staring -- creeps nowhere
+	# turns its head SLOWLY (a real turn cooldown), so a mobile player can hold its blind side
+	if _turn_cd > 0.0:
+		_turn_cd -= delta
+	elif is_instance_valid(player):
+		var dxf: float = player.global_position.x - global_position.x
+		var want := 1 if dxf > 0.0 else -1
+		if want != facing and absf(dxf) > 20.0:
+			facing = want
+			_turn_cd = 1.1
 	if not is_instance_valid(player):
 		_gaze_accum = 0.0
 		return
@@ -1285,10 +1318,10 @@ func sky_rain() -> void:
 	is_casting = false
 
 # ── VAMPIRE: a leaper whose bite DRAINS life to heal itself ──
-func act_vampire(_delta: float) -> void:
+func act_vampire(delta: float) -> void:
 	var dx = player.global_position.x - global_position.x
-	velocity.x = sign(dx) * move_speed if absf(dx) > 6.0 else 0.0
-	if global_position.distance_to(player.global_position) < VAMP_HIT_RANGE and attack_cooldown <= 0.0:
+	var dist = global_position.distance_to(player.global_position)
+	if dist < VAMP_HIT_RANGE and attack_cooldown <= 0.0:
 		attack_cooldown = 0.85
 		if is_instance_valid(player) and player.has_method("take_damage"):
 			player.take_damage(attack_damage)
@@ -1298,6 +1331,15 @@ func act_vampire(_delta: float) -> void:
 			spark.global_position = global_position + Vector2(0, -20); spark.z_index = 8
 			get_parent().add_child(spark)
 			var t := spark.create_tween(); t.tween_property(spark, "modulate:a", 0.0, 0.4); t.tween_callback(spark.queue_free)
+	if is_on_floor():                                   # a LEAPER: pounces in arcs, creeps between
+		if dist > VAMP_HIT_RANGE and dist < 280.0 and _pounce_cd <= 0.0:
+			_pounce_cd = 1.5
+			velocity.y = -300.0
+			velocity.x = signf(dx) * move_speed * 2.4
+		else:
+			_pounce_cd -= delta
+			velocity.x = signf(dx) * move_speed * 0.5 if dist > VAMP_HIT_RANGE else 0.0
+	# airborne: keep the leap's momentum
 
 # ── JUGGERNAUT: near-immune behind its GUARD; drops it to slam, then guards again ──
 func act_juggernaut(_delta: float) -> void:
