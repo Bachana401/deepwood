@@ -21,7 +21,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		# ESC first dismisses any open game window (inventory, gear, chest, skill
 		# tree, a building panel, the shop). Only when nothing is open -- or the
 		# pause menu itself is up -- does it toggle pause.
-		if not visible and close_open_windows():
+		# Even when the pause menu itself is up, a How-to-Play / roster page opened OVER it
+		# (their own CanvasLayers, in esc_window) must close FIRST -- else ESC unpauses and
+		# strands the page over the now-live game. Sweep windows before toggling pause.
+		if close_open_windows():
 			get_viewport().set_input_as_handled()
 			return
 		toggle_pause()

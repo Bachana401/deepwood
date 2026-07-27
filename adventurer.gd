@@ -676,8 +676,14 @@ func _fight(target: Node2D) -> void:
 				var max_hp := float(def.get("hp", 100.0))
 				GameState.adventurers[adventurer_id]["hp"] = minf(max_hp, float(st.get("hp", max_hp)) + 20.0)
 		if weapon_rect:
+			# facing lives on _skin_sprite for a skinned hero (body_rect stays hidden at
+			# scale 1), so read the real facing or the swing always arcs rightward. Matches
+			# the facing source used elsewhere (see _face / on_live_siege_ended).
+			var face := signf(_skin_sprite.scale.x) if _skin_sprite != null else signf(body_rect.scale.x)
+			if face == 0.0:
+				face = 1.0
 			var t = create_tween()
-			t.tween_property(weapon_rect, "rotation_degrees", 70.0 * body_rect.scale.x, 0.08)
+			t.tween_property(weapon_rect, "rotation_degrees", 70.0 * face, 0.08)
 			t.tween_property(weapon_rect, "rotation_degrees", 0.0, 0.1)
 
 func take_damage(amount: int) -> void:

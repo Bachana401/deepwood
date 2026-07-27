@@ -324,7 +324,10 @@ func _populate_chunk(c: Vector2i) -> void:
 				# the scattered column was solid rock (a dense warren) -> retry at this
 				# chunk's mid-column so the level still gets its door, kept LOCAL to chunk
 				# c (it must unload/respawn WITH c, not blink with a distant chunk).
-				dcell = _floor_near(c.x * CHUNK + CHUNK / 2, dy)
+				for sx in [c.x * CHUNK + CHUNK / 2, c.x * CHUNK + 6, c.x * CHUNK + CHUNK - 7]:
+					dcell = _floor_near(sx, dy)   # scan across the whole chunk, not just mid
+					if dcell.x > -9000:
+						break
 			if dcell.x > -9000:
 				nodes.append(_spawn_floor_door(dcell, L))
 	if not nodes.is_empty():
@@ -586,7 +589,7 @@ func _pull_lever(lv: Node) -> void:
 			for c in ch.get_children():
 				if c is Polygon2D:
 					c.color = c.color.lightened(0.12)
-	GameState.notify("⚙ A grind of stone — the vault unseals nearby.")
+	_notify("⚙ A grind of stone — the vault unseals nearby.")
 
 # ── PUZZLE: a rune-sealed vault. A locked chest opened by lighting all 3 rune
 # stones scattered around it (E on each). Each rune's state persists in _flags. ──
@@ -690,9 +693,9 @@ func _light_rune(rune: Node) -> void:
 				for c in ch.get_children():
 					if c is Polygon2D:
 						c.color = c.color.lightened(0.15)
-		GameState.notify("✦ The runes align — the sealed vault opens.")
+		_notify("✦ The runes align — the sealed vault opens.")
 	else:
-		GameState.notify("✦ A rune kindles. (%d / %d)" % [lit, total])
+		_notify("✦ A rune kindles. (%d / %d)" % [lit, total])
 
 # ── SPECIAL POCKET: a crystal geode -- glowing shards around a treasure chest. ──
 func _spawn_geode(cell: Vector2i, biome: int, rng: RandomNumberGenerator) -> Array:
@@ -801,7 +804,7 @@ func _try_loot_chest() -> bool:
 		if _player.global_position.distance_to(ch.global_position) > 62.0:
 			continue
 		if bool(ch.get_meta("locked", false)):
-			GameState.notify("🔒 Locked. Find the lever that opens this vault.")
+			_notify("🔒 Locked. Find the lever that opens this vault.")
 			return true
 		var loot: Array = ch.get_meta("loot", [])
 		var got := {}
@@ -834,9 +837,9 @@ func _try_loot_chest() -> bool:
 			var parts := []
 			for id in got:
 				parts.append("%s ×%d" % [Inventory.get_display_name(id), got[id]])
-			GameState.notify("⛏ Chest looted: " + ", ".join(parts))
+			_notify("⛏ Chest looted: " + ", ".join(parts))
 		if not kept.is_empty():
-			GameState.notify("🎒 Your bag is full — the chest still holds the rest.")
+			_notify("🎒 Your bag is full — the chest still holds the rest.")
 		return true
 	return false
 
@@ -912,7 +915,7 @@ func _break(cell: Vector2i, pick_tier: int, player: Node) -> bool:
 	var biome: Dictionary = BIOMES[clampi(bi, 0, BIOMES.size() - 1)]
 	var center := _map.to_global(_map.map_to_local(cell))
 	if pick_tier < int(biome.tier):
-		GameState.notify("%s is too hard for your pickaxe — you'll need a stronger one." % biome.name)
+		_notify("%s is too hard for your pickaxe — you'll need a stronger one." % biome.name)
 		_chips(center, biome.accent, true)
 		return false
 	var hard := int(biome.hard) + (2 if is_ore else 0)   # ore is a bit tougher
@@ -929,7 +932,7 @@ func _break(cell: Vector2i, pick_tier: int, player: Node) -> bool:
 				# max_stack-1 drop already held (Blightcore ore = relic_mountain, now
 				# reachable via the tier-3 pickaxe) must not claim a haul it didn't give.
 				if player.inventory.add_item(ORE_DROP[bi], 1) <= 0:
-					GameState.notify("⛏ Struck a vein — " + Inventory.get_display_name(ORE_DROP[bi]) + "!")
+					_notify("⛏ Struck a vein — " + Inventory.get_display_name(ORE_DROP[bi]) + "!")
 			else:
 				player.inventory.add_item("stone", 1)
 	else:
@@ -1204,6 +1207,23 @@ func _build_hud_frame() -> void:
 	hint.anchor_top = 1.0; hint.anchor_bottom = 1.0
 	hint.offset_top = -84.0; hint.offset_left = 20.0
 	cl.add_child(hint)
+	# player-personal message stack: this scene had none and _notify() is the
+	# village channel (silenced while in_dungeon), so ALL mining/loot/vault/pickaxe-gate
+	# feedback was invisible -- "no feedback reads as broken" (dev 2026-07-26).
+	var notif := preload("res://notification_stack.gd").new()
+	notif.name = "NotificationStack"
+	notif.anchor_left = 1.0; notif.anchor_right = 1.0
+	notif.offset_left = -420.0; notif.offset_right = -20.0
+	notif.offset_top = 24.0
+	cl.add_child(notif)
+
+# player-personal underground feedback -> the scene's own stack, UNGATED. GameState.notify
+# is the VILLAGE channel (silenced while in_dungeon, see game_state.gd:2154), so the
+# underground must talk to the stack directly or the player gets no messages at all.
+func _notify(text: String) -> void:
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if stack != null and stack.has_method("show_notification"):
+		stack.show_notification(text)
 
 func _build_hud_extras() -> void:
 	add_child(preload("res://hotbar_ui.gd").new())
