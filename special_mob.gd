@@ -104,6 +104,34 @@ const KINDS = {
 	# Rimewisp -- a frost sprite; FREEZES you and leaves ice underfoot.
 	"frostling": {"hp": 44, "dmg": 10, "speed": 72.0, "reward": 11, "xp": 12,
 		"main": Color(0.20, 0.28, 0.36), "accent": Color(0.62, 0.9, 1.0)},
+	# --- 9 MORE, each a new trick (2026-07-27) ---
+	# Bonewatch Sentinel -- a rooted skull-turret that SWEEPS a searing beam across an arc.
+	"sentinel": {"hp": 74, "dmg": 16, "speed": 0.0, "reward": 12, "xp": 13,
+		"main": Color(0.30, 0.30, 0.24), "accent": Color(1.0, 0.72, 0.30)},
+	# Writhing Brood -- a bloated sac that SPLITS into two smaller broods when slain.
+	"brood": {"hp": 64, "dmg": 12, "speed": 66.0, "reward": 10, "xp": 11,
+		"main": Color(0.24, 0.30, 0.20), "accent": Color(0.70, 0.95, 0.40)},
+	# Arcbinder -- snipes a CHAIN-LIGHTNING strike: instant, telegraphed, jolts + slows.
+	"arcbinder": {"hp": 50, "dmg": 15, "speed": 46.0, "reward": 12, "xp": 13,
+		"main": Color(0.18, 0.22, 0.34), "accent": Color(0.60, 0.85, 1.0)},
+	# Warchief -- a war-drummer corpse that pulses a RAGE aura, whipping nearby mobs faster.
+	"warchief": {"hp": 82, "dmg": 15, "speed": 52.0, "reward": 13, "xp": 14,
+		"main": Color(0.34, 0.18, 0.16), "accent": Color(1.0, 0.40, 0.25)},
+	# Voidling -- a flickering wraith that BLINKS away from your blows, then jabs.
+	"voidling": {"hp": 40, "dmg": 14, "speed": 104.0, "reward": 12, "xp": 13,
+		"main": Color(0.16, 0.16, 0.24), "accent": Color(0.55, 0.50, 0.95)},
+	# Gorgon Gazer -- its STARE petrifies: linger in its gaze cone and you freeze fast.
+	"gazer": {"hp": 58, "dmg": 12, "speed": 30.0, "reward": 12, "xp": 13,
+		"main": Color(0.26, 0.30, 0.20), "accent": Color(0.85, 1.0, 0.55)},
+	# Skycaller -- calls a RAIN of falling strikes across the ground around you.
+	"skycaller": {"hp": 54, "dmg": 18, "speed": 34.0, "reward": 13, "xp": 14,
+		"main": Color(0.22, 0.20, 0.32), "accent": Color(0.70, 0.70, 1.0)},
+	# Sanguine -- a fanged leaper whose bite DRAINS your life to heal its own.
+	"vampire": {"hp": 56, "dmg": 13, "speed": 92.0, "reward": 12, "xp": 13,
+		"main": Color(0.28, 0.12, 0.14), "accent": Color(1.0, 0.25, 0.30)},
+	# Ironclad -- a shielded juggernaut: near-immune behind its guard, deadly when it drops.
+	"juggernaut": {"hp": 120, "dmg": 24, "speed": 40.0, "reward": 14, "xp": 15,
+		"main": Color(0.30, 0.30, 0.32), "accent": Color(0.90, 0.90, 0.95)},
 }
 
 # injected before _ready
@@ -233,6 +261,41 @@ var lunge_dir := 1
 var burrow_elapsed := 0.0    # burrower: max time it may stay burrowed/untouchable
 var is_casting := false
 var pending_tp := Vector2.ZERO
+# --- the 9 new kinds (2026-07-27) ---
+var split_gen := 0           # brood: 0 = original (splits on death), 1 = a split (won't)
+var _rage_until := 0.0       # warchief aura: this mob moves faster until this time
+var _dodge_ready_at := 0.0   # voidling
+var _gaze_accum := 0.0       # gazer: seconds the player has held our gaze
+var _jug_open := false       # juggernaut: guard dropped -> vulnerable + attacking
+const SENTINEL_CD := 3.4
+const SENTINEL_TELEGRAPH := 0.5
+const SENTINEL_RANGE := 520.0
+const SENTINEL_ARC := 100.0      # degrees swept
+const SENTINEL_STEPS := 18
+const BROOD_SPLITS := 2
+const ARC_CD := 2.8
+const ARC_TELEGRAPH := 0.55
+const ARC_RANGE := 560.0
+const ARC_HIT_RADIUS := 46.0
+const WARCHIEF_CD := 4.0
+const WARCHIEF_AURA_RANGE := 320.0
+const WARCHIEF_RAGE_TIME := 4.0
+const WARCHIEF_RAGE_MULT := 1.45
+const VOID_DODGE_CD := 0.9
+const VOID_BLINK_DIST := 150.0
+const GAZE_RANGE := 300.0
+const GAZE_HALF_ANGLE := 34.0    # degrees each side of facing
+const GAZE_FREEZE_TIME := 1.6    # sustained gaze before a hard freeze
+const SKY_CD := 3.6
+const SKY_TELEGRAPH := 0.6
+const SKY_COUNT := 5
+const SKY_RADIUS := 46.0
+const VAMP_HIT_RANGE := 46.0
+const VAMP_LIFESTEAL := 0.6
+const JUG_GUARD_TIME := 3.2
+const JUG_OPEN_TIME := 1.6
+const JUG_SHIELD_FRAC := 0.15    # fraction of damage that gets through the raised guard
+const JUG_SLAM_RANGE := 74.0
 
 var visual: Node2D = null
 var visual_parts: Array = []   # [[node, base_color], ...] for hit-flash restore
@@ -352,6 +415,14 @@ func build_collision() -> void:
 		"warper": rect.size = Vector2(30, 44)
 		"ballista": rect.size = Vector2(46, 34)
 		"swarm": rect.size = Vector2(38, 32)
+		"sentinel": rect.size = Vector2(36, 40)
+		"brood": rect.size = Vector2(34, 30)
+		"arcbinder", "skycaller": rect.size = Vector2(32, 44)
+		"warchief": rect.size = Vector2(38, 46)
+		"voidling": rect.size = Vector2(26, 40)
+		"gazer": rect.size = Vector2(34, 40)
+		"vampire": rect.size = Vector2(30, 40)
+		"juggernaut": rect.size = Vector2(44, 44)
 		_: rect.size = Vector2(30, 30)
 	shape.shape = rect
 	shape.position = Vector2(0, -rect.size.y / 2.0)
@@ -397,6 +468,15 @@ func _physics_process(delta: float) -> void:
 			"ballista": act_ballista(delta)
 			"swarm": act_swarm(delta)
 			"frostling": act_frostling(delta)
+			"sentinel": act_sentinel(delta)
+			"brood": act_brood(delta)
+			"arcbinder": act_arcbinder(delta)
+			"warchief": act_warchief(delta)
+			"voidling": act_voidling(delta)
+			"gazer": act_gazer(delta)
+			"skycaller": act_skycaller(delta)
+			"vampire": act_vampire(delta)
+			"juggernaut": act_juggernaut(delta)
 
 	if velocity.x > 1.0:
 		facing = 1
@@ -412,6 +492,9 @@ func _physics_process(delta: float) -> void:
 	# Frenzied: wounded past half, it stops pacing itself
 	if affix == "frenzied" and health < max_health / 2:
 		_sm *= FRENZY_MULT
+	# a Warchief's RAGE aura whips it (and its neighbours) into a faster stride
+	if Time.get_ticks_msec() / 1000.0 < _rage_until:
+		_sm *= WARCHIEF_RAGE_MULT
 	if not is_equal_approx(_sm, 1.0):
 		velocity.x *= _sm
 		if kind == "flyer":
@@ -1003,6 +1086,250 @@ func spawn_frost_patch(pos: Vector2) -> void:
 		if elapsed[0] >= 4.0:
 			patch.queue_free())
 
+# ── SENTINEL: a rooted turret that SWEEPS a searing beam across an arc (weave through) ──
+func act_sentinel(_delta: float) -> void:
+	velocity.x = 0.0
+	face_player()
+	if cast_timer <= 0.0 and not is_casting and global_position.distance_to(player.global_position) < SENTINEL_RANGE + 60.0:
+		cast_timer = SENTINEL_CD
+		sentinel_sweep()
+
+func sentinel_sweep() -> void:
+	is_casting = true
+	var mid := (player.global_position - (global_position + Vector2(0, -18))).angle()
+	spawn_sigil(global_position + Vector2(0, -18), 26.0, SENTINEL_TELEGRAPH, accent_color)
+	set_flash(accent_color)
+	await get_tree().create_timer(SENTINEL_TELEGRAPH).timeout
+	if not is_instance_valid(self):
+		return
+	clear_flash()
+	if is_dead:
+		is_casting = false
+		return
+	var beam := Line2D.new()
+	beam.width = 5.0
+	beam.default_color = Color(accent_color.r, accent_color.g, accent_color.b, 0.85)
+	beam.z_index = 5
+	var mat := CanvasItemMaterial.new(); mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	beam.material = mat
+	get_parent().add_child(beam)
+	get_tree().create_timer(2.0).timeout.connect(beam.queue_free)   # failsafe free even if we die
+	var a0 := mid - deg_to_rad(SENTINEL_ARC * 0.5)
+	var id := get_instance_id()
+	var hit := false
+	for i in range(SENTINEL_STEPS + 1):
+		var s = instance_from_id(id)
+		if s == null or not is_instance_valid(s) or s.is_dead:
+			break
+		var ang: float = a0 + deg_to_rad(SENTINEL_ARC) * (float(i) / float(SENTINEL_STEPS))
+		var o: Vector2 = s.global_position + Vector2(0, -18)
+		beam.points = PackedVector2Array([o, o + Vector2(cos(ang), sin(ang)) * SENTINEL_RANGE])
+		if not hit and is_instance_valid(s.player):
+			var to_p: Vector2 = s.player.global_position - o
+			if to_p.length() < SENTINEL_RANGE and absf(wrapf(to_p.angle() - ang, -PI, PI)) < deg_to_rad(7.0):
+				hit = true
+				if s.player.has_method("take_damage"): s.player.take_damage(int(round(s.attack_damage * 0.6)))
+		await get_tree().create_timer(0.03).timeout
+	if is_instance_valid(beam):
+		beam.queue_free()
+	var s2 = instance_from_id(id)
+	if s2 != null and is_instance_valid(s2):
+		s2.is_casting = false
+
+# ── BROOD: rushes in; on death it SPLITS into two smaller broods (see die()) ──
+func act_brood(_delta: float) -> void:
+	var dx = player.global_position.x - global_position.x
+	velocity.x = sign(dx) * move_speed if absf(dx) > 6.0 else 0.0
+	if global_position.distance_to(player.global_position) < 44.0 and attack_cooldown <= 0.0:
+		deal_contact_damage()
+		attack_cooldown = 0.8
+
+# ── ARCBINDER: telegraphs a spot, then a hitscan CHAIN bolt jolts + slows if you linger ──
+func act_arcbinder(_delta: float) -> void:
+	face_player()
+	var dist = global_position.distance_to(player.global_position)
+	var dx = player.global_position.x - global_position.x
+	if dist < 200.0: velocity.x = -sign(dx) * move_speed
+	elif dist > 480.0: velocity.x = sign(dx) * move_speed
+	else: velocity.x = 0.0
+	if cast_timer <= 0.0 and not is_casting and dist < ARC_RANGE:
+		cast_timer = ARC_CD
+		arc_strike()
+
+func arc_strike() -> void:
+	is_casting = true
+	set_flash(accent_color)
+	var mark = Vector2(player.global_position.x, player.global_position.y)   # snipes THIS spot -- move off it
+	spawn_sigil(mark, ARC_HIT_RADIUS, ARC_TELEGRAPH, accent_color)
+	await get_tree().create_timer(ARC_TELEGRAPH).timeout
+	if not is_instance_valid(self):
+		return
+	clear_flash()
+	if is_dead:
+		is_casting = false
+		return
+	var bolt := Line2D.new()
+	bolt.width = 3.0
+	bolt.default_color = Color(accent_color.r, accent_color.g, accent_color.b, 0.9)
+	bolt.z_index = 6
+	var mat := CanvasItemMaterial.new(); mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	bolt.material = mat
+	var o := global_position + Vector2(0, -18)
+	var pts := PackedVector2Array([o])
+	for i in range(1, 6):
+		var b: Vector2 = o.lerp(mark, float(i) / 6.0)
+		pts.append(b + Vector2(randf_range(-10, 10), randf_range(-10, 10)))
+	pts.append(mark)
+	bolt.points = pts
+	get_parent().add_child(bolt)
+	get_tree().create_timer(0.18).timeout.connect(bolt.queue_free)
+	_burst(mark, ARC_HIT_RADIUS, accent_color)
+	if is_instance_valid(player) and player.global_position.distance_to(mark) < ARC_HIT_RADIUS:
+		if player.has_method("take_damage"): player.take_damage(attack_damage)
+		if player.has_method("apply_slow"): player.apply_slow(1.6, 0.55)
+	is_casting = false
+
+# ── WARCHIEF: melee + a periodic RAGE pulse whipping nearby special mobs faster ──
+func act_warchief(_delta: float) -> void:
+	var dx = player.global_position.x - global_position.x
+	velocity.x = sign(dx) * move_speed if absf(dx) > 6.0 else 0.0
+	if global_position.distance_to(player.global_position) < 46.0 and attack_cooldown <= 0.0:
+		deal_contact_damage()
+		attack_cooldown = 1.0
+	if cast_timer <= 0.0:
+		cast_timer = WARCHIEF_CD
+		rally()
+
+func rally() -> void:
+	_burst(global_position + Vector2(0, -18), WARCHIEF_AURA_RANGE * 0.4, accent_color)
+	var now := Time.get_ticks_msec() / 1000.0
+	for m in get_tree().get_nodes_in_group("dungeon_combatant"):
+		if m == self or not is_instance_valid(m) or ("is_dead" in m and m.is_dead):
+			continue
+		if "_rage_until" in m and global_position.distance_to(m.global_position) < WARCHIEF_AURA_RANGE:
+			m._rage_until = now + WARCHIEF_RAGE_TIME
+
+# ── VOIDLING: darts in for a jab; BLINKS away when struck (see take_damage) ──
+func act_voidling(_delta: float) -> void:
+	face_player()
+	var dist = global_position.distance_to(player.global_position)
+	var dx = player.global_position.x - global_position.x
+	if dist > 66.0:
+		velocity.x = sign(dx) * move_speed
+	else:
+		velocity.x = 0.0
+		if attack_cooldown <= 0.0:
+			deal_contact_damage()
+			attack_cooldown = 0.7
+
+# ── GAZER: its STARE freezes -- linger in its facing cone and you slow, then freeze ──
+func act_gazer(delta: float) -> void:
+	var dx = player.global_position.x - global_position.x
+	if absf(dx) > 4.0:                       # turns to face SLOWLY, so you can slip behind
+		facing = 1 if dx > 0 else -1
+	velocity.x = 0.0
+	if not is_instance_valid(player):
+		_gaze_accum = 0.0
+		return
+	var to_p := player.global_position - (global_position + Vector2(0, -18))
+	var facing_ang := 0.0 if facing >= 0 else PI
+	var in_cone := to_p.length() < GAZE_RANGE and absf(wrapf(to_p.angle() - facing_ang, -PI, PI)) < deg_to_rad(GAZE_HALF_ANGLE)
+	if in_cone:
+		_gaze_accum += delta
+		if player.has_method("apply_slow"):
+			player.apply_slow(0.3, clampf(0.9 - _gaze_accum * 0.4, 0.3, 0.9))
+		if _gaze_accum >= GAZE_FREEZE_TIME:
+			if player.has_method("apply_freeze"): player.apply_freeze(0.8)
+			if player.has_method("take_damage"): player.take_damage(int(round(attack_damage * 0.5)))
+			_gaze_accum = 0.0
+	else:
+		_gaze_accum = maxf(0.0, _gaze_accum - delta * 1.5)
+
+# ── SKYCALLER: calls a RAIN of falling strikes across the ground around you ──
+func act_skycaller(_delta: float) -> void:
+	face_player()
+	var dist = global_position.distance_to(player.global_position)
+	var dx = player.global_position.x - global_position.x
+	velocity.x = -sign(dx) * move_speed if dist < 220.0 else 0.0
+	if cast_timer <= 0.0 and not is_casting and dist < 640.0:
+		cast_timer = SKY_CD
+		sky_rain()
+
+func sky_rain() -> void:
+	is_casting = true
+	set_flash(accent_color)
+	var marks := []
+	var py := player.global_position.y
+	for i in range(SKY_COUNT):
+		var mk := Vector2(player.global_position.x + randf_range(-160.0, 160.0), py)
+		marks.append(mk)
+		spawn_sigil(mk, SKY_RADIUS, SKY_TELEGRAPH, accent_color)
+	await get_tree().create_timer(SKY_TELEGRAPH).timeout
+	if not is_instance_valid(self):
+		return
+	clear_flash()
+	if is_dead:
+		is_casting = false
+		return
+	for mk in marks:
+		var streak := Line2D.new()
+		streak.width = 3.0
+		streak.default_color = Color(accent_color.r, accent_color.g, accent_color.b, 0.8)
+		streak.z_index = 6
+		streak.points = PackedVector2Array([mk + Vector2(0, -220), mk])
+		get_parent().add_child(streak)
+		get_tree().create_timer(0.16).timeout.connect(streak.queue_free)
+		_burst(mk, SKY_RADIUS, accent_color)
+		if is_instance_valid(player) and player.global_position.distance_to(mk) < SKY_RADIUS:
+			if player.has_method("take_damage"): player.take_damage(int(round(attack_damage * 0.7)))
+	is_casting = false
+
+# ── VAMPIRE: a leaper whose bite DRAINS life to heal itself ──
+func act_vampire(_delta: float) -> void:
+	var dx = player.global_position.x - global_position.x
+	velocity.x = sign(dx) * move_speed if absf(dx) > 6.0 else 0.0
+	if global_position.distance_to(player.global_position) < VAMP_HIT_RANGE and attack_cooldown <= 0.0:
+		attack_cooldown = 0.85
+		if is_instance_valid(player) and player.has_method("take_damage"):
+			player.take_damage(attack_damage)
+			health = mini(max_health, health + int(round(attack_damage * VAMP_LIFESTEAL)))
+			update_health_bar()
+			var spark := poly(circle_points(6.0)); spark.color = Color(accent_color.r, accent_color.g, accent_color.b, 0.7)
+			spark.global_position = global_position + Vector2(0, -20); spark.z_index = 8
+			get_parent().add_child(spark)
+			var t := spark.create_tween(); t.tween_property(spark, "modulate:a", 0.0, 0.4); t.tween_callback(spark.queue_free)
+
+# ── JUGGERNAUT: near-immune behind its GUARD; drops it to slam, then guards again ──
+func act_juggernaut(_delta: float) -> void:
+	var dx = player.global_position.x - global_position.x
+	match charge_state:
+		"seek":
+			_jug_open = false
+			velocity.x = sign(dx) * move_speed if absf(dx) > 6.0 else 0.0
+			charge_state = "guard"
+			state_timer = JUG_GUARD_TIME
+		"guard":
+			velocity.x = sign(dx) * move_speed if absf(dx) > 6.0 else 0.0
+			if state_timer <= 0.0:
+				charge_state = "open"
+				state_timer = 0.5
+				set_flash(accent_color)          # tell: the guard drops
+		"open":
+			_jug_open = true
+			velocity.x = 0.0
+			if state_timer <= 0.0:
+				clear_flash()
+				if global_position.distance_to(player.global_position) < JUG_SLAM_RANGE:
+					_burst(global_position + Vector2(0, -18), JUG_SLAM_RANGE, accent_color)
+					if is_instance_valid(player) and player.has_method("take_damage"): player.take_damage(attack_damage)
+				charge_state = "recover"
+				state_timer = JUG_OPEN_TIME
+		"recover":
+			_jug_open = true                     # stays vulnerable through the recovery -- your window
+			velocity.x = 0.0
+			if state_timer <= 0.0:
+				charge_state = "seek"
+
 # --- caster/teleport helpers ---
 
 func face_player() -> void:
@@ -1087,6 +1414,10 @@ func fire_projectile(dir: Vector2, dmg: int) -> void:
 func take_damage(amount: int) -> void:
 	if is_dead:
 		return
+	# Ironclad: nearly every blow rings off its raised guard -- only when it drops to slam
+	# (_jug_open) is it truly vulnerable. Never fully immune (min 1), so it can't stall.
+	if kind == "juggernaut" and not _jug_open:
+		amount = maxi(1, int(round(amount * JUG_SHIELD_FRAC)))
 	# Bulwark: a fifth of every blow rings off its hide
 	if affix == "bulwark":
 		amount = maxi(1, int(round(amount * (1.0 - BULWARK_FRAC))))
@@ -1106,6 +1437,15 @@ func take_damage(amount: int) -> void:
 			_blink_ready_at = now + BLINK_CD
 			var away := 1.0 if (not is_instance_valid(player) or global_position.x <= player.global_position.x) else -1.0
 			global_position.x += -away * 140.0 if randf() < 0.5 else away * 140.0
+			play_sfx(SFX_BLINK)
+		# Voidling: its defining evasion -- struck, it BLINKS away (its own quick cooldown)
+		var nowv := Time.get_ticks_msec() / 1000.0
+		if kind == "voidling" and nowv >= _dodge_ready_at and is_instance_valid(player):
+			_dodge_ready_at = nowv + VOID_DODGE_CD
+			spawn_teleport_puff(global_position)
+			var vaway := 1.0 if global_position.x <= player.global_position.x else -1.0
+			global_position.x = clampf(global_position.x - vaway * VOID_BLINK_DIST, 50.0, arena_width() - 50.0)
+			spawn_teleport_puff(global_position)
 			play_sfx(SFX_BLINK)
 		set_flash(Color(1, 1, 1))
 		get_tree().create_timer(0.12).timeout.connect(clear_flash)
@@ -1134,9 +1474,28 @@ func die() -> void:
 	if p and p.has_method("add_currency"):
 		p.add_currency(int(round(reward * depth * (1.0 + GameState.get_bonus_total("gold_gain")))))
 	GameState.add_xp(int(round(xp_reward * depth)))
+	if kind == "brood" and split_gen == 0:
+		_spawn_brood_splits()
 	spawn_death_particles()
 	died.emit()
 	queue_free()
+
+func _spawn_brood_splits() -> void:
+	# two smaller broods burst out and JOIN the floor's live count -- so the floor can't be
+	# declared cleared while they live (same contract as summoner minions). Gen-1 won't split.
+	var director = get_tree().get_first_node_in_group("level_director")
+	for i in range(BROOD_SPLITS):
+		var b = get_script().new()
+		b.kind = "brood"
+		b.split_gen = 1
+		b.wave_hp_multiplier = wave_hp_multiplier * 0.5
+		b.wave_damage_multiplier = wave_damage_multiplier * 0.7
+		b.wave_speed_multiplier = wave_speed_multiplier * 1.15
+		get_parent().add_child(b)
+		b.global_position = global_position + Vector2(randf_range(-24, 24), -4)
+		b.scale = Vector2(0.7, 0.7)
+		if director != null and director.has_method("register_extra_combatant"):
+			director.register_extra_combatant(b)
 
 # --- visuals ---
 
@@ -1184,6 +1543,15 @@ func build_visual() -> void:
 		"ballista": build_ballista_visual()
 		"swarm": build_swarm_visual()
 		"frostling": build_frostling_visual()
+		"sentinel": build_sentinel_visual()
+		"brood": build_brood_visual()
+		"arcbinder": build_arcbinder_visual()
+		"warchief": build_warchief_visual()
+		"voidling": build_voidling_visual()
+		"gazer": build_gazer_visual()
+		"skycaller": build_skycaller_visual()
+		"vampire": build_vampire_visual()
+		"juggernaut": build_juggernaut_visual()
 
 # Skinned mob body: normalized to MOB_SPRITE_H, feet planted on visual-local
 # y=0 (the same ground line the polygon builds draw up from). Facing rides the
@@ -1438,6 +1806,71 @@ func build_frostling_visual() -> void:   # a jagged ice sprite
 	for p in [Vector2(-9, -10), Vector2(9, -12), Vector2(0, -22)]:
 		var shard = poly(PackedVector2Array([Vector2(-2, 0), Vector2(2, 0), Vector2(0, -8)])); shard.position = p; add_part(shard, accent_color)
 	var core = poly(circle_points(3.0)); core.position = Vector2(0, -14); add_part(core, accent_color.lightened(0.2))
+
+func build_sentinel_visual() -> void:    # a rooted bone turret with a glowing lens-eye
+	add_part(poly(PackedVector2Array([Vector2(-18, 0), Vector2(18, 0), Vector2(12, -16), Vector2(-12, -16)])), main_color.darkened(0.2))
+	var head = poly(circle_points(12.0)); head.position = Vector2(0, -26); add_part(head, main_color)
+	var lens = poly(circle_points(5.0)); lens.position = Vector2(0, -26); add_part(lens, accent_color)
+	var barrel = Line2D.new(); barrel.points = PackedVector2Array([Vector2(0, -26), Vector2(22, -26)]); barrel.width = 4.0; barrel.default_color = BONE.darkened(0.1); visual.add_child(barrel)
+
+func build_brood_visual() -> void:       # a bloated wobbling egg-sac
+	var body = poly(circle_points(16.0)); body.position = Vector2(0, -16); add_part(body, main_color)
+	for p in [Vector2(-6, -20), Vector2(7, -14), Vector2(0, -8)]:
+		var boil = poly(circle_points(3.0)); boil.position = p; add_part(boil, accent_color)
+	for sx in [-5, 5]:
+		var e = poly(circle_points(2.0)); e.position = Vector2(sx, -22); add_part(e, Color(0.9, 0.2, 0.2))
+
+func build_arcbinder_visual() -> void:   # a hunched caster wreathed in a spark
+	_robe(main_color)
+	var head = poly(circle_points(7.0)); head.position = Vector2(0, -34); add_part(head, main_color.darkened(0.1))
+	for sx in [-3, 3]:
+		var e = poly(circle_points(1.6)); e.position = Vector2(sx, -35); add_part(e, accent_color)
+	var arm = Line2D.new(); arm.points = PackedVector2Array([Vector2(-10, -22), Vector2(-18, -30), Vector2(-12, -26)]); arm.width = 2.0; arm.default_color = accent_color; visual.add_child(arm)
+
+func build_warchief_visual() -> void:    # a broad horned brute with a war-drum
+	add_part(poly(PackedVector2Array([Vector2(-16, 0), Vector2(16, 0), Vector2(12, -32), Vector2(-12, -32)])), main_color)
+	var head = poly(circle_points(9.0)); head.position = Vector2(0, -40); add_part(head, main_color.darkened(0.1))
+	for hx in [-1, 1]:
+		add_part(poly(PackedVector2Array([Vector2(hx * 8, -44), Vector2(hx * 14, -52), Vector2(hx * 10, -42)])), BONE)
+	var drum = poly(circle_points(10.0)); drum.position = Vector2(16, -14); add_part(drum, accent_color.darkened(0.2))
+	for sx in [-3, 3]:
+		var e = poly(circle_points(1.8)); e.position = Vector2(sx, -41); add_part(e, accent_color)
+
+func build_voidling_visual() -> void:    # a thin flickering wraith
+	add_part(poly(PackedVector2Array([Vector2(-8, 0), Vector2(8, 0), Vector2(6, -30), Vector2(0, -38), Vector2(-6, -30)])), main_color)
+	var core = poly(circle_points(4.0)); core.position = Vector2(0, -22); add_part(core, accent_color)
+	for sx in [-3, 3]:
+		var e = poly(circle_points(1.6)); e.position = Vector2(sx, -30); add_part(e, accent_color.lightened(0.2))
+
+func build_gazer_visual() -> void:       # a squat body dominated by one great eye
+	add_part(poly(PackedVector2Array([Vector2(-14, 0), Vector2(14, 0), Vector2(10, -18), Vector2(-10, -18)])), main_color)
+	var eye = poly(circle_points(11.0)); eye.position = Vector2(0, -26); add_part(eye, main_color.lightened(0.15))
+	var iris = poly(circle_points(6.0)); iris.position = Vector2(0, -26); add_part(iris, accent_color)
+	var pupil = poly(circle_points(2.5)); pupil.position = Vector2(0, -26); add_part(pupil, Color(0.05, 0.05, 0.05))
+
+func build_skycaller_visual() -> void:   # a robed herald with a raised star-staff
+	_robe(main_color)
+	var head = poly(circle_points(7.0)); head.position = Vector2(0, -34); add_part(head, main_color.darkened(0.1))
+	var staff = Line2D.new(); staff.points = PackedVector2Array([Vector2(10, -20), Vector2(16, -46)]); staff.width = 2.0; staff.default_color = BONE.darkened(0.1); visual.add_child(staff)
+	var orb = poly(circle_points(4.0)); orb.position = Vector2(16, -48); add_part(orb, accent_color)
+	for sx in [-3, 3]:
+		var e = poly(circle_points(1.6)); e.position = Vector2(sx, -35); add_part(e, accent_color)
+
+func build_vampire_visual() -> void:     # a gaunt fanged stalker
+	add_part(poly(PackedVector2Array([Vector2(-9, 0), Vector2(9, 0), Vector2(7, -30), Vector2(-7, -30)])), main_color)
+	var head = poly(circle_points(7.0)); head.position = Vector2(0, -36); add_part(head, main_color.darkened(0.1))
+	add_part(poly(PackedVector2Array([Vector2(-3, -33), Vector2(-1, -33), Vector2(-2, -29)])), BONE)
+	add_part(poly(PackedVector2Array([Vector2(1, -33), Vector2(3, -33), Vector2(2, -29)])), BONE)
+	for sx in [-3, 3]:
+		var e = poly(circle_points(1.8)); e.position = Vector2(sx, -38); add_part(e, accent_color)
+
+func build_juggernaut_visual() -> void:  # a heavy hulk behind a great shield
+	add_part(poly(PackedVector2Array([Vector2(-18, 0), Vector2(18, 0), Vector2(14, -36), Vector2(-14, -36)])), main_color)
+	var head = poly(circle_points(9.0)); head.position = Vector2(0, -42); add_part(head, main_color.darkened(0.15))
+	add_part(poly(PackedVector2Array([Vector2(-24, -4), Vector2(-16, -4), Vector2(-16, -40), Vector2(-24, -36)])), accent_color.darkened(0.1))
+	var bossp = poly(circle_points(4.0)); bossp.position = Vector2(-20, -22); add_part(bossp, accent_color)
+	for sx in [-3, 3]:
+		var e = poly(circle_points(1.8)); e.position = Vector2(sx, -43); add_part(e, Color(1.0, 0.5, 0.3))
 
 # A pulsing additive halo that marks an elite at a glance.
 func build_elite_glow() -> void:

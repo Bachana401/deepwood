@@ -2063,9 +2063,9 @@ func spawn_deep_rescue() -> void:
 # the intended 60/40 OP-to-annoying split. The very first block is capped
 # gentler (~35% OP) while the player learns. Grunts, flyers and spitters make
 # up the annoying-but-not-weak 40%.
-const OP_KINDS_BASE = ["bomber", "charger", "weaver", "plague"]
-const OP_KINDS_MID = ["stalker", "hexer", "warper", "wailer", "frostling"]                   # from level 5
-const OP_KINDS_LATE = ["blink_archer", "runecaster", "warlock", "leech", "burrower", "ballista", "swarm"]  # from level 8
+const OP_KINDS_BASE = ["bomber", "charger", "weaver", "plague", "brood", "vampire"]
+const OP_KINDS_MID = ["stalker", "hexer", "warper", "wailer", "frostling", "sentinel", "gazer", "warchief", "voidling"]                   # from level 5
+const OP_KINDS_LATE = ["blink_archer", "runecaster", "warlock", "leech", "burrower", "ballista", "swarm", "arcbinder", "skycaller", "juggernaut"]  # from level 8
 const ANNOYING_KINDS = ["grunt", "flyer", "spitter"]
 # Levels whose grunt is a downloaded sprite-skin (Orc/Blood Fiend/Demon blocks);
 # on these, about half of spawns are grunts so the skinned mob is prominent.
