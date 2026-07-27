@@ -3161,8 +3161,10 @@ func tick_mine_yield(hours_passed: float) -> void:
 		_mine_cycles += 1
 		var player = get_tree().get_first_node_in_group("player")
 		if player and "inventory" in player and player.inventory:
-			player.inventory.add_item("stone", 2 * miners)
-			player.inventory.add_item("iron_shard", 1 * miners)
+			# honest accounting: add_item returns the LEFTOVER, so log/announce only what the
+			# pack actually took -- a full bag must not be told it received a haul it lost.
+			var stone_got: int = 2 * miners - player.inventory.add_item("stone", 2 * miners)
+			var iron_got: int = miners - player.inventory.add_item("iron_shard", 1 * miners)
 			# EMBER too, at half the iron cadence. ember_crystal gates 28 skill nodes
 			# -- the most of any material -- yet was cache-ONLY (scarce), while iron
 			# (10 nodes) flowed from here. That left every ember-gated spec, and ALL
@@ -3170,9 +3172,13 @@ func tick_mine_yield(hours_passed: float) -> void:
 			# vs iron specs (marathon sim 2026-07-22: Mage 29% tree vs Sword 52%). The
 			# mine now digs crystals too, so ember has a village source like iron does.
 			if _mine_cycles % 2 == 0:
-				player.inventory.add_item("ember_crystal", 1 * miners)
-				log_event("economy", "The Mine's deep seam gave up %d ember crystal." % miners)
-			log_event("economy", "The Mine's haul came up: %d stone, %d iron." % [2 * miners, miners])
+				var ember_got: int = miners - player.inventory.add_item("ember_crystal", 1 * miners)
+				if ember_got > 0:
+					log_event("economy", "The Mine's deep seam gave up %d ember crystal." % ember_got)
+			if stone_got > 0 or iron_got > 0:
+				log_event("economy", "The Mine's haul came up: %d stone, %d iron." % [stone_got, iron_got])
+			else:
+				notify("⛏ The Mine struck ore, but your pack is full — make room to carry the haul.")
 
 # --- THE SHRINE (GAME_BIBLE 10, decided 2026-07-20 delegated) ---
 # Corruption's only mercy, unlocked at depth 30: a put-down demon that was
