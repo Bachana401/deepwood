@@ -2745,6 +2745,7 @@ func _tick_pillar_stance(delta: float) -> void:
 					struck = true
 		if struck:
 			spawn_shock_ring(global_position, 110.0, Color(1.0, 0.85, 0.35, 0.8))
+			SfxSynth.play_at(self, global_position, "thump", -10.0)
 
 # Circle of Sanctuary (rune): stand TRULY still for a second and a ward ring
 # rises; enemy shots die at its edge. A single step breaks it.
@@ -2785,6 +2786,7 @@ func _tick_sanctuary(delta: float) -> void:
 				pop.global_position = (pr as Node2D).global_position
 				pop.emitting = true
 				pop.finished.connect(pop.queue_free)
+				SfxSynth.play_at(self, (pr as Node2D).global_position, "pop", -12.0, 1.2)
 				pr.queue_free()
 
 # The Plucked Hair: enemies close + the cooldown up = the mirror-mage stands.
@@ -3315,8 +3317,13 @@ func perform_attack() -> void:
 	else:
 		var target = closest_body(bodies)
 		if target:
-			# Excellent weapons are classless -- no skill-tree damage scaling.
-			var mult = 1.0 if is_excellent else skill_damage_mult("melee")
+			# Excellent weapons keep HALF of your build's damage scaling (dev call
+			# 2026-07-28: a build should ENABLE the flagship, not replace it, nor
+			# scale it to infinity). Crit, lifesteal, on-hit DoTs and execute still
+			# apply in FULL (roll_crit below / apply_melee_skills).
+			var mult := skill_damage_mult("melee")
+			if is_excellent:
+				mult = 1.0 + (mult - 1.0) * EXCELLENT_SKILL_SCALE
 			var cr = roll_crit(int(round(stats.damage * mult * combo_mult)))
 			var dealt = cr[0]
 			# The Patient Knife: the FIRST cut is the deepest -- +40% against
@@ -3374,6 +3381,11 @@ func perform_attack() -> void:
 # gets only two but the second lands like a truck. So "combo" becomes another
 # dial that separates weapons without anyone hand-authoring it per weapon, and
 # it cannot contradict the roster's other rules.
+# Excellent (unique-effect) melee weapons keep this FRACTION of your build's
+# flat damage multiplier -- half, so a damage build still lifts the flagship
+# without letting the best weapons scale away from everything else.
+const EXCELLENT_SKILL_SCALE = 0.5
+
 const COMBO_WINDOW_MULT = 2.2      # how long after a swing the chain stays live
 var combo_index := 0               # hits into the current string
 var combo_expire_at := 0.0
@@ -3759,6 +3771,7 @@ func staff_note_swing(landed: bool, at: Vector2) -> void:
 		_staff_combo = 0
 		# PILLAR SLAM: the head of the fully-drawn staff strikes the earth
 		# (the Riddle Staff rune deepens the slam by a quarter)
+		SfxSynth.play_at(self, at, "thump", -8.0, 0.8)   # deeper than the pillar's
 		var slam_mult := 0.8 * (1.25 if GameState.get_bonus_total("staff_mastery") > 0.0 else 1.0)
 		var slam_dmg := int(round(active_stats.damage * slam_mult * skill_damage_mult("melee")))
 		for group_name in ["course_enemy", "dungeon_combatant", "siege_enemy"]:

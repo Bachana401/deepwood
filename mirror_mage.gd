@@ -91,6 +91,7 @@ func _physics_process(delta: float) -> void:
 	p.source = source
 	get_parent().add_child(p)
 	p.global_position = origin
+	SfxSynth.play_at(self, origin, "pop", -16.0, 1.3)   # a hair's whisper of a cast
 	if _body != null:
 		_body.scale = Vector2(1.12, 0.92)   # a little casting lurch
 		var s := create_tween()

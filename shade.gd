@@ -372,6 +372,7 @@ func dissolve() -> void:
 	if not is_splinter and is_instance_valid(owner_player) \
 			and not ("is_dead" in owner_player and owner_player.is_dead) \
 			and GameState.get_skill_total("clone_burst") > 0.0:
+		SfxSynth.play_at(self, global_position, "tear", -11.0)
 		for side in [-1.0, 1.0]:
 			var sp = get_script().new()
 			sp.owner_player = owner_player

@@ -89,6 +89,8 @@ func _strike(local: Vector2) -> void:
 	pts.append(local)
 	bolt.points = pts
 	add_child(bolt)
+	# heard from where it lands: a crack for storms, a lower sizzle for suns
+	SfxSynth.play_at(self, to_global(local), "crack", -13.0, 0.7 if sun_mode else 1.0)
 	var t := bolt.create_tween()
 	t.tween_property(bolt, "modulate:a", 0.0, 0.22)
 	t.tween_callback(bolt.queue_free)

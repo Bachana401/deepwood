@@ -272,6 +272,31 @@ func _ready() -> void:
 	if keep_weapon != "":
 		pl.wield_weapon(keep_weapon)
 
+	# ---- the audio pass (2026-07-28): silence was a bug, and stays fixed ----
+	var silent := []
+	for r in ["crack", "pop", "thump", "whoosh", "chime", "tear"]:
+		if SfxSynth._bank(r).data.size() <= 0:
+			silent.append(r)
+	check("every SFX recipe synthesizes real samples", silent.is_empty(), ", ".join(silent))
+	var players_before := 0
+	for c in get_tree().root.get_children():
+		if c is AudioStreamPlayer2D:
+			players_before += 1
+	SfxSynth.play_at(self, base, "pop", -24.0)
+	var players_after := 0
+	for c in get_tree().root.get_children():
+		if c is AudioStreamPlayer2D:
+			players_after += 1
+	check("play_at spawns a positional one-shot at the root",
+		players_after == players_before + 1, "%d -> %d" % [players_before, players_after])
+	var hook_src := ""
+	for f2 in ["storm_cloud.gd", "weapon_projectile.gd", "player.gd", "shade.gd",
+			"sentry_totem.gd", "mirror_mage.gd"]:
+		hook_src += FileAccess.open("res://" + f2, FileAccess.READ).get_as_text()
+	check("the once-silent mechanics all call the synth (10+ hook sites)",
+		hook_src.count("SfxSynth.play_at") >= 10
+		and hook_src.contains("play_stream_at(self, global_position, SFX_EXPLOSION"))
+
 	for e in [r1, r2, d1, s1, t1]:
 		if is_instance_valid(e): e.queue_free()
 	host.queue_free()

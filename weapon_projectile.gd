@@ -37,6 +37,8 @@ func _apply_status_to(node) -> void:
 	if from_wand and node.has_method("apply_status") and not ("boss_id" in node) \
 			and GameState.get_bonus_total("stillness") > 0.0 and randf() < 0.12:
 		node.apply_status("freeze", 2.5, 0.0)
+		if node is Node2D:
+			SfxSynth.play_at(self, (node as Node2D).global_position, "chime", -12.0)
 	# Elementalist Wildfire / Cataclysm: the burn you just applied leaps to any
 	# foes crowded around the one you struck.
 	if GameState.get_bonus_total("combustion") > 0.0 and is_instance_valid(node):
@@ -187,6 +189,7 @@ func _physics_process(delta: float) -> void:
 				_behave_state = 1
 				_orbit_centre = global_position
 				_orbit_t = 0.0
+				SfxSynth.play_at(self, global_position, "whoosh", -12.0, 1.2)
 		else:
 			done = true   # a spent bolt lands no same-frame parting hit
 			queue_free()
@@ -222,6 +225,7 @@ func _tick_orbiter(delta: float) -> bool:
 			if traveled >= max_distance:
 				_behave_state = 1
 				_orbit_centre = global_position
+				SfxSynth.play_at(self, global_position, "whoosh", -12.0, 1.2)
 			return false
 
 # Chain maul: whirls about the WIELDER gathering speed, then hurls itself
@@ -253,6 +257,7 @@ func _tick_chainmaul(delta: float) -> void:
 				hit_bodies.clear()
 				# hurl from wherever the whirl released, along the aim
 				traveled = 0.0
+				SfxSynth.play_at(self, global_position, "whoosh", -9.0, 0.9)
 		1:   # the hurl
 			var step := speed * 1.45 * delta
 			global_position += direction * step
@@ -306,6 +311,7 @@ func _burst() -> void:
 	if done:
 		return
 	done = true
+	SfxSynth.play_at(self, global_position, "pop", -10.0, 0.7)
 	var script: GDScript = get_script()
 	for i in range(maxi(2, shards)):
 		var a := -PI * 0.5 + (float(i) / float(maxi(2, shards) - 1) - 0.5) * PI * 1.3
@@ -403,6 +409,9 @@ func _on_body_entered(body: Node2D) -> void:
 				direction = (next.global_position - global_position).normalized()
 				rotation = direction.angle()
 				traveled = 0.0   # each leap gets its full legs
+				# every leap PINGS, rising as the chain grows (The Rumor's
+				# nine leaps climb almost an octave)
+				SfxSynth.play_at(self, global_position, "pop", -14.0, 1.3 + 0.06 * float(shards))
 			else:
 				done = true
 				queue_free()
@@ -451,6 +460,7 @@ func _moon_pull() -> void:
 # Summer's Coffin: the shatter -- cold damage and a deep chill around a body
 # the sliver just killed.
 func _frost_shatter(at: Vector2) -> void:
+	SfxSynth.play_at(self, at, "chime", -11.0, 0.6)   # the cold, breaking
 	for group_name in HOSTILE_GROUPS:
 		for e in get_tree().get_nodes_in_group(group_name):
 			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
@@ -481,11 +491,14 @@ func _pull_to_source(body: Node2D) -> void:
 	var pull_sign = 1 if dx >= 0.0 else -1
 	body.apply_knockback(pull_sign, max(absf(dx) - 42.0, 0.0))
 
+const SFX_EXPLOSION = preload("res://audio/explosion.wav")
+
 # Fireball: blast everyone standing near the detonation point.
 func explode() -> void:
 	if done:
 		return
 	done = true
+	SfxSynth.play_stream_at(self, global_position, SFX_EXPLOSION, -9.0)
 	for group_name in HOSTILE_GROUPS:
 		for e in get_tree().get_nodes_in_group(group_name):
 			if not is_instance_valid(e) or not e.has_method("take_damage"):

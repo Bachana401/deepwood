@@ -80,6 +80,7 @@ func _physics_process(delta: float) -> void:
 	p.source = source
 	get_parent().add_child(p)
 	p.global_position = origin
+	SfxSynth.play_at(self, origin, "pop", -14.0, 0.9)   # the post clears its throat
 
 func _nearest() -> Node2D:
 	var best: Node2D = null
