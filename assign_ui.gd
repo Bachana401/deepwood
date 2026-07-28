@@ -382,13 +382,48 @@ func smithy_stock() -> Array:
 		if not Inventory.GRADE_DEFS.has(grade) or int(Inventory.GRADE_DEFS[grade].rank) > smithy_max_rank():
 			continue
 		out.append(id)
+	# THE DAY'S IMPORTS (2026-07-28): the Forge's fixed catalogue never learned
+	# about the 350-weapon roster -- and dumping a hundred laddered weapons on
+	# the rack would drown it. Instead the smith takes DELIVERIES: a handful of
+	# roster weapons at or under the grade cap, dealt fresh each in-game day.
+	out += smithy_imports()
 	out.sort_custom(func(a, b):
 		var ra = int(Inventory.GRADE_DEFS[Inventory.get_grade(a)].rank)
 		var rb = int(Inventory.GRADE_DEFS[Inventory.get_grade(b)].rank)
 		if ra != rb:
 			return ra < rb
-		return str(Inventory.ITEM_DEFS[a].name) < str(Inventory.ITEM_DEFS[b].name))
+		# get_item_def, never ITEM_DEFS[]: the day's imports are roster ids
+		return str(Inventory.get_item_def(a).get("name", a)) < str(Inventory.get_item_def(b).get("name", b)))
 	return out
+
+const SMITHY_IMPORTS_PER_DAY = 8
+# Seeded by the DAY INDEX: the rack is stable all day and new at dawn --
+# a reason to visit the smith each morning, Terraria-merchant style.
+func smithy_imports() -> Array:
+	var cap_rank := smithy_max_rank()
+	# set weapons keep the file's exclusivity contract: dungeon-drop only,
+	# even when their id happens to live in the roster (Shrikebow et al.)
+	var set_weapons := {}
+	for sid in Inventory.SET_DEFS.keys():
+		set_weapons[str(Inventory.SET_DEFS[sid].get("weapon", ""))] = true
+	var pool := []
+	for id in WeaponRoster.all_ids():
+		if set_weapons.has(id):
+			continue
+		var rank := int(Inventory.GRADE_DEFS.get(Inventory.get_grade(id), {}).get("rank", 99))
+		if rank <= cap_rank:
+			pool.append(id)
+	if pool.is_empty():
+		return pool
+	pool.sort()   # a deterministic base order before the seeded shuffle
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(GameState.game_hours / 24.0) * 977 + 13
+	for i in range(pool.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var tmp = pool[i]
+		pool[i] = pool[j]
+		pool[j] = tmp
+	return pool.slice(0, SMITHY_IMPORTS_PER_DAY)
 
 func smithy_price(item_id: String) -> int:
 	return int(SMITHY_PRICE_BY_GRADE.get(Inventory.get_grade(item_id), 40))

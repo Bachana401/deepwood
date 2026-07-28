@@ -197,5 +197,32 @@ func _ready() -> void:
 			badw.append(sid2)
 	check("every set weapon resolves to a real item", badw.is_empty(), ", ".join(badw))
 
+	# ---- the Forge's daily imports (2026-07-28): roster stock, rotated ----
+	var au = load("res://assign_ui.gd").new()
+	add_child(au)
+	var saved_hours: float = GameState.game_hours
+	GameState.game_hours = 24.0 * 3.0   # day 3
+	var imports_a: Array = au.smithy_imports()
+	var imports_b: Array = au.smithy_imports()
+	GameState.game_hours = 24.0 * 4.0   # day 4
+	var imports_c: Array = au.smithy_imports()
+	GameState.game_hours = saved_hours
+	check("the Forge deals a full hand of imports", imports_a.size() == au.SMITHY_IMPORTS_PER_DAY,
+		"%d dealt" % imports_a.size())
+	check("...stable within a day", imports_a == imports_b)
+	check("...and fresh the next morning", imports_a != imports_c)
+	var import_ok := true
+	for iid in imports_a:
+		var rk := int(Inventory.GRADE_DEFS.get(Inventory.get_grade(iid), {}).get("rank", 99))
+		if rk > au.smithy_max_rank() or not WeaponRoster.has_id(iid):
+			import_ok = false
+	check("...every import honours the grade cap and is a real roster id", import_ok)
+	var setw_leak := false
+	for sid3 in Inventory.SET_DEFS.keys():
+		if str(Inventory.SET_DEFS[sid3].get("weapon", "")) in imports_a:
+			setw_leak = true
+	check("...and set weapons stay dungeon-drop only", not setw_leak)
+	au.queue_free()
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

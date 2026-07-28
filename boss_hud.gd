@@ -57,7 +57,9 @@ func _ready() -> void:
 	bar_root.anchor_left = 0.5
 	bar_root.anchor_right = 0.5
 	bar_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bar_root.position = Vector2(0, 30)
+	# y 46, not 30: the floor tally ("Floor 65/100 - 1 left") owns the very
+	# top line, and the boss's NAME printed straight through it (EYES b65)
+	bar_root.position = Vector2(0, 46)
 	bar_root.modulate.a = 0.0
 	add_child(bar_root)
 	const BW := 640.0
