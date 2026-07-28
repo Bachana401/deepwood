@@ -274,6 +274,87 @@ func _on_enemy_died() -> void:
 		elif GameState.live_siege_active:
 			end_siege()
 
+# === THE WEEPING HOUR (night event, 2026-07-28) ============================
+# All night, a TRICKLE: one to three pale weepers every few seconds from
+# either road, many and quick but light-handed -- pressure, never one-shots
+# (the boss rule holds at the walls too). They stand OUTSIDE the wave
+# machinery on purpose: alive_count belongs to sieges and caravans, and a
+# weeper's death must never end someone else's battle.
+const WEEP_TRICKLE_SEC := 7.0
+const WEEP_MAX_LIVE := 9
+var weeping_timer: Timer = null
+var weeping_tier := 1
+var weepers: Array = []
+
+func start_weeping_night(tier: int) -> void:
+	weeping_tier = tier
+	if weeping_timer == null:
+		weeping_timer = Timer.new()
+		weeping_timer.wait_time = WEEP_TRICKLE_SEC
+		weeping_timer.timeout.connect(_weeping_trickle)
+		add_child(weeping_timer)
+	weeping_timer.start()
+	_weeping_trickle()   # the first sob arrives with the word
+
+func _weeping_trickle() -> void:
+	if not GameState.weeping_tonight:
+		return
+	# the night pauses while the player is away below -- villagers hide, and
+	# an empty stage must not silently pile up a horde for their return
+	if GameState.in_dungeon:
+		return
+	weepers = weepers.filter(func(w): return is_instance_valid(w))
+	if weepers.size() >= WEEP_MAX_LIVE:
+		return
+	var east_wall = wall_for_flank("east")
+	var west_wall = wall_for_flank("west")
+	# light-handed on purpose: weepers press as a crowd, not as executioners
+	var hp = int(round(BASE_HP * (0.8 + (weeping_tier - 1) * HP_PER_TIER * 0.8)))
+	var dmg = maxi(1, int(round(BASE_DMG * (0.65 + (weeping_tier - 1) * DMG_PER_TIER * 0.7))))
+	var n: int = 1 + (randi() % 2) + weeping_tier / 5
+	for i in range(mini(n, WEEP_MAX_LIVE - weepers.size())):
+		var from_east: bool = randf() < 0.5
+		var wall = (east_wall if from_east else west_wall)
+		if wall == null:
+			wall = east_wall if east_wall != null else west_wall
+		var pos: Vector2
+		if from_east:
+			var bx: float = (east_wall.east_face_x() if east_wall != null else DEFAULT_WALL_X + 900.0)
+			pos = Vector2(bx + SPAWN_STANDOFF + i * randf_range(30.0, 64.0), SPAWN_Y)
+		else:
+			var fx: float = (west_wall.west_face_x() if west_wall != null else DEFAULT_WALL_X)
+			pos = Vector2(fx - SPAWN_STANDOFF - i * randf_range(30.0, 64.0), SPAWN_Y)
+		var e = SIEGE_ENEMY_SCENE.instantiate()
+		e.skin = "raider"
+		e.max_health = hp
+		e.attack_damage = dmg
+		e.reward = 3 + weeping_tier / 2
+		e.wall = wall
+		e.global_position = pos
+		e.died.connect(_on_weeper_died)
+		get_parent().add_child(e)
+		# the pale ones: moon-washed and a little translucent, unmistakably
+		# NOT raiders even in the dark
+		e.modulate = Color(0.72, 0.84, 1.1, 0.88)
+		weepers.append(e)
+
+func _on_weeper_died() -> void:
+	GameState.weeping_kills += 1
+	# sorrow condenses: better than half the fallen leave a Pale Tear
+	if randf() < 0.55:
+		var pl = get_tree().get_first_node_in_group("player")
+		if pl and "inventory" in pl and pl.inventory:
+			pl.inventory.add_item("tear_pale", 1)
+
+func end_weeping_night() -> void:
+	if weeping_timer != null:
+		weeping_timer.stop()
+	# whatever still walks melts with the light
+	for w in weepers:
+		if is_instance_valid(w):
+			w.queue_free()
+	weepers.clear()
+
 func end_siege() -> void:
 	alive_count = 0
 	# both ramparts get patched between assaults (7.2)

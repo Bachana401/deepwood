@@ -1737,6 +1737,7 @@ func tick_village_clock() -> void:
 		tick_sieges(hours_passed)
 		tick_caravans(hours_passed)
 		tick_fishing()            # starter rod + the Harbormaster's daily (pillar 3)
+		tick_weeping(hours_passed)   # the forest's rare grieving night
 
 # === HIDDEN EVENT BOSSES (2026-07-28) ==================================
 # Ten secret bosses (event_boss.gd), each armed once per run. Their trigger
@@ -2184,6 +2185,9 @@ func tick_sieges(hours_passed: float) -> void:
 		live_siege_active = false
 	if live_siege_active:
 		return
+	# the Weeping Hour holds the war clock: one night, one story at a time
+	if weeping_tonight:
+		return
 	hours_until_next_siege -= hours_passed
 	var guard = 0
 	while hours_until_next_siege <= 0.0 and guard < 100:
@@ -2377,6 +2381,9 @@ func tick_caravans(hours_passed: float) -> void:
 			live_caravan_active = false   # abandoned mid-fight: resolves abstractly
 		else:
 			return
+	# the road waits out a weeping night too
+	if weeping_tonight:
+		return
 	hours_until_caravan -= hours_passed
 	# the dust rises an hour out -- the one warning every eye can see
 	if not caravan_warned and hours_until_caravan <= CARAVAN_WARN_HOURS and hours_until_caravan > 0.0:
@@ -2441,6 +2448,98 @@ func grant_reaver_cache(tier: int, offline := false) -> void:
 	else:
 		notify("📦 " + line)
 		log_event("economy", line)
+
+# === THE WEEPING HOUR (night event, dev-chosen 2026-07-28) ===
+# A rare whole NIGHT where the forest itself grieves -- Terraria's blood
+# moon INSPIRED it, but Deepwood's night is sorrow made weather: pale
+# weepers stream at the walls from both roads until dawn, many and quick
+# but never heavy (the boss rule holds off the walls too: difficulty is
+# pressure, not one-shots). It only happens while you are HOME -- it is a
+# set-piece, not an away-punishment -- and it yields to every bigger
+# story: never during the Harvest, a live siege, or a caravan. Surviving
+# to dawn pays PALE TEARS (the Teardraught's only source) and the first
+# survived night leaves THE MOURNER'S LOCKET. The roster stays closed:
+# sorrow pays in relics and reagents, never weapons.
+const WEEP_MIN_FLOOR := 8            # a home fight -- earlier than the roads care
+const WEEP_CHANCE := 0.22            # per qualifying dusk
+const WEEP_MIN_GAP_HOURS := 96.0     # the forest cannot weep twice in 4 days
+const WEEP_DUSK_FROM := 20.0         # rolls at full dark...
+const WEEP_DAWN := 5.0               # ...and dries its eyes at first light
+var weeping_tonight := false
+var hours_since_weeping := 0.0
+var weepings_seen := 0
+var weepings_survived := 0
+var weeping_kills := 0               # tonight's tally, for the dawn word
+var _weep_last_tod := -1.0
+
+# Every gate EXCEPT the dice, separated so the suite can prove the gates
+# without fighting randf().
+func weeping_eligible() -> bool:
+	if despair_dead or harvest_at_home or live_siege_active or live_caravan_active:
+		return false
+	if in_dungeon:
+		return false
+	if not opening_done and not dev_mode:
+		return false
+	if deepest_level_reached < WEEP_MIN_FLOOR:
+		return false
+	return hours_since_weeping >= WEEP_MIN_GAP_HOURS
+
+func tick_weeping(hours_passed: float) -> void:
+	hours_since_weeping += hours_passed
+	var tod := time_of_day()
+	var was: float = _weep_last_tod
+	_weep_last_tod = tod
+	if weeping_tonight:
+		# dawn ends it: the crossing INTO first light, morning side only
+		if was >= 0.0 and was < WEEP_DAWN and tod >= WEEP_DAWN and tod < 12.0:
+			end_weeping(false)
+		return
+	# the dice roll exactly once, at the crossing into full dark
+	if not (was >= 0.0 and was < WEEP_DUSK_FROM and tod >= WEEP_DUSK_FROM):
+		return
+	if not weeping_eligible():
+		return
+	if randf() > WEEP_CHANCE:
+		return
+	start_weeping()
+
+func start_weeping() -> void:
+	weeping_tonight = true
+	weeping_kills = 0
+	hours_since_weeping = 0.0
+	weepings_seen += 1
+	notify_urgent("🌧 THE WEEPING HOUR — the forest itself grieves tonight. The pale ones walk until dawn. Hold your home.")
+	log_event("combat", "The forest wept: pale ones walked against the walls all night.")
+	var mgr = get_tree().get_first_node_in_group("siege_manager")
+	if mgr and mgr.has_method("start_weeping_night"):
+		mgr.start_weeping_night(maxi(1, current_siege_tier()))
+
+# interrupted=true (a bigger story broke the night: the Harvest, a load)
+# ends it quietly and pays NOTHING; dawn pays the tally.
+func end_weeping(interrupted: bool) -> void:
+	if not weeping_tonight:
+		return
+	weeping_tonight = false
+	var mgr = get_tree().get_first_node_in_group("siege_manager")
+	if mgr and mgr.has_method("end_weeping_night"):
+		mgr.end_weeping_night()
+	if interrupted:
+		return
+	weepings_survived += 1
+	var pl = get_tree().get_first_node_in_group("player")
+	if _has_inventory(pl):
+		var tears: int = 2 + weeping_kills / 4
+		pl.inventory.add_item("tear_pale", tears)
+		var extra := ""
+		# the first survived night leaves the Locket -- once, and never a
+		# second into a Rewound-Hour bag that already carries it
+		if weepings_survived == 1 and pl.inventory.get_count("relic_mourner") == 0 \
+				and get_equipped_item_ids().find("relic_mourner") == -1:
+			pl.inventory.add_item("relic_mourner", 1)
+			extra = " Something glints in the wet grass: THE MOURNER'S LOCKET."
+		notify("🌅 Dawn. The forest dries its eyes — %d pale ones laid to rest, %d Pale Tears gathered.%s" % [weeping_kills, tears, extra])
+		log_event("combat", "The Weeping Hour passed: %d laid to rest by morning." % weeping_kills)
 
 func resolve_siege_offline(tier: int) -> void:
 	away_report.sieges += 1
@@ -5139,6 +5238,13 @@ func reset_for_new_game() -> void:
 	fishing_last_post_day = -1
 	fishing_last_oddity = ""
 	willow_rod_granted = false
+	# and the weeping ledger with it
+	weeping_tonight = false
+	hours_since_weeping = 0.0
+	weepings_seen = 0
+	weepings_survived = 0
+	weeping_kills = 0
+	_weep_last_tod = -1.0
 	away_report = {"sieges": 0, "repelled": 0, "villagers_lost": 0, "adventurers_lost": 0}
 	# The village starts in ruins -- every building begins destroyed (health 0)
 	# and must be repaired before its roles work.
@@ -5354,6 +5460,11 @@ func save_game(player: Node) -> void:
 		"fishing_last_post_day": fishing_last_post_day,
 		"fishing_last_oddity": fishing_last_oddity,
 		"willow_rod_granted": willow_rod_granted,
+		# a LIVE weeping night is deliberately not saved: a load lands on a
+		# quiet dark, and the forest simply weeps another time
+		"hours_since_weeping": hours_since_weeping,
+		"weepings_seen": weepings_seen,
+		"weepings_survived": weepings_survived,
 		"away_report": away_report,
 		"building_health": building_health,
 		"building_stage": building_stage,
@@ -5572,6 +5683,11 @@ func load_game() -> Dictionary:
 		fishing_last_post_day = int(parsed.get("fishing_last_post_day", -1))
 		fishing_last_oddity = str(parsed.get("fishing_last_oddity", ""))
 		willow_rod_granted = bool(parsed.get("willow_rod_granted", false))
+		hours_since_weeping = float(parsed.get("hours_since_weeping", 0.0))
+		weepings_seen = int(parsed.get("weepings_seen", 0))
+		weepings_survived = int(parsed.get("weepings_survived", 0))
+		weeping_tonight = false      # a live night never survives a load
+		_weep_last_tod = -1.0
 		caravan_warned = false          # the dust re-announces after a load
 		live_caravan_active = false     # a live fight never survives a reload
 		live_siege_active = false

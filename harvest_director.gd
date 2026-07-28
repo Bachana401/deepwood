@@ -76,6 +76,9 @@ func _ready() -> void:
 		queue_free()
 		return
 	GameState.harvest_at_home = true
+	# the finale outranks every lesser night: a Weeping Hour in progress
+	# ends quietly, unpaid -- the forest's grief bows to the Monarch's
+	GameState.end_weeping(true)
 	if resume:
 		_revealed = true
 		var p = get_tree().get_first_node_in_group("player")

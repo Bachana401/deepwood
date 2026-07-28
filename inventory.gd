@@ -160,6 +160,10 @@ const ITEM_DEFS = {
 	"fish_kingsjaw": {"name": "Kingsjaw", "category": "consumable", "max_stack": 10, "color": Color(0.95, 0.8, 0.35, 1.0), "use_effect": {"buff": "all_damage", "value": 3.0, "duration": 90.0}, "use_desc": "The dock's pride. +3 ALL damage for 90s."},
 	"fish_palegulper": {"name": "Pale Gulper", "category": "consumable", "max_stack": 10, "color": Color(0.85, 0.9, 0.85, 1.0), "use_effect": {"buff": "damage_reduction", "value": 0.08, "duration": 90.0}, "use_desc": "It swallowed the dark and lived. +8% DR for 90s."},
 	"junk_boot": {"name": "Somebody's Boot", "category": "misc", "max_stack": 5, "color": Color(0.4, 0.32, 0.24, 1.0)},
+	# --- THE WEEPING HOUR (night event, 2026-07-28): what the sorrow leaves ---
+	"tear_pale": {"name": "Pale Tear", "category": "material", "max_stack": 99, "color": Color(0.75, 0.85, 0.95, 1.0), "is_material": true},
+	"potion_tears": {"name": "Teardraught", "category": "consumable", "max_stack": 10, "color": Color(0.7, 0.82, 0.95, 1.0), "use_effect": {"heal_mana": 90, "buff": "all_damage", "value": 0.15, "duration": 60.0}, "use_desc": "Grief, distilled. Restore 90 Mana and +15% ALL damage for 60s."},
+	"relic_mourner": {"name": "The Mourner's Locket", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.72, 0.78, 0.9, 1.0), "equip_effect": {"max_health": 25.0, "melee_damage": 0.08, "bow_damage": 0.08, "wand_cooldown": 0.05}, "unique_desc": "Every survived Weeping Hour hangs inside it. Grief, carried long enough, becomes strength in any hand."},
 	"crate_driftwood": {"name": "Driftwood Crate", "category": "consumable", "max_stack": 10, "color": Color(0.6, 0.48, 0.3, 1.0), "use_effect": {"open_crate": true}, "use_desc": "Roped shut and river-worn. Right-click to pry it open."},
 	"crate_pearlbound": {"name": "Pearlbound Crate", "category": "consumable", "max_stack": 5, "color": Color(0.8, 0.85, 0.95, 1.0), "use_effect": {"open_crate": true}, "use_desc": "Banded in nacre. Right-click to pry it open."},
 	"tool_rod_willow": {"name": "Willow Rod", "category": "weapon", "weapon_type": "melee", "tool_type": "rod", "rod_tier": 1, "max_stack": 1, "color": Color(0.55, 0.65, 0.4, 1.0),
@@ -854,6 +858,7 @@ const ITEM_GRADES = {
 	"fish_silverfin": "common", "fish_mudwhisker": "common", "fish_lanterneel": "uncommon",
 	"fish_kingsjaw": "rare", "fish_palegulper": "rare", "junk_boot": "common",
 	"crate_driftwood": "uncommon", "crate_pearlbound": "epic",
+	"tear_pale": "uncommon", "potion_tears": "rare", "relic_mourner": "legendary",
 	"tool_rod_willow": "common", "tool_rod_wyrmbone": "rare", "tool_rod_moonline": "legendary",
 	"relic_tidewalker": "legendary",
 	"odd_glassfin": "rare", "odd_inkmaw": "rare", "odd_bellsnail": "rare",
@@ -907,6 +912,8 @@ const ITEM_GRADES = {
 # are craftable; HP/Mana potions are deliberately DROP-ONLY (not here). See
 # GameState.try_craft and the crafting popup in inventory_ui.
 const CRAFT_RECIPES = {
+	# grief, distilled (the Weeping Hour's tears are its only source)
+	"potion_tears": {"tear_pale": 3, "herb": 1},
 	"food_stew": {"herb": 2, "raw_meat": 1},
 	"food_feast": {"raw_meat": 3, "herb": 1},
 	"food_sage": {"herb": 3, "slime": 1},
@@ -1562,6 +1569,7 @@ static func paint_icon(target: ColorRect, item_id: String) -> void:
 		"odd_glassfin", "odd_inkmaw", "odd_bellsnail", "odd_twicefish", "odd_sorrowcarp":
 			_icon_fish(target, w, h, col)
 		"crate_driftwood", "crate_pearlbound": _icon_crate(target, w, h, col)
+		"tear_pale": _icon_tear(target, w, h, col)
 		"tool_rod_willow", "tool_rod_wyrmbone", "tool_rod_moonline": _icon_rod(target, w, h, col)
 		"junk_boot": _icon_boot(target, w, h, col)
 		_:
@@ -1856,6 +1864,16 @@ static func _icon_fish(t: Control, w: float, h: float, col: Color) -> void:
 	_ipoly(t, PackedVector2Array([
 		Vector2(w * 0.3, h * 0.42), Vector2(w * 0.36, h * 0.42),
 		Vector2(w * 0.36, h * 0.48), Vector2(w * 0.3, h * 0.48)]), Color(0.1, 0.1, 0.12))
+
+# a teardrop: pointed crown, round belly, one gleam (the Weeping Hour's tears)
+static func _icon_tear(t: Control, w: float, h: float, col: Color) -> void:
+	_ipoly(t, PackedVector2Array([
+		Vector2(w * 0.5, h * 0.12), Vector2(w * 0.68, h * 0.45), Vector2(w * 0.72, h * 0.62),
+		Vector2(w * 0.62, h * 0.8), Vector2(w * 0.38, h * 0.8), Vector2(w * 0.28, h * 0.62),
+		Vector2(w * 0.32, h * 0.45)]), col)
+	_ipoly(t, PackedVector2Array([
+		Vector2(w * 0.4, h * 0.52), Vector2(w * 0.46, h * 0.52),
+		Vector2(w * 0.46, h * 0.62), Vector2(w * 0.4, h * 0.62)]), Color(0.98, 0.99, 1.0, 0.9))
 
 static func _icon_crate(t: Control, w: float, h: float, col: Color) -> void:
 	_ipoly(t, PackedVector2Array([
