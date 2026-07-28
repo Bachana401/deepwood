@@ -147,11 +147,18 @@ func _build_chronicle() -> void:
 	title.add_theme_font_size_override("font_size", 18)
 	title.position = Vector2(16, 10)
 	chron_panel.add_child(title)
+	# The book SCROLLS: the 7-entry ledger + footer fit, but the Hidden Hunt
+	# section (a subheader + up to 11 rows) pushed the total past the panel and
+	# the lower half of the hunt rendered off-screen. Wrap the rows in a scroller.
+	var chron_scroll := ScrollContainer.new()
+	chron_scroll.position = Vector2(14, 44)
+	chron_scroll.size = Vector2(chron_panel.size.x - 24, chron_panel.size.y - 56)
+	chron_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	chron_panel.add_child(chron_scroll)
 	chron_rows = VBoxContainer.new()
-	chron_rows.position = Vector2(16, 44)
-	chron_rows.custom_minimum_size = Vector2(488, 0)
+	chron_rows.custom_minimum_size = Vector2(chron_panel.size.x - 40, 0)
 	chron_rows.add_theme_constant_override("separation", 8)
-	chron_panel.add_child(chron_rows)
+	chron_scroll.add_child(chron_rows)
 
 func _on_toggle_chronicle() -> void:
 	chron_panel.visible = not chron_panel.visible

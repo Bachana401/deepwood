@@ -92,18 +92,25 @@ func build_craft_panel() -> void:
 	craft_panel = Panel.new()
 	craft_panel.visible = false
 	craft_panel.position = Vector2(panel_w + 12, 0)
-	craft_panel.size = Vector2(330, 250)
+	craft_panel.size = Vector2(330, 340)
 	$Panel.add_child(craft_panel)
 	var title := Label.new()
 	title.text = "CRAFTING"
 	title.add_theme_font_size_override("font_size", 15)
 	title.position = Vector2(12, 6)
 	craft_panel.add_child(title)
+	# The recipe list SCROLLS: it grew from 4 recipes to well over a dozen (the
+	# event-boss summon tokens + rites), which overflowed a fixed panel and left
+	# the lower recipes -- the Hunter's Horn among them -- unreachable off-screen.
+	var scroller := ScrollContainer.new()
+	scroller.position = Vector2(10, 30)
+	scroller.size = Vector2(312, 300)
+	scroller.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	craft_panel.add_child(scroller)
 	craft_rows = VBoxContainer.new()
-	craft_rows.position = Vector2(12, 30)
-	craft_rows.custom_minimum_size = Vector2(306, 0)
+	craft_rows.custom_minimum_size = Vector2(292, 0)
 	craft_rows.add_theme_constant_override("separation", 6)
-	craft_panel.add_child(craft_rows)
+	scroller.add_child(craft_rows)
 
 func refresh_craft() -> void:
 	if craft_rows == null or player == null:
