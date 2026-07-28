@@ -196,6 +196,41 @@ func _on_toggle_chronicle() -> void:
 		Color(0.95, 0.85, 0.4, 1.0) if done_count == entries.size() else Color(0.7, 0.68, 0.62, 1.0))
 	chron_rows.add_child(footer)
 
+	# --- THE HIDDEN HUNT (2026-07-28): a record of the secret bosses. A slain
+	# one reveals its name AND the deed that woke it; the rest stay "???". ---
+	var hunt: Array = GameState.hidden_hunt_entries()
+	var slain: int = GameState.hidden_hunt_slain_count()
+	var sub := Label.new()
+	sub.text = "— THE HIDDEN HUNT —   %d / %d" % [slain, hunt.size()]
+	sub.add_theme_font_size_override("font_size", 14)
+	sub.add_theme_color_override("font_color", Color(0.85, 0.6, 0.85, 1.0))
+	chron_rows.add_child(sub)
+	for e in hunt:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		var killed: bool = bool(e.get("killed", false))
+		var mark := Label.new()
+		mark.text = "☠" if killed else "?"
+		mark.add_theme_color_override("font_color",
+			Color(0.9, 0.55, 0.5, 1.0) if killed else Color(0.5, 0.46, 0.5, 1.0))
+		mark.custom_minimum_size = Vector2(18, 0)
+		row.add_child(mark)
+		var nm := Label.new()
+		nm.text = str(e.get("name", "???"))
+		if bool(e.get("capstone", false)) and killed:
+			nm.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4, 1.0))
+		elif not killed:
+			nm.add_theme_color_override("font_color", Color(0.6, 0.56, 0.6, 1.0))
+		nm.custom_minimum_size = Vector2(200, 0)
+		row.add_child(nm)
+		var how := Label.new()
+		how.text = str(e.get("hint", ""))
+		how.add_theme_font_size_override("font_size", 12)
+		how.add_theme_color_override("font_color",
+			Color(0.7, 0.66, 0.6, 1.0) if killed else Color(0.5, 0.48, 0.52, 1.0))
+		row.add_child(how)
+		chron_rows.add_child(row)
+
 func _on_volume_changed(value: float) -> void:
 	GameState.set_master_volume(value)
 

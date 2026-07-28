@@ -153,6 +153,175 @@ const ITEM_DEFS = {
 	# -- despair inverted into the reagent that undoes it.
 	"sorrowshard": {"name": "Sorrowshard", "category": "material", "max_stack": 20, "color": Color(0.62, 0.55, 0.9, 1.0), "is_ingredient": true},
 	"raw_meat": {"name": "Raw Meat", "category": "material", "max_stack": 99, "color": Color(0.82, 0.4, 0.42, 1.0), "is_ingredient": true},
+
+	# ============================================================================
+	# HIDDEN EVENT-BOSS LOOT (2026-07-28). Twenty exclusive weapons (two per boss,
+	# one drops on a 50/50 coin-flip) + a signature relic, a few armour pieces and
+	# a trophy material per boss. These NEVER appear in the ordinary dungeon drop
+	# pools (GEAR_* / WeaponRoster) -- the only way to earn them is to find the
+	# secret that wakes their boss. See event_boss.gd for the registry + triggers.
+	# Grade tracks the boss's difficulty: Medium=Epic, Hard=Legendary,
+	# VeryHard=Mythic, Expert=Ascended/Monarch. Every mechanic here is one already
+	# proven in perform_attack / apply_excellent_effect (no new plumbing).
+	# ---- MEDIUM (Epic) ----
+	"evt_ledger": {"name": "Ledger's Edge", "category": "weapon", "weapon_type": "melee", "max_stack": 1, "color": Color(0.92, 0.8, 0.32, 1.0),
+		"weapon_stats": {"damage": 17, "cooldown": 0.4, "range_offset": 46, "area_size": Vector2(60, 36), "knockback_min": 30.0, "knockback_max": 62.0, "icon_size": Vector2(54, 12), "icon_color": Color(0.92, 0.8, 0.32), "icon_offset": 20.0},
+		"unique_effect": "gold_touch", "unique_value": 0.14,
+		"unique_desc": "The Tallyman's own blade: every cut mints coin -- 14% of the damage dealt is paid back to you as gold."},
+	"evt_coinbite": {"name": "Coinbite Crossbow", "category": "weapon", "weapon_type": "bow", "max_stack": 1, "color": Color(0.86, 0.72, 0.3, 1.0),
+		"weapon_stats": {"damage": 15, "cooldown": 0.5, "range_offset": 90, "area_size": Vector2(110, 40), "knockback_min": 24.0, "knockback_max": 50.0, "icon_size": Vector2(15, 15), "icon_color": Color(0.86, 0.72, 0.3), "icon_offset": 18.0},
+		"special": {"type": "multi_shot", "count": 2, "spread_deg": 7.0},
+		"unique_desc": "Fires a biting pair of coin-tipped bolts with every pull of the string."},
+	"evt_hoarfrost": {"name": "Hoarfrost Pick", "category": "weapon", "weapon_type": "melee", "max_stack": 1, "color": Color(0.66, 0.86, 0.98, 1.0),
+		"weapon_stats": {"damage": 20, "cooldown": 0.55, "range_offset": 46, "area_size": Vector2(62, 36), "knockback_min": 34.0, "knockback_max": 66.0, "icon_size": Vector2(50, 14), "icon_color": Color(0.66, 0.86, 0.98), "icon_offset": 20.0},
+		"special": {"status": {"kind": "slow", "dur": 2.6, "mag": 0.5}},
+		"unique_desc": "A pick of black ice: every blow leaves the struck foe chilled to the bone (slowed)."},
+	"evt_rimeglass": {"name": "Rimeglass Wand", "category": "weapon", "weapon_type": "wand", "max_stack": 1, "color": Color(0.7, 0.9, 1.0, 1.0), "mana_cost": 9,
+		"weapon_stats": {"damage": 0, "cooldown": 0.55, "range_offset": 30, "area_size": Vector2(10, 10), "knockback_min": 0.0, "knockback_max": 0.0, "icon_size": Vector2(46, 8), "icon_color": Color(0.7, 0.9, 1.0), "icon_offset": 20.0},
+		"special": {"type": "frost_shard", "damage": 20, "speed": 660.0, "range": 560.0, "pierce": true, "status": {"kind": "slow", "dur": 3.2, "mag": 0.55}},
+		"unique_desc": "Looses a shard of everfrost that skewers a whole line of foes and freezes them in place (slow)."},
+	"evt_bramblewhip": {"name": "Bramblewhip", "category": "weapon", "weapon_type": "melee", "max_stack": 1, "color": Color(0.42, 0.6, 0.3, 1.0),
+		"weapon_stats": {"damage": 15, "cooldown": 0.85, "range_offset": 44, "area_size": Vector2(56, 34), "knockback_min": 24.0, "knockback_max": 48.0, "icon_size": Vector2(56, 10), "icon_color": Color(0.42, 0.6, 0.3), "icon_offset": 20.0},
+		"special": {"type": "lash", "damage": 15, "speed": 560.0, "range": 340.0, "status": {"kind": "poison", "dur": 4.0, "mag": 6.0}},
+		"unique_desc": "A living, thorned vine that weaves out through everything in its lane -- and rakes it all again, envenomed, on the way back."},
+	"evt_thornvolley": {"name": "Thornvolley Bow", "category": "weapon", "weapon_type": "bow", "max_stack": 1, "color": Color(0.4, 0.56, 0.32, 1.0),
+		"weapon_stats": {"damage": 12, "cooldown": 0.58, "range_offset": 90, "area_size": Vector2(110, 40), "knockback_min": 22.0, "knockback_max": 44.0, "icon_size": Vector2(15, 15), "icon_color": Color(0.4, 0.56, 0.32), "icon_offset": 18.0},
+		"special": {"type": "multi_shot", "count": 3, "spread_deg": 11.0},
+		"unique_desc": "Looses a fan of three barbed thorn-shafts with every draw."},
+	# ---- HARD (Legendary) ----
+	"evt_tiderender": {"name": "Tiderender", "category": "weapon", "weapon_type": "spear", "max_stack": 1, "color": Color(0.28, 0.62, 0.72, 1.0),
+		"weapon_stats": {"damage": 16, "cooldown": 1.0, "range_offset": 55, "area_size": Vector2(70, 40), "knockback_min": 45.0, "knockback_max": 78.0, "icon_size": Vector2(112, 8), "icon_color": Color(0.28, 0.62, 0.72), "icon_offset": 16.0},
+		"special": {"type": "javelin_volley", "count": 3, "spread_deg": 9.0, "damage": 18, "speed": 720.0, "range": 540.0},
+		"unique_desc": "Instead of a thrust it hurls three spears of black water at once -- each pierces clean through the tide of foes."},
+	"evt_deepcaller": {"name": "Deepcaller Conch", "category": "weapon", "weapon_type": "wand", "max_stack": 1, "color": Color(0.35, 0.55, 0.85, 1.0), "mana_cost": 13,
+		"weapon_stats": {"damage": 0, "cooldown": 0.8, "range_offset": 30, "area_size": Vector2(10, 10), "knockback_min": 0.0, "knockback_max": 0.0, "icon_size": Vector2(48, 8), "icon_color": Color(0.35, 0.55, 0.85), "icon_offset": 20.0},
+		"special": {"type": "cluster", "damage": 22, "speed": 540.0, "range": 440.0, "shards": 6},
+		"unique_desc": "The call carries a mote of the drowned deep that bursts into a chorus of six biting wisps."},
+	"evt_pyreblade": {"name": "Pyreblade", "category": "weapon", "weapon_type": "melee", "max_stack": 1, "color": Color(1.0, 0.55, 0.2, 1.0),
+		"weapon_stats": {"damage": 26, "cooldown": 0.5, "range_offset": 48, "area_size": Vector2(64, 38), "knockback_min": 34.0, "knockback_max": 68.0, "icon_size": Vector2(58, 13), "icon_color": Color(1.0, 0.55, 0.2), "icon_offset": 20.0},
+		"special": {"type": "flying_slash", "damage": 20, "speed": 540.0, "range": 440.0, "status": {"kind": "burn", "dur": 4.0, "mag": 7.0}},
+		"unique_desc": "Every swing hurls a crescent of fire that flies ahead -- and everything the blade or the flame touches BURNS."},
+	"evt_emberking": {"name": "Emberking Recurve", "category": "weapon", "weapon_type": "bow", "max_stack": 1, "color": Color(0.95, 0.5, 0.22, 1.0),
+		"weapon_stats": {"damage": 24, "cooldown": 0.5, "range_offset": 90, "area_size": Vector2(110, 40), "knockback_min": 26.0, "knockback_max": 52.0, "icon_size": Vector2(15, 15), "icon_color": Color(0.95, 0.5, 0.22), "icon_offset": 18.0},
+		"special": {"type": "homing"},
+		"unique_desc": "Its ember-fletched arrows bend mid-flight, hunting the nearest living thing on their own."},
+	"evt_vigil": {"name": "Vigil Lance", "category": "weapon", "weapon_type": "spear", "max_stack": 1, "color": Color(0.7, 0.75, 0.9, 1.0),
+		"weapon_stats": {"damage": 30, "cooldown": 0.95, "range_offset": 58, "area_size": Vector2(74, 42), "knockback_min": 55.0, "knockback_max": 92.0, "icon_size": Vector2(116, 9), "icon_color": Color(0.7, 0.75, 0.9), "icon_offset": 16.0},
+		"special": {"type": "javelin_volley", "count": 2, "spread_deg": 6.0, "damage": 22, "speed": 760.0, "range": 560.0},
+		"unique_desc": "The Warden's lance never sleeps: a heavy thrust that also looses a twin of piercing light down the line."},
+	"evt_wakeful": {"name": "Wakeful Wand", "category": "weapon", "weapon_type": "wand", "max_stack": 1, "color": Color(0.85, 0.85, 0.45, 1.0), "mana_cost": 11,
+		"weapon_stats": {"damage": 0, "cooldown": 0.6, "range_offset": 30, "area_size": Vector2(10, 10), "knockback_min": 0.0, "knockback_max": 0.0, "icon_size": Vector2(48, 8), "icon_color": Color(0.85, 0.85, 0.45), "icon_offset": 20.0},
+		"special": {"type": "ricochet", "damage": 22, "speed": 720.0, "range": 500.0, "bounces": 4},
+		"unique_desc": "A restless bolt that refuses to settle: it leaps foe to foe up to four times before it sleeps."},
+	# ---- VERY HARD (Mythic) ----
+	"evt_scythe": {"name": "Mourner's Scythe", "category": "weapon", "weapon_type": "melee", "max_stack": 1, "color": Color(0.5, 0.55, 0.62, 1.0),
+		"weapon_stats": {"damage": 30, "cooldown": 0.8, "range_offset": 54, "area_size": Vector2(78, 46), "knockback_min": 50.0, "knockback_max": 88.0, "icon_size": Vector2(62, 16), "icon_color": Color(0.5, 0.55, 0.62), "icon_offset": 20.0},
+		"special": {"type": "cleave"},
+		"unique_desc": "The reaper's own tool: so wide it cleaves through EVERY foe in the arc, not just the nearest."},
+	"evt_wail": {"name": "Wail Wand", "category": "weapon", "weapon_type": "wand", "max_stack": 1, "color": Color(0.6, 0.55, 0.75, 1.0), "mana_cost": 15,
+		"weapon_stats": {"damage": 0, "cooldown": 0.9, "range_offset": 30, "area_size": Vector2(10, 10), "knockback_min": 0.0, "knockback_max": 0.0, "icon_size": Vector2(50, 8), "icon_color": Color(0.6, 0.55, 0.75), "icon_offset": 20.0},
+		"special": {"type": "lob", "damage": 34, "speed": 500.0, "range": 520.0, "aoe": 120.0},
+		"unique_desc": "Casts a grief-wail in a mourning arc that BLOSSOMS into a wide keening blast where it lands."},
+	"evt_pretender": {"name": "Pretender's Greatsword", "category": "weapon", "weapon_type": "melee", "max_stack": 1, "color": Color(0.8, 0.7, 0.35, 1.0),
+		"weapon_stats": {"damage": 34, "cooldown": 0.6, "range_offset": 52, "area_size": Vector2(72, 44), "knockback_min": 55.0, "knockback_max": 95.0, "icon_size": Vector2(64, 15), "icon_color": Color(0.8, 0.7, 0.35), "icon_offset": 20.0},
+		"unique_effect": "shockwave", "unique_value": 0.55, "unique_radius": 240.0,
+		"unique_desc": "The false crown's blade: every blow slams a quake through everything within 240px for 55% of the damage."},
+	"evt_usurper": {"name": "Usurper's Bow", "category": "weapon", "weapon_type": "bow", "max_stack": 1, "color": Color(0.72, 0.62, 0.35, 1.0),
+		"weapon_stats": {"damage": 28, "cooldown": 0.52, "range_offset": 90, "area_size": Vector2(110, 40), "knockback_min": 28.0, "knockback_max": 54.0, "icon_size": Vector2(15, 15), "icon_color": Color(0.72, 0.62, 0.35), "icon_offset": 18.0},
+		"special": {"type": "storm_shot", "count": 3, "homing": true},
+		"unique_desc": "The pretender's aim: three crowned shafts that curve to hunt what would depose you."},
+	"evt_houndsfang": {"name": "Houndsfang", "category": "weapon", "weapon_type": "melee", "max_stack": 1, "color": Color(0.32, 0.3, 0.4, 1.0),
+		"weapon_stats": {"damage": 14, "cooldown": 0.26, "range_offset": 42, "area_size": Vector2(52, 32), "knockback_min": 18.0, "knockback_max": 38.0, "icon_size": Vector2(44, 11), "icon_color": Color(0.32, 0.3, 0.4), "icon_offset": 18.0},
+		"unique_effect": "lifesteal", "unique_value": 0.18,
+		"unique_desc": "The hound's tooth: a blur of quick cuts that feeds -- each blow returns 18% of its damage as health."},
+	"evt_coursing": {"name": "Coursing Bow", "category": "weapon", "weapon_type": "bow", "max_stack": 1, "color": Color(0.4, 0.4, 0.5, 1.0),
+		"weapon_stats": {"damage": 20, "cooldown": 0.46, "range_offset": 90, "area_size": Vector2(110, 40), "knockback_min": 24.0, "knockback_max": 48.0, "icon_size": Vector2(15, 15), "icon_color": Color(0.4, 0.4, 0.5), "icon_offset": 18.0},
+		"special": {"type": "storm_shot", "count": 4, "homing": true},
+		"unique_desc": "The coursing hunt made manifest: a homing pack of four shafts runs down everything that flees."},
+	# ---- EXPERT (Ascended / Monarch) ----
+	"evt_endbringer": {"name": "Endbringer", "category": "weapon", "weapon_type": "melee", "max_stack": 1, "color": Color(1.0, 0.9, 0.5, 1.0),
+		"weapon_stats": {"damage": 44, "cooldown": 0.5, "range_offset": 54, "area_size": Vector2(76, 46), "knockback_min": 60.0, "knockback_max": 105.0, "icon_size": Vector2(66, 16), "icon_color": Color(1.0, 0.9, 0.5), "icon_offset": 20.0},
+		"unique_effect": "execute", "unique_value": 0.22, "boss_bonus": 0.6,
+		"unique_desc": "Nihil's blade, the last word: it DELETES any non-boss below 22% HP outright, and tears an extra 60% into bosses."},
+	"evt_stareater": {"name": "Star-Eater", "category": "weapon", "weapon_type": "wand", "max_stack": 1, "color": Color(0.3, 0.95, 1.0, 1.0), "mana_cost": 26,
+		"weapon_stats": {"damage": 0, "cooldown": 1.0, "range_offset": 30, "area_size": Vector2(10, 10), "knockback_min": 0.0, "knockback_max": 0.0, "icon_size": Vector2(52, 8), "icon_color": Color(0.3, 0.95, 1.0), "icon_offset": 20.0},
+		"special": {"type": "nuke", "damage": 420},
+		"unique_desc": "It opens a hungry star that DEVOURS every enemy on screen at once (scales with Wand DMG)."},
+
+	# ---- Signature relics (one per boss; guaranteed on the kill) ----
+	"relic_usurer": {"name": "Usurer's Signet", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.9, 0.78, 0.3, 1.0), "equip_effect": {"gold_gain": 0.35, "max_health": 20.0}, "relic_desc": "The Tallyman's ring: every coin the world owes you comes back larger (+35% gold)."},
+	"relic_rimeheart": {"name": "Rimeheart", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.66, 0.86, 0.98, 1.0), "equip_effect": {"max_health": 35.0, "status_resistance": 0.4}, "relic_desc": "A heart of everfrost: enemy chills and hexes slide off you (-40% status duration)."},
+	"relic_verdant": {"name": "Verdant Heart", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.42, 0.72, 0.36, 1.0), "equip_effect": {"max_health": 30.0}, "relic_power": "reaper", "relic_desc": "The Glutton's seed: every kill you reap feeds you back 8 HP and 5 Mana."},
+	"relic_pearl": {"name": "Pearl of the Deep", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.5, 0.75, 0.9, 1.0), "equip_effect": {"max_mana": 30.0, "max_health": 30.0}, "relic_power": "aegis", "relic_desc": "A bubble of the drowned deep fully blocks one hit every 6s."},
+	"relic_effigy": {"name": "Effigy Ash", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.85, 0.45, 0.2, 1.0), "equip_effect": {"max_health": 45.0}, "relic_power": "thorns", "relic_value": 0.4, "relic_desc": "The wicker king's spite: reflect 40% of the damage you take back onto everything near you as fire."},
+	"relic_unblinking": {"name": "The Unblinking Eye", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.8, 0.82, 0.55, 1.0), "equip_effect": {"crit_chance": 0.1, "crit_damage": 0.25}, "relic_desc": "The Warden never sleeps, and neither do your eyes: +10% crit, +25% crit damage."},
+	"relic_widow": {"name": "Widow's Locket", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.5, 0.42, 0.55, 1.0), "equip_effect": {"max_health": 40.0}, "relic_power": "omnivamp", "relic_value": 0.3, "relic_desc": "Grief made sustenance: heal for 30% of the melee damage you deal."},
+	"relic_hollow": {"name": "The Hollow Crown", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.82, 0.72, 0.38, 1.0), "equip_effect": {"melee_damage": 0.16, "bow_damage": 0.16, "wand_damage": 0.16}, "relic_desc": "The pretender's due: +16% to ALL of your weapon damage, deserved or not."},
+	"relic_hound": {"name": "Hound's Collar", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.34, 0.32, 0.42, 1.0), "equip_effect": {"move_speed": 0.12}, "relic_power": "berserk", "relic_value": 0.5, "relic_desc": "The cornered hunt bites hardest: the lower your HP, the more damage -- up to +50% near death."},
+	"relic_lasthour": {"name": "Crown of the Last Hour", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(1.0, 0.9, 0.5, 1.0), "equip_effect": {"max_health": 90.0, "max_mana": 45.0}, "relic_power": "phoenix", "relic_desc": "Nihil's crown: cheat the last hour -- revive at 50% HP once every 45s -- and carry +90 HP, +45 Mana besides."},
+
+	# ---- Signature armour pieces (the harder bosses) ----
+	"armor_ember": {"name": "Cinderweave Vest", "category": "armor", "slot": "chest", "max_stack": 1, "color": Color(0.85, 0.42, 0.2, 1.0), "equip_effect": {"max_health": 55.0, "damage_reduction": 0.06, "melee_damage": 0.05}},
+	"helm_mourn": {"name": "Mourner's Veil", "category": "armor", "slot": "helmet", "max_stack": 1, "color": Color(0.48, 0.44, 0.55, 1.0), "equip_effect": {"max_health": 45.0, "max_mana": 25.0, "crit_chance": 0.05}},
+	"armor_unmade": {"name": "Shroud of the Unmade", "category": "armor", "slot": "chest", "max_stack": 1, "color": Color(0.3, 0.9, 0.98, 1.0), "equip_effect": {"max_health": 80.0, "max_mana": 35.0, "damage_reduction": 0.08, "dodge_chance": 0.05}},
+
+	# ---- Trophy materials (guaranteed on the kill; is_ingredient so they read
+	# their real name, never "Unknown Substance"). ----
+	"mat_debtcoin": {"name": "Tarnished Debt-Coin", "category": "material", "max_stack": 20, "color": Color(0.72, 0.62, 0.28, 1.0), "is_ingredient": true},
+	"mat_everfrost": {"name": "Everfrost Shard", "category": "material", "max_stack": 20, "color": Color(0.7, 0.9, 1.0, 1.0), "is_ingredient": true},
+	"mat_heartwood": {"name": "Heartwood Seed", "category": "material", "max_stack": 20, "color": Color(0.45, 0.7, 0.35, 1.0), "is_ingredient": true},
+	"mat_brine": {"name": "Black Brine-Pearl", "category": "material", "max_stack": 20, "color": Color(0.3, 0.5, 0.7, 1.0), "is_ingredient": true},
+	"mat_pyreash": {"name": "Pyre Ash", "category": "material", "max_stack": 20, "color": Color(0.7, 0.4, 0.25, 1.0), "is_ingredient": true},
+	"mat_vigilember": {"name": "Sleepless Ember", "category": "material", "max_stack": 20, "color": Color(0.85, 0.82, 0.5, 1.0), "is_ingredient": true},
+	"mat_grieftear": {"name": "Grief Tear", "category": "material", "max_stack": 20, "color": Color(0.55, 0.5, 0.68, 1.0), "is_ingredient": true},
+	"mat_crownshard": {"name": "Crown Shard", "category": "material", "max_stack": 20, "color": Color(0.8, 0.7, 0.38, 1.0), "is_ingredient": true},
+	"mat_sableichor": {"name": "Sable Ichor", "category": "material", "max_stack": 20, "color": Color(0.3, 0.28, 0.36, 1.0), "is_ingredient": true},
+	"mat_unmade": {"name": "Fragment of the Unmade", "category": "material", "max_stack": 20, "color": Color(0.35, 0.92, 1.0, 1.0), "is_ingredient": true},
+
+	# ---- Re-summon tokens (2026-07-28): crafted from a fallen event boss's
+	# trophy, each wakes THAT boss again on demand -- a way to farm the 50/50
+	# weapon you missed. use_effect.summon_event names the event. Consumables so
+	# player.use_item accepts them; recipes in CRAFT_RECIPES. ----
+	"token_tallyman":    {"name": "Effigy of the Tallyman",    "category": "consumable", "max_stack": 10, "color": Color(0.9, 0.78, 0.32, 1.0),  "use_effect": {"summon_event": "tallyman"},     "use_desc": "Wake the Tallyman again, here and now."},
+	"token_firstfrost":  {"name": "Effigy of the First Frost", "category": "consumable", "max_stack": 10, "color": Color(0.66, 0.86, 0.98, 1.0), "use_effect": {"summon_event": "first_frost"},  "use_desc": "Call the First Frost back into the cold."},
+	"token_gluttonroot": {"name": "Effigy of the Glutton Root","category": "consumable", "max_stack": 10, "color": Color(0.42, 0.6, 0.3, 1.0),   "use_effect": {"summon_event": "glutton_root"}, "use_desc": "Rouse the Glutton Root from the soil."},
+	"token_drowned":     {"name": "Effigy of the Drowned",     "category": "consumable", "max_stack": 10, "color": Color(0.3, 0.5, 0.7, 1.0),    "use_effect": {"summon_event": "drowned_chorus"},"use_desc": "Ring the sunken bell once more."},
+	"token_effigyking":  {"name": "Effigy of the Fire King",   "category": "consumable", "max_stack": 10, "color": Color(0.85, 0.45, 0.2, 1.0),  "use_effect": {"summon_event": "effigy_king"},  "use_desc": "Feed the fire; the Effigy King answers."},
+	"token_warden":      {"name": "Effigy of the Warden",      "category": "consumable", "max_stack": 10, "color": Color(0.7, 0.75, 0.9, 1.0),   "use_effect": {"summon_event": "sleepless_warden"},"use_desc": "The Sleepless Warden never truly left."},
+	"token_griefeater":  {"name": "Effigy of Grief",           "category": "consumable", "max_stack": 10, "color": Color(0.5, 0.42, 0.55, 1.0),  "use_effect": {"summon_event": "grief_eater"},  "use_desc": "Offer a fresh sorrow; the Grief-Eater comes."},
+	"token_hollowcrown": {"name": "Effigy of the Pretender",   "category": "consumable", "max_stack": 10, "color": Color(0.82, 0.72, 0.38, 1.0), "use_effect": {"summon_event": "hollow_crown"}, "use_desc": "Challenge the shadow throne again."},
+	"token_sablehound":  {"name": "Effigy of the Hound",       "category": "consumable", "max_stack": 10, "color": Color(0.34, 0.32, 0.42, 1.0), "use_effect": {"summon_event": "sable_hound"},  "use_desc": "Whistle, and the Sable Hound hunts you."},
+	"token_nihil":       {"name": "Effigy of the Last Hour",   "category": "consumable", "max_stack": 10, "color": Color(0.3, 0.95, 1.0, 1.0),   "use_effect": {"summon_event": "nihil"},        "use_desc": "Turn the last hour back to its beginning — Nihil returns."},
+
+	# ---- The Duskmoon Effigy: Nihil's FIRST rite. Use it while the sun and moon
+	# BOTH ride the sky (dawn/dusk) and, four seconds later, the Last Hour comes.
+	# Used at any other time, nothing happens and it is not spent. Crafted from
+	# three other bosses' trophies (frost, fire, grief) -- so the deep-secret is
+	# soft-gated behind hunting the others first. ----
+	"duskmoon_effigy": {"name": "Duskmoon Effigy", "category": "consumable", "max_stack": 5, "color": Color(0.5, 0.55, 0.85, 1.0),
+		"use_effect": {"summon_event": "nihil", "eclipse": true, "delay": 4.0},
+		"use_desc": "Use it while the sun and moon share the sky. Something will answer in four heartbeats."},
+	# ---- The Hunter's Horn: the CAPSTONE. Forged only when you hold a trophy of
+	# ALL TEN hidden bosses (a feat spanning many runs). Sounding it calls the
+	# eleventh, the Master of the Hunt. ----
+	"hunters_horn": {"name": "The Hunter's Horn", "category": "consumable", "max_stack": 1, "color": Color(1.0, 0.85, 0.4, 1.0),
+		"use_effect": {"summon_event": "huntsman", "delay": 4.0},
+		"use_desc": "Sound it, and the Master of the Hunt answers the ten deaths you dealt."},
+
+	# ---- The eleventh boss's loot (the capstone drops) ----
+	"evt_huntcrown": {"name": "The Huntsman's Crownblade", "category": "weapon", "weapon_type": "melee", "max_stack": 1, "color": Color(1.0, 0.88, 0.45, 1.0),
+		"weapon_stats": {"damage": 48, "cooldown": 0.5, "range_offset": 54, "area_size": Vector2(78, 46), "knockback_min": 62.0, "knockback_max": 108.0, "icon_size": Vector2(66, 16), "icon_color": Color(1.0, 0.88, 0.45), "icon_offset": 20.0},
+		"unique_effect": "shockwave", "unique_value": 0.6, "unique_radius": 260.0,
+		"unique_desc": "The Master's own blade: every blow detonates a golden quake through everything within 260px for 60% of the damage."},
+	"evt_huntbow": {"name": "The Huntsman's Longbow", "category": "weapon", "weapon_type": "bow", "max_stack": 1, "color": Color(1.0, 0.82, 0.4, 1.0),
+		"weapon_stats": {"damage": 34, "cooldown": 0.48, "range_offset": 90, "area_size": Vector2(110, 40), "knockback_min": 28.0, "knockback_max": 56.0, "icon_size": Vector2(15, 15), "icon_color": Color(1.0, 0.82, 0.4), "icon_offset": 18.0},
+		"special": {"type": "storm_shot", "count": 5, "homing": true},
+		"unique_desc": "The Master never misses: five gold-fletched shafts that curve to run down all who flee."},
+	"relic_huntmaster": {"name": "Crown of the Hunt", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(1.0, 0.85, 0.4, 1.0),
+		"equip_effect": {"max_health": 80.0, "melee_damage": 0.12, "bow_damage": 0.12, "wand_damage": 0.12, "crit_chance": 0.08},
+		"relic_power": "reaper", "relic_desc": "Master of the ten secrets: +12% ALL damage, +80 HP, +8% crit, and every kill mends 8 HP / 5 Mana."},
+	"mat_huntsign": {"name": "Sigil of the Hunt", "category": "material", "max_stack": 20, "color": Color(1.0, 0.85, 0.4, 1.0), "is_ingredient": true},
+
 	# --- Weapons. Every weapon is an inventory item now; you wield one by
 	# selecting its inventory slot with the hotbar keys (1-9, 0). "weapon_type"
 	# tells the player how it attacks: melee / spear / bow / wand. The Excellent
@@ -601,7 +770,11 @@ const GRADE_DEFS = {
 	"legendary": {"name": "Legendary", "rank": 5, "color": Color(1.0, 0.66, 0.16)},
 	"mythic":    {"name": "Mythic",    "rank": 6, "color": Color(1.0, 0.32, 0.46)},
 	"ascended":  {"name": "Ascended",  "rank": 7, "color": Color(0.3, 0.95, 1.0)},
-	"monarch":   {"name": "Monarch",   "rank": 8, "color": Color(1.0, 0.45, 0.12)},
+	# Monarch was orange (1.0,0.45,0.12) -- nearly the same amber as Legendary, so
+	# the flagship endgame tier read as legendary at a glance. A luminous royal
+	# gold (the Shadow Monarch's crown) is unmistakable against every other tier
+	# (polish 2026-07-28).
+	"monarch":   {"name": "Monarch",   "rank": 8, "color": Color(1.0, 0.9, 0.5)},
 }
 
 # The passive stat bundle a weapon of each grade grants while wielded. Common
@@ -672,6 +845,26 @@ const ITEM_GRADES = {
 	"wpn_soulsplit": "mythic",
 	"relic_rewound_hour": "mythic",
 	"sorrowshard": "epic",
+	# --- hidden event-boss loot (grade tracks the boss's difficulty) ---
+	# Medium = Epic
+	"evt_ledger": "epic", "evt_coinbite": "epic", "evt_hoarfrost": "epic",
+	"evt_rimeglass": "epic", "evt_bramblewhip": "epic", "evt_thornvolley": "epic",
+	"relic_usurer": "epic", "relic_rimeheart": "epic", "relic_verdant": "epic",
+	# Hard = Legendary
+	"evt_tiderender": "legendary", "evt_deepcaller": "legendary", "evt_pyreblade": "legendary",
+	"evt_emberking": "legendary", "evt_vigil": "legendary", "evt_wakeful": "legendary",
+	"relic_pearl": "legendary", "relic_effigy": "legendary", "relic_unblinking": "legendary",
+	"armor_ember": "legendary",
+	# Very Hard = Mythic
+	"evt_scythe": "mythic", "evt_wail": "mythic", "evt_pretender": "mythic",
+	"evt_usurper": "mythic", "evt_houndsfang": "mythic", "evt_coursing": "mythic",
+	"relic_widow": "mythic", "relic_hollow": "mythic", "relic_hound": "mythic",
+	"helm_mourn": "mythic",
+	# Expert = Ascended / Monarch
+	"evt_endbringer": "monarch", "evt_stareater": "ascended",
+	"relic_lasthour": "monarch", "armor_unmade": "ascended",
+	# Master (11th capstone) = Monarch
+	"evt_huntcrown": "monarch", "evt_huntbow": "monarch", "relic_huntmaster": "monarch",
 }
 
 # Crafting recipes: item_id -> {ingredient_id: count}. Food + the Reset Potion
@@ -682,6 +875,24 @@ const CRAFT_RECIPES = {
 	"food_feast": {"raw_meat": 3, "herb": 1},
 	"food_sage": {"herb": 3, "slime": 1},
 	"potion_reset": {"void_essence": 2, "slime": 5},
+	# --- event-boss re-summon tokens: spend the boss's trophy (+ a binder) to
+	# forge a token that wakes it again on demand (2026-07-28). ---
+	"token_tallyman": {"mat_debtcoin": 1, "slime": 2},
+	"token_firstfrost": {"mat_everfrost": 1, "slime": 2},
+	"token_gluttonroot": {"mat_heartwood": 1, "slime": 2},
+	"token_drowned": {"mat_brine": 1, "iron_shard": 2},
+	"token_effigyking": {"mat_pyreash": 1, "iron_shard": 2},
+	"token_warden": {"mat_vigilember": 1, "iron_shard": 2},
+	"token_griefeater": {"mat_grieftear": 1, "ember_crystal": 2},
+	"token_hollowcrown": {"mat_crownshard": 1, "ember_crystal": 2},
+	"token_sablehound": {"mat_sableichor": 1, "ember_crystal": 2},
+	"token_nihil": {"mat_unmade": 1, "void_essence": 2},
+	# Nihil's FIRST rite: three other bosses' trophies bind the Duskmoon Effigy.
+	"duskmoon_effigy": {"mat_everfrost": 1, "mat_pyreash": 1, "mat_grieftear": 1, "void_essence": 2},
+	# THE CAPSTONE: a trophy of all ten hidden bosses forges the Hunter's Horn.
+	"hunters_horn": {"mat_debtcoin": 1, "mat_everfrost": 1, "mat_heartwood": 1, "mat_brine": 1,
+		"mat_pyreash": 1, "mat_vigilember": 1, "mat_grieftear": 1, "mat_crownshard": 1,
+		"mat_sableichor": 1, "mat_unmade": 1, "ancient_relic": 2},
 }
 
 static func get_grade(item_id: String) -> String:
@@ -1225,6 +1436,14 @@ static func paint_icon(target: ColorRect, item_id: String) -> void:
 		"ember_crystal": _icon_crystal(target, w, h, col)
 		"void_essence": _icon_orb(target, w, h, col)
 		"ancient_relic": _icon_runestone(target, w, h, col)
+		# --- hidden event-boss trophy materials (drawn, never a flat tile) ---
+		"mat_debtcoin": _icon_coin(target, w, h, col)
+		"mat_everfrost", "mat_crownshard": _icon_shard(target, w, h, col)
+		"mat_heartwood": _icon_leaf(target, w, h)
+		"mat_brine", "mat_grieftear": _icon_orb(target, w, h, col)
+		"mat_pyreash", "mat_vigilember", "mat_unmade": _icon_crystal(target, w, h, col)
+		"mat_sableichor": _icon_blob(target, w, h, col)
+		"mat_huntsign": _icon_runestone(target, w, h, col)
 		_:
 			if get_category(item_id) == "consumable":
 				_icon_potion(target, w, h, col)

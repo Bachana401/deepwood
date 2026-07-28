@@ -1331,6 +1331,23 @@ func play_sfx(stream: AudioStream) -> void:
 	$SFXPlayer.stream = stream
 	$SFXPlayer.play()
 
+# A HIDDEN-EVENT OMEN (2026-07-28): the world dims for a single beat as the
+# player nears a secret trigger. No text, no marker -- just a felt "something is
+# close". A transient full-screen CanvasLayer that fades in and back out.
+func play_event_omen() -> void:
+	var cl := CanvasLayer.new()
+	cl.layer = 40
+	var rect := ColorRect.new()
+	rect.color = Color(0.02, 0.0, 0.05, 0.0)
+	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cl.add_child(rect)
+	add_child(cl)
+	var tw := rect.create_tween()
+	tw.tween_property(rect, "color:a", 0.24, 0.5).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(rect, "color:a", 0.0, 0.9).set_trans(Tween.TRANS_SINE)
+	tw.tween_callback(cl.queue_free)
+
 # --- combat/economy effect hooks. get_bonus_total = skill tree + worn gear
 # (armor/relics), so equipping gear flows through the same math as skills. ---
 
@@ -1658,6 +1675,21 @@ func use_item(item_id: String) -> bool:
 		# stronger -- or shatter it, break the cycle, and let Deepwood stand for
 		# good. A world-ending choice deserves a real prompt, never a stray click.
 		_open_hourglass_choice(item_id)
+		return true
+	# Event-boss summon items (re-summon tokens / Duskmoon Effigy / Hunter's Horn):
+	# the item is only spent if the summon actually takes (right time, no other
+	# event live). GameState returns "" on success, else a short reason.
+	var summon_id := str(eff.get("summon_event", ""))
+	if summon_id != "":
+		var reason: String = GameState.summon_event_boss(summon_id, float(eff.get("delay", 0.0)), bool(eff.get("eclipse", false)))
+		if reason != "":
+			if stack:
+				stack.show_notification(reason)
+			return false
+		inventory.remove_item(item_id, 1)
+		var iu = get_tree().get_first_node_in_group("inventory_ui")
+		if iu and iu.has_method("refresh"):
+			iu.refresh()
 		return true
 	if eff.has("heal_hp"):
 		health = min(get_max_health(), health + int(eff.heal_hp))
@@ -2341,6 +2373,9 @@ func update_weapon_visual(offset: float) -> void:
 
 func add_currency(amount: int) -> void:
 	currency += amount
+	# a negative amount is a SPEND -- feeds the Effigy King's hidden trigger
+	if amount < 0:
+		GameState.note_gold_spent(-amount)
 	# one writer for the HUD row -- this used to stamp the old "Currency:"
 	# format here, silently overwriting the Lv/XP readout on every pickup
 	update_currency_display()
@@ -2498,6 +2533,7 @@ func die() -> void:
 			stack.show_notification("The Phoenix Heart blazes -- you rise again!")
 		return
 	is_dead = true
+	GameState.on_player_died_event()   # breaks the no-death floor streak (Warden trigger)
 	velocity = Vector2.ZERO
 	play_sfx(SFX_DEATH)
 	stop_invincibility_flash()

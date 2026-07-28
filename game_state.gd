@@ -1720,6 +1720,7 @@ func tick_village_clock() -> void:
 	tick_self_sufficiency()   # celebrate each chore the moment it starts running itself
 	tick_village_peril()      # escalating dread as the hearth empties (pierces the fog)
 	tick_black_tide_omen()    # the fog-piercing warning of a coming Black Tide
+	tick_hidden_events()      # secret event bosses, woken by what the player does
 	if hours_passed > 0.0:
 		# grief heals with time -- the forgiving half of the death-shock system
 		morale_death_shock = maxf(0.0, morale_death_shock - hours_passed * DEATH_SHOCK_DECAY_PER_HOUR * (2.0 if ten_freed("ten_seraphel") else 1.0))
@@ -1727,6 +1728,234 @@ func tick_village_clock() -> void:
 		tick_morale_effects(hours_passed)
 		tick_village_tribute(hours_passed)
 		tick_sieges(hours_passed)
+
+# === HIDDEN EVENT BOSSES (2026-07-28) ==================================
+# Ten secret bosses (event_boss.gd), each armed once per run. Their trigger
+# CONDITIONS live here because they read live world state; the loot + boss
+# defs live in event_boss.gd / boss.gd. event_state[id] walks
+# "armed" -> "triggered" (the fight is on/was on) -> "killed" (looted). The
+# per-run counters below are the raw material of the milestone triggers; they
+# reset with every run and persist across a save (so a hoard survives a quit).
+var event_state: Dictionary = {}
+var run_kills := 0
+var run_trees := 0
+var run_rocks := 0
+var run_gold_spent := 0
+var run_villager_deaths := 0
+var floors_since_death := 0
+
+func arm_hidden_events() -> void:
+	event_state = {}
+	for id in EventBoss.ids():
+		event_state[id] = "armed"
+	_event_omen_fired = {}
+
+func note_kill(n: int) -> void:
+	run_kills += maxi(0, n)
+
+func note_harvest_swing(kind: String) -> void:
+	if kind == "tree":
+		run_trees += 1
+	elif kind == "rock":
+		run_rocks += 1
+
+func note_gold_spent(amount: int) -> void:
+	if amount > 0:
+		run_gold_spent += amount
+
+func note_floor_cleared_event() -> void:
+	floors_since_death += 1
+
+func on_player_died_event() -> void:
+	floors_since_death = 0   # the no-death streak is broken
+
+func on_event_boss_killed(id: String) -> void:
+	if event_state.has(id):
+		event_state[id] = "killed"
+	_note_capstone_kill(id)   # lifetime record + the Horn reveal when all ten fall
+	log_event("combat", "A hidden foe fell: " + str(EventBoss.get_event(id).get("name", id)) + ".")
+
+# One event may hold the stage at a time, and never during the scripted
+# prologue or the Harvest finale (they own the world exclusively).
+func _event_stage_free() -> bool:
+	if not opening_done:
+		return false
+	if harvest_at_home or despair_dead:
+		return false
+	var tree := get_tree()
+	if tree == null:
+		return false
+	return tree.get_nodes_in_group("event_boss_director").is_empty()
+
+func tick_hidden_events() -> void:
+	if event_state.is_empty():
+		arm_hidden_events()
+	if not _event_stage_free():
+		return
+	var tree := get_tree()
+	var p = tree.get_first_node_in_group("player")
+	if p == null or not is_instance_valid(p):
+		return
+	for id in EventBoss.ids():
+		if EventBoss.is_item_only(str(id)):
+			continue   # Nihil / the Master are woken by an item, never ambiently
+		if event_state.get(id, "armed") != "armed":
+			continue
+		_tick_event_omen(str(id), p)   # a subtle tell as the player nears the condition
+		if _event_condition_met(str(id), p):
+			_fire_event(str(id), p)
+			return   # at most one wakes per tick
+
+func _event_condition_met(id: String, p: Node) -> bool:
+	match id:
+		"tallyman":
+			return not in_dungeon and int(p.currency) >= 8000
+		"first_frost":
+			var h := hour_of_day()
+			return not in_dungeon and h >= 0.0 and h <= 2.5
+		"glutton_root":
+			return run_trees >= 50
+		"drowned_chorus":
+			return run_rocks >= 90
+		"effigy_king":
+			return run_gold_spent >= 15000
+		"sleepless_warden":
+			return in_dungeon and floors_since_death >= 6
+		"grief_eater":
+			return run_villager_deaths >= 3
+		"hollow_crown":
+			return in_dungeon and monarch_stage() >= 4
+		"sable_hound":
+			return run_kills >= 300
+		"nihil":
+			var mh: int = p.get_max_health() if p.has_method("get_max_health") else 100
+			var near_death := float(p.health) <= float(mh) * 0.08
+			return in_dungeon and active_dungeon_level >= 60 and near_death and hour_of_day() <= 2.5
+	return false
+
+func _fire_event(id: String, _p: Node) -> void:
+	var scene = get_tree().current_scene
+	if scene == null:
+		return   # no stage yet -- stays armed, retries next tick
+	event_state[id] = "triggered"
+	var dir = preload("res://event_boss_director.gd").new()
+	dir.event_id = id
+	scene.add_child(dir)
+
+# --- Item-summoned events (Nihil's Duskmoon rite, the Master's Horn, and every
+# re-summon token). Called from player.use_item. Returns "" on success, else a
+# short reason to show WITHOUT spending the item. Bypasses the once-per-run lock
+# (that's the whole point of a token), but still only one event on stage. ---
+func summon_event_boss(id: String, delay: float, require_eclipse: bool) -> String:
+	if EventBoss.get_event(id).is_empty():
+		return "Nothing answers."
+	if not opening_done or harvest_at_home or despair_dead:
+		return "Not here. Not now."
+	if not get_tree().get_nodes_in_group("event_boss_director").is_empty():
+		return "The air is already thick — finish what you started."
+	if require_eclipse and not _sun_moon_both_up():
+		return "Nothing happens. The sky is not yet wrong."   # no explicit how-to on purpose
+	var p = get_tree().get_first_node_in_group("player")
+	if p == null or not is_instance_valid(p):
+		return "Nothing answers."
+	event_state[id] = "triggered"   # claim the stage immediately (no double-cast)
+	notify("The air curdles — something is coming…")
+	play_sfx(SFX_CHIME, 0.4)
+	if delay > 0.0:
+		var t := get_tree().create_timer(delay)
+		t.timeout.connect(_spawn_summoned.bind(id))
+	else:
+		_spawn_summoned(id)
+	return ""
+
+func _spawn_summoned(id: String) -> void:
+	var scene = get_tree().current_scene
+	if scene == null or not get_tree().get_nodes_in_group("event_boss_director").is_empty():
+		return
+	var dir = preload("res://event_boss_director.gd").new()
+	dir.event_id = id
+	scene.add_child(dir)
+
+# True only in the village, where the sky exists, during the dawn/dusk window
+# when the sun and the moon both ride it at once (day_night_cycle overlap).
+func _sun_moon_both_up() -> bool:
+	var dn = get_tree().get_first_node_in_group("day_night_cycle")
+	if dn == null:
+		dn = get_tree().get_first_node_in_group("day_night")
+	return dn != null and dn.has_method("is_sun_moon_overlap") and dn.is_sun_moon_overlap()
+
+# === the capstone: a lifetime record of which hidden bosses have ever fallen ===
+var event_bosses_ever_killed: Array = []
+var hunters_horn_announced := false
+
+# The player-facing Chronicle of the hidden hunt: one entry per event boss, in
+# display order. A boss you've felled reveals its NAME and its trigger; one you
+# haven't is a blank "???" -- so the page is a record of what you've proven, not
+# a spoiler list. (Rendered in the pause menu's Chronicle panel.)
+func hidden_hunt_entries() -> Array:
+	var out: Array = []
+	for id in EventBoss.ids():
+		var ev: Dictionary = EventBoss.get_event(str(id))
+		var killed: bool = event_bosses_ever_killed.has(id)
+		out.append({
+			"id": id,
+			"name": str(ev.get("name", id)) if killed else "???",
+			"killed": killed,
+			"hint": str(ev.get("hint", "")) if killed else "a secret yet unproven",
+			"difficulty": str(ev.get("difficulty", "")),
+			"capstone": bool(ev.get("capstone", false)),
+		})
+	return out
+
+func hidden_hunt_slain_count() -> int:
+	var n := 0
+	for id in EventBoss.ids():
+		if event_bosses_ever_killed.has(id):
+			n += 1
+	return n
+
+func _note_capstone_kill(id: String) -> void:
+	if not event_bosses_ever_killed.has(id):
+		event_bosses_ever_killed.append(id)
+	# once all ten of the hunt have fallen (ever), point the way to the Horn ONCE
+	if hunters_horn_announced:
+		return
+	var all_ten := true
+	for hid in EventBoss.hunt_ids():
+		if not event_bosses_ever_killed.has(hid):
+			all_ten = false
+			break
+	if all_ten:
+		hunters_horn_announced = true
+		notify("The hunt is whole. Ten trophies… something can be forged from them.")
+		log_event("combat", "All ten hidden bosses have fallen. The Hunter's Horn can be forged.")
+
+# === subtle ambient omens (no text): a faint tell as the player nears a trigger ===
+var _event_omen_fired: Dictionary = {}
+
+func _tick_event_omen(id: String, p: Node) -> void:
+	if _event_omen_fired.get(id, false):
+		return
+	var progress := _event_omen_progress(id, p)
+	if progress >= 0.8 and progress < 1.0:
+		_event_omen_fired[id] = true
+		# felt, not told: a low toll + a brief darkening at the screen's edge
+		play_sfx(SFX_CHIME, 0.32)
+		var pl = get_tree().get_first_node_in_group("player")
+		if pl != null and pl.has_method("play_event_omen"):
+			pl.play_event_omen()
+
+# 0..1 fraction toward a countable milestone (‑1 = not omenable, e.g. pure time).
+func _event_omen_progress(id: String, p: Node) -> float:
+	match id:
+		"tallyman": return clampf(float(p.currency) / 8000.0, 0.0, 1.0) if not in_dungeon else 0.0
+		"glutton_root": return clampf(float(run_trees) / 50.0, 0.0, 1.0)
+		"drowned_chorus": return clampf(float(run_rocks) / 90.0, 0.0, 1.0)
+		"effigy_king": return clampf(float(run_gold_spent) / 15000.0, 0.0, 1.0)
+		"sleepless_warden": return clampf(float(floors_since_death) / 6.0, 0.0, 1.0) if in_dungeon else 0.0
+		"grief_eater": return clampf(float(run_villager_deaths) / 3.0, 0.0, 1.0)
+		"sable_hound": return clampf(float(run_kills) / 300.0, 0.0, 1.0)
+	return -1.0
 
 # --- Siege scheduling + resolution (runs in every scene) ---
 
@@ -2513,6 +2742,7 @@ const DEATH_SHOCK_ABSTRACT := 0.4      # unwitnessed news, per death
 func register_villager_deaths(n: int, epicenter: Vector2 = Vector2(INF, INF)) -> void:
 	if n <= 0:
 		return
+	run_villager_deaths += n   # feeds the Grief-Eater's hidden trigger
 	morale_death_shock = minf(morale_death_shock + float(n) * DEATH_SHOCK_PER_KILL, DEATH_SHOCK_MAX)
 	var witnessed: bool = epicenter.x != INF and not in_dungeon
 	var npc_pos := {}
@@ -4559,6 +4789,16 @@ func reset_for_new_game() -> void:
 	school_enrollments = {}
 	highest_unlocked_level = 999 if TEST_UNLOCK_ALL_LEVELS else 1
 	floors_cleared = {}                        # a new run's deep is unswept
+	# hidden event bosses re-arm and their run counters zero for the fresh run
+	arm_hidden_events()
+	run_kills = 0
+	run_trees = 0
+	run_rocks = 0
+	run_gold_spent = 0
+	run_villager_deaths = 0
+	floors_since_death = 0
+	event_bosses_ever_killed = []   # a brand-new game forgets the old hunt
+	hunters_horn_announced = false
 	waystone_unlocked = false                  # the Waystone is re-earned at floor 20
 	village_last_hours_elapsed = 0.0
 	game_hours = 0.0
@@ -4750,6 +4990,16 @@ func save_game(player: Node) -> void:
 		"school_enrollments": school_enrollments,
 		"highest_unlocked_level": highest_unlocked_level,
 		"floors_cleared": floors_cleared,
+		# hidden event bosses: which have fired/been looted + the run counters
+		"event_state": event_state,
+		"event_bosses_ever_killed": event_bosses_ever_killed,
+		"hunters_horn_announced": hunters_horn_announced,
+		"run_kills": run_kills,
+		"run_trees": run_trees,
+		"run_rocks": run_rocks,
+		"run_gold_spent": run_gold_spent,
+		"run_villager_deaths": run_villager_deaths,
+		"floors_since_death": floors_since_death,
 		"waystone_unlocked": waystone_unlocked,
 		"player_xp": player_xp,
 		"player_level": player_level,
@@ -4929,6 +5179,23 @@ func load_game() -> Dictionary:
 			highest_unlocked_level = int(parsed["highest_unlocked_level"])
 		if parsed.has("floors_cleared") and parsed["floors_cleared"] is Dictionary:
 			floors_cleared = parsed["floors_cleared"]
+		# hidden event bosses (older saves lack these -> arm fresh, counters 0)
+		if parsed.has("event_state") and parsed["event_state"] is Dictionary:
+			event_state = parsed["event_state"]
+			for id in EventBoss.ids():   # a save from before an event existed still arms it
+				if not event_state.has(id):
+					event_state[id] = "armed"
+		else:
+			arm_hidden_events()
+		if parsed.has("event_bosses_ever_killed") and parsed["event_bosses_ever_killed"] is Array:
+			event_bosses_ever_killed = parsed["event_bosses_ever_killed"]
+		hunters_horn_announced = bool(parsed.get("hunters_horn_announced", false))
+		run_kills = int(parsed.get("run_kills", 0))
+		run_trees = int(parsed.get("run_trees", 0))
+		run_rocks = int(parsed.get("run_rocks", 0))
+		run_gold_spent = int(parsed.get("run_gold_spent", 0))
+		run_villager_deaths = int(parsed.get("run_villager_deaths", 0))
+		floors_since_death = int(parsed.get("floors_since_death", 0))
 		waystone_unlocked = bool(parsed.get("waystone_unlocked", false))
 		if TEST_UNLOCK_ALL_LEVELS:
 			highest_unlocked_level = max(highest_unlocked_level, 999)
@@ -5064,6 +5331,11 @@ func rescue_villager(data: Dictionary) -> void:
 # accumulate here. Called from player.on_enemy_killed (slay), the dungeon on a
 # level clear (reach_level), and rescue_villager (reunite).
 func quest_event(kind: String, key: String, amount: int) -> void:
+	# hidden-event run counters piggyback on the same call sites (kills / clears)
+	if kind == "slay":
+		note_kill(amount)
+	elif kind == "reach_level":
+		note_floor_cleared_event()
 	for v in rescued_villagers:
 		if v.get("quest_state", "") != "active":
 			continue

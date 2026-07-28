@@ -923,6 +923,15 @@ const BOSSES = {
 		"body": Vector2(150, 235), "hp": 1300, "speed": 104.0, "shape": "wizard", "apex": true,
 		"abilities": ["black_sun", "beam", "meteors", "pillars", "teleport"], "passives": ["phase", "sidestep"],
 	},
+	# --- MASTER (11th capstone): a towering gold-crowned huntsman, radiant where
+	# the others were grim. Apex, the longest sentences, every trick. ---
+	"evt_huntsman": {
+		"profile": "pursuer", "name": "The Master of the Hunt",
+		"color": Color(0.5, 0.4, 0.14), "eye_color": Color(1.0, 0.92, 0.5), "magic": Color(1.0, 0.85, 0.4),
+		"body": Vector2(210, 300), "hp": 1500, "speed": 96.0, "shape": "titan", "apex": true,
+		"abilities": ["judgment", "meteors", "charge", "volley", "beam", "teleport"],
+		"passives": ["riposte", "sidestep", "stagger_armour"],
+	},
 }
 
 const ARROW_SCENE = preload("res://arrow.tscn")
@@ -2718,6 +2727,7 @@ const BOSS_COMBOS = {
 	"evt_hollowcrown": [["volley", "judgment", "rain"], ["judgment", "volley", "nova"], ["rain", "nova", "judgment"]],
 	"evt_sablehound": [["teleport", "pounce", "volley"], ["pounce", "volley", "teleport"], ["charge", "pounce", "volley"]],
 	"evt_nihil": [["black_sun", "beam", "meteors"], ["black_sun", "pillars", "beam"], ["meteors", "teleport", "black_sun"]],
+	"evt_huntsman": [["judgment", "charge", "volley"], ["meteors", "judgment", "beam"], ["charge", "volley", "teleport", "judgment"]],
 }
 
 # The floor this boss is being fought on decides how long its sentences run.

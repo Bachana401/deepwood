@@ -180,6 +180,7 @@ func take_tool_hit(tool_type: String, player: Node) -> void:
 	GameState.play_sfx(
 		GameState.SFX_THUD if node_type == "tree" else GameState.SFX_CHIME,
 		1.25 if node_type == "tree" else 0.8, global_position)
+	GameState.note_harvest_swing(node_type)   # feeds the Glutton Root / Drowned Chorus triggers
 	if node_type == "rock":
 		_mine_swing(player)
 		return
