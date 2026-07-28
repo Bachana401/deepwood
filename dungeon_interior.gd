@@ -2402,7 +2402,8 @@ const GEAR_EARLY_WEAPON_IDS = ["wpn_club", "wpn_shortbow", "wpn_apprentice_wand"
 	"wpn_dagger", "wpn_shortsword", "wpn_rapier", "wpn_cleaver", "wpn_hatchet", "wpn_woodspear",
 	"wpn_slingshot", "wpn_huntingbow", "wpn_sparkwand",
 	"wpn_falchion", "wpn_warpick", "wpn_twinblades", "wpn_saber", "wpn_trident",
-	"wpn_warglaive", "wpn_crossbow", "wpn_flatbow", "wpn_frostwand", "wpn_channelwand"]
+	"wpn_warglaive", "wpn_crossbow", "wpn_flatbow", "wpn_frostwand", "wpn_channelwand",
+	"wpn_boughstaff"]   # the first Wukong staff walks in with the early rack
 const GEAR_ARMOR_IDS = ["helm_bulwark", "armor_bulwark", "pants_bulwark",
 	"helm_windstalker", "armor_windstalker", "pants_windstalker",
 	"helm_runeweave", "armor_runeweave", "pants_runeweave",
@@ -2416,7 +2417,10 @@ const GEAR_SET_WEAPON_IDS = ["wpn_claymore", "wpn_recurve", "wpn_scepter"]
 # homing arrows, fireball, frost shard, cleave) -- see inventory.gd "special"
 const GEAR_CLASS_WEAPON_IDS = ["wpn_windcutter", "wpn_sunderer", "wpn_stormlance",
 	"wpn_stormvolley", "wpn_seeker", "wpn_emberstaff", "wpn_iciclewand",
-	"wpn_mace", "wpn_greatsword", "wpn_katana", "wpn_warhammer", "wpn_javelin", "wpn_harpoon"]
+	"wpn_mace", "wpn_greatsword", "wpn_katana", "wpn_warhammer", "wpn_javelin", "wpn_harpoon",
+	# the wave-1 behavior carriers (weapons overhaul 2026-07-28)
+	"wpn_trickbolt", "wpn_shardmother", "wpn_petardcane", "wpn_wardtotem",
+	"wpn_soulwheel", "wpn_emberlash", "wpn_stormtome"]
 const GEAR_EXCELLENT_IDS = ["exc_midas", "exc_echo", "exc_soul", "exc_hook", "exc_boomerang", "exc_chrono", "exc_wizardsbane", "exc_ragnarok", "wpn_tempest", "exc_doom", "exc_singularity", "exc_worldsplitter", "exc_dawnbreaker", "exc_shadowblade", "exc_earthshaker", "exc_gungnir", "exc_frostmourne", "exc_voidcaller", "exc_stormfury"]
 const EXCELLENT_MIN_LEVEL = 25
 const EXCELLENT_DROP_CHANCE = 0.15
@@ -2571,7 +2575,7 @@ func build_proving_grounds() -> void:
 		if not Inventory.ITEM_GRADES.has(id) and cat in ["material", "consumable", "currency"]:
 			ungraded.append(id)
 
-	var order := ["common", "uncommon", "rare", "epic", "legendary", "mythic"]
+	var order := ["common", "uncommon", "rare", "epic", "legendary", "mythic", "ascended", "monarch"]
 	var chests := []
 	for g in order:
 		var ids: Array = by_grade.get(g, [])

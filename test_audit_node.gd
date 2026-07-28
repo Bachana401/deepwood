@@ -56,13 +56,18 @@ func _ready() -> void:
 		str(GameState.equipment.keys()))
 	check("...and still reads the saved helmet", GameState.equipment["helmet"] == "helm_iron")
 
-	# --- 3) equipping gloves/boots actually applies (the feature, end to end) ---
-	GameState.equipment["gloves"] = "gloves_iron"
-	var with_gloves: float = GameState.get_bonus_total("damage_reduction")
-	GameState.equipment["gloves"] = ""
-	var without: float = GameState.get_bonus_total("damage_reduction")
-	check("gloves contribute to damage_reduction (%.3f vs %.3f)" % [with_gloves, without],
-		with_gloves >= without)
+	# --- 3) worn armor actually applies (the feature, end to end). Gloves and
+	# boots are RETIRED slots (Terraria-exact armor, 2026-07-28) -- the chest
+	# piece carries the check now, and the retired keys must NOT come back.
+	GameState.equipment["chest"] = "armor_bulwark"
+	var with_chest: float = GameState.get_bonus_total("max_health")
+	GameState.equipment["chest"] = ""
+	var without: float = GameState.get_bonus_total("max_health")
+	check("worn armor contributes to stats (%.1f vs %.1f)" % [with_chest, without],
+		with_chest > without)
+	for retired in GameState.RETIRED_SLOTS:
+		check("retired slot '%s' stays retired" % retired,
+			not GameState.equipment.has(retired), str(GameState.equipment.keys()))
 
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

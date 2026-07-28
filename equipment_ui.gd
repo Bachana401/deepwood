@@ -19,14 +19,16 @@ var relic_buttons: Array = []  # index 0..5 -> Button
 const PANEL_W = 250.0
 const PANEL_H = 500.0
 # Weapons moved to the hotbar (see player.gd) -- the gear panel is armor only.
+# THREE SLOTS, Terraria-exact (dev 2026-07-28): helmet / breastplate /
+# leggings. Gloves+boots retired; their identity folds into the 3-piece sets.
 const GEAR_SLOTS = [
 	{"key": "helmet", "label": "Helmet"},
-	{"key": "chest", "label": "Armor"},
-	{"key": "pants", "label": "Pants"},
-	{"key": "gloves", "label": "Gloves"},
-	{"key": "boots", "label": "Boots"},
+	{"key": "chest", "label": "Breastplate"},
+	{"key": "pants", "label": "Leggings"},
 ]
-const RELIC_UNLOCK_LEVEL = [0, 0, 0, 0, 10, 20]  # per relic slot index
+# 12 relic slots (dev 2026-07-28): six open from the start, one more every
+# ten levels -- the label on a locked slot names the level that opens it
+const RELIC_UNLOCK_LEVEL = [0, 0, 0, 0, 0, 0, 10, 20, 30, 40, 50, 60]
 
 func _ready() -> void:
 	layer = 40
@@ -65,7 +67,7 @@ func _slot_style(hover: bool, locked := false) -> StyleBoxFlat:
 # ghost helmet means a helmet goes here" read. Reuses the bag's own icons.
 const SLOT_GHOST = {
 	"helmet": "helm_leather", "chest": "armor_leather", "pants": "pants_leather",
-	"gloves": "gloves_leather", "boots": "boots_leather", "relic": "relic_vigor",
+	"relic": "relic_vigor",
 }
 
 func _slot_button(x: float, y: float, w: float, h: float) -> Button:
@@ -140,8 +142,8 @@ func build_panel() -> void:
 		button.mouse_exited.connect(_hide_tip)
 		slot_buttons[def.key] = button
 
-	# relics below the 3 rows of armour
-	var relic_y = start_y + 3 * step + 8.0
+	# relics below the armour (3 slots = 2 rows now)
+	var relic_y = start_y + 2 * step + 8.0
 	var relic_header = Label.new()
 	relic_header.position = Vector2(12, relic_y)
 	relic_header.add_theme_font_size_override("font_size", 13)
@@ -149,8 +151,9 @@ func build_panel() -> void:
 	relic_header.text = "Relics"
 	panel.add_child(relic_header)
 
-	var per_row = 3
-	var rbox = 56.0
+	# 12 slots in a 4-wide grid: three tidy rows inside the same panel
+	var per_row = 4
+	var rbox = 48.0
 	var rgap = 8.0
 	var row_w = per_row * rbox + (per_row - 1) * rgap
 	var rx0 = (PANEL_W - row_w) / 2.0

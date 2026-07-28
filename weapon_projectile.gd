@@ -45,12 +45,32 @@ func _apply_status_to(node) -> void:
 					e.apply_status("burn", 3.0, mag)
 
 var traveled := 0.0
-var returning := false      # boomerang: on the way back
+var returning := false      # boomerang/lash: on the way back
 var done := false
 var hit_bodies: Array = []
 var visual: Node2D = null
 var spin_speed := 0.0
 var rope: Line2D = null     # hook: drawn back to the thrower
+
+# --- the wave-1 behavior library (Terraria-INSPIRED, never 1:1; weapons
+# overhaul 2026-07-28). Five new kinds join the six above:
+#   orbiter  -- a soulthread charm: flies out, then SPINS at the far point
+#               striking everything around it, then threads home (yoyo-kin)
+#   ricochet -- leaps enemy to enemy, damage decaying each bounce
+#   cluster  -- bursts into a fan of shards on its first kill or at range
+#   lob      -- a mortar arc: rises, falls, and BLOSSOMS where it lands
+#   lash     -- a piercing ribbon that weaves out and whips back through
+#               the same lane, hitting on both passes (eruption-kin)
+var dwell := 2.2            # orbiter: seconds it spins at the far point
+var bounces := 3            # ricochet: enemy-to-enemy leaps
+var shards := 5             # cluster: children in the burst
+var arc_gravity := 620.0    # lob: the mortar's pull
+var _vel_y := 0.0           # lob: vertical velocity
+var _start_y := 0.0         # lob: the launch height (landing detector)
+var _orbit_centre := Vector2.ZERO
+var _orbit_t := 0.0
+var _behave_state := 0      # orbiter: 0 fly out, 1 spin, 2 thread home
+var _rehit_t := 0.0         # orbiter/lash: clears the hit list to strike again
 
 const HOSTILE_GROUPS = ["course_enemy", "dungeon_combatant", "siege_enemy"]
 
@@ -84,13 +104,42 @@ func _ready() -> void:
 		"boomerang":
 			_build_boomerang()
 			spin_speed = 16.0
+		"orbiter":
+			_build_orbiter()
+			spin_speed = 22.0
+			pierce = true          # multi-hit by nature; despawn is state-driven
+		"ricochet":
+			_build_ricochet()
+		"cluster":
+			_build_cluster()
+		"lob":
+			_build_lob()
+			_vel_y = -absf(float(speed)) * 0.62   # the mortar's upward kick
+			_start_y = global_position.y
+			if aoe_radius <= 0.0:
+				aoe_radius = 90.0
+		"lash":
+			_build_lash()
+			pierce = true
 	if spin_speed == 0.0:
 		rotation = direction.angle()
 
 func _physics_process(delta: float) -> void:
 	if done:
 		return
-	if kind == "boomerang" and returning:
+	# the behavior kinds that OWN their whole flight take the frame here
+	if kind == "orbiter" and _tick_orbiter(delta):
+		return
+	if kind == "lob":
+		_tick_lob(delta)
+		return
+	if kind == "lash":
+		# a weaving ribbon: the lane is `direction`, the weave rides across it
+		_rehit_t += delta
+		if _rehit_t >= 0.5:
+			_rehit_t = 0.0
+			hit_bodies.clear()   # both passes -- and long bodies get raked
+	if (kind == "boomerang" or kind == "lash") and returning:
 		if not is_instance_valid(source):
 			queue_free()
 			return
@@ -101,20 +150,109 @@ func _physics_process(delta: float) -> void:
 		direction = to_src.normalized()
 	var step = speed * delta
 	global_position += direction * step
+	if kind == "lash":
+		# the sideways weave, perpendicular to the lane
+		var perp := Vector2(-direction.y, direction.x)
+		global_position += perp * sin(traveled * 0.045) * 90.0 * delta
 	traveled += step
 	if spin_speed != 0.0 and visual:
 		visual.rotation += spin_speed * delta
 	if rope and is_instance_valid(source):
 		rope.points = PackedVector2Array([Vector2.ZERO, to_local(source.global_position)])
 	if not returning and traveled >= max_distance:
-		if kind == "boomerang":
+		if kind == "boomerang" or kind == "lash":
 			returning = true
 			hit_bodies.clear()   # the return pass hits everyone again
 		elif kind == "fireball":
 			explode()
+		elif kind == "cluster":
+			_burst()             # nothing in the way: blossom at full reach
+		elif kind == "orbiter":
+			if _behave_state == 0:   # full thread: start the wheel HERE
+				_behave_state = 1
+				_orbit_centre = global_position
+				_orbit_t = 0.0
 		else:
 			done = true   # a spent bolt lands no same-frame parting hit
 			queue_free()
+
+# Orbiter: fly out (false = let the shared movement run), then spin at the far
+# point striking everything in the wheel, then thread home. Returns true while
+# it owns the frame.
+func _tick_orbiter(delta: float) -> bool:
+	match _behave_state:
+		1:
+			_orbit_t += delta
+			_rehit_t += delta
+			if _rehit_t >= 0.35:
+				_rehit_t = 0.0
+				hit_bodies.clear()   # the wheel keeps cutting
+			var r := 30.0 * girth
+			global_position = _orbit_centre + Vector2(cos(_orbit_t * 9.0), sin(_orbit_t * 9.0)) * r
+			if _orbit_t >= dwell:
+				_behave_state = 2
+				hit_bodies.clear()   # one clean cut on the way home
+			return true
+		2:
+			if not is_instance_valid(source):
+				queue_free()
+				return true
+			var to_src = source.global_position - global_position
+			if to_src.length() < 26.0:
+				queue_free()
+				return true
+			global_position += to_src.normalized() * speed * 1.35 * delta
+			return true
+		_:
+			if traveled >= max_distance:
+				_behave_state = 1
+				_orbit_centre = global_position
+			return false
+
+# Lob: a mortar arc under its own gravity; blossoms where it lands (or on
+# whatever it meets on the way down).
+func _tick_lob(delta: float) -> void:
+	_vel_y += arc_gravity * delta
+	global_position += Vector2(direction.x * speed * 0.8 * delta, _vel_y * delta)
+	traveled += speed * 0.8 * delta
+	if visual:
+		visual.rotation += 6.0 * delta
+	# landing: past the launch height on the way down, or out of reach entirely
+	if (_vel_y > 0.0 and global_position.y >= _start_y + 8.0) or traveled >= max_distance * 1.6:
+		explode()
+
+# Cluster: the blossom -- a fan of frost-quick shards from the burst point.
+func _burst() -> void:
+	if done:
+		return
+	done = true
+	var script: GDScript = get_script()
+	for i in range(maxi(2, shards)):
+		var a := -PI * 0.5 + (float(i) / float(maxi(2, shards) - 1) - 0.5) * PI * 1.3
+		var child = script.new()
+		child.kind = "frost_shard"
+		child.direction = Vector2(cos(a), sin(a)) if direction.x >= 0.0 else Vector2(-cos(a), sin(a))
+		child.speed = speed * 1.15
+		child.damage = maxi(1, int(round(damage * 0.45)))
+		child.max_distance = 260.0
+		child.girth = girth * 0.7
+		child.pierce = false
+		child.on_hit_status = on_hit_status
+		child.is_crit = false
+		child.source = source
+		get_parent().add_child(child)
+		child.global_position = global_position
+	# a soft pop so the split reads
+	var pop = Polygon2D.new()
+	pop.polygon = _circle(16.0 * girth, 12)
+	pop.color = Color(0.8, 0.9, 1.0, 0.6)
+	get_parent().add_child(pop)
+	pop.global_position = global_position
+	var t = pop.create_tween()
+	t.tween_property(pop, "scale", Vector2(2.2, 2.2), 0.2)
+	t.parallel().tween_property(pop, "modulate:a", 0.0, 0.2)
+	t.tween_callback(pop.queue_free)
+	queue_free()
 
 func _on_body_entered(body: Node2D) -> void:
 	if done or body in hit_bodies:
@@ -146,6 +284,43 @@ func _on_body_entered(body: Node2D) -> void:
 	match kind:
 		"fireball":
 			explode()
+		"lob":
+			explode()
+		"cluster":
+			body.take_damage(damage)
+			FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+			_apply_status_to(body)
+			_burst()
+		"ricochet":
+			var landed_r = body.take_damage(damage)
+			if landed_r == null or landed_r:
+				FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+			_apply_status_to(body)
+			# leap to the nearest fresh target; the arc loses an edge each jump
+			bounces -= 1
+			damage = maxi(1, int(round(damage * 0.85)))
+			var next: Node2D = null
+			var best := 340.0
+			if bounces >= 0:
+				for group_name in HOSTILE_GROUPS:
+					for e in get_tree().get_nodes_in_group(group_name):
+						if e == body or hit_bodies.has(e) or not is_instance_valid(e):
+							continue
+						if not (e is Node2D) or not e.has_method("take_damage"):
+							continue
+						if "is_dead" in e and e.is_dead:
+							continue
+						var d: float = global_position.distance_to(e.global_position)
+						if d < best:
+							best = d
+							next = e
+			if next != null:
+				direction = (next.global_position - global_position).normalized()
+				rotation = direction.angle()
+				traveled = 0.0   # each leap gets its full legs
+			else:
+				done = true
+				queue_free()
 		"hook":
 			done = true   # same one-frame double-hit guard as soul_split
 			body.take_damage(damage)
@@ -276,6 +451,86 @@ func _build_frost() -> void:
 		Vector2(-8, 0), Vector2(0, -2), Vector2(10, 0), Vector2(0, 2)])
 	gleam.color = Color(0.95, 1.0, 1.0, 0.9)
 	visual.add_child(gleam)
+
+# A soulthread charm: a rune-disc that spins on its thread.
+func _build_orbiter() -> void:
+	var disc = Polygon2D.new()
+	disc.polygon = _circle(11.0, 10)
+	disc.color = Color(0.65, 0.85, 1.0, 0.9)
+	visual.add_child(disc)
+	var core = Polygon2D.new()
+	core.polygon = _circle(5.0, 8)
+	core.color = Color(0.95, 0.98, 1.0, 0.95)
+	visual.add_child(core)
+	for i in range(3):
+		var spoke = Polygon2D.new()
+		var a := TAU * float(i) / 3.0
+		spoke.polygon = PackedVector2Array([
+			Vector2(cos(a), sin(a)) * 4.0, Vector2(cos(a + 0.3), sin(a + 0.3)) * 13.0,
+			Vector2(cos(a - 0.3), sin(a - 0.3)) * 13.0])
+		spoke.color = Color(0.5, 0.75, 1.0, 0.7)
+		visual.add_child(spoke)
+
+# An angular dart that looks eager to change its mind.
+func _build_ricochet() -> void:
+	var dart = Polygon2D.new()
+	dart.polygon = PackedVector2Array([
+		Vector2(-14, -5), Vector2(12, 0), Vector2(-14, 5), Vector2(-8, 0)])
+	dart.color = Color(1.0, 0.85, 0.4, 0.95)
+	visual.add_child(dart)
+
+# A pregnant orb with its shards already showing.
+func _build_cluster() -> void:
+	var orb = Polygon2D.new()
+	orb.polygon = _circle(10.0, 12)
+	orb.color = Color(0.6, 0.8, 1.0, 0.85)
+	visual.add_child(orb)
+	for i in range(4):
+		var sat = Polygon2D.new()
+		var a := TAU * float(i) / 4.0 + 0.4
+		sat.polygon = _circle(3.0, 6)
+		sat.position = Vector2(cos(a), sin(a)) * 8.0
+		sat.color = Color(0.9, 0.97, 1.0, 0.9)
+		visual.add_child(sat)
+
+# The mortar shot: a heavy orb with a sputtering fuse.
+func _build_lob() -> void:
+	var shell = Polygon2D.new()
+	shell.polygon = _circle(10.0, 12)
+	shell.color = Color(0.35, 0.32, 0.3, 1.0)
+	visual.add_child(shell)
+	var band = Polygon2D.new()
+	band.polygon = PackedVector2Array([
+		Vector2(-10, -2), Vector2(10, -2), Vector2(10, 2), Vector2(-10, 2)])
+	band.color = Color(0.85, 0.55, 0.2, 1.0)
+	visual.add_child(band)
+	var fuse = CPUParticles2D.new()
+	fuse.amount = 8
+	fuse.lifetime = 0.3
+	fuse.position = Vector2(0, -10)
+	fuse.initial_velocity_min = 20.0
+	fuse.initial_velocity_max = 40.0
+	fuse.color = Color(1.0, 0.8, 0.3, 0.9)
+	visual.add_child(fuse)
+
+# The lash ribbon: a long tapering flame-tongue.
+func _build_lash() -> void:
+	var ribbon = Polygon2D.new()
+	var pts = PackedVector2Array()
+	for i in range(11):
+		var x := lerpf(-30.0, 26.0, float(i) / 10.0)
+		pts.append(Vector2(x, -4.5 * (1.0 - absf(x) / 32.0) - sin(x * 0.25) * 2.0))
+	for i in range(11):
+		var x := lerpf(26.0, -30.0, float(i) / 10.0)
+		pts.append(Vector2(x, 4.5 * (1.0 - absf(x) / 32.0) - sin(x * 0.25) * 2.0))
+	ribbon.polygon = pts
+	ribbon.color = Color(1.0, 0.6, 0.25, 0.9)
+	visual.add_child(ribbon)
+	var edge = Polygon2D.new()
+	edge.polygon = PackedVector2Array([
+		Vector2(14, -2), Vector2(30, 0), Vector2(14, 2)])
+	edge.color = Color(1.0, 0.9, 0.5, 0.95)
+	visual.add_child(edge)
 
 func _build_hook() -> void:
 	var curve = Line2D.new()   # the hook itself: a J-curve

@@ -119,7 +119,7 @@ func _ready() -> void:
 				eq.panel.visible = true
 			var best_slot := "helmet"
 			var best_count := 0
-			for slot_key in ["helmet", "chest", "pants", "gloves", "boots"]:
+			for slot_key in ["helmet", "chest", "pants"]:
 				var c: int = eq._eligible_items(slot_key).size()
 				if c > best_count:
 					best_count = c

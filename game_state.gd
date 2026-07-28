@@ -211,35 +211,45 @@ var researched_materials: Array = []
 # relic bonuses fold into get_bonus_total (alongside skill effects); the
 # "weapon" slot holds an Excellent weapon, whose special power lives on the
 # player (see player.gd) rather than as a stat total.
-const RELIC_MAX_SLOTS = 6
+# TWELVE relic slots (dev 2026-07-28: "about 12 relic space max, starting
+# with 6 and unlocking slowly"): 6 from the first breath, then one more every
+# ten levels until all 12 stand open at level 60.
+const RELIC_MAX_SLOTS = 12
 # The ONE list of gear slots. Everything that walks slots reads these, so adding
 # a slot can't leave a stale copy behind -- which is exactly how gloves/boots got
 # dropped from reset_for_new_game and blew up every stat query on a new game.
-const ARMOUR_SLOTS = ["helmet", "chest", "pants", "gloves", "boots"]
+# THREE SLOTS, TERRARIA-EXACT (dev 2026-07-28: "player has only helmet,
+# breastplate and leggins, change it like that for our game too"). Gloves and
+# boots slots are RETIRED; their stat identity folds into the 3-piece armor
+# sets in the overhaul. Legacy gloves/boots ITEMS survive as bag curios
+# (equip_item refuses unknown slots gracefully), and a save that had them
+# EQUIPPED gets them handed back to the bag on load (see load_game).
+const ARMOUR_SLOTS = ["helmet", "chest", "pants"]
 # "weapon" removed by the audit: the hotbar migration left it as a vestige --
 # allocated, saved, walked by every gear loop -- yet UNFILLABLE (is_equippable
 # only ever admits armor/relic, so equip_item rejected weapons at line one).
 # A live trap for anyone re-adding weapon gear: wire is_equippable + the
 # equipment_ui slot together with it if that day comes.
-const GEAR_SLOTS = ["helmet", "chest", "pants", "gloves", "boots"]
+const GEAR_SLOTS = ["helmet", "chest", "pants"]
+const RETIRED_SLOTS = ["gloves", "boots"]   # read ONLY by the load migration
 
 static func empty_equipment() -> Dictionary:
 	var e := {}
 	for s in GEAR_SLOTS:
 		e[s] = ""
-	e["relics"] = ["", "", "", "", "", ""]
+	var r: Array = []
+	r.resize(RELIC_MAX_SLOTS)
+	r.fill("")
+	e["relics"] = r
 	return e
 
 var equipment = empty_equipment()
 
 func relic_slot_count() -> int:
 	if TEST_SKILL_SANDBOX:
-		return RELIC_MAX_SLOTS   # testing: all 6 relic slots usable at any level
-	if player_level >= 20:
-		return 6
-	if player_level >= 10:
-		return 5
-	return 4
+		return RELIC_MAX_SLOTS   # testing: every relic slot usable at any level
+	# 6 to start, +1 per ten levels: 7 at 10 ... 12 at 60
+	return clampi(6 + int(player_level / 10.0), 6, RELIC_MAX_SLOTS)
 
 func get_equipment_total(effect_key: String) -> float:
 	var total = 0.0
@@ -385,7 +395,19 @@ func first_empty_relic_slot() -> int:
 func load_equipment(data: Dictionary) -> void:
 	for slot in GEAR_SLOTS:
 		equipment[slot] = str(data.get(slot, ""))
-	var relics: Array = ["", "", "", "", "", ""]
+	# RETIRED SLOTS (Terraria-exact armor, 2026-07-28): a save from the
+	# five-slot era may have gloves/boots EQUIPPED -- those items left the bag
+	# when they were worn, so dropping the slot would silently delete them.
+	# Hand them back to the bag instead.
+	for slot in RETIRED_SLOTS:
+		var legacy := str(data.get(slot, ""))
+		if legacy != "":
+			var pl = get_tree().get_first_node_in_group("player")
+			if pl != null and "inventory" in pl and pl.inventory != null:
+				pl.inventory.add_item(legacy, 1)
+	var relics: Array = []
+	relics.resize(RELIC_MAX_SLOTS)
+	relics.fill("")
 	var saved_relics = data.get("relics", [])
 	if saved_relics is Array:
 		for i in range(min(saved_relics.size(), RELIC_MAX_SLOTS)):

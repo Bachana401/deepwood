@@ -2909,6 +2909,10 @@ func perform_attack() -> void:
 					"damage": stats.damage, "speed": 560.0, "range": 460.0})
 		elif special_type == "nuke":
 			cast_wand_nuke(special)   # Runeweave Scepter -- big FINITE screen AoE
+		elif special_type == "tome_storm":
+			cast_storm_tome(special)  # area denial: a stormlet works the aimed ground
+		elif special_type == "sentry":
+			plant_sentry(special)     # a watching totem stood at your feet
 		else:
 			cast_wand_projectile(special)   # Emberstaff / Icicle Wand ...
 		return
@@ -2922,8 +2926,9 @@ func perform_attack() -> void:
 		else:
 			animate_spear(stats)
 		return
-	# thrown "melee" weapons: the whole attack IS the projectile
-	if special_type == "hook" or special_type == "boomerang":
+	# thrown "melee" weapons: the whole attack IS the projectile (the soulwheel
+	# and the lash joined the hook and boomerang here -- weapons overhaul wave 1)
+	if special_type in ["hook", "boomerang", "orbiter", "lash"]:
 		play_sfx(SFX_SWORD)
 		animate_sword()
 		launch_projectile(special, get_aim_direction(), int(special.get("damage", stats.damage)))
@@ -2937,7 +2942,9 @@ func perform_attack() -> void:
 	_last_swing_target = null
 	_last_swing_damage = 0
 	var aim_dir = get_aim_direction()
-	$AttackArea.position = aim_dir * stats.range_offset
+	# staff_reach_mult: the Wukong staves lengthen with a landed combo (1.0 for
+	# every other weapon -- see staff_note_swing)
+	$AttackArea.position = aim_dir * stats.range_offset * staff_reach_mult()
 	$AttackArea.rotation = aim_dir.angle()
 	# advance the combo string for this swing; the multiplier it returns is >1
 	# only on the finisher
@@ -3040,6 +3047,10 @@ func perform_attack() -> void:
 		launch_swing_slash(swing_slash, aim_dir, stats)
 	# the swing itself winds up any charge-style unique -- a whiff still counts
 	advance_swing_charge(_last_swing_target, _last_swing_damage)
+	# the extending staff reads this swing: a LANDED hit draws it longer, a
+	# whiff shrinks it back, and the fourth landed hit is the pillar slam
+	staff_note_swing(_last_swing_target != null,
+		global_position + aim_dir * stats.range_offset * staff_reach_mult())
 	animate_sword()
 
 # --- Melee combo strings ---
@@ -3302,6 +3313,10 @@ func launch_projectile(cfg: Dictionary, dir: Vector2, dmg: int, is_crit: bool = 
 	p.max_distance = float(cfg.get("range", 450.0))
 	p.pierce = bool(cfg.get("pierce", kind in ["slash", "javelin"]))
 	p.aoe_radius = float(cfg.get("aoe", 0.0))
+	# behavior-library knobs (wave 1): only read by the kinds that use them
+	p.dwell = float(cfg.get("dwell", 2.2))
+	p.bounces = int(cfg.get("bounces", 3))
+	p.shards = int(cfg.get("shards", 5))
 	# grade-driven scale: bigger crescent, bigger hitbox, same maths everywhere
 	p.girth = maxf(0.4, float(cfg.get("girth", 1.0)))
 	# a weapon's own status wins; otherwise the Elementalist's Ignite skill rides
@@ -3350,6 +3365,101 @@ func cast_wand_projectile(special: Dictionary) -> void:
 	cast["girth"] = grade_projectile_girth()
 	cast["range"] = float(special.get("range", 450.0)) * grade_projectile_range()
 	launch_projectile(cast, get_aim_direction(), cr[0], cr[1])
+
+# TOME STORM (behavior library 2026-07-28): conjure a stormlet over the aimed
+# ground -- clamped to the tome's reach -- that rains strikes for a few
+# seconds while you fight elsewhere. Deepwood's area denial, spellbook-kin.
+const STORM_CLOUD_SCRIPT = preload("res://storm_cloud.gd")
+func cast_storm_tome(special: Dictionary) -> void:
+	play_sfx(SFX_BOW)
+	var cr = roll_crit(int(round(special.get("damage", 8) * skill_damage_mult("wand"))))
+	var aim_at := get_global_mouse_position()
+	var max_reach := float(special.get("range", 520.0))
+	var to_aim := aim_at - global_position
+	if to_aim.length() > max_reach:
+		aim_at = global_position + to_aim.normalized() * max_reach
+	var cloud = STORM_CLOUD_SCRIPT.new()
+	cloud.damage = cr[0]
+	cloud.radius = float(special.get("radius", 130.0))
+	cloud.duration = float(special.get("dur", 4.5))
+	cloud.strike_gap = float(special.get("gap", 0.4))
+	cloud.tint = active_def.get("color", Color(0.55, 0.75, 1.0))
+	cloud.source = self
+	get_parent().add_child(cloud)
+	cloud.global_position = aim_at
+
+# THE SENTRY (behavior library 2026-07-28): plant ONE watching totem at your
+# feet. Planting again moves it -- the mage borrows a single post, never an
+# army (armies are the Monarch's).
+const SENTRY_TOTEM_SCRIPT = preload("res://sentry_totem.gd")
+func plant_sentry(special: Dictionary) -> void:
+	play_sfx(SFX_BOW)
+	for old in get_tree().get_nodes_in_group("player_sentry"):
+		if is_instance_valid(old):
+			old.queue_free()
+	var totem = SENTRY_TOTEM_SCRIPT.new()
+	totem.add_to_group("player_sentry")
+	totem.damage = int(round(special.get("damage", 7) * skill_damage_mult("wand")))
+	totem.lifetime = float(special.get("dur", 16.0))
+	totem.fire_gap = float(special.get("gap", 0.85))
+	totem.tint = active_def.get("color", Color(0.55, 0.75, 1.0))
+	totem.source = self
+	get_parent().add_child(totem)
+	totem.global_position = global_position + Vector2(0, 4)
+
+# THE EXTENDING STAFF (Wukong line, 2026-07-28 -- inspired, never copied):
+# each landed swing within the combo window LENGTHENS the staff, up to ~2.4x
+# reach; the fourth strike is a PILLAR SLAM -- a short knock-up burst at the
+# staff's head. Break the rhythm and the staff shrinks back to a walking
+# stick. Consumed where melee reach is applied (perform_attack).
+var _staff_combo := 0
+var _staff_last_hit_at := -100.0
+func staff_reach_mult() -> float:
+	if str(active_def.get("special", {}).get("type", "")) != "staff_extend":
+		return 1.0
+	if _now() - _staff_last_hit_at > 1.6:
+		_staff_combo = 0   # the rhythm broke; the staff remembers nothing
+	return 1.0 + 0.45 * float(mini(_staff_combo, 3))
+
+func staff_note_swing(landed: bool, at: Vector2) -> void:
+	if str(active_def.get("special", {}).get("type", "")) != "staff_extend":
+		return
+	if not landed:
+		_staff_combo = 0
+		return
+	_staff_last_hit_at = _now()
+	_staff_combo += 1
+	if _staff_combo >= 4:
+		_staff_combo = 0
+		# PILLAR SLAM: the head of the fully-drawn staff strikes the earth
+		var slam_dmg := int(round(active_stats.damage * 0.8 * skill_damage_mult("melee")))
+		for group_name in ["course_enemy", "dungeon_combatant", "siege_enemy"]:
+			for e in get_tree().get_nodes_in_group(group_name):
+				if not is_instance_valid(e) or not e.has_method("take_damage"):
+					continue
+				if "is_dead" in e and e.is_dead:
+					continue
+				if at.distance_to(e.global_position) <= 110.0:
+					e.take_damage(slam_dmg)
+					FloatingText.spawn(get_parent(), e.global_position, slam_dmg, false)
+					if e.has_method("apply_knockback"):
+						e.apply_knockback(1 if e.global_position.x >= at.x else -1, 160.0)
+		# the slam reads: a ground-crack ring at the strike point
+		var ring := Line2D.new()
+		var pts := PackedVector2Array()
+		for i in range(15):
+			var a := TAU * float(i) / 14.0
+			pts.append(Vector2(cos(a), sin(a) * 0.4) * 46.0)
+		ring.points = pts
+		ring.width = 3.0
+		ring.default_color = Color(1.0, 0.85, 0.4, 0.9)
+		ring.z_index = 44
+		get_parent().add_child(ring)
+		ring.global_position = at
+		var t := ring.create_tween()
+		t.tween_property(ring, "scale", Vector2(2.4, 2.4), 0.25)
+		t.parallel().tween_property(ring, "modulate:a", 0.0, 0.25)
+		t.tween_callback(ring.queue_free)
 
 # Echo Rift: counts strikes so every 3rd one repeats its damage.
 # what the current swing connected with, so the swing's charge tick can land its

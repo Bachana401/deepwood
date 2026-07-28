@@ -229,6 +229,56 @@ const ITEM_DEFS = {
 		"special": {"type": "frost_shard", "damage": 16, "speed": 640.0, "range": 560.0, "pierce": true, "status": {"kind": "slow", "dur": 3.0, "mag": 0.5}},
 		"unique_desc": "Fires a razor icicle that skewers (and chills/slows) every enemy along its line.",
 	},
+	# --- WAVE 1 of the weapons overhaul (2026-07-28): the first carriers of
+	# the new behavior library. Terraria-INSPIRED mechanics, Deepwood names.
+	"wpn_soulwheel": {
+		"name": "Keening Soulwheel", "category": "weapon", "weapon_type": "melee", "max_stack": 1, "color": Color(0.65, 0.85, 1.0, 1.0),
+		"weapon_stats": {"damage": 11, "cooldown": 0.75, "range_offset": 40, "area_size": Vector2(50, 32), "knockback_min": 20.0, "knockback_max": 40.0, "icon_size": Vector2(26, 26), "icon_color": Color(0.65, 0.85, 1.0), "icon_offset": 18.0},
+		"special": {"type": "orbiter", "damage": 11, "speed": 620.0, "range": 260.0, "dwell": 2.2},
+		"unique_desc": "A bound spirit-wheel on a soul-thread: it flies out, SPINS where it lands cutting everything around it, then threads home.",
+	},
+	"wpn_emberlash": {
+		"name": "Cinderlash", "category": "weapon", "weapon_type": "melee", "max_stack": 1, "color": Color(1.0, 0.6, 0.25, 1.0),
+		"weapon_stats": {"damage": 14, "cooldown": 0.9, "range_offset": 44, "area_size": Vector2(56, 34), "knockback_min": 26.0, "knockback_max": 50.0, "icon_size": Vector2(56, 10), "icon_color": Color(1.0, 0.6, 0.25), "icon_offset": 20.0},
+		"special": {"type": "lash", "damage": 14, "speed": 560.0, "range": 340.0, "status": {"kind": "burn", "dur": 3.0, "mag": 4.0}},
+		"unique_desc": "A ribbon of living fire that weaves out through everything in its lane -- and rakes it all AGAIN whipping back.",
+	},
+	"wpn_trickbolt": {
+		"name": "Gambler's Bolt", "category": "weapon", "weapon_type": "wand", "max_stack": 1, "color": Color(1.0, 0.85, 0.4, 1.0), "mana_cost": 9,
+		"weapon_stats": {"damage": 0, "cooldown": 0.6, "range_offset": 30, "area_size": Vector2(10, 10), "knockback_min": 0.0, "knockback_max": 0.0, "icon_size": Vector2(46, 8), "icon_color": Color(1.0, 0.85, 0.4), "icon_offset": 20.0},
+		"special": {"type": "ricochet", "damage": 15, "speed": 700.0, "range": 480.0, "bounces": 3},
+		"unique_desc": "The bolt refuses to stop at one debt: it leaps foe to foe up to three times, each hit a little lighter.",
+	},
+	"wpn_shardmother": {
+		"name": "Shardmother Wand", "category": "weapon", "weapon_type": "wand", "max_stack": 1, "color": Color(0.6, 0.8, 1.0, 1.0), "mana_cost": 11,
+		"weapon_stats": {"damage": 0, "cooldown": 0.75, "range_offset": 30, "area_size": Vector2(10, 10), "knockback_min": 0.0, "knockback_max": 0.0, "icon_size": Vector2(48, 8), "icon_color": Color(0.6, 0.8, 1.0), "icon_offset": 20.0},
+		"special": {"type": "cluster", "damage": 18, "speed": 520.0, "range": 420.0, "shards": 5},
+		"unique_desc": "The mother-bolt bursts on its first mark -- or at full reach -- into a fan of five biting shards.",
+	},
+	"wpn_petardcane": {
+		"name": "Petard Cane", "category": "weapon", "weapon_type": "wand", "max_stack": 1, "color": Color(0.8, 0.55, 0.3, 1.0), "mana_cost": 13,
+		"weapon_stats": {"damage": 0, "cooldown": 1.0, "range_offset": 30, "area_size": Vector2(10, 10), "knockback_min": 0.0, "knockback_max": 0.0, "icon_size": Vector2(50, 8), "icon_color": Color(0.8, 0.55, 0.3), "icon_offset": 20.0},
+		"special": {"type": "lob", "damage": 24, "speed": 520.0, "range": 520.0, "aoe": 100.0},
+		"unique_desc": "An alchemist's answer to a wall of enemies: the charge sails a mortar arc and BLOSSOMS where it lands.",
+	},
+	"wpn_stormtome": {
+		"name": "Tome of the Low Sky", "category": "weapon", "weapon_type": "wand", "max_stack": 1, "color": Color(0.55, 0.75, 1.0, 1.0), "mana_cost": 18,
+		"weapon_stats": {"damage": 0, "cooldown": 1.4, "range_offset": 30, "area_size": Vector2(10, 10), "knockback_min": 0.0, "knockback_max": 0.0, "icon_size": Vector2(34, 26), "icon_color": Color(0.55, 0.75, 1.0), "icon_offset": 18.0},
+		"special": {"type": "tome_storm", "damage": 9, "range": 540.0, "radius": 130.0, "dur": 4.5, "gap": 0.4},
+		"unique_desc": "Reads a stormlet down over the aimed ground: for a few seconds that patch of the world belongs to the lightning.",
+	},
+	"wpn_wardtotem": {
+		"name": "Watcher's Rod", "category": "weapon", "weapon_type": "wand", "max_stack": 1, "color": Color(0.5, 0.8, 0.7, 1.0), "mana_cost": 16,
+		"weapon_stats": {"damage": 0, "cooldown": 1.2, "range_offset": 30, "area_size": Vector2(10, 10), "knockback_min": 0.0, "knockback_max": 0.0, "icon_size": Vector2(46, 8), "icon_color": Color(0.5, 0.8, 0.7), "icon_offset": 20.0},
+		"special": {"type": "sentry", "damage": 8, "dur": 16.0, "gap": 0.85},
+		"unique_desc": "Plants ONE watching totem that snipes the nearest foe on its own clock. Planting again moves the watch.",
+	},
+	"wpn_boughstaff": {
+		"name": "Bending Bough", "category": "weapon", "weapon_type": "melee", "max_stack": 1, "color": Color(0.55, 0.75, 0.4, 1.0),
+		"weapon_stats": {"damage": 9, "cooldown": 0.45, "range_offset": 50, "area_size": Vector2(64, 30), "knockback_min": 24.0, "knockback_max": 46.0, "icon_size": Vector2(88, 7), "icon_color": Color(0.55, 0.75, 0.4), "icon_offset": 14.0},
+		"special": {"type": "staff_extend"},
+		"unique_desc": "A staff that remembers the old trickster-king: every landed blow in rhythm DRAWS IT LONGER, and the fourth strikes the earth as a pillar.",
+	},
 	# --- Admin test wand (dev only, granted with the starter kit, hotbar 7).
 	# RIGHT-click, no aiming: sears 5% of MAX HP off every enemy within 280px,
 	# ignoring all scaling -- so ~20 casts fell ANYTHING, sized exactly for
@@ -524,12 +574,18 @@ const ITEM_DEFS = {
 #      get_weapon_passive_total(). Materials/currency are ungraded.
 # ---------------------------------------------------------------------------
 const GRADE_DEFS = {
+	# EIGHT TIERS (dev 2026-07-28, Terraria-ladder example, "make 8 tiers of
+	# items"): the six familiar grades keep their ranks (no def or save ever
+	# moves), crowned by two new deep-end tiers -- ASCENDED for the floors past
+	# 70, MONARCH for the endgame peak (finale rewards, the flagships).
 	"common":    {"name": "Common",    "rank": 1, "color": Color(0.72, 0.74, 0.78)},
 	"uncommon":  {"name": "Uncommon",  "rank": 2, "color": Color(0.4, 0.82, 0.42)},
 	"rare":      {"name": "Rare",      "rank": 3, "color": Color(0.35, 0.62, 1.0)},
 	"epic":      {"name": "Epic",      "rank": 4, "color": Color(0.72, 0.42, 0.96)},
 	"legendary": {"name": "Legendary", "rank": 5, "color": Color(1.0, 0.66, 0.16)},
 	"mythic":    {"name": "Mythic",    "rank": 6, "color": Color(1.0, 0.32, 0.46)},
+	"ascended":  {"name": "Ascended",  "rank": 7, "color": Color(0.3, 0.95, 1.0)},
+	"monarch":   {"name": "Monarch",   "rank": 8, "color": Color(1.0, 0.45, 0.12)},
 }
 
 # The passive stat bundle a weapon of each grade grants while wielded. Common
@@ -542,6 +598,8 @@ const GRADE_PASSIVES = {
 	"epic":      {"max_health": 30.0, "max_mana": 15.0, "move_speed": 0.05, "melee_damage": 0.05, "bow_damage": 0.05, "wand_damage": 0.05, "gold_gain": 0.05},
 	"legendary": {"max_health": 45.0, "max_mana": 25.0, "move_speed": 0.07, "melee_damage": 0.08, "bow_damage": 0.08, "wand_damage": 0.08, "gold_gain": 0.08, "xp_gain": 0.08},
 	"mythic":    {"max_health": 70.0, "max_mana": 40.0, "move_speed": 0.10, "melee_damage": 0.12, "bow_damage": 0.12, "wand_damage": 0.12, "gold_gain": 0.10, "xp_gain": 0.10},
+	"ascended":  {"max_health": 100.0, "max_mana": 55.0, "move_speed": 0.12, "melee_damage": 0.16, "bow_damage": 0.16, "wand_damage": 0.16, "gold_gain": 0.12, "xp_gain": 0.12},
+	"monarch":   {"max_health": 140.0, "max_mana": 75.0, "move_speed": 0.15, "melee_damage": 0.20, "bow_damage": 0.20, "wand_damage": 0.20, "gold_gain": 0.15, "xp_gain": 0.15},
 }
 
 # Central grade assignment -- one place instead of a field on every def.
@@ -551,6 +609,10 @@ const ITEM_GRADES = {
 	"tool_axe": "common", "tool_pickaxe": "common", "tool_pickaxe_ember": "rare", "tool_pickaxe_blight": "epic", "wpn_admin_ruin": "mythic",
 	"wpn_windcutter": "rare", "wpn_sunderer": "rare", "wpn_stormlance": "rare",
 	"wpn_stormvolley": "rare", "wpn_seeker": "rare", "wpn_emberstaff": "rare", "wpn_iciclewand": "rare",
+	# wave-1 behavior carriers (weapons overhaul 2026-07-28)
+	"wpn_boughstaff": "uncommon", "wpn_trickbolt": "rare", "wpn_shardmother": "rare",
+	"wpn_petardcane": "rare", "wpn_wardtotem": "rare",
+	"wpn_soulwheel": "epic", "wpn_emberlash": "epic", "wpn_stormtome": "epic",
 	"wpn_claymore": "epic", "wpn_recurve": "epic", "wpn_scepter": "epic",
 	"exc_vampiric": "legendary", "exc_thunder": "legendary", "exc_midas": "legendary",
 	"exc_echo": "legendary", "exc_soul": "legendary", "exc_hook": "legendary",
@@ -689,7 +751,10 @@ const SET_DEFS = {
 	# Mythic 5-slot endgame set (helmet/chest/pants/gloves/boots).
 	"dragonscale": {
 		"name": "Dragonscale Panoply",
-		"pieces": ["helm_dragon", "armor_dragon", "pants_dragon", "gloves_dragon", "boots_dragon"],
+		# 3 pieces like every set (Terraria-exact armor, 2026-07-28): the old
+		# gauntlets/sabatons are bag curios now, and a 5-piece set with only 3
+		# wearable slots could never complete
+		"pieces": ["helm_dragon", "armor_dragon", "pants_dragon"],
 		"bonus_2pc": {"damage_reduction": 0.05, "max_health": 30.0},
 		"bonus_2pc_desc": "+5% Damage Reduction, +30 HP",
 		"bonus": {"max_health": 80.0, "damage_reduction": 0.10, "melee_damage": 0.10, "crit_damage": 0.25},
@@ -811,7 +876,7 @@ static func _slot_word(slot: String) -> String:
 # the stall used to look this up by the lowercase grade KEY against a table
 # keyed by NAME, so every item silently sold for 4g. Materials/currency (no
 # grade) fall through to the base 4.
-const SELL_VALUES = {"": 4, "common": 6, "uncommon": 15, "rare": 40, "epic": 100, "legendary": 250, "mythic": 600}
+const SELL_VALUES = {"": 4, "common": 6, "uncommon": 15, "rare": 40, "epic": 100, "legendary": 250, "mythic": 600, "ascended": 1400, "monarch": 3200}
 static func sell_value(item_id: String) -> int:
 	return int(SELL_VALUES.get(get_grade(item_id), 4))
 

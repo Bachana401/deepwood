@@ -40,8 +40,8 @@ func _ready() -> void:
 	GameState.barracks_arms = 3
 	GameState.highest_unlocked_level = 9
 	GameState.equipment["helmet"] = "helm_iron"
-	GameState.equipment["gloves"] = "gloves_iron"
-	GameState.equipment["boots"] = "boots_leather"
+	GameState.equipment["chest"] = "armor_bulwark"
+	GameState.equipment["pants"] = "pants_bulwark"
 	GameState.building_levels["Farm"] = 4
 	GameState.rescued_villagers = [{"id": "sv1", "name": "Roundtrip", "sex": "Female", "is_kid": false, "role_key": "Farm"}]
 	GameState.save_game(p)
@@ -64,8 +64,15 @@ func _ready() -> void:
 	check("barracks arms round-trip", GameState.barracks_arms == 3, "got %d" % GameState.barracks_arms)
 	check("dungeon progress round-trips", GameState.highest_unlocked_level == 9, "got %d" % GameState.highest_unlocked_level)
 	check("helmet round-trips", GameState.equipment.get("helmet", "") == "helm_iron", str(GameState.equipment))
-	check("GLOVES round-trip", GameState.equipment.get("gloves", "") == "gloves_iron", str(GameState.equipment))
-	check("BOOTS round-trip", GameState.equipment.get("boots", "") == "boots_leather", str(GameState.equipment))
+	check("BREASTPLATE round-trips", GameState.equipment.get("chest", "") == "armor_bulwark", str(GameState.equipment))
+	check("LEGGINGS round-trip", GameState.equipment.get("pants", "") == "pants_bulwark", str(GameState.equipment))
+	# THE RETIRED-SLOT MIGRATION (Terraria-exact armor, 2026-07-28): a save from
+	# the five-slot era with gloves/boots EQUIPPED must hand them back to the
+	# bag on load, never delete them
+	var pre_gloves: int = p.inventory.get_count("gloves_iron")
+	GameState.load_equipment({"helmet": "helm_iron", "gloves": "gloves_iron"})
+	check("a five-slot-era save returns worn gloves to the bag",
+		p.inventory.get_count("gloves_iron") == pre_gloves + 1)
 	check("building level round-trips", int(GameState.building_levels.get("Farm", 0)) == 4,
 		str(GameState.building_levels))
 	check("villagers round-trip", GameState.rescued_villagers.size() == 1
