@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Deepwood - Complete Game Overview</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm; }
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  body { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: #1c2230;
+         line-height: 1.5; font-size: 11pt; max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 26pt; color: #e8eef7; background: linear-gradient(135deg,#2a1e4a,#3b2d63);
+       padding: 22px 20px; border-radius: 8px; margin: 0 0 6px; letter-spacing: .5px; }
+  h2 { font-size: 16pt; color: #23305a; border-bottom: 3px solid #6b4fb0;
+       padding-bottom: 5px; margin-top: 30px; page-break-after: avoid; }
+  h3 { font-size: 12.5pt; color: #4a3a7a; margin-top: 18px; page-break-after: avoid; }
+  p { margin: 8px 0; }
+  a { color: #6b4fb0; text-decoration: none; }
+  code { background: #ece8f6; color: #4a2f7a; padding: 1px 5px; border-radius: 4px;
+         font-family: "Cascadia Code","Consolas",monospace; font-size: 9.5pt; }
+  strong { color: #1a1030; }
+  em { color: #55496e; }
+  blockquote { border-left: 4px solid #6b4fb0; background: #f4f1fb; margin: 14px 0;
+               padding: 10px 16px; color: #3a3358; font-style: italic; border-radius: 0 6px 6px 0; }
+  ul, ol { margin: 8px 0 8px 4px; padding-left: 22px; }
+  li { margin: 3px 0; }
+  hr { border: none; border-top: 1px solid #d6d0e6; margin: 22px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 10pt;
+          page-break-inside: avoid; }
+  th { background: #3b2d63; color: #fff; text-align: left; padding: 7px 10px; }
+  td { border-bottom: 1px solid #ddd7ea; padding: 6px 10px; vertical-align: top; }
+  tr:nth-child(even) td { background: #f6f4fc; }
+</style></head><body><h1>DEEPWOOD — Complete Game Overview</h1>
+<blockquote>
+<em>"You're searching for Deepwood? Look around you. You're standing in it."</em> 
+</blockquote>
+<p><strong>Genre:</strong> 2D side-view action-RPG × colony-sim × 100-floor dungeon crawler × Terraria-style mining, with a slow-burn story that reframes everything you've done.<br><strong>Engine:</strong> Godot 4.7 (GDScript). <strong>Player:</strong> a nameless Calamity Orphan — secretly the reincarnate soulmate of a Shadow Monarch.<br><strong>The pitch:</strong> Descend a 100-floor dungeon to free your taken people, rebuild the ruined village of Deepwood into the brightest place in a broken world, defend it from sieges — then learn that a <em>perfect</em> village was exactly what your enemy was farming all along.</p>
+<hr>
+<h2>1. THE PREMISE</h2>
+<p>Deepwood was the village the whole dying world whispered about — scholars, builders, forges, full tables. When the calamity took everything else, Deepwood <strong>held for years</strong>. Then the waves grew <em>wrong</em>: the Despair Army dragged the <strong>strong-willed alive</strong> down into the deep and <strong>turned the weak-willed</strong> into monsters — so the horde at your gate wears your own neighbours' faces.</p>
+<p>By the time you arrive, Deepwood is a <strong>ruin</strong>. The one true enemy is the <strong>Monarch of Despair</strong> — "the end of the living." The raiders were never random; they are his <strong>farming apparatus</strong>, and <em>the apparatus dies with the farmer</em>. Every road out of the village is a <strong>cage</strong> ("every road out, the horde grows to meet you") — the only escape is <strong>down</strong>, through the root of it.</p>
+<p><strong>The secret</strong> (sealed until the very end): the choking that took you at Deepwood's treeline in the prologue was not a first meeting. A Shadow Monarch's soul found you years ago, too weak to merge, and has followed you ever since — your improbable survivals "were never luck." Arriving home, the bond finally <em>completes</em>.</p>
+<p><strong>The Oath</strong> the four heroes swear together:</p>
+<blockquote>
+<em>"Free the taken, raise the walls — and when Deepwood stands, I go down after the thing that did this. It lives again, or none of us leave."</em> 
+</blockquote>
+<p>Winning means <strong>bringing the people home</strong> — not just killing things.</p>
+<hr>
+<h2>2. THE CORE LOOP</h2>
+<p><strong>Descend → rescue people + recover blueprints + gather materials → return, rebuild, staff, defend → descend deeper.</strong></p>
+<ul>
+<li>The <strong>dungeon</strong> (west pit) is where you fight, free hostages, and find blueprints/loot.</li>
+<li>The <strong>underground</strong> (a minable Terraria world) is the connective cave you dig and explore, holding scattered doors into every floor.</li>
+<li>The <strong>village</strong> is a full colony sim you rebuild, staff, and defend against escalating sieges.</li>
+<li>The master clock lives in the autoload, so <strong>time advances in every scene</strong> — sieges, births, wages, and school all tick while you're deep.</li>
+</ul>
+<hr>
+<h2>3. THE PLAYER</h2>
+<ul>
+<li><strong>Movement:</strong> run speed 200, jump −400, gravity 900. <strong>Fall damage</strong> past a 300px drop (0.15/px); a 2500px void-fall snaps you back (anti-fall-through net).</li>
+<li><strong>Purchased mobility:</strong> <strong>Double Jump</strong> (20g), <strong>Dash</strong> (30g — double-tap A/D, speed 900, 0.5s cooldown, afterimages). <strong>Flight/Levitation</strong> (hold Space) is available to <em>every</em> class but drains <strong>mana</strong> (16/s, Mage discount); the Aetherwing relic grants it with wings. A <strong>blink-dash (T)</strong> with 0.6s i-frames comes from the Shadowstep Sigil.</li>
+<li><strong>Base stats:</strong> 160 HP, 90 mana (regen 4/s), 5% crit / +50% crit damage. Caps: damage reduction 75%, mana shield 80%, status resistance 90%, cooldown reduction 70%.</li>
+<li><strong>The hidden Monarch passive (all classes, whole game):</strong> 7 stages tied to character level — <strong>5 / 15 / 30 / 45 / 60 / 80 / 100</strong> (<em>Stirring → Creeping Dark → Shadowstep → Dread Sovereign → Veiled → Ascendant → Shadow Sovereign</em>). Stacking +all-damage, damage reduction, and move speed; <strong>7/7 is the 2× "god-form."</strong> Your true nature emerges as you climb — visibly manifesting only when no villager is left to witness it (the Harvest).</li>
+</ul>
+<hr>
+<h2>4. CLASSES &amp; SKILL TREES</h2>
+<p><strong>Four classes</strong>, each a branching tree with <strong>3 spec spines</strong> (tiers 1–7). Every spec <strong>forks at tier 4</strong> into a mutually-exclusive <strong>KEYSTONE pair</strong> (pick one, the other locks <em>forever</em>), reconverges at tier 5, and ends in a <strong>tier-7 ULTIMATE</strong>. You pick your class on first opening the tree (K); it's permanent unless you drink a <strong>Reset Potion</strong>. <strong>Shadow Monarch is locked until you beat the game.</strong></p>
+<p>Skill points: <strong>+1 per level-up</strong>; costs rise with tier (up to 6 for ultimates); deep nodes also spend <strong>researched crafting materials</strong> (slime → iron_shard → ember_crystal → void_essence → ancient_relic).</p>
+<h3>⚔ Sword — Berserker / Guardian / Warlord</h3>
+<ul>
+<li><strong>Berserker</strong> → <em>Bloodthirst</em> (lifesteal) → <strong>Sanguine Pact</strong> vs <strong>Blood Rage</strong> (+40% dmg under 40% HP) → <strong>Avatar of Slaughter</strong> (kills stack +dmg/lifesteal/HP).</li>
+<li><strong>Guardian</strong> → <em>Spiked Armor</em> (thorns) → <strong>Aegis Wall</strong> vs <strong>Riposte</strong> (dodge) → <strong>Living Fortress</strong> (survive one lethal hit/life).</li>
+<li><strong>Warlord</strong> → <em>Deathblow</em> → <strong>Executioner</strong> (instakill non-boss &lt;15% HP) vs <strong>Overpower</strong> → <strong>Headhunter</strong> → <strong>Godslayer</strong>.</li>
+</ul>
+<h3>🏹 Archer — Marksman / Ranger / Warden</h3>
+<ul>
+<li><strong>Marksman</strong> → <em>Deadeye</em> → <strong>Piercing Shot</strong> vs <strong>Killshot</strong> (instakill non-boss &lt;18% HP) → <strong>Skyfall</strong>.</li>
+<li><strong>Ranger</strong> → <em>Twin Shot</em> (+arrow) → <strong>Seeker Arrows</strong> (homing) vs <strong>Evasion</strong> → <strong>Tempest</strong> (4 homing arrows).</li>
+<li><strong>Warden</strong> (pure DoT) → <em>Venom Arrows</em> → <strong>Frost Arrows</strong> vs <strong>Flame Arrows</strong> → <strong>Contagion</strong> (poison spreads).</li>
+</ul>
+<h3>🔮 Mage — Elementalist / Sage / Mystic</h3>
+<ul>
+<li><strong>Elementalist</strong> → <em>Ignite</em> → <strong>Overcharge</strong> vs <strong>Wildfire</strong> (burns leap) → <strong>Cataclysm</strong>.</li>
+<li><strong>Sage</strong> → <em>Mana Flow</em> → <strong>Overflow</strong> vs <strong>Focusing Lens</strong> (a hold-to-channel <strong>beam</strong> that ramps) → <strong>Transcendence</strong>.</li>
+<li><strong>Mystic</strong> → <em>Mana Barrier</em> (pay 40% of hits from mana) vs <strong>Blink Step</strong> → <strong>Spellblade</strong> (wand dmg scales with max mana) → <strong>Avatar of Magic</strong>.</li>
+<li><strong>Side-roads:</strong> <strong>Riftweaving</strong> (Z — twin portals, drains mana while both open) and <strong>Telepathy</strong> (your mind reaches the village from anywhere — beats the "village fog").</li>
+</ul>
+<h3>👑 Shadow Monarch — Legion / Dominion / Ascendant <em>(post-game unlock)</em></h3>
+<p>Root: slain foes rise as <strong>shades</strong>, +8% all damage.</p>
+<ul>
+<li><strong>Legion</strong> → <strong>Standing Army</strong> (shades never fade) vs <strong>Volatile Dead</strong> → <strong>Deathless Legion</strong>.</li>
+<li><strong>Dominion</strong> → <strong>Sovereign's Dread</strong> (fear aura) → <strong>Deadly Presence</strong> (passive nova) → <strong>Absolute Dominion</strong>.</li>
+<li><strong>Ascendant</strong> → <em>Feast of Shadows</em> (lifesteal) → <strong>Immortal Sovereign</strong> vs <strong>Wrath Incarnate</strong> → <strong>Sovereign of the Dead</strong> (assume the TRUE FORM at will).</li>
+</ul>
+<hr>
+<h2>5. WEAPONS &amp; TOOLS</h2>
+<p><strong>Base kit</strong> (hotbar 1–0): <strong>Sword</strong> (start), <strong>Spear</strong> (40g), <strong>Bow</strong> (35g). Weapons carry a <strong>grade</strong> (Common→Mythic) that grants a passive bundle while wielded (Mythic = +70 HP, +40 mana, +10% speed, +12% dmg, +10% gold/XP).</p>
+<p><strong>"Excellent" classless weapons</strong> (unique effects, dungeon-drop only) — a sampler:</p>
+<ul>
+<li><strong>Vampiric Fang</strong> (35% melee lifesteal) · <strong>Frostmourne</strong> (40% lifesteal + frost slow) · <strong>Thundercaller</strong> (chain-zap) · <strong>Midas Edge</strong> (hits mint gold) · <strong>Ragnarok Blade</strong> (every 8th strike = slash-nova + meteors + shockwave) · <strong>Doombringer</strong> (execute &lt;18% HP, +50% vs bosses) · <strong>Singularity Edge</strong> (every 5th strike opens a black hole) · <strong>Worldsplitter / Earthshaker Maul</strong> (shockwaves) · <strong>Dawnbreaker</strong> (piercing sun-slash + heal) · <strong>Tempest / Stormfury Bow</strong> (homing arrows) · <strong>Gungnir</strong> (5 piercing spears) · <strong>Leviathan Hook</strong>, <strong>Galewing Glaive</strong> (boomerang), <strong>Chrono Edge</strong> (CD-reset chance), <strong>Wizardsbane</strong> (+150% vs bosses), <strong>Voidcaller</strong>, <strong>Shadowblade</strong>, <strong>Echo Rift</strong>, <strong>Soulthirst</strong>.</li>
+</ul>
+<p><strong>Tools:</strong> <strong>Woodsman's Axe</strong> (Wood/Resin) and three <strong>tiered Pickaxes</strong> that gate the deep biomes — <strong>Miner's</strong> (t1, given free), <strong>Embersteel</strong> (t2, opens Emberdeep), <strong>Blightbreaker</strong> (t3, breaks the Blightcore).</p>
+<p>The <strong>Soul Split Wand</strong> is a story-only mythic — useless everywhere except the final boss (see §14).</p>
+<hr>
+<h2>6. EQUIPMENT, ITEMS &amp; CRAFTING</h2>
+<ul>
+<li><strong>Armor slots (5):</strong> helmet, chest, pants, gloves, boots. <strong>Relic slots:</strong> 4 → 5 at level 10 → 6 at level 20.</li>
+<li><strong>Sets:</strong> Leather, <strong>Bulwark of the Warlord</strong>, <strong>Windstalker's Garb</strong>, <strong>Runeweave Vestments</strong>, Ranger's Leathers, and the endgame <strong>Dragonscale Panoply</strong> (+80 HP, +10% DR, +25% crit dmg). Wearing the set weapon adds a greater bonus.</li>
+<li><strong>Relics:</strong> stat relics (Vigor, Swiftness, Greed, Wisdom, Godheart…) and triggered ones — <strong>Phoenix Heart</strong> (auto-revive), <strong>Thornmail</strong>, <strong>Aegis Ward</strong> (block one hit/6s), <strong>Shadowstep Sigil</strong> (blink-dash), <strong>Gorgon's Gaze</strong> (petrify on hit), <strong>Aetherwing</strong> (flight), <strong>Reaper's Toll</strong>, <strong>Heart of the Mountain</strong> (mining).</li>
+<li><strong>Currencies:</strong> Gold (drives everything), Silver, Bronze (carried, non-convertible). <strong>The real game starts with no money.</strong></li>
+<li><strong>Materials:</strong> research-gated <strong>Slime → Iron Shard → Ember Crystal → Void Essence → Ancient Relic</strong> (identified at the Science Lab); construction <strong>Wood/Stone/Resin</strong>; cooking <strong>Herb/Raw Meat/Sorrowshard</strong>.</li>
+<li><strong>Consumables:</strong> Health/Mana Potions (drop-only), timed <strong>food buffs</strong> (Hearty Stew +speed, Warrior's Feast +damage, Sage's Supper +crit), the <strong>Reset Potion</strong>, and the endgame <strong>Rewound Hour</strong>.</li>
+<li><strong>Crafting:</strong> foods + the Reset Potion; a freed member of the Ten (Toren) cuts costs 25%. <strong>Inventory: 55 slots.</strong></li>
+<li><strong>Leveling:</strong> XP curve <code>50 + (level−1)×30</code>, <strong>cap 100</strong>. Dungeon kills scale gold &amp; XP by depth (<code>1 + 0.10×floor</code>).</li>
+</ul>
+<hr>
+<h2>7. THE VILLAGE — BUILDINGS</h2>
+<p>Deepwood starts <strong>entirely in ruins</strong> (every building destroyed). You clear rubble by hand (3 shovelfuls), then build in <strong>3 stages</strong> (each costs 3 Wood / 2 Stone / 1 Resin). A building only works when <strong>fully built</strong>. Buildings need a <strong>blueprint</strong> (starters: Farm, Tavern, Builderhouse, Cottage, Wall; the rest drop at fixed floors, all in hand by floor 30). Upgrades go <strong>levels 1–6</strong> (+2 worker slots &amp; +25% output each; ~1,650g to max one, ~25,000g for the whole town).</p>
+<table>
+<thead><tr><th>Building</th><th>Leadership (VIP)</th><th>Does</th></tr></thead>
+<tbody>
+<tr><td><strong>Government</strong></td><td>Chancellor</td><td>Taxes employed workers; Chancellor also auto-staffs idle villagers</td></tr>
+<tr><td><strong>Farm</strong></td><td>Harvestmaster</td><td>Passive food (6/farmer/day); you can also hand-harvest (H, +4)</td></tr>
+<tr><td><strong>Fishing Dock</strong></td><td>Harbormaster</td><td>Premium food (4/fisher/day), small morale</td></tr>
+<tr><td><strong>Hospital</strong></td><td>Chief Physician</td><td>The "Sick Road" — heals wounded villagers who walk in; childbirth</td></tr>
+<tr><td><strong>School</strong></td><td>Principal</td><td>Educates <strong>children</strong> into a random profession (24h)</td></tr>
+<tr><td><strong>Barracks</strong></td><td>Warchief</td><td>Trains <strong>recruits</strong> into Warriors; armory; fields Soldiers in sieges</td></tr>
+<tr><td><strong>Science Lab</strong></td><td>Lead Researcher</td><td>Identifies materials (unlocks skill spending); builds the Whisperstone</td></tr>
+<tr><td><strong>Bank</strong></td><td>Treasurer</td><td>Interest on the treasury (~2.4%/day); 15% leaner payroll</td></tr>
+<tr><td><strong>Blacksmith (Forge)</strong></td><td>Forgemaster</td><td>Gear shop (up to Rare, Epic with Toren); auto-arms the Barracks. <em>Gated at depth 35</em></td></tr>
+<tr><td><strong>Tavern</strong></td><td>Tavernkeeper</td><td>Lodges the unhoused (+morale vs the street)</td></tr>
+<tr><td><strong>Bar</strong></td><td>Publican</td><td>Satisfies "social" need (town-wide morale); a small drink income</td></tr>
+<tr><td><strong>Marketplace</strong></td><td>Merchant Prince</td><td>A pure gold sink that hosts wandering merchants; auto-sells surplus</td></tr>
+<tr><td><strong>Builderhouse</strong></td><td>Master Builder + Foreman</td><td>Powers the repair crew — <strong>auto-rebuilds</strong> ruins</td></tr>
+<tr><td><strong>Mine</strong></td><td><em>(leaderless)</em></td><td>Miners haul 2 stone + 1 iron / miner / day (+ember every other cycle)</td></tr>
+<tr><td><strong>Shrine</strong></td><td><em>(leaderless)</em></td><td>Corruption's mercy (depth 30) — cleanses a demon back to life for 3 Sorrowshards</td></tr>
+<tr><td><strong>Watchtower</strong></td><td>—</td><td>Siege foresight in 3 paid tiers (1h / 2h / 24h warning). <em>Until built, no siege warning at all.</em></td></tr>
+<tr><td><strong>Cottage</strong></td><td>—</td><td>Houses a paired couple for life — the population brake</td></tr>
+</tbody></table>
+<p><strong>Only Government (taxes), Bank (interest), and the Bar make village gold</strong> — everything else pays in food, arms, repairs, or knowledge. The design goal: approach self-funding, never a mint.</p>
+<hr>
+<h2>8. VILLAGER LIFE</h2>
+<ul>
+<li><strong>Morale (0–10 personal, town = average).</strong> Target inputs: fed (+2), employed (+2.2), housed (cottage +1.6 / Tavern +0.8 / street −1), armed town (+1.4), a Bar (+1), leaders, headcount. <strong>Loneliness is a standing −2 (deepening to −3.5)</strong>; widows mourn; the town's grief subtracts. Rewards: &gt;8/10 speeds &amp; heals the hero in town; <strong>10/10</strong> brings fireworks + a periodic <strong>gold tribute</strong>.</li>
+<li><strong>Food:</strong> a "villager-days" stockpile; everyone eats 1/day. An empty larder past a 30h grace <strong>starves villagers to death</strong>.</li>
+<li><strong>The Law of Despair:</strong> a villager whose morale hits <strong>0 begins to ROT</strong> — a 6-hour redeem window; miss it and they <strong>turn into a demon that spawns inside your walls</strong> and infects neighbours. <strong>Two fates:</strong> an empty larder <em>kills</em> (a grave); broken hope <em>corrupts</em> (a turning). Warriors, shadows, and the Ten are immune.</li>
+<li><strong>Births:</strong> pair an unpaired man + woman at a <strong>cottage</strong> (for life) → a 24h pregnancy → a child born at the Hospital. <strong>1-in-200 births is a HERO</strong> (Barracks-only, graduates a powerful adult).</li>
+<li><strong>Jobs:</strong> assigned at each building; School graduates roll a random profession weighted toward common hands. <strong>Leadership stats are never taught</strong> — a leader is always a rescued VIP.</li>
+<li><strong>Wages:</strong> staff draw 1.5 gold/day; <strong>workers you can't pay QUIT on the spot.</strong> Taxes flow from the Government (morale-scaled), interest from the Bank.</li>
+<li><strong>Leadership automation:</strong> seating VIP leaders makes the town <strong>run itself</strong> (auto-staff, auto-repair, auto-heal, auto-sell, auto-research) — a tracked <strong>self-sufficiency %</strong> across five chore domains is the colony-sim payoff.</li>
+<li><strong>The village fog:</strong> away from home (or in the deep) you learn <em>nothing</em> of the town except through the <strong>Log (L)</strong> — unless you have <strong>Telepathy</strong> (Mage) or the <strong>Whisperstone</strong>.</li>
+</ul>
+<hr>
+<h2>9. SIEGES</h2>
+<ul>
+<li><strong>Schedule:</strong> first wave 24 in-game hours after the opening ends, then every 12h (resolves even while you're deep — you get an <strong>away report</strong>). <strong>Siege tier = prosperity × depth</strong>, not the calendar (<code>1 + 0.30·floor + 0.08·pop + 0.02·morale</code>); gentler until Orin is freed.</li>
+<li><strong>Live waves:</strong> raiders (up to 12) march from the <strong>west/dungeon pit</strong> and hammer the wall. <strong>Once Orin is freed (floor 15) the EAST road silently opens as a second front</strong> — you're never told; you discover it.</li>
+<li><strong>The Black Tide:</strong> every 6th siege (depth ≥15), tier ×2.2 + 2 — past what walls can hold. <strong>Only stationed adventurers can turn it.</strong> Telegraphed with an 8-hour omen that pierces the away-fog.</li>
+<li><strong>Walls (2 ramparts, tiers 1–4):</strong> HP 350 / 650 / 1050 / 1600; trap DPS at tier 2+; station slots 2/4/6/9. They breach at 0 HP but patch back between assaults.</li>
+<li><strong>Defenders:</strong> abstract "defense power" = Orin (4) + warriors + heroes (3 each) + stationed adventurers + Warchief + wall tier, × morale. Live: <strong>Barracks Soldiers</strong> (only the on-shift half answers), <strong>Heroes</strong> at 3× strength with rolled powers, and villagers who mostly <strong>flee</strong>.</li>
+<li><strong>Warrior day/night shifts:</strong> the corps splits into two 12h shifts; a siege at the 6:00/18:00 changeover catches the wall <strong>half-manned</strong> — the deliberate weak window.</li>
+</ul>
+<hr>
+<h2>10. THE OPENING</h2>
+<ol>
+<li><strong>Empty ruins</strong> — a new game opens at <strong>22:00 in the rain</strong>; you crest the road to a dead town.</li>
+<li><strong>The arrival battle</strong> — the three defenders (Roland/Wren/Castor) are already fighting raiders at the gate (a staged, un-killable teaching fight you join mid-swing).</li>
+<li><strong>Survivors emerge</strong> — once the first wave breaks, <strong>the Doctor and two farmhands creep from the ruins</strong> — life returning to Deepwood — and the adventurers talk with them.</li>
+<li><strong>The tutorial (the Oath)</strong> — a 3-step card: raise a <strong>Wall → Farm → Cottage</strong> (the founder's cache of 20 wood + 12 stone covers it exactly). Finishing it starts the siege clock. <em>(Cinematic, no HUD, until the tutorial begins; banked to save so Continue never replays it.)</em></li>
+</ol>
+<hr>
+<h2>11. THE DUNGEON</h2>
+<ul>
+<li><strong>100 floors</strong>, a separate scene, cycling in <strong>blocks of 5</strong>: four regular layout families + a <strong>boss floor</strong> every 5th, <strong>plus finale bosses at 98 &amp; 99 = 22 boss floors, 22 unique bosses</strong>.</li>
+<li><strong>Regular floors</strong> generate from <strong>12 themes</strong> (Terraces, Isles, Pillared Hall, Chasm Bridges, Gauntlet, Warren, Sunken Court, Cascade…), seeded by floor number (identical every visit), always winnable on foot, flood-fill-tested so nothing is ever stranded.</li>
+<li><strong>Hazards:</strong> 8–16 mines/floor; creative hazards (spike, flamevent, crusher@12, poison geyser@18), all telegraphed &amp; capped below a one-shot; a seeded floor <strong>surprise</strong> (cache chest or trap) + a 32% chance of a mid-fight ambush.</li>
+<li><strong>Difficulty</strong> scales with depth (softcapped): ~5.5× HP, ~5.3× damage, +speed by floor 100.</li>
+<li><strong>Entry (3 ways):</strong> hidden <strong>Underdark doors</strong> (one per floor, the frontier door wears a gold beacon), the village <strong>Waystone</strong> (blueprint at floor 20), and <strong>Deep Shrine → Deep Shrine</strong> travel (a shrine wakes at every 10th cleared floor).</li>
+<li><strong>The only gate is a "leave" gate</strong> at the entry (a mid-fight escape hatch); clearing a floor unlocks the next, and a cleared floor <strong>stays cleared</strong> for the run.</li>
+</ul>
+<hr>
+<h2>12. THE BOSSES (all 22)</h2>
+<p>Each has a bespoke arena, body, movement profile, a <strong>signature ability</strong>, and reactive <strong>passives</strong> (none raise damage — they gate <em>how</em> you may fight, each with counter-play).</p>
+<table>
+<thead><tr><th>Floor</th><th>Boss</th><th>HP</th><th>Signature</th><th>Key passive(s)</th></tr></thead>
+<tbody>
+<tr><td>5</td><td><strong>The Gravewarden</strong></td><td>1000</td><td>Grave Grasp (root)</td><td>pure pattern</td></tr>
+<tr><td>10</td><td><strong>The Frost Monarch</strong></td><td>780</td><td>Rime Lance (tracking freeze)</td><td>stagger armour</td></tr>
+<tr><td>15</td><td><strong>The Cinder Colossus</strong></td><td>1100</td><td>Magma Wake (fire line)</td><td>riposte</td></tr>
+<tr><td>20</td><td><strong>The Weaver</strong></td><td>720</td><td>Web Snare (root-zone) + summon</td><td>soulbind</td></tr>
+<tr><td>25</td><td><strong>The Stormcaller</strong></td><td>880</td><td>Thunderstrike (bolt + stun)</td><td>skyfall</td></tr>
+<tr><td>30</td><td><strong>The Void Sovereign</strong></td><td>1220</td><td>Void Rift (pull singularity)</td><td>sidestep</td></tr>
+<tr><td>35</td><td><strong>The Hollow Choir</strong></td><td>1150</td><td>Dissonant Scream (disorient)</td><td>false_twin, soulbind</td></tr>
+<tr><td>40</td><td><strong>The Ashen Penitent</strong></td><td>900</td><td>Prayer Pyre (flame front)</td><td>riposte, famine</td></tr>
+<tr><td>45</td><td><strong>The Gaoler</strong></td><td>1500</td><td>Iron Maiden (cage/root)</td><td>tether, stagger armour</td></tr>
+<tr><td>50</td><td><strong>Sablefang</strong></td><td>820</td><td>Pounce (leap)</td><td>sidestep, rhythm_punish</td></tr>
+<tr><td>55</td><td><strong>The Effigy</strong></td><td>1750</td><td>Splinter Burst (ring)</td><td>afterimage_trap</td></tr>
+<tr><td>60</td><td><strong>Mourncaller</strong> (fly)</td><td>1050</td><td>Keening (homing swarm)</td><td>soulbind, mirror</td></tr>
+<tr><td>65</td><td><strong>The Unseen</strong> (fly)</td><td>980</td><td>Ambush (blink behind + stun)</td><td>phase, afterimage_trap</td></tr>
+<tr><td>70</td><td><strong>The Warden of Nails</strong></td><td>1600</td><td>Impale (tracking nail)</td><td>skyfall, dread_ward, riposte</td></tr>
+<tr><td>75</td><td><strong>The Twin Despair</strong></td><td>1250</td><td>Pincer Lunge + clone</td><td>covenant, sidestep, phase</td></tr>
+<tr><td>80</td><td><strong>The Cinderking</strong></td><td>1900</td><td>Eruption (spreading wave)</td><td>afterimage_trap, mirror, famine</td></tr>
+<tr><td>85</td><td><strong>The Glass Saint</strong></td><td>1450</td><td>Refraction (5-beam)</td><td>mirror, dread_ward</td></tr>
+<tr><td>90</td><td><strong>The Last Man</strong></td><td>1300</td><td>Riposte Stance (parry)</td><td>rhythm_punish, phase, covenant</td></tr>
+<tr><td>95</td><td><strong>Seraphiel, the Last Light</strong> (fly)</td><td>2400</td><td>Judgment (light wall sweep)</td><td>enrage/frenzy</td></tr>
+<tr><td>98</td><td><strong>The Abyssal Leviathan</strong> (fly)</td><td>2800</td><td>Tidal Crush (floor wave)</td><td>enrage/frenzy</td></tr>
+<tr><td>99</td><td><strong>The Eclipse Titan</strong> (biggest in game)</td><td>3300</td><td>Black Sun (shrinking safe ring)</td><td>false_twin</td></tr>
+<tr><td>100</td><td><strong>The Fallen Wizard</strong></td><td>4000</td><td>Unwriting (void under you) + Mirror Legion</td><td><strong>soul_split</strong> (see §14)</td></tr>
+</tbody></table>
+<p><strong>Passive vocabulary:</strong> <em>sidestep</em> (dodges melee), <em>riposte</em> (counters your wind-up), <em>rhythm_punish</em> (every 4th quick hit), <em>stagger_armour</em> (chip bounces — heavy hits only), <em>phase</em> (intangible for 2s after your hit), <em>tether</em>, <em>famine</em> (drains mana), <em>afterimage_trap</em> (punishes standing), <em>dread_ward</em> (hurt only from behind), <em>mirror</em> (reflects projectiles), <em>skyfall</em> (anti-air), <em>false_twin</em> (fake copies), <em>soulbind</em> (your damage heals it until you break the runes), <em>covenant</em> (two bodies heal each other).</p>
+<p><strong>Weapon counters</strong> (shallower boss floors only — the deepest 12 demand mastery): each counterable boss has ONE countering weapon (+30% damage &amp; a special edge); sword builds a stagger-stun, archer strips guards, mage hexes. <strong>Enrage</strong> at 50% HP (apex 60%), apex bosses <strong>FRENZY at 25%</strong>.</p>
+<p><strong>Boss rewards:</strong> guaranteed material + guaranteed gear (assembling class sets) + a 15% Excellent-weapon jackpot (L25+) + a potion restock every time.</p>
+<hr>
+<h2>13. THE BESTIARY — 56 hostile mob types</h2>
+<ul>
+<li><strong>6 regular archetypes</strong> (cycling by depth, mixable): <strong>Orc, Blood Fiend, Demon, Wraith, Bone Golem, Rotfiend</strong> — layered with behaviors (<strong>shield, healer, summoner, caster, dasher</strong>) and glowing <strong>elites</strong> (×2.4 HP, telegraphed slam, double reward).</li>
+<li><strong>27 special mobs</strong>, each a distinct attack, curated into <strong>5 dungeon depth-biomes</strong> of 20 floors (rot &amp; beasts → haunts &amp; gazes → the warren → the arcane siege → the apex):</li>
+<li><em>flyer, bomber, spitter, charger, stalker, blink_archer, warlock, hexer, runecaster, weaver, leech, burrower, warper, plague, wailer, ballista, swarm, frostling,</em> and the newest 9 — <strong>sentinel</strong> (sweeping beam turret), <strong>brood</strong> (splits on death), <strong>arcbinder</strong> (chain-lightning snipe), <strong>warchief</strong> (rage aura), <strong>voidling</strong> (blink-flanker), <strong>gazer</strong> (freeze-gaze cone), <strong>skycaller</strong> (falling-strike rain), <strong>vampire</strong> (lifedrain leaper), <strong>juggernaut</strong> (guard-tank).</li>
+<li><strong>1 siege raider</strong> (the goblin marauder; the Black Tide is the same raider, more &amp; tougher).</li>
+<li><strong>The turned</strong> — every villager who rots becomes a demon inside your own walls; at the Harvest the <em>whole</em> town turns.</li>
+</ul>
+<hr>
+<h2>14. THE UNDERGROUND (Terraria-style minable world)</h2>
+<p>A <strong>4,200 × 1,200-tile</strong> world (12px blocks), fully <strong>minable everywhere</strong>, chunk-streamed, and <strong>persistent</strong> (your digs &amp; puzzle flags save as a diff). Entered from the village <strong>cave mouth</strong>, left via an <strong>E exit</strong> at the entry ledge.</p>
+<p><strong>5 depth-biomes</strong> (each ~240 tiles), each with a hardness and a <strong>pickaxe tier gate:</strong></p>
+<table>
+<thead><tr><th>Biome</th><th>Tier</th><th>Mine gate</th></tr></thead>
+<tbody>
+<tr><td>Rootearth (soil)</td><td>0</td><td>Miner's</td></tr>
+<tr><td>Stonewarren (stone)</td><td>0</td><td>Miner's</td></tr>
+<tr><td>Fungal Hollow (mushroom)</td><td>1</td><td>Miner's</td></tr>
+<tr><td>Emberdeep (magma)</td><td>2</td><td><strong>Embersteel</strong></td></tr>
+<tr><td>Blightcore (corruption)</td><td>3</td><td><strong>Blightbreaker</strong></td></tr>
+</tbody></table>
+<ul>
+<li><strong>Mining:</strong> hold left-click (smart-cursor on Shift); tile HP by biome (+2 for ore). The <strong>tier gate</strong> walls off deeper <em>rock</em> for loot — but the <strong>carved true path down is always open</strong>, so descent never needs a better pickaxe. Each pickaxe hides in the deepest biome the previous tier can mine (earn your way down).</li>
+<li><strong>Terrain:</strong> one switchbacking true path pierces every seal; a region field shapes <strong>grand open caverns</strong> vs <strong>tight warrens</strong>; chasms drop between levels; cellular-automata smoothing gives real cave rooms; dark textured back-walls.</li>
+<li><strong>Content per chunk:</strong> loot chests (16%), traps (14%), depth-scaled <strong>mixed mobs</strong> (5–6 types/biome) + elites (10%), <strong>lever-vaults</strong> &amp; <strong>rune-vaults</strong> (puzzles), crystal geodes, mushroom groves, <strong>lava pools</strong> (Emberdeep+, 7 dmg/0.4s), and the <strong>100 scattered floor-doors</strong> (one per dungeon floor; enter → floor → return to the door).</li>
+<li><strong>Lighting (Terraria-dim):</strong> ambient scaled to 40% with per-biome tint, your carried <strong>torch</strong> (a PointLight2D), and <strong>placed wall torches at ~30% of spots</strong> — warm light pools with dark stretches between.</li>
+</ul>
+<hr>
+<h2>15. THE CAST</h2>
+<p><strong>The three opening heroes</strong> (level-0, mortal, permadeath — station on wall/city/house):</p>
+<ul>
+<li><strong>Roland Ashmark</strong> (blade, Shield Wall — canonically survives to floor 100) · <strong>Wren Falkner</strong> (bow, Twin Nock) · <strong>Castor Hale</strong> (spear, Phalanx Sweep).</li>
+</ul>
+<p><strong>The deep nine adventurers</strong> (chained one per marked depth, freed with E): Mira Coldbrook (7, Frostbrand), Jorun Pyke (13, +dmg per dead ally), Essa Nightbrook (18, piercing), Darvin Mott (23, kill-heal), Kessa Vayle (33, double retaliation), Brannoc Tor (43, Fifth Blade), Liselle Dray (53, poison), Hakon Vey (63, once-a-siege revive), Sorrel Ka (78, execute).</p>
+<p><strong>The Ten — "Unbreakable" legends</strong> in gilded trophy vaults (each a permanent village boon; unkillable at the Harvest; <strong>all ten must be freed to open floor 100</strong>):</p>
+<table>
+<thead><tr><th>Name</th><th>Floor</th><th>Boon</th></tr></thead>
+<tbody>
+<tr><td>Brannoc, the Wall That Stood</td><td>22</td><td>Warriors train 2×, wall 1.5× stronger</td></tr>
+<tr><td>Maera, the Last Lightmender</td><td>26</td><td>Doctor heals 2×; once/siege pulls someone from the brink</td></tr>
+<tr><td>Sylvara, Warden of the Old Groves</td><td>31</td><td>Farm output doubled</td></tr>
+<tr><td>Kaldos, the Tidecaller</td><td>34</td><td>Dock hauls materials as well as food</td></tr>
+<tr><td>Toren Ashvale, the Forgefather</td><td>38</td><td>Forge sells up to Epic; crafting 25% cheaper</td></tr>
+<tr><td>Dorian Vail, the Coinbinder</td><td>43</td><td>Bank interest doubled; dropped gold half-insured</td></tr>
+<tr><td>Mirielle, Voice of the Old Crown</td><td>47</td><td>Government runs further; leaders worth double</td></tr>
+<tr><td>Elenwe, Archivist of the Broken Age</td><td>53</td><td>All materials understood at once</td></tr>
+<tr><td>Seraphel, the Lightkeeper</td><td>58</td><td>Halves village withering; grief passes 2×</td></tr>
+<tr><td><strong>Ilo, the Nameless Bard</strong></td><td>63</td><td>Tavern lifts the whole village</td></tr>
+</tbody></table>
+<p>When the last of the Ten is freed they <strong>hand you the Soul Split Wand</strong> (Elenwe knew what it was, Toren reforged it, Ilo remembered <em>why</em>).</p>
+<p><strong>Orin</strong> — introduced as a wandering mage who arrives at the west wall after you first reach <strong>floor 15</strong>, tells a story that <em>mirrors your own arrival</em>, then holds the nightly watch casting meteors, growing stronger every time he "falls" and reforms (~12h). He is <strong>secretly the Monarch of Despair</strong> — the farmer admiring his crop.</p>
+<hr>
+<h2>16. THE ENDGAME — THE HARVEST</h2>
+<p>The finale gate (floor 100) opens <strong>only to a perfect village</strong>: 0 ruins, every role staffed, <strong>morale 100</strong>, and <strong>all Ten freed</strong> — because a perfect village is exactly what Orin was farming. Floor 100 is an <strong>empty throne</strong>; you carry the false victory home.</p>
+<ol>
+<li><strong>False victory + feast</strong> — the town erupts; morale peaks; <em>"It's over. We won."</em></li>
+<li><strong>The reveal</strong> — Orin reveals himself as the Monarch: <em>"Deepwood was never being defended. It was being <strong>harvested</strong>."</em> The people <strong>kneel and begin to turn.</strong></li>
+<li><strong>The fight</strong> — the whole village becomes level-100 despair, streaming in from both edges <strong>wearing their own names</strong>. <strong>Wren &amp; Castor turn (real deaths); Roland holds.</strong> The <strong>Ten (and Roland) hold the lanes</strong>, unkillable.</li>
+<li><strong>The Devourer</strong> — Orin starts weak (his power must be <em>eaten</em>), devouring the living turned to grow up to 2× size. <strong>A race: every villager you kill is one he can't eat.</strong></li>
+</ol>
+<hr>
+<h2>17. THE FINALE BOSS &amp; THE SOUL SPLIT WAND</h2>
+<p><strong>The Fallen Wizard</strong> (barely taller than you — power, not bulk): a crumbling red aura (5 dmg/tick), reflex blink-on-hit, and a <strong>Mirror Legion</strong> of up to 6 echoes.</p>
+<p><strong>"An undivided soul cannot be destroyed":</strong></p>
+<ul>
+<li><strong>Soul Ward:</strong> with <strong>no echoes out</strong> he takes <strong>only 50% damage</strong>; each living echo cracks the ward <strong>+25%</strong> (up to 2× at the full legion of 6).</li>
+<li>Any ordinary killing blow — even a DoT — just <strong>reforms him at 1 HP</strong> ("THE UNDIVIDED SOUL REFORMS").</li>
+<li><strong>The Soul Split Wand is the one exception:</strong> it <strong>scatters his soul for exactly 4 seconds</strong>, during which the ward vanishes and he is <strong>mortal</strong> ("HIS SOUL SCATTERS — STRIKE NOW!"). <strong>The kill: let the legion grow, survive it, hit him with the wand, and burst him inside the 4-second window.</strong></li>
+</ul>
+<hr>
+<h2>18. THE SHADOW COURT &amp; THE TRUE ENDING</h2>
+<p>Kill Orin and <strong>"Despair is dead"</strong> — sieges end forever (the apparatus dies with the farmer). Your true nature fully wakes and you perform your first royal act: the <strong>Shadow Army</strong> — every fallen villager <strong>rises as a shade of themselves</strong>, names/homes/jobs/bonds kept, raised whole and content. The Ten remain flesh among the shadows. Beating Orin <strong>permanently unlocks the Shadow Monarch class</strong> for all future runs.</p>
+<p>Among the spoils is <strong>⌛ The Rewound Hour</strong> (one per world) — a <strong>turn-or-shatter</strong> choice:</p>
+<ul>
+<li><strong>Turn it → New Game+.</strong> The world rewinds to ruin, but <strong>you and everything you carry are immune</strong> (level, class, skills, materials, equipment, Monarch stage, and your worlds-walked count). <em>"You remember everything. It remembers nothing."</em></li>
+<li><strong>Shatter it → the True Ending.</strong> Break the cycle forever — the one victory no Monarch before ever managed: to let a won world simply <strong>be, and end.</strong> <em>"I did not break his cycle to build my own."</em> Ilo names you <strong>"the Monarch Who Let It End."</strong></li>
+</ul>
+<p><strong>The Chronicle (100%):</strong> seven lines that must all hold at once — every taken soul home, every bond honored, all Ten freed, the skill graph fully explored, Deepwood at its peak, Despair destroyed, the Shadow Army raised. <em>"⭐ THE CHRONICLE CLOSES COMPLETE — 100%."</em></p>
+<hr>
+<h2>APPENDIX — KEY NUMBERS</h2>
+<ul>
+<li><strong>Player:</strong> 160 HP · 90 mana · SPEED 200 · JUMP −400 · GRAVITY 900 · dash 900 · level cap 100.</li>
+<li><strong>Time:</strong> 600s = 24 in-game hours · new game opens 22:00 · autosave every 180s.</li>
+<li><strong>Village:</strong> buildings level 1–6 · construction 3 stages (3 wood/2 stone/1 resin each) · wages 1.5g/day · 55-slot inventory.</li>
+<li><strong>Dungeon:</strong> 100 floors · 22 bosses · scaling softcapped ~5.5× HP / 5.3× dmg at L100 · enrage 50% (apex 60%) / frenzy 25%.</li>
+<li><strong>Underground:</strong> 4,200 × 1,200 tiles (12px) · 5 biomes · pickaxe tiers 1/2/3 · lava 7 dmg/0.4s · 100 floor-doors · ambient 0.40.</li>
+<li><strong>Bestiary:</strong> 6 archetypes + 27 special mobs (5 biomes) + 22 bosses + 1 raider = <strong>56 hostile types</strong>.</li>
+<li><strong>Finale:</strong> Soul Split window 4.0s · Soul Ward 50%→100% cracked · Mirror Legion cap 6 · Wizard base HP 4000.</li>
+</ul>
+<p><em>Generated from the current source (<code>game_state.gd</code>, <code>boss.gd</code>, <code>dungeon_interior.gd</code>, <code>underground.gd</code>, <code>special_mob.gd</code>, <code>player.gd</code>, <code>skill_tree.gd</code>, <code>inventory.gd</code>, <code>the_ten.gd</code>, <code>adventurers.gd</code>, <code>harvest_director.gd</code>, <code>story.gd</code>, and others).</em></p>
+
+</body></html>
