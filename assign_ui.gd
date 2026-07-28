@@ -48,6 +48,8 @@ func refresh() -> void:
 		add_research_section(list)
 	if current_building.role_key == "Blacksmith":
 		add_smithy_section(list)
+	if current_building.role_key == "Hospital":
+		add_ward_section(list)
 	if current_building.role_key == "Barracks":
 		add_armory_section(list)
 	if current_building.role_key == "Marketplace":
@@ -425,6 +427,43 @@ func smithy_imports() -> Array:
 		pool[i] = pool[j]
 		pool[j] = tmp
 	return pool.slice(0, SMITHY_IMPORTS_PER_DAY)
+
+# THE WARD (4.1, dev-chosen 2026-07-28): the staffed Hospital sells the
+# full heal Maren's escalating ledger stops being able to promise -- flat
+# price, talked down by every extra nurse on shift.
+func add_ward_section(list: VBoxContainer) -> void:
+	var header = Label.new()
+	header.add_theme_font_size_override("font_size", 14)
+	header.add_theme_color_override("font_color", Color(0.55, 0.85, 0.7, 1))
+	if not GameState.hospital_heal_available():
+		header.text = "The Ward — no one on shift. Staff the Hospital to open it."
+		list.add_child(header)
+		return
+	header.text = "The Ward — a full heal, no questions"
+	list.add_child(header)
+	var row = Button.new()
+	row.text = "  Be treated  —  %dg  (more nurses, kinder prices)" % GameState.hospital_heal_price()
+	row.custom_minimum_size = Vector2(0, 26)
+	row.pressed.connect(_on_ward_heal)
+	list.add_child(row)
+
+func _on_ward_heal() -> void:
+	var player = get_tree().get_first_node_in_group("player")
+	var notif = get_tree().get_first_node_in_group("notification_stack")
+	if not player:
+		return
+	var price := GameState.hospital_heal_price()
+	match GameState.hospital_heal(player):
+		"healed":
+			GameState.play_sfx(GameState.SFX_YES, 1.0)
+			if notif: notif.show_notification("The ward stitches you whole (-%dg)." % price)
+			refresh()
+		"unhurt":
+			if notif: notif.show_notification("Nurse: \"Not a scratch on you. Go worry someone else.\"")
+		"poor":
+			if notif: notif.show_notification("Nurse: \"Treatment is %dg. The ward runs on wages, not wishes.\"" % price)
+		"unstaffed":
+			if notif: notif.show_notification("The ward stands empty — no one on shift.")
 
 func smithy_price(item_id: String) -> int:
 	return int(SMITHY_PRICE_BY_GRADE.get(Inventory.get_grade(item_id), 40))

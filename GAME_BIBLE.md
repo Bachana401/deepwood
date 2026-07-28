@@ -39,7 +39,7 @@
 - **The Monarch of War never appears.** He is backstory and a sequel hook only — a dangling thread, deliberately off-screen in another dimension.
 - **No horror tone, no cozy tone** — mythic only.
 - **No generic "no-work depression"** for villagers (statless-depression exists, see §7; jobless-but-skilled villagers are fine).
-- **No passive HP regeneration** for anyone — player or villager — except via relics/items.
+- **No UNCONDITIONAL passive HP regeneration** for anyone — player or villager — except via relics/items and the earned high-morale village mend (§4.1).
 - **The protagonist stays blank.** No fixed name, face, history, or voice. Players self-insert. Never write dialogue that gives him a past (his past is the *secret* — see §2).
 
 ---
@@ -158,7 +158,7 @@ What the player is actually *doing and worrying about* at every stage. This is t
 - **Mana pool** (base 50 → up to 90 endgame) powering wands/specials; HP up to 160 endgame.
 - **Crits + floating damage numbers**; **status effects** (burn / poison / freeze / slow); **fall damage** past a safe distance (negated by fall-immunity relics); **flight** (Aetherwing relic — 10s budget, glide).
 - **Death penalty by difficulty** (Easy/Medium/Hard, chosen once per save, permanent): gold drop always; + a random villager lost on Medium; + a skill material on Hard.
-- **No passive HP regen** — healing = potions (boss-gated, §7.4), paid Hospital healing, or relic effects. 🔨 (rule decided; hospital-paid-healing and potion-gating not fully enforced yet)
+- **No UNCONDITIONAL passive HP regen** ✅ (rule refined + enforced, dev call 2026-07-28) — healing = potions (boss-gated, §7.4), **Doctor Maren's escalating ledger** (§5.5a), **THE WARD** (the staffed Hospital's paid full heal: flat price, talked down by every extra nurse, floor 20g — Maren's scaling successor, undercutting her right where leaning on one mortal woman stops being a plan), relic effects, and the one EARNED exception: **a thriving village slowly mends its hero** (up to +2 HP/s at 10/10 morale — the town itself as your healer; care is the cost).
 
 ### 4.2 The dungeon ✅
 - **100 sequential floors** under Deepwood; unlock one at a time; boss every 5th floor with unique arenas; enemy stats scale with depth; mines, twin gates (blue retreat / green advance), exit button anytime.

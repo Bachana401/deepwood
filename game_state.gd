@@ -4692,6 +4692,43 @@ func doctor_alive() -> bool:
 			return true
 	return false
 
+# --- HOSPITAL PAID HEALING (4.1 enforcement, dev-chosen 2026-07-28) ---
+# The staffed Hospital is Maren's SCALING SUCCESSOR: a flat full-heal price
+# that more nurses talk DOWN (never below the floor). Maren stays the early
+# lifeline with her escalating ledger; the ward undercuts her right where
+# leaning on one mortal woman should stop being a plan. No staff, no service
+# -- the Grammar (5.1) holds even for healing.
+const HOSPITAL_HEAL_BASE := 35
+const HOSPITAL_HEAL_PER_NURSE_OFF := 5
+const HOSPITAL_HEAL_FLOOR := 20
+
+func hospital_heal_available() -> bool:
+	return is_building_operational("Hospital") and count_workers("Hospital") > 0
+
+func hospital_heal_price() -> int:
+	return maxi(HOSPITAL_HEAL_FLOOR,
+		HOSPITAL_HEAL_BASE - HOSPITAL_HEAL_PER_NURSE_OFF * (count_workers("Hospital") - 1))
+
+# Full heal for gold. Returns what happened so the UI can speak plainly.
+func hospital_heal(player: Node) -> String:
+	if not hospital_heal_available():
+		return "unstaffed"
+	if player == null or not "health" in player:
+		return "no_patient"
+	if int(player.health) >= int(player.get_max_health()):
+		return "unhurt"
+	var price := hospital_heal_price()
+	if int(player.currency) < price:
+		return "poor"
+	player.currency -= price
+	if player.has_method("update_currency_display"):
+		player.update_currency_display()
+	player.health = player.get_max_health()
+	if player.has_method("update_health_display"):
+		player.update_health_display()
+	log_event("village", "The ward stitched the hero whole (-%dg)." % price)
+	return "healed"
+
 # Saves made before the starting-six existed have no Doctor and no farmhands --
 # and nothing else can ever create them, so an old playthrough would simply
 # lack the 5.5a healing lifeline forever. Called ONLY for saves fingerprinted

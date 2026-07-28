@@ -253,6 +253,34 @@ func _ready() -> void:
 	GameState.player_level = cap_level
 	GameState.player_xp = cap_xp
 
+	# ---- THE WARD (4.1): the staffed Hospital is Maren's scaling successor ----
+	GameState.building_stage["Hospital"] = GameState.TOTAL_BUILD_STAGES
+	GameState.removed_buildings.erase("Hospital")
+	GameState.rescued_villagers = [{"id": "nur_1", "name": "N1", "sex": "Female", "is_kid": false,
+		"stat_name": "Hospital", "stat_value": 4, "role_key": "Hospital", "role_title": "Nurse"}]
+	check("the ward opens only when staffed", GameState.hospital_heal_available())
+	check("one nurse: the flat successor price (35g)",
+		GameState.hospital_heal_price() == 35, str(GameState.hospital_heal_price()))
+	for i in range(3):
+		GameState.rescued_villagers.append({"id": "nur_%d" % (i + 2), "name": "N", "sex": "Male",
+			"is_kid": false, "stat_name": "Hospital", "stat_value": 3, "role_key": "Hospital", "role_title": "Nurse"})
+	check("more nurses talk the price down to the floor (20g)",
+		GameState.hospital_heal_price() == 20, str(GameState.hospital_heal_price()))
+	check("...undercutting Maren right where leaning on her should stop (her 5th heal, 41g)",
+		GameState.hospital_heal_price() < 41)
+	p.health = 10
+	p.currency = 100
+	check("the ward heals whole and charges honestly",
+		GameState.hospital_heal(p) == "healed" and int(p.health) == int(p.get_max_health()) and p.currency == 80,
+		"hp %d gold %d" % [p.health, p.currency])
+	check("an unhurt patient is sent away", GameState.hospital_heal(p) == "unhurt")
+	p.health = 10
+	p.currency = 5
+	check("wages, not wishes", GameState.hospital_heal(p) == "poor")
+	GameState.rescued_villagers = []
+	check("no staff, no service", GameState.hospital_heal(p) == "unstaffed")
+	p.health = p.get_max_health()
+
 	# ---- restore ----
 	GameState.rescued_villagers = saved_roster
 	GameState.building_stage = saved_stage
