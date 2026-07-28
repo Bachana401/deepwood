@@ -528,24 +528,35 @@ func _build_orbiter() -> void:
 		spoke.color = Color(0.5, 0.75, 1.0, 0.7)
 		visual.add_child(spoke)
 
-# A spiked head on its chain, drawn back to the fist that swings it.
+# A spiked head on its chain, drawn back to the fist that swings it. Sized
+# and lit to READ at world zoom against the night palette (EYES 2026-07-28:
+# the first build was a faint smear -- a flail must look like a threat).
 func _build_chainmaul() -> void:
+	var glow = Polygon2D.new()   # a dim halo so the head carries in the dark
+	glow.polygon = _circle(20.0, 12)
+	glow.color = Color(0.9, 0.85, 0.7, 0.18)
+	visual.add_child(glow)
 	var head = Polygon2D.new()
-	head.polygon = _circle(10.0, 10)
-	head.color = Color(0.5, 0.48, 0.52, 1.0)
+	head.polygon = _circle(14.0, 10)
+	head.color = Color(0.68, 0.66, 0.72, 1.0)
 	visual.add_child(head)
 	for i in range(6):
 		var spike = Polygon2D.new()
 		var a := TAU * float(i) / 6.0
 		spike.polygon = PackedVector2Array([
-			Vector2(cos(a - 0.25), sin(a - 0.25)) * 8.0,
-			Vector2(cos(a), sin(a)) * 16.0,
-			Vector2(cos(a + 0.25), sin(a + 0.25)) * 8.0])
-		spike.color = Color(0.72, 0.7, 0.75, 1.0)
+			Vector2(cos(a - 0.25), sin(a - 0.25)) * 11.0,
+			Vector2(cos(a), sin(a)) * 23.0,
+			Vector2(cos(a + 0.25), sin(a + 0.25)) * 11.0])
+		spike.color = Color(0.88, 0.86, 0.92, 1.0)
 		visual.add_child(spike)
+	var gleam = Polygon2D.new()   # one bright facet: motion reads as a flash
+	gleam.polygon = PackedVector2Array([
+		Vector2(-4, -8), Vector2(3, -11), Vector2(6, -4), Vector2(-1, -2)])
+	gleam.color = Color(1.0, 0.98, 0.9, 0.9)
+	visual.add_child(gleam)
 	rope = Line2D.new()
-	rope.width = 3.0
-	rope.default_color = Color(0.55, 0.5, 0.45, 0.9)
+	rope.width = 4.0
+	rope.default_color = Color(0.78, 0.72, 0.6, 0.95)
 	rope.z_index = -1
 	add_child(rope)
 

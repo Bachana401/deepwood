@@ -15,9 +15,12 @@ var picker: Panel
 var title_label: Label
 var slot_buttons = {}  # "helmet"/"chest"/"pants" -> Button
 var relic_buttons: Array = []  # index 0..5 -> Button
+var set_box: VBoxContainer = null  # the spelled-out set bonuses (refresh_set_lines)
 
 const PANEL_W = 250.0
-const PANEL_H = 500.0
+# taller since the set-bonus block moved in under the relics (2026-07-28);
+# 500 clipped the FULL-bonus instruction off the panel's bottom edge
+const PANEL_H = 560.0
 # Weapons moved to the hotbar (see player.gd) -- the gear panel is armor only.
 # THREE SLOTS, Terraria-exact (dev 2026-07-28): helmet / breastplate /
 # leggings. Gloves+boots retired; their identity folds into the 3-piece sets.
@@ -168,6 +171,13 @@ func build_panel() -> void:
 		rb.mouse_exited.connect(_hide_tip)
 		relic_buttons.append(rb)
 
+	# set bonuses, spelled out under the relic grid (polish 2026-07-28: the
+	# Regalia raised the HP orb and the window never said WHY)
+	set_box = VBoxContainer.new()
+	set_box.position = Vector2(12, ry0 + 3.0 * (rbox + 16.0) + 8.0)
+	set_box.add_theme_constant_override("separation", 2)
+	panel.add_child(set_box)
+
 func build_picker() -> void:
 	# the picker opens just to the LEFT of the right-side panel
 	picker = Panel.new()
@@ -247,6 +257,55 @@ func refresh() -> void:
 			rb.disabled = false
 			var rid = GameState.equipment.relics[i]
 			_dress_slot(rb, rid, "", SLOT_GHOST.get("relic", ""))
+	refresh_set_lines()
+
+# Every set with 2+ pieces worn gets its name (in the set's own colour), the
+# count, and each tier ALREADY earned -- plus the one instruction that turns
+# a full suit into the FULL bonus: wield the set's weapon.
+func refresh_set_lines() -> void:
+	if set_box == null:
+		return
+	for c in set_box.get_children():
+		c.queue_free()
+	var any := false
+	for sid in Inventory.SET_DEFS.keys():
+		var sd: Dictionary = Inventory.SET_DEFS[sid]
+		var have: int = GameState.set_pieces_equipped(sid)
+		if have < 2:
+			continue
+		if not any:
+			any = true
+			var h := Label.new()
+			h.text = "Set Bonuses"
+			h.add_theme_font_size_override("font_size", 13)
+			h.add_theme_color_override("font_color", Color(0.85, 0.8, 0.5, 1))
+			set_box.add_child(h)
+		var pieces: Array = sd.get("pieces", [])
+		var total: int = pieces.size()
+		var col: Color = Inventory.ITEM_DEFS.get(pieces[0], {}).get("color", Color.WHITE) if total > 0 else Color.WHITE
+		var name_l := Label.new()
+		name_l.text = "%s  (%d/%d)" % [str(sd.get("name", sid)), have, total]
+		name_l.add_theme_font_size_override("font_size", 12)
+		name_l.add_theme_color_override("font_color", col)
+		set_box.add_child(name_l)
+		var lines := []
+		if have >= 2 and sd.has("bonus_2pc_desc"):
+			lines.append("2pc: %s" % sd.bonus_2pc_desc)
+		if have >= total and sd.has("bonus_desc"):
+			lines.append("%dpc: %s" % [total, sd.bonus_desc])
+		if sd.has("weapon") and have >= total:
+			# the FULL tier pays only while the set's weapon is IN HAND
+			# (get_set_bonus_total's rule -- mirror it exactly, never flatter)
+			if GameState.wielded_weapon_id() == str(sd.weapon):
+				lines.append("FULL: %s" % str(sd.get("full_bonus_desc", "")))
+			else:
+				lines.append("wield %s for the FULL bonus" % Inventory.get_display_name(str(sd.weapon)))
+		for t in lines:
+			var l := Label.new()
+			l.text = "  " + str(t)
+			l.add_theme_font_size_override("font_size", 11)
+			l.add_theme_color_override("font_color", Color(0.8, 0.82, 0.86, 1))
+			set_box.add_child(l)
 
 func _slot_label(key: String) -> String:
 	for def in GEAR_SLOTS:
