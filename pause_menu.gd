@@ -216,7 +216,9 @@ func _on_toggle_chronicle() -> void:
 		mark.custom_minimum_size = Vector2(18, 0)
 		row.add_child(mark)
 		var nm := Label.new()
-		nm.text = str(e.get("name", "???"))
+		var diff_label: String = str({"medium": "Medium", "hard": "Hard", "very_hard": "Very Hard",
+			"expert": "Expert", "master": "Master"}.get(str(e.get("difficulty", "")), ""))
+		nm.text = (("[%s] " % diff_label) if (killed and diff_label != "") else "") + str(e.get("name", "???"))
 		if bool(e.get("capstone", false)) and killed:
 			nm.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4, 1.0))
 		elif not killed:

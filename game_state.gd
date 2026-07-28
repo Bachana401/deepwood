@@ -27,7 +27,14 @@ func floor_is_cleared(level: int) -> bool:
 	return bool(floors_cleared.get(str(level), false))
 
 func mark_floor_cleared(level: int) -> void:
+	var was_cleared := floors_cleared.has(str(level))
 	floors_cleared[str(level)] = true
+	# a FRESH clear extends the no-death streak (the Sleepless Warden's trigger).
+	# Guarded on first-clear so a re-mark can't inflate it, and hooked HERE rather
+	# than on quest_event("reach_level") -- that one also fires on floor ARRIVAL,
+	# which would have counted entering a floor as clearing it.
+	if not was_cleared:
+		note_floor_cleared_event()
 
 # WAYSTONE SHRINES (fast-travel, Wukong-style, dev 2026-07-21). A Deep Shrine
 # stands on every tenth floor, INVISIBLE until you clear that floor -- then it
@@ -5182,8 +5189,14 @@ func load_game() -> Dictionary:
 		# hidden event bosses (older saves lack these -> arm fresh, counters 0)
 		if parsed.has("event_state") and parsed["event_state"] is Dictionary:
 			event_state = parsed["event_state"]
-			for id in EventBoss.ids():   # a save from before an event existed still arms it
+			for id in EventBoss.ids():
+				# a save from before an event existed still arms it...
 				if not event_state.has(id):
+					event_state[id] = "armed"
+				# ...and a fight left unresolved by a mid-battle QUIT (saved as
+				# "triggered", but its director/boss are gone on reload) re-arms,
+				# so the boss + its loot are never silently lost to a quit.
+				elif event_state[id] == "triggered":
 					event_state[id] = "armed"
 		else:
 			arm_hidden_events()
@@ -5331,11 +5344,11 @@ func rescue_villager(data: Dictionary) -> void:
 # accumulate here. Called from player.on_enemy_killed (slay), the dungeon on a
 # level clear (reach_level), and rescue_villager (reunite).
 func quest_event(kind: String, key: String, amount: int) -> void:
-	# hidden-event run counters piggyback on the same call sites (kills / clears)
+	# hidden-event kill counter piggybacks on the same slay call site. (Floor
+	# clears are counted in mark_floor_cleared, NOT here -- "reach_level" also
+	# fires on floor ARRIVAL, which is not a clear.)
 	if kind == "slay":
 		note_kill(amount)
-	elif kind == "reach_level":
-		note_floor_cleared_event()
 	for v in rescued_villagers:
 		if v.get("quest_state", "") != "active":
 			continue

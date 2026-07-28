@@ -2722,11 +2722,13 @@ const BOSS_COMBOS = {
 	# Every verb here is one already proven in the combos above.
 	"evt_drowned": [["tidal_crush", "rain", "summon"], ["rain", "tidal_crush", "summon"], ["summon", "rain", "tidal_crush"]],
 	"evt_effigyking": [["eruption", "meteors", "charge"], ["charge", "eruption", "nova"], ["meteors", "nova", "eruption"]],
-	"evt_warden": [["barrage", "impale", "slam"], ["impale", "barrage", "slam"], ["slam", "barrage", "impale"]],
+	# each chain is UNIQUE across the whole game (test_deep enforces no two bosses
+	# share a combo) -- built from valid verbs but sequenced unlike any floor boss.
+	"evt_warden": [["barrage", "slam", "impale"], ["impale", "slam", "barrage"], ["slam", "impale", "barrage"]],
 	"evt_griefeater": [["curse", "summon", "nova"], ["teleport", "curse", "nova"], ["summon", "nova", "curse"]],
-	"evt_hollowcrown": [["volley", "judgment", "rain"], ["judgment", "volley", "nova"], ["rain", "nova", "judgment"]],
-	"evt_sablehound": [["teleport", "pounce", "volley"], ["pounce", "volley", "teleport"], ["charge", "pounce", "volley"]],
-	"evt_nihil": [["black_sun", "beam", "meteors"], ["black_sun", "pillars", "beam"], ["meteors", "teleport", "black_sun"]],
+	"evt_hollowcrown": [["judgment", "rain", "volley"], ["nova", "judgment", "volley"], ["volley", "rain", "nova"]],
+	"evt_sablehound": [["charge", "pounce", "teleport"], ["pounce", "charge", "volley"], ["teleport", "volley", "charge"]],
+	"evt_nihil": [["black_sun", "meteors", "beam"], ["pillars", "black_sun", "teleport"], ["beam", "meteors", "pillars"]],
 	"evt_huntsman": [["judgment", "charge", "volley"], ["meteors", "judgment", "beam"], ["charge", "volley", "teleport", "judgment"]],
 }
 
@@ -4481,6 +4483,18 @@ const PHASE_TWO := {
 	"leviathan":       "THE DROWNING",
 	"eclipse":         "TOTALITY",
 	"wizard":          "THE ASCENDANT",
+	# the hidden event bosses each get their own second form (2026-07-28)
+	"evt_tallyman":    "THE RECKONING",
+	"evt_firstfrost":  "THE LONG WINTER",
+	"evt_gluttonroot": "FULL BLOOM",
+	"evt_drowned":     "HIGH TIDE",
+	"evt_effigyking":  "TOTAL IMMOLATION",
+	"evt_warden":      "NO REST",
+	"evt_griefeater":  "INCONSOLABLE",
+	"evt_hollowcrown": "CORONATION",
+	"evt_sablehound":  "BLOOD SCENT",
+	"evt_nihil":       "THE LAST HOUR STRIKES",
+	"evt_huntsman":    "THE FINAL QUARRY",
 }
 
 var phase2_active := false
@@ -4645,8 +4659,49 @@ func _apply_phase_two() -> void:
 			# stops waiting between the movements of it
 			phase2_cd_mult *= 0.85
 			aura_spin = 1.5
+		# --- hidden event bosses: each second form bends REAL machinery already
+		# consumed elsewhere (movement / cooldown_mult / ability reach / the phase
+		# window), so none is banner-only. ---
+		"evt_tallyman":
+			phase2_cd_mult *= 0.7            # the debts come due faster
+			base_move_speed *= 1.2
+		"evt_firstfrost":
+			base_move_speed *= 1.15          # winter walks quicker
+			phase2_cd_mult *= 0.8
+		"evt_gluttonroot":
+			reach_mult *= 1.2                # the roots reach farther
+			base_move_speed *= 1.3
+		"evt_drowned":
+			phase2_cd_mult *= 0.75           # the chorus never stops singing
+			base_move_speed *= 1.2
+		"evt_effigyking":
+			base_move_speed *= 1.4           # it burns down, not out
+			phase2_cd_mult *= 0.8
+			current_tint = Color(0.45, 0.28, 0.24)
+			if rig != null:
+				rig.modulate = current_tint
+		"evt_warden":
+			phase2_cd_mult *= 0.7            # no rest, no pause between blows
+			reach_mult *= 1.1
+		"evt_griefeater":
+			base_move_speed *= 1.3           # grief that will not be outrun
+			phase2_cd_mult *= 0.75
+		"evt_hollowcrown":
+			reach_mult *= 1.15               # the false crown overreaches
+			phase2_cd_mult *= 0.8
+			base_move_speed *= 1.15
+		"evt_sablehound":
+			sidestep_ready_at = 0.0          # the hunt smells blood -- dodges re-arm
+			base_move_speed *= 1.5
+		"evt_nihil":
+			phase2_cd_mult *= 0.7            # the last hour comes for you now
+			phase_seconds_mult = 1.5         # (nihil phases: longer intangibility)
+		"evt_huntsman":
+			base_move_speed *= 1.3           # the final quarry cannot flee
+			reach_mult *= 1.2
+			phase2_cd_mult *= 0.75
 		_:
-			phase2_applied = false   # unreachable while PHASE_TWO covers all 22
+			phase2_applied = false   # unreachable while PHASE_TWO covers all bosses
 
 # The living half of the transformations. Cheap: one boss runs at most one
 # branch, most branches are a countdown and an occasional cast.
