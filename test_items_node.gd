@@ -271,6 +271,19 @@ func _ready() -> void:
 				has_texrect = true
 		check("...and paint_icon renders it as a texture (bag == hand)", has_texrect)
 		probe.queue_free()
+	# the rarity-ladder art pass (24 weapons across all 8 tiers): every wired
+	# sprite must resolve, so a rename/typo/missing .import is caught, not shipped.
+	var ladder := ["wpn_shortsword","wpn_huntingbow","wpn_sparkwand","wpn_falchion","wpn_saber",
+		"wpn_frostwand","wpn_windcutter","wpn_stormlance","wpn_emberstaff","wpn_claymore",
+		"wpn_soulwheel","wpn_stormtome","exc_midas","exc_dawnbreaker","exc_vampiric",
+		"exc_wizardsbane","exc_ragnarok","exc_frostmourne","wpn_afterlight","wpn_zenithpike",
+		"wpn_highflood","wpn_crownsorrow","wpn_regicide","wpn_soulflood"]
+	var unresolved := []
+	for id in ladder:
+		if ResourceLoader.exists("res://art/items/%s.png" % id) and Inventory.icon_texture(id) == null:
+			unresolved.append(id)
+	check("every wired ladder sprite resolves through icon_texture",
+		unresolved.is_empty(), "unresolved: %s" % ", ".join(unresolved))
 	var elem_bundles_ok := true
 	for e in Inventory.ELEMENTS:
 		var fx: Dictionary = Inventory.ELEMENT_FX.get(e, {})
