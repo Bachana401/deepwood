@@ -208,7 +208,7 @@ const ITEM_DEFS = {
 	"evt_vigil": {"name": "Vigil Lance", "category": "weapon", "weapon_type": "spear", "max_stack": 1, "color": Color(0.7, 0.75, 0.9, 1.0),
 		"weapon_stats": {"damage": 30, "cooldown": 0.95, "range_offset": 58, "area_size": Vector2(74, 42), "knockback_min": 55.0, "knockback_max": 92.0, "icon_size": Vector2(116, 9), "icon_color": Color(0.7, 0.75, 0.9), "icon_offset": 16.0},
 		"special": {"type": "javelin_volley", "count": 2, "spread_deg": 6.0, "damage": 22, "speed": 760.0, "range": 560.0},
-		"unique_desc": "The Warden's lance never sleeps: a heavy thrust that also looses a twin of piercing light down the line."},
+		"unique_desc": "The Warden's lance never sleeps: instead of a thrust it looses a twin of piercing light down the line -- both punch clean through."},
 	"evt_wakeful": {"name": "Wakeful Wand", "category": "weapon", "weapon_type": "wand", "max_stack": 1, "color": Color(0.85, 0.85, 0.45, 1.0), "mana_cost": 11,
 		"weapon_stats": {"damage": 0, "cooldown": 0.6, "range_offset": 30, "area_size": Vector2(10, 10), "knockback_min": 0.0, "knockback_max": 0.0, "icon_size": Vector2(48, 8), "icon_color": Color(0.85, 0.85, 0.45), "icon_offset": 20.0},
 		"special": {"type": "ricochet", "damage": 22, "speed": 720.0, "range": 500.0, "bounces": 4},

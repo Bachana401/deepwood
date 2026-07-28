@@ -1784,11 +1784,17 @@ func on_event_boss_killed(id: String) -> void:
 
 # One event may hold the stage at a time, and never during the scripted
 # prologue or the Harvest finale (they own the world exclusively).
+# True while an item-summon's delay timer is counting down but no director node
+# exists yet -- claims the stage synchronously so nothing spawns in that window.
+var _summon_pending := false
+
 func _event_stage_free() -> bool:
 	if not opening_done:
 		return false
 	if harvest_at_home or despair_dead:
 		return false
+	if _summon_pending:
+		return false   # a delayed summon has already claimed the stage
 	var tree := get_tree()
 	if tree == null:
 		return false
@@ -1858,7 +1864,7 @@ func summon_event_boss(id: String, delay: float, require_eclipse: bool) -> Strin
 		return "Nothing answers."
 	if not opening_done or harvest_at_home or despair_dead:
 		return "Not here. Not now."
-	if not get_tree().get_nodes_in_group("event_boss_director").is_empty():
+	if _summon_pending or not get_tree().get_nodes_in_group("event_boss_director").is_empty():
 		return "The air is already thick — finish what you started."
 	if require_eclipse and not _sun_moon_both_up():
 		return "Nothing happens. The sky is not yet wrong."   # no explicit how-to on purpose
@@ -1869,6 +1875,7 @@ func summon_event_boss(id: String, delay: float, require_eclipse: bool) -> Strin
 	notify("The air curdles — something is coming…")
 	play_sfx(SFX_CHIME, 0.4)
 	if delay > 0.0:
+		_summon_pending = true   # hold the stage through the whole countdown
 		var t := get_tree().create_timer(delay)
 		t.timeout.connect(_spawn_summoned.bind(id))
 	else:
@@ -1876,6 +1883,7 @@ func summon_event_boss(id: String, delay: float, require_eclipse: bool) -> Strin
 	return ""
 
 func _spawn_summoned(id: String) -> void:
+	_summon_pending = false   # the countdown is over -- release the pending claim
 	var scene = get_tree().current_scene
 	if scene == null or not get_tree().get_nodes_in_group("event_boss_director").is_empty():
 		return
@@ -5204,6 +5212,7 @@ func load_game() -> Dictionary:
 		if parsed.has("event_bosses_ever_killed") and parsed["event_bosses_ever_killed"] is Array:
 			event_bosses_ever_killed = parsed["event_bosses_ever_killed"]
 		hunters_horn_announced = bool(parsed.get("hunters_horn_announced", false))
+		_event_omen_fired = {}   # loading a run lets the near-trigger omens play again
 		run_kills = int(parsed.get("run_kills", 0))
 		run_trees = int(parsed.get("run_trees", 0))
 		run_rocks = int(parsed.get("run_rocks", 0))

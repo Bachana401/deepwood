@@ -80,3 +80,11 @@ func _on_boss_died() -> void:
 	# linger a beat so the banner/loot toasts read, then clear the slot
 	await get_tree().create_timer(2.5).timeout
 	queue_free()
+
+# Fleeing the fight (a scene change frees the boss WITHOUT its died signal, so
+# _on_boss_died never runs) must not strand the event as "triggered" for the
+# rest of the run -- re-arm it here so it can fire again, mirroring the load
+# path. `_done` is set on a real kill, so a genuine victory never re-arms.
+func _exit_tree() -> void:
+	if not _done and GameState.event_state.get(event_id, "") == "triggered":
+		GameState.event_state[event_id] = "armed"

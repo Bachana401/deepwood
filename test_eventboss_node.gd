@@ -221,5 +221,33 @@ func _ready() -> void:
 	check("a slain boss reveals its NAME and its trigger", tally_ok)
 	check("an unproven boss stays ??? with no trigger shown", master_hidden)
 
+	# ---- BUG1 regression: a DELAYED summon claims the stage during its 4s ----
+	for d in get_tree().get_nodes_in_group("event_boss_director"):
+		d.queue_free()
+	await _frames(2)
+	GameState._summon_pending = false
+	var r_del: String = GameState.summon_event_boss("huntsman", 4.0, false)
+	check("a delayed summon starts pending", r_del == "" and GameState._summon_pending, r_del)
+	check("the stage is NOT free during the pending window", not GameState._event_stage_free())
+	var r_block: String = GameState.summon_event_boss("sable_hound", 0.0, false)
+	check("nothing else can summon during the pending window", r_block != "", r_block)
+	GameState._summon_pending = false   # cancel the pending huntsman before it spawns
+
+	# ---- BUG2 regression: fleeing (director freed, no kill) re-arms the event ----
+	for d in get_tree().get_nodes_in_group("event_boss_director"):
+		d.queue_free()
+	await _frames(2)
+	GameState.event_state["tallyman"] = "triggered"
+	var scene2 = get_tree().current_scene
+	var fdir = preload("res://event_boss_director.gd").new()
+	fdir.event_id = "tallyman"
+	scene2.add_child(fdir)
+	await _frames(2)
+	fdir.queue_free()          # flee: freed WITHOUT a kill
+	await _frames(3)
+	check("fleeing a fight re-arms the event (never lost for the run)",
+		GameState.event_state.get("tallyman", "") == "armed",
+		GameState.event_state.get("tallyman", ""))
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)
