@@ -43,6 +43,7 @@ const ORE_DROP := ["iron_shard", "iron_shard", "ember_crystal", "ember_crystal",
 const ENEMY_SCENE := preload("res://enemy.tscn")
 const TRAP_SCENE := preload("res://trap.tscn")
 const MATERIAL_PICKUP := preload("res://material_pickup.gd")
+const FISH_WATER_SCRIPT := preload("res://fish_water.gd")
 # chest loot by biome depth -- all ids the harvest/gather system already drops
 const LOOT := [
 	["wood", "stone", "stone", "resin"],
@@ -899,6 +900,16 @@ func _spawn_pool(cell: Vector2i, biome: int, rng: RandomNumberGenerator) -> Arra
 	area.body_entered.connect(func(b): if b.is_in_group("player"): area.set_meta("in", true))
 	area.body_exited.connect(func(b): if b.is_in_group("player"): area.set_meta("in", false))
 	node.add_child(area)
+	# FISHING (pillar 3): a WATER pool answers a cast line -- the deep's own
+	# richer table ("cave" in fishing.gd, where the Tidewalker's Knot sleeps).
+	# Lava never bites. The contract node streams out with its pool, and the
+	# player's line notices the water vanishing (is_instance_valid guard).
+	if not is_lava:
+		var fw = FISH_WATER_SCRIPT.new()
+		fw.kind = "cave"
+		fw.half_width = float(width) * float(TILE) / 2.0
+		fw.position = Vector2(px_off, float(-depth * TILE) + 2.0)
+		node.add_child(fw)
 	add_child(node)
 	return [node]
 

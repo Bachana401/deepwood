@@ -54,6 +54,8 @@ func refresh() -> void:
 		add_armory_section(list)
 	if current_building.role_key == "Marketplace":
 		add_market_stall_section(list)
+	if current_building.role_key == "Fishing Dock":
+		add_dock_section(list)
 	add_relocate_section(list)
 
 # THE MARKET STALL (numbers pass 2026-07-20): gear could never be SOLD --
@@ -505,6 +507,51 @@ func _on_buy_gear(item_id: String, price: int) -> void:
 		player.update_currency_display()
 	if notif:
 		notif.show_notification("Forged: %s." % Inventory.get_display_name(item_id))
+	refresh()
+
+# THE HARBORMASTER'S DAILY (fishing, pillar 3): the Dock panel shows Doran's
+# posted oddity and takes the turn-in. All the LOGIC lives in GameState
+# (fishing_turn_in tests headless); this section only reads and relays.
+func add_dock_section(list: VBoxContainer) -> void:
+	var header = Label.new()
+	header.add_theme_font_size_override("font_size", 14)
+	header.add_theme_color_override("font_color", Color(0.5, 0.8, 0.9, 1))
+	header.text = "The Harbormaster's Ledger — %d odd catches landed" % GameState.fishing_quests_done
+	list.add_child(header)
+	var oid: String = GameState.fishing_quest_oddity()
+	var line = Label.new()
+	line.add_theme_font_size_override("font_size", 12)
+	line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	if oid == "":
+		line.text = "  No oddity is asked for right now — Doran posts one each day the Dock is worked."
+		line.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7, 1))
+		list.add_child(line)
+		return
+	line.text = "  Today's ask: %s. It only bites while he's asking — cast off the dock." % str(GameState.fishing_quest.get("name", ""))
+	line.add_theme_color_override("font_color", Color(0.85, 0.85, 0.8, 1))
+	list.add_child(line)
+	var player = get_tree().get_first_node_in_group("player")
+	var have: int = 0
+	if player and player.inventory:
+		have = player.inventory.get_count(oid)
+	var pay: int = mini(GameState.FISHING_QUEST_GOLD_CAP,
+		GameState.FISHING_QUEST_BASE_GOLD + GameState.FISHING_QUEST_GOLD_STEP * GameState.fishing_quests_done)
+	var btn = Button.new()
+	btn.custom_minimum_size = Vector2(0, 26)
+	if have > 0:
+		btn.text = "  Hand over the %s  (+%dg and a crate)" % [str(GameState.fishing_quest.get("name", "")), pay]
+		btn.pressed.connect(_on_fishing_turn_in)
+	else:
+		btn.text = "  Not landed yet  (pays %dg and a crate)" % pay
+		btn.disabled = true
+	list.add_child(btn)
+
+func _on_fishing_turn_in() -> void:
+	var player = get_tree().get_first_node_in_group("player")
+	var notif = get_tree().get_first_node_in_group("notification_stack")
+	var reason: String = GameState.fishing_turn_in(player)
+	if reason != "" and notif:
+		notif.show_notification(reason)
 	refresh()
 
 # The Barracks armory: warriors fight far harder once ARMED. Early game the

@@ -230,6 +230,19 @@ var currency: int:
 
 var _spill_warned_at := -100.0
 
+# === FISHING (pillar 3, 2026-07-28): cast / bite / strike ===
+# A wielded rod near "fish_water" CASTS on attack instead of swinging; the
+# water bites after a rod-tier gap (fishing.gd), and a second swing inside
+# the window is the STRIKE that lands the roll. Walking off drags the line
+# dead. State lives here; tables and rolls live in fishing.gd.
+var _fish_state := ""              # "" idle | "wait" | "bite"
+var _fish_timer := 0.0
+var _fish_zone: Node = null
+var _fish_cast_pos := Vector2.ZERO
+var _fish_bobber: Node2D = null
+const FISH_BITE_WINDOW := 1.4      # generous: fishing is a rest, not a reflex test
+const FISH_DRIFT_CANCEL := 46.0    # wander this far and the line goes dead
+
 var facing_direction = 1
 var original_color: Color
 var spawn_position: Vector2
@@ -1723,6 +1736,37 @@ func use_item(item_id: String) -> bool:
 		if iu and iu.has_method("refresh"):
 			iu.refresh()
 		return true
+	# FISHING (pillar 3): prying open a fished-up crate. The crate IS its loot
+	# table (fishing.gd), with "gold" riding the haul as a pseudo-id. Without
+	# this branch a crate fell through to the generic tail and vanished for
+	# NOTHING -- consumed, no loot, no message worth the name.
+	if eff.get("open_crate", false):
+		var haul: Array = Fishing.crate_loot(item_id)
+		var lines := []
+		var spilled := false
+		for l in haul:
+			var lid := str(l.get("id", ""))
+			var cnt := int(l.get("count", 1))
+			if lid == "gold":
+				currency += cnt
+				update_currency_display()
+				lines.append("%dg" % cnt)
+			else:
+				var leftover: int = inventory.add_item(lid, cnt)
+				if leftover < cnt:
+					lines.append("%s x%d" % [Inventory.get_display_name(lid), cnt - leftover])
+				if leftover > 0:
+					spilled = true
+		inventory.remove_item(item_id, 1)
+		if stack:
+			var msg: String = ("Pried open: %s." % ", ".join(lines)) if lines.size() > 0 else "Pried open — nothing but river silt."
+			if spilled:
+				msg += " (Some of it wouldn't fit your bag.)"
+			stack.show_notification(msg)
+		var crate_ui = get_tree().get_first_node_in_group("inventory_ui")
+		if crate_ui and crate_ui.has_method("refresh"):
+			crate_ui.refresh()
+		return true
 	if eff.has("heal_hp"):
 		health = min(get_max_health(), health + int(eff.heal_hp))
 		update_health_display()
@@ -2926,6 +2970,7 @@ func _physics_process(delta: float) -> void:
 	# both rift doors standing = the drain runs (Riftweaving)
 	tick_portals(delta)
 	tick_wukong(delta)   # pillar stance / sanctuary ring / the plucked hair
+	_tick_fishing(delta)   # a waiting line ticks toward its bite (pillar 3)
 	_chip_accum += delta
 	if _chip_accum >= 0.3:
 		_chip_accum = 0.0
@@ -3247,8 +3292,137 @@ func spawn_ruin_burst(radius: float) -> void:
 	t.parallel().tween_property(ring, "modulate:a", 0.0, 0.28)
 	t.tween_callback(ring.queue_free)
 
+# --- FISHING (pillar 3): the rod's whole grammar ----------------------------
+# Attack with a rod resolves here first. Returns true when the swing was a
+# fishing action (cast / recast / strike) -- perform_attack then stops, so a
+# rod at the waterside never windmills at the pond.
+func _rod_fish_action() -> bool:
+	if _fish_state == "bite":
+		_fish_strike()
+		return true
+	var zone := _nearest_fish_water()
+	if zone == null:
+		# no water in reach: the rod swings on as a truly pitiful stick
+		if _fish_state != "":
+			_fish_cancel("")
+		return false
+	# cast -- or an impatient recast, which re-rolls the wait honestly
+	_fish_zone = zone
+	_fish_state = "wait"
+	var gap: Array = Fishing.bite_gap(active_weapon_id)
+	_fish_timer = randf_range(float(gap[0]), float(gap[1]))
+	_fish_cast_pos = global_position
+	_spawn_bobber(zone)
+	animate_sword()   # the cast flick
+	return true
+
+func _nearest_fish_water() -> Node:
+	var best: Node = null
+	var best_dx := 1.0e9
+	for n in get_tree().get_nodes_in_group("fish_water"):
+		if not (is_instance_valid(n) and n.has_method("fish_half_width")):
+			continue
+		var dx: float = absf(n.global_position.x - global_position.x)
+		# reach a little past the water's edge; the dy guard keeps a villager's
+		# pond from answering a line cast eight bands under the earth
+		if dx <= float(n.fish_half_width()) + 60.0 \
+				and absf(float(n.fish_surface_y()) - global_position.y) <= 420.0 \
+				and dx < best_dx:
+			best = n
+			best_dx = dx
+	return best
+
+func _tick_fishing(delta: float) -> void:
+	if _fish_state == "":
+		return
+	# stowing the rod, losing the water, or wandering off drags the line dead
+	if str(active_def.get("tool_type", "")) != "rod" \
+			or not is_instance_valid(_fish_zone) \
+			or global_position.distance_to(_fish_cast_pos) > FISH_DRIFT_CANCEL:
+		_fish_cancel("")
+		return
+	_fish_timer -= delta
+	if _fish_state == "wait" and _fish_timer <= 0.0:
+		_fish_state = "bite"
+		_fish_timer = FISH_BITE_WINDOW
+		if is_instance_valid(_fish_bobber):
+			_fish_bobber.modulate = Color(1.0, 0.85, 0.35)
+			_fish_bobber.scale = Vector2(1.9, 1.9)
+		play_sfx(SFX_JUMP)   # the closest thing the kit has to a plop
+		var stack = get_tree().get_first_node_in_group("notification_stack")
+		if stack:
+			stack.show_notification("The line BITES — swing to land it!")
+	elif _fish_state == "bite" and _fish_timer <= 0.0:
+		_fish_cancel("The water goes still.")
+
+func _fish_strike() -> void:
+	var kind := "village"
+	if is_instance_valid(_fish_zone):
+		kind = str(_fish_zone.fish_kind())
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var got: String = Fishing.roll_catch(kind, Fishing.rod_tier(active_weapon_id), rng)
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	animate_sword()   # the landing yank
+	if inventory.add_item(got, 1) > 0:
+		if stack:
+			stack.show_notification("Your bag is full — the catch slips back into the dark.")
+	else:
+		if stack:
+			stack.show_notification("Caught: %s [%s]!" % [Inventory.get_display_name(got), Inventory.get_grade_name(got)])
+			if got == GameState.fishing_quest_oddity():
+				stack.show_notification("The %s! Doran will want to see this." % Inventory.get_display_name(got))
+		var inv_ui = get_tree().get_first_node_in_group("inventory_ui")
+		if inv_ui and inv_ui.has_method("refresh"):
+			inv_ui.refresh()
+	_fish_cancel("")
+
+func _spawn_bobber(zone: Node) -> void:
+	_clear_bobber()
+	var half: float = float(zone.fish_half_width())
+	var bx: float = clampf(global_position.x + float(facing_direction) * 52.0,
+		zone.global_position.x - half * 0.92, zone.global_position.x + half * 0.92)
+	var b := Node2D.new()
+	b.z_as_relative = false
+	b.z_index = 30
+	# big enough to read at the 0.6 world zoom (a 7px dot rendered ~4px and
+	# vanished against the water -- EYES 2026-07-28)
+	var dot := ColorRect.new()
+	dot.color = Color(0.92, 0.28, 0.22)
+	dot.size = Vector2(10, 10)
+	dot.position = Vector2(-5.0, -6.0)
+	b.add_child(dot)
+	var gleam := ColorRect.new()
+	gleam.color = Color(1.0, 0.95, 0.9, 0.9)
+	gleam.size = Vector2(4, 3)
+	gleam.position = Vector2(-3.0, -5.0)
+	b.add_child(gleam)
+	zone.add_child(b)
+	# +2: straddle the drawn waterline (EYES: at -2 the float hung in the air)
+	b.global_position = Vector2(bx, float(zone.fish_surface_y()) + 2.0)
+	_fish_bobber = b
+
+func _fish_cancel(msg: String) -> void:
+	_fish_state = ""
+	_fish_zone = null
+	_clear_bobber()
+	if msg != "":
+		var stack = get_tree().get_first_node_in_group("notification_stack")
+		if stack:
+			stack.show_notification(msg)
+
+func _clear_bobber() -> void:
+	if is_instance_valid(_fish_bobber):
+		_fish_bobber.queue_free()
+	_fish_bobber = null
+
 func perform_attack() -> void:
 	if attack_cooldown_remaining > 0 or not has_weapon():
+		return
+	# FISHING (pillar 3): a wielded rod near open water CASTS instead of
+	# swinging -- and the swing while the water bites IS the strike.
+	if str(active_def.get("tool_type", "")) == "rod" and _rod_fish_action():
+		attack_cooldown_remaining = active_stats.cooldown
 		return
 	var stats = active_stats
 	var special = active_def.get("special", {})

@@ -1736,6 +1736,7 @@ func tick_village_clock() -> void:
 		tick_village_tribute(hours_passed)
 		tick_sieges(hours_passed)
 		tick_caravans(hours_passed)
+		tick_fishing()            # starter rod + the Harbormaster's daily (pillar 3)
 
 # === HIDDEN EVENT BOSSES (2026-07-28) ==================================
 # Ten secret bosses (event_boss.gd), each armed once per run. Their trigger
@@ -2263,15 +2264,79 @@ var maera_stabilized_this_siege := false
 
 # === FISHING (renewability pillar 3, dev-chosen 2026-07-28) ===
 # The data + rolls live in fishing.gd; the cast/bite/strike choreography in
-# player.gd. This block owns the HARBORMASTER'S DAILY: once per in-game day
-# (while the Dock stands staffed) Doran names an oddity that only bites
-# while his quest is live. Increment A ships the state + accessor; the
-# posting/turn-in cycle lands with the Dock panel in increment B.
+# player.gd. This block owns the STARTER ROD (raising the Dock leaves a
+# Willow Rod -- the ladder above it is FISHED, never dropped or sold) and
+# the HARBORMASTER'S DAILY: once per in-game day, while the Dock stands
+# staffed, Doran names an oddity that only bites while his quest is live.
+# Turn-in logic lives HERE, not in the UI, so it tests headless.
 var fishing_quest: Dictionary = {}     # {"id": odd_*, "name": ..., "posted_day": N}
 var fishing_quests_done := 0
+var fishing_last_post_day := -1        # one posting per day, turned in or not
+var fishing_last_oddity := ""          # never the same ask twice running
+var willow_rod_granted := false
+
+const FISHING_QUEST_BASE_GOLD := 40
+const FISHING_QUEST_GOLD_STEP := 15    # each landed oddity pays a little more
+const FISHING_QUEST_GOLD_CAP := 160
+const FISHING_PEARLBOUND_EVERY := 5    # every 5th oddity pays the epic crate
 
 func fishing_quest_oddity() -> String:
 	return str(fishing_quest.get("id", ""))
+
+func tick_fishing() -> void:
+	# the starter rod, once -- and self-healing: a bag already holding a rod
+	# (a Rewound Hour carries everything you own) is never handed a second
+	if not willow_rod_granted and is_building_operational("Fishing Dock"):
+		var player = get_tree().get_first_node_in_group("player")
+		if player and "inventory" in player and player.inventory:
+			var owns_rod := false
+			for rid in ["tool_rod_willow", "tool_rod_wyrmbone", "tool_rod_moonline"]:
+				if player.inventory.get_count(rid) > 0:
+					owns_rod = true
+			if owns_rod:
+				willow_rod_granted = true
+			elif player.inventory.add_item("tool_rod_willow", 1) == 0:
+				willow_rod_granted = true
+				notify("🎣 The dockhands leave a WILLOW ROD for the one who raised the pier. Wield it and cast at the water.")
+				log_event("village", "The Dock's first gift: a willow rod, and all the patience it asks.")
+	# the daily posting -- at most one per day, and never while one hangs open
+	if fishing_quest.is_empty() \
+			and is_building_operational("Fishing Dock") and count_workers("Fishing Dock") > 0:
+		var today := int(game_hours / 24.0)
+		if today > fishing_last_post_day:
+			fishing_last_post_day = today
+			var pool: Array = []
+			for odd in Fishing.QUEST_ODDITIES:
+				if str(odd.get("id", "")) != fishing_last_oddity:
+					pool.append(odd)
+			var pick: Dictionary = pool[randi() % pool.size()]
+			fishing_last_oddity = str(pick.get("id", ""))
+			fishing_quest = {"id": pick.get("id", ""), "name": pick.get("name", ""), "posted_day": today}
+			notify("🎣 Doran wants a strange catch: %s. (It only bites while he's asking.)" % str(pick.get("name", "")))
+			log_event("village", "The Harbormaster posted his daily oddity: %s." % str(pick.get("name", "")))
+
+# Turn-in, called by assign_ui's Dock section with the live player. Returns
+# "" on success, else a short reason (the summon_event_boss contract).
+func fishing_turn_in(player) -> String:
+	var oid := fishing_quest_oddity()
+	if oid == "":
+		return "No catch is asked for today."
+	if not (player and "inventory" in player and player.inventory):
+		return "No one to pay."
+	if player.inventory.get_count(oid) <= 0:
+		return "You haven't landed %s yet." % str(fishing_quest.get("name", "the catch"))
+	player.inventory.remove_item(oid, 1)
+	var pay: int = mini(FISHING_QUEST_GOLD_CAP, FISHING_QUEST_BASE_GOLD + FISHING_QUEST_GOLD_STEP * fishing_quests_done)
+	player.currency += pay
+	if player.has_method("update_currency_display"):
+		player.update_currency_display()
+	fishing_quests_done += 1
+	var crate := "crate_pearlbound" if fishing_quests_done % FISHING_PEARLBOUND_EVERY == 0 else "crate_driftwood"
+	player.inventory.add_item(crate, 1)   # the oddity just left the bag, so its slot is free for the crate
+	fishing_quest = {}
+	notify("🎣 Doran pays %dg and a %s for the oddity." % [pay, Inventory.get_display_name(crate)])
+	log_event("village", "An oddity landed and paid for: the Harbormaster's ledger grows (%d so far)." % fishing_quests_done)
+	return ""
 
 # === THE REAVER CARAVAN (renewability pillar 2, dev-chosen 2026-07-28) ===
 # A Goblin-Army-INSPIRED marching invasion, never a copy: reavers want the
@@ -5068,6 +5133,12 @@ func reset_for_new_game() -> void:
 	caravan_warned = false
 	caravans_seen = 0
 	live_caravan_active = false
+	# fishing resets whole too -- same lesson
+	fishing_quest = {}
+	fishing_quests_done = 0
+	fishing_last_post_day = -1
+	fishing_last_oddity = ""
+	willow_rod_granted = false
 	away_report = {"sieges": 0, "repelled": 0, "villagers_lost": 0, "adventurers_lost": 0}
 	# The village starts in ruins -- every building begins destroyed (health 0)
 	# and must be repaired before its roles work.
@@ -5278,6 +5349,11 @@ func save_game(player: Node) -> void:
 		"hours_until_next_siege": hours_until_next_siege,
 		"hours_until_caravan": hours_until_caravan,
 		"caravans_seen": caravans_seen,
+		"fishing_quest": fishing_quest,
+		"fishing_quests_done": fishing_quests_done,
+		"fishing_last_post_day": fishing_last_post_day,
+		"fishing_last_oddity": fishing_last_oddity,
+		"willow_rod_granted": willow_rod_granted,
 		"away_report": away_report,
 		"building_health": building_health,
 		"building_stage": building_stage,
@@ -5491,6 +5567,11 @@ func load_game() -> Dictionary:
 		hours_until_next_siege = float(parsed.get("hours_until_next_siege", SIEGE_FIRST_HOURS))
 		hours_until_caravan = float(parsed.get("hours_until_caravan", CARAVAN_FIRST_HOURS))
 		caravans_seen = int(parsed.get("caravans_seen", 0))
+		fishing_quest = parsed.get("fishing_quest", {})
+		fishing_quests_done = int(parsed.get("fishing_quests_done", 0))
+		fishing_last_post_day = int(parsed.get("fishing_last_post_day", -1))
+		fishing_last_oddity = str(parsed.get("fishing_last_oddity", ""))
+		willow_rod_granted = bool(parsed.get("willow_rod_granted", false))
 		caravan_warned = false          # the dust re-announces after a load
 		live_caravan_active = false     # a live fight never survives a reload
 		live_siege_active = false

@@ -176,6 +176,12 @@ func _ready() -> void:
 		GameState.child_produced.connect(_on_child_produced)
 	if role_key != "":
 		add_to_group("building_role_" + role_key)
+	# FISHING (pillar 3): the Dock's pond answers a cast line. The building
+	# itself joins "fish_water" -- it already knows its water's exact span,
+	# and BOTH build paths (generate_village and a fresh B-menu raise) get
+	# the fishable water for free, forever in step with upgrades.
+	if building_name == "Fishing Dock":
+		add_to_group("fish_water")
 	add_to_group("building")
 
 	# ONE SOURCE OF TRUTH for max building HP (dev 2026-07-24): GameState mirrors this
@@ -257,6 +263,17 @@ func eff_h() -> float:
 # The dock's water half-width: grows a touch sideways with each upgrade.
 func dock_water_half() -> float:
 	return base_width * DOCK_WATER_HALF * (1.0 + (building_level - 1) * DOCK_WATER_PER_LEVEL)
+
+# --- fishing (pillar 3): the "fish_water" contract the pond answers ---
+func fish_kind() -> String:
+	return "village"
+
+func fish_half_width() -> float:
+	return dock_water_half()
+
+func fish_surface_y() -> float:
+	# the drawn water's top edge (see _b_dock: the rect starts at -h*0.05)
+	return global_position.y - eff_h() * 0.05
 
 # Fully-upgraded width -- the village layout reserves THIS for every building's
 # slot, so however wide a building gets, it can never overlap a neighbour.
@@ -1198,6 +1215,16 @@ func build_intact(damaged: bool) -> void:
 	# rebuild_geometry as usual.
 	var art_file: String = BUILDING_ART.get(building_name, "")
 	if art_file != "" and ResourceLoader.exists("res://art/buildings/%s.png" % art_file):
+		# THE POND CAME BACK (fishing pillar 3 -- EYES 2026-07-28): the facade
+		# art replaced the procedural dock, and the WATER went with it -- a
+		# fishing dock stood whole on dry grass. The pond draws first, UNDER
+		# the painted stilts, spanning the same dock_water_half() the fishing
+		# contract promises, so a cast line lands on water that is there.
+		if building_name == "Fishing Dock":
+			var wh := dock_water_half()
+			add_rect(Vector2(-wh, -h * 0.05), Vector2(wh * 2.0, h * 0.45), Color(0.22, 0.42, 0.55, 0.94))
+			for wy in [-h * 0.02, h * 0.1, h * 0.21]:
+				_ln(PackedVector2Array([Vector2(-wh * 0.9, wy), Vector2(-wh * 0.45, wy - h * 0.02), Vector2(0.0, wy), Vector2(wh * 0.45, wy - h * 0.02), Vector2(wh * 0.9, wy)]), 2.0, Color(0.4, 0.62, 0.72, 0.5))
 		var tex: Texture2D = load("res://art/buildings/%s.png" % art_file)
 		var spr := Sprite2D.new()
 		spr.texture = tex
