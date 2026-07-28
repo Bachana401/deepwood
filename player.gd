@@ -3556,6 +3556,14 @@ func weapon_crit_damage_bonus() -> float:
 # lifetime all scale with the weapon's grade, so a Mythic blade carves a wide
 # bright arc where a Common one barely smudges the air -- the grade is something
 # you can SEE in the swing rather than only read in a tooltip.
+var _slash_tex_cache = 0   # 0 = unchecked, null = none, Texture2D = loaded
+func _slash_texture() -> Texture2D:
+	if typeof(_slash_tex_cache) != TYPE_INT:
+		return _slash_tex_cache
+	var path := "res://art/effects/slash_arc.png"
+	_slash_tex_cache = load(path) if ResourceLoader.exists(path) else null
+	return _slash_tex_cache
+
 func spawn_swing_trail(aim_dir: Vector2, stats: Dictionary, finisher := false) -> void:
 	var grade: String = Inventory.ITEM_GRADES.get(active_weapon_id, "common")
 	var rank: int = int(Inventory.GRADE_DEFS.get(grade, {}).get("rank", 1))
@@ -3577,6 +3585,35 @@ func spawn_swing_trail(aim_dir: Vector2, stats: Dictionary, finisher := false) -
 		arc *= 1.5
 		thickness *= 1.8
 		radius += 6.0
+	# Texture-first (item-art Phase 1): a real crescent sprite at
+	# art/effects/slash_arc.png replaces the procedural polygon, MODULATED by the
+	# element colour so one white swoosh sheet serves every element. Authored
+	# convention: crescent fills the canvas, the hand-edge at the LEFT, bulging
+	# right. Falls back to the polygon below until the sprite exists.
+	var slash_tex: Texture2D = _slash_texture()
+	if slash_tex != null:
+		var spr := Sprite2D.new()
+		spr.texture = slash_tex
+		spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		spr.modulate = Color(col.r, col.g, col.b, 0.55 + rank * 0.07)
+		var smat := CanvasItemMaterial.new()
+		smat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		spr.material = smat
+		spr.centered = false
+		var span := radius * 2.0 * sin(arc * 0.5)      # vertical reach of the arc
+		spr.scale = Vector2(radius / slash_tex.get_width(), span / slash_tex.get_height())
+		spr.offset = Vector2(0.0, -slash_tex.get_height() * 0.5)  # hand at left-centre
+		spr.rotation = aim_dir.angle()
+		spr.z_index = 6
+		add_child(spr)
+		var slife := 0.15 + rank * 0.035
+		var stw := spr.create_tween()
+		stw.set_parallel(true)
+		stw.tween_property(spr, "modulate:a", 0.0, slife)
+		stw.tween_property(spr, "scale", spr.scale * (1.08 + rank * 0.02), slife)
+		stw.set_parallel(false)
+		stw.tween_callback(spr.queue_free)
+		return
 	var steps := 12
 	var pts := PackedVector2Array()
 	for i in range(steps + 1):                         # outer edge
