@@ -249,5 +249,23 @@ func _ready() -> void:
 	check("...and the Wanderer never sells it",
 		"wpn_soulsplit" in GameState.WANDERER_NEVER_SOLD)
 
+	# ---- item-art overhaul (2026-07-28): the texture-first + element plumbing --
+	# guards the Phase 0 architecture so a later regression can't silently break
+	# the fallbacks or the element contract.
+	check("icon_texture is null-safe when no art exists (procedural fallback stays)",
+		Inventory.icon_texture("") == null and Inventory.icon_texture("wpn_sword") == null)
+	var elem_bundles_ok := true
+	for e in Inventory.ELEMENTS:
+		var fx: Dictionary = Inventory.ELEMENT_FX.get(e, {})
+		if not (fx.has("tint") and fx.has("glow") and fx.has("status")):
+			elem_bundles_ok = false
+	check("every element has a full FX bundle (tint/glow/status)", elem_bundles_ok)
+	check("element_of infers fire from a burn weapon, physical by default",
+		Inventory.element_of("exc_thunder") in Inventory.ELEMENTS
+		and Inventory.element_of("wpn_sword") == "physical")
+	check("element_fx always resolves (unknown -> physical, never empty)",
+		not Inventory.element_fx("nonsense").is_empty()
+		and Inventory.element_fx("fire")["status"] == "burn")
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

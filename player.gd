@@ -247,6 +247,7 @@ var helmet_visual: Polygon2D = null
 var chest_visual: Polygon2D = null
 var pants_visual: Polygon2D = null
 var weapon_guard: ColorRect = null
+var weapon_sprite: TextureRect = null   # item-art overhaul: the held weapon's real sprite (art/items/<id>.png), else hidden and the ColorRect bar shows
 
 # Pixel-art body = an AnimatedSprite2D assembled from PNGs in art/. Drop
 # numbered frames (from 1) to fill each state:
@@ -562,6 +563,37 @@ func build_weapon_guard() -> void:
 	weapon_guard.visible = false
 	weapon_guard.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	$WeaponIcon.add_child(weapon_guard)
+	# The real held-weapon sprite: a TextureRect filling the WeaponIcon rect, so
+	# it inherits the exact same swing/aim transform (rotates about the grip
+	# pivot) as the fallback bar and guard. Hidden until a weapon with real art
+	# is wielded. Nearest filter keeps the pixels crisp.
+	weapon_sprite = TextureRect.new()
+	weapon_sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	weapon_sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	weapon_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	weapon_sprite.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	weapon_sprite.visible = false
+	$WeaponIcon.add_child(weapon_sprite)
+
+# Shows the wielded weapon's real sprite when one exists (art/items/<id>.png),
+# and blanks the fallback ColorRect bar + crossguard so they don't show through
+# behind it. Returns true when a texture is in use, so the guard update can skip
+# the bar treatment. The SAME texture is the inventory icon -- bag and hand match.
+func update_weapon_sprite() -> bool:
+	if not weapon_sprite:
+		return false
+	var tex: Texture2D = Inventory.icon_texture(active_weapon_id) if has_weapon() else null
+	if tex == null:
+		weapon_sprite.visible = false
+		return false
+	weapon_sprite.texture = tex
+	# fill the icon rect; the WeaponIcon owns the aim/swing rotation about the grip
+	weapon_sprite.position = Vector2.ZERO
+	weapon_sprite.size = active_stats.icon_size
+	weapon_sprite.pivot_offset = $WeaponIcon.pivot_offset
+	weapon_sprite.visible = true
+	$WeaponIcon.color = Color(0, 0, 0, 0)   # hide the fallback bar; the sprite carries the look
+	return true
 
 # --- The Shadow Monarch aura (hidden 7-stage passive, see GameState) ---
 # A real animated shadow aura (PixelLab, art/shadow_aura_N.png) layered BEHIND
@@ -2220,7 +2252,8 @@ func wield_weapon(item_id: String) -> bool:
 	$WeaponIcon.rotation_degrees = 0.0
 	$WeaponIcon.scale = Vector2.ONE
 	$WeaponIcon.pivot_offset = Vector2(0.0, stats.icon_size.y / 2.0)
-	update_weapon_guard()
+	var has_art := update_weapon_sprite()   # real sprite wins; blanks the bar when present
+	update_weapon_guard(has_art)
 	update_weapon_visual(stats.icon_offset)
 	# wielding can complete (or break) a class set's full weapon tier, which
 	# can change max HP/mana -- re-sync exactly like an equip would.
@@ -2252,10 +2285,12 @@ func select_hotbar_slot(index: int) -> void:
 # Shows/sizes the crossguard for bladed melee weapons (melee/spear), hides it
 # for bow and wand. The guard is a child of WeaponIcon, so it swings/aims with
 # the weapon automatically.
-func update_weapon_guard() -> void:
+func update_weapon_guard(has_art := false) -> void:
 	if not weapon_guard:
 		return
-	if active_weapon_type == "bow" or active_weapon_type == "wand" or active_stats.is_empty():
+	# a real sprite already draws its own guard/hilt -- the fallback crossguard
+	# would only poke out behind it
+	if has_art or active_weapon_type == "bow" or active_weapon_type == "wand" or active_stats.is_empty():
 		weapon_guard.visible = false
 		return
 	var guard_height = active_stats.icon_size.y + 12.0
@@ -3524,7 +3559,15 @@ func weapon_crit_damage_bonus() -> float:
 func spawn_swing_trail(aim_dir: Vector2, stats: Dictionary, finisher := false) -> void:
 	var grade: String = Inventory.ITEM_GRADES.get(active_weapon_id, "common")
 	var rank: int = int(Inventory.GRADE_DEFS.get(grade, {}).get("rank", 1))
-	var col: Color = active_def.get("color", Color(1, 1, 1))
+	# element-first colour (item-art overhaul 2026-07-28): the crescent reads as
+	# the weapon's element -- fire swings orange, ice swings pale-blue -- blended
+	# a touch toward the weapon's own colour so twin fire weapons still differ.
+	var elem: String = Inventory.element_of(active_weapon_id)
+	var col: Color = Inventory.element_fx(elem)["tint"]
+	if elem == "physical":
+		col = active_def.get("color", Color(1, 1, 1))   # plain steel keeps its own hue
+	else:
+		col = col.lerp(active_def.get("color", col), 0.35)
 	var radius := float(stats.range_offset) + float(stats.area_size.y) * 0.5
 	var arc := deg_to_rad(70.0 + rank * 11.0)         # higher grade sweeps wider
 	var thickness := 4.0 + rank * 2.8

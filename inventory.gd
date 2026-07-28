@@ -1392,6 +1392,49 @@ static func GameStateRef() -> Node:
 	return Engine.get_main_loop().root.get_node("GameState")
 
 # ---------------------------------------------------------------------------
+# ELEMENTS (item-art overhaul 2026-07-28). One taxonomy that drives every
+# weapon-connected visual from a single source: the slash tint, the projectile
+# palette, the impact burst, and the on-hit status spark all read the element's
+# colours here so a "fire" weapon looks fire from bag to swing to hit. This is
+# the COLOUR/FX contract; the actual art sheets (slash/impact/status) get named
+# per-element as the phases land. `status` maps the element to the mechanical
+# status apply_status already understands, so the pretty and the real agree.
+const ELEMENTS = ["physical", "fire", "ice", "lightning", "poison", "void", "holy", "arcane"]
+const ELEMENT_FX = {
+	"physical":  {"tint": Color(0.90, 0.92, 0.98), "glow": Color(0.80, 0.85, 0.95), "status": ""},
+	"fire":      {"tint": Color(1.00, 0.55, 0.20), "glow": Color(1.00, 0.75, 0.30), "status": "burn"},
+	"ice":       {"tint": Color(0.55, 0.85, 1.00), "glow": Color(0.75, 0.95, 1.00), "status": "freeze"},
+	"lightning": {"tint": Color(1.00, 0.95, 0.45), "glow": Color(0.85, 0.90, 1.00), "status": "slow"},
+	"poison":    {"tint": Color(0.55, 0.90, 0.35), "glow": Color(0.70, 1.00, 0.45), "status": "poison"},
+	"void":      {"tint": Color(0.55, 0.30, 0.75), "glow": Color(0.70, 0.40, 0.95), "status": ""},
+	"holy":      {"tint": Color(1.00, 0.93, 0.65), "glow": Color(1.00, 0.98, 0.80), "status": ""},
+	"arcane":    {"tint": Color(0.45, 0.70, 1.00), "glow": Color(0.65, 0.85, 1.00), "status": ""},
+}
+
+# The element a weapon/projectile reads as. Explicit "element" on the def wins;
+# otherwise infer from the on-hit status it carries (a burn weapon IS fire),
+# else fall back to "physical". Kept forgiving so the 350-weapon roster gets a
+# sensible element for free until each is tagged.
+static func element_of(item_id: String) -> String:
+	var d := get_item_def(item_id)
+	var e := str(d.get("element", ""))
+	if e in ELEMENTS:
+		return e
+	var st := str(d.get("special", {}).get("on_hit_status", {}).get("kind", "")) if d.get("special", {}) is Dictionary else ""
+	if st == "":
+		st = str(d.get("on_hit_status", {}).get("kind", "")) if d.get("on_hit_status", {}) is Dictionary else ""
+	match st:
+		"burn": return "fire"
+		"freeze": return "ice"
+		"poison": return "poison"
+		"slow": return "lightning"
+	return "physical"
+
+# The FX colour/glow/status bundle for an element string (safe default).
+static func element_fx(element: String) -> Dictionary:
+	return ELEMENT_FX.get(element, ELEMENT_FX["physical"])
+
+# ---------------------------------------------------------------------------
 # Procedural item icons. Instead of a flat coloured square, each item draws a
 # little symbol that hints at its name -- a sword looks like a sword, a coin
 # like a coin, wood like a log. `target` is the slot's icon ColorRect used by
@@ -1399,6 +1442,23 @@ static func GameStateRef() -> Node:
 # A stopgap until real art (art/weapon_*.png ...) replaces these. Cheap to call
 # every frame: it no-ops unless the slot's item actually changed.
 # ---------------------------------------------------------------------------
+# Item-art overhaul (2026-07-28): the one place that resolves an item's real
+# pixel-art sprite. Returns the Texture2D at art/items/<id>.png, or null when
+# none exists yet (the vast majority today) -- callers then draw procedurally.
+# Both the inventory icon (paint_icon) AND the in-hand weapon (player.gd) load
+# through here, so a weapon's bag icon and the thing in your hand are literally
+# the same texture. Cached so repeated slot repaints don't re-hit the disk.
+static var _icon_tex_cache := {}
+static func icon_texture(item_id: String) -> Texture2D:
+	if item_id == "":
+		return null
+	if _icon_tex_cache.has(item_id):
+		return _icon_tex_cache[item_id]
+	var path := "res://art/items/%s.png" % item_id
+	var tex: Texture2D = load(path) if ResourceLoader.exists(path) else null
+	_icon_tex_cache[item_id] = tex
+	return tex
+
 static func paint_icon(target: ColorRect, item_id: String) -> void:
 	if str(target.get_meta("painted_id", "￿")) == item_id:
 		return
@@ -1412,6 +1472,22 @@ static func paint_icon(target: ColorRect, item_id: String) -> void:
 
 	var w = target.size.x
 	var h = target.size.y
+	# Texture-first (item-art overhaul 2026-07-28): a real sprite at
+	# art/items/<id>.png wins and skips the procedural draw entirely. The SAME
+	# texture backs the in-hand weapon, so inventory and hand always match (the
+	# standing item-visual rule). Anything without art falls through to the
+	# procedural icons below -- safe to adopt one sprite at a time.
+	var tex := icon_texture(item_id)
+	if tex != null:
+		var tr := TextureRect.new()
+		tr.texture = tex
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		tr.size = Vector2(w, h)
+		tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		target.add_child(tr)
+		return
 	var col: Color = get_item_def(item_id).get("color", Color.WHITE)
 	match item_id:
 		"wpn_sword": _icon_sword(target, w, h, Color(0.82, 0.85, 0.9), Color(0.85, 0.68, 0.25))
