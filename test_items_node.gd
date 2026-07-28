@@ -271,19 +271,28 @@ func _ready() -> void:
 				has_texrect = true
 		check("...and paint_icon renders it as a texture (bag == hand)", has_texrect)
 		probe.queue_free()
-	# the rarity-ladder art pass (24 weapons across all 8 tiers): every wired
-	# sprite must resolve, so a rename/typo/missing .import is caught, not shipped.
-	var ladder := ["wpn_shortsword","wpn_huntingbow","wpn_sparkwand","wpn_falchion","wpn_saber",
-		"wpn_frostwand","wpn_windcutter","wpn_stormlance","wpn_emberstaff","wpn_claymore",
-		"wpn_soulwheel","wpn_stormtome","exc_midas","exc_dawnbreaker","exc_vampiric",
-		"exc_wizardsbane","exc_ragnarok","exc_frostmourne","wpn_afterlight","wpn_zenithpike",
-		"wpn_highflood","wpn_crownsorrow","wpn_regicide","wpn_soulflood"]
+	# Every wired weapon sprite must (a) resolve through icon_texture and (b)
+	# name a REAL item id -- a rename/typo/missing .import can't ship silently,
+	# and an orphan PNG (art for an id the game doesn't have) gets caught too.
+	# Scans the folder so new art is covered automatically.
+	var art_dir := DirAccess.open("res://art/items")
 	var unresolved := []
-	for id in ladder:
-		if ResourceLoader.exists("res://art/items/%s.png" % id) and Inventory.icon_texture(id) == null:
-			unresolved.append(id)
-	check("every wired ladder sprite resolves through icon_texture",
+	var orphan_art := []
+	var art_count := 0
+	if art_dir:
+		for f in art_dir.get_files():
+			if not f.ends_with(".png"):
+				continue
+			art_count += 1
+			var id := f.get_basename()
+			if Inventory.icon_texture(id) == null:
+				unresolved.append(id)
+			if Inventory.get_item_def(id).is_empty():
+				orphan_art.append(id)
+	check("every wired item sprite resolves through icon_texture (%d found)" % art_count,
 		unresolved.is_empty(), "unresolved: %s" % ", ".join(unresolved))
+	check("no orphan sprite (every art/items png names a real item)",
+		orphan_art.is_empty(), "orphans: %s" % ", ".join(orphan_art))
 	var elem_bundles_ok := true
 	for e in Inventory.ELEMENTS:
 		var fx: Dictionary = Inventory.ELEMENT_FX.get(e, {})
