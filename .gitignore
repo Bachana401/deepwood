@@ -10,3 +10,7 @@ build/
 # PixelLab scratch (drafts, payloads, api spec)
 pl_work/
 pl_openapi.json
+
+# Local Claude Code config — .mcp.json holds the PixelLab API token, never commit
+.mcp.json
+.claude/settings.local.json
