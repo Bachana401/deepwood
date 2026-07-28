@@ -254,6 +254,21 @@ func _ready() -> void:
 	# the fallbacks or the element contract.
 	check("icon_texture is null-safe when no art exists (procedural fallback stays)",
 		Inventory.icon_texture("") == null and Inventory.icon_texture("wpn_sword") == null)
+	# the first real weapon sprite (Thundercaller) flows through the loader AND
+	# paint_icon actually shows it as a TextureRect, not the procedural draw
+	if ResourceLoader.exists("res://art/items/exc_thunder.png"):
+		check("Thundercaller resolves a real sprite through icon_texture",
+			Inventory.icon_texture("exc_thunder") != null)
+		var probe := ColorRect.new()
+		probe.size = Vector2(40, 40)
+		add_child(probe)
+		Inventory.paint_icon(probe, "exc_thunder")
+		var has_texrect := false
+		for c in probe.get_children():
+			if c is TextureRect and (c as TextureRect).texture != null:
+				has_texrect = true
+		check("...and paint_icon renders it as a texture (bag == hand)", has_texrect)
+		probe.queue_free()
 	var elem_bundles_ok := true
 	for e in Inventory.ELEMENTS:
 		var fx: Dictionary = Inventory.ELEMENT_FX.get(e, {})
