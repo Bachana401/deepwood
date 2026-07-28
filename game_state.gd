@@ -2375,11 +2375,13 @@ func has_food() -> bool:
 # The living eat: total food burned per in-game hour. Shadow-court villagers
 # (11) hunger for nothing, so they never draw on the larder.
 func food_consumption_per_hour() -> float:
-	var eaters := 0
+	# children eat HALF (bible 12.17, decided 2026-07-17 -- built at last in
+	# the numbers pass: every eater drew a full ration until S12 caught it)
+	var plates := 0.0
 	for v in rescued_villagers:
 		if not v.get("shadow", false):
-			eaters += 1
-	return float(eaters) * FOOD_PER_VILLAGER_PER_DAY / 24.0
+			plates += 0.5 if v.get("is_kid", false) else 1.0
+	return plates * FOOD_PER_VILLAGER_PER_DAY / 24.0
 
 # Villagers employed at the Farm (Leader + Farmers) work the fields.
 func farm_worker_count() -> int:
@@ -2587,8 +2589,13 @@ func villager_morale(v: Dictionary) -> int:
 #   town falls to ~6/10) but it is FORGIVING -- the shock fades over time and is
 #   repaid as you spawn/mate replacements back into the population.
 const MORALE_POP_TARGET := 30.0          # headcount at which "numbers alive" maxes out
-const DEATH_SHOCK_PER_KILL := 2.0        # morale points lost per villager killed (0-100)
-const DEATH_SHOCK_MAX := 60.0            # one catastrophe can't zero morale outright
+# Numbers pass 2026-07-28 (S8, tuned to the bible's stated shape 12.16:
+# "5-6 deaths ~= a 10/10 town -> 1-2"): 2.0/kill left six funerals at a
+# meter of 7.3 -- grief as a rounding error. At 13/kill five deaths land
+# ~3, six land ~1.7, and the cap keeps the floor above zero. Decay is
+# unchanged: ~3 days of mourning, half that under Seraphel's boon.
+const DEATH_SHOCK_PER_KILL := 13.0       # morale points lost per villager killed (0-100)
+const DEATH_SHOCK_MAX := 78.0            # one catastrophe can't zero morale outright
 const DEATH_SHOCK_DECAY_PER_HOUR := 1.0  # the town grieves, then heals over time
 const REPLACE_RELIEF := 2.5              # each new villager (birth/troop) repays some shock
 
@@ -2749,10 +2756,14 @@ func village_morale_10() -> float:
 # and stacks -- ~5-6 close deaths take a 10/10 witness to 1-2. Children feel
 # it half again as hard. With no epicenter (an away resolution, an abstract
 # loss) the news lands as a flat, smaller weight instead.
-const DEATH_SHOCK_CLOSE := 1.5         # within the near ring, per death
+# Numbers pass 2026-07-28 (S8): the immediate hits carry the bible's
+# devastation ("5-6 deaths ~= 10/10 -> 1-2" -- it lands regardless of
+# witness); the town-shock target-depression above carries the DURATION
+# of the grief. At 0.4/death six funerals only nicked the meter to ~7.
+const DEATH_SHOCK_CLOSE := 1.9         # within the near ring, per death
 const DEATH_SHOCK_NEAR_RADIUS := 260.0
 const DEATH_SHOCK_FAR_RADIUS := 520.0
-const DEATH_SHOCK_ABSTRACT := 0.4      # unwitnessed news, per death
+const DEATH_SHOCK_ABSTRACT := 1.2      # unwitnessed news, per death
 
 func register_villager_deaths(n: int, epicenter: Vector2 = Vector2(INF, INF)) -> void:
 	if n <= 0:

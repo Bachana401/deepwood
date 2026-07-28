@@ -323,6 +323,172 @@ func _ready() -> void:
 	say("  %d employed: net %+d g over one day (wages net of taxes/interest/trickle)" % [
 		employed, p.currency - gw])
 
+	# ============ S8: THE DEATH-SHOCK -- SIX FUNERALS, ONE TOWN ============
+	# The bible's stated shape (12.16): "5-6 deaths ~= a 10/10 town -> 1-2" --
+	# grief that SETS UP the corruption spiral, lands regardless of witness,
+	# then heals. Asserted on the composite meter the player actually sees.
+	say("\n== S8: the death-shock -- what six funerals do to a 10/10 town ==")
+	fresh_world()
+	operational(GameState.STARTING_BUILDINGS)
+	staff_town(20, {"Farm": 4, "Fishing Dock": 2, "Government": 2, "Bank": 2, "Bar": 2, "Hospital": 2})
+	p.currency = 5000
+	advance(48.0, true)   # settle every spirit at its cared-for target
+	var meter0: float = GameState.village_morale_10()
+	GameState.register_villager_deaths(6)
+	# grief has a TROUGH: track the meter's low across the first day rather
+	# than sampling one instant of the drift
+	var meter1: float = GameState.village_morale_10()
+	for i in range(24):
+		advance(1.0)
+		meter1 = minf(meter1, GameState.village_morale_10())
+	say("  meter %0.1f -> trough %0.1f after six deaths (town shock %0.0f)" % [
+		meter0, meter1, GameState.morale_death_shock])
+	check("S8: six funerals BREAK a perfect town (trough <= 3.0)",
+		meter1 <= 3.0, "%0.1f" % meter1)
+	check("S8: ...but grief never zeroes it outright (>= 0.8)",
+		meter1 >= 0.8, "%0.1f" % meter1)
+	advance(96.0, true)
+	var meter2: float = GameState.village_morale_10()
+	say("  five days after the funerals: meter %0.1f" % meter2)
+	check("S8: the town grieves, then HEALS (>= 7.0 within five days)",
+		meter2 >= 7.0, "%0.1f" % meter2)
+
+	# ============ S9: ONE TURNING -- THE STRAINED CHAIN, THE CARED-FOR RESIST ============
+	# The thesis mechanic (10 / 12.11): a corruption INFECTS by proximity --
+	# the already-low are dragged under, the well-kept RESIST. Both halves
+	# proven on the same machinery, differing only in the town's condition.
+	say("\n== S9: one turning -- the strained chain vs the cared-for resist ==")
+	fresh_world()
+	operational(GameState.STARTING_BUILDINGS)
+	staff_town(16, {"Farm": 4, "Fishing Dock": 2, "Government": 2, "Bank": 2, "Bar": 2, "Hospital": 2})
+	p.currency = 5000
+	advance(48.0, true)
+	var v_first: Dictionary = GameState.rescued_villagers[0]
+	GameState.transform_villager_to_demon(str(v_first.get("id", "")))
+	advance(0.5)
+	var dragged_cared := 0
+	for v in GameState.rescued_villagers:
+		if GameState.get_personal_morale(v) <= 0.05:
+			dragged_cared += 1
+	say("  cared-for town after one turning: %d dragged to zero, meter %0.1f" % [
+		dragged_cared, GameState.village_morale_10()])
+	check("S9: a cared-for town RESISTS the spread (nobody dragged under)",
+		dragged_cared == 0, str(dragged_cared))
+	# the strained mirror: every spirit set INSIDE the "already low" band
+	# (below INFECT_LOW_MORALE) so the drag-under mechanism itself is what's
+	# proven -- famine PACING is S5's job, and the spread samples randomly,
+	# so hours-of-famine made this half flaky
+	fresh_world()
+	operational(GameState.STARTING_BUILDINGS)
+	staff_town(16, {})
+	GameState.village_food = 0.0
+	for v in GameState.rescued_villagers:
+		v["morale"] = GameState.INFECT_LOW_MORALE - 0.5   # low, not yet broken
+	var v2: Dictionary = GameState.rescued_villagers[0]
+	GameState.transform_villager_to_demon(str(v2.get("id", "")))
+	var zeros_after := 0
+	for v in GameState.rescued_villagers:
+		if GameState.get_personal_morale(v) <= 0.05:
+			zeros_after += 1
+	say("  strained town: %d dragged to zero by one turning" % zeros_after)
+	check("S9: in a STRAINED town the turning drags neighbours under (chain begins)",
+		zeros_after >= 1, str(zeros_after))
+
+	# ============ S10: THE DOCTOR'S LEDGER (5.5a) ============
+	# "Every avoidable wound bleeds your economy": cheap while you learn,
+	# punishing when leaned on, forgiven by rest.
+	say("\n== S10: the Doctor's price -- cheap to learn, dear to lean on ==")
+	fresh_world()
+	var prices := []
+	for i in range(8):
+		GameState.doctor_heals_bought = i
+		prices.append(GameState.doctor_heal_price())
+	GameState.doctor_heals_bought = 0
+	say("  price walk: %s" % str(prices))
+	check("S10: the first three heals fit an Act-I purse (total <= 60g)",
+		prices[0] + prices[1] + prices[2] <= 60, str(prices[0] + prices[1] + prices[2]))
+	check("S10: leaning on her outruns mid-game income (7th heal > 84g/day net)",
+		prices[6] > 84, str(prices[6]))
+	check("S10: the walk always climbs", prices[7] > prices[4] and prices[4] > prices[1])
+	GameState.doctor_heals_bought = 4
+	advance(49.0)
+	check("S10: rest forgives -- two idle days walk two steps back",
+		GameState.doctor_heals_bought <= 2, str(GameState.doctor_heals_bought))
+
+	# ============ S11: THE WATCHTOWER'S THREE PURSES (7.1) ============
+	# Foresight is earned in the MATERIALS of its act: tier 1 from the
+	# starting woods, tier 2 needs the early-mid dungeon, tier 3 the mid.
+	say("\n== S11: the Watchtower's tiers price themselves by act ==")
+	var wt: Array = GameState.WATCHTOWER_COSTS
+	var t1_ok := true
+	for mat in wt[0]:
+		if mat not in ["wood", "stone"]:
+			t1_ok = false
+	check("S11: tier 1 asks only what Act I gathers (wood/stone)", t1_ok, str(wt[0]))
+	check("S11: tier 2 demands the early dungeon (iron)", wt[1].has("iron_shard"), str(wt[1]))
+	check("S11: tier 3 demands the mid dungeon (ember)", wt[2].has("ember_crystal"), str(wt[2]))
+	var wh: Array = GameState.WATCHTOWER_WARNING_HOURS
+	check("S11: every tier buys strictly MORE warning",
+		wh[0] < wh[1] and wh[1] < wh[2] and wh[2] < wh[3], str(wh))
+
+	# ============ S12: THE CHILDREN'S SHARE (12.17, DECIDED) ============
+	# "Children eat ~half" and "corrupt far more easily" -- the ration rule
+	# was decided in the bible; this scenario is what makes it TRUE.
+	say("\n== S12: children eat half, and grieve harder ==")
+	fresh_world()
+	staff_town(8, {})
+	var adults_rate: float = GameState.food_consumption_per_hour()
+	for k in range(4):
+		GameState.rescued_villagers.append(mk("kid_%d" % k, true, "Farm", "", ""))
+	var mixed_rate: float = GameState.food_consumption_per_hour()
+	say("  8 adults eat %0.3f/h; +4 children -> %0.3f/h (half-ration expects %0.3f)" % [
+		adults_rate, mixed_rate, adults_rate * 12.5 / 8.0 / 1.25])
+	check("S12: four children add TWO adults' worth of appetite (eat-half)",
+		absf(mixed_rate - adults_rate * 10.0 / 8.0) < 0.001,
+		"%0.3f vs %0.3f" % [mixed_rate, adults_rate * 10.0 / 8.0])
+	for v in GameState.rescued_villagers:
+		v["morale"] = 8.0
+	GameState.register_villager_deaths(2)
+	var kid_m := 10.0
+	var adult_m := 10.0
+	for v in GameState.rescued_villagers:
+		if v.get("is_kid", false):
+			kid_m = minf(kid_m, GameState.get_personal_morale(v))
+		else:
+			adult_m = minf(adult_m, GameState.get_personal_morale(v))
+	say("  after two deaths: saddest adult %0.1f, saddest child %0.1f" % [adult_m, kid_m])
+	check("S12: the same funerals hit a child harder", kid_m < adult_m,
+		"kid %0.1f vs adult %0.1f" % [kid_m, adult_m])
+
+	# ============ S13: THE WANDERER'S WELCOME (5.6a / 12.12) ============
+	say("\n== S13: hospitality sets the wanderer's clock and the road talks ==")
+	fresh_world()
+	staff_town(12, {"Farm": 2})
+	for v in GameState.rescued_villagers:
+		v["morale"] = 8.0
+	var dwell_high: float = GameState._wanderer_dwell_hours()
+	for v in GameState.rescued_villagers:
+		v["morale"] = 2.0
+	var dwell_low: float = GameState._wanderer_dwell_hours()
+	say("  dwell: %0.0fh at a warm hearth, %0.0fh in a gloomy one" % [dwell_high, dwell_low])
+	check("S13: a happy town earns the full day's stay (24h at 50+)",
+		dwell_high >= 24.0, str(dwell_high))
+	check("S13: gloom shortens the visit but never below the 6h stop",
+		dwell_low >= 6.0 and dwell_low < 12.0, str(dwell_low))
+	GameState.wanderers_seen = 0
+	var p_early: int = GameState._wanderer_price("wpn_rapier")
+	GameState.wanderers_seen = 8
+	var p_late: int = GameState._wanderer_price("wpn_rapier")
+	GameState.wanderers_seen = 0
+	check("S13: the road talks -- later sellers open steeper", p_late > p_early,
+		"%d -> %d" % [p_early, p_late])
+	var pool13: Array = GameState._wanderer_pool(2)
+	var never_ok := true
+	for banned in GameState.WANDERER_NEVER_SOLD:
+		if banned in pool13:
+			never_ok = false
+	check("S13: the never-sold stay never sold", never_ok)
+
 	GameState.reset_for_new_game()
 	printerr("\nRESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

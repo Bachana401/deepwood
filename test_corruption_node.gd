@@ -89,6 +89,11 @@ func _ready() -> void:
 	# housed, partnered farmer sits just under the firewall threshold (5.2 < 5.5),
 	# so feed the town before asserting the healthy resist.
 	GameState.village_food = 20.0
+	# ...and let the town be CALM: the numbers-pass death-shock (S8) is heavy
+	# enough that grief lingering from this test's earlier funerals dragged a
+	# well-kept target under the strained bar. The firewall check is about the
+	# MECHANISM in a well town; S8 owns the shock's strength.
+	GameState.morale_death_shock = 0.0
 	var sound := {"id": "inf_ok", "name": "Sound", "sex": "Male", "is_kid": false,
 		"stat_name": "Farm", "stat_value": 5, "role_key": "Farm", "role_title": "Farmer",
 		"partner_id": "inf_ok2", "morale": 8.0}
