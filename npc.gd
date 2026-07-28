@@ -966,6 +966,27 @@ func try_bond_interaction() -> bool:
 	if GameState.villager_quest_ready(data, pl):
 		var line = GameState.turn_in_villager_quest(str(data.get("id", "")), pl)
 		speak_or_notify(line if line != "" else "Thank you.")
+		# a bond completing is a small ceremony: a warm chime over a pop, and
+		# a little rise of golden motes from the friend you kept your word to
+		SfxSynth.play_at(self, global_position, "chime", -8.0, 0.9)
+		SfxSynth.play_at(self, global_position, "pop", -10.0, 1.2)
+		var motes := CPUParticles2D.new()
+		motes.one_shot = true
+		motes.explosiveness = 0.85
+		motes.amount = 14
+		motes.lifetime = 0.9
+		motes.direction = Vector2.UP
+		motes.spread = 35.0
+		motes.gravity = Vector2(0, -40)
+		motes.initial_velocity_min = 30.0
+		motes.initial_velocity_max = 70.0
+		motes.scale_amount_min = 2.0
+		motes.scale_amount_max = 4.0
+		motes.color = Color(1.0, 0.85, 0.4, 0.95)
+		get_parent().add_child(motes)
+		motes.global_position = global_position + Vector2(0, -30)
+		motes.emitting = true
+		motes.finished.connect(motes.queue_free)
 		var notif = get_node_or_null("../CanvasLayer/NotificationStack")
 		if notif == null:
 			notif = get_tree().get_first_node_in_group("notification_stack")

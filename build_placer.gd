@@ -427,5 +427,9 @@ func _show_hint(text: String) -> void:
 	hint.add_theme_constant_override("outline_size", 4)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.anchor_left = 0.0; hint.anchor_right = 1.0
-	hint.offset_top = 90.0; hint.offset_bottom = 116.0
+	# bottom-anchored, just above the hotbar: at y90 the hint printed straight
+	# through the toast channel whenever the village had news (EYES v4,
+	# 2026-07-28) -- and placing a building is exactly when news arrives
+	hint.anchor_top = 1.0; hint.anchor_bottom = 1.0
+	hint.offset_top = -96.0; hint.offset_bottom = -70.0
 	ui.add_child(hint)
