@@ -665,6 +665,10 @@ const CRAFT_RECIPES = {
 }
 
 static func get_grade(item_id: String) -> String:
+	# the generated ladder (weapon_roster.gd) answers for its own ids -- to
+	# every caller a roster weapon is an ordinary graded item
+	if not ITEM_GRADES.has(item_id) and WeaponRoster.has_id(item_id):
+		return WeaponRoster.get_grade(item_id)
 	return ITEM_GRADES.get(item_id, "")
 
 static func get_grade_color(item_id: String) -> Color:
@@ -1490,6 +1494,9 @@ func _init(cap: int = 15) -> void:
 	slots.resize(cap)
 
 static func get_item_def(item_id: String) -> Dictionary:
+	# hand-authored defs first; the generated ladder answers for the rest
+	if not ITEM_DEFS.has(item_id) and WeaponRoster.has_id(item_id):
+		return WeaponRoster.get_def(item_id)
 	return ITEM_DEFS.get(item_id, {})
 
 static func get_max_stack(item_id: String) -> int:

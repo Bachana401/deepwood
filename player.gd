@@ -2918,6 +2918,13 @@ func perform_attack() -> void:
 		return
 	attack_cooldown_remaining = stats.cooldown * skill_cooldown_mult(active_weapon_type)
 	if active_weapon_type == "bow":
+		# behavior-library bows (roster wave 2): a mortar bow / leaping bolt /
+		# burst bow fires ITS behavior instead of a plain shaft
+		if special_type in ["lob", "ricochet", "cluster"]:
+			play_sfx(SFX_BOW)
+			var cr_b = roll_crit(int(round(special.get("damage", stats.damage) * skill_damage_mult("bow"))))
+			launch_projectile(special, get_aim_direction(), cr_b[0], cr_b[1])
+			return
 		animate_bow(stats)
 		return
 	if active_weapon_type == "spear":
@@ -3642,6 +3649,12 @@ func apply_melee_skills(target: Node2D, dealt: int) -> void:
 		var po = GameState.get_bonus_total("on_hit_poison")
 		if po > 0.0: target.apply_status("poison", 4.0, po)
 		if GameState.get_bonus_total("on_hit_slow") > 0.0: target.apply_status("slow", 2.5, 0.6)
+		# the WEAPON's own rider (roster wave 2): a blade that burns or chills
+		# carries its status in its special dict, landing with every blow
+		var wst: Dictionary = active_def.get("special", {}).get("status", {})
+		if not wst.is_empty():
+			target.apply_status(str(wst.get("kind", "burn")),
+				float(wst.get("dur", 3.0)), float(wst.get("mag", 4.0)))
 	# Gorgon's Gaze: a long-cooldown PETRIFY on hit -- the struck foe turns to
 	# stone (and takes bonus damage while stoned). Apex/undying bosses resist, so
 	# the cooldown is only spent when it actually LANDS.
@@ -4271,6 +4284,16 @@ func spawn_arrow(stats: Dictionary, aim_dir: Vector2) -> void:
 	# (arrow_pierce) punches through foes; Contagion (poison_spread) leaps poison.
 	var homing = bool(special.get("homing", false)) or special_type == "homing" or GameState.get_bonus_total("arrow_homing") > 0.0
 	var pierce_count = int(GameState.get_bonus_total("arrow_pierce"))
+	# a bow AUTHORED to pierce (roster wave 2: Veilpiercer and kin) punches
+	# through a couple of bodies on its own, stacking with the tree's pierce
+	if bool(special.get("pierce", false)):
+		pierce_count += 2
+	# ...and a bow's own status rider (a chilling string, a venomed nock)
+	# joins the tree-granted ones on every shaft
+	var wst: Dictionary = special.get("status", {})
+	if not wst.is_empty():
+		arrow_statuses.append({"kind": str(wst.get("kind", "burn")),
+			"dur": float(wst.get("dur", 3.0)), "mag": float(wst.get("mag", 4.0))})
 	var spreads_poison = GameState.get_bonus_total("poison_spread") > 0.0
 	var spread = deg_to_rad(float(special.get("spread_deg", 0.0)))
 	# skill-granted multishot on a PLAIN bow (no authored spread) used to spawn

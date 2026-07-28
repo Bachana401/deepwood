@@ -2461,6 +2461,10 @@ func roll_gear_drop() -> void:
 		pool += _gear_unowned(GEAR_CLASS_WEAPON_IDS, player)
 	if current_level >= 15:
 		pool += _gear_unowned(GEAR_SET_WEAPON_IDS, player)
+	# THE GENERATED LADDER (weapon_roster.gd, wave 2): every roster weapon
+	# whose tier bracket admits this floor joins the roll -- the brackets
+	# overlap on purpose, so a lucky shallow run tastes the next tier early
+	pool += _gear_unowned(WeaponRoster.pool_for_level(current_level), player)
 	if pool.is_empty():
 		roll_material_drop(true)   # owns it all -- pay an extra material instead
 		return

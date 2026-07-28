@@ -62,6 +62,18 @@ func _ready() -> void:
 			DI.GEAR_SET_WEAPON_IDS, DI.GEAR_CLASS_WEAPON_IDS, DI.GEAR_EXCELLENT_IDS]:
 		for id in pool:
 			grantable[id] = true
+	# the generated ladder drops through pool_for_level -- every roster id is
+	# reachable at its tier's floors by construction, and the roster's own
+	# reachability check below proves the brackets leave no floor gap
+	for id in WeaponRoster.all_ids():
+		grantable[id] = true
+	# no floor 1-100 may fall outside EVERY tier bracket (a bracket gap would
+	# silently mute roster drops on those floors)
+	var gapless := true
+	for lv in range(1, 101):
+		if WeaponRoster.pool_for_level(lv).is_empty():
+			gapless = false
+	check("the roster's tier brackets cover every floor", gapless)
 	# NOTE: drop pools are not the only way to get gear -- leather armour is
 	# starting kit, Heart of the Mountain and the Sylvan Charm are harvesting
 	# finds, and the basic sword/spear/bow are the smithy's base kit. So the bar
