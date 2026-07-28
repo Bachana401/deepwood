@@ -310,17 +310,17 @@ const ROWS = [
 	["wpn_deepcrown",    "Crown of the Deep Court","wand", 8, "sentry",   27, 1.1,  {"dur": 30}],
 	["wpn_mountainking", "The Mountain That Kneels","staff", 8, "staff",  36, 0.34, {}],
 	# ---------------- WAVE 3 - FLAGSHIPS (11) ----------------
-	["wpn_therumor",     "The Rumor",            "wand",  8, "ricochet",  38, 0.5,  {"bounces": 9}],
-	["wpn_choirofone",   "A Choir of One",       "bow",   8, "rapid",     19, 0.13, {"status": "burn_w"}],
-	["wpn_smallsun",     "A Small Personal Sun", "wand",  8, "fire",      52, 0.78, {"aoe": 170, "status": "burn_w"}],
-	["wpn_patientknife", "The Patient Knife",    "melee", 8, "arc",       24, 0.2,  {"status": "poison_w"}],
-	["wpn_skysfare",     "What the Sky Charges", "wand",  8, "tome",      33, 1.15, {"radius": 220}],
-	["wpn_longgoodbye",  "The Long Goodbye",     "melee", 7, "lash",      40, 0.76, {"status": "poison_w"}],
-	["wpn_borrowedstar", "A Borrowed Star",      "bow",   7, "lob_a",     48, 0.95, {"aoe": 150, "status": "burn_w"}],
-	["wpn_gravecourier", "Grave Courier",        "melee", 7, "ricochet",  30, 0.52, {"bounces": 7}],
-	["wpn_summerscoffin","Summer's Coffin",      "wand",  7, "frost",     36, 0.5,  {"status": "slow_w"}],
-	["wpn_kindlyend",    "The Kindly End",       "spear", 6, "thrust",    40, 0.7,  {"status": "poison_w"}],
-	["wpn_secondmoon",   "Second Moon",          "melee", 6, "chain_maul", 36, 0.85, {"status": "slow_w"}],
+	["wpn_therumor",     "The Rumor",            "wand",  8, "ricochet",  38, 0.5,  {"bounces": 9, "rider": "grows"}],
+	["wpn_choirofone",   "A Choir of One",       "bow",   8, "rapid",     19, 0.13, {"status": "burn_w", "rider": "choir"}],
+	["wpn_smallsun",     "A Small Personal Sun", "wand",  8, "fire",      52, 0.78, {"aoe": 170, "status": "burn_w", "rider": "sunfall"}],
+	["wpn_patientknife", "The Patient Knife",    "melee", 8, "arc",       24, 0.2,  {"status": "poison_w", "rider": "patient"}],
+	["wpn_skysfare",     "What the Sky Charges", "wand",  8, "tome",      33, 1.15, {"radius": 220, "rider": "walker"}],
+	["wpn_longgoodbye",  "The Long Goodbye",     "melee", 7, "lash",      40, 0.76, {"status": "poison_w", "rider": "goodbye"}],
+	["wpn_borrowedstar", "A Borrowed Star",      "bow",   7, "lob_a",     48, 0.95, {"aoe": 150, "status": "burn_w", "rider": "borrow"}],
+	["wpn_gravecourier", "Grave Courier",        "melee", 7, "ricochet",  30, 0.52, {"bounces": 7, "rider": "courier"}],
+	["wpn_summerscoffin","Summer's Coffin",      "wand",  7, "frost",     36, 0.5,  {"status": "slow_w", "rider": "coffin"}],
+	["wpn_kindlyend",    "The Kindly End",       "spear", 6, "thrust",    40, 0.7,  {"status": "poison_w", "rider": "kindly"}],
+	["wpn_secondmoon",   "Second Moon",          "melee", 6, "chain_maul", 36, 0.85, {"status": "slow_w", "rider": "moon"}],
 	["wpn_heavenpoint",  "The Heaven-Piercing Point", "spear", 7, "jab_volley", 29, 0.84, {"count": 5, "status": "slow_w"}],
 	["wpn_unbentcolumn", "The Unbent Column",    "staff", 8, "staff",     40, 0.35, {}]
 ]
@@ -448,6 +448,9 @@ static func _expand(row: Array) -> Dictionary:
 	if not special.is_empty():
 		d["special"] = special
 		d["unique_desc"] = _desc_for(behavior, ex)
+		# a flagship's card states its OWN promise, not the family line
+		if ex.has("rider") and RIDER_DESC.has(str(ex["rider"])):
+			d["unique_desc"] = RIDER_DESC[str(ex["rider"])]
 	return d
 
 static func _status_of(ex: Dictionary, tier: int) -> Dictionary:
@@ -510,7 +513,27 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			s["status"] = st
 	if bool(ex.get("pierce", false)):
 		s["pierce"] = true
+	# flagship riders (polish 2026-07-28): one NAMED bespoke behavior per
+	# crown weapon, read by weapon_projectile / player / storm_cloud
+	if ex.has("rider"):
+		s["rider"] = str(ex["rider"])
 	return s
+
+# The flagship promises: one line each, printed on the card in place of the
+# family description. The mechanic behind each lives where its name says.
+const RIDER_DESC = {
+	"grows":   "Leaps NINE times, and a rumor GROWS in the telling -- every leap hits harder.",
+	"choir":   "Rapid fire; every SEVENTH shot the whole choir answers with a three-arrow fan.",
+	"sunfall": "The blast stays: a grounded sunlet keeps burning the spot after the flash.",
+	"patient": "The FIRST cut is the deepest: +40% against a foe still at full health.",
+	"walker":  "Reads a great storm down -- and the storm WALKS after them.",
+	"goodbye": "A poisoned ribbon whose RETURN pass cuts double. It hurts most on the way out.",
+	"borrow":  "At the top of its arc it sheds two smaller embers: three falling lights.",
+	"courier": "Leaps seven bodies; a quarter are left FEARED, watching it go.",
+	"coffin":  "A piercing cold sliver. What it KILLS shatters onto the mourners.",
+	"kindly":  "Every poisoned foe it strikes gives one HP back. A mercy, flowing the wrong way.",
+	"moon":    "A flail whose whirl has its own TIDE, dragging enemies into the blades.",
+}
 
 static func _desc_for(behavior: String, ex: Dictionary) -> String:
 	match behavior:

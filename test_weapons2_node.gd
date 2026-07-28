@@ -137,6 +137,46 @@ func _ready() -> void:
 	check("...then hurls itself down the aim", hurled)
 	check("...and hauls back home on its chain", hauled)
 
+	# ---- FLAGSHIP RIDERS (polish): named tricks, not just bigger numbers ----
+	# every rider string authored in the roster is READ by real code
+	var rider_src := ""
+	for f in ["weapon_projectile.gd", "player.gd", "storm_cloud.gd"]:
+		rider_src += FileAccess.open("res://" + f, FileAccess.READ).get_as_text()
+	var unread_riders := []
+	for rk in ["grows", "choir", "sunfall", "patient", "walker", "goodbye",
+			"borrow", "courier", "coffin", "kindly", "moon"]:
+		if not rider_src.contains('"%s"' % rk):
+			unread_riders.append(rk)
+	check("every flagship rider is read by the mechanics code",
+		unread_riders.is_empty(), ", ".join(unread_riders))
+	# The Rumor GROWS: leap math amplifies instead of decaying
+	var g1 = _spawn_dummy(host, base + Vector2(0, -1300))
+	var g2 = _spawn_dummy(host, base + Vector2(140, -1300))
+	var gp = _fire(host, "ricochet", base + Vector2(-120, -1300), Vector2.RIGHT,
+		{"damage": 20, "range": 400.0, "bounces": 3})
+	gp.rider = "grows"
+	var g1_h0: int = g1.health
+	var g2_h0: int = g2.health
+	await _frames(90)
+	var first_hit: int = g1_h0 - g1.health
+	var second_hit: int = g2_h0 - g2.health
+	check("The Rumor grows in the telling (each leap hits harder)",
+		second_hit > first_hit and first_hit > 0,
+		"first %d, second %d" % [first_hit, second_hit])
+	if is_instance_valid(gp): gp.queue_free()
+	if is_instance_valid(g1): g1.queue_free()
+	if is_instance_valid(g2): g2.queue_free()
+	# A Borrowed Star sheds two embers at the apex
+	var before_b := _count_projectiles()
+	var bp = _fire(host, "lob", base + Vector2(0, -1600), Vector2.RIGHT,
+		{"range": 900.0, "speed": 420.0})
+	bp.rider = "borrow"
+	await _frames(30)
+	var after_b := _count_projectiles()
+	check("A Borrowed Star becomes three falling lights", after_b >= before_b + 2,
+		"%d -> %d projectiles" % [before_b, after_b])
+	await _frames(200)   # let the embers land and blossom away
+
 	# ---- LASH: goes out, comes back, and rakes on both passes ----
 	var d1 = _spawn_dummy(host, base + Vector2(150, -900))
 	var d1_h0: int = d1.health

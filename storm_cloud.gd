@@ -10,6 +10,9 @@ var duration := 4.5
 var strike_gap := 0.4        # seconds between bolts
 var tint := Color(0.55, 0.75, 1.0)
 var source: Node2D = null    # the caster (for on-kill credits later)
+# flagship variants (2026-07-28):
+var sun_mode := false        # A Small Personal Sun: a grounded sunlet, warm palette
+var drift := false           # What the Sky Charges: the storm WALKS toward prey
 
 var _t := 0.0
 var _next := 0.0
@@ -19,6 +22,8 @@ const HOSTILE_GROUPS = ["course_enemy", "dungeon_combatant", "siege_enemy"]
 
 func _ready() -> void:
 	z_index = 42
+	if sun_mode:
+		tint = Color(1.0, 0.62, 0.2)
 	# the cloud: three soft lobes hanging where the storm works
 	_cloud = Polygon2D.new()
 	var pts := PackedVector2Array()
@@ -29,6 +34,11 @@ func _ready() -> void:
 	_cloud.polygon = pts
 	_cloud.color = Color(tint.r * 0.5, tint.g * 0.5, tint.b * 0.6, 0.75)
 	_cloud.position = Vector2(0, -110)
+	if sun_mode:
+		# not a cloud at all: a small sun sitting low over the scorched spot
+		_cloud.color = Color(1.0, 0.75, 0.3, 0.85)
+		_cloud.position = Vector2(0, -46)
+		_cloud.scale = Vector2(0.55, 0.9)
 	add_child(_cloud)
 	# the working ring on the ground, faint -- the promise of where it strikes
 	var ring := Line2D.new()
@@ -43,8 +53,15 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	_t += delta
-	if _cloud != null:
+	if _cloud != null and not sun_mode:
 		_cloud.position.y = -110.0 + sin(_t * 2.2) * 5.0
+	# What the Sky Charges: the storm walks its ring toward the nearest prey
+	if drift:
+		var prey := _nearest_hostile(700.0)
+		if prey != null:
+			var dx: float = prey.global_position.x - global_position.x
+			if absf(dx) > 20.0:
+				global_position.x += signf(dx) * minf(60.0 * delta, absf(dx))
 	if _t >= duration:
 		var fade := create_tween()
 		fade.tween_property(self, "modulate:a", 0.0, 0.3)
@@ -84,3 +101,20 @@ func _strike(local: Vector2) -> void:
 			if world.distance_to(e.global_position) <= 52.0:
 				e.take_damage(damage)
 				FloatingText.spawn(get_parent(), e.global_position, damage, false)
+				if sun_mode and e.has_method("apply_status"):
+					e.apply_status("burn", 2.0, 4.0)   # the sunlet clings
+
+func _nearest_hostile(within: float) -> Node2D:
+	var best: Node2D = null
+	var bd := within
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			var d: float = global_position.distance_to(e.global_position)
+			if d < bd:
+				bd = d
+				best = e
+	return best

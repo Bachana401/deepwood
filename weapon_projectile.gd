@@ -26,6 +26,8 @@ var is_crit := false        # set by the player when it rolls a crit
 var on_hit_status := {}     # {"kind","dur","mag"} applied to enemies on hit
 var source: Node2D = null   # the player (hook pull target / boomerang home)
 var from_wand := false      # set by player.launch_projectile for true wand casts (Stillness)
+var rider := ""             # flagship bespoke behavior (The Rumor "grows", ...)
+var _borrowed := false      # A Borrowed Star: the apex split fires only once
 
 func _apply_status_to(node) -> void:
 	if not on_hit_status.is_empty() and node.has_method("apply_status"):
@@ -240,6 +242,8 @@ func _tick_chainmaul(delta: float) -> void:
 			if _rehit_t >= 0.3:
 				_rehit_t = 0.0
 				hit_bodies.clear()   # every lap of the whirl cuts again
+				if rider == "moon":
+					_moon_pull()     # Second Moon: the whirl has its own tide
 			var r := (44.0 + _orbit_t * 75.0) * girth
 			var side := 1.0 if direction.x >= 0.0 else -1.0
 			global_position = source.global_position \
@@ -269,6 +273,25 @@ func _tick_chainmaul(delta: float) -> void:
 # Lob: a mortar arc under its own gravity; blossoms where it lands (or on
 # whatever it meets on the way down).
 func _tick_lob(delta: float) -> void:
+	# A Borrowed Star: at the TOP of the arc it sheds two smaller embers,
+	# once -- three falling lights where one was borrowed
+	if rider == "borrow" and not _borrowed and _vel_y >= 0.0:
+		_borrowed = true
+		var script: GDScript = get_script()
+		for side in [-0.3, 0.3]:
+			var ember = script.new()
+			ember.kind = "lob"
+			ember.direction = Vector2(direction.x + side, 0.0).normalized()
+			ember.speed = speed * 0.8
+			ember.damage = maxi(1, int(round(damage * 0.45)))
+			ember.aoe_radius = aoe_radius * 0.6
+			ember.max_distance = max_distance
+			ember.arc_gravity = arc_gravity
+			ember._start_y = _start_y
+			ember.on_hit_status = on_hit_status
+			ember.source = source
+			get_parent().add_child(ember)
+			ember.global_position = global_position
 	_vel_y += arc_gravity * delta
 	global_position += Vector2(direction.x * speed * 0.8 * delta, _vel_y * delta)
 	traveled += speed * 0.8 * delta
@@ -354,8 +377,13 @@ func _on_body_entered(body: Node2D) -> void:
 				FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
 			_apply_status_to(body)
 			# leap to the nearest fresh target; the arc loses an edge each jump
+			# -- unless it's The Rumor, which GROWS in the telling
 			bounces -= 1
-			damage = maxi(1, int(round(damage * 0.85)))
+			damage = maxi(1, int(round(damage * (1.08 if rider == "grows" else 0.85))))
+			# Grave Courier: a quarter of the bodies it departs are left
+			# FEARED -- rooted deep in a slow, watching it leave
+			if rider == "courier" and randf() < 0.25 and body.has_method("apply_status"):
+				body.apply_status("slow", 1.5, 0.45)
 			var next: Node2D = null
 			var best := 340.0
 			if bounces >= 0:
@@ -388,15 +416,61 @@ func _on_body_entered(body: Node2D) -> void:
 		_:
 			# only show a number if the blow actually got through (a boss can
 			# absorb it entirely); void take_damage means "landed"
-			var landed = body.take_damage(damage)
+			# The Long Goodbye: the RETURN pass cuts double -- it hurts most
+			# on the way out of your life
+			var dealt := damage * (2 if kind == "lash" and returning and rider == "goodbye" else 1)
+			var landed = body.take_damage(dealt)
 			if landed == null or landed:
-				FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+				FloatingText.spawn(get_parent(), body.global_position, dealt, is_crit)
 			_apply_status_to(body)
+			# Summer's Coffin: what it kills SHATTERS -- the cold bursts onto
+			# the mourners crowded round
+			if rider == "coffin" and "is_dead" in body and body.is_dead:
+				_frost_shatter(body.global_position)
 			if body.has_method("apply_knockback"):
 				body.apply_knockback(1 if direction.x >= 0.0 else -1, knockback)
 			if not pierce and kind != "boomerang":
 				done = true   # same one-frame double-hit guard as soul_split
 				queue_free()
+
+# Second Moon: every lap of the whirl drags loose enemies a step toward the
+# wielder -- a gentle tide that feeds the spiral's own blades.
+func _moon_pull() -> void:
+	if not is_instance_valid(source):
+		return
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("apply_knockback"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			var dx: float = source.global_position.x - e.global_position.x
+			if absf(dx) <= 180.0 and absf(dx) > 30.0:
+				e.apply_knockback(1 if dx >= 0.0 else -1, 26.0)
+
+# Summer's Coffin: the shatter -- cold damage and a deep chill around a body
+# the sliver just killed.
+func _frost_shatter(at: Vector2) -> void:
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if at.distance_to(e.global_position) <= 90.0:
+				e.take_damage(maxi(1, int(round(damage * 0.5))))
+				if e.has_method("apply_status"):
+					e.apply_status("slow", 2.0, 0.5)
+	var ring = Polygon2D.new()
+	ring.polygon = _circle(30.0, 12)
+	ring.color = Color(0.75, 0.92, 1.0, 0.8)
+	ring.z_index = 45
+	get_parent().add_child(ring)
+	ring.global_position = at
+	var t = ring.create_tween()
+	t.tween_property(ring, "scale", Vector2(3.0, 3.0), 0.3)
+	t.parallel().tween_property(ring, "modulate:a", 0.0, 0.3)
+	t.tween_callback(ring.queue_free)
 
 # Hook: reel the victim in using its own knockback system (negative direction
 # = toward the player), so it respects the enemy's is_dead/knockback rules.
@@ -424,6 +498,18 @@ func explode() -> void:
 				_apply_status_to(e)
 				if e.has_method("apply_knockback"):
 					e.apply_knockback(1 if e.global_position.x >= global_position.x else -1, knockback)
+	# A Small Personal Sun: the blast doesn't leave -- a grounded sunlet
+	# keeps burning the spot for a few seconds after the flash
+	if rider == "sunfall":
+		var sun = load("res://storm_cloud.gd").new()
+		sun.sun_mode = true
+		sun.radius = 80.0
+		sun.strike_gap = 0.5
+		sun.duration = 3.0
+		sun.damage = maxi(1, int(round(damage * 0.35)))
+		sun.source = source
+		get_parent().add_child(sun)
+		sun.global_position = global_position
 	# blast flash: expanding fading disc + ring, left behind as we free
 	var blast = Polygon2D.new()
 	blast.polygon = _circle(aoe_radius * 0.4, 20)

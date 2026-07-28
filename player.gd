@@ -2625,6 +2625,7 @@ func perform_admin_dash() -> void:
 
 var somersault_ready_at := 0.0
 var pillar_planted := false
+var _choir_shots := 0          # A Choir of One: counts to the seventh voice
 var _pillar_hold := 0.0        # how long DOWN has been held on the floor
 var _pillar_next_arc := 0.0
 var _pillar_ring: Node2D = null
@@ -3294,6 +3295,12 @@ func perform_attack() -> void:
 			var mult = 1.0 if is_excellent else skill_damage_mult("melee")
 			var cr = roll_crit(int(round(stats.damage * mult * combo_mult)))
 			var dealt = cr[0]
+			# The Patient Knife: the FIRST cut is the deepest -- +40% against
+			# a foe still standing at full health
+			if str(active_def.get("special", {}).get("rider", "")) == "patient" \
+					and "health" in target and "max_health" in target \
+					and int(target.health) >= int(target.max_health):
+				dealt = int(round(dealt * 1.4))
 			_last_swing_target = target
 			_last_swing_damage = dealt
 			if target.has_method("take_damage"):
@@ -3600,6 +3607,7 @@ func launch_projectile(cfg: Dictionary, dir: Vector2, dmg: int, is_crit: bool = 
 	p.dwell = float(cfg.get("dwell", 2.2))
 	p.bounces = int(cfg.get("bounces", 3))
 	p.shards = int(cfg.get("shards", 5))
+	p.rider = str(cfg.get("rider", ""))   # flagship bespoke behavior
 	# grade-driven scale: bigger crescent, bigger hitbox, same maths everywhere
 	p.girth = maxf(0.4, float(cfg.get("girth", 1.0)))
 	# a weapon's own status wins; otherwise the Elementalist's Ignite skill rides
@@ -3671,6 +3679,8 @@ func cast_storm_tome(special: Dictionary) -> void:
 	cloud.strike_gap = float(special.get("gap", 0.4))
 	cloud.tint = active_def.get("color", Color(0.55, 0.75, 1.0))
 	cloud.source = self
+	# What the Sky Charges: this storm WALKS toward prey
+	cloud.drift = str(special.get("rider", "")) == "walker"
 	get_parent().add_child(cloud)
 	cloud.global_position = aim_at
 
@@ -3929,6 +3939,13 @@ func apply_melee_skills(target: Node2D, dealt: int) -> void:
 		ls *= 2.0   # 7/7 true form: the dark drinks twice as deep
 	if ls > 0.0 and dealt > 0:
 		health = min(get_max_health(), health + int(round(dealt * ls)))
+		update_health_display()
+	# The Kindly End: every poisoned foe it strikes gives one HP back --
+	# a mercy that flows the wrong way
+	if str(active_def.get("special", {}).get("rider", "")) == "kindly" and dealt > 0 \
+			and "status_poison_until" in target \
+			and float(target.status_poison_until) > Time.get_ticks_msec() / 1000.0:
+		health = min(get_max_health(), health + 1)
 		update_health_display()
 	if target.has_method("apply_status"):
 		var b = GameState.get_bonus_total("on_hit_burn")
@@ -4554,6 +4571,13 @@ func spawn_arrow(stats: Dictionary, aim_dir: Vector2) -> void:
 	var count = int(special.get("count", 1)) if special.has("count") else 1
 	# Ranger multishot keystones (Twin Shot / Arrow Storm / Tempest) add arrows
 	count += int(GameState.get_bonus_total("multishot"))
+	# A Choir of One: every SEVENTH shot the whole choir answers -- a free
+	# three-arrow fan on top of the single voice
+	if str(special.get("rider", "")) == "choir":
+		_choir_shots += 1
+		if _choir_shots >= 7:
+			_choir_shots = 0
+			count = maxi(count, 3)
 	# Warden keystones make arrows carry statuses. These now STACK -- Venom
 	# (poison) plus a fork of Frost (slow) or Flame (burn) all ride the arrow.
 	var arrow_statuses := []
