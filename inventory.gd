@@ -121,6 +121,16 @@ const ITEM_DEFS = {
 	"pants_dragon": {"name": "Dragonscale Greaves", "category": "armor", "slot": "pants", "set": "dragonscale", "max_stack": 1, "color": Color(0.55, 0.14, 0.18, 1.0), "equip_effect": {"max_health": 45.0, "melee_damage": 0.08}},
 	"gloves_dragon": {"name": "Dragonscale Gauntlets", "category": "armor", "slot": "gloves", "set": "dragonscale", "max_stack": 1, "color": Color(0.68, 0.2, 0.22, 1.0), "equip_effect": {"crit_chance": 0.08, "crit_damage": 0.20}},
 	"boots_dragon": {"name": "Dragonscale Sabatons", "category": "armor", "slot": "boots", "set": "dragonscale", "max_stack": 1, "color": Color(0.6, 0.18, 0.2, 1.0), "equip_effect": {"max_health": 40.0, "move_speed": 0.10}},
+	# --- Voidwalker Raiment: the ASCENDED set (2026-07-28) -- dodge, speed
+	# and mana; armor for those who'd rather not be where the blow lands. ---
+	"helm_void": {"name": "Voidwalker Cowl", "category": "armor", "slot": "helmet", "set": "voidwalker", "max_stack": 1, "color": Color(0.3, 0.85, 0.95, 1.0), "equip_effect": {"max_mana": 35.0, "dodge_chance": 0.04}},
+	"armor_void": {"name": "Voidwalker Shroud", "category": "armor", "slot": "chest", "set": "voidwalker", "max_stack": 1, "color": Color(0.24, 0.75, 0.88, 1.0), "equip_effect": {"max_health": 55.0, "max_mana": 30.0, "damage_reduction": 0.05}},
+	"pants_void": {"name": "Voidwalker Striders", "category": "armor", "slot": "pants", "set": "voidwalker", "max_stack": 1, "color": Color(0.2, 0.66, 0.8, 1.0), "equip_effect": {"move_speed": 0.10, "dodge_chance": 0.04}},
+	# --- The Sovereign's Regalia: the MONARCH set -- the deepest floors dress
+	# their conqueror. All damage, unbowed. ---
+	"helm_regal": {"name": "Crown of the Deep Court", "category": "armor", "slot": "helmet", "set": "regalia", "max_stack": 1, "color": Color(1.0, 0.5, 0.15, 1.0), "equip_effect": {"max_health": 50.0, "crit_chance": 0.06}},
+	"armor_regal": {"name": "Mantle of the Last King", "category": "armor", "slot": "chest", "set": "regalia", "max_stack": 1, "color": Color(0.92, 0.42, 0.12, 1.0), "equip_effect": {"max_health": 90.0, "damage_reduction": 0.08}},
+	"pants_regal": {"name": "Greaves of the Long March", "category": "armor", "slot": "pants", "set": "regalia", "max_stack": 1, "color": Color(0.85, 0.36, 0.1, 1.0), "equip_effect": {"max_health": 50.0, "move_speed": 0.06, "melee_damage": 0.06}},
 	# --- Consumables. Right-click in the bag to USE. "use_effect" says what it
 	# does: heal_hp / heal_mana (instant), buff (a timed stat boost via
 	# player.active_buffs), or reset_skills. HP & Mana potions are DROP-ONLY
@@ -644,6 +654,9 @@ const ITEM_GRADES = {
 	"boots_leather": "uncommon", "boots_swift": "rare", "boots_storm": "epic", "boots_titan": "mythic",
 	"helm_ranger": "rare", "armor_ranger": "rare", "pants_ranger": "rare",
 	"helm_dragon": "mythic", "armor_dragon": "mythic", "pants_dragon": "mythic", "gloves_dragon": "mythic", "boots_dragon": "mythic",
+	# the two peaks (2026-07-28)
+	"helm_void": "ascended", "armor_void": "ascended", "pants_void": "ascended",
+	"helm_regal": "monarch", "armor_regal": "monarch", "pants_regal": "monarch",
 	# batch: new weapons
 	"wpn_club": "common", "wpn_shortbow": "uncommon", "wpn_apprentice_wand": "uncommon", "wpn_dagger": "uncommon",
 	"wpn_mace": "uncommon", "wpn_javelin": "uncommon", "wpn_greatsword": "rare", "wpn_katana": "rare",
@@ -714,6 +727,8 @@ const SET_DEFS = {
 	"leather": {
 		"name": "Leather Set",
 		"pieces": ["helm_leather", "armor_leather", "pants_leather"],
+		"bonus_2pc": {"max_health": 10.0},
+		"bonus_2pc_desc": "+10 Max HP",
 		"bonus": {"max_health": 20.0, "move_speed": 0.05},
 		"bonus_desc": "+20 Max HP, +5% Move Speed",
 	},
@@ -758,6 +773,9 @@ const SET_DEFS = {
 		"bonus_2pc_desc": "+15 Max HP",
 		"bonus": {"damage_reduction": 0.06, "move_speed": 0.05, "max_health": 20.0},
 		"bonus_desc": "+6% Damage Reduction, +5% Move Speed, +20 HP",
+		"weapon": "wpn_shrikebow",
+		"full_bonus": {"bow_damage": 0.10, "crit_chance": 0.06, "move_speed": 0.05},
+		"full_bonus_desc": "+10% Bow DMG, +6% Crit, +5% Move Speed",
 	},
 	# Mythic 5-slot endgame set (helmet/chest/pants/gloves/boots).
 	"dragonscale": {
@@ -770,6 +788,34 @@ const SET_DEFS = {
 		"bonus_2pc_desc": "+5% Damage Reduction, +30 HP",
 		"bonus": {"max_health": 80.0, "damage_reduction": 0.10, "melee_damage": 0.10, "crit_damage": 0.25},
 		"bonus_desc": "+80 HP, +10% Damage Reduction, +10% Melee DMG, +25% Crit DMG",
+		"weapon": "wpn_worldanvil",
+		"full_bonus": {"on_hit_burn": 6.0, "melee_damage": 0.10, "max_health": 40.0},
+		"full_bonus_desc": "DRAGON'S BREATH: your blows BURN (+6/s), +10% Melee DMG, +40 HP",
+	},
+	# --- The two peaks (2026-07-28): armor finally reaches the 8-tier
+	# ladder's top. Ascended = the untouchable caster-skirmisher; Monarch =
+	# all damage, unbowed. Pieces below with the other armor defs. ---
+	"voidwalker": {
+		"name": "Voidwalker Raiment",
+		"pieces": ["helm_void", "armor_void", "pants_void"],
+		"bonus_2pc": {"move_speed": 0.06},
+		"bonus_2pc_desc": "+6% Move Speed",
+		"bonus": {"dodge_chance": 0.08, "max_mana": 40.0, "max_health": 40.0},
+		"bonus_desc": "+8% Dodge, +40 Max Mana, +40 HP",
+		"weapon": "wpn_summerscoffin",
+		"full_bonus": {"wand_damage": 0.15, "mana_regen": 0.5, "dodge_chance": 0.04},
+		"full_bonus_desc": "+15% Wand DMG, +50% Mana Regen, +4% Dodge",
+	},
+	"regalia": {
+		"name": "The Sovereign's Regalia",
+		"pieces": ["helm_regal", "armor_regal", "pants_regal"],
+		"bonus_2pc": {"max_health": 60.0},
+		"bonus_2pc_desc": "+60 Max HP",
+		"bonus": {"melee_damage": 0.12, "bow_damage": 0.12, "wand_damage": 0.12, "damage_reduction": 0.06},
+		"bonus_desc": "+12% ALL DMG, +6% Damage Reduction",
+		"weapon": "wpn_worldslash",
+		"full_bonus": {"melee_damage": 0.10, "bow_damage": 0.10, "wand_damage": 0.10, "crit_chance": 0.08, "max_health": 50.0},
+		"full_bonus_desc": "+10% ALL DMG, +8% Crit, +50 Max HP",
 	},
 }
 

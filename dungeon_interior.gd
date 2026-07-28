@@ -2408,11 +2408,14 @@ const GEAR_EARLY_WEAPON_IDS = ["wpn_club", "wpn_shortbow", "wpn_apprentice_wand"
 const GEAR_ARMOR_IDS = ["helm_bulwark", "armor_bulwark", "pants_bulwark",
 	"helm_windstalker", "armor_windstalker", "pants_windstalker",
 	"helm_runeweave", "armor_runeweave", "pants_runeweave",
-	# batch: mid-tier Ranger set + gloves/boots + Dragonscale endgame set
+	# batch: mid-tier Ranger set + the Dragonscale endgame set
 	"helm_ranger", "armor_ranger", "pants_ranger",
-	"gloves_leather", "gloves_iron", "gloves_assassin", "gloves_titan",
-	"boots_leather", "boots_swift", "boots_storm", "boots_titan",
-	"helm_dragon", "armor_dragon", "pants_dragon", "gloves_dragon", "boots_dragon"]
+	"helm_dragon", "armor_dragon", "pants_dragon",
+	# the two peaks (2026-07-28): ascended Voidwalker, monarch Regalia
+	"helm_void", "armor_void", "pants_void",
+	"helm_regal", "armor_regal", "pants_regal"]
+	# NOTE (Terraria-exact armor): gloves/boots are RETIRED slots -- their old
+	# pieces are bag curios and must never drop again, so they left this pool.
 const GEAR_SET_WEAPON_IDS = ["wpn_claymore", "wpn_recurve", "wpn_scepter"]
 # special-attack class weapons (flying slash, javelin volley, multi-shot,
 # homing arrows, fireball, frost shard, cleave) -- see inventory.gd "special"
@@ -2455,13 +2458,13 @@ func roll_gear_drop() -> void:
 	if current_level < 12:
 		pool += _gear_unowned(GEAR_EARLY_WEAPON_IDS, player)
 	if current_level >= 3:
-		pool += _gear_unowned(GEAR_RELIC_IDS, player)
+		pool += _gear_unowned(_gear_in_depth(GEAR_RELIC_IDS), player)
 	if current_level >= 6:
-		pool += _gear_unowned(GEAR_ARMOR_IDS, player)
+		pool += _gear_unowned(_gear_in_depth(GEAR_ARMOR_IDS), player)
 	if current_level >= 10:
-		pool += _gear_unowned(GEAR_CLASS_WEAPON_IDS, player)
+		pool += _gear_unowned(_gear_in_depth(GEAR_CLASS_WEAPON_IDS), player)
 	if current_level >= 15:
-		pool += _gear_unowned(GEAR_SET_WEAPON_IDS, player)
+		pool += _gear_unowned(_gear_in_depth(GEAR_SET_WEAPON_IDS), player)
 	# THE GENERATED LADDER (weapon_roster.gd, wave 2): every roster weapon
 	# whose tier bracket admits this floor joins the roll -- the brackets
 	# overlap on purpose, so a lucky shallow run tastes the next tier early
@@ -2470,6 +2473,20 @@ func roll_gear_drop() -> void:
 		roll_material_drop(true)   # owns it all -- pay an extra material instead
 		return
 	_give_gear(player, pool.pick_random(), false)
+
+# A grade must be EARNED by depth before it can drop: each item's grade maps
+# onto the roster's floor brackets and only the LOWER bound is enforced (a
+# monarch crown cannot fall on floor six; a bulwark helm skipped early can
+# still turn up late -- completion stays possible). (polish, 2026-07-28)
+func _gear_in_depth(ids: Array) -> Array:
+	var out := []
+	for id in ids:
+		var g: String = Inventory.get_grade(id)
+		var rank: int = int(Inventory.GRADE_DEFS.get(g, {}).get("rank", 1))
+		var br: Array = WeaponRoster.TIER_FLOORS[clampi(rank, 1, 8)]
+		if current_level >= int(br[0]):
+			out.append(id)
+	return out
 
 # Owned = in the bag, worn, or currently wielded.
 func _gear_unowned(ids: Array, player: Node) -> Array:
@@ -2574,6 +2591,13 @@ func build_proving_grounds() -> void:
 		if not by_grade.has(g):
 			by_grade[g] = []
 		by_grade[g].append(id)
+	# the generated ladder lives outside ITEM_GRADES -- without this the racks
+	# silently showed only a fifth of the arsenal (weapons overhaul wave 3)
+	for id in WeaponRoster.all_ids():
+		var g2: String = Inventory.get_grade(id)
+		if not by_grade.has(g2):
+			by_grade[g2] = []
+		by_grade[g2].append(id)
 	var ungraded := []
 	for id in Inventory.ITEM_DEFS.keys():
 		var cat: String = Inventory.ITEM_DEFS[id].get("category", "")

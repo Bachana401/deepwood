@@ -170,5 +170,32 @@ func _ready() -> void:
 	check("trees still fall in HITS_TO_HARVEST swings",
 		hsrc.contains("hits_left -= 1") and hsrc.contains("if hits_left <= 0:"))
 
+	# ---- polish 2026-07-28: racks, retired slots, depth-gated grades, peaks ----
+	var dsrc := FileAccess.open("res://dungeon_interior.gd", FileAccess.READ).get_as_text()
+	check("the proving racks include the generated ladder",
+		dsrc.contains("WeaponRoster.all_ids():") and dsrc.contains("silently showed only a fifth"))
+	var retired_leak := false
+	for aid in DI.GEAR_ARMOR_IDS:
+		if str(Inventory.ITEM_DEFS.get(aid, {}).get("slot", "")) in GameState.RETIRED_SLOTS:
+			retired_leak = true
+	check("retired gloves/boots left the armor drop pool", not retired_leak)
+	check("armor/relic drops respect their grade's floor (lower bound)",
+		dsrc.contains("func _gear_in_depth") and dsrc.contains("_gear_in_depth(GEAR_ARMOR_IDS)"))
+	check("the Forge no longer sells retired-slot pieces",
+		FileAccess.open("res://assign_ui.gd", FileAccess.READ).get_as_text().contains("RETIRED_SLOTS"))
+	for sid in ["voidwalker", "regalia"]:
+		var sd: Dictionary = Inventory.SET_DEFS.get(sid, {})
+		var peak_ok: bool = not sd.is_empty() and sd.get("pieces", []).size() == 3
+		for pid in sd.get("pieces", []):
+			peak_ok = peak_ok and Inventory.ITEM_DEFS.has(pid) and Inventory.ITEM_GRADES.has(pid)
+		peak_ok = peak_ok and Inventory.get_item_def(str(sd.get("weapon", ""))).has("weapon_stats")
+		check("peak set '%s' stands complete (3 graded pieces + a real weapon)" % sid, peak_ok)
+	var badw := []
+	for sid2 in Inventory.SET_DEFS.keys():
+		var w := str(Inventory.SET_DEFS[sid2].get("weapon", ""))
+		if w != "" and Inventory.get_item_def(w).is_empty():
+			badw.append(sid2)
+	check("every set weapon resolves to a real item", badw.is_empty(), ", ".join(badw))
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

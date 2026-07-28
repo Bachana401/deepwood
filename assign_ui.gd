@@ -368,6 +368,10 @@ func smithy_stock() -> Array:
 			continue
 		if base_kit.has(id) or id == "wpn_admin_ruin" or def.get("excellent", false):
 			continue
+		# Terraria-exact armor (2026-07-28): gloves/boots are RETIRED slots --
+		# their surviving defs are bag curios and must never be SOLD as gear
+		if cat == "armor" and str(def.get("slot", "")) in GameState.RETIRED_SLOTS:
+			continue
 		# SET pieces and set weapons stay dungeon-drop only at ANY rank -- Toren
 		# raises the Forge's grade cap to Epic, not its exclusivity rules (the
 		# file's own contract above). Without this, his boon put all three full

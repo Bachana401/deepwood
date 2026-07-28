@@ -86,6 +86,8 @@ var mana_bar_fill: ColorRect = null
 const HUD_ORB = preload("res://hud_orb.gd")
 var hp_orb: Control = null
 var mana_orb: Control = null
+var buff_row: HBoxContainer = null   # the buff/debuff chips above the HP globe
+var _chip_accum := 0.0
 # The light the player carries -- a warm pool so the Terraria-dark dungeon is
 # always readable right around the hero. On only where it's dark (the dungeon).
 var player_light: PointLight2D = null
@@ -2017,7 +2019,59 @@ func build_orbs() -> void:
 	mana_orb.anchor_top = 1.0; mana_orb.anchor_bottom = 1.0
 	mana_orb.offset_right = -20.0; mana_orb.offset_left = -20.0 - ORB_D
 	mana_orb.offset_top = -(ORB_D + 12.0); mana_orb.offset_bottom = -12.0
+
+	# the buff/debuff row: living chips above the HP globe. Food buffs and
+	# stances read gold-ish; what's been done TO you reads in its own colour.
+	buff_row = HBoxContainer.new()
+	layer.add_child(buff_row)
+	buff_row.anchor_top = 1.0; buff_row.anchor_bottom = 1.0
+	buff_row.offset_left = 20.0
+	buff_row.offset_right = 520.0
+	buff_row.offset_top = -(ORB_D + 12.0 + 30.0)
+	buff_row.offset_bottom = -(ORB_D + 12.0 + 4.0)
+	buff_row.add_theme_constant_override("separation", 10)
 	update_orbs()
+
+# The chips: every timed thing on the player, named and counted down, in one
+# glance -- food buffs, stances, and everything the world has done to you.
+# Rebuilt at ~3Hz (a handful of Labels; churn is nothing at this rate).
+const BUFF_CHIP_LABELS = {"all_damage": "Well Fed", "move_speed": "Swift",
+	"max_health": "Hearty", "damage_reduction": "Stoneskin",
+	"crit_chance": "Keen", "gold_gain": "Lucky", "xp_gain": "Wise"}
+
+func update_buff_chips() -> void:
+	if buff_row == null:
+		return
+	for c in buff_row.get_children():
+		c.queue_free()
+	var n := _now()
+	var chips := []   # [text, colour]
+	for key in active_buffs.keys():
+		var b = active_buffs[key]
+		var left := maxf(0.0, float(b.get("until", 0.0)) - n)
+		if left <= 0.0:
+			continue
+		chips.append(["%s %ds" % [BUFF_CHIP_LABELS.get(key, str(key).capitalize()), int(ceil(left))],
+			Color(1.0, 0.85, 0.4)])
+	if pillar_planted:
+		chips.append(["Pillar Stance", Color(1.0, 0.85, 0.35)])
+	if _sanctuary_ring != null:
+		chips.append(["Sanctuary", Color(0.55, 0.85, 1.0)])
+	for d in [["Poisoned", poison_until, Color(0.5, 0.9, 0.4)],
+			["Stunned", stun_until, Color(1.0, 0.6, 0.3)],
+			["Rooted", root_until, Color(0.8, 0.65, 0.4)],
+			["Frozen", freeze_until, Color(0.6, 0.9, 1.0)],
+			["Disoriented", disorient_until, Color(0.9, 0.5, 0.95)]]:
+		if n < float(d[1]):
+			chips.append(["%s %ds" % [d[0], int(ceil(float(d[1]) - n))], d[2]])
+	for ch in chips:
+		var l := Label.new()
+		l.text = ch[0]
+		l.add_theme_font_size_override("font_size", 13)
+		l.add_theme_color_override("font_color", ch[1])
+		l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+		l.add_theme_constant_override("outline_size", 4)
+		buff_row.add_child(l)
 
 # Feed the globes the live pools every frame -- cheap, and it catches passive
 # regen/drain that never routes through update_*_display.
@@ -2774,6 +2828,10 @@ func _physics_process(delta: float) -> void:
 	# both rift doors standing = the drain runs (Riftweaving)
 	tick_portals(delta)
 	tick_wukong(delta)   # pillar stance / sanctuary ring / the plucked hair
+	_chip_accum += delta
+	if _chip_accum >= 0.3:
+		_chip_accum = 0.0
+		update_buff_chips()
 
 	# fall-damage apex: remember the highest point of the current airtime so we
 	# can measure the drop on landing (only once we've touched ground at least

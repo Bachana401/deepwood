@@ -197,6 +197,25 @@ func _ready() -> void:
 	check("the Riddle Staff draws a FOURTH stage of reach", reach_runed > reach_plain,
 		"%0.2f vs %0.2f" % [reach_plain, reach_runed])
 
+	# ---- the buff/debuff chips (polish): timed things are VISIBLE ----
+	pl.add_buff("all_damage", 4.0, 30.0)
+	pl.poison_until = Time.get_ticks_msec() / 1000.0 + 10.0
+	await _frames(30)   # at least one 0.3s chip rebuild
+	var chip_texts := []
+	if pl.buff_row != null:
+		for c in pl.buff_row.get_children():
+			chip_texts.append(str(c.text))
+	var has_fed := false
+	var has_poison := false
+	for t in chip_texts:
+		if str(t).begins_with("Well Fed"):
+			has_fed = true
+		if str(t).begins_with("Poisoned"):
+			has_poison = true
+	check("the chips name the feast AND the poison", has_fed and has_poison, str(chip_texts))
+	pl.active_buffs.clear()
+	pl.poison_until = 0.0
+
 	# ---- restore the world ----
 	pl.active_def = saved_def
 	GameState.unlocked_skills = saved_skills
