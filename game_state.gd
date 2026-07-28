@@ -4797,6 +4797,7 @@ func reset_for_new_game() -> void:
 	highest_unlocked_level = 999 if TEST_UNLOCK_ALL_LEVELS else 1
 	floors_cleared = {}                        # a new run's deep is unswept
 	# hidden event bosses re-arm and their run counters zero for the fresh run
+	event_state = {}          # explicit reset (arm_hidden_events repopulates it)
 	arm_hidden_events()
 	run_kills = 0
 	run_trees = 0

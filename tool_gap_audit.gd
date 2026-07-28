@@ -178,6 +178,12 @@ func _ready() -> void:
 		var d: Dictionary = Inventory.ITEM_DEFS[id]
 		if str(d.get("name", "")).contains("Admin"):
 			continue
+		# a CRAFTABLE item IS reachable -- the crafting UI lists every recipe.
+		# (grant sources skip inventory.gd, where CRAFT_RECIPES lives, so without
+		# this a craft-only item read as "nothing grants" -- a blind spot that
+		# false-flagged the event-boss re-summon tokens. 2026-07-28)
+		if Inventory.CRAFT_RECIPES.has(id):
+			continue
 		if not src.contains('"%s"' % id):
 			var cat := str(d.get("category", "misc"))
 			if not unreachable.has(cat):
