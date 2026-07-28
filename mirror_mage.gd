@@ -26,16 +26,26 @@ func _ready() -> void:
 	_body = Node2D.new()
 	add_child(_body)
 	# the robe: a tapering hooded figure, glassy and half-there
+	# brighter than the first cut (EYES 2026-07-28): a violet echo at 0.75
+	# alpha melted into the night -- the hair must be SEEN standing guard
+	var aura := Polygon2D.new()
+	var apts := PackedVector2Array()
+	for i in range(12):
+		var aa := TAU * float(i) / 12.0
+		apts.append(Vector2(cos(aa) * 16.0, -24.0 + sin(aa) * 26.0))
+	aura.polygon = apts
+	aura.color = Color(0.7, 0.55, 1.0, 0.16)
+	_body.add_child(aura)
 	var robe := Polygon2D.new()
 	robe.polygon = PackedVector2Array([
 		Vector2(-9, 0), Vector2(-11, -26), Vector2(-6, -40), Vector2(0, -44),
 		Vector2(6, -40), Vector2(11, -26), Vector2(9, 0), Vector2(0, -6)])
-	robe.color = Color(0.5, 0.38, 0.85, 0.75)
+	robe.color = Color(0.66, 0.52, 1.0, 0.95)
 	_body.add_child(robe)
 	var hood := Polygon2D.new()
 	hood.polygon = PackedVector2Array([
 		Vector2(-6, -38), Vector2(0, -50), Vector2(6, -38), Vector2(0, -34)])
-	hood.color = Color(0.4, 0.3, 0.72, 0.85)
+	hood.color = Color(0.52, 0.4, 0.9, 1.0)
 	_body.add_child(hood)
 	# the face is a single mote of light under the hood
 	var mote := Polygon2D.new()

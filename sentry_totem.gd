@@ -33,13 +33,23 @@ func _ready() -> void:
 		Vector2(-9, -46), Vector2(0, -58), Vector2(9, -46)])
 	cap.color = Color(0.4, 0.34, 0.27, 1.0)
 	add_child(cap)
+	# the watching eye carries a glow -- a dark post with a 5px eye vanished
+	# into the night (world-zoom readability pass, EYES 2026-07-28)
+	var halo := Polygon2D.new()
+	var hpts := PackedVector2Array()
+	for i in range(12):
+		var ha := TAU * float(i) / 12.0
+		hpts.append(Vector2(cos(ha) * 12.0, -38.0 + sin(ha) * 12.0))
+	halo.polygon = hpts
+	halo.color = Color(tint.r, tint.g, tint.b, 0.22)
+	add_child(halo)
 	_eye = Polygon2D.new()
 	var pts := PackedVector2Array()
 	for i in range(10):
 		var a := TAU * float(i) / 10.0
-		pts.append(Vector2(cos(a) * 5.0, -38.0 + sin(a) * 5.0))
+		pts.append(Vector2(cos(a) * 7.0, -38.0 + sin(a) * 7.0))
 	_eye.polygon = pts
-	_eye.color = Color(tint.r, tint.g, tint.b, 0.95)
+	_eye.color = Color(minf(tint.r + 0.2, 1.0), minf(tint.g + 0.2, 1.0), minf(tint.b + 0.2, 1.0), 1.0)
 	add_child(_eye)
 
 func _physics_process(delta: float) -> void:

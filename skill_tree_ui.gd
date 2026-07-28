@@ -400,7 +400,8 @@ func make_node_button(node: Dictionary, color: Color) -> Button:
 	var unlocked = GameState.is_skill_unlocked(node.id)
 	var blocked = SkillTreeData.is_exclusive_blocked(node)
 	var is_keystone = node.get("keystone", false)
-	var star = "★ " if is_keystone else ""
+	var is_road = node.get("road", false)
+	var star = "★ " if is_keystone else ("⤷ " if is_road else "")
 	var cost_line = "%d pt" % node.cost
 	for mat_id in node.materials.keys():
 		cost_line += " + %dx %s" % [node.materials[mat_id], Inventory.get_display_name(mat_id)]
@@ -425,6 +426,13 @@ func make_node_button(node: Dictionary, color: Color) -> Button:
 		style.bg_color = Color(0.24, 0.19, 0.08, 1.0) if not unlocked else Color(0.4, 0.3, 0.1, 1.0)
 		style.border_color = gold
 		style.set_border_width_all(3)
+	elif is_road:
+		# side-roads (Wukong / Riftweaving / Telepathy) read as DETOURS: jade
+		# border + the turn glyph, distinct from spine white and keystone gold
+		var jade = Color(0.35, 0.85, 0.6)
+		style.bg_color = Color(0.08, 0.17, 0.13, 1.0) if not unlocked else Color(0.12, 0.3, 0.2, 1.0)
+		style.border_color = jade if not unlocked else jade.lightened(0.2)
+		style.set_border_width_all(2)
 	else:
 		style.bg_color = color.darkened(0.2) if unlocked else Color(0.14, 0.14, 0.17, 1.0)
 		style.border_color = color if unlocked else color.darkened(0.35)

@@ -381,6 +381,9 @@ func dissolve() -> void:
 			get_parent().add_child(sp)
 			sp.global_position = global_position + Vector2(side * 18.0, 0.0)
 			sp.scale = Vector2(0.72, 0.72)
+			# each half TEARS free in a burst of the same dark the parent
+			# dissolves into -- the split is seen, not just counted
+			sp.call_deferred("spawn_burst")
 	var t = create_tween()
 	t.tween_property(self, "modulate:a", 0.0, 0.3)
 	t.parallel().tween_property(self, "scale", Vector2(1.2, 0.05), 0.3)

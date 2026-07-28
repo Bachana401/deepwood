@@ -597,21 +597,27 @@ func _build_frost() -> void:
 
 # A soulthread charm: a rune-disc that spins on its thread.
 func _build_orbiter() -> void:
+	# EYES 2026-07-28: sized and haloed like the flail -- the first build was
+	# a faint dot at world zoom, and a spinning wheel must LOOK like a wheel
+	var glow = Polygon2D.new()
+	glow.polygon = _circle(22.0, 12)
+	glow.color = Color(0.7, 0.88, 1.0, 0.2)
+	visual.add_child(glow)
 	var disc = Polygon2D.new()
-	disc.polygon = _circle(11.0, 10)
-	disc.color = Color(0.65, 0.85, 1.0, 0.9)
+	disc.polygon = _circle(16.0, 10)
+	disc.color = Color(0.75, 0.9, 1.0, 1.0)
 	visual.add_child(disc)
 	var core = Polygon2D.new()
-	core.polygon = _circle(5.0, 8)
-	core.color = Color(0.95, 0.98, 1.0, 0.95)
+	core.polygon = _circle(7.0, 8)
+	core.color = Color(1.0, 1.0, 1.0, 1.0)
 	visual.add_child(core)
 	for i in range(3):
 		var spoke = Polygon2D.new()
 		var a := TAU * float(i) / 3.0
 		spoke.polygon = PackedVector2Array([
-			Vector2(cos(a), sin(a)) * 4.0, Vector2(cos(a + 0.3), sin(a + 0.3)) * 13.0,
-			Vector2(cos(a - 0.3), sin(a - 0.3)) * 13.0])
-		spoke.color = Color(0.5, 0.75, 1.0, 0.7)
+			Vector2(cos(a), sin(a)) * 5.0, Vector2(cos(a + 0.3), sin(a + 0.3)) * 19.0,
+			Vector2(cos(a - 0.3), sin(a - 0.3)) * 19.0])
+		spoke.color = Color(0.6, 0.82, 1.0, 0.95)
 		visual.add_child(spoke)
 
 # A spiked head on its chain, drawn back to the fist that swings it. Sized
@@ -648,31 +654,43 @@ func _build_chainmaul() -> void:
 
 # An angular dart that looks eager to change its mind.
 func _build_ricochet() -> void:
+	var glow = Polygon2D.new()
+	glow.polygon = _circle(15.0, 10)
+	glow.color = Color(1.0, 0.85, 0.4, 0.2)
+	visual.add_child(glow)
 	var dart = Polygon2D.new()
 	dart.polygon = PackedVector2Array([
-		Vector2(-14, -5), Vector2(12, 0), Vector2(-14, 5), Vector2(-8, 0)])
-	dart.color = Color(1.0, 0.85, 0.4, 0.95)
+		Vector2(-19, -7), Vector2(17, 0), Vector2(-19, 7), Vector2(-11, 0)])
+	dart.color = Color(1.0, 0.88, 0.45, 1.0)
 	visual.add_child(dart)
 
 # A pregnant orb with its shards already showing.
 func _build_cluster() -> void:
+	var glow = Polygon2D.new()
+	glow.polygon = _circle(20.0, 12)
+	glow.color = Color(0.65, 0.85, 1.0, 0.2)
+	visual.add_child(glow)
 	var orb = Polygon2D.new()
-	orb.polygon = _circle(10.0, 12)
-	orb.color = Color(0.6, 0.8, 1.0, 0.85)
+	orb.polygon = _circle(14.0, 12)
+	orb.color = Color(0.7, 0.88, 1.0, 1.0)
 	visual.add_child(orb)
 	for i in range(4):
 		var sat = Polygon2D.new()
 		var a := TAU * float(i) / 4.0 + 0.4
-		sat.polygon = _circle(3.0, 6)
-		sat.position = Vector2(cos(a), sin(a)) * 8.0
-		sat.color = Color(0.9, 0.97, 1.0, 0.9)
+		sat.polygon = _circle(4.5, 6)
+		sat.position = Vector2(cos(a), sin(a)) * 11.0
+		sat.color = Color(1.0, 1.0, 1.0, 1.0)
 		visual.add_child(sat)
 
 # The mortar shot: a heavy orb with a sputtering fuse.
 func _build_lob() -> void:
+	var glow = Polygon2D.new()   # the fuse-light carries the shell in the dark
+	glow.polygon = _circle(17.0, 10)
+	glow.color = Color(1.0, 0.6, 0.25, 0.2)
+	visual.add_child(glow)
 	var shell = Polygon2D.new()
-	shell.polygon = _circle(10.0, 12)
-	shell.color = Color(0.35, 0.32, 0.3, 1.0)
+	shell.polygon = _circle(13.0, 12)
+	shell.color = Color(0.5, 0.46, 0.44, 1.0)
 	visual.add_child(shell)
 	var band = Polygon2D.new()
 	band.polygon = PackedVector2Array([
@@ -699,13 +717,19 @@ func _build_lash() -> void:
 		var x := lerpf(26.0, -30.0, float(i) / 10.0)
 		pts.append(Vector2(x, 4.5 * (1.0 - absf(x) / 32.0) - sin(x * 0.25) * 2.0))
 	ribbon.polygon = pts
-	ribbon.color = Color(1.0, 0.6, 0.25, 0.9)
+	ribbon.color = Color(1.0, 0.65, 0.3, 1.0)
 	visual.add_child(ribbon)
 	var edge = Polygon2D.new()
 	edge.polygon = PackedVector2Array([
-		Vector2(14, -2), Vector2(30, 0), Vector2(14, 2)])
-	edge.color = Color(1.0, 0.9, 0.5, 0.95)
+		Vector2(14, -3), Vector2(34, 0), Vector2(14, 3)])
+	edge.color = Color(1.0, 0.95, 0.6, 1.0)
 	visual.add_child(edge)
+	# a warm trail-glow so the weave reads as a burning ribbon in the dark
+	var glow = Polygon2D.new()
+	glow.polygon = _circle(16.0, 10)
+	glow.color = Color(1.0, 0.7, 0.3, 0.18)
+	visual.add_child(glow)
+	visual.move_child(glow, 0)
 
 func _build_hook() -> void:
 	var curve = Line2D.new()   # the hook itself: a J-curve

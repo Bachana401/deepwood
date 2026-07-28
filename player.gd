@@ -2670,7 +2670,9 @@ func somersault_ready() -> bool:
 	return _now() >= somersault_ready_at and not is_dashing
 
 # The flip: a mid-air forward dash that borrows the dash machinery, so the
-# afterimages, the dash pose and the velocity handoff all come for free.
+# afterimages, the dash pose and the velocity handoff all come for free --
+# and the body actually TURNS OVER (a somersault that doesn't somersault
+# reads as a plain air-dash; polish pass 2026-07-28).
 func perform_somersault() -> void:
 	somersault_ready_at = _now() + 3.0
 	is_dashing = true
@@ -2678,6 +2680,11 @@ func perform_somersault() -> void:
 	velocity.x = facing_direction * 640.0
 	velocity.y = JUMP_VELOCITY * 0.5
 	grant_iframes(0.35)   # untouchable for a blink, exactly as promised
+	if body_anim != null:
+		var spin := create_tween()
+		spin.tween_property(body_anim, "rotation",
+			TAU * float(facing_direction), 0.28).from(0.0)
+		spin.tween_callback(func(): body_anim.rotation = 0.0)
 	await get_tree().create_timer(0.28).timeout
 	is_dashing = false
 
@@ -2761,6 +2768,23 @@ func _tick_sanctuary(delta: float) -> void:
 		for pr in get_tree().get_nodes_in_group(group_name):
 			if pr is Node2D and is_instance_valid(pr) \
 					and global_position.distance_to(pr.global_position) <= 100.0:
+				# the ward is SEEN working: each shot dies as a soft blue pop
+				# at the point the circle refused it (polish 2026-07-28)
+				var pop := CPUParticles2D.new()
+				pop.one_shot = true
+				pop.explosiveness = 1.0
+				pop.amount = 8
+				pop.lifetime = 0.3
+				pop.spread = 180.0
+				pop.initial_velocity_min = 40.0
+				pop.initial_velocity_max = 90.0
+				pop.scale_amount_min = 2.0
+				pop.scale_amount_max = 4.0
+				pop.color = Color(0.6, 0.88, 1.0, 0.9)
+				get_parent().add_child(pop)
+				pop.global_position = (pr as Node2D).global_position
+				pop.emitting = true
+				pop.finished.connect(pop.queue_free)
 				pr.queue_free()
 
 # The Plucked Hair: enemies close + the cooldown up = the mirror-mage stands.
@@ -2793,8 +2817,8 @@ func _tick_hair_clone() -> void:
 func _make_ring(radius: float, col: Color) -> Node2D:
 	var ring := Node2D.new()
 	var line := Line2D.new()
-	line.width = 3.0
-	line.default_color = col
+	line.width = 5.0   # 3px at half-alpha vanished at night (EYES 2026-07-28)
+	line.default_color = Color(col.r, col.g, col.b, minf(col.a + 0.35, 1.0))
 	var pts := PackedVector2Array()
 	for i in range(25):
 		var a := TAU * float(i) / 24.0

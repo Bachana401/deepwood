@@ -32,7 +32,9 @@ func _ready() -> void:
 		var r := 34.0 + sin(a * 3.0) * 12.0
 		pts.append(Vector2(cos(a) * r * 1.6, sin(a) * r * 0.55))
 	_cloud.polygon = pts
-	_cloud.color = Color(tint.r * 0.5, tint.g * 0.5, tint.b * 0.6, 0.75)
+	# brighter lobes (EYES 2026-07-28): 0.5x tint at 0.75 alpha vanished into
+	# the night sky -- a storm the caster paid mana for must be SEEN working
+	_cloud.color = Color(tint.r * 0.75, tint.g * 0.75, tint.b * 0.85, 0.9)
 	_cloud.position = Vector2(0, -110)
 	if sun_mode:
 		# not a cloud at all: a small sun sitting low over the scorched spot
@@ -47,8 +49,8 @@ func _ready() -> void:
 		var a2 := TAU * float(i) / 24.0
 		rp.append(Vector2(cos(a2), sin(a2) * 0.35) * radius)
 	ring.points = rp
-	ring.width = 2.0
-	ring.default_color = Color(tint.r, tint.g, tint.b, 0.35)
+	ring.width = 3.0
+	ring.default_color = Color(tint.r, tint.g, tint.b, 0.55)
 	add_child(ring)
 
 func _physics_process(delta: float) -> void:
@@ -77,8 +79,8 @@ func _physics_process(delta: float) -> void:
 func _strike(local: Vector2) -> void:
 	# the bolt: a jagged streak from the cloud down to the strike point
 	var bolt := Line2D.new()
-	bolt.width = 3.0
-	bolt.default_color = Color(tint.r, tint.g, tint.b, 0.95)
+	bolt.width = 4.0
+	bolt.default_color = Color(minf(tint.r + 0.25, 1.0), minf(tint.g + 0.25, 1.0), minf(tint.b + 0.25, 1.0), 1.0)
 	var top: Vector2 = Vector2(local.x * 0.3, -104)
 	var pts := PackedVector2Array([top])
 	for i in range(1, 4):
