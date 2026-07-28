@@ -41,6 +41,7 @@ const PROJECTILE_GROUPS = ["enemy_projectile", "boss_projectile", "hostile_proje
 
 var damage := 10
 var explode_frac := 0.0       # Legion "Volatile Dead": burst on death for this x damage
+var is_splinter := false      # born of the Splitting Dark: half-strength, never re-splits
 var expires_at := 0.0         # ticks-seconds; 0 = permanent (true form)
 var owner_player: Node2D = null
 
@@ -365,6 +366,21 @@ func dissolve() -> void:
 							and global_position.distance_to(e.global_position) <= 130.0:
 						e.take_damage(burst)
 			spawn_burst()
+	# The Splitting Dark (Wukong road): the falling shade TEARS ITSELF IN TWO --
+	# half-strength halves that fight on for a while. Splinters never re-split,
+	# and nothing splits once the Monarch himself has fallen.
+	if not is_splinter and is_instance_valid(owner_player) \
+			and not ("is_dead" in owner_player and owner_player.is_dead) \
+			and GameState.get_skill_total("clone_burst") > 0.0:
+		for side in [-1.0, 1.0]:
+			var sp = get_script().new()
+			sp.owner_player = owner_player
+			sp.damage = maxi(1, int(round(damage * 0.5)))
+			sp.expires_at = _now() + 8.0
+			sp.is_splinter = true
+			get_parent().add_child(sp)
+			sp.global_position = global_position + Vector2(side * 18.0, 0.0)
+			sp.scale = Vector2(0.72, 0.72)
 	var t = create_tween()
 	t.tween_property(self, "modulate:a", 0.0, 0.3)
 	t.parallel().tween_property(self, "scale", Vector2(1.2, 0.05), 0.3)

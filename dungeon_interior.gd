@@ -2393,7 +2393,8 @@ const GEAR_RELIC_IDS = ["relic_vigor", "relic_swiftness", "relic_greed", "relic_
 	"relic_wings", "relic_feather",
 	"relic_godheart", "relic_warlord", "relic_fortune", "relic_celerity",
 	"relic_phoenix", "relic_thorns", "relic_aegis", "relic_vampire", "relic_juggernaut",
-	"relic_blink", "relic_reaper", "relic_ward", "relic_steward", "relic_gorgon"]
+	"relic_blink", "relic_reaper", "relic_ward", "relic_steward", "relic_gorgon",
+	"rune_sanctuary", "rune_stoneguise", "rune_riddlestaff"]
 # The common/uncommon weapon rack. Without this tier every one of these existed,
 # was balanced, appeared in the catalogue -- and could never be found by anyone,
 # because the class-weapon pool below starts at rare. These are what the first

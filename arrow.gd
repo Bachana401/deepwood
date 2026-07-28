@@ -167,6 +167,13 @@ func _on_hit_area_body_entered(body: Node2D) -> void:
 					pl.health = mini(pl.get_max_health(), pl.health + int(round(pl.get_max_health() * execute_heal)))
 					if pl.has_method("update_health_display"):
 						pl.update_health_display()
+	# THE GOLDEN GAZE (Wukong road): the player's arrow paints its mark AFTER
+	# its own damage lands -- the gold rewards the follow-up, not the marker.
+	if is_in_group("player_projectile") and not body.is_in_group("player") \
+			and GameState.get_bonus_total("golden_gaze") > 0.0 and body.has_method("take_damage"):
+		body.set_meta("gold_mark_until", Time.get_ticks_msec() / 1000.0 + 2.5)
+		if body.has_method("show_gold_mark"):
+			body.show_gold_mark(2.5)
 	if slows_player and body.has_method("apply_slow"):
 		body.apply_slow(3.0, 0.55)
 	if body.has_method("apply_status"):

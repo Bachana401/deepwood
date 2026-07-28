@@ -2313,7 +2313,9 @@ func take_damage(amount: int) -> void:
 		aegis_ready_at = _now() + AEGIS_COOLDOWN
 		spawn_aegis_block()
 		return
-	amount = int(round(amount * (1.0 - clamp(GameState.get_bonus_total("damage_reduction"), 0.0, 0.75))))
+	# The Immovable Pillar: planted, he simply hurts less (stacks into the cap)
+	var dr := GameState.get_bonus_total("damage_reduction") + (0.35 if pillar_planted else 0.0)
+	amount = int(round(amount * (1.0 - clamp(dr, 0.0, 0.75))))
 	# Mana Barrier (Mystic): a share of the hit is paid from Mana, not HP
 	var msf = clamp(GameState.get_bonus_total("mana_shield"), 0.0, 0.8)
 	if msf > 0.0 and mana > 0.0:
@@ -2352,6 +2354,15 @@ func suffer_lethal() -> void:
 	if GameState.monarch_stage() >= 6 and _now() >= monarch_long_dark_ready_at:
 		monarch_long_dark_ready_at = _now() + LONG_DARK_COOLDOWN
 		enter_long_dark()
+		return
+	# Stone Guise (rune): the killing blow lands on STONE instead -- once per
+	# dungeon floor. Sits above Living Fortress so the rarer per-life charge
+	# is preserved; below the Long Dark for the same reason.
+	if GameState.get_bonus_total("stone_guise") > 0.0 and stone_guise_floor != _stone_guise_floor_key():
+		stone_guise_floor = _stone_guise_floor_key()
+		health = 1
+		update_health_display()
+		enter_stone_guise()
 		return
 	# Living Fortress (undying): once per life, refuse to fall -- snap back
 	# to 20% HP with a burst of i-frames instead of dying.
@@ -2551,6 +2562,202 @@ func perform_admin_dash() -> void:
 	if my_expiry == admin_invincible_until:
 		invincible = false
 
+# ============================ THE WUKONG ROADS ============================
+# (2026-07-28) Eight tree skills + three relic-runes lifted from the Monkey
+# King's kit in spirit, never in copy. The tree grants the keys
+# (somersault / pillar_stance / cloud_step / golden_gaze / stillness /
+# hair_clone / clone_burst / monarch_air); these functions are the mechanics.
+# monarch_air grants BOTH air tricks, so every check sums the two keys.
+
+var somersault_ready_at := 0.0
+var pillar_planted := false
+var _pillar_hold := 0.0        # how long DOWN has been held on the floor
+var _pillar_next_arc := 0.0
+var _pillar_ring: Node2D = null
+var _still_t := 0.0            # sanctuary: how long we've stood truly still
+var _sanctuary_ring: Node2D = null
+var hair_ready_at := 0.0
+var stone_guise_floor := ""    # the floor key where the stone last saved us
+
+# once per FLOOR, not per life: each new depth (or the village) re-arms it
+func _stone_guise_floor_key() -> String:
+	if GameState.in_dungeon:
+		var di = get_tree().get_first_node_in_group("level_director")
+		if di != null and "current_level" in di:
+			return "floor_%d" % int(di.current_level)
+	return "village"
+
+# Become the statue: untouchable and unmoving for 1.5s while the world howls.
+func enter_stone_guise() -> void:
+	grant_iframes(1.6)
+	root_until = maxf(root_until, _now() + 1.5)
+	var old_mod := modulate
+	modulate = Color(0.62, 0.6, 0.58, 1.0)   # grey the whole figure to granite
+	spawn_shock_ring(global_position, 90.0, Color(0.7, 0.68, 0.62, 0.9))
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if stack:
+		stack.show_notification("Stone Guise: the blow lands on stone.")
+	var t := create_tween()
+	t.tween_interval(1.5)
+	t.tween_property(self, "modulate", old_mod, 0.3)
+
+func wukong_air_hop_allowed() -> bool:
+	if GameState.get_bonus_total("cloud_step") + GameState.get_bonus_total("monarch_air") <= 0.0:
+		return false
+	# one hop beyond the natural chain: 2nd for a single-jumper, 3rd past a
+	# double jump -- the cloudlet is always the LAST stair
+	var total := 2 + (1 if has_double_jump else 0)
+	return jumps_used >= 1 and jumps_used < total
+
+func somersault_ready() -> bool:
+	if GameState.get_bonus_total("somersault") + GameState.get_bonus_total("monarch_air") <= 0.0:
+		return false
+	return _now() >= somersault_ready_at and not is_dashing
+
+# The flip: a mid-air forward dash that borrows the dash machinery, so the
+# afterimages, the dash pose and the velocity handoff all come for free.
+func perform_somersault() -> void:
+	somersault_ready_at = _now() + 3.0
+	is_dashing = true
+	play_sfx(SFX_DASH)
+	velocity.x = facing_direction * 640.0
+	velocity.y = JUMP_VELOCITY * 0.5
+	grant_iframes(0.35)   # untouchable for a blink, exactly as promised
+	await get_tree().create_timer(0.28).timeout
+	is_dashing = false
+
+func spawn_cloudlet() -> void:
+	var puff := CPUParticles2D.new()
+	puff.one_shot = true
+	puff.explosiveness = 1.0
+	puff.amount = 10
+	puff.lifetime = 0.4
+	puff.spread = 180.0
+	puff.gravity = Vector2(0, -30)
+	puff.initial_velocity_min = 20.0
+	puff.initial_velocity_max = 70.0
+	puff.scale_amount_min = 3.0
+	puff.scale_amount_max = 6.0
+	puff.color = Color(0.95, 0.97, 1.0, 0.8)
+	get_parent().add_child(puff)
+	puff.global_position = global_position + Vector2(0, 12)
+	puff.emitting = true
+	puff.finished.connect(puff.queue_free)
+
+func tick_wukong(delta: float) -> void:
+	_tick_pillar_stance(delta)
+	_tick_sanctuary(delta)
+	_tick_hair_clone()
+
+# The Immovable Pillar: hold S on the ground half a second to PLANT. Rooted
+# (+35% DR, read in take_damage) while the blade answers on its own clock.
+func _tick_pillar_stance(delta: float) -> void:
+	var want: bool = GameState.get_bonus_total("pillar_stance") > 0.0 \
+		and is_on_floor() and Input.is_key_pressed(KEY_S) \
+		and not cc_move_locked() and not is_dashing and not is_dead
+	if not want:
+		if pillar_planted:
+			pillar_planted = false
+			_unmake_ring(_pillar_ring)
+			_pillar_ring = null
+		_pillar_hold = 0.0
+		return
+	_pillar_hold += delta
+	if not pillar_planted and _pillar_hold >= 0.5:
+		pillar_planted = true
+		_pillar_next_arc = _now() + 0.4
+		_pillar_ring = _make_ring(52.0, Color(1.0, 0.85, 0.35, 0.5))
+	if pillar_planted and _now() >= _pillar_next_arc:
+		_pillar_next_arc = _now() + 0.8
+		var base_dmg: float = float(active_stats.get("damage", 4)) if has_weapon() else 4.0
+		var dmg := maxi(1, int(round(base_dmg * 0.6 * skill_damage_mult("melee"))))
+		var struck := false
+		for group_name in ["course_enemy", "dungeon_combatant", "siege_enemy"]:
+			for e in get_tree().get_nodes_in_group(group_name):
+				if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+					continue
+				if "is_dead" in e and e.is_dead:
+					continue
+				if global_position.distance_to(e.global_position) <= 110.0:
+					e.take_damage(dmg)
+					struck = true
+		if struck:
+			spawn_shock_ring(global_position, 110.0, Color(1.0, 0.85, 0.35, 0.8))
+
+# Circle of Sanctuary (rune): stand TRULY still for a second and a ward ring
+# rises; enemy shots die at its edge. A single step breaks it.
+func _tick_sanctuary(delta: float) -> void:
+	var has_rune := GameState.get_bonus_total("sanctuary") > 0.0
+	# "still" is about intent, not altitude: near-zero velocity is enough (the
+	# ring may stand on a cloud), and a little idle drift doesn't break it
+	var still := has_rune and not is_dead and velocity.length() < 24.0
+	if not still:
+		_still_t = 0.0
+		if _sanctuary_ring != null:
+			_unmake_ring(_sanctuary_ring)
+			_sanctuary_ring = null
+		return
+	_still_t += delta
+	if _still_t < 1.0:
+		return
+	if _sanctuary_ring == null:
+		_sanctuary_ring = _make_ring(100.0, Color(0.55, 0.85, 1.0, 0.45))
+	for group_name in ["enemy_projectile", "hostile_projectile", "boss_projectile"]:
+		for pr in get_tree().get_nodes_in_group(group_name):
+			if pr is Node2D and is_instance_valid(pr) \
+					and global_position.distance_to(pr.global_position) <= 100.0:
+				pr.queue_free()
+
+# The Plucked Hair: enemies close + the cooldown up = the mirror-mage stands.
+func _tick_hair_clone() -> void:
+	if GameState.get_bonus_total("hair_clone") <= 0.0 or is_dead:
+		return
+	if _now() < hair_ready_at:
+		return
+	if get_tree().get_first_node_in_group("player_mirror") != null:
+		return
+	var threat := false
+	for group_name in ["course_enemy", "dungeon_combatant", "siege_enemy"]:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if e is Node2D and is_instance_valid(e) and not ("is_dead" in e and e.is_dead) \
+					and global_position.distance_to(e.global_position) <= 420.0:
+				threat = true
+				break
+		if threat:
+			break
+	if not threat:
+		return
+	hair_ready_at = _now() + 20.0
+	var mirror = load("res://mirror_mage.gd").new()
+	mirror.source = self
+	mirror.damage = maxi(4, int(round((8.0 + GameState.player_level * 0.5) * (1.0 + GameState.get_bonus_total("wand_damage")) * 0.5)))
+	get_parent().add_child(mirror)
+	mirror.global_position = global_position + Vector2(-facing_direction * 40.0, 0.0)
+
+# a standing ground-ring that follows the player until unmade
+func _make_ring(radius: float, col: Color) -> Node2D:
+	var ring := Node2D.new()
+	var line := Line2D.new()
+	line.width = 3.0
+	line.default_color = col
+	var pts := PackedVector2Array()
+	for i in range(25):
+		var a := TAU * float(i) / 24.0
+		pts.append(Vector2(cos(a) * radius, sin(a) * radius * 0.35))
+	line.points = pts
+	ring.add_child(line)
+	ring.z_index = 3
+	add_child(ring)
+	ring.position = Vector2(0, 8)
+	return ring
+
+func _unmake_ring(ring: Node2D) -> void:
+	if ring == null or not is_instance_valid(ring):
+		return
+	var t := ring.create_tween()
+	t.tween_property(ring, "modulate:a", 0.0, 0.25)
+	t.tween_callback(ring.queue_free)
+
 func _physics_process(delta: float) -> void:
 	update_orbs()   # keep the HP/mana globes tracking live pools (incl. passive regen)
 	if player_light:
@@ -2566,6 +2773,7 @@ func _physics_process(delta: float) -> void:
 		return
 	# both rift doors standing = the drain runs (Riftweaving)
 	tick_portals(delta)
+	tick_wukong(delta)   # pillar stance / sanctuary ring / the plucked hair
 
 	# fall-damage apex: remember the highest point of the current airtime so we
 	# can measure the drop on landing (only once we've touched ground at least
@@ -2669,10 +2877,20 @@ func _physics_process(delta: float) -> void:
 			jumps_used = 2
 			current_jump_anim = "jump2"   # the double jump has its own animation
 			play_sfx(SFX_JUMP)
+		elif wukong_air_hop_allowed():
+			# Cloud Step (Wukong road): one more hop off a cloudlet that only
+			# exists for the instant the sole needs it
+			velocity.y = JUMP_VELOCITY * 0.92
+			current_jump_anim = "jump3" if jumps_used >= 2 else "jump2"
+			jumps_used += 1
+			spawn_cloudlet()
+			play_sfx(SFX_JUMP)
+		elif somersault_ready():
+			perform_somersault()   # all hops spent: the press becomes the flip
 
 	var direction = Input.get_axis("move_left", "move_right")
-	if cc_stuck:
-		direction = 0.0                       # stun/freeze/root: rooted in place
+	if cc_stuck or pillar_planted:
+		direction = 0.0                       # stun/freeze/root/pillar: rooted in place
 	elif _now() < disorient_until and not god_mode:
 		direction = -direction                # disorient: your controls betray you
 	if direction:
@@ -3335,6 +3553,9 @@ func launch_projectile(cfg: Dictionary, dir: Vector2, dmg: int, is_crit: bool = 
 			status = {"kind": "burn", "dur": 3.0, "mag": sb}
 	p.on_hit_status = status
 	p.source = self
+	# Stillness (Wukong road) procs only off true WAND casts, so the flag
+	# rides the projectile from the one place every cast passes through
+	p.from_wand = str(active_def.get("weapon_type", "")) == "wand"
 	p.position = global_position + dir * 34.0
 	get_parent().add_child(p)
 
@@ -3426,7 +3647,10 @@ func staff_reach_mult() -> float:
 		return 1.0
 	if _now() - _staff_last_hit_at > 1.6:
 		_staff_combo = 0   # the rhythm broke; the staff remembers nothing
-	return 1.0 + 0.45 * float(mini(_staff_combo, 3))
+	# The Riddle Staff (rune): the staff answers one more question -- the
+	# combo may draw it a FOURTH stage longer
+	var cap := 4 if GameState.get_bonus_total("staff_mastery") > 0.0 else 3
+	return 1.0 + 0.45 * float(mini(_staff_combo, cap))
 
 func staff_note_swing(landed: bool, at: Vector2) -> void:
 	if str(active_def.get("special", {}).get("type", "")) != "staff_extend":
@@ -3436,10 +3660,15 @@ func staff_note_swing(landed: bool, at: Vector2) -> void:
 		return
 	_staff_last_hit_at = _now()
 	_staff_combo += 1
-	if _staff_combo >= 4:
+	# with the Riddle Staff the rhythm holds one beat longer: four growing
+	# stages, and the SLAM falls on the fifth
+	var slam_at := 5 if GameState.get_bonus_total("staff_mastery") > 0.0 else 4
+	if _staff_combo >= slam_at:
 		_staff_combo = 0
 		# PILLAR SLAM: the head of the fully-drawn staff strikes the earth
-		var slam_dmg := int(round(active_stats.damage * 0.8 * skill_damage_mult("melee")))
+		# (the Riddle Staff rune deepens the slam by a quarter)
+		var slam_mult := 0.8 * (1.25 if GameState.get_bonus_total("staff_mastery") > 0.0 else 1.0)
+		var slam_dmg := int(round(active_stats.damage * slam_mult * skill_damage_mult("melee")))
 		for group_name in ["course_enemy", "dungeon_combatant", "siege_enemy"]:
 			for e in get_tree().get_nodes_in_group(group_name):
 				if not is_instance_valid(e) or not e.has_method("take_damage"):

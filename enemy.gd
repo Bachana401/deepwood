@@ -1151,6 +1151,15 @@ func perform_lunge() -> void:
 	get_tree().create_timer(0.22).timeout.connect(func():
 		is_knocked_back = false)
 
+# The Golden Gaze: the marked foe GLOWS -- the gold is the promise, visible
+# from across the room, that the next blow bites deeper.
+func show_gold_mark(dur: float) -> void:
+	var a := modulate.a
+	modulate = Color(1.25, 1.08, 0.55, a)
+	var t := create_tween()
+	t.tween_interval(dur)
+	t.tween_property(self, "modulate", Color(1, 1, 1, a), 0.25)
+
 func spawn_block_spark() -> void:
 	spawn_status_spark(Color(0.8, 0.85, 1.0))
 
@@ -1206,6 +1215,10 @@ func take_damage(amount: int) -> void:
 		return   # while split, a creature is scattered light -- untouchable
 	if is_dead:
 		return
+	# The Golden Gaze (Wukong road): a gold-marked foe takes +15% from
+	# everything that serves the player -- always at least one point more.
+	if has_meta("gold_mark_until") and Time.get_ticks_msec() / 1000.0 < float(get_meta("gold_mark_until")):
+		amount = maxi(amount + 1, int(round(amount * 1.15)))
 	# Shielded enemies halve damage taken from the FRONT -- the player has to
 	# get around behind them (or burst through) to punish. Attacks from the
 	# back land full. Measured against the real HERO (audit fix): since the

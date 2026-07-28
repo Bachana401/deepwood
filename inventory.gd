@@ -72,6 +72,12 @@ const ITEM_DEFS = {
 	# negates fall damage; the Featherfall Charm only negates fall damage.
 	"relic_wings": {"name": "Aetherwing", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.85, 0.9, 1.0, 1.0), "equip_effect": {"flight": 1.0, "fall_immunity": 1.0, "move_speed": 0.05}},
 	"relic_feather": {"name": "Featherfall Charm", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.9, 0.95, 0.85, 1.0), "equip_effect": {"fall_immunity": 1.0, "max_health": 10.0}},
+	# --- The Wukong runes (2026-07-28): relic-runes whose flags player.gd reads
+	# (sanctuary ring / stone save / staff mastery). Marker-value effects, same
+	# convention as flight and fall_immunity above. ---
+	"rune_sanctuary": {"name": "Circle of Sanctuary", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.6, 0.85, 1.0, 1.0), "equip_effect": {"sanctuary": 1.0, "max_health": 15.0}, "relic_desc": "Stand truly still for a second and a ward ring rises: enemy shots DIE at its edge. One step breaks it."},
+	"rune_stoneguise": {"name": "Stone Guise", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.66, 0.63, 0.58, 1.0), "equip_effect": {"stone_guise": 1.0, "damage_reduction": 0.03}, "relic_desc": "Once per floor, the killing blow lands on STONE instead: you stand as a statue for 1.5s, untouchable, at 1 HP."},
+	"rune_riddlestaff": {"name": "The Riddle Staff", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.95, 0.8, 0.35, 1.0), "equip_effect": {"staff_mastery": 1.0}, "relic_desc": "For staff-wielders: the combo holds a beat longer (a FOURTH stage of reach) and the pillar slam falls a quarter harder."},
 	# --- OP relics. Some are pure stat gods; others carry a "relic_power" -- a
 	# TRIGGERED mechanic the player reads (see player.has_relic_power): revive on
 	# death, reflect damage, auto-shield, lifesteal, low-HP damage ramp. ---
@@ -632,6 +638,7 @@ const ITEM_GRADES = {
 	"relic_phoenix": "mythic", "relic_thorns": "epic", "relic_aegis": "epic", "relic_vampire": "legendary", "relic_juggernaut": "legendary",
 	"relic_blink": "rare", "relic_reaper": "legendary", "relic_ward": "rare", "relic_steward": "rare",
 	"relic_gorgon": "epic",
+	"rune_sanctuary": "epic", "rune_stoneguise": "legendary", "rune_riddlestaff": "mythic",
 	# batch: new armour
 	"gloves_leather": "uncommon", "gloves_iron": "rare", "gloves_assassin": "epic", "gloves_titan": "mythic",
 	"boots_leather": "uncommon", "boots_swift": "rare", "boots_storm": "epic", "boots_titan": "mythic",

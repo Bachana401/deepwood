@@ -25,10 +25,16 @@ var knockback := 40.0
 var is_crit := false        # set by the player when it rolls a crit
 var on_hit_status := {}     # {"kind","dur","mag"} applied to enemies on hit
 var source: Node2D = null   # the player (hook pull target / boomerang home)
+var from_wand := false      # set by player.launch_projectile for true wand casts (Stillness)
 
 func _apply_status_to(node) -> void:
 	if not on_hit_status.is_empty() and node.has_method("apply_status"):
 		node.apply_status(str(on_hit_status.get("kind","burn")), float(on_hit_status.get("dur",3.0)), float(on_hit_status.get("mag",0.0)))
+	# Stillness (Wukong road): a wand bolt may carry the stopping word --
+	# 12% to hold a NON-boss perfectly still. Bosses shrug the word off.
+	if from_wand and node.has_method("apply_status") and not ("boss_id" in node) \
+			and GameState.get_bonus_total("stillness") > 0.0 and randf() < 0.12:
+		node.apply_status("freeze", 2.5, 0.0)
 	# Elementalist Wildfire / Cataclysm: the burn you just applied leaps to any
 	# foes crowded around the one you struck.
 	if GameState.get_bonus_total("combustion") > 0.0 and is_instance_valid(node):

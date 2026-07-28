@@ -29,7 +29,9 @@ func _ready() -> void:
 	var saved := GameState.unlocked_skills.duplicate()
 
 	# ---- the tree is real, not a teaser ----
-	check("Monarch tree has a full 25 nodes like the other classes", T.size() == 25,
+	# 25 core nodes + the 2 Wukong roads (The Splitting Dark / The Sky Is His
+	# Road, 2026-07-28) = 27, matching the other classes' core+roads shape
+	check("Monarch tree has a full 27 nodes like the other classes", T.size() == 27,
 		"%d nodes" % T.size())
 	var ults := 0
 	var empties := 0
