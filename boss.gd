@@ -853,6 +853,76 @@ const BOSSES = {
 		"passives": ["crumbling_aura", "blink_on_hit", "soul_split", "covenant", "riposte"],
 		"abilities": ["curse", "beam", "meteors", "teleport", "volley", "doomring", "clone"],
 	},
+
+	# ===== HIDDEN EVENT BOSSES (2026-07-28) =====================================
+	# Ten secret bosses (see event_boss.gd + GameState.tick_hidden_events). All
+	# procedural rigs -- one distinct silhouette each, NO sprite/art. HP here is
+	# the pre-scaling base; event_boss.gd's difficulty multiplier does the rest.
+	# Every ability/passive listed is one already dispatched for the floor bosses.
+	# --- Medium (single-ability) ---
+	"evt_tallyman": {
+		"profile": "kiter", "name": "The Tallyman",
+		"color": Color(0.28, 0.26, 0.2), "eye_color": Color(1.0, 0.85, 0.3), "magic": Color(0.95, 0.8, 0.3),
+		"body": Vector2(140, 190), "hp": 620, "speed": 74.0, "shape": "caster",
+		"abilities": ["barrage", "curse", "teleport"], "passives": [],
+	},
+	"evt_firstfrost": {
+		"profile": "kiter", "name": "The First Frost",
+		"color": Color(0.6, 0.74, 0.85), "eye_color": Color(0.85, 0.97, 1.0), "magic": Color(0.7, 0.92, 1.0),
+		"body": Vector2(110, 240), "hp": 600, "speed": 58.0, "shape": "crown",
+		"abilities": ["rime_lance", "rain", "teleport"], "passives": ["stagger_armour"],
+	},
+	"evt_gluttonroot": {
+		"profile": "pursuer", "name": "The Glutton Root",
+		"color": Color(0.24, 0.3, 0.18), "eye_color": Color(0.8, 1.0, 0.4), "magic": Color(0.6, 0.9, 0.35),
+		"body": Vector2(210, 250), "hp": 700, "speed": 66.0, "shape": "brute",
+		"abilities": ["grave_grasp", "slam", "charge"], "passives": [],
+	},
+	# --- Hard (combo bosses; see BOSS_COMBOS) ---
+	"evt_drowned": {
+		"profile": "weave", "name": "The Drowned Chorus",
+		"color": Color(0.2, 0.34, 0.42), "eye_color": Color(0.6, 0.95, 1.0), "magic": Color(0.4, 0.75, 0.95),
+		"body": Vector2(260, 150), "hp": 760, "speed": 84.0, "shape": "serpent",
+		"abilities": ["tidal_crush", "rain", "summon"], "passives": ["soulbind"],
+	},
+	"evt_effigyking": {
+		"profile": "pursuer", "name": "The Effigy King",
+		"color": Color(0.18, 0.1, 0.08), "eye_color": Color(1.0, 0.6, 0.15), "magic": Color(1.0, 0.5, 0.12),
+		"body": Vector2(240, 240), "hp": 820, "speed": 78.0, "shape": "colossus",
+		"abilities": ["eruption", "meteors", "charge", "nova"], "passives": ["riposte"],
+	},
+	"evt_warden": {
+		"profile": "turtle", "name": "The Sleepless Warden",
+		"color": Color(0.26, 0.25, 0.3), "eye_color": Color(0.7, 0.95, 1.0), "magic": Color(0.55, 0.8, 1.0),
+		"body": Vector2(190, 250), "hp": 900, "speed": 54.0, "shape": "titan",
+		"abilities": ["barrage", "impale", "slam"], "passives": ["stagger_armour", "riposte"],
+	},
+	# --- Very Hard (combo bosses) ---
+	"evt_griefeater": {
+		"profile": "pouncer", "name": "The Grief-Eater",
+		"color": Color(0.15, 0.1, 0.22), "eye_color": Color(0.9, 0.3, 1.0), "magic": Color(0.7, 0.3, 1.0),
+		"body": Vector2(170, 230), "hp": 1000, "speed": 80.0, "shape": "void",
+		"abilities": ["curse", "summon", "nova", "teleport"], "passives": ["sidestep"],
+	},
+	"evt_hollowcrown": {
+		"profile": "weave", "name": "The Hollow Crown",
+		"color": Color(0.32, 0.28, 0.16), "eye_color": Color(1.0, 0.95, 0.6), "magic": Color(1.0, 0.9, 0.5),
+		"body": Vector2(150, 220), "hp": 1000, "speed": 86.0, "shape": "angel",
+		"abilities": ["judgment", "volley", "rain", "nova"], "passives": ["riposte"],
+	},
+	"evt_sablehound": {
+		"profile": "pouncer", "name": "The Sable Hound",
+		"color": Color(0.14, 0.13, 0.18), "eye_color": Color(1.0, 0.75, 0.2), "magic": Color(0.85, 0.5, 1.0),
+		"body": Vector2(160, 100), "hp": 950, "speed": 158.0, "shape": "spider",
+		"abilities": ["pounce", "volley", "teleport", "charge"], "passives": ["sidestep", "rhythm_punish"],
+	},
+	# --- Expert (apex combo boss, the longest sentences) ---
+	"evt_nihil": {
+		"profile": "erratic", "name": "Nihil, the Last Hour",
+		"color": Color(0.08, 0.09, 0.14), "eye_color": Color(0.4, 0.95, 1.0), "magic": Color(0.3, 0.9, 1.0),
+		"body": Vector2(150, 235), "hp": 1300, "speed": 104.0, "shape": "wizard", "apex": true,
+		"abilities": ["black_sun", "beam", "meteors", "pillars", "teleport"], "passives": ["phase", "sidestep"],
+	},
 }
 
 const ARROW_SCENE = preload("res://arrow.tscn")
@@ -2639,6 +2709,15 @@ const BOSS_COMBOS = {
 	"seraph": [["volley", "judgment", "rain"], ["judgment", "volley", "nova"], ["rain", "nova", "judgment"]],
 	"leviathan": [["meteors", "tidal_crush", "vortex"], ["tidal_crush", "meteors", "vortex"], ["vortex", "tidal_crush", "meteors"]],
 	"eclipse": [["beam", "black_sun", "meteors"], ["black_sun", "beam", "pillars"], ["meteors", "teleport", "black_sun"]],
+	# --- hidden event bosses (2026-07-28): hard+ ones speak in sentences too.
+	# Every verb here is one already proven in the combos above.
+	"evt_drowned": [["tidal_crush", "rain", "summon"], ["rain", "tidal_crush", "summon"], ["summon", "rain", "tidal_crush"]],
+	"evt_effigyking": [["eruption", "meteors", "charge"], ["charge", "eruption", "nova"], ["meteors", "nova", "eruption"]],
+	"evt_warden": [["barrage", "impale", "slam"], ["impale", "barrage", "slam"], ["slam", "barrage", "impale"]],
+	"evt_griefeater": [["curse", "summon", "nova"], ["teleport", "curse", "nova"], ["summon", "nova", "curse"]],
+	"evt_hollowcrown": [["volley", "judgment", "rain"], ["judgment", "volley", "nova"], ["rain", "nova", "judgment"]],
+	"evt_sablehound": [["teleport", "pounce", "volley"], ["pounce", "volley", "teleport"], ["charge", "pounce", "volley"]],
+	"evt_nihil": [["black_sun", "beam", "meteors"], ["black_sun", "pillars", "beam"], ["meteors", "teleport", "black_sun"]],
 }
 
 # The floor this boss is being fought on decides how long its sentences run.
@@ -4425,6 +4504,10 @@ func phase_two() -> void:
 	_boss_hud_banner(str(PHASE_TWO[boss_id]))
 	shake_camera(7.0, 0.4)
 	spawn_shockwave(200.0, magic_color)
+	# the transformation is HEARD: something old tearing open under a low
+	# blow of thunder (audio pass 2026-07-28 -- the banner was silent)
+	SfxSynth.play_at(self, global_position, "tear", -6.0, 0.5)
+	SfxSynth.play_at(self, global_position, "crack", -8.0, 0.55)
 	_apply_phase_two()
 
 # The one-shot half of every transformation. Per-tick behaviour lives in

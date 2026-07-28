@@ -291,11 +291,12 @@ func _ready() -> void:
 		players_after == players_before + 1, "%d -> %d" % [players_before, players_after])
 	var hook_src := ""
 	for f2 in ["storm_cloud.gd", "weapon_projectile.gd", "player.gd", "shade.gd",
-			"sentry_totem.gd", "mirror_mage.gd"]:
+			"sentry_totem.gd", "mirror_mage.gd", "boss.gd", "death_screen.gd"]:
 		hook_src += FileAccess.open("res://" + f2, FileAccess.READ).get_as_text()
-	check("the once-silent mechanics all call the synth (10+ hook sites)",
-		hook_src.count("SfxSynth.play_at") >= 10
-		and hook_src.contains("play_stream_at(self, global_position, SFX_EXPLOSION"))
+	check("the once-silent mechanics all call the synth (12+ hook sites)",
+		hook_src.count("SfxSynth.play_at") >= 12
+		and hook_src.contains("play_stream_at(self, global_position, SFX_EXPLOSION")
+		and hook_src.contains("SfxSynth.play_ui"))
 
 	for e in [r1, r2, d1, s1, t1]:
 		if is_instance_valid(e): e.queue_free()

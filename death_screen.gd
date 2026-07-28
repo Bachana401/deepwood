@@ -63,6 +63,9 @@ func run_death_sequence(seconds: float) -> void:
 	while remaining > 0:
 		$CountdownLabel.text = str(remaining)
 		pop_countdown()
+		# each second TOLLS, sinking as the wait runs out -- the countdown
+		# was mute drama (audio pass 2026-07-28)
+		SfxSynth.play_ui(self, "thump", -12.0, 1.8 - 0.08 * float(remaining))
 		await get_tree().create_timer(1.0).timeout
 		remaining -= 1
 	visible = false

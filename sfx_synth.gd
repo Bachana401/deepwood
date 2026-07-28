@@ -108,6 +108,19 @@ static func play_at(host: Node, at: Vector2, recipe: String, volume_db := -10.0,
 	pl.play()
 	pl.finished.connect(pl.queue_free)
 
+# Non-positional variant for UI moments (the death countdown, screen-wide
+# reveals) -- same recipes, no place in the world to sound from.
+static func play_ui(host: Node, recipe: String, volume_db := -10.0, pitch := 1.0) -> void:
+	if host == null or not host.is_inside_tree():
+		return
+	var pl := AudioStreamPlayer.new()
+	pl.stream = _bank(recipe)
+	pl.volume_db = volume_db
+	pl.pitch_scale = maxf(0.1, pitch)
+	host.get_tree().root.add_child(pl)
+	pl.play()
+	pl.finished.connect(pl.queue_free)
+
 # The same fire-and-forget for an EXISTING wav (the explosion, the bow...).
 static func play_stream_at(host: Node, at: Vector2, stream: AudioStream, volume_db := -8.0) -> void:
 	if host == null or not host.is_inside_tree() or stream == null:
