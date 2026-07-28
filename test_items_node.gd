@@ -82,7 +82,8 @@ func _ready() -> void:
 	# the four base-kit weapons are handed over at the start, and the gathering
 	# tools are deliberate Forge purchases -- neither is meant to drop
 	var not_loot := {"wpn_sword": true, "wpn_spear": true, "wpn_bow": true, "wpn_wand": true,
-		"tool_axe": true, "tool_pickaxe": true}
+		"tool_axe": true, "tool_pickaxe": true,
+		"wpn_soulsplit": true}   # grandmother's GIFT (Ada's bond, 12.2) -- never loot
 	var orphans := []
 	for id in defs.keys():
 		var d: Dictionary = defs[id]
@@ -223,6 +224,23 @@ func _ready() -> void:
 			setw_leak = true
 	check("...and set weapons stay dungeon-drop only", not setw_leak)
 	au.queue_free()
+
+	# ---- Grandmother's Wand (12.2): the joke phase, guarded ----
+	var ada_def: Dictionary = VillagerQuests.get_def("farmer_ada")
+	check("Ada Brook carries the Soul Split bond, attemptable on day one",
+		str(ada_def.get("reward_item", "")) == "wpn_soulsplit"
+		and str(ada_def.get("kind", "")) == "gather" and str(ada_def.get("key", "")) == "wood",
+		str(ada_def))
+	check("grandmother's junk must not glow (grade common)",
+		Inventory.get_grade("wpn_soulsplit") == "common", Inventory.get_grade("wpn_soulsplit"))
+	var ss_def: Dictionary = Inventory.get_item_def("wpn_soulsplit")
+	check("the card plays the joke and seeds the promise, spoiler-free",
+		str(ss_def.get("unique_desc", "")).contains("grandmother")
+		and not str(ss_def.get("unique_desc", "")).contains("Ten"))
+	check("the Forge never stocks the gift",
+		FileAccess.open("res://assign_ui.gd", FileAccess.READ).get_as_text().contains('"wpn_soulsplit": true'))
+	check("...and the Wanderer never sells it",
+		"wpn_soulsplit" in GameState.WANDERER_NEVER_SOLD)
 
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

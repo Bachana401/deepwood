@@ -735,14 +735,18 @@ const ITEM_DEFS = {
 	# THE SOUL SPLIT WAND (GAME_BIBLE 9.7, design locked) -- a novelty that splits
 	# anything into 7 harmless mini-clones for 4 seconds. Deliberately useless
 	# against every creature in the game... except the one it was made for: the
-	# Monarch of Despair's fragments ARE damageable (9.5). Awarded by the Ten
-	# when the last of them is freed; never drops, never sold.
+	# Monarch of Despair's fragments ARE damageable (9.5). Ada Brook's bond
+	# hands it over EARLY as her grandmother's junk (the joke phase, 12.2);
+	# the Ten's gathering and the finale reveal what it is. Never drops,
+	# never sold, never stocked -- and graded COMMON on purpose: a family
+	# trinket must not glow. Toren's "reforging" at the gathering is the
+	# story's upgrade; the wand window never read the grade anyway.
 	"wpn_soulsplit": {
 		"name": "Soul Split Wand", "category": "weapon", "weapon_type": "wand", "max_stack": 1,
 		"color": Color(0.95, 0.8, 1.0, 1.0), "mana_cost": 15,
 		"weapon_stats": {"damage": 0, "cooldown": 20.0, "range_offset": 30, "area_size": Vector2(10, 10), "knockback_min": 0.0, "knockback_max": 0.0, "icon_size": Vector2(46, 8), "icon_color": Color(0.95, 0.8, 1.0), "icon_offset": 18.0},
 		"special": {"type": "soul_split", "speed": 640.0, "range": 620.0},
-		"unique_desc": "Splits whatever it strikes into 7 tiny spinning copies for 4 seconds -- completely harmless. The Ten swear it matters. An undivided soul cannot be destroyed."},
+		"unique_desc": "It fires... something? Splits what it strikes into seven tiny spinning copies for a moment -- completely harmless. Somebody's grandmother swore it would matter one day."},
 	"wpn_channelwand": {"name": "Channeling Wand", "category": "weapon", "weapon_type": "wand", "max_stack": 1, "color": Color(0.8, 0.6, 0.95, 1.0), "mana_cost": 3,
 		"weapon_stats": {"damage": 0, "cooldown": 0.28, "range_offset": 30, "area_size": Vector2(10, 10), "knockback_min": 0.0, "knockback_max": 0.0, "icon_size": Vector2(48, 8), "icon_color": Color(0.8, 0.6, 0.95), "icon_offset": 20.0},
 		"special": {"type": "frost_shard", "damage": 8, "speed": 620.0, "range": 440.0},
@@ -842,7 +846,7 @@ const ITEM_GRADES = {
 	"wpn_falchion": "uncommon", "wpn_warpick": "uncommon", "wpn_twinblades": "uncommon", "wpn_saber": "uncommon",
 	"wpn_trident": "uncommon", "wpn_warglaive": "uncommon", "wpn_crossbow": "uncommon", "wpn_flatbow": "uncommon",
 	"wpn_frostwand": "uncommon", "wpn_channelwand": "uncommon",
-	"wpn_soulsplit": "mythic",
+	"wpn_soulsplit": "common",   # grandmother's junk must not glow (12.2)
 	"relic_rewound_hour": "mythic",
 	"sorrowshard": "epic",
 	# --- hidden event-boss loot (grade tracks the boss's difficulty) ---

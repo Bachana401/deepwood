@@ -20,6 +20,20 @@ extends RefCounted
 # reward_item/reward_count, reward_line (spoken on completion).
 
 const QUEST_DEFS = {
+	# --- the starting six ---
+	# THE SOUL SPLIT QUEST (12.2, dev-chosen framing 2026-07-28): Ada Brook,
+	# day-one farmhand, carries her grandmother's "broken" wand -- the joke
+	# item the Ten will one day reveal as the ONLY thing that can open the
+	# Monarch of Despair (9.5's wand window). Her reward line half-quotes
+	# Elenwe's finale words and trails off: the seed, never the spoiler.
+	"farmer_ada": {
+		"title": "Grandmother's Wand",
+		"giver": "My grandmother left me a wand. It doesn't work -- it never worked. But she made me swear it would matter one day, and I'm tired of carrying the promise alone. Bring me four good lengths of wood for a case, and it's yours.",
+		"kind": "gather", "key": "wood", "count": 4,
+		"reveal_stat": "Farm", "reveal_value": 3,
+		"reward_gold": 0, "reward_item": "wpn_soulsplit", "reward_count": 1,
+		"reward_line": "There -- grandmother's wand, case and all, yours now. She always used to say... 'an undivided soul' -- something. I forget the rest. It's junk. But it's PROMISED junk.",
+	},
 	# --- starting village hostages (workers, hand-placed in main.tscn) ---
 	"elin_riverside": {
 		"title": "Elin's Orchard",

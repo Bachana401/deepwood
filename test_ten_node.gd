@@ -160,9 +160,12 @@ func _ready() -> void:
 	check("trophy vaults spawn on their canon floors", du_src.contains("TheTen.for_level(current_level)"))
 
 	# ---------------- the Soul Split Wand (9.5 + 9.7) ----------------
-	check("the wand exists, mythic, never in any drop pool",
+	# COMMON since the Soul Split quest (12.2): Ada Brook's bond hands it over
+	# early as grandmother's junk -- a family trinket must not glow. Toren's
+	# "reforging" at the gathering is the story's upgrade, not a re-grade.
+	check("the wand exists, common (the joke phase), never in any drop pool",
 		Inventory.ITEM_DEFS.has("wpn_soulsplit")
-		and Inventory.ITEM_GRADES.get("wpn_soulsplit", "") == "mythic")
+		and Inventory.ITEM_GRADES.get("wpn_soulsplit", "") == "common")
 	var di2 := FileAccess.open("res://dungeon_interior.gd", FileAccess.READ).get_as_text()
 	check("...truly never drops", not di2.contains("wpn_soulsplit"))
 	check("freeing the last of the Ten hands over the wand",

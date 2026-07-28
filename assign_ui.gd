@@ -359,7 +359,8 @@ func smithy_max_rank() -> int:
 	return SMITHY_MAX_RANK + 1 if GameState.ten_freed("ten_toren") else SMITHY_MAX_RANK
 
 func smithy_stock() -> Array:
-	var base_kit = {"wpn_sword": true, "wpn_spear": true, "wpn_bow": true, "wpn_wand": true}
+	var base_kit = {"wpn_sword": true, "wpn_spear": true, "wpn_bow": true, "wpn_wand": true,
+		"wpn_soulsplit": true}   # grandmother's wand is a GIFT, never stock (12.2)
 	var out := []
 	for id in Inventory.ITEM_DEFS.keys():
 		var def = Inventory.ITEM_DEFS[id]
