@@ -72,7 +72,7 @@ const BOSS_ARENAS = {
 	# Tomb of the Warden -- two big flanking ledges + a low central island;
 	# earthy green. Room to bait its slam/charge and dodge summoned adds.
 	"gravewarden": {
-		"width": 4800.0, "height": -780.0,
+		"width": 5200.0, "height": -780.0,
 		"bg_top": Color(0.05, 0.08, 0.05, 1.0), "bg_bottom": Color(0.09, 0.15, 0.08, 1.0),
 		"accent": Color(0.6, 1.0, 0.45, 1.0),
 	},
@@ -86,7 +86,7 @@ const BOSS_ARENAS = {
 	# Molten Foundry -- narrow stepping stones over wide gaps; punishing for a
 	# charging, pillar-erupting bruiser. Fiery red/orange.
 	"cinder_colossus": {
-		"width": 5000.0, "height": -820.0,
+		"width": 5600.0, "height": -820.0,
 		"bg_top": Color(0.12, 0.02, 0.01, 1.0), "bg_bottom": Color(0.22, 0.05, 0.02, 1.0),
 		"accent": Color(1.0, 0.5, 0.15, 1.0),
 	},
@@ -117,7 +117,7 @@ const BOSS_ARENAS = {
 	# clutter to hide feet, ringed by high galleries you climb to pick the real
 	# one out. Lit bone-pale, because you cannot spot a shadow in the dark.
 	"hollow_choir": {
-		"width": 5400.0, "height": -880.0,
+		"width": 5800.0, "height": -880.0,
 		"bg_top": Color(0.09, 0.1, 0.07, 1.0), "bg_bottom": Color(0.16, 0.17, 0.12, 1.0),
 		"accent": Color(0.85, 0.95, 0.65, 1.0),
 	},
@@ -153,7 +153,7 @@ const BOSS_ARENAS = {
 	# with no dead ends and no cul-de-sacs. Keep running the ring and the traps
 	# fall behind you; stop to commit to a heavy hit and they catch up.
 	"effigy": {
-		"width": 5400.0, "height": -860.0,
+		"width": 5800.0, "height": -860.0,
 		"bg_top": Color(0.11, 0.04, 0.01, 1.0), "bg_bottom": Color(0.2, 0.09, 0.03, 1.0),
 		"accent": Color(1.0, 0.6, 0.15, 1.0),
 	},
@@ -161,7 +161,7 @@ const BOSS_ARENAS = {
 	# so the floor is a graveyard of solid headstones at chest height: cover you
 	# duck behind to eat your own shot. Grief reflects; the barrow absorbs.
 	"mourncaller": {
-		"width": 5200.0, "height": -800.0,
+		"width": 5800.0, "height": -800.0,
 		"bg_top": Color(0.05, 0.06, 0.1, 1.0), "bg_bottom": Color(0.11, 0.12, 0.19, 1.0),
 		"accent": Color(0.55, 0.75, 1.0, 1.0),
 	},
@@ -180,7 +180,7 @@ const BOSS_ARENAS = {
 	# grid of pillars -- the pillars double as the flanking geometry dread_ward
 	# demands, since you get behind it by running the posts, not by out-DPSing.
 	"warden_of_nails": {
-		"width": 5000.0, "height": -520.0,
+		"width": 5800.0, "height": -520.0,
 		"bg_top": Color(0.09, 0.07, 0.03, 1.0), "bg_bottom": Color(0.17, 0.13, 0.05, 1.0),
 		"accent": Color(0.9, 0.8, 0.35, 1.0),
 	},

@@ -56,6 +56,106 @@ var _move_timer := 0.0
 var _move_phase := 0.0
 var _move_dir := 0.0
 var _chase_ramp := 1.0
+# NO BOSS IS EVER A STATUE (dev 2026-07-27: "make sure bosses move annoyingly,
+# i don't want them standing in one place too long"). Two extra clocks serve
+# that rule: _drift_phase paces the mid-combo drift and the pouncer's prowl,
+# _pstill_time is how long the PLAYER has stood still (the mirror's cue to
+# start circling instead of freezing into a statue standoff).
+var _drift_phase := 0.0
+var _pstill_time := 0.0
+var _reflex_cd := 0.0
+
+# Terraria-hardmode flight (dev 2026-07-27): noclip flyers ignore terrain
+# outright; swoopers add the hover -> wind-up -> cross-screen dash loop. The
+# wind-up is a real telegraph (tells stay readable, per the boss rules) and
+# the dash deals only the ordinary contact damage -- no new burst source.
+var noclip := false
+var has_swoop := false
+var _swoop_state := 0      # 0 cruise, 1 winding up, 2 dashing through
+var _swoop_timer := 3.0    # first dive comes after a few seconds of cruise
+var _swoop_dir := Vector2.ZERO
+const SWOOP_SPEED_MIN := 520.0
+
+# Returns true while the swoop owns the velocity (wind-up or dash); false =
+# plain hover cruise. Cadence and dash speed both scale with restlessness().
+func _tick_swoop(delta: float) -> bool:
+	if not has_swoop or player == null or not is_instance_valid(player):
+		return false
+	var r := restlessness()
+	match _swoop_state:
+		1:
+			_swoop_timer -= delta
+			velocity = velocity.lerp(Vector2.ZERO, 8.0 * delta)   # hang in the air: the tell
+			if _swoop_timer <= 0.0:
+				_swoop_state = 2
+				_swoop_timer = 1.1
+				_swoop_dir = (player.global_position - global_position).normalized()
+				if _swoop_dir == Vector2.ZERO:
+					_swoop_dir = Vector2.RIGHT
+			return true
+		2:
+			_swoop_timer -= delta
+			velocity = _swoop_dir * maxf(SWOOP_SPEED_MIN, effective_speed() * 2.6) * (0.85 + 0.3 * r)
+			if _swoop_timer <= 0.0:
+				_swoop_state = 0
+				_swoop_timer = randf_range(3.4, 5.6) / r
+			return true
+		_:
+			_swoop_timer -= delta
+			if _swoop_timer <= 0.0:
+				_swoop_state = 1
+				_swoop_timer = 0.4
+				flash_telegraph(magic_color, 0.4)
+				return true
+			return false
+
+# Flying movement, one door: swoop when the pattern claims the frame, hover
+# cruise otherwise. Every flying call site routes through here.
+func _fly_drive(delta: float) -> void:
+	if not _tick_swoop(delta):
+		process_hover(delta)
+
+# THE DEEP FIGHTS DIRTIER (dev 2026-07-27: "apply difficulty of movement /
+# mobility / dodge by levels -- higher the level, annoyinger the boss moves").
+# One MECHANICAL knob read by every restless-footwork path: how often a boss
+# re-plants, strafes, feints, hops, circles -- and how willing it is to dodge.
+# 0.75 at the first boss floor, ~1.0 mid-ladder, 1.5 at the door of 100.
+# Raw speed already scales elsewhere (SPEED_SCALE_PER_LEVEL); this scales
+# FOOTWORK, so a deep boss is not just faster but harder to pin down.
+func restlessness() -> float:
+	return lerpf(0.75, 1.5, clampf(float(boss_floor) / 100.0, 0.0, 1.0))
+
+# REFLEX STEP: deep bosses read an incoming shot and step out of it. Pure
+# mobility -- no i-frames, no damage change (the never-one-shot rule and every
+# damage path stay untouched); a well-LED shot still lands. Never fires while
+# telegraphing/busy/staggered (tells stay readable), never on flyers (they
+# weave already), and not below floor 25 -- the teaching bosses stay honest.
+const REFLEX_RANGE := 150.0
+func tick_reflex_step(delta: float) -> void:
+	if _reflex_cd > 0.0:
+		_reflex_cd -= delta
+		return
+	if boss_floor < 25 or flying or is_busy or in_combo or is_charging \
+			or is_diving or telegraphing or stun_timer > 0.0 or not is_on_floor():
+		return
+	var depth := clampf(float(boss_floor - 25) / 75.0, 0.0, 1.0)
+	for pr in get_tree().get_nodes_in_group("player_projectile"):
+		if not (pr is Node2D) or not is_instance_valid(pr):
+			continue
+		var to_me: Vector2 = global_position - (pr as Node2D).global_position
+		if to_me.length() > REFLEX_RANGE:
+			continue
+		var vel: Vector2 = pr.velocity if ("velocity" in pr) else Vector2.ZERO
+		if vel.length() < 10.0 or vel.normalized().dot(to_me.normalized()) < 0.55:
+			continue   # not actually coming at us
+		# the roll: 15% at floor 25 rising to 35% at 100, then a long cooldown
+		# either way so ranged play never turns into a coin-flip wall
+		_reflex_cd = lerpf(3.0, 1.6, depth)
+		if randf() < lerpf(0.15, 0.35, depth):
+			var away := -signf(vel.x) if absf(vel.x) > 10.0 else -signf(to_me.x)
+			velocity.x = away * effective_speed() * 2.6
+			velocity.y = -240.0
+		return   # one shot considered per cooldown window, dodged or not
 
 # --- shared ability tuning ---
 # Ranges are deliberately long: boss arenas are 3-5x the regular width, so a
@@ -575,7 +675,7 @@ const BOSSES = {
 		"color": Color(0.34, 0.33, 0.30), "eye_color": Color(0.9, 0.95, 0.8),
 		"magic": Color(0.75, 0.85, 0.6),
 		"body": Vector2(300, 150), "hp": 1150, "speed": 44.0, "shape": "brute",
-		"abilities": ["summon", "nova", "rain"],
+		"abilities": ["summon", "nova", "rain"], "sprite": "hollow_choir",
 		"passives": ["false_twin", "soulbind"],
 	},
 	# 40 -- a burning devil locked mid-prayer. TALL and thin, and it barely
@@ -586,7 +686,7 @@ const BOSSES = {
 		"color": Color(0.36, 0.16, 0.12), "eye_color": Color(1.0, 0.55, 0.15),
 		"magic": Color(1.0, 0.45, 0.1),
 		"body": Vector2(90, 300), "hp": 900, "speed": 34.0, "shape": "caster",
-		"abilities": ["pillars", "beam", "nova"],
+		"abilities": ["pillars", "beam", "nova"], "sprite": "ashen_penitent",
 		"passives": ["riposte", "famine"],
 	},
 	# 45 -- warden of the soul-pits. Heavy, armoured, deliberate: chains you to
@@ -596,7 +696,7 @@ const BOSSES = {
 		"color": Color(0.28, 0.26, 0.30), "eye_color": Color(0.6, 0.9, 1.0),
 		"magic": Color(0.5, 0.8, 1.0),
 		"body": Vector2(190, 240), "hp": 1500, "speed": 52.0, "shape": "titan",
-		"abilities": ["slam", "charge", "pillars"],
+		"abilities": ["slam", "charge", "pillars"], "sprite": "gaoler",
 		"passives": ["tether", "stagger_armour"],
 	},
 	# 50 -- a beast that has learned your habits. SMALL and very fast: it dodges
@@ -618,7 +718,7 @@ const BOSSES = {
 		"color": Color(0.42, 0.28, 0.12), "eye_color": Color(1.0, 0.7, 0.2),
 		"magic": Color(1.0, 0.6, 0.15),
 		"body": Vector2(230, 330), "hp": 1750, "speed": 40.0, "shape": "colossus",
-		"abilities": ["slam", "pillars", "meteors"],
+		"abilities": ["slam", "pillars", "meteors"], "sprite": "effigy",
 		"passives": ["stagger_armour", "afterimage_trap"],
 	},
 	# 60 -- a widow of the Harvest. Mid-sized, drifting; grief reflects, and she
@@ -628,9 +728,9 @@ const BOSSES = {
 		"color": Color(0.24, 0.20, 0.30), "eye_color": Color(0.7, 0.9, 1.0),
 		"magic": Color(0.55, 0.75, 1.0),
 		"body": Vector2(110, 200), "hp": 1050, "speed": 82.0, "shape": "caster",
-		"abilities": ["summon", "rain", "volley"],
+		"abilities": ["summon", "rain", "volley"], "sprite": "mourncaller",
 		"passives": ["soulbind", "mirror"],
-		"flying": true,
+		"flying": true, "noclip": true, "swoop": true,
 	},
 	# 65 -- intangible. You cannot hit it AND cannot stand still. The two
 	# mechanics eat each other's counter-play: the answer is patience + motion.
@@ -639,9 +739,9 @@ const BOSSES = {
 		"color": Color(0.12, 0.12, 0.16), "eye_color": Color(0.9, 0.2, 0.9),
 		"magic": Color(0.75, 0.2, 0.95),
 		"body": Vector2(100, 210), "hp": 980, "speed": 136.0, "shape": "void",
-		"abilities": ["teleport", "volley", "curse"],
+		"abilities": ["teleport", "volley", "curse"], "sprite": "unseen",
 		"passives": ["phase", "afterimage_trap"],
-		"flying": true,
+		"flying": true, "noclip": true, "swoop": true,
 	},
 	# 70 -- anti-air, flankable only, and it punishes the wind-up. Three
 	# mechanics that each close a different escape.
@@ -650,7 +750,7 @@ const BOSSES = {
 		"color": Color(0.30, 0.24, 0.22), "eye_color": Color(1.0, 0.9, 0.4),
 		"magic": Color(0.9, 0.8, 0.35),
 		"body": Vector2(170, 270), "hp": 1600, "speed": 60.0, "shape": "titan",
-		"abilities": ["barrage", "pillars", "slam"],
+		"abilities": ["barrage", "pillars", "slam"], "sprite": "warden_of_nails",
 		"passives": ["skyfall", "dread_ward", "riposte"],
 	},
 	# 75 -- two bodies, one soul. Narrow and quick, and it will not stay still
@@ -661,7 +761,7 @@ const BOSSES = {
 		"color": Color(0.20, 0.18, 0.28), "eye_color": Color(0.85, 0.3, 1.0),
 		"magic": Color(0.7, 0.3, 1.0),
 		"body": Vector2(95, 230), "hp": 1250, "speed": 117.0, "shape": "crown",
-		"abilities": ["teleport", "clone", "nova"],
+		"abilities": ["teleport", "clone", "nova"], "sprite": "twin_despair",
 		"passives": ["covenant", "sidestep", "phase"],
 	},
 	# 80 -- devil-lord of the burning deep. Broad and heavy; reflects what you
@@ -672,7 +772,7 @@ const BOSSES = {
 		"color": Color(0.34, 0.12, 0.10), "eye_color": Color(1.0, 0.6, 0.1),
 		"magic": Color(1.0, 0.4, 0.05),
 		"body": Vector2(260, 250), "hp": 1900, "speed": 66.0, "shape": "brute",
-		"abilities": ["meteors", "pillars", "nova", "charge"],
+		"abilities": ["meteors", "pillars", "nova", "charge"], "sprite": "cinderking",
 		"passives": ["afterimage_trap", "mirror", "famine"],
 	},
 	# 85 -- reflects everything, must be flanked, and punishes a steady rhythm:
@@ -683,7 +783,7 @@ const BOSSES = {
 		"color": Color(0.62, 0.66, 0.72), "eye_color": Color(0.95, 1.0, 1.0),
 		"magic": Color(0.8, 0.95, 1.0),
 		"body": Vector2(130, 290), "hp": 1450, "speed": 93.0, "shape": "angel",
-		"abilities": ["beam", "volley", "nova"],
+		"abilities": ["beam", "volley", "nova"], "sprite": "glass_saint",
 		"passives": ["mirror", "dread_ward", "rhythm_punish"],
 	},
 	# 90 -- the last soulless human. Man-sized, man-speed: he fights exactly the
@@ -694,7 +794,7 @@ const BOSSES = {
 		"color": Color(0.18, 0.17, 0.24), "eye_color": Color(1.0, 1.0, 1.0),
 		"magic": Color(0.6, 0.6, 0.7),
 		"body": Vector2(80, 180), "hp": 1300, "speed": 145.0, "shape": "crown",
-		"abilities": ["charge", "teleport", "volley", "nova"],
+		"abilities": ["charge", "teleport", "volley", "nova"], "sprite": "last_man",
 		# riposte, not covenant: he has no second body to bind (no clone/summon),
 		# so covenant was a named-but-never-firing key -- and a counter-parry IS
 		# his identity (take_damage even carries his signature PARRIED stance).
@@ -705,7 +805,7 @@ const BOSSES = {
 		"color": Color(0.78, 0.74, 0.6), "eye_color": Color(1.0, 0.55, 0.1),
 		"magic": Color(1.0, 0.85, 0.4),
 		"body": Vector2(140, 220), "hp": 2400, "speed": 130.0, "shape": "angel",
-		"flying": true, "apex": true, "sprite": "seraph",
+		"flying": true, "apex": true, "sprite": "seraph", "noclip": true, "swoop": true,
 		"abilities": ["dive", "volley", "rain", "nova"],
 		# BOSSES.md §3 finale spec (+dread_ward) -- the three finale bosses
 		# shipped with NO passives key at all, so floors 95/98/99 carried fewer
@@ -719,7 +819,7 @@ const BOSSES = {
 		"color": Color(0.12, 0.3, 0.34), "eye_color": Color(0.4, 1.0, 0.9),
 		"magic": Color(0.3, 0.9, 0.85),
 		"body": Vector2(340, 120), "hp": 2800, "speed": 150.0, "shape": "serpent",
-		"flying": true, "apex": true,
+		"flying": true, "apex": true, "noclip": true, "swoop": true,
 		"abilities": ["charge", "vortex", "meteors", "summon"],
 		"passives": ["skyfall", "tether"],   # BOSSES.md §3 finale spec
 	},
@@ -745,7 +845,9 @@ const BOSSES = {
 		"color": Color(0.09, 0.05, 0.07), "eye_color": Color(1.0, 0.12, 0.08),
 		"magic": Color(1.0, 0.22, 0.12),
 		"body": Vector2(34, 52), "hp": 4000, "speed": 120.0, "shape": "wizard",
-		"flying": true, "apex": true, "sprite": "fallen_wizard",
+		# noclip but NO swoop: the wizard's repositioning identity is the blink,
+		# not the dive -- terrain just stops being able to snag him
+		"flying": true, "apex": true, "sprite": "fallen_wizard", "noclip": true,
 		# +covenant/+riposte per BOSSES.md §3: covenant binds him to his mirror
 		# legion (do_clone pairs them), riposte punishes swings into his tells
 		"passives": ["crumbling_aura", "blink_on_hit", "soul_split", "covenant", "riposte"],
@@ -1680,6 +1782,16 @@ func configure_from_def(def: Dictionary) -> void:
 	has_soulbind = "soulbind" in passives
 	has_covenant = "covenant" in passives
 	profile = def.get("profile", "rusher")
+	# TERRARIA-HARDMODE FLIGHT (dev 2026-07-27: "some of them should fly or
+	# move annoyingly like terraria hard mode bosses... ignoring collision and
+	# walls"). A noclip flyer stops colliding with TERRAIN entirely -- pillars,
+	# platforms, walls are nothing to it; it owns the whole airspace. Only the
+	# arena's outer x-clamp still holds it in the room. Swoopers additionally
+	# run the cross-screen dash pattern (see _tick_swoop).
+	noclip = bool(def.get("noclip", false))
+	has_swoop = bool(def.get("swoop", false))
+	if noclip:
+		collision_mask &= ~1   # the world layer no longer exists for it
 	abilities = (def.get("abilities", ["slam"]) as Array).duplicate()
 	base_max_health = int(def.get("hp", 900))   # pre-scaling, for stagger maths
 	max_health = int(round(float(base_max_health) * level_hp_mult))
@@ -2325,6 +2437,7 @@ func _physics_process(delta: float) -> void:
 	tick_covenant(delta)
 	tick_false_twin(delta)
 	tick_soulbind(delta)
+	tick_reflex_step(delta)
 
 	# flying bosses ignore gravity entirely; they steer in full 2D
 	if not flying and not is_on_floor():
@@ -2360,12 +2473,16 @@ func _physics_process(delta: float) -> void:
 				facing_direction = sign(dx)
 			var dist = global_position.distance_to(player.global_position)
 			if in_combo:
-				# the combo coroutine owns the boss -- just float above the
-				# player between casts so he keeps repositioning
+				# the combo coroutine owns the boss -- but it never STANDS for
+				# it (dev 2026-07-27: "bosses move annoyingly"). Grounded combo
+				# bosses used to freeze flat-footed through whole sentences,
+				# turning every step gap into a free-aim window. Now they drift:
+				# press in when far, give ground when crowded, and jink the
+				# whole time. Flyers already reposition via hover (and swoop).
 				if flying:
-					process_hover(delta)
+					_fly_drive(delta)
 				else:
-					velocity.x = 0
+					_combat_drift(dist, delta)
 			elif is_combo_boss():
 				drive_wizard(delta)
 			else:
@@ -2373,7 +2490,7 @@ func _physics_process(delta: float) -> void:
 				if chosen != "":
 					start_attack(chosen)
 				elif flying:
-					process_hover(delta)
+					_fly_drive(delta)
 				elif wall_turn_timer > 0:
 					velocity.x = -facing_direction * effective_speed()
 				else:
@@ -2411,8 +2528,11 @@ func _physics_process(delta: float) -> void:
 				break
 
 # Cruise toward a point hovering above the player, with a slow wing-beat bob.
+# Deep flyers weave harder side to side (dev 2026-07-27): the horizontal jink
+# scales with restlessness, so a floor-90 flyer never hangs on one aim line.
 func process_hover(delta: float) -> void:
-	hover_time += delta
+	var r := restlessness()
+	hover_time += delta * r
 	var target = player.global_position + Vector2(0, -HOVER_ALTITUDE)
 	var to_target = target - global_position
 	if to_target.length() > 40.0:
@@ -2420,6 +2540,7 @@ func process_hover(delta: float) -> void:
 	else:
 		velocity = to_target * 2.0
 	velocity.y += sin(hover_time * 3.0) * 28.0
+	velocity.x += sin(hover_time * 2.2) * 34.0 * (r - 0.6)
 
 func arena_width() -> float:
 	var s = get_tree().current_scene
@@ -2558,7 +2679,7 @@ func drive_wizard(delta: float) -> void:
 		combo_recovery_timer -= delta
 		# a combo boss expresses its movement personality BETWEEN sentences
 		if flying:
-			process_hover(delta)
+			_fly_drive(delta)
 		elif player != null and is_instance_valid(player):
 			_drive_profile(global_position.distance_to(player.global_position), delta)
 		else:
@@ -2594,11 +2715,28 @@ func _orphan_abilities() -> Array:
 			out.append(a)
 	return out
 
+# Restless footwork while a combo sentence plays: press in when far, give
+# ground when crowded, jink constantly. Modest speeds on purpose -- the drift
+# makes the boss hard to line up, it must never blur the combo's own tells.
+func _combat_drift(dist: float, delta: float) -> void:
+	var r := restlessness()
+	_drift_phase += delta * 3.1 * r
+	var spd := effective_speed()
+	var press := 0.25
+	if dist > 260.0:
+		press = 0.75          # close the gap between casts
+	elif dist < 120.0:
+		press = -0.55         # on top of the player: give ground
+	velocity.x = float(facing_direction) * spd * press + sin(_drift_phase) * spd * 0.45 * r
+
 # The movement personality. Sets velocity from the boss's `profile` so no two
 # bosses cross the floor the same way. (See the profile vocabulary up top.)
 func _drive_profile(dist: float, delta: float) -> void:
 	var spd := effective_speed()
 	var face := float(facing_direction)
+	# depth-scaled footwork (dev 2026-07-27): every timer below runs faster and
+	# every strafe/feint digs harder the deeper the floor -- see restlessness()
+	var r := restlessness()
 	match profile:
 		"kiter":
 			if dist < KITE_RANGE - KITE_HYSTERESIS:
@@ -2606,11 +2744,18 @@ func _drive_profile(dist: float, delta: float) -> void:
 			elif dist > KITE_RANGE + KITE_HYSTERESIS:
 				velocity.x = face * spd             # too far: close some gap
 			else:
-				velocity.x = 0.0                    # in the pocket: hold
+				# in the pocket: STRAFE it, never stand and shoot (dev
+				# 2026-07-27) -- it paces the range band, swapping direction
+				# on its own clock, so the pocket is a moving target
+				_move_timer -= delta
+				if _move_timer <= 0.0:
+					_move_timer = randf_range(0.8, 1.6) / r
+					_move_dir = 1.0 if randf() < 0.5 else -1.0
+				velocity.x = _move_dir * spd * 0.55 * r
 		"pursuer":
 			# relentless -- the longer it chases, the faster it comes
 			if dist > 130.0:
-				_chase_ramp = minf(2.1, _chase_ramp + delta * 0.7)
+				_chase_ramp = minf(2.1, _chase_ramp + delta * 0.7 * r)
 			else:
 				_chase_ramp = 1.0
 			velocity.x = face * spd * _chase_ramp
@@ -2620,29 +2765,45 @@ func _drive_profile(dist: float, delta: float) -> void:
 				_move_phase -= delta
 				velocity.x = face * spd * 2.3
 			elif _move_timer <= 0.0:
-				_move_timer = randf_range(1.2, 2.0)
+				_move_timer = randf_range(1.2, 2.0) / r
 				_move_phase = 0.28                   # start a new burst
 			elif dist < POUNCE_HOLD_RANGE:
 				velocity.x = -face * spd * 0.7       # too close between pounces: peel out
 			else:
-				velocity.x = 0.0
+				# between pounces it PROWLS -- a slow rolling pace toward the
+				# prey, never a flat stand (dev 2026-07-27)
+				_drift_phase += delta * 2.4 * r
+				velocity.x = face * spd * (0.35 + 0.25 * sin(_drift_phase))
 		"erratic":
 			_move_timer -= delta
 			if _move_timer <= 0.0:
-				_move_timer = randf_range(0.22, 0.6)
-				var r := randf()
-				_move_dir = face if r < 0.6 else (-face if r < 0.82 else 0.0)  # feint/pause
+				_move_timer = randf_range(0.22, 0.6) / r
+				var roll := randf()
+				_move_dir = face if roll < 0.6 else (-face if roll < 0.82 else 0.0)  # feint/pause
 			velocity.x = _move_dir * spd * 1.25
 		"weave":
-			_move_phase += delta * 4.5
+			_move_phase += delta * 4.5 * r
 			velocity.x = face * spd * lerpf(-0.4, 1.0, 0.5 + 0.5 * sin(_move_phase))
 		"turtle":
-			velocity.x = face * spd * 0.22           # it wants you to come to it
+			# it wants you to come to it -- but it is never a STATUE (dev
+			# 2026-07-27): every few seconds it breaks its stillness and
+			# re-plants itself a short shuffle away, then settles again. The
+			# "come to me" identity holds; the camping spot doesn't.
+			_move_timer -= delta
+			if _move_phase > 0.0:
+				_move_phase -= delta
+				velocity.x = _move_dir * spd * 0.9
+			elif _move_timer <= 0.0:
+				_move_timer = randf_range(2.6, 4.2) / r
+				_move_phase = randf_range(0.5, 0.85)
+				_move_dir = face if randf() < 0.65 else -face
+			else:
+				velocity.x = face * spd * 0.22
 		"hopper":
 			velocity.x = face * spd * 0.85
 			_move_timer -= delta
 			if _move_timer <= 0.0 and is_on_floor():
-				_move_timer = randf_range(0.7, 1.15)
+				_move_timer = randf_range(0.7, 1.15) / r
 				velocity.y = -430.0                  # a hop toward you
 		"mirror":
 			# it moves only while YOU move -- it stalks your rhythm. Detected by
@@ -2652,7 +2813,21 @@ func _drive_profile(dist: float, delta: float) -> void:
 				if _move_dir != 0.0:   # _move_dir holds the last-seen player x here
 					pmoving = absf(player.global_position.x - _move_dir) > 2.0
 				_move_dir = player.global_position.x
-			velocity.x = (face * spd) if pmoving else 0.0
+			if pmoving:
+				_pstill_time = 0.0
+				velocity.x = face * spd
+			else:
+				# a standoff is not a statue (dev 2026-07-27): if YOU freeze,
+				# after a beat it starts CIRCLING -- a duelist pacing around
+				# your guard. The stalk-your-rhythm identity holds: pacing
+				# oscillates in place and never closes distance on its own;
+				# only your movement makes it advance.
+				_pstill_time += delta
+				if _pstill_time > 1.2 / r:
+					_move_phase += delta * 1.7 * r
+					velocity.x = sin(_move_phase) * spd * 0.5
+				else:
+					velocity.x = 0.0
 		_:                                           # rusher / default
 			velocity.x = face * spd
 
