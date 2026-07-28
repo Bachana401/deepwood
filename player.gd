@@ -592,11 +592,19 @@ func build_weapon_guard() -> void:
 # and blanks the fallback ColorRect bar + crossguard so they don't show through
 # behind it. Returns true when a texture is in use, so the guard update can skip
 # the bar treatment. The SAME texture is the inventory icon -- bag and hand match.
+# NOTE (2026-07-28): weapon art is now authored DIAGONALLY (blade up-right,
+# Terraria-style) and COMPACT -- great in the inventory, but it would SQUISH if
+# forced to fill the thin in-hand bar (icon_size ~56x12). So the in-hand render
+# stays on the proven procedural bar for now; showing the diagonal sprite in the
+# hand needs a proper aim+45deg rotate/scale/hilt-anchor pass verified with live
+# screenshots (EYES walker). Gated off until that calibration lands. Inventory
+# already shows the real sprite via Inventory.paint_icon (unaffected by this).
+const HELD_SPRITE_ENABLED := false
 func update_weapon_sprite() -> bool:
 	if not weapon_sprite:
 		return false
 	var tex: Texture2D = Inventory.icon_texture(active_weapon_id) if has_weapon() else null
-	if tex == null:
+	if not HELD_SPRITE_ENABLED or tex == null:
 		weapon_sprite.visible = false
 		return false
 	weapon_sprite.texture = tex
