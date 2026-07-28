@@ -1735,6 +1735,7 @@ func tick_village_clock() -> void:
 		tick_morale_effects(hours_passed)
 		tick_village_tribute(hours_passed)
 		tick_sieges(hours_passed)
+		tick_caravans(hours_passed)
 
 # === HIDDEN EVENT BOSSES (2026-07-28) ==================================
 # Ten secret bosses (event_boss.gd), each armed once per run. Their trigger
@@ -1776,9 +1777,19 @@ func note_floor_cleared_event() -> void:
 func on_player_died_event() -> void:
 	floors_since_death = 0   # the no-death streak is broken
 
+# REMATCHES (renewability pillar 2, 2026-07-28): a felled hunt rests a day,
+# then RE-ARMS one rung harder -- the same playstyle that woke it wakes it
+# again (the Tallyman returns because you are still rich). First kill pays
+# the exclusive table; every rematch pays materials and gold, never the twin.
+const REMATCH_REST_HOURS := 24.0
+var event_rematch_level: Dictionary = {}   # id -> kills so far (0 = never felled)
+var event_rearm_at: Dictionary = {}        # id -> game_hours when the hunt re-arms
+
 func on_event_boss_killed(id: String) -> void:
 	if event_state.has(id):
 		event_state[id] = "killed"
+	event_rematch_level[id] = int(event_rematch_level.get(id, 0)) + 1
+	event_rearm_at[id] = game_hours + REMATCH_REST_HOURS
 	_note_capstone_kill(id)   # lifetime record + the Horn reveal when all ten fall
 	log_event("combat", "A hidden foe fell: " + str(EventBoss.get_event(id).get("name", id)) + ".")
 
@@ -1803,6 +1814,11 @@ func _event_stage_free() -> bool:
 func tick_hidden_events() -> void:
 	if event_state.is_empty():
 		arm_hidden_events()
+	# rested kills RE-ARM one rung harder (the rematch ladder)
+	for rid in event_rearm_at.keys():
+		if event_state.get(rid, "") == "killed" and game_hours >= float(event_rearm_at[rid]):
+			event_state[rid] = "armed"
+			event_rearm_at.erase(rid)
 	if not _event_stage_free():
 		return
 	var tree := get_tree()
@@ -2244,6 +2260,110 @@ func tick_deep_catches(hours_passed: float) -> void:
 
 # Abstract off-screen resolution used while the player is away.
 var maera_stabilized_this_siege := false
+
+# === THE REAVER CARAVAN (renewability pillar 2, dev-chosen 2026-07-28) ===
+# A Goblin-Army-INSPIRED marching invasion, never a copy: reavers want the
+# ROADS, not the walls. Once the deep knows your name (floor 12+), a caravan
+# rolls up the EAST road every few days -- announced an hour out (dust rises;
+# no Watchtower needed, a caravan is VISIBLE), then three structured waves
+# and a named captain. Repel it all and the REAVER CACHE pays out: gold,
+# materials, and one themed weapon you don't own. It re-arms forever --
+# a set-piece party with a loot table, not another siege.
+const CARAVAN_FIRST_HOURS := 60.0        # the first rolls in late on day 3
+const CARAVAN_GAP_MIN := 44.0            # then every ~2-4 days
+const CARAVAN_GAP_MAX := 92.0
+const CARAVAN_WARN_HOURS := 1.0          # dust on the road, an hour out
+const CARAVAN_MIN_FLOOR := 12            # the roads only care once the deep does
+const CARAVAN_WEAPON_POOL = ["wpn_hookbill", "wpn_ratterdart", "wpn_boarspit",
+	"wpn_gutterbow", "wpn_bonepick", "wpn_tithegather", "wpn_marshlash",
+	"wpn_reaperrebuke", "wpn_debtblade", "wpn_omenblade"]
+const CARAVAN_CAPTAIN_NAMES = ["Grask Half-Hand", "Mora of the Long Whip",
+	"Vell Ninefingers", "The Toll-Taker", "Brannoc Redcart", "Iron-Tooth Sella"]
+
+var hours_until_caravan := CARAVAN_FIRST_HOURS
+var caravan_warned := false
+var caravans_seen := 0
+var live_caravan_active := false
+
+func caravan_tier() -> int:
+	return maxi(2, current_siege_tier())
+
+func tick_caravans(hours_passed: float) -> void:
+	if despair_dead or harvest_at_home:
+		return
+	if not opening_done and not dev_mode:
+		return
+	if deepest_level_reached < CARAVAN_MIN_FLOOR:
+		return
+	if live_caravan_active:
+		if in_dungeon:
+			live_caravan_active = false   # abandoned mid-fight: resolves abstractly
+		else:
+			return
+	hours_until_caravan -= hours_passed
+	# the dust rises an hour out -- the one warning every eye can see
+	if not caravan_warned and hours_until_caravan <= CARAVAN_WARN_HOURS and hours_until_caravan > 0.0:
+		caravan_warned = true
+		notify("☁ Dust on the east road — a reaver caravan, about an hour out.")
+		log_event("combat", "Dust rose on the east road: reavers, coming to collect.")
+	if hours_until_caravan <= 0.0:
+		hours_until_caravan = randf_range(CARAVAN_GAP_MIN, CARAVAN_GAP_MAX)
+		caravan_warned = false
+		trigger_caravan()
+
+func trigger_caravan() -> void:
+	caravans_seen += 1
+	var tier := caravan_tier()
+	if not in_dungeon:
+		var mgr = get_tree().get_first_node_in_group("siege_manager")
+		if mgr and mgr.has_method("start_caravan"):
+			mgr.start_caravan(tier)
+			live_caravan_active = true
+			return
+	resolve_caravan_offline(tier)
+
+# Away, the caravan resolves like any road story: held, or paid for.
+func resolve_caravan_offline(tier: int) -> void:
+	if village_defense_power() >= float(tier):
+		grant_reaver_cache(tier, true)
+		log_event("combat", "A reaver caravan rolled up the east road while you were away — the defense drove it off. Its cache waits by the gate.")
+		return
+	log_event("combat", "A reaver caravan struck while you were away — the east road paid the toll.")
+	register_villager_deaths(1)
+	var toll: int = mini(120, 25 * tier)
+	var pl = get_tree().get_first_node_in_group("player")
+	if pl and "currency" in pl:
+		pl.currency = maxi(0, int(pl.currency) - toll)
+		log_event("economy", "The reavers took %d gold in passage-toll." % toll)
+
+# The Reaver Cache: gold, materials, and ONE themed weapon you don't own.
+func grant_reaver_cache(tier: int, offline := false) -> void:
+	var pl = get_tree().get_first_node_in_group("player")
+	if pl == null or not "inventory" in pl or pl.inventory == null:
+		return
+	var gold: int = 40 + 25 * tier
+	pl.currency += gold
+	if pl.has_method("update_currency_display"):
+		pl.update_currency_display()
+	pl.inventory.add_item("iron_shard", 2 + tier / 2)
+	if tier >= 6:
+		pl.inventory.add_item("ember_crystal", 1)
+	var pool := []
+	for id in CARAVAN_WEAPON_POOL:
+		if pl.inventory.get_count(id) == 0 and get_equipped_item_ids().find(id) == -1 \
+				and pl.active_weapon_id != id:
+			pool.append(id)
+	var arm := ""
+	if not pool.is_empty():
+		arm = pool[randi() % pool.size()]
+		pl.inventory.add_item(arm, 1)
+	var line := "The Reaver Cache: %dg, materials%s." % [gold,
+		(", and the %s" % Inventory.get_display_name(arm)) if arm != "" else ""]
+	if offline:
+		log_event("economy", line)
+	else:
+		notify("📦 " + line)
+		log_event("economy", line)
 
 func resolve_siege_offline(tier: int) -> void:
 	away_report.sieges += 1
@@ -4915,6 +5035,8 @@ func reset_for_new_game() -> void:
 	floors_cleared = {}                        # a new run's deep is unswept
 	# hidden event bosses re-arm and their run counters zero for the fresh run
 	event_state = {}          # explicit reset (arm_hidden_events repopulates it)
+	event_rematch_level = {}  # the rematch ladder starts at the bottom each run
+	event_rearm_at = {}
 	arm_hidden_events()
 	run_kills = 0
 	run_trees = 0
@@ -4929,6 +5051,11 @@ func reset_for_new_game() -> void:
 	game_hours = 0.0
 	hours_until_next_siege = SIEGE_FIRST_HOURS
 	live_siege_active = false
+	# the caravan clock resets whole (the event_state reset-leak lesson)
+	hours_until_caravan = CARAVAN_FIRST_HOURS
+	caravan_warned = false
+	caravans_seen = 0
+	live_caravan_active = false
 	away_report = {"sieges": 0, "repelled": 0, "villagers_lost": 0, "adventurers_lost": 0}
 	# The village starts in ruins -- every building begins destroyed (health 0)
 	# and must be repaired before its roles work.
@@ -5117,6 +5244,8 @@ func save_game(player: Node) -> void:
 		"floors_cleared": floors_cleared,
 		# hidden event bosses: which have fired/been looted + the run counters
 		"event_state": event_state,
+		"event_rematch_level": event_rematch_level,
+		"event_rearm_at": event_rearm_at,
 		"event_bosses_ever_killed": event_bosses_ever_killed,
 		"hunters_horn_announced": hunters_horn_announced,
 		"run_kills": run_kills,
@@ -5135,6 +5264,8 @@ func save_game(player: Node) -> void:
 		"equipment": equipment,
 		"game_hours": game_hours,
 		"hours_until_next_siege": hours_until_next_siege,
+		"hours_until_caravan": hours_until_caravan,
+		"caravans_seen": caravans_seen,
 		"away_report": away_report,
 		"building_health": building_health,
 		"building_stage": building_stage,
@@ -5316,6 +5447,10 @@ func load_game() -> Dictionary:
 				# so the boss + its loot are never silently lost to a quit.
 				elif event_state[id] == "triggered":
 					event_state[id] = "armed"
+			if parsed.has("event_rematch_level") and parsed["event_rematch_level"] is Dictionary:
+				event_rematch_level = parsed["event_rematch_level"]
+			if parsed.has("event_rearm_at") and parsed["event_rearm_at"] is Dictionary:
+				event_rearm_at = parsed["event_rearm_at"]
 		else:
 			arm_hidden_events()
 		if parsed.has("event_bosses_ever_killed") and parsed["event_bosses_ever_killed"] is Array:
@@ -5342,6 +5477,10 @@ func load_game() -> Dictionary:
 			load_equipment(parsed["equipment"])
 		game_hours = float(parsed.get("game_hours", 0.0))
 		hours_until_next_siege = float(parsed.get("hours_until_next_siege", SIEGE_FIRST_HOURS))
+		hours_until_caravan = float(parsed.get("hours_until_caravan", CARAVAN_FIRST_HOURS))
+		caravans_seen = int(parsed.get("caravans_seen", 0))
+		caravan_warned = false          # the dust re-announces after a load
+		live_caravan_active = false     # a live fight never survives a reload
 		live_siege_active = false
 		# Continue loads you standing in the VILLAGE -- but GameState is an autoload
 		# that survives Quit-to-Menu, so transient run-flags from the pre-menu

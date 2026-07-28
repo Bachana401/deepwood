@@ -142,9 +142,20 @@ static func hunt_ids() -> Array:
 static func get_event(id: String) -> Dictionary:
 	return EVENTS.get(id, {})
 
+# The ladder rematches climb (renewability pillar 2, dev-chosen 2026-07-28):
+# each kill re-arms the hunt one rung harder, capped at Master forever.
+const REMATCH_LADDER = ["medium", "hard", "very_hard", "expert", "master"]
+
 static func scaling_for(id: String) -> Dictionary:
 	var ev: Dictionary = EVENTS.get(id, {})
-	return DIFF.get(ev.get("difficulty", "medium"), DIFF["medium"])
+	var base := str(ev.get("difficulty", "medium"))
+	var ups: int = int(GameState.event_rematch_level.get(id, 0))
+	if ups <= 0:
+		return DIFF.get(base, DIFF["medium"])
+	var idx: int = mini(REMATCH_LADDER.find(base) + ups, REMATCH_LADDER.size() - 1)
+	var d: Dictionary = DIFF.get(REMATCH_LADDER[maxi(idx, 0)], DIFF["medium"]).duplicate()
+	d["label"] = str(d.get("label", "?")) + " · Rematch %d" % ups
+	return d
 
 # Roll and hand over an event boss's whole table onto a felled kill: ONE of the
 # two exclusive weapons (a true 50/50), then every guaranteed extra. Returns the
@@ -155,6 +166,22 @@ static func award(player: Node, id: String) -> Array:
 	var ev: Dictionary = EVENTS.get(id, {})
 	if ev.is_empty() or player == null or not is_instance_valid(player):
 		return []
+	# REMATCH kills pay MATERIALS AND GOLD, never the twin (dev-chosen: the
+	# 50/50 canon is absolute -- one run can never assemble both weapons, and
+	# no ladder of rematches changes that). Scaling with the rung climbed.
+	var ups: int = int(GameState.event_rematch_level.get(id, 0))
+	if ups > 0:
+		var granted_r: Array = []
+		var gold: int = 120 + 80 * ups
+		player.currency += gold
+		if player.has_method("update_currency_display"):
+			player.update_currency_display()
+		granted_r.append("%dg" % gold)
+		var mats := ["iron_shard", "ember_crystal", "void_essence", "ancient_relic"]
+		var mat: String = mats[mini(ups - 1, mats.size() - 1)]
+		if player.inventory.add_item(mat, 1 + ups / 2) == 0:
+			granted_r.append(Inventory.get_display_name(mat))
+		return granted_r
 	var granted: Array = []
 	var weapons: Array = ev.get("weapons", [])
 	if not weapons.is_empty():

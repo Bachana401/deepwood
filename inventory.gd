@@ -1816,7 +1816,14 @@ func add_item(item_id: String, count: int) -> int:
 	# An undefined id used to be accepted in silence: it took a slot, showed a
 	# blank grey icon, had no name and no use, and saved/reloaded forever. Refuse
 	# it loudly instead -- a bad id is always a bug at the call site.
-	if not ITEM_DEFS.has(item_id):
+	# THE ROSTER IS REAL TOO (caravan test catch, 2026-07-28): this guard
+	# predates the generated ladder and knew only ITEM_DEFS -- so EVERY grant
+	# of a roster weapon was refused right here: boss drops (which then showed
+	# a FALSE "bag is full -- left behind!"), the Forge's daily-import
+	# purchases, and the new Reaver Cache. The 275 ladder weapons were
+	# uncollectable in live play since wave 2. One existence truth now:
+	# defs OR the roster.
+	if not ITEM_DEFS.has(item_id) and not WeaponRoster.has_id(item_id):
 		push_error("Inventory.add_item: no such item '%s' -- refusing" % item_id)
 		return count
 	var remaining = count

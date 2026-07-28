@@ -249,5 +249,46 @@ func _ready() -> void:
 		GameState.event_state.get("tallyman", "") == "armed",
 		GameState.event_state.get("tallyman", ""))
 
+	# ---- REMATCHES (pillar 2, 2026-07-28): the ladder climbs, the twin never drops ----
+	var p9 = get_tree().get_first_node_in_group("player")
+	GameState.event_rematch_level = {}
+	GameState.event_rearm_at = {}
+	GameState.event_state["glutton_root"] = "triggered"
+	GameState.on_event_boss_killed("glutton_root")
+	check("a felled hunt records its kill and schedules the rest",
+		GameState.event_state["glutton_root"] == "killed"
+		and int(GameState.event_rematch_level.get("glutton_root", 0)) == 1
+		and GameState.event_rearm_at.has("glutton_root"))
+	GameState.game_hours += GameState.REMATCH_REST_HOURS + 1.0
+	GameState.tick_hidden_events()
+	check("...and re-arms one day later, one rung harder",
+		GameState.event_state["glutton_root"] == "armed")
+	var sc1: Dictionary = EventBoss.scaling_for("glutton_root")
+	check("the rematch stages HARDER (medium -> hard, labelled)",
+		str(sc1.get("label", "")).contains("Rematch 1")
+		and float(sc1.get("hp", 0.0)) > float(EventBoss.DIFF["medium"]["hp"]))
+	GameState.event_rematch_level["glutton_root"] = 10
+	var sc2: Dictionary = EventBoss.scaling_for("glutton_root")
+	check("the ladder caps at Master forever",
+		absf(float(sc2.get("hp", 0.0)) - float(EventBoss.DIFF["master"]["hp"])) < 0.01)
+	# a rematch pays MATERIALS AND GOLD -- never the twin
+	GameState.event_rematch_level["glutton_root"] = 1
+	var ev9: Dictionary = EventBoss.get_event("glutton_root")
+	var w_before9 := 0
+	for w in ev9.get("weapons", []):
+		w_before9 += p9.inventory.get_count(str(w))
+	var gold9: int = p9.currency
+	var got9: Array = EventBoss.award(p9, "glutton_root")
+	var w_after9 := 0
+	for w in ev9.get("weapons", []):
+		w_after9 += p9.inventory.get_count(str(w))
+	check("a rematch pays gold and materials, NEVER the twin (canon absolute)",
+		w_after9 == w_before9 and p9.currency > gold9 and not got9.is_empty(),
+		"weapons %d->%d gold %d->%d" % [w_before9, w_after9, gold9, p9.currency])
+	check("the ladder survives a new game at the bottom (reset-leak lesson)",
+		FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text().contains("event_rematch_level = {}"))
+	GameState.event_rematch_level = {}
+	GameState.event_rearm_at = {}
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

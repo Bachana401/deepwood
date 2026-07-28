@@ -193,10 +193,86 @@ func _spawn_barracks_soldiers(tier: int, west_wall, east_wall) -> void:
 func _on_soldier_died(s) -> void:
 	soldiers.erase(s)
 
+# === THE REAVER CARAVAN (renewability pillar 2, 2026-07-28) ===
+# Not a siege: a MARCHING PARTY. Three structured waves up the EAST road --
+# each held wave summons the next, the third walks in with a named captain --
+# and a full repel pays the Reaver Cache. Reuses the raider body, the
+# soldier sally and the wall logic wholesale.
+var caravan_wave := 0     # 0 = idle; 1..3 while the caravan runs
+var caravan_tier := 0
+
+func start_caravan(tier: int) -> void:
+	# never on top of a live siege -- the road defers to the war
+	if GameState.live_siege_active or caravan_wave > 0:
+		GameState.live_caravan_active = false
+		GameState.resolve_caravan_offline(tier)
+		return
+	caravan_tier = tier
+	caravan_wave = 0
+	notify("⚔ THE REAVER CARAVAN rolls up the east road — three waves! Hold the gate!")
+	GameState.log_event("combat", "A reaver caravan reached the east road (tier %d)." % tier)
+	_next_caravan_wave()
+
+func _next_caravan_wave() -> void:
+	caravan_wave += 1
+	var east_wall = wall_for_flank("east")
+	var west_wall = wall_for_flank("west")
+	var wall = east_wall if east_wall != null else west_wall
+	var count: int = 2 + caravan_wave + caravan_tier / 3
+	var hp = int(round(BASE_HP * (1.0 + (caravan_tier - 1) * HP_PER_TIER)))
+	var dmg = int(round(BASE_DMG * (1.0 + (caravan_tier - 1) * DMG_PER_TIER)))
+	var base_x: float = (east_wall.east_face_x() if east_wall != null else DEFAULT_WALL_X + 900.0)
+	for i in range(count):
+		_spawn_raider(hp, dmg, caravan_tier, wall,
+			Vector2(base_x + SPAWN_STANDOFF + i * randf_range(34.0, 70.0), SPAWN_Y))
+	if caravan_wave == 3:
+		_spawn_captain(wall, hp, dmg, base_x)
+	else:
+		notify("⚔ Caravan wave %d of 3 — they keep coming!" % caravan_wave)
+	if caravan_wave == 1:
+		_spawn_barracks_soldiers(caravan_tier, west_wall, east_wall)
+
+func _spawn_captain(wall, hp: int, dmg: int, base_x: float) -> void:
+	var c = SIEGE_ENEMY_SCENE.instantiate()
+	c.skin = "raider"
+	c.max_health = hp * 5
+	c.attack_damage = int(round(dmg * 1.6))
+	c.reward = 40 + caravan_tier * 5
+	c.wall = wall
+	c.global_position = Vector2(base_x + SPAWN_STANDOFF + 260.0, SPAWN_Y)
+	c.died.connect(_on_enemy_died)
+	get_parent().add_child(c)
+	c.scale = Vector2(1.4, 1.4)
+	c.modulate = Color(1.2, 0.82, 0.66)   # the captain reads bigger and meaner
+	alive_count += 1
+	var cname: String = GameState.CARAVAN_CAPTAIN_NAMES[randi() % GameState.CARAVAN_CAPTAIN_NAMES.size()]
+	notify("☠ The third wave — and %s walks with it!" % cname)
+
+func end_caravan() -> void:
+	caravan_wave = 0
+	alive_count = 0
+	for wall in get_tree().get_nodes_in_group("village_wall"):
+		if wall.has_method("repair_fully"):
+			wall.repair_fully()
+	for s in soldiers:
+		if is_instance_valid(s):
+			s.queue_free()
+	soldiers.clear()
+	GameState.live_caravan_active = false
+	GameState.grant_reaver_cache(caravan_tier, false)
+	notify("The caravan breaks and runs — the road is yours!")
+	GameState.log_event("combat", "The reaver caravan was repelled at the gate.")
+
 func _on_enemy_died() -> void:
 	alive_count -= 1
-	if alive_count <= 0 and GameState.live_siege_active:
-		end_siege()
+	if alive_count <= 0:
+		if GameState.live_caravan_active and caravan_wave > 0:
+			if caravan_wave < 3:
+				_next_caravan_wave()
+			else:
+				end_caravan()
+		elif GameState.live_siege_active:
+			end_siege()
 
 func end_siege() -> void:
 	alive_count = 0

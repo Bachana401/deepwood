@@ -225,6 +225,13 @@ func _ready() -> void:
 	check("...and set weapons stay dungeon-drop only", not setw_leak)
 	au.queue_free()
 
+	# a roster weapon can actually be ADDED to a bag (caravan catch 2026-07-28:
+	# add_item's existence guard predated the ladder -- every roster grant was
+	# refused with a false "bag full", so the 275 were uncollectable live)
+	var live_bag := Inventory.new(4)
+	check("a roster weapon can actually be ADDED to a bag",
+		live_bag.add_item("wpn_oakcudgel", 1) == 0 and live_bag.get_count("wpn_oakcudgel") == 1)
+
 	# ---- Grandmother's Wand (12.2): the joke phase, guarded ----
 	var ada_def: Dictionary = VillagerQuests.get_def("farmer_ada")
 	check("Ada Brook carries the Soul Split bond, attemptable on day one",
