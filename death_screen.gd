@@ -39,13 +39,18 @@ func _ensure_toll_label() -> void:
 		return
 	toll_label = Label.new()
 	toll_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	toll_label.anchors_preset = Control.PRESET_CENTER_TOP
-	toll_label.position = Vector2(-380.0, 400.0)
-	toll_label.size = Vector2(760.0, 60.0)
 	toll_label.autowrap_mode = TextServer.AUTOWRAP_WORD
 	toll_label.add_theme_font_size_override("font_size", 16)
 	toll_label.add_theme_color_override("font_color", Color(0.9, 0.55, 0.5))
 	add_child(toll_label)
+	# anchor AFTER entering the tree: a preset applied to a parentless Control
+	# computes against nothing, leaving the anchors at top-left -- the toll
+	# then hung 380px off the LEFT edge, clipped (EYES d61, 2026-07-28)
+	toll_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	toll_label.offset_left = -380.0
+	toll_label.offset_right = 380.0
+	toll_label.offset_top = 400.0
+	toll_label.offset_bottom = 460.0
 
 func run_death_sequence(seconds: float) -> void:
 	_ensure_toll_label()
