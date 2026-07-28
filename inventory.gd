@@ -837,6 +837,10 @@ const COOLDOWN_EFFECT_KEYS = ["melee_cooldown", "bow_cooldown", "wand_cooldown"]
 const FLAG_EFFECT_TEXT = {
 	"flight": "Flight: hold Space to soar (10s)",
 	"fall_immunity": "Negates fall damage",
+	# the Wukong runes (2026-07-28): phrases, never "+100% sanctuary"
+	"sanctuary": "Ward ring while standing still: enemy shots die at its edge",
+	"stone_guise": "Once per floor, the killing blow lands on STONE (1.5s statue, 1 HP)",
+	"staff_mastery": "Staff combos hold a beat longer; the pillar slam falls +25%",
 }
 
 static func get_set(item_id: String) -> String:
@@ -873,7 +877,7 @@ static func build_tooltip_text(item_id: String) -> String:
 	if cat == "weapon":
 		var ws = def.get("weapon_stats", {})
 		if not ws.is_empty():
-			var stat_line = "DMG %d · CD %.2fs" % [int(ws.get("damage", 0)), ws.get("cooldown", 0.0)]
+			var stat_line = "DMG %d · CD %.2fs" % [shown_damage(item_id), ws.get("cooldown", 0.0)]
 			if def.has("mana_cost"):
 				stat_line += " · %d Mana" % int(def.mana_cost)
 			lines.append(stat_line)
@@ -956,6 +960,16 @@ static func _hex(c: Color) -> String:
 	return "%02x%02x%02x" % [int(round(c.r * 255)), int(round(c.g * 255)), int(round(c.b * 255))]
 
 # cooldown -> a Terraria speed word (faster = lower cooldown)
+# A wand's blow lives in its SPECIAL (weapon_stats.damage is 0 by design, so
+# swings don't double-dip) -- but a card printing "0 magic damage" is a lie
+# (EYES s4, 2026-07-28). Print the number the enemy actually feels.
+static func shown_damage(item_id: String) -> int:
+	var def = get_item_def(item_id)
+	var d := int(def.get("weapon_stats", {}).get("damage", 0))
+	if d <= 0:
+		d = int(def.get("special", {}).get("damage", 0))
+	return d
+
 static func _speed_word(cd: float) -> String:
 	if cd <= 0.20: return "Insanely fast"
 	if cd <= 0.34: return "Very fast"
@@ -999,7 +1013,7 @@ static func build_tooltip_bbcode(item_id: String) -> String:
 	if cat == "weapon":
 		var ws = weapon_stats_for(item_id)
 		if not ws.is_empty():
-			lines.append("[color=#%s]%d %s damage[/color]" % [TT_STAT, int(ws.get("damage", 0)), _dmg_word(str(def.get("weapon_type", "")))])
+			lines.append("[color=#%s]%d %s damage[/color]" % [TT_STAT, shown_damage(item_id), _dmg_word(str(def.get("weapon_type", "")))])
 			lines.append("[color=#%s]%s speed[/color]" % [TT_STAT, _speed_word(float(ws.get("cooldown", 0.5)))])
 		if def.has("mana_cost"):
 			lines.append("[color=#%s]Uses %d mana[/color]" % [TT_MANA, int(def.mana_cost)])

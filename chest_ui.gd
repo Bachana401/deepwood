@@ -2,6 +2,15 @@ extends CanvasLayer
 
 const COLUMNS = 6
 const ROWS = 4
+# The vault racks now hold a GRADE'S whole catalogue (76 rare items after the
+# 350 roster) and 6 fixed columns made a 13-row panel that ran off BOTH screen
+# edges (EYES s3, 2026-07-28). The grid instead grows SIDEWAYS: columns widen
+# so the panel never exceeds MAX_GRID_ROWS visible rows.
+const MAX_GRID_ROWS = 8
+var grid_cols: int = COLUMNS   # live column count for the open chest
+
+func _cols_for(count: int) -> int:
+	return maxi(COLUMNS, int(ceil(float(count) / float(MAX_GRID_ROWS))))
 const SLOT_SIZE = 40.0
 const SLOT_GAP = 6.0
 const ICON_MARGIN = 6.0
@@ -56,8 +65,9 @@ func _ready() -> void:
 var slot_fills: Array = []
 
 func _ensure_grid(count: int) -> void:
-	if slot_bgs.size() == count:
+	if slot_bgs.size() == count and grid_cols == _cols_for(count):
 		return
+	grid_cols = _cols_for(count)
 	for arr in [slot_bgs, slot_icons, slot_counts, slot_fills]:
 		for n in arr:
 			if is_instance_valid(n):
@@ -66,7 +76,7 @@ func _ensure_grid(count: int) -> void:
 	build_slots(count)
 
 func _layout_panel(count: int) -> void:
-	var rows: int = int(ceil(float(count) / float(COLUMNS)))
+	var rows: int = int(ceil(float(count) / float(grid_cols)))
 	var btn_y: float = GRID_ORIGIN.y + rows * (SLOT_SIZE + SLOT_GAP) + 16.0
 	# two button rows now: items above, gold + close below
 	var item_y: float = btn_y
@@ -80,7 +90,7 @@ func _layout_panel(count: int) -> void:
 	# panels a border to run off. Widen the panel to whatever the row needs (the
 	# panel is RIGHT-anchored, so only offset_left moves).
 	var row_w: float = 16.0 + item_buttons.size() * BUTTON_PITCH + 16.0
-	var panel_w: float = maxf(row_w, GRID_ORIGIN.x * 2.0 + COLUMNS * (SLOT_SIZE + SLOT_GAP))
+	var panel_w: float = maxf(row_w, GRID_ORIGIN.x * 2.0 + grid_cols * (SLOT_SIZE + SLOT_GAP))
 	$Panel.offset_left = $Panel.offset_right - panel_w
 	for i in range(item_buttons.size()):
 		item_buttons[i].position = Vector2(16.0 + i * BUTTON_PITCH, item_y)
@@ -89,8 +99,8 @@ func _layout_panel(count: int) -> void:
 
 func build_slots(count: int) -> void:
 	for i in range(count):
-		var col = i % COLUMNS
-		var row = i / COLUMNS
+		var col = i % grid_cols
+		var row = i / grid_cols
 		var pos = GRID_ORIGIN + Vector2(col * (SLOT_SIZE + SLOT_GAP), row * (SLOT_SIZE + SLOT_GAP))
 
 		var bg = ColorRect.new()
