@@ -436,7 +436,7 @@ func tick_statuses(delta: float) -> void:
 		# machinery: see the header comment above.)
 		var _enrage_at := 0.6 if is_apex else ENRAGE_THRESHOLD
 		if not is_enraged and health > 0 and health <= max_health * _enrage_at:
-			enrage()
+			phase_two()
 		if is_apex and not is_frenzied and health > 0 and health <= max_health * 0.25:
 			frenzy()
 		if health <= 0:
@@ -1259,7 +1259,8 @@ func tick_traps(delta: float) -> void:
 		return
 	if _time_now() < trap_next_at:
 		return
-	trap_next_at = _time_now() + TRAP_PERIOD
+	# trap_period_mult: NEVER THERE arms the afterimages faster (phase-2)
+	trap_next_at = _time_now() + TRAP_PERIOD * trap_period_mult
 	_plant_trap(player.global_position)
 
 func _plant_trap(at: Vector2) -> void:
@@ -1338,7 +1339,13 @@ func _do_false_split() -> void:
 	twin_ready_at = _time_now() + TWIN_RESPLIT
 	if true_shadow == null:
 		_build_true_shadow()
-	for i in range(TWIN_COUNT):
+	# THE FULL CHOIR (phase-2): one MORE fake, and the tell INVERTS -- the
+	# fakes now cast shadows and the real one casts none. The banner announced
+	# the rule; reading it is the fight.
+	var count := TWIN_COUNT + (1 if phase2_active else 0)
+	if phase2_active and true_shadow != null and is_instance_valid(true_shadow):
+		true_shadow.visible = false
+	for i in range(count):
 		var t = load("res://boss.tscn").instantiate()
 		t.boss_id = boss_id
 		t.is_false_copy = true
@@ -1350,6 +1357,8 @@ func _do_false_split() -> void:
 		t.position.x = clampf(t.position.x, 100.0, arena_width() - 100.0)   # never spawn out of bounds
 		t.add_to_group("dungeon_combatant")
 		get_parent().add_child(t)
+		if phase2_active:
+			t.call_deferred("_build_true_shadow")   # the inverted tell: fakes cast shadows now
 		_twins.append(t)
 		minions.append(t)   # swept away when the real one dies
 	spawn_shockwave(70.0, magic_color)
@@ -1547,6 +1556,10 @@ func tick_skyfall(delta: float) -> void:
 func tick_covenant(delta: float) -> void:
 	if not has_covenant or is_dead:
 		return
+	# ONE SOUL (twin_despair phase-2): a fused soul cannot mend itself -- the
+	# fused window suspends all covenant healing, and that IS the opening
+	if _time_now() < covenant_suspended_until:
+		return
 	if covenant_partner == null or not is_instance_valid(covenant_partner):
 		return
 	if covenant_partner.is_dead:
@@ -1696,7 +1709,8 @@ var _was_phased := false
 func enter_phase() -> void:
 	if not has_phase or is_dead or _time_now() < phase_ready_at:
 		return
-	phase_until = _time_now() + PHASE_SECONDS
+	# phase_seconds_mult: TOTALITY / NEVER THERE stretch the window (phase-2)
+	phase_until = _time_now() + PHASE_SECONDS * phase_seconds_mult
 	phase_ready_at = phase_until + PHASE_COOLDOWN
 	_refresh_phase_visual()
 
@@ -2438,6 +2452,7 @@ func _physics_process(delta: float) -> void:
 	tick_false_twin(delta)
 	tick_soulbind(delta)
 	tick_reflex_step(delta)
+	tick_phase_two(delta)
 
 	# flying bosses ignore gravity entirely; they steer in full 2D
 	if not flying and not is_on_floor():
@@ -3011,6 +3026,7 @@ func cooldown_mult() -> float:
 		m = 0.35
 	elif is_enraged:
 		m = 0.5 if is_apex else 0.6
+	m *= phase2_cd_mult   # DIRGE / TOTALITY / ASCENDANT quicken their kits
 	if hex_timer > 0.0:
 		m *= HEX_CD_PENALTY   # mage-counter: hexed bosses attack slower
 	if is_clone:
@@ -3199,8 +3215,10 @@ func do_summon() -> void:
 	for m in minions:
 		if _twins.has(m) or rune_adds.has(m):
 			decoys += 1
-	var room = MAX_MINIONS - (minions.size() - decoys)
-	for i in range(min(SUMMON_COUNT, room)):
+	# THE GRAVES OPEN (gravewarden phase-2): summons rise in pairs beyond the
+	# usual budget -- summon_room_bonus is 0 for everyone else
+	var room = MAX_MINIONS + summon_room_bonus - (minions.size() - decoys)
+	for i in range(min(SUMMON_COUNT + (summon_room_bonus / 2), room)):
 		var m = MINION_SCENE.instantiate()
 		m.respawns = false
 		m.instant_aggro = true
@@ -4323,7 +4341,7 @@ func take_damage(amount: int) -> bool:
 		# apex bosses enrage earlier AND hit a second gear near death
 		var enrage_at = 0.6 if is_apex else ENRAGE_THRESHOLD
 		if not is_enraged and health <= max_health * enrage_at:
-			enrage()
+			phase_two()
 		if is_apex and not is_frenzied and health <= max_health * 0.25:
 			frenzy()
 		# the Wizard's reflex: struck, he may flicker a short step away -- but
@@ -4333,12 +4351,465 @@ func take_damage(amount: int) -> bool:
 			blink_short()
 	return true    # the blow landed -- callers may show a damage number
 
-func enrage() -> void:
+func enrage(show_banner := true) -> void:
 	is_enraged = true
 	current_tint = Color(1.0, 0.62, 0.56)   # blood-tinged
 	if rig != null:
 		rig.modulate = current_tint
-	_boss_hud_banner("ENRAGED")
+	if show_banner:
+		_boss_hud_banner("ENRAGED")
+
+# =============================== PHASE TWO ===================================
+# TRUE SECOND FORMS (dev 2026-07-28: "build phases for all of them, each
+# unique"). At the enrage threshold a boss no longer just speeds up -- it
+# TRANSFORMS: a named phase with a real kit change, unique per boss. The plain
+# enrage stat-shift still applies underneath (combo gaps tighten as before);
+# the phase is what changes ON TOP of it. Rules carried from the boss ladder:
+# never a one-shot, tells stay readable (every new threat is telegraphed),
+# and every entry here is CONSUMED by the match in _apply_phase_two + the
+# per-tick machinery -- test_phase2_node proves all 22 fire, so no phase can
+# ever be a named-but-never-read key (this system's oldest trap).
+const PHASE_TWO := {
+	"gravewarden":     "THE GRAVES OPEN",
+	"frost_monarch":   "ABSOLUTE ZERO",
+	"cinder_colossus": "MELTDOWN",
+	"weaver":          "BROODMOTHER",
+	"stormcaller":     "THE EYE OF THE STORM",
+	"void_sovereign":  "EVENT HORIZON",
+	"hollow_choir":    "THE FULL CHOIR",
+	"ashen_penitent":  "PENANCE ENDS",
+	"gaoler":          "LOCKDOWN",
+	"sablefang":       "PACK INSTINCT",
+	"effigy":          "BONFIRE",
+	"mourncaller":     "THE DIRGE",
+	"unseen":          "NEVER THERE",
+	"warden_of_nails": "IRON MAIDEN",
+	"twin_despair":    "ONE SOUL",
+	"cinderking":      "THE THRONE ALIGHT",
+	"glass_saint":     "SHATTERED",
+	"last_man":        "NOTHING LEFT",
+	"seraph":          "JUDGEMENT",
+	"leviathan":       "THE DROWNING",
+	"eclipse":         "TOTALITY",
+	"wizard":          "THE ASCENDANT",
+}
+
+var phase2_active := false
+var phase2_applied := false        # set ONLY by the per-boss branch (test hook)
+# generic per-boss phase-2 state (each boss uses what it needs)
+var _p2_timer := 0.0               # main cycle clock
+var _p2_stage := 0                 # multi-step cycles (telegraph -> strike)
+var _p2_point := Vector2.ZERO      # a remembered spot (safe eye / sweep head)
+var _p2_sweep_x := -1.0            # cinderking: the marching flame front
+var _p2_dir := 1.0
+var _p2_was_diving := false        # seraph: dive falling-edge watcher
+var _p2_fused_until := 0.0         # twin_despair: the fused-window clock
+var _p2_next_fuse_at := 0.0
+# knobs the phase sets and OTHER systems consume (each is read exactly once
+# in the machinery it modifies -- grep before renaming)
+var phase_seconds_mult := 1.0      # eclipse/unseen: longer intangibility
+var trap_period_mult := 1.0        # unseen: afterimage traps arm faster
+var phase2_cd_mult := 1.0          # mourncaller/eclipse/wizard: quicker kits
+var summon_room_bonus := 0         # gravewarden: summons rise in pairs
+var covenant_suspended_until := 0.0  # twin_despair: no healing while fused
+
+# Fired at the enrage threshold instead of bare enrage(). Clones and false
+# twins never transform -- the REAL body owns the phase.
+func phase_two() -> void:
+	enrage(false)
+	if is_clone or is_false_copy or not PHASE_TWO.has(boss_id):
+		if not PHASE_TWO.has(boss_id):
+			_boss_hud_banner("ENRAGED")
+		return
+	phase2_active = true
+	_boss_hud_banner(str(PHASE_TWO[boss_id]))
+	shake_camera(7.0, 0.4)
+	spawn_shockwave(200.0, magic_color)
+	_apply_phase_two()
+
+# The one-shot half of every transformation. Per-tick behaviour lives in
+# tick_phase_two below; flags consumed elsewhere are listed per boss.
+func _apply_phase_two() -> void:
+	phase2_applied = true
+	match boss_id:
+		"gravewarden":
+			# the floor itself hunts: graves burst under the player on a clock
+			# (tick), and every summon beat raises TWO more than before
+			summon_room_bonus = 2
+			_p2_timer = 4.0
+		"frost_monarch":
+			# the cold walks with it: a frost trail slows where it strode (tick),
+			# and it hunts faster through its own winter
+			base_move_speed *= 1.15
+			_p2_timer = 0.6
+		"cinder_colossus":
+			# everything it touches stays burning: a magma trail (tick), and its
+			# charges come in hotter
+			base_move_speed *= 1.2
+			_p2_timer = 0.5
+		"weaver":
+			# it stops fighting alone: eggs laid on a clock hatch into broodlings
+			# unless the player uses the warning to reposition and burst (tick)
+			_p2_timer = 6.0
+		"stormcaller":
+			# the whole sky discharges on a cycle; the ONE safe ring is shown
+			# well ahead -- the fight becomes musical chairs with lightning (tick)
+			_p2_timer = 5.0
+		"void_sovereign":
+			# a singularity wakes at the arena's heart and PULLS, always (tick);
+			# its teleports tear rifts that linger where it left
+			_p2_timer = 2.0
+		"hollow_choir":
+			# the tell INVERTS, and it is ANNOUNCED: the fakes now cast shadows
+			# and the real one casts none. Consumed in _do_false_split (+1 twin,
+			# shadow flip). Cruel, but read the banner and you know the rule.
+			if true_shadow != null and is_instance_valid(true_shadow):
+				true_shadow.visible = false
+			twin_ready_at = 0.0   # re-split immediately under the new rule
+		"ashen_penitent":
+			# it RISES from prayer: the turtle becomes a pursuer, and famine
+			# walks with it
+			profile = "pursuer"
+			base_move_speed *= 2.2
+			reach_mult *= 1.15
+		"gaoler":
+			# the cell closes: bars of soul-light drop around the player on a
+			# clock -- step through the gap before they lock (tick)
+			_p2_timer = 7.0
+		"sablefang":
+			# the pack arrives: two shadow-cats that fight beside it, and its
+			# own sidestep re-arms twice as fast
+			sidestep_ready_at = 0.0
+			for i in range(2):
+				var cat = MINION_SCENE.instantiate()
+				cat.respawns = false
+				cat.instant_aggro = true
+				cat.wave_hp_multiplier = 0.45 * level_hp_mult
+				cat.wave_damage_multiplier = 0.55 * damage_multiplier
+				cat.wave_speed_multiplier = speed_multiplier * 1.5
+				cat.position = global_position + Vector2(-90.0 + 180.0 * i, -20.0)
+				cat.add_to_group("dungeon_combatant")
+				get_parent().add_child(cat)
+				minions.append(cat)
+		"effigy":
+			# it burns DOWN, not out: a charred frame moving half again as fast,
+			# and every slam it lands leaves a pyre standing (tick watches slams)
+			base_move_speed *= 1.6
+			current_tint = Color(0.45, 0.3, 0.28)
+			if rig != null:
+				rig.modulate = current_tint
+			_p2_timer = 0.4
+		"mourncaller":
+			# the dirge: on a slow bell-toll cycle the whole arena grieves --
+			# a pulse that drinks MANA, not blood (tick); her keening quickens
+			phase2_cd_mult *= 0.75
+			_p2_timer = 6.0
+		"unseen":
+			# more absent, more honest: longer phases, but while it is not
+			# there it BLEEDS a visible trail (tick); its traps arm faster
+			phase_seconds_mult = 1.6
+			trap_period_mult = 0.6
+		"warden_of_nails":
+			# the ceiling remembers its purpose: nail columns fall on a cycle,
+			# each marked before it drops (tick)
+			_p2_timer = 6.0
+		"twin_despair":
+			# ONE SOUL: on a cycle the pair pours into one body -- faster,
+			# harder -- but a fused soul cannot mend itself: covenant healing
+			# is DEAD during the window. Fusing is the opening. (tick)
+			_p2_next_fuse_at = _time_now() + 6.0
+		"cinderking":
+			# the throne alight: a wall of flame marches the arena on a cycle,
+			# telegraphed at the head -- jump it or outrun it (tick)
+			_p2_timer = 6.0
+		"glass_saint":
+			# SHATTERED: the body is half pane, half light, and on a cycle it
+			# throws a ring of glass shards outward from its own body (tick)
+			var gfx: CanvasItem = boss_sprite if boss_sprite != null else self
+			gfx.modulate.a = 0.6
+			_p2_timer = 5.0
+		"last_man":
+			# nothing left to hold back: he studies your hands -- whatever you
+			# wield, he answers in kind (tick biases his kit to counter yours)
+			_p2_timer = 1.0
+		"seraph":
+			# judgement: every dive now ENDS in a cross of light thrown from
+			# the landing point (tick watches the dive's falling edge)
+			_p2_was_diving = false
+		"leviathan":
+			# the drowning: on a cycle the deep rises -- the lowest reach of
+			# the arena becomes a surge you must climb out of, marked first (tick)
+			_p2_timer = 8.0
+		"eclipse":
+			# totality: its stolen moments stretch (longer phase windows), its
+			# black suns come sooner, and darkness pools where the player
+			# lingers (tick)
+			phase_seconds_mult = 1.4
+			phase2_cd_mult *= 0.75
+			_p2_timer = 7.0
+		"wizard":
+			# the ascendant: the finale is already a tuned storm -- he simply
+			# stops waiting between the movements of it
+			phase2_cd_mult *= 0.85
+			aura_spin = 1.5
+		_:
+			phase2_applied = false   # unreachable while PHASE_TWO covers all 22
+
+# The living half of the transformations. Cheap: one boss runs at most one
+# branch, most branches are a countdown and an occasional cast.
+func tick_phase_two(delta: float) -> void:
+	if not phase2_active or is_dead or player == null or not is_instance_valid(player):
+		return
+	match boss_id:
+		"gravewarden":
+			_p2_timer -= delta
+			if _p2_timer <= 0.0 and not is_busy:
+				_p2_timer = randf_range(5.0, 7.0)
+				do_grave_grasp()
+		"frost_monarch":
+			_p2_timer -= delta
+			if _p2_timer <= 0.0 and absf(velocity.x) > 10.0:
+				_p2_timer = 0.6
+				spawn_hazard(Vector2(global_position.x, _ground_y_here()), 46.0,
+					0, 3.0, magic_color, "slow", 1.4, 0.55)
+		"cinder_colossus":
+			_p2_timer -= delta
+			if _p2_timer <= 0.0 and absf(velocity.x) > 10.0:
+				_p2_timer = 0.5
+				spawn_hazard(Vector2(global_position.x, _ground_y_here()), 42.0,
+					int(round(4.0 * sqrt(damage_multiplier))), 2.6, magic_color, "burn", 1.6, 3.0)
+		"weaver":
+			_p2_timer -= delta
+			if _p2_timer <= 0.0:
+				_p2_timer = randf_range(8.0, 11.0)
+				for i in range(2):
+					var spot := global_position + Vector2(randf_range(-420.0, 420.0), 0.0)
+					spot.y = _ground_y_here()
+					spawn_ring_telegraph(spot, 60.0, magic_color, 3.0)
+					_hatch_egg_later(spot, 3.0)
+		"stormcaller":
+			_tick_eye_of_storm(delta)
+		"void_sovereign":
+			# the singularity's pull: gentle, constant, and strongest mid-arena
+			var centre := Vector2(arena_width() / 2.0, global_position.y)
+			var pull := (centre.x - player.global_position.x)
+			if "velocity" in player:
+				player.velocity.x += clampf(pull, -1.0, 1.0) * 26.0 * delta * 60.0 * 0.02
+			_p2_timer -= delta
+			if _p2_timer <= 0.0:
+				_p2_timer = 2.0
+		"gaoler":
+			_p2_timer -= delta
+			if _p2_timer <= 0.0:
+				_p2_timer = randf_range(9.0, 12.0)
+				var px: float = player.global_position.x
+				var gy := _ground_y_here()
+				for side in [-1.0, 1.0]:
+					var bx: float = px + side * 130.0
+					spawn_ring_telegraph(Vector2(bx, gy), 40.0, magic_color, 1.2)
+					spawn_hazard(Vector2(bx, gy), 44.0, int(round(6.0 * sqrt(damage_multiplier))),
+						3.5, magic_color, "root", 0.7, 0.0, true)
+		"effigy":
+			# a landed slam leaves a pyre: watch for the slam's own shockwave via
+			# is_busy falling edge is noisy -- simpler contract: periodic pyre at
+			# its OWN feet while it fights (the wicker sheds fire)
+			_p2_timer -= delta
+			if _p2_timer <= 0.0:
+				_p2_timer = 3.0
+				spawn_hazard(Vector2(global_position.x, _ground_y_here()), 60.0,
+					int(round(5.0 * sqrt(damage_multiplier))), 3.0, magic_color, "burn", 1.5, 3.0)
+		"mourncaller":
+			_p2_timer -= delta
+			if _p2_timer <= 0.0:
+				_p2_timer = 7.0
+				# the toll: announced, then the arena grieves -- mana, not blood
+				spawn_ring_telegraph(global_position, 120.0, magic_color, 1.0)
+				_grief_pulse_later(1.0)
+		"unseen":
+			if is_phased():
+				_p2_timer -= delta
+				if _p2_timer <= 0.0:
+					_p2_timer = 0.22
+					spawn_ground_marker(global_position + Vector2(0, 40), magic_color, 0.9, 34.0)
+		"warden_of_nails":
+			_p2_timer -= delta
+			if _p2_timer <= 0.0 and not is_busy:
+				_p2_timer = randf_range(7.0, 9.5)
+				do_iron_maiden()
+		"twin_despair":
+			_tick_one_soul(delta)
+		"cinderking":
+			_tick_throne_alight(delta)
+		"glass_saint":
+			_p2_timer -= delta
+			if _p2_timer <= 0.0:
+				_p2_timer = 6.0
+				for i in range(8):
+					var ang := TAU * float(i) / 8.0
+					spawn_arrow(global_position + Vector2(cos(ang), sin(ang)) * 40.0,
+						Vector2(cos(ang), sin(ang)), int(round(7.0 * sqrt(damage_multiplier))), 420.0)
+		"last_man":
+			_p2_timer -= delta
+			if _p2_timer <= 0.0:
+				_p2_timer = 8.0
+				_mirror_the_player_kit()
+		"seraph":
+			if _p2_was_diving and not is_diving:
+				# the dive just ENDED: light breaks from the landing in a cross
+				for dir in [Vector2.LEFT, Vector2.RIGHT, Vector2.UP, Vector2(0, -0.7).normalized()]:
+					spawn_arrow(global_position + dir * 30.0, dir,
+						int(round(8.0 * sqrt(damage_multiplier))), 520.0)
+			_p2_was_diving = is_diving
+		"leviathan":
+			_tick_drowning(delta)
+		"eclipse":
+			_p2_timer -= delta
+			if _p2_timer <= 0.0:
+				_p2_timer = 8.0
+				spawn_ring_telegraph(player.global_position, 90.0, magic_color, 1.1)
+				spawn_hazard(player.global_position, 85.0, int(round(5.0 * sqrt(damage_multiplier))),
+					4.0, Color(0.1, 0.02, 0.05), "slow", 2.0, 0.55)
+		"wizard":
+			pass   # his transformation is wholly in the one-shot knobs
+
+# --- phase-two helpers -------------------------------------------------------
+
+func _ground_y_here() -> float:
+	# the boss's own standing line (flyers cast down to the player's)
+	if flying and player != null and is_instance_valid(player):
+		return player.global_position.y + 20.0
+	return global_position.y + 30.0
+
+# Weaver: a marked egg hatches into a broodling unless the fight moved on.
+func _hatch_egg_later(spot: Vector2, delay: float) -> void:
+	var my_id := get_instance_id()
+	get_tree().create_timer(delay).timeout.connect(func():
+		var me = instance_from_id(my_id)
+		if me == null or not is_instance_valid(me) or me.is_dead:
+			return
+		var b = MINION_SCENE.instantiate()
+		b.respawns = false
+		b.instant_aggro = true
+		b.wave_hp_multiplier = 0.4 * me.level_hp_mult
+		b.wave_damage_multiplier = 0.5 * me.damage_multiplier
+		b.wave_speed_multiplier = me.speed_multiplier * 1.3
+		b.add_to_group("dungeon_combatant")
+		me.get_parent().add_child(b)
+		b.global_position = spot + Vector2(0, -20)
+		me.minions.append(b))
+
+# Mourncaller: the announced toll lands -- mana pays, never HP.
+func _grief_pulse_later(delay: float) -> void:
+	var my_id := get_instance_id()
+	get_tree().create_timer(delay).timeout.connect(func():
+		var me = instance_from_id(my_id)
+		if me == null or not is_instance_valid(me) or me.is_dead:
+			return
+		var pl = me.player
+		if pl != null and is_instance_valid(pl) and "mana" in pl:
+			pl.mana = maxf(0.0, pl.mana - 9.0)
+			if pl.has_method("update_mana_display"):
+				pl.update_mana_display()
+			FloatingText.spawn_word(me.get_parent(),
+				pl.global_position + Vector2(0, -60), "-9 mana", me.magic_color))
+
+# Stormcaller: show the one safe ring, then the sky takes everything else.
+func _tick_eye_of_storm(delta: float) -> void:
+	_p2_timer -= delta
+	if _p2_stage == 0 and _p2_timer <= 0.0:
+		_p2_stage = 1
+		_p2_timer = 2.4
+		_p2_point = player.global_position + Vector2(randf_range(-260.0, 260.0), 0.0)
+		_p2_point.x = clampf(_p2_point.x, 120.0, arena_width() - 120.0)
+		spawn_ring_telegraph(_p2_point, 150.0, magic_color, 2.4)
+	elif _p2_stage == 1 and _p2_timer <= 0.0:
+		_p2_stage = 0
+		_p2_timer = randf_range(8.0, 10.0)
+		shake_camera(6.0, 0.3)
+		spawn_shockwave(300.0, magic_color)
+		if player.global_position.distance_to(_p2_point) > 170.0 \
+				and player.has_method("take_damage"):
+			player.take_damage(int(round(14.0 * sqrt(damage_multiplier))))
+			if player.has_method("apply_slow"):
+				player.apply_slow(1.2, 0.6)
+
+# Twin Despair: the pair pours into one body; a fused soul cannot mend itself.
+func _tick_one_soul(delta: float) -> void:
+	var now := _time_now()
+	if _p2_fused_until > 0.0 and now >= _p2_fused_until:
+		# the window closes: back to two hands, healing resumes
+		_p2_fused_until = 0.0
+		damage_multiplier /= 1.35
+		base_move_speed /= 1.3
+		_p2_next_fuse_at = now + randf_range(14.0, 18.0)
+		if rig != null:
+			rig.modulate = current_tint
+	elif _p2_fused_until == 0.0 and now >= _p2_next_fuse_at:
+		_p2_fused_until = now + 9.0
+		covenant_suspended_until = _p2_fused_until
+		damage_multiplier *= 1.35
+		base_move_speed *= 1.3
+		_boss_hud_banner("ONE SOUL — IT CANNOT HEAL")
+		if rig != null:
+			rig.modulate = Color(1.3, 1.0, 1.6)
+
+# Cinderking: a flame front marches the floor, head telegraphed as it goes.
+func _tick_throne_alight(delta: float) -> void:
+	if _p2_sweep_x >= 0.0:
+		_p2_timer -= delta
+		if _p2_timer <= 0.0:
+			_p2_timer = 0.22
+			var gy := _ground_y_here()
+			spawn_hazard(Vector2(_p2_sweep_x, gy), 55.0,
+				int(round(5.0 * sqrt(damage_multiplier))), 1.6, magic_color, "burn", 1.4, 3.0)
+			_p2_sweep_x += _p2_dir * 240.0
+			if _p2_sweep_x < 60.0 or _p2_sweep_x > arena_width() - 60.0:
+				_p2_sweep_x = -1.0
+				_p2_timer = randf_range(8.0, 11.0)
+	else:
+		_p2_timer -= delta
+		if _p2_timer <= 0.0:
+			_p2_dir = 1.0 if randf() < 0.5 else -1.0
+			_p2_sweep_x = 80.0 if _p2_dir > 0.0 else arena_width() - 80.0
+			spawn_ring_telegraph(Vector2(_p2_sweep_x, _ground_y_here()), 70.0, magic_color, 0.9)
+			_p2_timer = 0.9
+
+# Leviathan: the deep rises -- the arena's lowest reach becomes a surge.
+func _tick_drowning(delta: float) -> void:
+	_p2_timer -= delta
+	if _p2_stage == 0 and _p2_timer <= 0.0:
+		_p2_stage = 1
+		_p2_timer = 2.0
+		var gy := _ground_y_here()
+		var x := 120.0
+		while x < arena_width() - 60.0:
+			spawn_ground_marker(Vector2(x, gy), magic_color, 2.0, 200.0)
+			x += 400.0
+	elif _p2_stage == 1 and _p2_timer <= 0.0:
+		_p2_stage = 0
+		_p2_timer = randf_range(11.0, 14.0)
+		var gy2 := _ground_y_here()
+		var x2 := 120.0
+		while x2 < arena_width() - 60.0:
+			spawn_hazard(Vector2(x2, gy2), 110.0, int(round(4.0 * sqrt(damage_multiplier))),
+				4.0, magic_color, "slow", 1.6, 0.5)
+			x2 += 210.0
+
+# The Last Man reads your hands and answers in kind: whatever you wield, the
+# matching answer comes off cooldown NOW.
+func _mirror_the_player_kit() -> void:
+	if not ("active_weapon_id" in player):
+		return
+	var cat := Inventory.get_category(str(player.active_weapon_id))
+	var wid := str(player.active_weapon_id)
+	var answer := "charge"
+	if wid.contains("bow") or wid.contains("volley") or wid.contains("seeker") or wid.contains("recurve"):
+		answer = "volley"
+	elif wid.contains("wand") or wid.contains("staff") or wid.contains("scepter") or cat == "consumable":
+		answer = "nova"
+	elif wid.contains("spear") or wid.contains("lance"):
+		answer = "charge"
+	ability_cd[answer] = 0.0
 
 # Apex second wind: cooldowns nearly vanish and it moves a quarter faster.
 func frenzy() -> void:

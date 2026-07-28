@@ -41,7 +41,16 @@ func _ready() -> void:
 	if boss != null:
 		# ---- BOSS FLOOR: watch the bespoke arena + a live telegraph ----
 		var pfx := "b%d" % lvl
-		dp.global_position = boss.global_position + Vector2(-260, -40)
+		# clamp INSIDE the arena (the restless bosses roam to the doors now --
+		# a naive boss.x-260 placed the probe outside the west wall, into void)
+		var aw := 4000.0
+		var cs = get_tree().current_scene
+		if cs != null and "current_width" in cs:
+			aw = float(cs.current_width)
+		var ax := clampf(boss.global_position.x - 260.0, 200.0, aw - 200.0)
+		if absf(ax - boss.global_position.x) < 120.0:
+			ax = clampf(boss.global_position.x + 260.0, 200.0, aw - 200.0)
+		dp.global_position = Vector2(ax, boss.global_position.y - 60.0)
 		await _settle(0.6)
 		await _shot(pfx + "_1_arena")           # the arena + boss on entry
 		# GROUND TRUTH: force the boss to 40% and drive the update, then read BOTH
@@ -50,6 +59,9 @@ func _ready() -> void:
 			boss.health = int(boss.max_health * 0.4)
 			if boss.has_method("update_health_bar"):
 				boss.update_health_bar()
+			# trip the threshold the honest way so PHASE TWO shows in the shots
+			if boss.has_method("take_damage"):
+				boss.take_damage(1)
 			await _settle(1.6)                   # let the banner ease down
 			await _shot(pfx + "_2_drain")
 			var overhead := -1.0

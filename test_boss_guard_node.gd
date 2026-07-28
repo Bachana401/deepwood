@@ -138,8 +138,27 @@ func _ready() -> void:
 	var src := FileAccess.open("res://boss.gd", FileAccess.READ)
 	var boss_src := src.get_as_text() if src != null else ""
 	if src != null: src.close()
-	check("phase duration is a constant, not a function of level or max_health",
-		boss_src.contains("const PHASE_SECONDS") and not boss_src.contains("PHASE_SECONDS *"))
+	# Phase-2 (2026-07-28) may stretch the window -- but ONLY by fixed authored
+	# constants (TOTALITY 1.4, NEVER THERE 1.6). The invariant this guard
+	# protects is that the window can never become a FUNCTION OF DEPTH, which
+	# was the stagger mistake: so PHASE_SECONDS itself stays const, the only
+	# multiplier on it is phase_seconds_mult, and every assignment to that
+	# knob must be a bare numeric literal (never level, floor or health).
+	var mult_ok := boss_src.contains("const PHASE_SECONDS") \
+		and not boss_src.contains("PHASE_SECONDS * level") \
+		and not boss_src.contains("PHASE_SECONDS * boss_floor")
+	var lit := RegEx.new()
+	lit.compile("phase_seconds_mult\\s*=\\s*[0-9.]+\\s*(#.*)?$")
+	for line in boss_src.split("\n"):
+		var s: String = line.strip_edges()
+		if s.begins_with("var phase_seconds_mult") or s.contains("phase_seconds_mult ="):
+			if not s.contains("="):
+				continue
+			if lit.search(s) == null and not s.begins_with("var "):
+				mult_ok = false
+		elif s.contains("PHASE_SECONDS *") and not s.contains("PHASE_SECONDS * phase_seconds_mult"):
+			mult_ok = false
+	check("phase duration never scales with depth (fixed phase-2 constants only)", mult_ok)
 	# soul ward halves damage at worst -- a multiplier, never a wall
 	check("soul ward only reduces damage, never nullifies it", boss.SOUL_WARD_BASE > 0.0,
 		"base %.2f" % boss.SOUL_WARD_BASE)
