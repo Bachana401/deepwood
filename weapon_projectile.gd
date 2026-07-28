@@ -108,6 +108,10 @@ func _ready() -> void:
 			_build_orbiter()
 			spin_speed = 22.0
 			pierce = true          # multi-hit by nature; despawn is state-driven
+		"chain_maul":
+			_build_chainmaul()
+			spin_speed = 18.0
+			pierce = true          # the whirl and the hurl both rake through
 		"ricochet":
 			_build_ricochet()
 		"cluster":
@@ -129,6 +133,9 @@ func _physics_process(delta: float) -> void:
 		return
 	# the behavior kinds that OWN their whole flight take the frame here
 	if kind == "orbiter" and _tick_orbiter(delta):
+		return
+	if kind == "chain_maul":
+		_tick_chainmaul(delta)
 		return
 	if kind == "lob":
 		_tick_lob(delta)
@@ -208,6 +215,50 @@ func _tick_orbiter(delta: float) -> bool:
 				_behave_state = 1
 				_orbit_centre = global_position
 			return false
+
+# Chain maul: whirls about the WIELDER gathering speed, then hurls itself
+# along the aim as a comet, then hauls back home on its chain. Owns every
+# frame of its flight.
+func _tick_chainmaul(delta: float) -> void:
+	if rope and is_instance_valid(source):
+		rope.points = PackedVector2Array([Vector2.ZERO, to_local(source.global_position)])
+	if spin_speed != 0.0 and visual:
+		visual.rotation += spin_speed * delta
+	match _behave_state:
+		0:   # the whirl: an opening spiral centred on the wielder
+			if not is_instance_valid(source):
+				queue_free()
+				return
+			_orbit_t += delta
+			_rehit_t += delta
+			if _rehit_t >= 0.3:
+				_rehit_t = 0.0
+				hit_bodies.clear()   # every lap of the whirl cuts again
+			var r := (44.0 + _orbit_t * 75.0) * girth
+			var side := 1.0 if direction.x >= 0.0 else -1.0
+			global_position = source.global_position \
+				+ Vector2(cos(_orbit_t * 9.5 * side), sin(_orbit_t * 9.5 * side)) * r
+			if _orbit_t >= 0.7:
+				_behave_state = 1
+				hit_bodies.clear()
+				# hurl from wherever the whirl released, along the aim
+				traveled = 0.0
+		1:   # the hurl
+			var step := speed * 1.45 * delta
+			global_position += direction * step
+			traveled += step
+			if traveled >= max_distance:
+				_behave_state = 2
+				hit_bodies.clear()   # one clean cut on the haul home
+		_:   # hauled home on the chain
+			if not is_instance_valid(source):
+				queue_free()
+				return
+			var to_src = source.global_position - global_position
+			if to_src.length() < 26.0:
+				queue_free()
+				return
+			global_position += to_src.normalized() * speed * 1.3 * delta
 
 # Lob: a mortar arc under its own gravity; blossoms where it lands (or on
 # whatever it meets on the way down).
@@ -470,6 +521,27 @@ func _build_orbiter() -> void:
 			Vector2(cos(a - 0.3), sin(a - 0.3)) * 13.0])
 		spoke.color = Color(0.5, 0.75, 1.0, 0.7)
 		visual.add_child(spoke)
+
+# A spiked head on its chain, drawn back to the fist that swings it.
+func _build_chainmaul() -> void:
+	var head = Polygon2D.new()
+	head.polygon = _circle(10.0, 10)
+	head.color = Color(0.5, 0.48, 0.52, 1.0)
+	visual.add_child(head)
+	for i in range(6):
+		var spike = Polygon2D.new()
+		var a := TAU * float(i) / 6.0
+		spike.polygon = PackedVector2Array([
+			Vector2(cos(a - 0.25), sin(a - 0.25)) * 8.0,
+			Vector2(cos(a), sin(a)) * 16.0,
+			Vector2(cos(a + 0.25), sin(a + 0.25)) * 8.0])
+		spike.color = Color(0.72, 0.7, 0.75, 1.0)
+		visual.add_child(spike)
+	rope = Line2D.new()
+	rope.width = 3.0
+	rope.default_color = Color(0.55, 0.5, 0.45, 0.9)
+	rope.z_index = -1
+	add_child(rope)
 
 # An angular dart that looks eager to change its mind.
 func _build_ricochet() -> void:

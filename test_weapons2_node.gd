@@ -117,6 +117,26 @@ func _ready() -> void:
 			break
 	check("...and threads home", came_home)
 
+	# ---- CHAIN MAUL: whirls about the wielder, hurls, hauls home ----
+	var mp = _fire(host, "chain_maul", pl.global_position, Vector2.RIGHT,
+		{"range": 240.0, "speed": 650.0})
+	await _frames(20)
+	var whirling: bool = is_instance_valid(mp) and mp._behave_state == 0 \
+		and mp.global_position.distance_to(pl.global_position) < 220.0
+	check("chain maul whirls about the wielder first", whirling,
+		"state=%s" % (str(mp._behave_state) if is_instance_valid(mp) else "freed"))
+	var hurled := false
+	var hauled := false
+	for i in range(300):
+		await get_tree().physics_frame
+		if is_instance_valid(mp) and mp._behave_state == 1:
+			hurled = true
+		if not is_instance_valid(mp):
+			hauled = true
+			break
+	check("...then hurls itself down the aim", hurled)
+	check("...and hauls back home on its chain", hauled)
+
 	# ---- LASH: goes out, comes back, and rakes on both passes ----
 	var d1 = _spawn_dummy(host, base + Vector2(150, -900))
 	var d1_h0: int = d1.health
