@@ -153,6 +153,30 @@ const ITEM_DEFS = {
 	# -- despair inverted into the reagent that undoes it.
 	"sorrowshard": {"name": "Sorrowshard", "category": "material", "max_stack": 20, "color": Color(0.62, 0.55, 0.9, 1.0), "is_ingredient": true},
 	"raw_meat": {"name": "Raw Meat", "category": "material", "max_stack": 99, "color": Color(0.82, 0.4, 0.42, 1.0), "is_ingredient": true},
+	# --- FISHING (pillar 3, 2026-07-28): what the water owes ---
+	"fish_silverfin": {"name": "Silverfin Perch", "category": "consumable", "max_stack": 20, "color": Color(0.75, 0.85, 0.95, 1.0), "use_effect": {"heal_hp": 20}, "use_desc": "A clean river fish. Restores 20 HP."},
+	"fish_mudwhisker": {"name": "Mudwhisker", "category": "consumable", "max_stack": 20, "color": Color(0.6, 0.5, 0.35, 1.0), "use_effect": {"heal_hp": 12}, "use_desc": "Ugly, honest food. Restores 12 HP."},
+	"fish_lanterneel": {"name": "Lantern Eel", "category": "consumable", "max_stack": 20, "color": Color(0.55, 0.9, 0.7, 1.0), "use_effect": {"heal_mana": 25}, "use_desc": "It glows all the way down. Restores 25 mana."},
+	"fish_kingsjaw": {"name": "Kingsjaw", "category": "consumable", "max_stack": 10, "color": Color(0.95, 0.8, 0.35, 1.0), "use_effect": {"buff": "all_damage", "value": 3.0, "duration": 90.0}, "use_desc": "The dock's pride. +3 ALL damage for 90s."},
+	"fish_palegulper": {"name": "Pale Gulper", "category": "consumable", "max_stack": 10, "color": Color(0.85, 0.9, 0.85, 1.0), "use_effect": {"buff": "damage_reduction", "value": 0.08, "duration": 90.0}, "use_desc": "It swallowed the dark and lived. +8% DR for 90s."},
+	"junk_boot": {"name": "Somebody's Boot", "category": "misc", "max_stack": 5, "color": Color(0.4, 0.32, 0.24, 1.0)},
+	"crate_driftwood": {"name": "Driftwood Crate", "category": "consumable", "max_stack": 10, "color": Color(0.6, 0.48, 0.3, 1.0), "use_effect": {"open_crate": true}, "use_desc": "Roped shut and river-worn. Right-click to pry it open."},
+	"crate_pearlbound": {"name": "Pearlbound Crate", "category": "consumable", "max_stack": 5, "color": Color(0.8, 0.85, 0.95, 1.0), "use_effect": {"open_crate": true}, "use_desc": "Banded in nacre. Right-click to pry it open."},
+	"tool_rod_willow": {"name": "Willow Rod", "category": "weapon", "weapon_type": "melee", "tool_type": "rod", "rod_tier": 1, "max_stack": 1, "color": Color(0.55, 0.65, 0.4, 1.0),
+		"weapon_stats": {"damage": 1, "cooldown": 0.8, "range_offset": 40, "area_size": Vector2(30, 20), "knockback_min": 0.0, "knockback_max": 0.0, "icon_size": Vector2(70, 5), "icon_color": Color(0.55, 0.65, 0.4), "icon_offset": 16.0},
+		"unique_desc": "A bent branch and patience. Cast at water; strike when the line BITES."},
+	"tool_rod_wyrmbone": {"name": "Wyrmbone Rod", "category": "weapon", "weapon_type": "melee", "tool_type": "rod", "rod_tier": 2, "max_stack": 1, "color": Color(0.85, 0.8, 0.7, 1.0),
+		"weapon_stats": {"damage": 2, "cooldown": 0.7, "range_offset": 40, "area_size": Vector2(30, 20), "knockback_min": 0.0, "knockback_max": 0.0, "icon_size": Vector2(74, 5), "icon_color": Color(0.85, 0.8, 0.7), "icon_offset": 16.0},
+		"unique_desc": "Ribbed like something that once swam. Faster bites, and the shy fish trust it."},
+	"tool_rod_moonline": {"name": "Moonline", "category": "weapon", "weapon_type": "melee", "tool_type": "rod", "rod_tier": 3, "max_stack": 1, "color": Color(0.8, 0.85, 1.0, 1.0),
+		"weapon_stats": {"damage": 3, "cooldown": 0.6, "range_offset": 40, "area_size": Vector2(30, 20), "knockback_min": 0.0, "knockback_max": 0.0, "icon_size": Vector2(78, 5), "icon_color": Color(0.8, 0.85, 1.0), "icon_offset": 16.0},
+		"unique_desc": "The line is silver and the night is short. What the deep hides, this finds."},
+	"relic_tidewalker": {"name": "Tidewalker's Knot", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.4, 0.75, 0.85, 1.0), "equip_effect": {"move_speed": 0.12, "max_health": 25.0}, "relic_desc": "Pulled from a pool no river feeds. The tide remembers whoever wears it."},
+	"odd_glassfin": {"name": "The Glassfin", "category": "misc", "max_stack": 1, "color": Color(0.85, 0.95, 1.0, 1.0)},
+	"odd_inkmaw": {"name": "The Inkmaw", "category": "misc", "max_stack": 1, "color": Color(0.25, 0.22, 0.35, 1.0)},
+	"odd_bellsnail": {"name": "The Bell-Snail", "category": "misc", "max_stack": 1, "color": Color(0.8, 0.7, 0.45, 1.0)},
+	"odd_twicefish": {"name": "The Twice-Caught Fish", "category": "misc", "max_stack": 1, "color": Color(0.7, 0.8, 0.75, 1.0)},
+	"odd_sorrowcarp": {"name": "The Sorrow-Carp", "category": "misc", "max_stack": 1, "color": Color(0.55, 0.6, 0.8, 1.0)},
 
 	# ============================================================================
 	# HIDDEN EVENT-BOSS LOOT (2026-07-28). Twenty exclusive weapons (two per boss,
@@ -826,6 +850,14 @@ const ITEM_GRADES = {
 	"relic_blink": "rare", "relic_reaper": "legendary", "relic_ward": "rare", "relic_steward": "rare",
 	"relic_gorgon": "epic",
 	"rune_sanctuary": "epic", "rune_stoneguise": "legendary", "rune_riddlestaff": "mythic",
+	# fishing (pillar 3)
+	"fish_silverfin": "common", "fish_mudwhisker": "common", "fish_lanterneel": "uncommon",
+	"fish_kingsjaw": "rare", "fish_palegulper": "rare", "junk_boot": "common",
+	"crate_driftwood": "uncommon", "crate_pearlbound": "epic",
+	"tool_rod_willow": "common", "tool_rod_wyrmbone": "rare", "tool_rod_moonline": "legendary",
+	"relic_tidewalker": "legendary",
+	"odd_glassfin": "rare", "odd_inkmaw": "rare", "odd_bellsnail": "rare",
+	"odd_twicefish": "rare", "odd_sorrowcarp": "rare",
 	# batch: new armour
 	"gloves_leather": "uncommon", "gloves_iron": "rare", "gloves_assassin": "epic", "gloves_titan": "mythic",
 	"boots_leather": "uncommon", "boots_swift": "rare", "boots_storm": "epic", "boots_titan": "mythic",
@@ -1524,6 +1556,14 @@ static func paint_icon(target: ColorRect, item_id: String) -> void:
 		"mat_pyreash", "mat_vigilember", "mat_unmade": _icon_crystal(target, w, h, col)
 		"mat_sableichor": _icon_blob(target, w, h, col)
 		"mat_huntsign": _icon_runestone(target, w, h, col)
+		# --- fishing (pillar 3): the water's own shapes ---
+		"fish_silverfin", "fish_mudwhisker", "fish_lanterneel", "fish_kingsjaw", "fish_palegulper":
+			_icon_fish(target, w, h, col)
+		"odd_glassfin", "odd_inkmaw", "odd_bellsnail", "odd_twicefish", "odd_sorrowcarp":
+			_icon_fish(target, w, h, col)
+		"crate_driftwood", "crate_pearlbound": _icon_crate(target, w, h, col)
+		"tool_rod_willow", "tool_rod_wyrmbone", "tool_rod_moonline": _icon_rod(target, w, h, col)
+		"junk_boot": _icon_boot(target, w, h, col)
 		_:
 			if get_category(item_id) == "consumable":
 				_icon_potion(target, w, h, col)
@@ -1805,6 +1845,39 @@ static func _icon_leaf(t: Control, w: float, h: float) -> void:
 		Vector2(w * 0.5, h * 0.18), Vector2(w * 0.72, h * 0.5),
 		Vector2(w * 0.5, h * 0.82), Vector2(w * 0.28, h * 0.5)]), Color(0.4, 0.72, 0.35))
 	_iline(t, PackedVector2Array([Vector2(w * 0.5, h * 0.2), Vector2(w * 0.5, h * 0.8)]), max(1.0, w * 0.02), Color(0.28, 0.5, 0.24))
+
+# --- fishing icons (pillar 3): a fish, a crate, a rod, a boot ---
+static func _icon_fish(t: Control, w: float, h: float, col: Color) -> void:
+	_ipoly(t, PackedVector2Array([
+		Vector2(w * 0.18, h * 0.5), Vector2(w * 0.38, h * 0.3), Vector2(w * 0.68, h * 0.34),
+		Vector2(w * 0.8, h * 0.5), Vector2(w * 0.68, h * 0.66), Vector2(w * 0.38, h * 0.7)]), col)
+	_ipoly(t, PackedVector2Array([
+		Vector2(w * 0.8, h * 0.5), Vector2(w * 0.94, h * 0.32), Vector2(w * 0.94, h * 0.68)]), col.darkened(0.25))
+	_ipoly(t, PackedVector2Array([
+		Vector2(w * 0.3, h * 0.42), Vector2(w * 0.36, h * 0.42),
+		Vector2(w * 0.36, h * 0.48), Vector2(w * 0.3, h * 0.48)]), Color(0.1, 0.1, 0.12))
+
+static func _icon_crate(t: Control, w: float, h: float, col: Color) -> void:
+	_ipoly(t, PackedVector2Array([
+		Vector2(w * 0.2, h * 0.3), Vector2(w * 0.8, h * 0.3),
+		Vector2(w * 0.8, h * 0.8), Vector2(w * 0.2, h * 0.8)]), col)
+	_ipoly(t, PackedVector2Array([
+		Vector2(w * 0.2, h * 0.5), Vector2(w * 0.8, h * 0.5),
+		Vector2(w * 0.8, h * 0.58), Vector2(w * 0.2, h * 0.58)]), col.darkened(0.35))
+	_ipoly(t, PackedVector2Array([
+		Vector2(w * 0.46, h * 0.3), Vector2(w * 0.54, h * 0.3),
+		Vector2(w * 0.54, h * 0.8), Vector2(w * 0.46, h * 0.8)]), col.darkened(0.25))
+
+static func _icon_rod(t: Control, w: float, h: float, col: Color) -> void:
+	_ipoly(t, PackedVector2Array([
+		Vector2(w * 0.16, h * 0.85), Vector2(w * 0.22, h * 0.85),
+		Vector2(w * 0.78, h * 0.2), Vector2(w * 0.72, h * 0.16)]), col)
+	_ipoly(t, PackedVector2Array([
+		Vector2(w * 0.76, h * 0.18), Vector2(w * 0.79, h * 0.18),
+		Vector2(w * 0.79, h * 0.6), Vector2(w * 0.76, h * 0.6)]), Color(0.85, 0.9, 0.95, 0.9))
+	_ipoly(t, PackedVector2Array([
+		Vector2(w * 0.74, h * 0.6), Vector2(w * 0.82, h * 0.6),
+		Vector2(w * 0.78, h * 0.7)]), col.darkened(0.2))
 
 static func _icon_meat(t: Control, w: float, h: float) -> void:
 	_icircle(t, Vector2(w * 0.5, h * 0.52), w * 0.26, Color(0.82, 0.4, 0.42))

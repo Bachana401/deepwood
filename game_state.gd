@@ -2261,6 +2261,18 @@ func tick_deep_catches(hours_passed: float) -> void:
 # Abstract off-screen resolution used while the player is away.
 var maera_stabilized_this_siege := false
 
+# === FISHING (renewability pillar 3, dev-chosen 2026-07-28) ===
+# The data + rolls live in fishing.gd; the cast/bite/strike choreography in
+# player.gd. This block owns the HARBORMASTER'S DAILY: once per in-game day
+# (while the Dock stands staffed) Doran names an oddity that only bites
+# while his quest is live. Increment A ships the state + accessor; the
+# posting/turn-in cycle lands with the Dock panel in increment B.
+var fishing_quest: Dictionary = {}     # {"id": odd_*, "name": ..., "posted_day": N}
+var fishing_quests_done := 0
+
+func fishing_quest_oddity() -> String:
+	return str(fishing_quest.get("id", ""))
+
 # === THE REAVER CARAVAN (renewability pillar 2, dev-chosen 2026-07-28) ===
 # A Goblin-Army-INSPIRED marching invasion, never a copy: reavers want the
 # ROADS, not the walls. Once the deep knows your name (floor 12+), a caravan

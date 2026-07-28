@@ -83,7 +83,9 @@ func _ready() -> void:
 	# tools are deliberate Forge purchases -- neither is meant to drop
 	var not_loot := {"wpn_sword": true, "wpn_spear": true, "wpn_bow": true, "wpn_wand": true,
 		"tool_axe": true, "tool_pickaxe": true,
-		"wpn_soulsplit": true}   # grandmother's GIFT (Ada's bond, 12.2) -- never loot
+		"wpn_soulsplit": true,   # grandmother's GIFT (Ada's bond, 12.2) -- never loot
+		# the rod ladder is FISHED out of the water (pillar 3), never dropped
+		"tool_rod_willow": true, "tool_rod_wyrmbone": true, "tool_rod_moonline": true}
 	var orphans := []
 	for id in defs.keys():
 		var d: Dictionary = defs[id]
