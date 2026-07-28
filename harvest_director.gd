@@ -101,6 +101,11 @@ func resume_fight() -> void:
 	_harvest_pool = []
 	for v in GameState.harvested_villagers:
 		_harvest_pool.append(str(v.get("name", "a villager")))
+	# the turned DEFENDERS walk in the resumed horde too (bug hunt 2026-07-28):
+	# begin_fight marked them dead and pooled them transiently, so a quit
+	# mid-finale used to resume a horde without them -- deaths real, walk absent
+	for aname in GameState.harvest_turned_defenders:
+		_harvest_pool.append(str(aname))
 	_harvest_pool.shuffle()
 	_harvest_total = maxi(1, _harvest_pool.size())
 	_clear_taken_avatars()
@@ -170,6 +175,7 @@ func begin_fight() -> void:
 			GameState.adventurers[aid]["dead"] = true
 			var aname := str(Adventurers.get_def(aid).get("name", aid))
 			_harvest_pool.append(aname)
+			GameState.harvest_turned_defenders.append(aname)   # persisted: a resumed horde keeps them
 			GameState.log_event("combat", "%s was taken by the turning at the feast." % aname)
 			_notify("%s walks in the horde — turned against the village they held." % aname)
 	_harvest_pool.shuffle()

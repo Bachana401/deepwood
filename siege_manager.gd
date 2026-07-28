@@ -36,6 +36,12 @@ var label: Label = null
 func _ready() -> void:
 	add_to_group("siege_manager")
 	build_label()
+	# RESUME A WEEPING NIGHT (bug hunt 2026-07-28): a trip below (underground,
+	# a dungeon floor) frees this manager with the scene -- without this, the
+	# fresh manager never restarted the trickle, and the rest of the night
+	# passed in silence while dawn still paid the survivor's bundle.
+	if GameState.weeping_tonight:
+		start_weeping_night(maxi(1, GameState.current_siege_tier()))
 
 func _process(_delta: float) -> void:
 	update_label()

@@ -85,15 +85,17 @@ func _ready() -> void:
 	check("dawn ends the night", not GameState.weeping_tonight)
 	check("dawn pays tears by the tally", probe.inventory.get_count("tear_pale") == 2 + 8 / 4)
 	check("the first survived night leaves the Locket", probe.inventory.get_count("relic_mourner") == 1)
-	# a second survival pays tears only
+	# hiding all night earns tears at most -- never the Locket (kills gate)
+	probe.inventory.remove_item("relic_mourner", 1)
 	GameState.weeping_tonight = true
-	GameState.weeping_kills = 4
+	GameState.weeping_kills = GameState.WEEP_LOCKET_KILLS - 1
 	GameState.end_weeping(false)
-	check("the Locket comes once and only once", probe.inventory.get_count("relic_mourner") == 1)
-	# a Rewound-Hour bag already carrying it is never handed another
-	GameState.weepings_survived = 0
+	check("a hidden night never earns the Locket", probe.inventory.get_count("relic_mourner") == 0)
+	# a Rewound-Hour bag already carrying it is never handed another,
+	# however hard the night was fought
+	probe.inventory.add_item("relic_mourner", 1)
 	GameState.weeping_tonight = true
-	GameState.weeping_kills = 0
+	GameState.weeping_kills = 20
 	GameState.end_weeping(false)
 	check("a bag already carrying the Locket is left alone", probe.inventory.get_count("relic_mourner") == 1)
 

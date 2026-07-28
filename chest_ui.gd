@@ -249,11 +249,17 @@ func _bulk_transfer(src: Inventory, dst: Inventory, keep_wielded: bool, matching
 	for slot in src.slots:
 		if slot != null:
 			stacks.append({"id": str(slot.item_id), "count": int(slot.count)})
+	# a proving-grounds VAULT hides its gold buttons on purpose -- the bulk
+	# buttons must honour the same rule, or Deposit All sinks the purse into
+	# an admin box (bug hunt 2026-07-28)
+	var vault: bool = current_chest != null and "ui_title" in current_chest and str(current_chest.ui_title) != ""
 	for s in stacks:
 		# never strand the weapon in your hand inside a box
 		if keep_wielded and player and s.id == str(player.active_weapon_id):
 			continue
 		if matching_only and dst.get_count(s.id) <= 0:
+			continue
+		if vault and s.id == "coin_gold" and player and dst != player.inventory:
 			continue
 		moved_total += src.transfer_to(dst, s.id, s.count)
 	refresh()

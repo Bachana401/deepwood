@@ -1750,6 +1750,9 @@ func use_item(item_id: String) -> bool:
 	# NOTHING -- consumed, no loot, no message worth the name.
 	if eff.get("open_crate", false):
 		var haul: Array = Fishing.crate_loot(item_id)
+		# the crate leaves the bag FIRST (bug hunt 2026-07-28): granting into a
+		# full bag before removing it wasted the very slot the crate frees
+		inventory.remove_item(item_id, 1)
 		var lines := []
 		var spilled := false
 		for l in haul:
@@ -1765,7 +1768,6 @@ func use_item(item_id: String) -> bool:
 					lines.append("%s x%d" % [Inventory.get_display_name(lid), cnt - leftover])
 				if leftover > 0:
 					spilled = true
-		inventory.remove_item(item_id, 1)
 		if stack:
 			var msg: String = ("Pried open: %s." % ", ".join(lines)) if lines.size() > 0 else "Pried open — nothing but river silt."
 			if spilled:

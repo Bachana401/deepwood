@@ -949,12 +949,16 @@ func roll_construction_drop(player, chance_mult: float = 1.0) -> String:
 func grant_construction_bundle(player, wood: int, stone: int, resin: int) -> void:
 	if not _has_inventory(player):
 		return
+	# honest on a full bag (the add_item-leftover family, bug hunt 2026-07-28)
+	var lost := 0
 	if wood > 0:
-		player.inventory.add_item("wood", wood)
+		lost += player.inventory.add_item("wood", wood)
 	if stone > 0:
-		player.inventory.add_item("stone", stone)
+		lost += player.inventory.add_item("stone", stone)
 	if resin > 0:
-		player.inventory.add_item("resin", resin)
+		lost += player.inventory.add_item("resin", resin)
+	if lost > 0:
+		notify("Your bag was full — %d pieces of the victory bundle were left behind." % lost)
 
 func wizard_is_down() -> bool:
 	return wizard_respawn_at_hours >= 0.0 and game_hours < wizard_respawn_at_hours
@@ -2261,7 +2265,11 @@ func tick_deep_catches(hours_passed: float) -> void:
 		_deep_catch_accum -= 24.0
 		var player = get_tree().get_first_node_in_group("player")
 		if player and "inventory" in player and player.inventory:
-			player.inventory.add_item(DEEP_CATCH_MATERIALS[randi() % DEEP_CATCH_MATERIALS.size()], 1)
+			# honest on a full bag (the add_item-leftover family, bug hunt
+			# 2026-07-28): a discarded haul must say so, not vanish
+			var mat: String = DEEP_CATCH_MATERIALS[randi() % DEEP_CATCH_MATERIALS.size()]
+			if player.inventory.add_item(mat, 1) > 0:
+				log_event("economy", "The Dock's deep-catch came up, but your bag was full -- the %s went back to the water." % Inventory.get_display_name(mat))
 
 # Abstract off-screen resolution used while the player is away.
 var maera_stabilized_this_siege := false
@@ -2465,6 +2473,7 @@ const WEEP_CHANCE := 0.22            # per qualifying dusk
 const WEEP_MIN_GAP_HOURS := 96.0     # the forest cannot weep twice in 4 days
 const WEEP_DUSK_FROM := 20.0         # rolls at full dark...
 const WEEP_DAWN := 5.0               # ...and dries its eyes at first light
+const WEEP_LOCKET_KILLS := 5         # the Locket is EARNED: hide all night and it stays in the grass
 var weeping_tonight := false
 var hours_since_weeping := 0.0
 var weepings_seen := 0
@@ -2532,9 +2541,11 @@ func end_weeping(interrupted: bool) -> void:
 		var tears: int = 2 + weeping_kills / 4
 		pl.inventory.add_item("tear_pale", tears)
 		var extra := ""
-		# the first survived night leaves the Locket -- once, and never a
-		# second into a Rewound-Hour bag that already carries it
-		if weepings_survived == 1 and pl.inventory.get_count("relic_mourner") == 0 \
+		# the first FOUGHT night leaves the Locket -- once, never a second
+		# into a Rewound-Hour bag that already carries it, and never for
+		# hiding indoors while the pale ones walked (bug hunt 2026-07-28)
+		if weeping_kills >= WEEP_LOCKET_KILLS \
+				and pl.inventory.get_count("relic_mourner") == 0 \
 				and get_equipped_item_ids().find("relic_mourner") == -1:
 			pl.inventory.add_item("relic_mourner", 1)
 			extra = " Something glints in the wet grass: THE MOURNER'S LOCKET."
@@ -4635,6 +4646,9 @@ var the_ten: Dictionary = {}
 # (a snapshot the Shadow Army will raise, 9.6) and only the unbreakable remain.
 var harvest_done := false
 var harvested_villagers: Array = []
+# Wren/Castor, taken by the turning at the feast (12.6) -- SAVED, so a quit
+# mid-finale resumes a horde that still holds them (bug hunt 2026-07-28)
+var harvest_turned_defenders: Array = []
 
 # --- THE SHADOW COURT (GAME_BIBLE 11) ---
 # "Sieges are over -- Despair is dead." Set at the final victory, per-run,
@@ -4672,6 +4686,7 @@ func raise_shadow_army() -> void:
 		villager_hp[str(v.get("id", ""))] = VILLAGER_MAX_HP
 		rescued_villagers.append(v)
 	harvested_villagers = []
+	harvest_turned_defenders = []   # the debt is settled with the army's rise
 	var stack = get_tree().get_first_node_in_group("notification_stack")
 	if stack and raised > 0:
 		stack.show_notification("★ SHADOW ARMY: %d souls rise — themselves, continued. Deepwood stands, and it is yours." % raised)
@@ -5292,6 +5307,7 @@ func reset_for_new_game() -> void:
 	ensure_the_ten()
 	harvest_done = false
 	harvested_villagers = []
+	harvest_turned_defenders = []
 	despair_dead = false
 	_gold_accum = 0.0
 	ng_plus_cycles = 0
@@ -5381,6 +5397,7 @@ func save_game(player: Node) -> void:
 		"healthy_theme_celebrated": healthy_theme_celebrated,
 		"seen_chronicle_100": seen_chronicle_100,
 		"harvested_villagers": harvested_villagers,
+		"harvest_turned_defenders": harvest_turned_defenders,
 		"seen_orin_arrival": seen_orin_arrival,
 		"seen_doctor_account": seen_doctor_account,
 		"seen_failed_escape": seen_failed_escape,
@@ -5528,6 +5545,7 @@ func load_game() -> Dictionary:
 		healthy_theme_celebrated = bool(parsed.get("healthy_theme_celebrated", false))
 		seen_chronicle_100 = bool(parsed.get("seen_chronicle_100", false))
 		harvested_villagers = parsed.get("harvested_villagers", [])
+		harvest_turned_defenders = parsed.get("harvest_turned_defenders", [])
 		seen_orin_arrival = bool(parsed.get("seen_orin_arrival", false))
 		seen_doctor_account = bool(parsed.get("seen_doctor_account", false))
 		seen_failed_escape = bool(parsed.get("seen_failed_escape", false))
