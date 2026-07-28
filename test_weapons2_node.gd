@@ -176,6 +176,35 @@ func _ready() -> void:
 	check("A Borrowed Star becomes three falling lights", after_b >= before_b + 2,
 		"%d -> %d projectiles" % [before_b, after_b])
 	await _frames(200)   # let the embers land and blossom away
+	# A Small Personal Sun: the blast leaves a grounded sunlet behind
+	var sp2 = _fire(host, "fireball", base + Vector2(0, -1900), Vector2.RIGHT,
+		{"damage": 20, "range": 60.0, "aoe_radius": 90.0})
+	sp2.rider = "sunfall"
+	var sunlet: Node = null
+	for i in range(60):
+		await get_tree().physics_frame
+		for c in host.get_children():
+			if "sun_mode" in c and c.sun_mode:
+				sunlet = c
+				break
+		if sunlet != null:
+			break
+	check("A Small Personal Sun leaves its sunlet burning the spot", sunlet != null)
+	# What the Sky Charges: the storm WALKS toward prey
+	var wd = _spawn_dummy(host, base + Vector2(400, -2200))
+	var storm = load("res://storm_cloud.gd").new()
+	storm.drift = true
+	storm.duration = 6.0
+	host.add_child(storm)
+	storm.global_position = base + Vector2(0, -2200)
+	var sx0: float = storm.global_position.x
+	await _frames(60)
+	check("What the Sky Charges walks toward its prey",
+		is_instance_valid(storm) and storm.global_position.x > sx0 + 30.0,
+		"x %0.0f -> %0.0f" % [sx0, storm.global_position.x if is_instance_valid(storm) else -1.0])
+	if is_instance_valid(storm): storm.queue_free()
+	if is_instance_valid(sunlet): sunlet.queue_free()
+	if is_instance_valid(wd): wd.queue_free()
 
 	# ---- LASH: goes out, comes back, and rakes on both passes ----
 	var d1 = _spawn_dummy(host, base + Vector2(150, -900))

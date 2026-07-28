@@ -460,7 +460,11 @@ func _effect_summary(item_id: String) -> String:
 	var parts = []
 	for key in def.get("equip_effect", {}).keys():
 		var val = def.equip_effect[key]
-		if Inventory.FLAG_EFFECT_TEXT.has(key):
+		if Inventory.FLAG_EFFECT_SHORT.has(key):
+			# the picker row is narrow: the short tag here, the full phrase
+			# on the item's own card
+			parts.append(Inventory.FLAG_EFFECT_SHORT[key])
+		elif Inventory.FLAG_EFFECT_TEXT.has(key):
 			parts.append(Inventory.FLAG_EFFECT_TEXT[key])
 		elif key == "max_health":
 			parts.append("+%d HP" % int(val))

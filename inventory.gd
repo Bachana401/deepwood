@@ -842,6 +842,15 @@ const FLAG_EFFECT_TEXT = {
 	"stone_guise": "Once per floor, the killing blow lands on STONE (1.5s statue, 1 HP)",
 	"staff_mastery": "Staff combos hold a beat longer; the pillar slam falls +25%",
 }
+# The one-row version for tight lists (the equip picker's summary line): the
+# full FLAG_EFFECT_TEXT phrases clipped mid-word at picker width (EYES s5).
+const FLAG_EFFECT_SHORT = {
+	"flight": "Flight",
+	"fall_immunity": "No fall damage",
+	"sanctuary": "Sanctuary ward",
+	"stone_guise": "Stone save (1/floor)",
+	"staff_mastery": "Staff mastery",
+}
 
 static func get_set(item_id: String) -> String:
 	return get_item_def(item_id).get("set", "")
