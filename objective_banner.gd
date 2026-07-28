@@ -11,6 +11,9 @@ var _timer := 0.0
 func _ready() -> void:
 	layer = 12
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	# step aside for scripted beats like the rest of the HUD (EYES 2026-07-27:
+	# the ticker sat over the dialogue's world shot -- and over the toasts)
+	add_to_group("cutscene_hides")
 	var wrap := PanelContainer.new()
 	wrap.add_theme_stylebox_override("panel", _bg())
 	wrap.anchor_left = 0.5

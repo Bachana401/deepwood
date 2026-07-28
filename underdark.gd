@@ -154,6 +154,11 @@ func _ready() -> void:
 	# sunken stashes + ambush chambers punch their OWN floor holes -- also before
 	# _build_bands, and on the feature rng so the shared layout never shifts.
 	_plan_pits(frng)
+	# the dark backdrop STAYS on the always path (EYES 2026-07-27): it is one
+	# ColorRect, and without it the camera sees the viewport's grey clear color
+	# through every below-ground gap on the surface -- the deep read as a grey
+	# void with a spotlit stair the moment the strip stopped building
+	_build_dark_backdrop()
 	_build_mouth_and_stair()
 	# THE DEAD STRIP IS NO LONGER BUILT (scan 2026-07-27). The cave mouth routes
 	# to underground.tscn now, so this legacy deep -- several thousand collision
@@ -191,7 +196,6 @@ func build_legacy_strip() -> void:
 	if _descent_seal != null and is_instance_valid(_descent_seal):
 		_descent_seal.queue_free()
 		_descent_seal = null
-	_build_dark_backdrop()
 	_build_bands(rng)
 	_build_shaft_ladders()
 	_build_pits(frng)
@@ -321,8 +325,11 @@ func _build_dark_backdrop() -> void:
 	rock.color = ROCK_COLOR
 	rock.z_index = -90
 	# overshoot each side past the 960px the camera can travel at the 0.6 zoom
-	# (no camera limits underground), so hugging a far wall never bares grey
-	rock.position = Vector2(MOUTH_X - 1050.0, 60.0)
+	# (no camera limits underground), so hugging a far wall never bares grey.
+	# The WEST edge reaches past the whole arrival road (EYES 2026-07-27: it
+	# used to start at MOUTH_X-1050, so everything below ground west of the
+	# cave -- the prologue's entire stage -- showed the viewport's grey).
+	rock.position = Vector2(-2400.0, 60.0)
 	rock.size = Vector2(UD_RIGHT - rock.position.x + 1050.0, UD_TOP + BANDS * BAND_H + 600.0)
 	add_child(rock)
 
