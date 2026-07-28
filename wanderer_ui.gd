@@ -71,15 +71,29 @@ func refresh() -> void:
 	var mood := "the town's cheer is slowly working on the prices" if GameState.village_morale() >= 50 \
 		else "a gloomy town gets a short, full-price visit"
 	header.text = "%s — leaves in ~%dh. (%s)" % [str(w.get("name", "?")), int(ceil(leaves_in)), mood]
+	# the cart's voice (loot depth, 2026-07-28): the greeting line under the
+	# header -- and the showline instead, the visit a showpiece rides along
+	var has_show := false
+	for e in w.get("stock", []):
+		if e.get("showpiece", false):
+			has_show = true
+	var voice := Label.new()
+	voice.text = "\"%s\"" % str(w.get("showline" if has_show else "line", ""))
+	voice.add_theme_font_size_override("font_size", 12)
+	voice.add_theme_color_override("font_color", Color(0.8, 0.75, 0.6, 1))
+	voice.autowrap_mode = TextServer.AUTOWRAP_WORD
+	rows.add_child(voice)
 	var stock: Array = w.get("stock", [])
 	for i in range(stock.size()):
 		var entry: Dictionary = stock[i]
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 10)
 		var name_l := Label.new()
-		name_l.text = "%s ×%d" % [Inventory.get_display_name(str(entry.get("id", ""))), int(entry.get("count", 1))]
+		var show_mark := "✦ " if entry.get("showpiece", false) else ""
+		name_l.text = "%s%s ×%d" % [show_mark, Inventory.get_display_name(str(entry.get("id", ""))), int(entry.get("count", 1))]
 		name_l.custom_minimum_size = Vector2(240, 0)
-		name_l.add_theme_color_override("font_color", Inventory.get_grade_color(str(entry.get("id", ""))))
+		name_l.add_theme_color_override("font_color",
+			Color(1.0, 0.85, 0.4) if entry.get("showpiece", false) else Inventory.get_grade_color(str(entry.get("id", ""))))
 		row.add_child(name_l)
 		var price_l := Label.new()
 		price_l.text = "%dg" % GameState.wanderer_price_now(entry)

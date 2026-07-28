@@ -105,6 +105,23 @@ func _ready() -> void:
 	else:
 		say("EYES-V: no wall found (unbuilt on a fresh start -- fine)")
 
+	# ---- v6: the Wanderer's Post with a SHOWPIECE under the cloth ----
+	GameState.wanderers_seen = GameState.WANDERER_SHOWPIECE_FROM - 1
+	GameState.wanderer = {}
+	for v in GameState.rescued_villagers:
+		v["morale"] = 8.0
+	GameState._wanderer_arrive()
+	var post = get_tree().get_first_node_in_group("wanderer_post_ui")
+	if post != null and post.has_method("open_post"):
+		post.open_post()
+		await _settle(0.8)
+		await _shot("v6_wanderer_showpiece")
+		post.esc_close()
+	else:
+		say("EYES-V: no wanderer post UI found")
+	GameState.wanderer = {}
+	GameState.wanderers_seen = 0
+
 	say("EYES-V: done, %s" % shot_dir)
 	get_tree().quit(0)
 

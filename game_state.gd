@@ -3640,6 +3640,34 @@ func tick_watchtower_warning() -> void:
 # sweetens stock and haggling -- the book's own lean for the profession.
 const WANDERER_NAMES = ["Salla of the Long Road", "Bramble-cart Icky", "Vex the Peddler",
 	"Odo Twicesold", "Mirena Farshore", "The Quiet Tinker"]
+# LOOT DEPTH (12.12, dev-chosen 2026-07-28): each named wanderer is a CART,
+# not a coin-flip -- their stock draws from their own trade first (the
+# creative directive: named identity over noise). `bias` = the categories
+# their cart leans toward; `line` = how they greet the Post; `showline` =
+# what they say of the piece under the cloth (visits 4+ carry a guaranteed
+# SHOWPIECE: one epic -- the road's canon best -- at a steep premium).
+const WANDERER_CARTS = {
+	"Salla of the Long Road":  {"bias": ["consumable", "material"],
+		"line": "Walked here from the sea. Everything's for sale but the boots.",
+		"showline": "And under the cloth -- the thing I don't show just anyone."},
+	"Bramble-cart Icky":       {"bias": ["material", "weapon"],
+		"line": "Icky finds things. Icky sells things. Same things, mostly.",
+		"showline": "This one Icky found in a DEAD place. Extra shiny. Extra gold."},
+	"Vex the Peddler":         {"bias": ["weapon"],
+		"line": "Every blade on this cart has a story. Most of them end badly.",
+		"showline": "The wrapped one? That story hasn't ended yet. Costs accordingly."},
+	"Odo Twicesold":           {"bias": ["armor", "relic"],
+		"line": "Sold twice, worn once, guaranteed thrice. Odo's word is almost bond.",
+		"showline": "Under the cloth: the piece I SHOULD have kept. Make it hurt me."},
+	"Mirena Farshore":         {"bias": ["relic"],
+		"line": "Charms and old promises. The sea gives them back, eventually.",
+		"showline": "This one still hums. I'd rather it hummed in someone else's bag."},
+	"The Quiet Tinker":        {"bias": ["armor", "consumable"],
+		"line": "...",
+		"showline": "(they lift the cloth an inch, and wait)"},
+}
+const WANDERER_SHOWPIECE_FROM := 4      # the road's trust, earned across visits
+const WANDERER_SHOWPIECE_MARKUP := 1.6  # the best piece opens steep -- hospitality eats into it
 const WANDERER_GAP_MIN := 12.0
 const WANDERER_GAP_MAX := 30.0
 const WANDERER_DISCOUNT_MAX := 0.25    # a happy town's slow markdown across the stay
@@ -3708,20 +3736,53 @@ func _wanderer_arrive() -> void:
 	if pool.is_empty():
 		return
 	pool.shuffle()
+	# the cart has a NAME, and the name has a trade: bias-first fill
+	var wname: String = WANDERER_NAMES[randi() % WANDERER_NAMES.size()]
+	var cart: Dictionary = WANDERER_CARTS.get(wname, {})
+	var bias: Array = cart.get("bias", [])
+	var favoured := []
+	var rest := []
+	for id in pool:
+		if str(Inventory.get_item_def(id).get("category", "")) in bias:
+			favoured.append(id)
+		else:
+			rest.append(id)
+	var ordered := favoured + rest
 	var slots: int = 4 + (1 if marketplace_merchant_staffed() else 0)
 	var stock := []
-	for i in range(mini(slots, pool.size())):
-		var id: String = pool[i]
+	for i in range(mini(slots, ordered.size())):
+		var id: String = ordered[i]
 		var cat := str(Inventory.get_item_def(id).get("category", ""))
 		stock.append({"id": id, "price": _wanderer_price(id),
 			"count": 3 if (cat == "consumable" or cat == "material") else 1})
+	# visits 4+: the SHOWPIECE under the cloth -- one guaranteed epic (the
+	# road's canon ceiling), preferring the cart's own trade, priced steep
+	if wanderers_seen >= WANDERER_SHOWPIECE_FROM:
+		var epics := []
+		var epics_biased := []
+		for id in pool:
+			if grade_rank(id) == 4:
+				epics.append(id)
+				if str(Inventory.get_item_def(id).get("category", "")) in bias:
+					epics_biased.append(id)
+		var pick_from: Array = epics_biased if not epics_biased.is_empty() else epics
+		if not pick_from.is_empty():
+			var sid: String = pick_from[randi() % pick_from.size()]
+			# the piece under the cloth is not ALSO on the open table (EYES v6:
+			# the same leggings sat at 992g and 292g on one cart)
+			for k in range(stock.size() - 1, -1, -1):
+				if str(stock[k].get("id", "")) == sid:
+					stock.remove_at(k)
+			stock.push_front({"id": sid,
+				"price": int(round(float(_wanderer_price(sid)) * WANDERER_SHOWPIECE_MARKUP)),
+				"count": 1, "showpiece": true})
 	wanderer = {
-		"name": WANDERER_NAMES[randi() % WANDERER_NAMES.size()],
-		"arrived": game_hours, "dwell": _wanderer_dwell_hours(),
-		"stock": stock, "tier": tier,
+		"name": wname, "arrived": game_hours, "dwell": _wanderer_dwell_hours(),
+		"stock": stock, "tier": tier, "line": str(cart.get("line", "")),
+		"showline": str(cart.get("showline", "")),
 	}
-	log_event("economy", "%s set up at the Wanderer's Post — %d wares on the cart." % [wanderer["name"], stock.size()])
-	notify("🛒 %s has set up at the Wanderer's Post." % wanderer["name"])
+	log_event("economy", "%s set up at the Wanderer's Post — %d wares on the cart." % [wname, stock.size()])
+	notify("🛒 %s has set up at the Wanderer's Post. \"%s\"" % [wname, str(cart.get("line", "..."))])
 
 # The live price: a happy town's markdown deepens across the stay, and a
 # staffed Merchant haggles a tenth off everything.

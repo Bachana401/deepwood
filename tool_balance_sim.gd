@@ -488,6 +488,47 @@ func _ready() -> void:
 		if banned in pool13:
 			never_ok = false
 	check("S13: the never-sold stay never sold", never_ok)
+	# the carts have TRADES, and the road's trust unveils a showpiece
+	GameState.wanderers_seen = GameState.WANDERER_SHOWPIECE_FROM - 1   # arrive() crosses the line
+	GameState.wanderer = {}
+	GameState._wanderer_arrive()
+	var w13: Dictionary = GameState.wanderer
+	check("S13: the cart speaks with its own voice", str(w13.get("line", "")) != "")
+	var st13: Array = w13.get("stock", [])
+	var cart13: Dictionary = GameState.WANDERER_CARTS.get(str(w13.get("name", "")), {})
+	var bias13: Array = cart13.get("bias", [])
+	var has_show13 := false
+	var over_cap := false
+	var off_trade := 0
+	for e in st13:
+		var eid := str(e.get("id", ""))
+		if e.get("showpiece", false):
+			has_show13 = true
+			check("S13: the showpiece is the road's canon best (epic, never above)",
+				GameState.grade_rank(eid) == 4, Inventory.get_grade(eid))
+			check("S13: ...and opens steep (a premium over its own plain price)",
+				int(e.get("price", 0)) > GameState._wanderer_price(eid),
+				"%d vs %d" % [int(e.get("price", 0)), GameState._wanderer_price(eid)])
+		else:
+			if not bias13.is_empty() \
+					and str(Inventory.get_item_def(eid).get("category", "")) not in bias13:
+				off_trade += 1
+		if GameState.grade_rank(eid) > 4:
+			over_cap = true
+	say("  %s's cart: %d wares, showpiece %s, %d off-trade" % [
+		str(w13.get("name", "?")), st13.size(), str(has_show13), off_trade])
+	check("S13: a trusted visit carries the piece under the cloth", has_show13)
+	var ids13 := {}
+	var dupes13 := false
+	for e in st13:
+		if ids13.has(str(e.get("id", ""))):
+			dupes13 = true
+		ids13[str(e.get("id", ""))] = true
+	check("S13: the showpiece never sits beside its own plain twin", not dupes13)
+	check("S13: the cart sells its own TRADE (bias-first fill, no strays)", off_trade == 0, str(off_trade))
+	check("S13: nothing on any cart ever tops epic (loot stays king above)", not over_cap)
+	GameState.wanderer = {}
+	GameState.wanderers_seen = 0
 
 	GameState.reset_for_new_game()
 	printerr("\nRESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
