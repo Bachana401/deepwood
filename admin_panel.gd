@@ -17,6 +17,11 @@ const GAP := 6.0
 
 func _ready() -> void:
 	layer = 70
+	# the console must answer P through a PAUSED tree (audit fix): every
+	# dialogue beat pauses the world -- and the finale is one long chain of
+	# them -- so the dev console was dead exactly when a tester most wants to
+	# poke at things. Same mode the pause menu itself runs in.
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	add_to_group("esc_window")
 	_build()
 	panel.visible = false

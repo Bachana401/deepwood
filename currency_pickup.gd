@@ -10,6 +10,7 @@ const RING_COLOR = Color(0.75, 0.55, 0.05, 1.0)
 const DESPAWN_SECONDS = preload("res://day_night_cycle.gd").DAY_LENGTH_SECONDS
 
 var amount = 0
+var _label: Label = null   # kept so a merged spill can update its number
 
 # When this pickup spawns exactly on top of the player (the death-drop case
 # -- their body sits frozen right there for the whole death countdown),
@@ -27,6 +28,7 @@ func setup(drop_amount: int, spawned_on_player: bool = false) -> void:
 	can_collect = not spawned_on_player
 
 func _ready() -> void:
+	add_to_group("currency_pickup")   # so a full-bag spill can merge into one pile
 	collision_layer = 0
 	collision_mask = 2
 	body_entered.connect(_on_body_entered)
@@ -66,15 +68,19 @@ func build_visual() -> void:
 	coin.color = COIN_COLOR
 	add_child(coin)
 
-	var label = Label.new()
-	label.text = str(amount)
-	label.add_theme_color_override("font_color", Color(0.3, 0.2, 0.02, 1))
-	label.add_theme_font_size_override("font_size", 12)
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.position = Vector2(-PICKUP_RADIUS, -PICKUP_RADIUS * 0.6)
-	label.size = Vector2(PICKUP_RADIUS * 2, PICKUP_RADIUS * 1.2)
-	add_child(label)
+	_label = Label.new()
+	_label.text = str(amount)
+	_label.add_theme_color_override("font_color", Color(0.3, 0.2, 0.02, 1))
+	_label.add_theme_font_size_override("font_size", 12)
+	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_label.position = Vector2(-PICKUP_RADIUS, -PICKUP_RADIUS * 0.6)
+	_label.size = Vector2(PICKUP_RADIUS * 2, PICKUP_RADIUS * 1.2)
+	add_child(_label)
+
+func refresh_label() -> void:
+	if _label != null:
+		_label.text = str(amount)
 
 func start_bob() -> void:
 	var tween = create_tween()
@@ -86,6 +92,12 @@ func _on_body_entered(body: Node) -> void:
 	if not can_collect:
 		return
 	if not body.is_in_group("player"):
+		return
+	# a bag with no room for coin must NOT collect: add_currency would just
+	# spill the same gold straight back out (collect -> spill -> collect,
+	# forever). The pile simply waits until a slot frees.
+	if "inventory" in body and body.inventory != null \
+			and not body.inventory.can_accept("coin_gold"):
 		return
 	if body.has_method("add_currency"):
 		body.add_currency(amount)

@@ -266,6 +266,13 @@ func _on_slot_gui_input(event: InputEvent, index: int) -> void:
 			if cui and cui.visible and cui.current_chest != null:
 				var slot0 = player.inventory.slots[index]
 				if slot0 != null:
+					# same guard the drag and bulk-transfer paths have (audit
+					# fix): quick-stow was the one door left open for flicking
+					# the WIELDED weapon into a chest, leaving the player
+					# swinging an item their bag no longer holds
+					if DragState._would_strip_wielded(player.inventory, str(slot0.item_id)):
+						notify("You are wielding that — swap weapons first.")
+						return
 					player.inventory.transfer_to(cui.current_chest.inventory, str(slot0.item_id), int(slot0.count))
 					refresh()
 					cui.refresh()

@@ -2,6 +2,33 @@ extends CanvasLayer
 
 func _ready() -> void:
 	visible = false
+	_ensure_chrome()
+
+# main.tscn and dungeon_interior.tscn author the black shade + CountdownLabel by
+# hand; the tile-underground builds this overlay from script, where those
+# children do not exist. Build whatever is missing so one script serves both --
+# without it, dying down there fell through to a silent five-second wait with no
+# black screen, no countdown and no death toll (scan 2026-07-27).
+func _ensure_chrome() -> void:
+	if get_node_or_null("Shade") == null:
+		var shade := ColorRect.new()
+		shade.name = "Shade"
+		shade.color = Color(0, 0, 0, 0.88)
+		shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+		shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(shade)
+		move_child(shade, 0)
+	if get_node_or_null("CountdownLabel") == null:
+		var cd := Label.new()
+		cd.name = "CountdownLabel"
+		cd.text = ""
+		cd.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		cd.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		cd.set_anchors_preset(Control.PRESET_FULL_RECT)
+		cd.add_theme_font_size_override("font_size", 96)
+		cd.add_theme_color_override("font_color", Color(0.95, 0.3, 0.28))
+		cd.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(cd)
 
 # The cost of dying, said ON the black screen itself -- the toast version
 # played behind this overlay and was never seen (presentation sweep).

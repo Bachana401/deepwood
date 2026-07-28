@@ -10,6 +10,7 @@ var pen_width := 360.0
 var animals_spec := ["chicken", "chicken", "pig", "cow", "sheep"]
 
 func _ready() -> void:
+	add_to_group("farm_pen")   # so deleting the Farm can take its pasture with it
 	build_fence()
 	spawn_animals()
 

@@ -16,6 +16,7 @@ const WOOD_D = Color(0.4, 0.29, 0.16)
 const WOOD_L = Color(0.62, 0.47, 0.28)
 
 func _ready() -> void:
+	add_to_group("dock_bridge")   # so deleting the Dock can take its deck with it
 	collision_layer = 1   # ground layer: everyone stands on it
 	collision_mask = 0
 	build_collision()

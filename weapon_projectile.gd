@@ -113,6 +113,7 @@ func _physics_process(delta: float) -> void:
 		elif kind == "fireball":
 			explode()
 		else:
+			done = true   # a spent bolt lands no same-frame parting hit
 			queue_free()
 
 func _on_body_entered(body: Node2D) -> void:
@@ -125,6 +126,11 @@ func _on_body_entered(body: Node2D) -> void:
 	hit_bodies.append(body)
 	# the Soul Split bolt never damages -- it only asks the target to divide
 	if kind == "soul_split":
+		# `done` on EVERY terminal path (audit fix): queue_free() does not stop
+		# a second body_entered in the SAME physics frame, so a bolt overlapping
+		# two enemies at once hit both -- and a soul_split could ask two targets
+		# to divide with one cast
+		done = true
 		if body.has_method("on_soul_split_wand"):
 			body.on_soul_split_wand()
 		else:
@@ -141,6 +147,7 @@ func _on_body_entered(body: Node2D) -> void:
 		"fireball":
 			explode()
 		"hook":
+			done = true   # same one-frame double-hit guard as soul_split
 			body.take_damage(damage)
 			FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
 			_apply_status_to(body)
@@ -156,6 +163,7 @@ func _on_body_entered(body: Node2D) -> void:
 			if body.has_method("apply_knockback"):
 				body.apply_knockback(1 if direction.x >= 0.0 else -1, knockback)
 			if not pierce and kind != "boomerang":
+				done = true   # same one-frame double-hit guard as soul_split
 				queue_free()
 
 # Hook: reel the victim in using its own knockback system (negative direction

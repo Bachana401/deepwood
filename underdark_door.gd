@@ -134,12 +134,16 @@ func _try_enter() -> void:
 		main._arrival_talk_pending = false
 		main.play_arrival_talk(pl)
 		return
+	# notify_urgent, not notify (audit fix): plain notify() is the VILLAGE-info
+	# channel and goes silent under the away-fog -- which is exactly the state
+	# a player pressing E on a deep door is in. A refusal about the stone in
+	# front of your face is not village news; it must always be seen.
 	if not _unlocked():
-		GameState.notify("The seal holds — clear floor %d first." % (target_level - 1))
+		GameState.notify_urgent("The seal holds — clear floor %d first." % (target_level - 1))
 		return
 	# one door stays shut mid-Harvest, same as the old scroll: you cannot run
 	if GameState.harvest_at_home:
-		GameState.notify("⛔ The village is TURNING behind you. There is nothing below anymore — the fight is HERE.")
+		GameState.notify_urgent("⛔ The village is TURNING behind you. There is nothing below anymore — the fight is HERE.")
 		return
 	# the exact launch sequence level_select_ui used, verbatim semantics:
 	# capture what must survive the swap, remember where to put the player

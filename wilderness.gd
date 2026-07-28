@@ -117,9 +117,19 @@ func _stream(px: float) -> void:
 	# put away anything far behind us, and forget sectors we emptied long ago
 	for idx in _live.keys():
 		if absf(_sector_center(idx) - px) > CULL_RADIUS:
+			# a sector the player EMPTIED must keep its cleared-stamp even when
+			# the cull gets to it before the prune does (audit fix): clear it,
+			# sprint out past CULL_RADIUS inside the 0.5s scan window, walk
+			# back -- and it repopulated at full strength, ignoring
+			# RESPAWN_SECONDS. Culling live mobs records nothing, as before.
+			var any_alive := false
 			for e in _live[idx]:
+				if is_instance_valid(e) and not e.is_dead:
+					any_alive = true
 				if is_instance_valid(e):
 					e.queue_free()
+			if not any_alive:
+				_cleared_at[idx] = now
 			_live.erase(idx)
 	for idx in _cleared_at.keys():
 		if now - float(_cleared_at[idx]) > RESPAWN_SECONDS:

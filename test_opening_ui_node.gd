@@ -88,36 +88,67 @@ func _ready() -> void:
 	if get_tree().paused: get_tree().paused = false
 
 	# ---- a cutscene hides the HUD chrome, and restores it when it ends ----
-	var hud: Node = get_tree().get_first_node_in_group("cutscene_hides")
-	check("the HUD is in the cutscene-hide group", hud != null)
-	if hud != null:
-		hud.visible = true
+	# The member CONTAINING the NotificationStack keeps the layer itself (and
+	# the stack) visible and hides its other children instead -- toasts issued
+	# alongside a beat must be seen (audit fix). Pick a probe accordingly:
+	# a stack-free member is hidden whole; the stack's own layer is probed
+	# through one of its non-stack children.
+	var hud: Node = null
+	var probe: Node = null            # the thing that must go invisible
+	for member in get_tree().get_nodes_in_group("cutscene_hides"):
+		var st = member.get_node_or_null("NotificationStack")
+		if st == null:
+			hud = member
+			probe = member
+			break
+	if hud == null:
+		for member in get_tree().get_nodes_in_group("cutscene_hides"):
+			var st2 = member.get_node_or_null("NotificationStack")
+			if st2 != null:
+				hud = member
+				for c in member.get_children():
+					if c != st2 and ("visible" in c):
+						probe = c
+						break
+				break
+	check("the HUD is in the cutscene-hide group", hud != null and probe != null)
+	if hud != null and probe != null:
+		probe.visible = true
 		DialogueBox.play(self, [{"speaker": "Test", "text": "a scripted beat"}], Callable())
 		await get_tree().process_frame
-		check("the HUD is hidden while a cutscene plays", not hud.visible)
+		check("the HUD is hidden while a cutscene plays", not probe.visible)
+		# ...but the toast channel is NOT: a toast fired mid-beat must be seen
+		var main_hud: Node = null
+		for member in get_tree().get_nodes_in_group("cutscene_hides"):
+			if member.get_node_or_null("NotificationStack") != null:
+				main_hud = member
+				break
+		if main_hud != null:
+			check("the toast layer stays visible through the beat",
+				main_hud.visible and main_hud.get_node("NotificationStack").visible)
 		var box: Node = get_tree().get_first_node_in_group("dialogue_box")
 		check("a dialogue box is on screen", box != null)
 		if box != null:
 			box.finish()
 			await get_tree().process_frame
-		check("the HUD comes back when the cutscene ends", hud.visible)
+		check("the HUD comes back when the cutscene ends", probe.visible)
 		if get_tree().paused: get_tree().paused = false
 
 	# ---- a chained beat keeps the HUD hidden with no flicker ----
-	if hud != null:
-		hud.visible = true
+	if hud != null and probe != null:
+		probe.visible = true
 		DialogueBox.play(self, [{"speaker": "A", "text": "one"}],
 			func(): DialogueBox.play(self, [{"speaker": "B", "text": "two"}], Callable()))
 		await get_tree().process_frame
 		var first: Node = get_tree().get_first_node_in_group("dialogue_box")
 		if first != null:
 			first.finish()   # opens the second box in its callback
-		check("the HUD stays hidden across a chained line", not hud.visible)
+		check("the HUD stays hidden across a chained line", not probe.visible)
 		# drain the chained-in second box (skip the first, already finishing)
 		for b in get_tree().get_nodes_in_group("dialogue_box"):
 			if is_instance_valid(b) and not b.is_queued_for_deletion(): b.finish()
 		await get_tree().process_frame
-		check("...and restores after the last line", hud.visible)
+		check("...and restores after the last line", probe.visible)
 		if get_tree().paused: get_tree().paused = false
 
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)

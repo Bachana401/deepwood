@@ -198,13 +198,35 @@ var currency: int:
 				# coin was silently DESTROYED here (the one edge the raised
 				# max_stack doesn't cover). Spill it at the player's feet
 				# instead, exactly like death does; it waits until space frees.
-				var pickup = CURRENCY_PICKUP_SCRIPT.new()
-				pickup.global_position = global_position
-				pickup.setup(left, true)
-				if get_parent() != null:
-					get_parent().call_deferred("add_child", pickup)
+				# ONE pile, not one pickup per kill: a floor's worth of kills
+				# with a full bag used to litter dozens of bobbing coin nodes,
+				# each with its own tween and day-long despawn timer -- and the
+				# player was never told why their income read as zero. Merge
+				# into a nearby spilled pile and say it once.
+				var merged := false
+				for cp in get_tree().get_nodes_in_group("currency_pickup"):
+					if is_instance_valid(cp) \
+							and cp.global_position.distance_to(global_position) < 120.0:
+						cp.amount += left
+						if cp.has_method("refresh_label"):
+							cp.refresh_label()
+						merged = true
+						break
+				if not merged:
+					var pickup = CURRENCY_PICKUP_SCRIPT.new()
+					pickup.global_position = global_position
+					pickup.setup(left, true)
+					if get_parent() != null:
+						get_parent().call_deferred("add_child", pickup)
+				if _now() > _spill_warned_at + 8.0:
+					_spill_warned_at = _now()
+					var stack = get_tree().get_first_node_in_group("notification_stack")
+					if stack:
+						stack.show_notification("💰 Your bag is full — gold is piling up at your feet.")
 		elif delta < 0:
 			inventory.remove_item("coin_gold", -delta)
+
+var _spill_warned_at := -100.0
 
 var facing_direction = 1
 var original_color: Color
@@ -911,7 +933,9 @@ func enter_long_dark() -> void:
 		health = mini(get_max_health(), maxi(health, int(round(lerpf(1.0, float(heal_target), float(i + 1) / steps)))))
 		update_health_display()
 	body_visual.modulate = Color(1, 1, 1, 1)
-	# only drop the guard if no LONGER window is still running (see grant_iframes)
+	# only drop the guard if no LONGER window is still running (see grant_iframes).
+	# This path awaits real timers for the whole knit-back, so its own end is
+	# "now" -- anything still pending must be a later grant.
 	if _now() >= _iframe_until - 0.01:
 		invincible = false
 
@@ -1294,7 +1318,8 @@ func apply_pending_player_state() -> void:
 	# restore the swap-surviving transients (see GameState.capture_player_state):
 	# relic/skill cooldowns, the once-per-life save, and live food buffs
 	for f in ["phoenix_ready_at", "aegis_ready_at", "gorgon_ready_at",
-			"monarch_long_dark_ready_at", "undying_used", "rampage_stacks"]:
+			"monarch_long_dark_ready_at", "undying_used", "rampage_stacks",
+			"rampage_until"]:
 		if data.has(f):
 			set(f, data[f])
 	if data.has("active_buffs") and data["active_buffs"] is Dictionary:
@@ -2351,15 +2376,23 @@ func suffer_lethal() -> void:
 var _iframe_until := 0.0
 
 func grant_iframes(seconds: float) -> void:
-	_iframe_until = maxf(_iframe_until, _now() + seconds)
+	# Compare DEADLINES, never the clock at fire time. SceneTreeTimer obeys
+	# Engine.time_scale (hit-stop slows it; a sped-up test runs it fast) while
+	# _now() is wall clock, so "has my deadline passed yet?" asked on wake could
+	# answer NO for the very window that just ended -- and then nothing ever
+	# cleared the flag: the player was permanently invulnerable, which a boss
+	# arena test caught as "took no damage in 15s". Each timer knows the end it
+	# was granted; it defers only to a strictly LATER one.
+	var my_end := _now() + seconds
+	_iframe_until = maxf(_iframe_until, my_end)
 	invincible = true
 	start_invincibility_flash()
 	var iid := get_instance_id()
 	get_tree().create_timer(seconds).timeout.connect(func():
 		var s = instance_from_id(iid)
-		if s == null or not is_instance_valid(s) or s.is_dead:
+		if s == null or not is_instance_valid(s):
 			return
-		if s._now() < s._iframe_until - 0.01:
+		if my_end < s._iframe_until - 0.01:
 			return          # a longer window is still running -- it owns the flag
 		s.stop_invincibility_flash()
 		s.invincible = false)
@@ -2588,10 +2621,15 @@ func _physics_process(delta: float) -> void:
 	var cc_hard := cc_action_locked()
 	var cc_stuck := cc_move_locked()
 
-	# hotbar: keys 1-9 and 0 pick inventory slots 0-9; wield the weapon there
-	for i in range(HOTBAR_SIZE):
-		if Input.is_action_just_pressed("hotbar_%d" % (i + 1)):
-			select_hotbar_slot(i)
+	# hotbar: keys 1-9 and 0 pick inventory slots 0-9; wield the weapon there.
+	# Gated like attack/dig (audit fix): now that a hotbar press can DRINK a
+	# consumable, a stray "1" with the bag or skill tree open destroyed a potion
+	# the player didn't need -- while the same press couldn't swing a weapon,
+	# which is the inconsistency that made it a bug.
+	if not ui_blocks_world_input():
+		for i in range(HOTBAR_SIZE):
+			if Input.is_action_just_pressed("hotbar_%d" % (i + 1)):
+				select_hotbar_slot(i)
 
 	# T = blink-dash: the Shadowstep Sigil relic earns it, god mode just gives it
 	if Input.is_action_just_pressed("admin_dash") and not cc_stuck and (has_relic_power("blink") or god_mode):
@@ -2856,12 +2894,15 @@ func perform_attack() -> void:
 			return
 		attack_cooldown_remaining = stats.cooldown * skill_cooldown_mult(active_weapon_type)
 		if special.is_empty():
-			# ONLY the two admin test wands may nuke. "No special authored" used
-			# to route here for ANY wand -- three ordinary loot wands shipped
+			# ONLY the admin test wand may nuke. "No special authored" used to
+			# route here for ANY wand -- three ordinary loot wands shipped
 			# without one and one-clicked every enemy on screen to death for 4
-			# mana. An unrecognised special-less wand now fails safe: a plain
-			# force bolt from its own weapon_stats damage.
-			if active_weapon_id == "wpn_wand" or active_weapon_id == "wpn_admin_ruin":
+			# mana. (wpn_admin_ruin never reaches this branch at all: its
+			# percent_burst special exits above, so listing it here was dead
+			# code describing an arrangement the flow cannot produce.) An
+			# unrecognised special-less wand fails safe: a plain force bolt
+			# from its own weapon_stats damage.
+			if active_weapon_id == "wpn_wand":
 				cast_wand()   # ADMIN screen-nuke (instakill everything)
 			else:
 				cast_wand_projectile({"type": "frost_shard",

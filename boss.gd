@@ -1180,11 +1180,15 @@ func _plant_trap(at: Vector2) -> void:
 	# killed during TRAP_DELAY the callback must not touch his freed self (the
 	# meteor-class bug). Re-resolve the caster by id and bail if he's gone or dead:
 	# a slain boss springs no traps, and never reads state off a stale instance.
-	var boss_id := get_instance_id()
+	# caster_id, not boss_id (audit fix): a local named `boss_id` SHADOWED the
+	# member of the same name -- the string id like "gravewarden" -- so any
+	# future read of the member inside this closure would silently get the
+	# instance number instead. Renamed before that trap ever springs.
+	var caster_id := get_instance_id()
 	var t := mark.create_tween()
 	t.tween_property(ring, "scale", Vector2(0.25, 0.25), TRAP_DELAY)
 	t.tween_callback(func():
-		var b = instance_from_id(boss_id)
+		var b = instance_from_id(caster_id)
 		if is_instance_valid(b) and not b.is_dead and is_instance_valid(player) \
 				and player.global_position.distance_to(at) <= TRAP_RADIUS \
 				and player.has_method("take_damage"):
@@ -1379,6 +1383,15 @@ func _reflect(pr: Node2D) -> void:
 	pr.add_to_group("hostile_projectile")
 	if "owner_is_player" in pr:
 		pr.owner_is_player = false
+	# ...ALL of it (audit fix): a Seeker arrow's homing kept steering it toward
+	# the nearest ENEMY -- the mirrored shot curved straight back at the boss
+	# and the reflect undid itself; and a weapon_projectile's `source` is the
+	# player node, powering hook-pull / boomerang-return FOR the player on a
+	# shot that now belongs to the boss.
+	if "homing" in pr:
+		pr.homing = false
+	if "source" in pr:
+		pr.source = null
 	# RETARGET its hit-detection at the PLAYER (layer 2). Flipping velocity/direction
 	# alone left the mask on the enemy layer (4), so the returned shot flew straight
 	# THROUGH the player and dealt nothing -- the whole "eat your own arrows" reflect
@@ -3001,7 +3014,17 @@ func do_summon() -> void:
 		set_cd("summon")
 		return
 	minions = minions.filter(func(m): return is_instance_valid(m) and not (("is_dead" in m) and m.is_dead))
-	var room = MAX_MINIONS - minions.size()
+	# False twins and soulbind runes ride the shared sweep list but are NOT the
+	# adds this beat summons -- they are decoys and rune batteries with their
+	# own caps (TWIN_COUNT / SOULBIND_ADDS). Hollow Choir carries both, which
+	# filled MAX_MINIONS permanently: every summon beat played its telegraph,
+	# burned its cooldown and spawned nothing -- on the one boss whose combos
+	# are authored to END on summon (audit fix). Budget against real adds only.
+	var decoys := 0
+	for m in minions:
+		if _twins.has(m) or rune_adds.has(m):
+			decoys += 1
+	var room = MAX_MINIONS - (minions.size() - decoys)
 	for i in range(min(SUMMON_COUNT, room)):
 		var m = MINION_SCENE.instantiate()
 		m.respawns = false

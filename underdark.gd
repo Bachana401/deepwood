@@ -154,8 +154,44 @@ func _ready() -> void:
 	# sunken stashes + ambush chambers punch their OWN floor holes -- also before
 	# _build_bands, and on the feature rng so the shared layout never shifts.
 	_plan_pits(frng)
-	_build_dark_backdrop()
 	_build_mouth_and_stair()
+	# THE DEAD STRIP IS NO LONGER BUILT (scan 2026-07-27). The cave mouth routes
+	# to underground.tscn now, so this legacy deep -- several thousand collision
+	# nodes, 100 doors, ~50 chests written into every save -- was being fully
+	# rebuilt on EVERY village load for a world nothing walks. The PLANNING above
+	# stays (it is cheap dictionaries, and the stair landing + mob streamer read
+	# it); the NODES are built only on demand (build_legacy_strip, kept for the
+	# suites that prove the layout's contracts). Until then the descent below
+	# the tunnel head is sealed with rubble so nobody can walk off the stair
+	# into a world that is not there.
+	_seal_descent()
+
+# The node-heavy legacy build, on demand and idempotent. The audited layout is
+# byte-identical to the old _ready build: same seed, same draw order -- the two
+# rngs here have made exactly the draws _ready's planning made when they arrive.
+var _strip_built := false
+func build_legacy_strip() -> void:
+	if _strip_built:
+		return
+	_strip_built = true
+	# replay the planning draws so the BUILD rng sits exactly where the old
+	# single-pass _ready left it (plan and build shared one stream). The plans
+	# themselves are recomputed to identical values -- same seeds, same order.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = UD_SEED
+	_plan = {}
+	_shafts = {}
+	_pits = {}
+	ud_left = _stair_end_x() + 260.0
+	_plan_bands(rng)
+	_plan_shafts(rng)
+	var frng := RandomNumberGenerator.new()
+	frng.seed = UD_SEED ^ 0x5A5A17
+	_plan_pits(frng)
+	if _descent_seal != null and is_instance_valid(_descent_seal):
+		_descent_seal.queue_free()
+		_descent_seal = null
+	_build_dark_backdrop()
 	_build_bands(rng)
 	_build_shaft_ladders()
 	_build_pits(frng)
@@ -169,6 +205,30 @@ func _ready() -> void:
 	# ...and the living-cave dressing is dead last, on NO rng at all (plain randf),
 	# so it can never perturb the audited layout above it.
 	_build_cave_life()
+
+# Rubble across the stair just past the tunnel head: with the strip unbuilt the
+# stair now descends into open void, and a player who drops through the arch
+# (the floor there falls away by design) could walk off its end and fall
+# forever. The plug leaves the head itself standable -- the [E] exit prompt is
+# right there -- and reads as a collapse, not an invisible wall.
+var _descent_seal: Node2D = null
+func _seal_descent() -> void:
+	var seal := StaticBody2D.new()
+	var cs := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = Vector2(70.0, 320.0)
+	cs.shape = rect
+	seal.add_child(cs)
+	add_child(seal)
+	seal.global_position = Vector2(DESCENT_X + 190.0, TUNNEL_TOP_Y + 40.0)
+	var vis := Polygon2D.new()
+	vis.color = SLAB_COLOR
+	vis.polygon = PackedVector2Array([
+		Vector2(-35.0, 160.0), Vector2(-20.0, -40.0), Vector2(5.0, -160.0),
+		Vector2(35.0, -120.0), Vector2(28.0, 40.0), Vector2(35.0, 160.0)])
+	vis.z_index = -1
+	seal.add_child(vis)
+	_descent_seal = seal
 
 func band_floor_y(band: int) -> float:
 	return UD_TOP + (band + 1) * BAND_H - 180.0
@@ -787,6 +847,8 @@ func _stream_tick(delta: float) -> void:
 				d.set_process(below)
 	if GameState.in_dungeon or _player.global_position.y < UD_TOP - 120.0:
 		return
+	if not _strip_built:
+		return   # no strip, no mobs: nothing may spawn into the unbuilt void
 	_stream(_player.global_position)
 
 func _band_of(y: float) -> int:
@@ -797,9 +859,18 @@ func _stream(ppos: Vector2) -> void:
 	for key in _live.keys():
 		var center: Vector2 = _sector_center(key)
 		if center.distance_to(ppos) > CULL_RADIUS:
+			# keep the cleared-stamp when culling an already-emptied sector
+			# (audit fix, same shape as wilderness.gd): without it, clearing a
+			# sector and leaving fast made it respawn at full strength on
+			# return, ignoring RESPAWN_SECONDS
+			var any_alive := false
 			for e in _live[key]:
+				if is_instance_valid(e) and not e.is_dead:
+					any_alive = true
 				if is_instance_valid(e):
 					e.queue_free()
+			if not any_alive:
+				_cleared_at[key] = now
 			_live.erase(key)
 	for key in _cleared_at.keys():
 		if now - float(_cleared_at[key]) > RESPAWN_SECONDS:

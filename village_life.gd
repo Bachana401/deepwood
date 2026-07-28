@@ -97,6 +97,12 @@ func _update_decor() -> void:
 	if _decor_recheck_cd > 0.0:
 		return
 	_decor_recheck_cd = 1.0
+	# the village CHANGES SHAPE mid-session -- halls are raised, deleted and
+	# relocated (H) -- but the bounds were computed once at load (audit fix:
+	# birds, fireworks and the 10/10 fountain all landed on the STARTING ruins'
+	# span; on a fresh run that meant celebrating over empty ground while the
+	# real town stood elsewhere). A min/max over one group each second is free.
+	_recompute_bounds()
 	var ops = operational_buildings()
 	if ops.size() == built_tier:
 		return

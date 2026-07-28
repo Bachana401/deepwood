@@ -21,6 +21,15 @@ func _ready() -> void:
 	# The classic screen-nuke Magic Wand is an ADMIN/test item (it deletes every
 	# enemy incl. bosses) -- it is NOT for sale in the real game. Hidden here.
 	$MagicWandOption.visible = false
+	# a visible way OUT (audit fix, same as wanderer_ui): this panel had neither
+	# a close button nor a toggle key -- ESC via the pause sweep was the sole,
+	# undiscoverable exit, while the Panel ate every click under its 300x200
+	var close := Button.new()
+	close.text = "✕"
+	close.position = Vector2(size.x - 34.0, 4.0)
+	close.size = Vector2(30, 30)
+	close.pressed.connect(esc_close)
+	add_child(close)
 	refresh_prices()
 
 # THE SHOP NEVER SAID WHAT ANYTHING COST (visual sweep 2026-07-21). Four bare

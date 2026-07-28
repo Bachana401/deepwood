@@ -79,7 +79,10 @@ func _process(_d: float) -> void:
 	var mx := get_global_mouse_position().x
 	ghost.global_position = Vector2(mx - build_w / 2.0, VILLAGE_Y - ghost.size.y)
 	var p = get_tree().get_first_node_in_group("player")
-	var ok := GameState.can_place_building(get_tree(), build_w, mx, null, build_name == "Wall") \
+	# exclude the hall's OWN node (audit fix): re-raising a razed building on or
+	# near its old ground was refused by the very ruin being rebuilt -- the
+	# `exclude` parameter existed for exactly this and was never passed
+	var ok := GameState.can_place_building(get_tree(), build_w, mx, _find_building(build_name), build_name == "Wall") \
 		and p != null and GameState.can_afford_build(build_name, p)
 	# a flank that already holds a wall can't take a second (you upgrade at the gate) --
 	# the ghost must read RED there too, or "green always means it will build" is broken.
@@ -156,7 +159,8 @@ func _try_place(x: float) -> void:
 	if build_name == "Blacksmith" and not GameState.blacksmith_unlocked():
 		if stack: stack.show_notification("The Forge's fire won't take — its secrets lie deeper. (Clear dungeon floor %d.)" % GameState.BLACKSMITH_UNLOCK_DEPTH)
 		return
-	if not GameState.can_place_building(get_tree(), build_w, x, null, build_name == "Wall"):
+	# same exclude as the ghost (audit fix): green must mean "it will build"
+	if not GameState.can_place_building(get_tree(), build_w, x, _find_building(build_name), build_name == "Wall"):
 		if stack: stack.show_notification("Can't build there — need clear ground inside the walls.")
 		return
 	# ONE rampart per flank (dev 2026-07-23: "at level 15 the player can place 2
@@ -342,6 +346,20 @@ func _do_delete(target, kind: String) -> void:
 			if GameState.moving_building == str(target.building_name):
 				GameState.moving_building = ""
 			GameState.remove_building(str(target.building_name))
+			# attachments go with their building (audit fix): the Dock's bridge
+			# and the Farm's pasture are SIBLINGS under $Village, so deleting
+			# only the hall left a ~1000px invisible collision deck (or a pen
+			# full of animals) standing on empty ground -- and rebuilding from
+			# the B menu then added a second one on top.
+			var att_group := ""
+			if str(target.building_name) == "Fishing Dock":
+				att_group = "dock_bridge"
+			elif str(target.building_name) == "Farm":
+				att_group = "farm_pen"
+			if att_group != "":
+				for att in get_tree().get_nodes_in_group(att_group):
+					if is_instance_valid(att):
+						att.queue_free()
 		"wall":
 			GameState.remove_placed_wall(target.global_position.x)
 		"cottage":

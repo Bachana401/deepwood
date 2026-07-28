@@ -78,19 +78,35 @@ func _set_cutscene_hud_hidden(hidden: bool) -> void:
 	var t := get_tree()
 	if t == null:
 		return
-	# remember what was ALREADY hidden (audit fix): the restore used to
-	# force-show every member, so anything legitimately invisible when a beat
-	# started was revealed when it ended
 	for n in t.get_nodes_in_group("cutscene_hides"):
 		if not is_instance_valid(n):
 			continue
-		if hidden:
-			if not n.has_meta("cutscene_was_visible"):
-				n.set_meta("cutscene_was_visible", n.visible)
-			n.visible = false
+		# THE TOAST CHANNEL STAYS ON THROUGH BEATS (audit fix): the main HUD
+		# layer contains the NotificationStack, so hiding the layer swallowed
+		# every toast issued alongside a dialogue -- including the finale's own
+		# guard text (the Soul Split Wand re-grant explains the whole unkillable
+		# lock, and it fired invisible). For a member that CONTAINS the stack,
+		# hide its other children instead of the layer itself.
+		var toast := n.get_node_or_null("NotificationStack")
+		if toast != null:
+			for c in n.get_children():
+				if c == toast or not ("visible" in c):
+					continue
+				_set_one_hidden(c, hidden)
 		else:
-			n.visible = bool(n.get_meta("cutscene_was_visible", true))
-			n.remove_meta("cutscene_was_visible")
+			_set_one_hidden(n, hidden)
+
+# remember what was ALREADY hidden (audit fix): the restore used to force-show
+# every member, so anything legitimately invisible when a beat started was
+# revealed when it ended
+func _set_one_hidden(n: Node, hidden: bool) -> void:
+	if hidden:
+		if not n.has_meta("cutscene_was_visible"):
+			n.set_meta("cutscene_was_visible", n.visible)
+		n.visible = false
+	else:
+		n.visible = bool(n.get_meta("cutscene_was_visible", true))
+		n.remove_meta("cutscene_was_visible")
 
 func build_ui() -> void:
 	# NO DIMMING (dev call 2026-07-27: "don't dim the background when dialogue is

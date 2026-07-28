@@ -2096,8 +2096,10 @@ func _process(delta: float) -> void:
 		if building_name == "Blacksmith" and Input.is_action_just_pressed("enter_dungeon"):
 			var forge = get_node_or_null("../../CanvasLayer/ShopUI")
 			if forge != null:
-				forge.visible = true
-				if forge.has_method("refresh_prices"):
+				# F TOGGLES (audit fix): it used to only ever re-show, so the
+				# open key was a dead key while the panel sat on screen
+				forge.visible = not forge.visible
+				if forge.visible and forge.has_method("refresh_prices"):
 					forge.refresh_prices()
 		# School (5.4 favour-a-calling): from level 2, the hands-on key cycles
 		# which calling the curriculum leans toward -- capped at 40%, so the

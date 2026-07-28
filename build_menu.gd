@@ -26,7 +26,8 @@ const PURPOSE := {
 	"Shrine": "where sorrow-crystals are cleansed",
 	"Cottage": "a family's home",
 	"Wall": "a rampart the siege breaks against — raise one at the gate the wave comes from",
-	"Watchtower": "eyes on the horizon — early siege warning",
+	# (no "Watchtower" row: it is raised by pressing E on its own plot, never
+	# from this menu, so a description here was a named-but-never-read key)
 }
 
 var panel: Panel = null

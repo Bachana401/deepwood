@@ -209,14 +209,32 @@ func _cell_kind(cell: Vector2i) -> int:
 func _chunk_of(world_pos: Vector2) -> Vector2i:
 	return Vector2i(int(floor(world_pos.x / TILE / CHUNK)), int(floor(world_pos.y / TILE / CHUNK)))
 
+# STAGGERED STREAMING (audit fix): loading every missing chunk synchronously
+# meant a reproducible hitch each ~384px of travel -- the moving edge is 7
+# chunks x 1,024 cells x up to 27 noise samples (~190k calls) in ONE frame.
+# Only the chunks the player can SEE or STAND IN (Chebyshev distance <= 2 at
+# the Terraria zoom, screen half-width ~2.5 chunks) still load immediately;
+# the rest go on a nearest-first queue drained one chunk per frame. Walking a
+# seam queues only distance-3 chunks (offscreen), so travel never hitches;
+# a teleport or boot pays one bigger frame for the visible 5x5 and streams
+# the outer ring over the following frames.
+var _load_queue: Array = []
+const STREAM_NOW_R := 2
+
 func _stream_around(center: Vector2i) -> void:
 	var want := {}
 	for cy in range(center.y - LOAD_R, center.y + LOAD_R + 1):
 		for cx in range(center.x - LOAD_R, center.x + LOAD_R + 1):
 			want[Vector2i(cx, cy)] = true
 	for c in want.keys():
-		if not _loaded.has(c):
+		if _loaded.has(c):
+			continue
+		if maxi(absi(c.x - center.x), absi(c.y - center.y)) <= STREAM_NOW_R:
 			_load_chunk(c)
+		elif not _load_queue.has(c):
+			_load_queue.append(c)
+	_load_queue.sort_custom(func(a, b):
+		return (a - center).length_squared() < (b - center).length_squared())
 	# Unload with a one-chunk dead-band (keep radius > load radius): a player pacing a
 	# chunk seam would otherwise thrash the edge chunks, and re-populating a chunk resets
 	# its mobs to full HP and repositions them on every crossing.
@@ -230,6 +248,14 @@ func _stream_around(center: Vector2i) -> void:
 			drop.append(c)
 	for c in drop:
 		_unload_chunk(c)
+	_load_queue = _load_queue.filter(func(c): return keep.has(c))
+
+func _drain_stream_queue() -> void:
+	while not _load_queue.is_empty():
+		var c: Vector2i = _load_queue.pop_front()
+		if not _loaded.has(c):
+			_load_chunk(c)
+			return   # one chunk a frame is plenty -- these are offscreen
 
 func _load_chunk(c: Vector2i) -> void:
 	_loaded[c] = true
@@ -931,6 +957,7 @@ func _process(delta: float) -> void:
 	if pc != _cur_chunk:
 		_cur_chunk = pc
 		_stream_around(pc)
+	_drain_stream_queue()
 	var b := _biome_of(int(_player.global_position.y / TILE))
 	if _bg != null:
 		_bg.color = _bg.color.lerp(_biome_backdrop(b), clampf(delta * 1.5, 0.0, 1.0))
@@ -1316,6 +1343,32 @@ func _notify(text: String) -> void:
 func _build_hud_extras() -> void:
 	add_child(preload("res://hotbar_ui.gd").new())
 	add_child(preload("res://admin_panel.gd").new())
+	# THIS SCENE HAD NO WAY OUT (scan 2026-07-27). underground.tscn is two nodes
+	# and carries neither of the overlays the other two playable scenes get from
+	# their .tscn, so down here ESC did nothing at all: no pause, no window sweep
+	# (the bag/skill tree could only be closed with their own keys) and -- worst
+	# -- no Quit to Menu, i.e. no way to save and exit from the cave. Death was
+    # equally bare: player.die() looks for "../DeathScreen", found none, and fell
+	# through to a silent 5-second wait with no countdown and no death toll.
+	# (pause_menu.gd / death_screen.gd bind to children authored in main.tscn and
+	# dungeon_interior.tscn, so they cannot simply be .new()'d here -- this scene
+	# builds its own, with the same names and the same public API.)
+	_build_pause_overlay()
+	var death := preload("res://death_screen.gd").new()
+	death.name = "DeathScreen"
+	add_child(death)
+
+# A compact stand-in for the pause menu the other scenes get from their .tscn:
+# Resume, and the save-and-leave the cave had no way to reach.
+func _build_pause_overlay() -> void:
+	var cl := CanvasLayer.new()
+	cl.name = "PauseMenu"
+	cl.layer = 80
+	cl.process_mode = Node.PROCESS_MODE_ALWAYS
+	cl.visible = false
+	cl.add_to_group("pause_menu")     # DialogueBox.finish() checks this group
+	cl.set_script(preload("res://underground_pause.gd"))
+	add_child(cl)
 
 # THE CAVE THEME (dev-supplied, 2026-07-27). This world used to run in total
 # silence -- the stub below was never filled in. underground.tscn has no

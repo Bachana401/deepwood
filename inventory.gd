@@ -1539,6 +1539,16 @@ func to_save_data() -> Array:
 			data.append({"item_id": slot.item_id, "count": slot.count})
 	return data
 
+# Could one more `item_id` be banked right now? True if a stack of it already
+# exists (stacks are effectively unbounded for coins) or any slot is free.
+func can_accept(item_id: String) -> bool:
+	if get_count(item_id) > 0:
+		return true
+	for s in slots:
+		if s == null:
+			return true
+	return false
+
 func from_save_data(data: Array) -> void:
 	slots = []
 	slots.resize(capacity)

@@ -160,7 +160,10 @@ func add_repair_section(list: VBoxContainer) -> void:
 	info.add_theme_color_override("font_color", Color(0.82, 0.8, 0.72, 1))
 	info.autowrap_mode = TextServer.AUTOWRAP_WORD
 	info.custom_minimum_size = Vector2(300, 0)
-	info.text = "  The %s is being rebuilt in %d stages. Press F here (or the button below) to raise the next stage; it opens for work only when fully built." % [b.building_name, total]
+	# no "Press F" (audit fix): there is no F handler on a ruin -- building's
+	# _process bails on is_ruined() before any key branch. The button below is
+	# the one true path.
+	info.text = "  The %s is being rebuilt in %d stages. Use the button below to raise the next stage; it opens for work only when fully built." % [b.building_name, total]
 	list.add_child(info)
 
 	var cost = Label.new()

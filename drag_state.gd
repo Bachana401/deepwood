@@ -214,6 +214,12 @@ func pick_one_more() -> void:
 	var slot = split_source_inventory.slots[split_source_index]
 	if slot == null or slot.count <= 0:
 		return
+	# the source slot can CHANGE ITEMS under a held split (audit fix): drain a
+	# stack to empty, an auto-pickup drops something rare into the freed slot,
+	# and the next right-click was draining THAT as if it were the held item --
+	# counted into the split, deposited under the wrong id
+	if str(slot.item_id) != str(split_item_id):
+		return
 	slot.count -= 1
 	split_count += 1
 	if slot.count <= 0:

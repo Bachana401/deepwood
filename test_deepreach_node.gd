@@ -27,6 +27,11 @@ func _ready() -> void:
 		await get_tree().process_frame
 	var ud = get_tree().current_scene.get_node_or_null("Underdark")
 	if ud == null: printerr("no Underdark"); get_tree().quit(1); return
+	# the legacy strip is built on demand now (scan 2026-07-27) -- raise it so
+	# its REAL collision exists for the flood-fill below
+	ud.build_legacy_strip()
+	for i in range(4):
+		await get_tree().physics_frame
 
 	# --- every standable surface (top edge of a horizontal collision box) ---
 	var surfaces: Array = _collect_surfaces(ud)

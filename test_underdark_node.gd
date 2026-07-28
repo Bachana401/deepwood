@@ -41,6 +41,12 @@ func _ready() -> void:
 	check("the Underdark is built into the village scene", ud != null)
 	if ud == null:
 		printerr("RESULT: %d FAILURES" % maxi(fails, 1)); get_tree().quit(1); return
+	# the legacy strip is no longer built on village load (scan 2026-07-27: dead
+	# world, thousands of nodes). Its layout contracts still hold and are proven
+	# here -- the suite raises it on demand.
+	ud.build_legacy_strip()
+	for i in range(4):
+		await get_tree().physics_frame
 
 	# ---- 1. the cave is the ONLY way down ----
 	check("the old surface dungeon door is retired",

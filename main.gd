@@ -231,6 +231,7 @@ const MUSIC_FADE := 1.2                # seconds of cross-fade either way
 var _music_healthy := false
 var _music_check_cd := 0.0
 var _music_fade_tween: Tween = null
+var _music_base_db := 0.0              # the scene-authored MusicPlayer volume
 
 func _ready() -> void:
 	# LOAD FIRST, BUILD SECOND. On a fresh process launch, Continue swaps to this
@@ -326,12 +327,15 @@ func _ready() -> void:
 	orin_midgame_taunt()
 	# (settle_shadow_court moved up: it must run before the avatar spawn pass)
 	stamp_rewound_arrival()
-	# coming home is the other milestone worth banking (autosave); deferred
-	# so the arriving player's state is fully restored before it's written
-	call_deferred("_autosave_on_arrival")
 	# THE NEW FINALE: if the deep stood silent and everyone is home, the
 	# false victory is waiting to be spoken -- and Orin is waiting for it
 	call_deferred("_maybe_begin_feast")
+	# coming home is the other milestone worth banking (autosave); deferred
+	# AND queued AFTER the feast check on purpose (audit fix): deferred calls
+	# run FIFO and _maybe_begin_feast is what restores pre_dungeon_position --
+	# queued the other way round, every homecoming banked the pit-road spawn
+	# instead of where the player actually stands
+	call_deferred("_autosave_on_arrival")
 
 func _maybe_begin_feast() -> void:
 	if GameState.feast_ready():
@@ -666,6 +670,9 @@ func _on_village_child_born(child_id: String) -> void:
 # the wave dies, and the trio explains the trap that makes the whole game
 # happen HERE (Story.ARRIVAL_TRAP). Once per world, saved.
 var _arrival_left := 0
+# has the approach cutscene already been handed to the player IN THIS SCENE?
+# Transient on purpose: a reload re-arms the approach, a lapsed shield does not.
+var _arrival_scene_played := false
 
 # THE ROAD IS WALKED ALONE (dev 2026-07-21). The teaching fight used to be
 # staged 800px from where the player wakes, so he was never by himself for a
@@ -688,7 +695,13 @@ func _check_arrival_trigger() -> void:
 	# Re-arm whenever the prologue is done and the battle has neither happened
 	# (seen_arrival_battle) nor is currently running (arrival_battle_active) --
 	# the two guards that keep this from re-spawning the wave mid-fight or after.
-	if not _arrival_armed and GameState.seen_intro \
+	# ...but ONCE PER SCENE. The shield behind arrival_battle_active expires after
+	# 150s, and once it lapsed this re-armed mid-fight: a new player still
+	# swinging at the four raiders got the whole HEROES_BANTER cutscene shoved
+	# back in their face (pausing the world), and again every ~150s until the
+	# wave died. _arrival_scene_played is transient, so the reload path (a save
+	# taken between the prologue and the wall) still re-arms exactly as before.
+	if not _arrival_armed and not _arrival_scene_played and GameState.seen_intro \
 			and not GameState.seen_arrival_battle \
 			and not GameState.arrival_battle_active and not GameState.dev_mode:
 		_arrival_armed = true
@@ -776,6 +789,7 @@ func stage_arrival_battle(wall_x: float = -1.0) -> void:
 func trigger_arrival_scene(wall_x: float = -1.0) -> void:
 	if GameState.seen_arrival_battle or GameState.dev_mode:
 		return
+	_arrival_scene_played = true   # the cue is spent: never replay it mid-fight
 	if not _arrival_staged:
 		stage_arrival_battle(wall_x)   # belt-and-suspenders (e.g. an odd reload)
 	# BEAT 2-3 (dev's opening): the player crested the road and SEES the trio
@@ -1241,7 +1255,10 @@ func start_music() -> void:
 	_music_healthy = _village_is_healthy()
 	$MusicPlayer.stream = healthy_music if _music_healthy else music
 	$MusicPlayer.bus = "Music"   # so the Music volume slider controls it
-	$MusicPlayer.volume_db = 0.0
+	# the scene's authored volume is the baseline (audit fix: this used to
+	# hard-code 0.0 over a stale -10 in the .tscn -- the two now agree, and a
+	# designer tuning the scene changes what actually plays)
+	_music_base_db = $MusicPlayer.volume_db
 	$MusicPlayer.play()
 
 # Is the town well enough to have earned the better theme? Hysteresis: once the
@@ -1274,8 +1291,13 @@ func _tick_music(delta: float) -> void:
 	_music_fade_tween.tween_callback(func():
 		mp.stream = next
 		mp.play())
-	_music_fade_tween.tween_property(mp, "volume_db", 0.0, MUSIC_FADE * 0.5)
-	if want:
+	_music_fade_tween.tween_property(mp, "volume_db", _music_base_db, MUSIC_FADE * 0.5)
+	# the MILESTONE is said once per run (audit fix: the theme itself may swap
+	# on every crossing of the hysteresis band -- that's the music doing its
+	# job -- but a diary that logs "the town found its song" on every wobble
+	# around the line turns a milestone into noise)
+	if want and not GameState.healthy_theme_celebrated:
+		GameState.healthy_theme_celebrated = true
 		GameState.notify("🎵 Deepwood sounds like a village again.")
 		GameState.log_event("village", "The town found its song again — Deepwood is healthy.")
 

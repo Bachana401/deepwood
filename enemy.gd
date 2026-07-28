@@ -156,6 +156,11 @@ var status_freeze_until := 0.0
 var status_slow_until := 0.0
 var status_slow_factor := 1.0
 var status_slow_deep_until := 0.0   # when the CURRENT factor's own duration ends
+# the longest-lived LIGHTER slow, waiting behind the deep one (audit fix: the
+# deep window was tracked but never CONSULTED, so a 1s hard slow rode a light
+# aura's 5s window at full depth; when the deep expiry passes, speed relaxes
+# to this factor for the rest of the shared window)
+var status_slow_light_factor := 1.0
 # PETRIFY (Gorgon's Gaze relic, WEAPONS.md §6): turned to stone -- can't act like
 # a freeze, but ALSO takes bonus damage while stoned. Its own timer + grey overlay.
 var status_petrify_until := 0.0
@@ -180,7 +185,12 @@ func move_speed() -> float:
 	return SPEED * speed_variance * wave_speed_multiplier * status_slow_mult()
 
 func status_slow_mult() -> float:
-	return status_slow_factor if _now_s() < status_slow_until else 1.0
+	var now := _now_s()
+	if now >= status_slow_until:
+		return 1.0
+	if now >= status_slow_deep_until:
+		return status_slow_light_factor   # the hard slow's own time is up
+	return status_slow_factor
 
 func is_frozen() -> bool:
 	return _now_s() < status_freeze_until
@@ -207,12 +217,22 @@ func apply_status(kind: String, duration: float, magnitude: float = 0.0) -> void
 			# factor pinned forever -- a stated 3s hard-slow became permanent
 			# for as long as the player stood near.
 			var mag_in: float = magnitude if magnitude > 0.0 else 0.5
-			if _now_s() >= status_slow_until or _now_s() >= status_slow_deep_until:
-				status_slow_factor = 1.0           # the strong slow's own time is up
+			var slow_now := _now_s()
+			if slow_now >= status_slow_until:
+				status_slow_factor = 1.0
+				status_slow_light_factor = 1.0     # everything lapsed
+			elif slow_now >= status_slow_deep_until:
+				status_slow_factor = status_slow_light_factor   # the deep slow's own time is up
 			status_slow_until = max(status_slow_until, until)
 			if mag_in <= status_slow_factor:
+				# new deepest; the slow it displaces (if still running) waits
+				# behind it as the light channel
+				if slow_now < status_slow_deep_until and status_slow_factor < status_slow_light_factor:
+					status_slow_light_factor = status_slow_factor
 				status_slow_factor = mag_in
 				status_slow_deep_until = until
+			elif mag_in <= status_slow_light_factor:
+				status_slow_light_factor = mag_in
 		"petrify":
 			status_petrify_until = max(status_petrify_until, until)
 	_refresh_status_overlay()
@@ -239,6 +259,7 @@ func tick_statuses(delta: float) -> void:
 				return
 	if now >= status_slow_until:
 		status_slow_factor = 1.0
+		status_slow_light_factor = 1.0
 	_refresh_status_overlay()
 
 # A translucent tint over the body showing the strongest active status.

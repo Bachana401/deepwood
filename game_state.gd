@@ -643,7 +643,11 @@ func capture_player_state(player: Node) -> Dictionary:
 	# potion already spent. The deadlines ride the process clock
 	# (ticks_msec), which keeps running across an in-session scene change.
 	for f in ["phoenix_ready_at", "aegis_ready_at", "gorgon_ready_at",
-			"monarch_long_dark_ready_at", "undying_used", "rampage_stacks"]:
+			"monarch_long_dark_ready_at", "undying_used", "rampage_stacks",
+			"rampage_until"]:
+		# rampage_until rides with rampage_stacks or the carry is a no-op: the
+		# fresh player's deadline is 0.0, so the first read zeroed the restored
+		# stacks before they ever added anything
 		if f in player:
 			st[f] = player.get(f)
 	if "active_buffs" in player:
@@ -781,6 +785,7 @@ var income_timer = 0.0
 const TAX_PER_EMPLOYED := 0.06         # ~1.8 gold per worker per day
 const BARKEEP_TRICKLE := 0.08          # ~2.4 gold per staffed Barkeep per day
 const WAGE_PER_WORKER_PER_DAY := 1.5   # 5.5: staff draw a daily wage from the purse
+const WAGE_MAX_QUITS_PER_DAY := 2      # a dry purse bleeds staff, never wipes them in one tick
 const BANK_PAYROLL_DISCOUNT := 0.85    # a staffed Bank runs payroll leaner
 const PARTY_MEMBER_INCOME = 0.15       # per tick -- ~4.5/day per Party member
 # A villager whose personal bond (VillagerQuests) is complete works with unlocked
@@ -1215,11 +1220,14 @@ func can_place_building(tree: SceneTree, bwidth: float, x: float, exclude: Node 
 	for other in tree.get_nodes_in_group("building"):
 		if other == exclude or not ("width" in other):
 			continue
-		# clearance uses the EFFECTIVE width: footprints grow with upgrades (up
-		# to x1.4 at level 6) while `width` stays the base, so two green-lit
-		# placements could end up permanently drawn inside each other once
-		# levelled -- the exact overlap the auto-layout reserves x1.4 to prevent
-		var other_half: float = (other.eff_w() if other.has_method("eff_w") else float(other.width)) / 2.0
+		# clearance uses the MAX-UPGRADE width, not the current level's: eff_w()
+		# at level 1 is just the base again, so two halls green-lit at the
+		# minimum gap still ended up drawn inside each other at level 6 (each
+		# grows x1.4 and try_upgrade performs no clearance check of its own).
+		# max_upgrade_width() is what the auto-layout reserves for the same
+		# reason -- promise the room a building will EVER need, up front.
+		var other_half: float = (other.max_upgrade_width() if other.has_method("max_upgrade_width") \
+			else (other.eff_w() if other.has_method("eff_w") else float(other.width))) / 2.0
 		if absf(x - other.global_position.x) < my_half + other_half + RELOCATE_CLEARANCE:
 			return false
 	# ...and (for HALLS/COTTAGES, not walls) don't bury a cottage / watchtower /
@@ -3501,14 +3509,23 @@ func tick_wages(hours_passed: float) -> void:
 	var unpaid: int = staff.size() - affordable
 	if unpaid > 0:
 		staff.shuffle()
+		# a dry purse BLEEDS staff, it doesn't vaporise them: everyone unpaid
+		# is angry (morale), but only a couple actually walk out per payday --
+		# one bad day used to fire the entire town in a single tick, which
+		# reads as a bug, not a consequence, and left nothing to recover with
+		var quits: int = mini(unpaid, WAGE_MAX_QUITS_PER_DAY)
 		for i in range(unpaid):
 			var v: Dictionary = staff[i]
-			log_event("economy", "%s quit their post — the purse could not pay them." % str(v.get("name", "?")))
-			v["role_key"] = ""
-			v["role_title"] = ""
 			v["morale"] = clampf(get_personal_morale(v) - 1.5, 0.0, 10.0)
+			if i < quits:
+				log_event("economy", "%s quit their post — the purse could not pay them." % str(v.get("name", "?")))
+				v["role_key"] = ""
+				v["role_title"] = ""
 		play_sfx(SFX_NO, 0.8)
-		notify("%d worker%s quit unpaid — the treasury ran dry." % [unpaid, "" if unpaid == 1 else "s"])
+		if unpaid > quits:
+			notify("%d worker%s quit unpaid — %d more stay on, unpaid and fuming." % [quits, "" if quits == 1 else "s", unpaid - quits])
+		else:
+			notify("%d worker%s quit unpaid — the treasury ran dry." % [quits, "" if quits == 1 else "s"])
 
 func count_leader_holders(role_key: String, title: String) -> int:
 	var count = 0
@@ -3739,14 +3756,23 @@ func auto_enroll_children(principals: int) -> void:
 			cap = role_capacity("School", rd)
 			break
 	var budget = AUTO_ENROLL_PER_PRINCIPAL * principals
+	# count only the SCHOOL's own trainees against the Student cap:
+	# school_enrollments is shared with the Barracks (each entry tagged by
+	# role_key), so a busy drill yard used to eat the School's seats and the
+	# Principal stopped enrolling kids entirely
+	var students := 0
+	for e in school_enrollments.values():
+		if str(e.get("role_key", "School")) == "School":
+			students += 1
 	for v in rescued_villagers:
 		if budget <= 0:
 			return
-		if cap > 0 and school_enrollments.size() >= cap:
+		if cap > 0 and students >= cap:
 			return
 		if v.get("is_kid", false) and str(v.get("role_key", "")) == "" and not school_enrollments.has(v.get("id")):
 			enroll_villager(str(v.get("id")), "School", "Student", "random")
 			budget -= 1
+			students += 1
 
 # Builderhouse: advance the single most-ruined building one construction stage
 # each tick, for free -- the crew slowly rebuilds Deepwood on its own.
@@ -4026,12 +4052,13 @@ func settle_shadow_court() -> void:
 	# the old order (won, quit during the six lines, no relic) would stay locked
 	# out of NG+ forever. Same guard as the grant itself, player-inventory
 	# permitting (this runs from main._ready, after the save is applied).
-	if despair_dead and not cycle_broken:
+	if despair_dead and not cycle_broken and not rewound_hour_granted:
 		var tree := Engine.get_main_loop() as SceneTree
 		var p = tree.get_first_node_in_group("player") if tree else null
 		if p and "inventory" in p and p.inventory \
 				and p.inventory.get_count("relic_rewound_hour") == 0:
 			p.inventory.add_item("relic_rewound_hour", 1)
+			rewound_hour_granted = true
 
 # --- NG+ (GAME_BIBLE 11): THE REWOUND HOUR ---
 # Among the victory spoils is time-reversal loot: the world rewinds for a new
@@ -4043,6 +4070,16 @@ var just_rewound := false      # transient: stamps one arrival line, never saved
 # turning it, the cycle is over for good on this save -- no rewind, and no new
 # hourglass is ever granted again. Persisted; a fresh New Game clears it.
 var cycle_broken := false
+# The "Deepwood sounds like a village again" milestone (healthy music theme) is
+# announced once per run -- the theme may come and go with morale, the diary
+# line must not (audit fix). Persisted; a New Game re-earns it.
+var healthy_theme_celebrated := false
+# One hourglass per WORLD, not per "inventory happens to be empty": every grant
+# site used to re-check get_count() == 0, so banking the relic in a chest and
+# re-entering the village farmed a fresh mythic each visit (sell fodder).
+# Persisted; a New Game clears it and the rewind's state turn re-arms it for
+# the next world's victory.
+var rewound_hour_granted := false
 
 # the Player node's position in main.tscn -- the rewound player wakes where
 # every first arrival begins
@@ -4556,6 +4593,8 @@ func reset_for_new_game() -> void:
 	_gold_accum = 0.0
 	ng_plus_cycles = 0
 	cycle_broken = false
+	rewound_hour_granted = false
+	healthy_theme_celebrated = false
 	seen_chronicle_100 = false
 	maera_stabilized_this_siege = false
 	_deep_catch_accum = 0.0
@@ -4635,6 +4674,8 @@ func save_game(player: Node) -> void:
 		"despair_dead": despair_dead,
 		"ng_plus_cycles": ng_plus_cycles,
 		"cycle_broken": cycle_broken,
+		"rewound_hour_granted": rewound_hour_granted,
+		"healthy_theme_celebrated": healthy_theme_celebrated,
 		"seen_chronicle_100": seen_chronicle_100,
 		"harvested_villagers": harvested_villagers,
 		"seen_orin_arrival": seen_orin_arrival,
@@ -4666,6 +4707,13 @@ func save_game(player: Node) -> void:
 		# silently discard progress toward the next cottage birth / price decay.
 		"family_cycle_accum": _family_cycle_accum,
 		"doctor_decay_accum": _doctor_decay_accum,
+		# ...and the other daily/interval clocks for the same reason: the mine's
+		# ore day, the Dock's deep catch and the Government tribute all sat at
+		# 23.9h and restarted from zero on every Continue
+		"mine_accum": _mine_accum,
+		"mine_cycles": _mine_cycles,   # ember parity: every SECOND cycle pays
+		"deep_catch_accum": _deep_catch_accum,
+		"tribute_timer": tribute_timer,
 		"villager_rot": villager_rot,
 		"wanderer": wanderer,
 		"wanderer_next_at_hours": wanderer_next_at_hours,
@@ -4749,6 +4797,8 @@ func load_game() -> Dictionary:
 		despair_dead = bool(parsed.get("despair_dead", false))
 		ng_plus_cycles = int(parsed.get("ng_plus_cycles", 0))
 		cycle_broken = bool(parsed.get("cycle_broken", false))
+		rewound_hour_granted = bool(parsed.get("rewound_hour_granted", false))
+		healthy_theme_celebrated = bool(parsed.get("healthy_theme_celebrated", false))
 		seen_chronicle_100 = bool(parsed.get("seen_chronicle_100", false))
 		harvested_villagers = parsed.get("harvested_villagers", [])
 		seen_orin_arrival = bool(parsed.get("seen_orin_arrival", false))
@@ -4816,6 +4866,10 @@ func load_game() -> Dictionary:
 		wage_accum_hours = float(parsed.get("wage_accum_hours", 0.0))
 		_family_cycle_accum = float(parsed.get("family_cycle_accum", 0.0))
 		_doctor_decay_accum = float(parsed.get("doctor_decay_accum", 0.0))
+		_mine_accum = float(parsed.get("mine_accum", 0.0))
+		_mine_cycles = int(parsed.get("mine_cycles", 0))
+		_deep_catch_accum = float(parsed.get("deep_catch_accum", 0.0))
+		tribute_timer = float(parsed.get("tribute_timer", 0.0))
 		harvest_seed = int(parsed.get("harvest_seed", 0))   # 0 = old save: rolled fresh on build
 		harvest_states = parsed.get("harvest_states", {}) if parsed.get("harvest_states", {}) is Dictionary else {}
 		wall_hp = parsed.get("wall_hp", {}) if parsed.get("wall_hp", {}) is Dictionary else {}
@@ -4836,6 +4890,11 @@ func load_game() -> Dictionary:
 		# from before it existed, so building homes from the menu always works
 		if not ("Cottage" in blueprints):
 			blueprints.append("Cottage")
+		# same grandfather for the Wall: it's a BLUEPRINT_STARTERS special like
+		# the Cottage but the legacy fallback (STARTING_BUILDINGS) predates it,
+		# so an old save could never raise its rampart again after a delete
+		if not ("Wall" in blueprints):
+			blueprints.append("Wall")
 		building_positions = {}
 		if parsed.has("building_positions") and parsed["building_positions"] is Dictionary:
 			for k in parsed["building_positions"].keys():
@@ -4883,6 +4942,15 @@ func load_game() -> Dictionary:
 		monarch_true_form_forced = false
 		_warned_no_food = false
 		_warned_low_morale = false
+		# the remaining unsaved per-run clocks and latches, cleared for the same
+		# reason: whatever the PREVIOUS session left in the autoload is not this
+		# save's state. _peril_band leaking at a worse band swallowed the loaded
+		# village's "only N souls remain" dread; a disarmed tower bell cost the
+		# first siege its warning toll; the income fractions are just noise.
+		income_timer = 0.0
+		_gold_accum = 0.0
+		_peril_band = -1
+		_tower_bell_armed = true
 		# start the village-clock baseline at the loaded time so the first
 		# tick after loading doesn't see a giant false "hours passed".
 		village_last_hours_elapsed = game_hours

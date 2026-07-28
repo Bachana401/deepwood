@@ -50,6 +50,24 @@ func _ready() -> void:
 		_ground_y = m.VILLAGE_Y
 	if m != null and "village_right_edge" in m:
 		_east_x = float(m.village_right_edge) + 300.0
+	# BOTH edges are derived from the town as it actually stands (audit fix:
+	# _west_x was a 4400.0 guess that was never re-derived, so on a built-out
+	# village half the horde popped in ~330px from the player mid-screen while
+	# the other half marched from ~13,800px out and clogged the live cap).
+	# Halls AND cottages count -- the fight is staged over the whole town.
+	var span_lo := 1.0e9
+	var span_hi := -1.0e9
+	for grp in ["building", "village_structure"]:
+		for b in get_tree().get_nodes_in_group(grp):
+			# surface only: "village_structure" has outgrown the village (the
+			# deep's chests are in it too) -- anything far below ground is not
+			# a street this fight can be staged on
+			if b is Node2D and absf(b.global_position.y - _ground_y) < 400.0:
+				span_lo = minf(span_lo, b.global_position.x)
+				span_hi = maxf(span_hi, b.global_position.x)
+	if span_lo < 1.0e8:
+		_west_x = span_lo - 300.0
+		_east_x = maxf(_east_x, span_hi + 300.0)
 	# claim the flag only once a PLAYER exists to run the beat (audit fix): the
 	# bailouts below queue_free() this director, and a flag set before them
 	# stayed stuck for the session -- sieges off, the deep sealed, and the
@@ -356,8 +374,10 @@ func _victory() -> void:
 	# six lines play used to skip the callback and lock NG+ / the true ending out
 	# of that save forever (settle_shadow_court never granted it). The autosave on
 	# the next arrival banks it.
-	if p and "inventory" in p and p.inventory and p.inventory.get_count("relic_rewound_hour") == 0 and not GameState.cycle_broken:
+	if p and "inventory" in p and p.inventory and p.inventory.get_count("relic_rewound_hour") == 0 and not GameState.cycle_broken \
+			and not GameState.rewound_hour_granted:
 		p.inventory.add_item("relic_rewound_hour", 1)
+		GameState.rewound_hour_granted = true
 		_notify("Among the spoils: ⌛ THE REWOUND HOUR. The world can be made to start again — and you would be immune.")
 	DialogueBox.play(p, Story.ENDING, func():
 		GameState.raise_shadow_army()

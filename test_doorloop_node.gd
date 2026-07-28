@@ -36,6 +36,9 @@ func _find_door(target: int) -> Node:
 	var ud = get_tree().current_scene.get_node_or_null("Underdark")
 	if ud == null:
 		return null
+	# the legacy strip (and its doors) is built on demand now (scan 2026-07-27);
+	# idempotent, and main.tscn is re-entered after every floor, so ensure it here
+	ud.build_legacy_strip()
 	for c in ud.get_children():
 		if c.get_script() != null and str(c.get_script().resource_path).ends_with("underdark_door.gd") \
 				and c.target_level == target:

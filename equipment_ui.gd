@@ -330,27 +330,36 @@ func open_picker_for_slot(slot_key: String, relic_index: int) -> void:
 	picker.add_child(header)
 
 	var eligible = _eligible_items(slot_key)
-	var y = 32.0
 	if eligible.is_empty():
 		var none_label = Label.new()
-		none_label.position = Vector2(8, y)
+		none_label.position = Vector2(8, 32)
 		none_label.size = Vector2(264, 20)
 		none_label.add_theme_font_size_override("font_size", 11)
 		none_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6, 1))
 		none_label.text = "(no matching items in inventory)"
 		picker.add_child(none_label)
+	# the list SCROLLS (audit fix): buttons used to stack straight down a fixed
+	# 300px panel -- from the 8th eligible item they collided with Cancel, and
+	# past the 9th they rendered outside the panel where they could never be
+	# clicked. Ten helmets is routine loot after a few dungeon runs.
+	var scroll = ScrollContainer.new()
+	scroll.position = Vector2(8, 32)
+	scroll.size = Vector2(272, 192)   # stops above Cancel (y=232)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	picker.add_child(scroll)
+	var rows = VBoxContainer.new()
+	rows.add_theme_constant_override("separation", 4)
+	scroll.add_child(rows)
 	for item_id in eligible:
 		var b = Button.new()
-		b.position = Vector2(8, y)
-		b.size = Vector2(264, 26)
+		b.custom_minimum_size = Vector2(258, 26)
 		b.add_theme_font_size_override("font_size", 11)
 		b.clip_text = true
 		var desc = Inventory.get_display_name(item_id) + _effect_summary(item_id)
 		b.text = desc
 		b.focus_mode = Control.FOCUS_NONE
 		b.pressed.connect(_on_pick_item.bind(item_id, relic_index))
-		picker.add_child(b)
-		y += 30.0
+		rows.add_child(b)
 
 	var close = Button.new()
 	close.position = Vector2(8, 232)

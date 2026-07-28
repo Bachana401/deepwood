@@ -974,15 +974,19 @@ func gen_hollow_choir(w: float, h: float) -> Array:
 		x += 1500.0
 	# access stacks, kept OUT of the central floor band on purpose: low ledges
 	# there would hide the very feet you are trying to look at.
-	# ≤90px risers all the way to the first gallery tier (audit fix): the old
-	# two-step stack (-155/-295) wasn't even self-climbable with the 92px jump,
-	# so the galleries -- this arena's stated mechanic -- were levitation-only.
+	# ~80px risers all the way to the first gallery tier (audit fix, twice: the
+	# old two-step stack (-155/-295) wasn't self-climbable at all, and the first
+	# re-step (-120/-210/...) forgot `y` is the platform's CENTRE -- its standing
+	# surfaces sat 10px lower, making every riser 90-91px against the 88.89px
+	# closed-form jump: it only cleared on 60Hz integration overshoot. Surfaces
+	# are y-10, so these rise 81/80/80/80 with a real margin, and the top rung
+	# (surface -360) still puts the -430 gallery (surface -440) one 80px hop up.
 	for sx in [560.0, w * 0.18, w * 0.82, w - 560.0]:
 		if absf(sx - c) > w * 0.3:
-			plats.append({"x": sx, "y": -120.0, "w": 210.0})
-			plats.append({"x": sx, "y": -210.0, "w": 175.0})
-			plats.append({"x": sx, "y": -300.0, "w": 160.0})
-			plats.append({"x": sx, "y": -390.0, "w": 150.0})
+			plats.append({"x": sx, "y": -110.0, "w": 210.0})
+			plats.append({"x": sx, "y": -190.0, "w": 175.0})
+			plats.append({"x": sx, "y": -270.0, "w": 160.0})
+			plats.append({"x": sx, "y": -350.0, "w": 150.0})
 	return add_sky_tier(plats, w, h)
 
 # Ashen Penitent -- riposte + famine. It stands still at the bottom of a narrow
@@ -1007,10 +1011,23 @@ func gen_ashen_penitent(w: float, h: float) -> Array:
 		y -= 165.0
 		i += 1
 	# the prayer dais: a low lip around it, the one bit of ground worth
-	# contesting -- at -120 it is actually JUMPABLE from the floor (audit fix:
-	# -140 was past the 92px jump, so the "mana-safe ground" cost mana to reach)
-	plats.append({"x": c - 330.0, "y": -120.0, "w": 200.0})
-	plats.append({"x": c + 330.0, "y": -120.0, "w": 200.0})
+	# contesting -- at -110 it is actually JUMPABLE from the floor (audit fix,
+	# twice: -140 was past the jump outright, and -120 still left the STANDING
+	# SURFACE at -130, a 91px rise against the 88.89px closed-form jump)
+	plats.append({"x": c - 330.0, "y": -110.0, "w": 200.0})
+	plats.append({"x": c + 330.0, "y": -110.0, "w": 200.0})
+	# ...and from the dais, stepping stones out to the FIRST ring (audit fix:
+	# the ring-ledges are this arena's stated free ground, but the lowest ring
+	# (surface -200) was a 161px levitation from the floor -- the "mana-safe"
+	# terrain was unreachable on foot). Each stone is a sub-50px hop on from
+	# the last, and the final one lands within a hop of the ring itself.
+	var ring_x := c + (w * 0.28)   # the i=0 ring is on the + side
+	var sx2 := c + 330.0 + 190.0
+	var sy2 := -155.0
+	while sx2 < ring_x - 200.0:
+		plats.append({"x": sx2, "y": sy2, "w": 170.0})
+		sx2 += 220.0
+		sy2 = maxf(sy2 - 25.0, -180.0)
 	return plats
 
 # Gaoler -- tether + stagger_armour. THE cover arena. The tether is a line of
@@ -1027,9 +1044,17 @@ func gen_gaoler(w: float, h: float) -> Array:
 		# alternating pillar heights so the cover reads as a warren, not a fence
 		plats.append(pillar(x, 76.0, 88.0 if i % 2 == 0 else 72.0))
 		# a ledge slung between every other pair: high ground that does NOT
-		# break sight, so taking it is a real trade against the chain
+		# break sight, so taking it is a real trade against the chain -- and a
+		# trade must be TAKEABLE (audit fix: at -380 the ledge hung 351px over
+		# the floor and 263px over the posts, pure scenery even with the double
+		# jump). A rung ladder now climbs from the taller post beside it: 80px
+		# rises off the post's top (surface -127), each rung overlapping the
+		# last, the ledge itself one short hop off the top rung.
 		if i % 2 == 1:
 			plats.append({"x": x - 190.0, "y": -380.0, "w": 240.0})
+			plats.append({"x": x - 320.0, "y": -197.0, "w": 140.0})
+			plats.append({"x": x - 230.0, "y": -277.0, "w": 140.0})
+			plats.append({"x": x - 320.0, "y": -357.0, "w": 140.0})
 		x += 380.0        # < TETHER_RANGE: cover is always within the leash
 		i += 1
 	return plats
@@ -1152,10 +1177,17 @@ func gen_warden_of_nails(w: float, h: float) -> Array:
 		x += 400.0
 		i += 1
 	# a handful of low ledges ONLY -- under this ceiling they are a trap, not an
-	# escape, which is the joke: the room offers you height and height is death
+	# escape, which is the joke: the room offers you height and height is death.
+	# For the joke to land the bait must be TAKEABLE (audit fix: at -330 the
+	# ledge hung 301px over the floor, unreachable even with the double jump --
+	# a trap nobody could fall for). Two rungs now climb it from the posts
+	# beside it: <=80px rises off a post top (worst case the short -99 post),
+	# then an 81px hop onto the ledge. Skyfall gets its victims back.
 	x = 860.0
 	while x < w - 860.0:
 		plats.append({"x": x, "y": -330.0, "w": 200.0})
+		plats.append({"x": x + 110.0, "y": -169.0, "w": 130.0})
+		plats.append({"x": x + 20.0, "y": -249.0, "w": 130.0})
 		x += 1400.0
 	# NO sky tier: the ceiling is the mechanic. Do not give it back.
 	return plats
@@ -1275,13 +1307,14 @@ func gen_seraph(w: float, h: float) -> Array:
 	var x := 700.0
 	var i := 0
 	while x < w - 700.0:
-		# column: a climbable three-step tower. ≤90px risers (audit fix): the
-		# old 150px steps broke this arena's own promise ("towers you can climb
-		# even without relics") -- floor->-150 was already past the 92px jump,
-		# so without double jump the whole climb was levitation-only.
-		plats.append({"x": x, "y": -120.0, "w": 190.0})
-		plats.append({"x": x + 60.0, "y": -210.0, "w": 150.0})
-		plats.append({"x": x - 60.0, "y": -300.0, "w": 150.0})
+		# column: a climbable three-step tower (audit fix, twice: the old 150px
+		# steps broke "towers you can climb even without relics", and the -120
+		# re-step forgot `y` is the CENTRE -- surfaces sat at y-10, so the
+		# risers were really 90-91px against the 88.89px closed-form jump).
+		# These rise 81/80/80 surface-to-surface, with a real margin.
+		plats.append({"x": x, "y": -110.0, "w": 190.0})
+		plats.append({"x": x + 60.0, "y": -190.0, "w": 150.0})
+		plats.append({"x": x - 60.0, "y": -270.0, "w": 150.0})
 		# isles drifting between the column tops, alternating heights
 		if i % 2 == 0:
 			plats.append({"x": x + 560.0, "y": -620.0, "w": 130.0})
@@ -1416,7 +1449,9 @@ func _dgn_cache(level: int, idx: int, plat: Dictionary, rng: RandomNumberGenerat
 	c.chest_id = "dgn_%d_%d_%d" % [level, idx, int(plat.x)]   # unique per floor + slot
 	c.add_to_group("floor_surprise")
 	add_child(c)                       # ROOT child, so chest.gd's ../ChestUI resolves
-	c.global_position = Vector2(float(plat.x), float(plat.y) - 22.0)
+	# plat.y is the platform's CENTRE; its standing surface is 10px higher.
+	# -10, not -22 (audit fix): the chest hovered 12px off the ledge.
+	c.global_position = Vector2(float(plat.x), float(plat.y) - PLATFORM_HEIGHT * 0.5)
 	if not GameState.chest_contents.has(c.chest_id):
 		var table := ["potion_health", "potion_mana", "iron_shard", "ember_crystal", "coin_gold", "herb", "resin"]
 		if level <= 30:
@@ -1835,7 +1870,10 @@ func place_mines(boss: bool, layout: Array) -> void:
 		# dev call 2026-07-21: mines halved world-wide (was 0.5 per platform)
 		if randf() < 0.25:
 			var x = plat.x + randf_range(-plat.w * 0.3, plat.w * 0.3)
-			place_mine(Vector2(x, plat.y))
+			# a ledge's y is its CENTRE too -- ground mines pass GROUND_Y (a
+			# standing surface), so platform mines pass the surface as well
+			# (audit fix: they sat sunk 10px into the ledge)
+			place_mine(Vector2(x, plat.y - PLATFORM_HEIGHT * 0.5))
 
 # CREATIVE HAZARDS beyond the mine (dev 2026-07-21: "no creative traps"). A themed
 # couple per non-boss floor, seeded so a floor is the same each visit. Spikes and
@@ -1952,6 +1990,11 @@ func spawn_level_combat() -> void:
 		level_in_progress = false
 		level_cleared = true
 		GameState.seen_empty_throne = true
+		# floor 100 counts as CLEARED like every other floor: the empty throne
+		# skips the kill-them-all path where mark_floor_cleared normally fires,
+		# so the ledgers derived from floors_cleared (deep_truly_empty's sweep
+		# count, the Waystone's shrine reveal) never saw the deepest floor
+		GameState.mark_floor_cleared(current_level)
 		update_level_label()
 		var label = get_node_or_null("CanvasLayer/LevelLabel")
 		if label:
@@ -2033,8 +2076,10 @@ func play_final_victory() -> void:
 		# NG+ (11): the time-reversal spoil. Re-granted on a later victory only
 		# if the last one was spent -- one hourglass per world.
 		var p = get_tree().get_first_node_in_group("player")
-		if p and "inventory" in p and p.inventory and p.inventory.get_count("relic_rewound_hour") == 0 and not GameState.cycle_broken:
+		if p and "inventory" in p and p.inventory and p.inventory.get_count("relic_rewound_hour") == 0 and not GameState.cycle_broken \
+				and not GameState.rewound_hour_granted:
 			p.inventory.add_item("relic_rewound_hour", 1)
+			GameState.rewound_hour_granted = true
 			show_notification("Among the spoils: ⌛ THE REWOUND HOUR. The world can be made to start again — and you would be immune.")
 		show_notification("Deepwood stands. The Shadow Monarch has returned — a new class awaits your next journey."))
 

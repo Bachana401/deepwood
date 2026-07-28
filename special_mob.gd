@@ -196,6 +196,10 @@ var status_poison_dps := 0.0
 var status_slow_until := 0.0
 var status_slow_factor := 1.0
 var status_slow_deep_until := 0.0   # when the CURRENT factor's own duration ends
+# the longest-lived LIGHTER slow waiting behind the deep one -- same contract
+# as enemy.gd (audit fix: the deep window was tracked but never consulted, so
+# a 1s hard slow rode a light aura's whole window at full depth)
+var status_slow_light_factor := 1.0
 var _dot_accum := 0.0
 
 # PETRIFY (Gorgon's Gaze): turned to stone -- rooted, and brittle (+50% damage
@@ -228,16 +232,25 @@ func apply_status(status_kind: String, dur: float, mag: float) -> void:
 			# The deepest slow carries ITS OWN expiry (audit fix): a repeating
 			# weak aura used to keep a one-off hard slow's factor pinned forever.
 			var mag_in := clampf(mag, 0.2, 1.0)
-			if now >= status_slow_until or now >= status_slow_deep_until:
+			if now >= status_slow_until:
 				status_slow_factor = 1.0
+				status_slow_light_factor = 1.0
+			elif now >= status_slow_deep_until:
+				status_slow_factor = status_slow_light_factor
 			status_slow_until = maxf(status_slow_until, now + dur)
 			if mag_in <= status_slow_factor:
+				if now < status_slow_deep_until and status_slow_factor < status_slow_light_factor:
+					status_slow_light_factor = status_slow_factor
 				status_slow_factor = mag_in
 				status_slow_deep_until = now + dur
+			elif mag_in <= status_slow_light_factor:
+				status_slow_light_factor = mag_in
 		"freeze":
 			# a weak slow must not un-freeze a frozen mob or cut its timer short:
 			# the freeze holds the deep slot for its whole duration
 			var live_f := now < status_slow_until
+			if not live_f:
+				status_slow_light_factor = 1.0
 			status_slow_factor = minf(status_slow_factor if live_f else 1.0, 0.25)
 			status_slow_until = maxf(status_slow_until, now + dur)
 			status_slow_deep_until = maxf(status_slow_deep_until, now + dur)
@@ -250,7 +263,12 @@ func apply_status(status_kind: String, dur: float, mag: float) -> void:
 			status_petrify_until = maxf(status_petrify_until, now + dur)
 
 func status_slow_mult() -> float:
-	return status_slow_factor if Time.get_ticks_msec() / 1000.0 < status_slow_until else 1.0
+	var now := Time.get_ticks_msec() / 1000.0
+	if now >= status_slow_until:
+		return 1.0
+	if now >= status_slow_deep_until:
+		return status_slow_light_factor   # the hard slow's own time is up
+	return status_slow_factor
 
 func tick_statuses(delta: float) -> void:
 	var now := Time.get_ticks_msec() / 1000.0

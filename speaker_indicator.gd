@@ -47,10 +47,17 @@ func _draw() -> void:
 	var tip := Vector2(0.0, 0.0)
 	var left := Vector2(-W, -H)
 	var right := Vector2(W, -H)
-	# 1) dark keyline first (a slightly larger triangle behind the fill), so the
-	#    marker never disappears into a pale wall or a bright torch
-	var k := 1.0 + OUTLINE / H
-	draw_colored_polygon(PackedVector2Array([left * k, right * k, tip * k]),
+	# 1) dark keyline first: the fill triangle OFFSET outward by OUTLINE on every
+	#    edge (audit fix: scaling about the tip left the two long edges collinear
+	#    with the fill's -- the "outline" existed only along the top, and the
+	#    marker still vanished against pale walls). With 45-degree sides the
+	#    offset vertices are exact: sides shift by OUTLINE*sqrt(2), the top by
+	#    OUTLINE, and the tip drops below the fill's tip.
+	var s := OUTLINE * sqrt(2.0)
+	draw_colored_polygon(PackedVector2Array([
+		Vector2(-W - OUTLINE - s, -H - OUTLINE),
+		Vector2(W + OUTLINE + s, -H - OUTLINE),
+		Vector2(0.0, s)]),
 		Color(0.05, 0.04, 0.06, 0.9))
 	# 2) the solid body in the speaker's own accent -- flat, fully opaque
 	draw_colored_polygon(PackedVector2Array([left, right, tip]), accent)
