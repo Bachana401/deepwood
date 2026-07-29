@@ -92,7 +92,12 @@ const ROLE_DEFS = {
 	],
 	# The Mine (5.7, decided delegated): the delegated form of hand-mining --
 	# staffed Miners haul stone + iron shards into the player's bag daily.
+	# The PITMASTER (2026-07-29) closes the one hole in the rule stated at the top
+	# of this file: every other building crowned its top role with a named
+	# leadership post, and the Mine -- the head of the whole Mine -> Forge ->
+	# armory chain -- had none, so the deepest seams were run by nobody.
 	"Mine": [
+		{"title": "Pitmaster", "slots": 1, "required_stat": "Pitmaster", "leadership": true},
 		{"title": "Miner", "slots": 3, "required_stat": "Mine"},
 	],
 	# The Shrine (10, decided delegated): corruption's only mercy. Healing at

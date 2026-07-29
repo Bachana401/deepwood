@@ -193,6 +193,29 @@ func _ready() -> void:
 	check("staffed SMITHS raise forge throughput (the bench is no longer inert)",
 		arms_crew > arms_alone, "%d -> %d arms/tick" % [arms_alone, arms_crew])
 
+	# ---- THE INVARIANT: every leadership post must be FILLABLE (2026-07-29) ----
+	# The Mine shipped with no leadership post at all, and nothing caught it. Worse,
+	# leadership stats are deliberately absent from REGULAR_STATS (the School must
+	# never teach them), so the ONLY way to fill a leader seat is rescuing the VIP
+	# who carries that stat. A post with no matching VIP is a seat nobody can ever
+	# sit in. Pin both halves so neither gap can return.
+	var vip_stats := {}
+	for lvl in VillagerQuests.IMPORTANT_FIGURES:
+		vip_stats[str(VillagerQuests.IMPORTANT_FIGURES[lvl].get("stat_name", ""))] = true
+	var unfillable := []
+	for bname in GameState.STARTING_BUILDINGS + ["Mine", "Shrine"]:
+		for rd in BuildingRoles.get_roles(bname):
+			if not rd.get("leadership", false):
+				continue
+			var want := str(rd.get("required_stat", ""))
+			if not vip_stats.has(want):
+				unfillable.append("%s/%s needs stat '%s'" % [bname, str(rd.get("title", "")), want])
+	check("every leadership post has a rescuable VIP who can fill it",
+		unfillable.is_empty(), ", ".join(unfillable))
+	check("the Mine has a leadership post like every other building",
+		BuildingRoles.get_roles("Mine").any(func(r): return r.get("leadership", false)),
+		"Mine roles: %s" % str(BuildingRoles.get_roles("Mine")))
+
 	# ---- restore ----
 	GameState.rescued_villagers = saved_roster
 	GameState.building_stage = saved_stage

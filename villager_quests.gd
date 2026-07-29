@@ -105,6 +105,12 @@ const QUEST_DEFS = {
 		"reward_gold": 170, "reward_item": "potion_mana", "reward_count": 1,
 		"reward_line": "Hear that ring? The Forgemaster's back. Every blade in Deepwood sharpens now.",
 	},
+	"orla_pitmaster": {   # Mine Pitmaster (Lv18)
+		"title": "Reading the Seam", "giver": "That hill's full of iron and the crew's cutting blind. Bring me ore and I'll show them where it runs.",
+		"kind": "gather", "key": "iron_shard", "count": 4, "reveal_stat": "Mine", "reveal_value": 3,
+		"reward_gold": 130, "reward_item": "potion_health", "reward_count": 1,
+		"reward_line": "The Pitmaster has the seam now — every pick in Deepwood bites deeper.",
+	},
 	"alric_ledger": {   # Bank Treasurer (Lv35)
 		"title": "The Vault's Debt", "giver": "Reavers still circle the old vault. Break forty of them and the coin is safe.",
 		"kind": "slay", "key": "", "count": 40, "reveal_stat": "Financist", "reveal_value": 3,
@@ -200,6 +206,7 @@ const IMPORTANT_FIGURES = {
 	5:  {"villager_id": "maeve_harvest",   "villager_name": "Maeve Greenhollow",       "stat_name": "Harvestmaster",   "stat_value": 5, "role_key": "Farm",         "role_title": "Harvestmaster",   "sex": "Female", "backstory": "I fed a province once, before the blight. Give me soil and I'll do it again."},
 	10: {"villager_id": "doran_tide",      "villager_name": "Captain Doran Tide",      "stat_name": "Harbormaster",    "stat_value": 5, "role_key": "Fishing Dock", "role_title": "Harbormaster",    "sex": "Male",   "backstory": "Every ship in this harbor was mine to command. The sea still answers me."},
 	15: {"villager_id": "bess_ironcask",   "villager_name": "Bess Ironcask",           "stat_name": "Tavernkeeper",    "stat_value": 5, "role_key": "Tavern",       "role_title": "Tavernkeeper",    "sex": "Female", "backstory": "A village with no tavern has already lost. Let me give them somewhere to laugh."},
+	18: {"villager_id": "orla_pitmaster",  "villager_name": "Orla Deepdelve",          "stat_name": "Pitmaster",       "stat_value": 5, "role_key": "Mine",         "role_title": "Pitmaster",       "sex": "Female", "backstory": "I read a seam the way you read a page. Point me at that hill and I'll tell you what it's hiding."},
 	20: {"villager_id": "fenn_publican",   "villager_name": "Fenn Merriman",           "stat_name": "Publican",        "stat_value": 5, "role_key": "Bar",          "role_title": "Publican",        "sex": "Male",   "backstory": "I kept the music playing while the world ended outside my door. I can do it here."},
 	25: {"villager_id": "sethric_gilt",    "villager_name": "Sethric Gilt",            "stat_name": "Merchant Prince", "stat_value": 6, "role_key": "Marketplace",  "role_title": "Merchant Prince", "sex": "Male",   "backstory": "I traded across three kingdoms before they fell. Deepwood could be the fourth to rise."},
 	30: {"villager_id": "hilda_forge",     "villager_name": "Hilda Emberhand",         "stat_name": "Forgemaster",     "stat_value": 6, "role_key": "Blacksmith",   "role_title": "Forgemaster",     "sex": "Female", "backstory": "I forged blades for a royal guard that no longer exists. My hammer doesn't care."},

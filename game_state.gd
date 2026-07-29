@@ -4153,7 +4153,9 @@ func tick_mine_yield(hours_passed: float) -> void:
 		# straight into the stores, no bag to fill, on top of the player's cut.
 		# The Lab's researchers make every seam go further (research_yield), and a
 		# Mine standing beside the forge or the masons hauls more still (adjacency).
-		var ym := research_yield_multiplier() * building_output_multiplier("Mine")
+		# the PITMASTER reads the seam: a led crew cuts where the ore actually runs
+		# (2026-07-29 -- the Mine was the one building with no leadership post)
+		var ym := research_yield_multiplier() * (1.0 + PITMASTER_YIELD_BONUS * seated_leaders("Mine")) * building_output_multiplier("Mine")
 		_add_to_store("stone", MINE_VILLAGE_STONE_PER_MINER * miners * ym)
 		_add_to_store("iron_shard", MINE_VILLAGE_IRON_PER_MINER * miners * ym)
 		var player = get_tree().get_first_node_in_group("player")
@@ -4578,6 +4580,7 @@ const AUTO_SELL_PRICE := 4              # ...and sell the surplus at this gold e
 const AUTO_ENROLL_PER_PRINCIPAL := 2    # Principal: idle children auto-enrolled per tick
 const WARCHIEF_DEFENSE := 4.0           # Warchief: standing siege defense added per seat
 const HARVESTMASTER_FOOD_BONUS := 0.6   # Harvestmaster: +this fraction of farm food output
+const PITMASTER_YIELD_BONUS := 0.5      # Pitmaster: +this fraction of the Mine's whole haul
 const LEADER_MORALE_EACH := 6           # Tavernkeeper/Publican: morale points added per seat
 
 # --- THE SUPPLY CHAIN (City Machine pillar A, dev call 2026-07-29) ---
