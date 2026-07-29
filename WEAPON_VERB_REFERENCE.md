@@ -465,3 +465,32 @@ finds targets); Razorpine (zero-gimmick hose DONE WELL earns a slot);
 Betsy's Wrath/Golden Shower (defense-shred sticks defining loadouts);
 Sky Fracture (3 swords from mini-portals); Blizzard/Meteor/Lunar Flare
 (sky-rain ladder, Lunar phases through terrain to cursor depth).
+## ITEM-SPACE SCAN 2026-07-29 — MATERIALS / POTIONS / ECONOMY (complete)
+Systems (ALL candidates, colony-game hooks noted by the scan):
+- ALTAR-SMASH ORE BLESSING: new resource tiers SUMMONED into explored ground
+  by a ritual act — old floors worth re-mining. PICKAXE-POWER TIER LOCK: the
+  tool is the key to the next tier (progression spine; we have this partly).
+- HERB BLOOM CONDITIONS: each plant harvests best under time/weather/event
+  (rain/night/blood-moon) — weather as farm scheduling. CHLOROPHYTE: the ore
+  that GROWS — cultivate metal in planted beds (farming+mining merge).
+- POTION SICKNESS: sustain balanced by ONE 60s heal-lockout number; relics
+  shave it. FOOD AS REGEN LICENSE: 3-tier single food buff, top-difficulty
+  regen only while fed — the cook becomes a progression NPC.
+- FLASK IMBUES: alchemist coats weapons (armor-shred vs unquenchable-DoT
+  choice), one active. ICHOR vs CURSED FLAME world asymmetry: mirrored
+  biomes export different combat verbs — trade for the missing one.
+- INFO POTIONS: knowledge as consumables (ore/trap/enemy glow, sonar).
+- LUCK: hidden stat fed by small rituals (right torch +0.2, ladybug, gnome),
+  read only via NPC fortune-teller prose. Shimmer coin-luck = money→RNG altar.
+- TREASURE BAGS: per-player instanced boss loot; expert-exclusive uniques
+  CHANGE MECHANICS (dash shield, permanent 7th accessory slot) not stats.
+- BIOME KEYS: 1/2500 anywhere-in-biome dream drop + cursed chests that
+  refuse to open until the story gate — visible future loot as motivation.
+- SOULS: light/dark essence from ANY enemy in themed depths, glue for
+  summons/wings/keys; player prints their own boss refights (we have kin).
+- DEFENDER MEDALS: event-only scrip buying siege turrets/armor, insulated
+  from gold. DEATH COIN-DROP + BANKING: carried wealth is risk, the Bank
+  building earns its place. Coin Gun / Flask of Gold greed-build subeconomy.
+- Numeric anchors: 100:1 coin steps, 20% soul rate, 1/2500 keys, 60s heal
+  lockout, +8 def Ironskin baseline, 33% ingredient-save station, 3:1→5:1
+  ore-bar creep, souls-from-all-three convergence gates (Drax pattern).
