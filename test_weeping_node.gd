@@ -114,6 +114,14 @@ func _ready() -> void:
 	GameState._weep_last_tod = 4.9
 	GameState.tick_weeping(0.0)
 	check("first light dries the forest's eyes", not GameState.weeping_tonight)
+	# ...even when a catch-up tick JUMPS the dawn window whole (leave at
+	# 4am, return at 2pm -- the perpetual-night bug, hunt 2026-07-28)
+	GameState.weeping_tonight = true
+	GameState.weeping_kills = 0
+	GameState.game_hours = 16.0         # time_of_day 14.0, mid-afternoon
+	GameState._weep_last_tod = 4.9
+	GameState.tick_weeping(10.0)
+	check("a jumped dawn still ends the night", not GameState.weeping_tonight)
 
 	# ---- a new game forgets the whole grief ----
 	GameState.reset_for_new_game()

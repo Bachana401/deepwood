@@ -2501,8 +2501,11 @@ func tick_weeping(hours_passed: float) -> void:
 	var was: float = _weep_last_tod
 	_weep_last_tod = tod
 	if weeping_tonight:
-		# dawn ends it: the crossing INTO first light, morning side only
-		if was >= 0.0 and was < WEEP_DAWN and tod >= WEEP_DAWN and tod < 12.0:
+		# dawn ends it -- STEP-PROOF (bug hunt 2026-07-28): the old "crossing
+		# into [5,12)" check missed any catch-up tick that JUMPED the window
+		# (leave at 4am, return at 2pm), leaving the night weeping through
+		# the whole next day. If it is daytime at all, the night is over.
+		if tod >= WEEP_DAWN and tod < WEEP_DUSK_FROM:
 			end_weeping(false)
 		return
 	# the dice roll exactly once, at the crossing into full dark
@@ -2591,7 +2594,9 @@ func tick_lantern(hours_passed: float) -> void:
 	var was: float = _lantern_last_tod
 	_lantern_last_tod = tod
 	if lantern_tonight:
-		if was >= 0.0 and was < WEEP_DAWN and tod >= WEEP_DAWN and tod < 12.0:
+		# step-proof like the weeping: daytime takes the lanterns down no
+		# matter how large the tick that got us here
+		if tod >= WEEP_DAWN and tod < WEEP_DUSK_FROM:
 			end_lantern()
 		return
 	# the weeping rolled this same crossing first -- a grieving night wins

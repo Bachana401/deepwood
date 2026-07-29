@@ -80,6 +80,12 @@ func _ready() -> void:
 	var shock_after: float = GameState.morale_death_shock
 	GameState.end_lantern()
 	check("the mend never double-fires", GameState.morale_death_shock == shock_after)
+	# a catch-up tick that jumps the dawn whole still takes them down
+	GameState.lantern_tonight = true
+	GameState.game_hours = 16.0         # time_of_day 14.0
+	GameState._lantern_last_tod = 4.9
+	GameState.tick_lantern(10.0)
+	check("a jumped dawn still takes the lanterns down", not GameState.lantern_tonight)
 
 	# ---- a new game takes everything down ----
 	GameState.reset_for_new_game()
