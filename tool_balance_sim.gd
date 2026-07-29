@@ -29,6 +29,14 @@ func advance(hours: float, with_income := false) -> void:
 		GameState.tick_village_clock()
 		if with_income:
 			GameState.generate_passive_income()
+			# ...and the automation that rides the SAME income timer in the real
+			# game (game_state: generate_passive_income(); apply_leadership_automation()).
+			# Omitting it modelled a town whose leaders sat idle: no auto-staffing,
+			# no bank interest, no builder crew, no Forge, and -- since the City
+			# Machine landed -- no Merchant Prince converting the stores to treasury,
+			# so village stores grew unbounded and the Bank's tax cut half-vanished
+			# from the arithmetic. The sim claims to drive the REAL village machine.
+			GameState.apply_leadership_automation()
 		stepped += step
 
 func fresh_world() -> void:

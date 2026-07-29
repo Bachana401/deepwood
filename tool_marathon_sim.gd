@@ -397,6 +397,12 @@ func advance_village(hours: float) -> void:
 		GameState.game_hours += step
 		GameState.tick_village_clock()
 		GameState.generate_passive_income()
+		# the automation rides the SAME timer in the real game -- and it is most of
+		# what GROWS a town: the Chancellor seats every rescue, the Principal
+		# schools the children, the Publican pairs them and the builders raise the
+		# cottages they need. A sim without it measures a village whose leaders
+		# stood idle, which is why population reads far below the intended scale.
+		GameState.apply_leadership_automation()
 		stepped += step
 
 # ------------------------------------------------------------------ skills
