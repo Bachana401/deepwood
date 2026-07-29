@@ -3280,10 +3280,15 @@ func _physics_process(delta: float) -> void:
 		# else falls through to the normal per-cooldown attack
 		# (a click that places/deletes a building must not ALSO swing a weapon,
 		# and a click on an OPEN PANEL must not reach the world at all)
-		if not channel_beam(delta):
+		# A Small Personal Sun owns the whole hold: the wand IS a channel, no
+		# keystone required (the Sage's beam is a skill; this is a weapon)
+		if is_prism_weapon():
+			channel_prism(delta)
+		elif not channel_beam(delta):
 			perform_attack()
 	else:
 		stop_beam()
+		stop_prism()
 	_tick_dig(delta)
 
 	# right-click near a VILLAGER opens their menu (Talk / Ask for Quest / Show me
@@ -4447,6 +4452,117 @@ var beam_line: Line2D = null
 
 func has_beam() -> bool:
 	return GameState.get_skill_total("beam_channel") > 0.0
+
+# --- A SMALL PERSONAL SUN (crown wand, Last-Prism-kin never 1:1) ---------
+# Six thin sunbeams open in a fan and CONVERGE over the channel into a single
+# column. Nothing scripts the damage climb: each beam raycasts and damages on
+# its own, so a wide fan sprays several bodies for a little and a focused
+# column puts every beam through ONE body -- the escalation is emergent, which
+# is exactly what the film shows (ticks climbing 108 -> 846 as it narrows).
+const PRISM_BEAMS := 6
+const PRISM_FOCUS := 2.5        # seconds from full fan to a single column
+# A SIDE-SCROLLER LESSON (EYES, 2026-07-29): Terraria's prism opens a ~29-deg
+# fan and its low beams stop on tiles harmlessly. Here the player STANDS on a
+# floor, so a fan that wide buried half the sun in the dirt a few pixels out.
+# 18 deg from a chest-height origin keeps every beam in the air long enough to
+# read, and the floor only clips the lowest one far downrange.
+const PRISM_SPREAD := 0.32      # radians of half-fan at the start (~18 deg)
+const PRISM_ORIGIN_Y := -16.0   # cast from the chest, not the boots
+var prism_t := 0.0
+var prism_lines: Array = []
+
+func is_prism_weapon() -> bool:
+	return has_weapon() and str(active_def.get("special", {}).get("type", "")) == "prism_converge"
+
+func prism_focus_frac() -> float:
+	return clampf(prism_t / PRISM_FOCUS, 0.0, 1.0)
+
+func stop_prism() -> void:
+	prism_t = 0.0
+	for l in prism_lines:
+		if is_instance_valid(l):
+			l.visible = false
+
+func channel_prism(delta: float) -> bool:
+	# planting your feet is the price of the sun, same as the Sage's beam
+	if absf(velocity.x) > 1.0 or not is_on_floor():
+		stop_prism()
+		return true
+	var stats = active_stats
+	var sp: Dictionary = active_def.get("special", {})
+	# mana burns HARDER the tighter it focuses -- committing costs more
+	var focus := prism_focus_frac()
+	# per-SECOND drain (not per-shot/cooldown -- that burned the pool dry in a
+	# second and the sun could never reach full focus)
+	var drain := float(active_def.get("mana_cost", 0)) * (0.6 + 1.4 * focus) * delta
+	if drain > 0.0 and not spend_mana(drain):
+		stop_prism()
+		return true
+	prism_t += delta
+	if prism_lines.is_empty():
+		_build_prism_lines()
+	var aim := get_aim_direction()
+	var half := PRISM_SPREAD * (1.0 - ease(focus, 0.4))
+	var space := get_world_2d().direct_space_state
+	beam_tick_timer += delta
+	var ticked := beam_tick_timer >= BEAM_TICK
+	if ticked:
+		beam_tick_timer -= BEAM_TICK
+	var per_beam := 0
+	if ticked:
+		var wand_dmg := float(sp.get("damage", 0.0))
+		if wand_dmg <= 0.0:
+			wand_dmg = float(stats.damage)
+		var dps := wand_dmg / maxf(0.1, stats.cooldown)
+		per_beam = maxi(1, int(round(dps * BEAM_TICK * skill_damage_mult("wand"))))
+	var origin: Vector2 = global_position + Vector2(0, PRISM_ORIGIN_Y)
+	for i in range(PRISM_BEAMS):
+		var frac := 0.0 if PRISM_BEAMS <= 1 else float(i) / float(PRISM_BEAMS - 1) - 0.5
+		var dir := aim.rotated(frac * half * 2.0)
+		var q := PhysicsRayQueryParameters2D.create(origin, origin + dir * BEAM_RANGE)
+		q.collision_mask = 1 | 4
+		q.exclude = [self]
+		var hit := space.intersect_ray(q)
+		var end_point: Vector2 = origin + dir * BEAM_RANGE
+		var target: Node = null
+		if hit:
+			end_point = hit.position
+			var c = hit.collider
+			if c != null and c.has_method("take_damage") and "is_dead" in c and not c.is_dead:
+				target = c
+		_draw_prism_beam(i, end_point, focus)
+		if ticked and target != null and per_beam > 0:
+			var cr = roll_crit(per_beam)
+			target.take_damage(cr[0])
+			# CLUSTER LAW: six beams landing together must read as a burst of
+			# small numbers, not one stacked blob
+			FloatingText.spawn(get_parent(), (target as Node2D).global_position
+				+ Vector2(randf_range(-28.0, 28.0), randf_range(-24.0, 8.0)), cr[0], cr[1])
+			apply_omnivamp(cr[0])
+			apply_soulthread(cr[0])
+	return true
+
+func _build_prism_lines() -> void:
+	for i in range(PRISM_BEAMS):
+		var l := Line2D.new()
+		l.width = 4.0
+		l.z_index = 6
+		var m := CanvasItemMaterial.new()
+		m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		l.material = m
+		add_child(l)
+		prism_lines.append(l)
+
+func _draw_prism_beam(i: int, end_point: Vector2, focus: float) -> void:
+	if i >= prism_lines.size():
+		return
+	var l: Line2D = prism_lines[i]
+	l.visible = true
+	# thin and pale while it searches; fat and white-gold once it commits
+	l.width = lerp(3.5, 13.0, focus)
+	# stays GOLD as it focuses (a near-white endpoint read as grey on film)
+	l.default_color = Color(1.0, 0.62, 0.16, 0.8).lerp(Color(1.0, 0.88, 0.42, 1.0), focus)
+	l.points = PackedVector2Array([Vector2(0, PRISM_ORIGIN_Y), to_local(end_point)])
 
 func beam_peak_mult() -> float:
 	return BEAM_BASE_PEAK + GameState.get_skill_total("beam_ramp")

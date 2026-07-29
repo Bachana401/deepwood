@@ -379,8 +379,14 @@ const ROWS = [
 		"fx": [{"kind": "echo", "pct": 1, "delay": 0.4}, {"kind": "chain", "n": 2, "pct": 1, "range": 260.0}, {"kind": "goldtouch", "chance": 0.25, "gold": 4}]}],
 	["wpn_choirofone",   "A Choir of One",       "bow", 8, "rapid", 17, 0.13, {"status": "burn_w", "rider": "choir",
 		"fx": [{"kind": "echo", "pct": 1, "delay": 0.3}, {"kind": "haste", "pct_per": 0.08, "max": 6, "dur": 4.0}, {"kind": "brand", "amp": 0.31, "dur": 3.5}]}],
-	["wpn_smallsun",     "A Small Personal Sun", "wand", 8, "fire", 47, 0.78, {"aoe": 170, "status": "burn_w", "rider": "sunfall",
-		"fx": [{"kind": "quake", "radius": 175.0, "pct": 1}, {"kind": "splinter", "n": 5, "pct": 1, "range": 200.0}, {"kind": "goldtouch", "chance": 0.3, "gold": 4}]}],
+	# CROWN TEN #3: apex weapon. A one-shot fire blast (three fx riders, 47 dmg)
+	# became THE CHANNEL -- hold it and six beams narrow into a single column.
+	# Damage per beam is small on purpose: the climb comes from CONVERGENCE
+	# putting all six through one body, exactly as the film shows.
+	# fx chosen for a CHANNEL: quake never suited a beam. Wounds that deepen the
+	# longer you pour, and a kill that feeds the next second of burning.
+	["wpn_smallsun",     "A Small Personal Sun", "wand", 8, "prism", 14, 0.5,  {"status": "burn_w",
+		"fx": [{"kind": "rend", "pct_per": 0.13, "max": 8}, {"kind": "harvest", "hp": 3, "mana": 7.0}]}],
 	["wpn_patientknife", "The Patient Knife",    "melee", 8, "arc", 22, 0.2,  {"status": "poison_w", "rider": "patient",
 		"fx": [{"kind": "rend", "pct_per": 0.14, "max": 8}, {"kind": "duelist", "pct_per": 0.12, "max": 8}, {"kind": "splinter", "n": 3, "pct": 1, "range": 170.0}]}],
 	["wpn_skysfare",     "What the Sky Charges", "wand", 8, "tome", 30, 1.15, {"radius": 220, "rider": "walker",
@@ -655,6 +661,10 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			# THE FINAL EDICT alone: the arm of the law extends THROUGH ROCK and
 			# cuts along its whole length (Solar-Eruption-kin, never 1:1)
 			s = {"type": "edict_lash", "damage": dmg, "range": rng + 300.0}
+		"prism":
+			# A SMALL PERSONAL SUN alone: a CHANNEL -- six sunbeams that converge
+			# into one column the longer you hold (Last-Prism-kin, never 1:1)
+			s = {"type": "prism_converge", "damage": dmg}
 		"staff":
 			s = {"type": "staff_extend"}
 	if not st.is_empty():
@@ -724,6 +734,7 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"zenith":     return "Every swing frees the GHOST of a blade it culminates: out, one whirl at the far point, and home -- cutting the whole way, each image a different ancestor."
 		"court":      return "Every swing calls the COURT: %d shades of the people you brought home appear at your side, each carrying a different ancestor blade, and all of them sweep at once." % int(ex.get("count", 4))
 		"edict":      return "The law REACHES: a jointed arm of light unfolds the length of the hall, cutting everything along it and blooming where it touches -- and stone does not stop a sentence."
+		"prism":      return "HOLD IT. Six sunbeams open in a fan and draw slowly together; the longer you stand and pour, the tighter they close, until all six burn through the same body at once. Moving lets the sun go out."
 		"staff":      return "Landed blows in rhythm DRAW IT LONGER; the fourth strikes the earth as a pillar."
 		"arc", "thrust", "shot", "rapid":
 			if ex.has("status"):

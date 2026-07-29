@@ -88,6 +88,31 @@ func _ready() -> void:
 	await _settle(0.22)
 	await _shot("e3_edict_withdraw")    # the sentence ends
 
+	await _settle(0.8)
+
+	# ---- A SMALL PERSONAL SUN: the fan closes into a column ----
+	p.inventory.add_item("wpn_smallsun", 1)
+	p.wield_weapon("wpn_smallsun")
+	p.mana = p.get_max_mana()
+	# the channel aims at the CURSOR and a walker has none, so put the pointer
+	# exactly on the far dummy (world -> screen through the canvas transform)
+	var aim_world: Vector2 = p.global_position + Vector2(300.0, 10.0)
+	Input.warp_mouse(get_viewport().get_canvas_transform() * aim_world)
+	await get_tree().process_frame
+	# HOLD the real attack action -- calling channel_prism() by hand is a lie:
+	# the player's own loop calls stop_prism() on every frame the button is up,
+	# so a hand-driven channel is reset to zero focus before it can converge
+	Input.action_press("attack")
+	await _settle(0.35)
+	await _shot("s1_sun_fan")        # wide open, searching
+	await _settle(1.0)
+	await _shot("s2_sun_closing")    # drawing together
+	await _settle(1.4)
+	await _shot("s3_sun_column")     # all six through one body
+	Input.action_release("attack")
+	await _settle(0.2)
+	await _shot("s4_sun_released")
+
 	say("EYES-CROWN: done")
 	get_tree().quit(0)
 
