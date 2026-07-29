@@ -124,6 +124,7 @@ func run_marathon(cls: String, verbose: bool) -> Dictionary:
 		# then was abandoned on the next floor -- "0 lost to siege" was that
 		# artifact, not balance (caught 2026-07-23).
 		grow_village(floor)
+		grow_defense(floor)
 		var pop_before := pop()
 		advance_village(floor_minutes(floor) * PLAYMIN_TO_GAMEHOURS)
 		GameState.in_dungeon = false
@@ -250,6 +251,38 @@ func grow_village(floor: int) -> void:
 	# sim doesn't spiral into a famine that drowns out the development it's measuring
 	if GameState.village_food < float(pop_n) * 8.0:
 		GameState.village_food = float(pop_n) * 12.0
+
+# Model the town's DEFENSE the way a real player at this depth would have it --
+# a rampart raised with depth + the adventurers freed from the dungeon, posted to
+# the wall/city. WITHOUT this the sim faced depth-scaled sieges (tier ~21 by floor
+# 61) with ~2.7 defense power and reported a PHANTOM massacre (~570 "lost", pop
+# stuck at 4) that no real, defended player ever experiences — poisoning every
+# downstream village number.
+# ⚠️ PARTIAL: this restores the DEFENSE layer, but the sim's village LOOP is still
+# unfaithful — it re-grows the town to want_pop EVERY floor while adventurers stay
+# permanently dead, so once the roster is spent it keeps throwing undefended,
+# freshly-regrown villagers at depth sieges (~470 still "lost"). Treat the village
+# pop/economy figures as INDICATIVE, not authoritative, until the loop is reworked
+# to a PERSISTENT population. The real signal this surfaced: the morale→defense
+# multiplier (0.5 + morale/100) makes a low-morale town spiral — defense collapses
+# exactly when morale is low. (2026-07-29, balance-tuning pass.)
+func grow_defense(floor: int) -> void:
+	# the rampart climbs ~one tier per 15 floors: weak start (L1, +0 def) -> a
+	# manned fortress (L4, +5 def, 9 wall-posts) by ~floor 45, matching a player
+	# who upgrades the gate as they delve.
+	GameState.wall_level = clampi(1 + int(floor / 15), 1, GameState.WALL_MAX_LEVEL)
+	# free every adventurer whose rescue-depth you've passed (ROSTER "level"), then
+	# post them: fill the wall to its cap, the rest patrol the city -- none benched.
+	GameState.ensure_adventurers()
+	for id in Adventurers.ids():
+		if int(Adventurers.get_def(id).get("level", 0)) <= floor:
+			GameState.adventurers[id]["rescued"] = true
+	for id in Adventurers.ids():
+		var a: Dictionary = GameState.adventurers[id]
+		if not a["rescued"] or a["dead"]:
+			continue
+		if not GameState.set_adventurer_station(id, "wall"):
+			GameState.set_adventurer_station(id, "city")
 
 func advance_village(hours: float) -> void:
 	var stepped := 0.0
