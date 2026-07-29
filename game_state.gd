@@ -3774,7 +3774,9 @@ func generate_passive_income() -> void:
 			taxable += share
 		taxable += PARTY_MEMBER_INCOME * float(count_leader_holders("Government", "Party"))
 		total += taxable * get_village_income_multiplier()
-	if is_building_operational("Bar"):
+	# THE BAR POURS FROM THE LARDER (chain link): no supplies, no drink, no
+	# takings -- the Farm and the Dock are what keep the taps running.
+	if is_building_operational("Bar") and has_food():
 		total += BARKEEP_TRICKLE * float(count_workers("Bar"))
 	if total <= 0.0:
 		return
@@ -3966,9 +3968,11 @@ func tick_mine_yield(hours_passed: float) -> void:
 		_mine_accum -= 24.0
 		_mine_cycles += 1
 		# the village share (supply chain): the crew hauls for the TOWN too --
-		# straight into the stores, no bag to fill, on top of the player's cut
-		village_stockpile["stone"] = int(village_stockpile["stone"]) + MINE_VILLAGE_STONE_PER_MINER * miners
-		village_stockpile["iron_shard"] = int(village_stockpile["iron_shard"]) + MINE_VILLAGE_IRON_PER_MINER * miners
+		# straight into the stores, no bag to fill, on top of the player's cut.
+		# The Lab's researchers make every seam go further (research_yield).
+		var ym := research_yield_multiplier()
+		village_stockpile["stone"] = int(village_stockpile["stone"]) + int(round(MINE_VILLAGE_STONE_PER_MINER * miners * ym))
+		village_stockpile["iron_shard"] = int(village_stockpile["iron_shard"]) + int(round(MINE_VILLAGE_IRON_PER_MINER * miners * ym))
 		var player = get_tree().get_first_node_in_group("player")
 		if player and "inventory" in player and player.inventory:
 			# honest accounting: add_item returns the LEFTOVER, so log/announce only what the
@@ -4004,7 +4008,7 @@ func tick_wood_gathering(hours_passed: float) -> void:
 	_wood_accum += hours_passed
 	while _wood_accum >= 24.0:
 		_wood_accum -= 24.0
-		var felled := WOOD_PER_BUILDER_PER_DAY * crew
+		var felled := int(round(WOOD_PER_BUILDER_PER_DAY * crew * research_yield_multiplier()))
 		# ...and a little FIELDSTONE besides: the Mine (floor 13) is the real
 		# quarry, but repairs need stone from day one -- without this trickle
 		# the whole repair chain deadlocked until mid-game (no stone producer).
@@ -4401,6 +4405,89 @@ const WOOD_PER_BUILDER_PER_DAY := 1
 const REPAIR_STAGE_WOOD := 2              # what one auto-repair stage consumes
 const REPAIR_STAGE_STONE := 1
 const FORGE_IRON_PER_ARM := 1
+# The Lab is the chain's TECH rung: researchers study what the crews haul and
+# hand back better tools and methods, so every store yield rises with the seats
+# filled. The Lab finally feeds something instead of only identifying loot.
+const RESEARCH_YIELD_PER_SEAT := 0.15
+
+func research_yield_multiplier() -> float:
+	return 1.0 + RESEARCH_YIELD_PER_SEAT * float(seated_leaders("Science Lab"))
+
+# --- THE DOMESTIC AUTOMATIONS (the automation ladder, dev law 2026-07-29) ---
+# Every chore the player does BY HAND early must eventually be taken over by a
+# building. The family loop is the clearest case:
+#   raising a cottage   -- by hand from the B menu  -> the Builderhouse's leaders
+#   pairing a couple    -- by hand, E on a cottage  -> the Bar's Publican
+#   schooling a child   -- by hand in the assign UI -> the School's Principal
+#                                                      (auto_enroll_children, already built)
+# The rescue depths pace the ladder on their own: Publican at 20, Principal at
+# 45, Master Builder at 55 -- so the family loop runs itself by the deep 50s.
+const AUTO_COTTAGE_WOOD := 8
+const AUTO_COTTAGE_STONE := 4
+const AUTO_COTTAGE_SPACING := 170.0
+
+# Cottages standing EMPTY right now: not a couple's home, not mid-pairing.
+func free_cottage_ids() -> Array:
+	var out := []
+	for cid in extra_cottage_ids:
+		var hid := str(cid)
+		if not cottage_homes.has(hid) and not mating_houses.has(hid):
+			out.append(hid)
+	return out
+
+# Where the builders put the next home: at the end of the row they already
+# keep, else just past the village proper (the same ground generate_houses uses).
+func _next_cottage_x() -> float:
+	var best := -INF
+	for p in extra_cottage_positions:
+		best = maxf(best, float(p))
+	if best > -INF:
+		return best + AUTO_COTTAGE_SPACING
+	var scene = get_tree().current_scene
+	if scene != null and "village_right_edge" in scene:
+		return float(scene.village_right_edge) + 240.0
+	return 6000.0
+
+# THE BUILDERS RAISE HOMES THEMSELVES (Master Builder / Foreman). Only ever when
+# the town actually NEEDS one -- a couple is waiting and no home stands empty --
+# and only out of the village stores, so housing draws on the same chain as
+# everything else. Works while the player is deep: the cottage is registered, and
+# generate_houses rebuilds it on the ground chosen here when they walk back in.
+func auto_build_cottage() -> bool:
+	if seated_leaders("Builderhouse") <= 0:
+		return false
+	if not free_cottage_ids().is_empty():
+		return false                      # a home already waits -- don't sprawl
+	var parents := find_available_parents()
+	if str(parents.male_id) == "" or str(parents.female_id) == "":
+		return false                      # build for a real couple, never on spec
+	if int(village_stockpile["wood"]) < AUTO_COTTAGE_WOOD \
+			or int(village_stockpile["stone"]) < AUTO_COTTAGE_STONE:
+		return false                      # the stores decide the pace
+	village_stockpile["wood"] = int(village_stockpile["wood"]) - AUTO_COTTAGE_WOOD
+	village_stockpile["stone"] = int(village_stockpile["stone"]) - AUTO_COTTAGE_STONE
+	var x := _next_cottage_x()
+	var hid := register_cottage(x)
+	var scene = get_tree().current_scene
+	if scene != null and scene.has_method("spawn_cottage_node"):
+		scene.spawn_cottage_node(hid, x)  # live village: it goes up in front of you
+	log_event("village", "The builders raised a cottage — a home standing ready for a couple.")
+	notify("🏠 The builders raised a cottage on their own.")
+	return true
+
+# THE PUBLICAN MAKES THE MATCH (the Bar is the village's social heart -- where
+# else would couples meet?). Fills every empty cottage with a waiting pair, so
+# the player never has to walk the row pressing E again.
+func auto_pair_couples() -> void:
+	if seated_leaders("Bar") <= 0:
+		return
+	for hid in free_cottage_ids():
+		var parents := find_available_parents()
+		if str(parents.male_id) == "" or str(parents.female_id) == "":
+			return
+		start_pairing(hid, str(parents.male_id), str(parents.female_id))
+		log_event("people", "The Publican made a match — %s and %s took a cottage." % [
+			villager_name(str(parents.male_id)), villager_name(str(parents.female_id))])
 
 # --- THE VILLAGE TREASURY (City Machine, B-slice: "the Bank pays") ---
 # A staffed Bank banks a cut of the tax take into the town's own purse, and
@@ -4501,6 +4588,13 @@ func apply_leadership_automation() -> void:
 		_builder_half_tick = not _builder_half_tick
 		if _builder_half_tick:
 			auto_repair_one()                       # the crew alone: slower, but real
+	# THE FAMILY LOOP RUNS ITSELF (automation ladder): the builders raise the
+	# homes, the Publican fills them, the Principal schools what comes of it.
+	if seated_leaders("Builderhouse") > 0:
+		auto_build_cottage()
+	auto_pair_couples()
+	if seated_leaders("Marketplace") > 0:
+		auto_sell_village_surplus()                 # Merchant Prince: stores -> treasury
 	if forgemaster_supplying() and barracks_arms < BARRACKS_ARMS_CAP:
 		# THE CHAIN: every arm is forged FROM village iron (Mine -> Forge ->
 		# armory) -- an empty ore store means a cold forge, however grand the
@@ -4588,6 +4682,24 @@ func auto_sell_surplus(player) -> void:
 			earned += sell * AUTO_SELL_PRICE
 	if earned > 0 and player.has_method("add_currency"):
 		player.add_currency(earned)
+
+# THE MARKET SELLS THE TOWN'S OWN SURPLUS (chain link): stores above the keep
+# line go out on the Merchant Prince's carts and come back as TREASURY gold --
+# which pays the wages. Mine/Builderhouse -> Marketplace -> payroll, closed.
+# The keep line is deliberately generous: repairs and the forge eat first.
+const AUTO_SELL_VILLAGE_KEEP := 20
+
+func auto_sell_village_surplus() -> void:
+	var earned := 0
+	for k in village_stockpile.keys():
+		var have := int(village_stockpile[k])
+		if have > AUTO_SELL_VILLAGE_KEEP:
+			var sell := have - AUTO_SELL_VILLAGE_KEEP
+			village_stockpile[k] = AUTO_SELL_VILLAGE_KEEP
+			earned += sell * AUTO_SELL_PRICE
+	if earned > 0:
+		village_treasury += earned
+		log_event("economy", "The Merchant Prince sold the surplus stores — %d gold into the treasury." % earned)
 
 func auto_heal_villagers(physicians: int) -> void:
 	var amount = AUTO_HEAL_PER_PHYSICIAN * float(physicians)
@@ -4712,6 +4824,11 @@ func chore_domains() -> Array:
 			"key": "wages", "label": "Payroll",
 			"handled": _bank_paid_full_payroll,
 			"freed": "🏦 The Bank met the whole payroll from the town's own purse — your gold is yours again.",
+		},
+		{
+			"key": "family", "label": "Homes & families",
+			"handled": seated_leaders("Builderhouse") > 0 and seated_leaders("Bar") > 0,
+			"freed": "🏠 The builders raise the homes and the Publican makes the matches — Deepwood grows without you now.",
 		},
 	]
 

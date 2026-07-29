@@ -523,6 +523,21 @@ func spawn_placed_torches() -> void:
 		t.position = Vector2(float(e.get("x", 0.0)), float(e.get("y", 0.0)))
 		add_child(t)
 
+# A cottage raised by the BUILDERS, not the player (automation ladder): same
+# node, palette and ground rules as the B-menu path, but the id is already
+# registered by GameState.auto_build_cottage -- we only put the body on screen.
+func spawn_cottage_node(house_id: String, x: float) -> Node:
+	var pal = HOUSE_COLORS[GameState.extra_cottages % HOUSE_COLORS.size()]
+	var home = HOUSE_SCRIPT.new()
+	home.house_id = house_id
+	home.house_name = "Cottage %d" % (HOUSE_COUNT + GameState.extra_cottages)
+	home.body_color = pal.body
+	home.roof_color = pal.roof
+	home.position = Vector2(x, VILLAGE_Y)
+	var village = get_node_or_null("Village")
+	(village if village != null else self).add_child(home)
+	return home
+
 func generate_houses() -> void:
 	# Cottages sit just past the (now larger) village, computed from where the
 	# buildings actually ended so they never overlap.
