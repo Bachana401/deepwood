@@ -162,6 +162,31 @@ func _ready() -> void:
 	check("the plain ladder is exactly %d rungs, none dressed, none crowned" % PLAIN_QUOTA,
 		plain_n == PLAIN_QUOTA and overdressed.is_empty(),
 		"plain=%d; %s" % [plain_n, ", ".join(overdressed)])
+	# ---- THE CRAFT CHAINS: every plain rung except a family head forges
+	# from ANOTHER plain weapon (its predecessor) plus materials ----
+	var plain_ids := {}
+	for row in WeaponRoster.ROWS:
+		if bool(row[7].get("plain", false)):
+			plain_ids[str(row[0])] = true
+	var chained := 0
+	var broken := []
+	for pid in plain_ids:
+		if not Inventory.CRAFT_RECIPES.has(pid):
+			continue   # a family head: forged by the world, not the bench
+		chained += 1
+		var ing: Dictionary = Inventory.CRAFT_RECIPES[pid]
+		var prev_ok := false
+		var mat_ok := false
+		for k in ing:
+			if plain_ids.has(str(k)):
+				prev_ok = true
+			elif Inventory.get_item_def(str(k)).get("is_material", false):
+				mat_ok = true
+		if not (prev_ok and mat_ok):
+			broken.append(pid)
+	check("every chained rung forges from kin plus materials (106 links)",
+		chained == 106 and broken.is_empty(),
+		"chained=%d; broken: %s" % [chained, ", ".join(broken)])
 	# THE SOUL MUST BE READABLE (dev: "not dumb and only plain stats"): every
 	# fx-bearing weapon's CARD says what it does -- an invisible unique is
 	# stats with extra steps
