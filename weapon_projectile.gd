@@ -149,6 +149,15 @@ func _ready() -> void:
 			_behave_state = 0
 			_orbit_t = 0.0
 			_build_zenithblade()
+		"brazier_flail":
+			# THRONE OF EMBERS: a flail whose head, when it comes to REST on the
+			# ground, stops being a weapon and becomes a THRONE -- a burning
+			# brazier that spits embers until you take it up again
+			# (Flower-Pow-kin, never 1:1).
+			_build_chainmaul()
+			_recolor_brazier()
+			spin_speed = 16.0
+			pierce = true
 		"crown_spear":
 			# REGICIDE: a thrown crown-spear that STICKS. The kill is not the
 			# throw -- it is the fifth spear, and the sixth pushing the first
@@ -236,6 +245,9 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind == "chain_maul":
 		_tick_chainmaul(delta)
+		return
+	if kind == "brazier_flail":
+		_tick_brazier(delta)
 		return
 	if kind == "lob":
 		_tick_lob(delta)
@@ -1061,6 +1073,150 @@ func _zen_sparkle(at: Vector2) -> void:
 # point-first (+X) -- a hooded cloak streaming behind an ancestor blade. The
 # blade wears the tint; the shade stays dark, so a swing reads as SEVERAL
 # distinct people arriving, not one effect repeated.
+# THRONE OF EMBERS (crown melee, Flower-Pow-kin never 1:1) --------------
+# whirl -> hurl -> FALL -> sit as a brazier spitting embers -> haul home.
+# The study's find: a flail head RESTED on the ground becoming a turret is a
+# whole second weapon hiding inside the first, and it costs the player their
+# flail to use it -- a real trade, not a free bonus.
+const BRAZ_WHIRL := 0.55
+const BRAZ_SIT := 3.2        # seconds the throne burns before it is taken up
+const BRAZ_SPIT := 0.45      # seconds between embers
+var _braz_spit_t := 0.0
+
+func _tick_brazier(delta: float) -> void:
+	if rope and is_instance_valid(source):
+		rope.points = PackedVector2Array([Vector2.ZERO, to_local(source.global_position)])
+	match _behave_state:
+		0:   # the whirl, tight around the wielder
+			if not is_instance_valid(source):
+				queue_free()
+				return
+			if visual:
+				visual.rotation += spin_speed * delta
+			_orbit_t += delta
+			_rehit_t += delta
+			if _rehit_t >= 0.3:
+				_rehit_t = 0.0
+				hit_bodies.clear()
+			var r := (40.0 + _orbit_t * 70.0) * girth
+			var side := 1.0 if direction.x >= 0.0 else -1.0
+			global_position = source.global_position \
+				+ Vector2(cos(_orbit_t * 9.0 * side), sin(_orbit_t * 9.0 * side)) * r
+			if _orbit_t >= BRAZ_WHIRL:
+				_behave_state = 1
+				hit_bodies.clear()
+				traveled = 0.0
+				SfxSynth.play_at(self, global_position, "whoosh", -9.0, 0.8)
+		1:   # the hurl
+			if visual:
+				visual.rotation += spin_speed * delta
+			var step := speed * 1.3 * delta
+			global_position += direction * step
+			traveled += step
+			if traveled >= max_distance:
+				_behave_state = 2
+				_vel_y = 0.0
+				hit_bodies.clear()
+		2:   # the fall: the head looks for somewhere to sit
+			if visual:
+				visual.rotation += spin_speed * 0.5 * delta
+			_vel_y += 1500.0 * delta
+			var drop := _vel_y * delta
+			global_position.y += drop
+			if _find_floor_below(maxf(drop, 6.0) + 10.0):
+				_behave_state = 3
+				_orbit_t = 0.0
+				_braz_spit_t = 0.0
+				spin_speed = 0.0
+				_seat_the_throne()
+			elif _vel_y > 1400.0:      # nothing under it: give up and come back
+				_behave_state = 4
+		3:   # THE THRONE: it sits, and it burns
+			_orbit_t += delta
+			_braz_spit_t += delta
+			if _braz_spit_t >= BRAZ_SPIT:
+				_braz_spit_t = 0.0
+				_spit_ember()
+			if _orbit_t >= BRAZ_SIT:
+				_behave_state = 4
+		_:   # hauled home on the chain
+			if not is_instance_valid(source):
+				queue_free()
+				return
+			var to_src: Vector2 = source.global_position - global_position
+			if to_src.length() < 26.0:
+				queue_free()
+				return
+			global_position += to_src.normalized() * speed * 1.25 * delta
+
+# is there ground within `dist` below the head?
+func _find_floor_below(dist: float) -> bool:
+	var space := get_world_2d().direct_space_state
+	var q := PhysicsRayQueryParameters2D.create(global_position, global_position + Vector2(0, dist))
+	q.collision_mask = 1
+	q.exclude = [self]
+	var hit := space.intersect_ray(q)
+	if hit:
+		global_position.y = hit.position.y - 12.0
+		return true
+	return false
+
+# the moment it becomes furniture: a seat of coals, and the fire takes
+func _seat_the_throne() -> void:
+	SfxSynth.play_at(self, global_position, "thud", -8.0, 0.7)
+	var coals := Polygon2D.new()
+	coals.polygon = _circle(26.0, 12)
+	coals.color = Color(1.0, 0.45, 0.12, 0.3)
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	coals.material = m
+	coals.z_index = -1
+	visual.add_child(coals)
+	var tw := coals.create_tween()
+	tw.set_loops()
+	tw.tween_property(coals, "scale", Vector2(1.25, 1.25), 0.5)
+	tw.tween_property(coals, "scale", Vector2(0.9, 0.9), 0.5)
+
+# an ember leaves the throne for whoever is nearest
+func _spit_ember() -> void:
+	var prey := _nearest_hostile_node(560.0)
+	var dir := Vector2(1, -0.25).normalized() if prey == null \
+		else (prey.global_position - global_position).normalized()
+	var e = get_script().new()
+	e.kind = "fireball"
+	e.damage = maxi(1, int(round(float(damage) * 0.45)))
+	e.speed = 430.0
+	e.max_distance = 620.0
+	e.aoe_radius = 54.0
+	e.girth = 0.7 * girth
+	e.direction = dir
+	e.element = element
+	e.on_hit_status = on_hit_status
+	e.source = source
+	e.position = global_position + Vector2(0, -14)
+	get_parent().add_child(e)
+	SfxSynth.play_at(self, global_position, "pop", -19.0, 1.4)
+
+# the maul, but forged as a seat of embers rather than cold iron.
+# _build_chainmaul lays out: [0] halo, [1] head, [2..7] six spikes, [8] gleam.
+func _recolor_brazier() -> void:
+	if visual == null:
+		return
+	var polys := []
+	for c in visual.get_children():
+		if c is Polygon2D:
+			polys.append(c)
+	for i in range(polys.size()):
+		var p: Polygon2D = polys[i]
+		if i == 0:
+			p.color = Color(1.0, 0.5, 0.14, 0.3)        # the heat it gives off
+		elif i == 1:
+			p.color = Color(0.3, 0.17, 0.12, 1.0)       # blackened iron
+		elif i == polys.size() - 1:
+			p.color = Color(1.0, 0.9, 0.58, 0.95)       # the live coal
+		else:
+			p.color = Color(0.93, 0.44, 0.13, 1.0)      # ember-lit spikes
+
 # REGICIDE's thrown spear: a slim crown-gold lance, point-first
 func _build_crownspear() -> void:
 	var glow := Polygon2D.new()

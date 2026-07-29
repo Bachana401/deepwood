@@ -135,6 +135,23 @@ func _ready() -> void:
 	await _settle(1.2)
 	await _shot("r4_regicide_biting")          # the stack still eating
 
+	await _settle(0.8)
+
+	# ---- THRONE OF EMBERS: whirl, hurl, and then it SITS and burns ----
+	p.global_position = Vector2(6000.0, -80.0)
+	p.inventory.add_item("wpn_emberthrone", 1)
+	p.wield_weapon("wpn_emberthrone")
+	var bs: Dictionary = p.active_def.get("special", {})
+	p.launch_projectile(bs, Vector2.RIGHT, int(bs.get("damage", 30)))
+	await _settle(0.35)
+	await _shot("b1_throne_whirl")      # the head opens its spiral
+	await _settle(0.45)
+	await _shot("b2_throne_hurl")       # out along the aim
+	await _settle(0.7)
+	await _shot("b3_throne_seated")     # it found the floor and lit
+	await _settle(1.4)
+	await _shot("b4_throne_burning")    # embers going out to the row
+
 	say("EYES-CROWN: done")
 	get_tree().quit(0)
 

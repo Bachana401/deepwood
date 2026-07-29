@@ -3665,7 +3665,7 @@ func perform_attack() -> void:
 		return
 	# thrown "melee" weapons: the whole attack IS the projectile (the soulwheel
 	# and the lash joined the hook and boomerang here -- weapons overhaul wave 1)
-	if special_type in ["hook", "boomerang", "orbiter", "lash", "chain_maul"]:
+	if special_type in ["hook", "boomerang", "orbiter", "lash", "chain_maul", "brazier_flail"]:
 		play_sfx(SFX_SWORD)
 		animate_sword()
 		launch_projectile(special, get_aim_direction(), int(special.get("damage", stats.damage)))

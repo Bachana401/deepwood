@@ -355,8 +355,10 @@ const ROWS = [
 	# ---------------- WAVE 3 - TIER 8 (10) ----------------
 	["wpn_griefcrown",   "Grief Wears a Crown",  "melee", 8, "cleave", 56, 1.02, {"knockup": true, "status": "slow_w",
 		"fx": [{"kind": "quake", "radius": 180.0, "pct": 1}, {"kind": "rend", "pct_per": 0.15, "max": 7}, {"kind": "harvest", "hp": 5}]}],
-	["wpn_emberthrone",  "Throne of Embers",     "melee", 8, "chain_maul", 45, 0.88, {"status": "burn_w",
-		"fx": [{"kind": "stormcall", "every": 3, "pct": 1.6}, {"kind": "gravity", "radius": 200.0, "pull": 170.0}, {"kind": "bloodprice", "pct": 1, "cost": 1}]}],
+	# CROWN TEN #5: a chain_maul shared with 8 weapons, wearing three fx riders,
+	# becomes the weapon its name describes -- put the throne DOWN and it burns.
+	["wpn_emberthrone",  "Throne of Embers",     "melee", 8, "brazier", 30, 0.95, {"status": "burn_w",
+		"fx": [{"kind": "stormcall", "every": 3, "pct": 1.6}]}],
 	["wpn_worldslash",   "A Cut Across the World","melee", 8, "crescent", 38, 0.52, {"p_damage": 40,
 		"fx": [{"kind": "splinter", "n": 5, "pct": 1, "range": 200.0}, {"kind": "echo", "pct": 1, "delay": 0.45}, {"kind": "rend", "pct_per": 0.12, "max": 6}]}],
 	# THE CROWN TEN (overhaul wave, 2026-07-29): apex weapon #1. Three stacked
@@ -672,6 +674,10 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			# REGICIDE alone: thrown crown-spears that STICK and stack, the sixth
 			# pushing the first out in a burst (Daybreak-kin, never 1:1)
 			s = {"type": "crown_spear", "damage": dmg, "speed": spd + 220.0, "range": rng}
+		"brazier":
+			# THRONE OF EMBERS alone: the flail head SITS where it lands and
+			# burns as a brazier before you take it up (Flower-Pow-kin)
+			s = {"type": "brazier_flail", "damage": dmg, "speed": spd + 40.0, "range": 240.0 + float(tier) * 16.0}
 		"staff":
 			s = {"type": "staff_extend"}
 	if not st.is_empty():
@@ -741,6 +747,7 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"zenith":     return "Every swing frees the GHOST of a blade it culminates: out, one whirl at the far point, and home -- cutting the whole way, each image a different ancestor."
 		"court":      return "Every swing calls the COURT: %d shades of the people you brought home appear at your side, each carrying a different ancestor blade, and all of them sweep at once." % int(ex.get("count", 4))
 		"edict":      return "The law REACHES: a jointed arm of light unfolds the length of the hall, cutting everything along it and blooming where it touches -- and stone does not stop a sentence."
+		"brazier":    return "Whirl it, hurl it -- and where the head comes to REST it stops being a weapon and becomes a THRONE, a brazier sitting in the dirt spitting embers at whatever comes near, until you take it up again."
 		"regicide":   return "You do not stab a king once. Every throw leaves a crown-spear STANDING in them, biting while it stays -- five at a time, and the sixth shoves the first out in a burst."
 		"prism":      return "HOLD IT. Six sunbeams open in a fan and draw slowly together; the longer you stand and pour, the tighter they close, until all six burn through the same body at once. Moving lets the sun go out."
 		"staff":      return "Landed blows in rhythm DRAW IT LONGER; the fourth strikes the earth as a pillar."
