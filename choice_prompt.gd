@@ -15,7 +15,11 @@ extends CanvasLayer
 var _title := ""
 var _body := ""
 var _options: Array = []
-var _host_scene: Node = null   # the scene whose choice this is (see _process)
+# The scene whose choice this is, held BY INSTANCE ID (same rule as DialogueBox):
+# a freed object compares EQUAL to null in GDScript, so a held reference can
+# never detect the death it exists to detect -- instance_from_id() can.
+var _host_id := 0
+var _chosen := false           # a choice landed; every later press is a no-op
 
 static func open(host: Node, title: String, body: String, options: Array) -> void:
 	# same guard as DialogueBox.play: a null/out-of-tree host has no tree to mount into.
@@ -29,7 +33,8 @@ static func open(host: Node, title: String, body: String, options: Array) -> voi
 	box._options = options
 	# root-mounted like the DialogueBox -- remember whose choice this is, so a
 	# scene change dissolves it instead of stranding it (see _process)
-	box._host_scene = host.get_tree().current_scene
+	var host_scene := host.get_tree().current_scene
+	box._host_id = host_scene.get_instance_id() if host_scene != null else 0
 	host.get_tree().root.add_child(box)
 
 func _ready() -> void:
@@ -40,10 +45,17 @@ func _ready() -> void:
 	_build()
 	get_tree().paused = true
 
+# The scene that opened this choice no longer exists (freed mid scene-swap).
+func _host_gone() -> bool:
+	if _host_id == 0:
+		return false
+	var host = instance_from_id(_host_id)
+	return host == null or not is_instance_valid(host)
+
 func _process(_delta: float) -> void:
 	# same contract as DialogueBox: the modal dies with the scene that opened it,
 	# dropping its callbacks (they point into freed nodes) and releasing the pause
-	if _host_scene != null and not is_instance_valid(_host_scene):
+	if _host_gone():
 		get_tree().paused = false
 		queue_free()
 
@@ -109,9 +121,20 @@ func _build() -> void:
 		vb.add_child(b)
 
 func _choose(cb: Callable) -> void:
-	get_tree().paused = false
+	if _chosen:                # two buttons pressed the same frame: first one wins
+		return
+	_chosen = true
+	var t := get_tree()
+	if t != null:
+		t.paused = false
 	queue_free()
-	if cb.is_valid():
+	# same dispatch guard as DialogueBox.finish(): never call into a freed or
+	# mid-teardown owner -- is_valid() alone misses a lambda whose self died
+	if _host_gone():
+		return
+	var cb_owner = cb.get_object() if cb.is_valid() else null
+	if cb.is_valid() and is_instance_valid(cb_owner) \
+			and (not cb_owner is Node or cb_owner.is_inside_tree()):
 		cb.call()
 
 # Esc / the shared close key dismisses the prompt as "no choice made".
