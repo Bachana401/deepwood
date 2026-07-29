@@ -847,6 +847,17 @@ const BOND_INCOME_MULT = 1.5
 # bonus types) aren't mapped to a building yet -- no current building fits
 # the former thematically, and materials don't exist yet for the latter.
 const LEADER_BONUS_PER_HOLDER = 0.15
+# THE WORKERS WORK (dev call 2026-07-29). An audit of the automation ladder found
+# three buildings whose WORKER posts were declared, staffable, and never read by
+# any game logic -- 30 slots (School "Teachers" 10, Tavern "Barman" 10, Blacksmith
+# "Blacksmith" 10) where a player could assign villagers, see them employed, and
+# get literally nothing. Staffing a building is supposed to be HOW it runs itself,
+# so each now pays its own kind of work, at a lesser rate than the leader who runs
+# the place.
+const TEACHER_SPEED_PER_HEAD := 0.08    # School: each Teacher speeds graduation
+const BARMAN_MORALE_EACH := 0.12        # Tavern: each Barman lifts the room (0-10 scale)
+const BARMAN_TRICKLE := 0.06            # Tavern: drink money per Barman (cf BARKEEP_TRICKLE)
+const SMITH_ARMS_PER_HEAD := 0.5        # Blacksmith: each smith adds forge throughput
 
 # The day/night clock reading as of the last tick -- used to measure how
 # much IN-GAME time passed since then (which can be negative if the player
@@ -3177,6 +3188,11 @@ func personal_morale_target(v: Dictionary) -> float:
 		t += 0.3
 	t += 0.4 * clampf(float(rescued_villagers.size()) / MORALE_POP_TARGET, 0.0, 1.0)
 	t += (LEADER_MORALE_EACH / 10.0) * (seated_leaders("Tavern") + seated_leaders("Bar"))
+	# ...and the BARMEN behind the counter, who were declared but never read: a
+	# tavern with hands pouring is a warmer room than one with only a keeper.
+	# Capped so a fully-staffed tavern is a real lift, not a morale cheat code.
+	if is_building_operational("Tavern") and has_food():
+		t += minf(BARMAN_MORALE_EACH * float(count_leader_holders("Tavern", "Barman")), 1.0)
 	# Ilo, the Nameless Bard (the Ten): his songs lift the whole village
 	if ten_freed("ten_ilo"):
 		t += 1.0
@@ -3857,6 +3873,10 @@ func generate_passive_income() -> void:
 	# takings -- the Farm and the Dock are what keep the taps running.
 	if is_building_operational("Bar") and has_food():
 		total += BARKEEP_TRICKLE * float(count_workers("Bar"))
+	# the TAVERN pours too, on the same chain (no larder, no drink, no takings) --
+	# its Barmen were staffable and worthless before 2026-07-29
+	if is_building_operational("Tavern") and has_food():
+		total += BARMAN_TRICKLE * float(count_leader_holders("Tavern", "Barman"))
 	if total <= 0.0:
 		return
 	# a happy village is a taxable village (0.75x .. 1.25x)
@@ -4443,7 +4463,15 @@ func get_gestation_speed_multiplier() -> float:
 	return (1.0 + count_leader_holders("Hospital", "Chief Physician") * LEADER_BONUS_PER_HOLDER) * morale_birth_multiplier()
 
 func get_school_graduation_speed_multiplier() -> float:
-	return 1.0 + count_leader_holders("School", "Principal") * LEADER_BONUS_PER_HOLDER
+	# THE TEACHERS TEACH (2026-07-29). The School declares 10 Teacher slots, and
+	# until now graduation read the PRINCIPAL only -- a player could seat ten
+	# villagers as Teachers and change nothing at all. A Teacher is worth less than
+	# the Principal who runs the place, but a staffed schoolhouse must school faster
+	# than an empty one. (count_leader_holders is a by-TITLE counter despite its
+	# name; count_workers("School") would wrongly sweep in the Students, who are
+	# enrolled under the same role_key.)
+	return 1.0 + count_leader_holders("School", "Principal") * LEADER_BONUS_PER_HOLDER \
+		+ count_leader_holders("School", "Teachers") * TEACHER_SPEED_PER_HEAD
 
 func get_barracks_graduation_speed_multiplier() -> float:
 	# Brannoc, the Wall That Stood (the Ten): warriors train twice as fast
@@ -4697,7 +4725,12 @@ func apply_leadership_automation() -> void:
 		# THE CHAIN: every arm is forged FROM village iron (Mine -> Forge ->
 		# armory) -- an empty ore store means a cold forge, however grand the
 		# Forgemaster. Seat miners to feed him.
-		var forged: int = mini(FORGE_ARMS_PER_TICK,
+		# THE SMITHS SWING TOO (2026-07-29): the Forgemaster opens the forge, but
+		# every Blacksmith at a bench raises how much comes off it in a tick. The
+		# ten smith slots were declared and never read before this.
+		var bench: int = FORGE_ARMS_PER_TICK + int(floor(
+			SMITH_ARMS_PER_HEAD * float(count_leader_holders("Blacksmith", "Blacksmith"))))
+		var forged: int = mini(bench,
 			mini(int(village_stockpile["iron_shard"]) / FORGE_IRON_PER_ARM, BARRACKS_ARMS_CAP - barracks_arms))
 		if forged > 0:
 			village_stockpile["iron_shard"] = int(village_stockpile["iron_shard"]) - forged * FORGE_IRON_PER_ARM

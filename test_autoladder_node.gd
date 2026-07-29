@@ -140,6 +140,59 @@ func _ready() -> void:
 	check("the glance panel reads the stores out (the chain is visible)",
 		mm.contains("village_stockpile"))
 
+	# ---- THE WORKERS WORK (2026-07-29) ----
+	# An audit found 30 declared, staffable worker slots that no game logic ever
+	# read: School "Teachers", Tavern "Barman", Blacksmith "Blacksmith". A player
+	# could seat ten villagers in each and change NOTHING. Each must now pay.
+	var seat := func(bname: String, title: String, n: int) -> void:
+		GameState.rescued_villagers = []
+		GameState.building_stage[bname] = GameState.TOTAL_BUILD_STAGES
+		GameState.building_health[bname] = 100
+		GameState.village_food = 400.0
+		for i in range(n):
+			GameState.rescued_villagers.append({
+				"id": "wk_%s_%d" % [title, i], "name": "W%d" % i, "sex": "Male",
+				"is_kid": false, "stat_name": "", "stat_value": 3,
+				"role_key": bname, "role_title": title})
+
+	seat.call("School", "Teachers", 0)
+	var school_empty: float = GameState.get_school_graduation_speed_multiplier()
+	seat.call("School", "Teachers", 8)
+	var school_staffed: float = GameState.get_school_graduation_speed_multiplier()
+	check("staffed TEACHERS speed graduation (the post is no longer inert)",
+		school_staffed > school_empty, "%.2f -> %.2f" % [school_empty, school_staffed])
+
+	seat.call("Tavern", "Barman", 0)
+	var tav_empty: int = GameState.village_morale()
+	seat.call("Tavern", "Barman", 8)
+	var tav_staffed: int = GameState.village_morale()
+	check("staffed BARMEN warm the room (morale rises)",
+		tav_staffed > tav_empty, "%d -> %d" % [tav_empty, tav_staffed])
+
+	# the smiths: more hands at the bench, more arms off it per tick
+	GameState.rescued_villagers = []
+	for b in ["Blacksmith", "Barracks"]:
+		GameState.building_stage[b] = GameState.TOTAL_BUILD_STAGES
+		GameState.building_health[b] = 100
+	GameState.rescued_villagers.append({"id": "fm", "name": "Forgemaster", "sex": "Female",
+		"is_kid": false, "stat_name": "Forgemaster", "stat_value": 6,
+		"role_key": "Blacksmith", "role_title": "Forgemaster"})
+	var arms_of := func(smiths: int) -> int:
+		while GameState.rescued_villagers.size() > 1:
+			GameState.rescued_villagers.pop_back()
+		for i in range(smiths):
+			GameState.rescued_villagers.append({"id": "sm_%d" % i, "name": "S%d" % i,
+				"sex": "Male", "is_kid": false, "stat_name": "Blacksmith", "stat_value": 3,
+				"role_key": "Blacksmith", "role_title": "Blacksmith"})
+		GameState.barracks_arms = 0
+		GameState.village_stockpile["iron_shard"] = 999
+		GameState.apply_leadership_automation()
+		return GameState.barracks_arms
+	var arms_alone: int = arms_of.call(0)
+	var arms_crew: int = arms_of.call(8)
+	check("staffed SMITHS raise forge throughput (the bench is no longer inert)",
+		arms_crew > arms_alone, "%d -> %d arms/tick" % [arms_alone, arms_crew])
+
 	# ---- restore ----
 	GameState.rescued_villagers = saved_roster
 	GameState.building_stage = saved_stage
