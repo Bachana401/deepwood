@@ -607,22 +607,32 @@ const HELD_ROT_DEG := 45.0        # NE-authored blade -> WeaponIcon +x
 const HELD_BLADE_FRAC := 0.80     # fraction of the square art the blade spans
 const HELD_LEN_MULT := 1.25       # blade reach relative to the weapon's icon length
 const HELD_MIN_LEN := 30.0
+const HELD_BOW_HEIGHT := 40.0     # on-screen bow height in hand (BowVisual was 28)
 func update_weapon_sprite() -> bool:
 	if not weapon_sprite:
 		return false
 	var tex: Texture2D = Inventory.icon_texture(active_weapon_id) if has_weapon() else null
 	# bows draw their own procedural bow (BowVisual); everything else (melee/
 	# spear/wand) shows the real sprite in hand
-	if not HELD_SPRITE_ENABLED or tex == null or active_weapon_type == "bow":
+	if not HELD_SPRITE_ENABLED or tex == null:
 		weapon_sprite.visible = false
 		return false
 	weapon_sprite.texture = tex
-	var blade_len: float = maxf(active_stats.icon_size.x, HELD_MIN_LEN) * HELD_LEN_MULT
-	var s: float = blade_len / (float(tex.get_width()) * HELD_BLADE_FRAC)
-	weapon_sprite.scale = Vector2(s, s)
-	weapon_sprite.rotation = deg_to_rad(HELD_ROT_DEG)
-	# centre placed along the aim axis (+x), lifted to the grip line (pivot.y)
-	weapon_sprite.position = Vector2(blade_len * 0.5, active_stats.icon_size.y * 0.5)
+	if active_weapon_type == "bow":
+		# bows are AUTHORED upright (the pose for aiming east): no extra local
+		# rotation -- WeaponIcon's aim rotation tilts the whole bow toward the
+		# cursor, exactly like Terraria. Held at the grip, sized by height.
+		var s_b: float = HELD_BOW_HEIGHT / float(tex.get_height())
+		weapon_sprite.scale = Vector2(s_b, s_b)
+		weapon_sprite.rotation = 0.0
+		weapon_sprite.position = Vector2(6.0, active_stats.icon_size.y * 0.5)
+	else:
+		var blade_len: float = maxf(active_stats.icon_size.x, HELD_MIN_LEN) * HELD_LEN_MULT
+		var s: float = blade_len / (float(tex.get_width()) * HELD_BLADE_FRAC)
+		weapon_sprite.scale = Vector2(s, s)
+		weapon_sprite.rotation = deg_to_rad(HELD_ROT_DEG)
+		# centre placed along the aim axis (+x), lifted to the grip line (pivot.y)
+		weapon_sprite.position = Vector2(blade_len * 0.5, active_stats.icon_size.y * 0.5)
 	weapon_sprite.visible = true
 	$WeaponIcon.color = Color(0, 0, 0, 0)   # hide the fallback bar; the sprite carries the look
 	return true
@@ -2378,13 +2388,12 @@ func get_aim_direction() -> Vector2:
 		return Vector2(facing_direction, 0)
 	return to_mouse.normalized()
 
-# Where the player is aiming, in world space. On touch devices the held aim
-# finger replaces the mouse (Godot only mouse-emulates the FIRST finger, so
-# with a thumb on the joystick the mouse position goes stale); everywhere
-# else this is exactly get_global_mouse_position().
+# Where the player is aiming, in world space. On touch devices there is no
+# mouse worth trusting, so the touch layer auto-aims (nearest enemy, facing
+# side preferred). Everywhere else this is exactly get_global_mouse_position().
 func aim_world_point() -> Vector2:
-	if TouchControls.active and TouchControls.aim_touch_down:
-		return TouchControls.aim_world_pos(get_viewport())
+	if TouchControls.active:
+		return TouchControls.aim_point_for(self)
 	return get_global_mouse_position()
 
 # TERRARIA MINING (2026-07-25): while a pickaxe is wielded, HOLD left-click to dig
@@ -2471,8 +2480,15 @@ func update_weapon_visual(offset: float) -> void:
 	$WeaponTip.visible = false
 	$BowVisual.visible = false
 	if active_weapon_type == "bow":
-		$WeaponIcon.visible = false
-		$BowVisual.visible = true
+		# inventory == hand (dev): a bow with real art shows THAT sprite in the
+		# hand (WeaponIcon carries it, bar transparent); the procedural
+		# BowVisual only remains for art-less bows
+		var bow_has_art: bool = weapon_sprite != null and weapon_sprite.visible
+		$WeaponIcon.visible = bow_has_art
+		if bow_has_art:
+			$WeaponIcon.position = aim_dir * offset - $WeaponIcon.pivot_offset
+			$WeaponIcon.rotation = aim_dir.angle()
+		$BowVisual.visible = not bow_has_art
 		$BowVisual.position = aim_dir * offset
 		$BowVisual.rotation = aim_dir.angle()
 		$BowVisual.scale = Vector2.ONE

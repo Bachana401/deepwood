@@ -28,17 +28,17 @@ func _ready() -> void:
 	get_tree().paused = false
 	GameState.game_hours = 10.0   # broad daylight so the shots read
 	p.global_position = Vector2(-400, -160)
-	for id in ["exc_thunder","exc_gungnir","exc_voidcaller","wpn_crownsorrow"]:
+	for id in ["exc_thunder","exc_stormfury","wpn_huntingbow","exc_voidcaller"]:
 		if p.inventory != null: p.inventory.add_item(id, 1)
 	# let the camera catch up to the teleport before shooting
 	for _f in range(90):
 		await get_tree().process_frame
 	var cases := [
 		["exc_thunder", Vector2(1,0), "01_sword_E"],
-		["exc_thunder", Vector2(1,-1), "02_sword_NE"],
-		["exc_thunder", Vector2(0,-1), "03_sword_N"],
-		["wpn_crownsorrow", Vector2(1,0), "04_greatsword_E"],
-		["exc_gungnir", Vector2(1,0), "05_spear_E"],
+		["exc_stormfury", Vector2(1,0), "06_bow_E"],
+		["exc_stormfury", Vector2(1,-1), "07_bow_NE"],
+		["wpn_huntingbow", Vector2(1,0), "08_plainbow_E"],
+		["exc_voidcaller", Vector2(1,0), "09_wand_E"],
 	]
 	for c in cases:
 		p.wield_weapon(c[0])
