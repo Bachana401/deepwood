@@ -254,8 +254,10 @@ func _ready() -> void:
 	# ---- item-art overhaul (2026-07-28): the texture-first + element plumbing --
 	# guards the Phase 0 architecture so a later regression can't silently break
 	# the fallbacks or the element contract.
+	# (wpn_sword used to be the no-art probe -- the full art pass gave EVERY
+	# weapon a sprite, so only a genuinely nonexistent id stays procedural)
 	check("icon_texture is null-safe when no art exists (procedural fallback stays)",
-		Inventory.icon_texture("") == null and Inventory.icon_texture("wpn_sword") == null)
+		Inventory.icon_texture("") == null and Inventory.icon_texture("not_a_real_item") == null)
 	# the first real weapon sprite (Thundercaller) flows through the loader AND
 	# paint_icon actually shows it as a TextureRect, not the procedural draw
 	if ResourceLoader.exists("res://art/items/exc_thunder.png"):
