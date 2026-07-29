@@ -157,7 +157,7 @@ func _ready() -> void:
 	var def_with_hero: float = GameState.village_defense_power()
 	GameState.rescued_villagers.erase(trained)
 	var def_without: float = GameState.village_defense_power()
-	# ...and a plain warrior for scale, so morale's multiplier cancels out
+	# ...and a plain warrior for scale (defense is morale-independent since 2026-07-29)
 	var plain := {"id": "test_plain_warrior", "name": "P", "sex": "Male", "is_kid": false,
 		"stat_name": "Warrior", "stat_value": 3, "role_key": "", "role_title": "", "paired": false}
 	GameState.rescued_villagers.append(plain)

@@ -2121,8 +2121,16 @@ func village_defense_power() -> float:
 	# the RAMPART itself blunts the wave: a higher tier is taller stone with
 	# traps set into it, worth real defense even before a body mans it
 	power += wall_defense_bonus()
-	# morale rides the whole village's fighting spirit up or down
-	return power * morale_defense_multiplier()
+	# MORALE NO LONGER TOUCHES DEFENSE (dev 2026-07-29): "morale has to affect only
+	# regular villagers, not combat people or leaders." Everything counted above is
+	# a TRAINED fighter (Orin, warriors, heroes, adventurers, the Warchief) or the
+	# stone wall itself -- none of them fight worse because the town is grieving.
+	# Scaling this by morale also built a death SPIRAL the marathon sim exposed: a
+	# siege kills villagers -> death-shock craters morale -> the multiplier (was
+	# 0.5x at low morale) halved the town's defense -> the next wave killed more,
+	# and casualties burn adventurers first (permanent). Morale still drives what
+	# it should: villager output/income (village_morale_multiplier) and wellbeing.
+	return power
 
 # How many TRAINED warriors the Barracks has -- drives how many VISIBLE soldier
 # units sally out to fight during a live siege (see siege_manager.gd). Recruits
@@ -3669,8 +3677,13 @@ func _spawn_demon_at(pos: Vector2, parent: Node, was: Dictionary = {}) -> void:
 	# wall and immediately hunts the nearest villager/player/building (from within)
 	demon.wall = null
 
-# Morale swings the village's fighting strength: 0.5x at rock bottom, 1.0x at
-# 5/10, 1.5x when thriving. Demoralized towns bleed in sieges; happy ones hold.
+# RETIRED 2026-07-29 (dev: "morale has to affect only regular villagers, not
+# combat people or leaders"). This used to scale village_defense_power(), which
+# made a grieving town's TRAINED fighters and its stone wall weaker -- and built a
+# death spiral (deaths -> morale crash -> halved defense -> more deaths). Defense
+# is now morale-independent; morale drives villager output via
+# village_morale_multiplier() instead. Kept as a no-longer-called reading for the
+# UI//save compat; do NOT reintroduce it into the defense maths.
 func morale_defense_multiplier() -> float:
 	return 0.5 + float(village_morale()) / 100.0
 
