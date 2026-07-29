@@ -903,6 +903,12 @@ const SIEGE_INTERVAL_HOURS = 12.0
 # cleanly if defense >= threat, otherwise the overflow becomes villager deaths.
 const SIEGE_DEF_WIZARD = 4.0
 const SIEGE_DEF_PER_WARRIOR = 1.0
+# How much unmet threat it takes to cost ONE life when a wave breaks through, and
+# the most an ORDINARY wave may ever take (a Black Tide is exempt). See
+# resolve_siege_offline for why these exist -- the old 1-life-per-point, uncapped
+# rule made town collapse a mathematical certainty.
+const SIEGE_SHORTFALL_PER_CASUALTY := 3.0
+const SIEGE_MAX_CASUALTIES := 2
 # THE BLACK TIDE (GAME_BIBLE 3c, dev vision: "a few waves, not often, which the
 # village won't survive without adventurers"). Every Nth siege (once you've drawn
 # real heat) is a Black Tide: a wave far past what the wall's passive defense
@@ -2278,7 +2284,7 @@ func trigger_siege() -> void:
 			mgr.start_live_siege(tier, black)
 			live_siege_active = true
 			return
-	resolve_siege_offline(tier)
+	resolve_siege_offline(tier, black)
 
 # Kaldos, the Tidecaller (the Ten): the Dock's deep-catches haul MATERIALS as
 # well as food -- one basic material per in-game day per staffed dock, dropped
@@ -2680,7 +2686,7 @@ func end_lantern() -> void:
 		notify("🌅 The lanterns come down softly. A good night.")
 	log_event("village", "The Lantern Night ended at dawn; the town woke gentler.")
 
-func resolve_siege_offline(tier: int) -> void:
+func resolve_siege_offline(tier: int, black := false) -> void:
 	away_report.sieges += 1
 	maera_stabilized_this_siege = false
 	if village_defense_power() >= float(tier):
@@ -2688,7 +2694,22 @@ func resolve_siege_offline(tier: int) -> void:
 		log_event("combat", "A tier-%d siege struck while you were away — the defense held. Nobody was lost." % tier)
 		return
 	log_event("combat", "A tier-%d siege struck while you were away — the wall could not hold it all." % tier)
-	var casualties = int(ceil(float(tier) - village_defense_power()))
+	# THE ATTRITION CURVE (2026-07-29). This was `ceil(tier - defense)` -- ONE life
+	# per single point of unmet threat, uncapped -- so a wall that ALMOST held bled
+	# exactly as badly as one that folded, and a tier-21 wave against defense 15
+	# took SIX souls. With a wave landing every 12 game-hours (~5 real minutes,
+	# ~54 per session) and casualties spending ADVENTURERS FIRST and permanently,
+	# defense only ever ratcheted down while depth pushed tier up: guaranteed
+	# collapse. The marathon sim measured it -- the town peaked at 27 people around
+	# floor 27, then fell to ~12-15 and could never recover, against the intended
+	# city scale of 70-80.
+	# A near-miss now costs far less than a rout, and no ORDINARY wave can gut the
+	# town in one night. The Black Tide is exempt: it is the designed catastrophe,
+	# and it is announced ahead of time so the player can come home for it.
+	var shortfall := float(tier) - village_defense_power()
+	var casualties = int(ceil(shortfall / SIEGE_SHORTFALL_PER_CASUALTY))
+	if not black:
+		casualties = mini(casualties, SIEGE_MAX_CASUALTIES)
 	for i in range(casualties):
 		# the adventurers are the shield: a fighting one (wall first, then city)
 		# falls IN PLACE of a villager. That is their job, and their risk -- one

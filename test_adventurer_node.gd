@@ -105,6 +105,47 @@ func _ready() -> void:
 		not GameState.adventurer_state("adv_wren").get("dead", true))
 	check("the away report names the loss", int(GameState.away_report.get("adventurers_lost", 0)) >= 1)
 
+	# ------------- THE ATTRITION CURVE (2026-07-29) -------------
+	# Was ceil(tier - defense): ONE life per single point of unmet threat,
+	# uncapped -- so a near-miss bled like a rout and a wave every ~5 real
+	# minutes made town collapse a certainty (marathon: peaked 27, fell to 12).
+	# A breach must still COST, but an ordinary wave may never gut the town.
+	var toll := func(tier_over: int, black: bool) -> int:
+		GameState.rescued_villagers = []
+		for i in range(40):
+			GameState.rescued_villagers.append({
+				"id": "atr_%d" % i, "name": "A%d" % i, "sex": "Male", "is_kid": false,
+				"stat_name": "Farm", "stat_value": 3, "role_key": "", "role_title": ""})
+		for aid in GameState.adventurers.keys():
+			GameState.adventurers[aid]["station"] = "house"   # no shield: villagers take it
+		var before: int = GameState.rescued_villagers.size()
+		GameState.resolve_siege_offline(int(GameState.village_defense_power()) + tier_over, black)
+		return before - GameState.rescued_villagers.size()
+	var graze: int = toll.call(1, false)
+	var rout: int = toll.call(30, false)
+	var tide: int = toll.call(30, true)
+	check("a breach still costs lives (the wall is not free to lose)", graze >= 1, "%d" % graze)
+	check("a near-miss costs LESS than a rout (attrition scales with the gap)",
+		graze < rout, "graze=%d rout=%d" % [graze, rout])
+	check("no ORDINARY wave may gut the town in one night (capped)",
+		rout <= GameState.SIEGE_MAX_CASUALTIES, "%d lost (cap %d)" % [rout, GameState.SIEGE_MAX_CASUALTIES])
+	check("the BLACK TIDE is exempt -- the designed catastrophe still lands",
+		tide > GameState.SIEGE_MAX_CASUALTIES, "tide=%d vs cap %d" % [tide, GameState.SIEGE_MAX_CASUALTIES])
+	# and a town that genuinely out-defends the wave still loses nobody. Give it a
+	# real garrison first: with every adventurer housed above, defense is 0 and
+	# ANY tier (min 1) outguns it -- that proves nothing.
+	GameState.rescued_villagers = []
+	for i in range(10):
+		GameState.rescued_villagers.append({
+			"id": "hold_%d" % i, "name": "H%d" % i, "sex": "Male", "is_kid": false,
+			"stat_name": "Warrior", "stat_value": 5, "role_key": "", "role_title": ""})
+	var held_before: int = GameState.rescued_villagers.size()
+	var def_now: float = GameState.village_defense_power()
+	GameState.resolve_siege_offline(int(floor(def_now)), false)
+	check("a wave the defense outmatches takes nobody at all",
+		GameState.rescued_villagers.size() == held_before,
+		"%d -> %d" % [held_before, GameState.rescued_villagers.size()])
+
 	# ---------------- the world NPC ----------------
 	var adv_nodes = get_tree().get_nodes_in_group("adventurer")
 	check("adventurers walk the village at boot", adv_nodes.size() >= 1, "%d" % adv_nodes.size())
