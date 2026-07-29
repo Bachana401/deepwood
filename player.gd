@@ -4242,7 +4242,12 @@ func _now() -> float:
 # Is a relic granting `power` currently equipped?
 func has_relic_power(power: String) -> bool:
 	for id in GameState.get_equipped_item_ids():
-		if Inventory.get_item_def(id).get("relic_power", "") == power:
+		var def = Inventory.get_item_def(id)
+		if def.get("relic_power", "") == power:
+			return true
+		# combined relics (Ankh-kin 2026-07-29) fold several powers into one
+		# item and carry them as "relic_powers" (plural)
+		if power in def.get("relic_powers", []):
 			return true
 	return false
 
@@ -4250,7 +4255,7 @@ func has_relic_power(power: String) -> bool:
 func relic_power_value(power: String, fallback: float) -> float:
 	for id in GameState.get_equipped_item_ids():
 		var def = Inventory.get_item_def(id)
-		if def.get("relic_power", "") == power:
+		if def.get("relic_power", "") == power or power in def.get("relic_powers", []):
 			return def.get("relic_value", fallback)
 	return fallback
 

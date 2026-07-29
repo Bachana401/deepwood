@@ -97,6 +97,12 @@ const ITEM_DEFS = {
 	"relic_steward": {"name": "Steward's Chain", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.85, 0.72, 0.35, 1.0), "equip_effect": {"gold_gain": 0.4, "xp_gain": 0.4, "max_health": 20.0}, "relic_desc": "The village prospers around you: +40% gold and XP."},
 	# --- Creative relics (WEAPONS.md Ã‚Â§6): a mechanic, not a flat stat. ---
 	"relic_gorgon": {"name": "Gorgon's Gaze", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.55, 0.6, 0.5, 1.0), "equip_effect": {"max_health": 25.0}, "relic_power": "petrify", "relic_value": 3.0, "relic_desc": "Your hits turn the struck foe to STONE for 3s -- it can't act and takes +50% damage. Long cooldown; apex/undying bosses resist."},
+	# --- COMBINED relics (Ankh/Terraspark-kin, 2026-07-29): forged at the bench
+	# FROM lesser relics (CRAFT_RECIPES), every folded power intact -- the prize
+	# is the freed slots. They carry "relic_powers" (plural), read by
+	# player.has_relic_power alongside the classic singular. ---
+	"relic_unbroken": {"name": "The Unbroken Seal", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.75, 0.82, 0.95, 1.0), "equip_effect": {"max_health": 130.0, "status_resistance": 0.6}, "relic_powers": ["aegis", "phoenix"], "relic_desc": "Three guardians folded into one seal: shrugs off 60% of slows and hexes, a shield fully blocks one hit every 6s, and death itself is refused once every 45s."},
+	"relic_wayfarer": {"name": "The Wayfarer's Passage", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.72, 0.9, 0.95, 1.0), "equip_effect": {"flight": 1.0, "fall_immunity": 1.0, "move_speed": 0.12, "max_health": 25.0}, "relic_powers": ["blink"], "relic_desc": "Every road folded into one passage: flight on held wings, no fall can hurt you, and T still blink-dashes through danger."},
 	# --- Gloves & Boots (the two new armor slots). Standalone pieces across
 	# grades so the slots have real content to chase, plus a real "defense"
 	# axis (damage_reduction, a fraction capped at 75% in player.take_damage)
@@ -852,6 +858,7 @@ const ITEM_GRADES = {
 	"relic_godheart": "mythic", "relic_warlord": "mythic", "relic_fortune": "legendary", "relic_celerity": "mythic",
 	"relic_phoenix": "mythic", "relic_thorns": "epic", "relic_aegis": "epic", "relic_vampire": "legendary", "relic_juggernaut": "legendary",
 	"relic_blink": "rare", "relic_reaper": "legendary", "relic_ward": "rare", "relic_steward": "rare",
+	"relic_unbroken": "mythic", "relic_wayfarer": "mythic",
 	"relic_gorgon": "epic",
 	"rune_sanctuary": "epic", "rune_stoneguise": "legendary", "rune_riddlestaff": "mythic",
 	# fishing (pillar 3)
@@ -1027,6 +1034,10 @@ const CRAFT_RECIPES = {
 	# (weapon_projectile LEGACY_TINTS). An alternate road to the crown for
 	# the collector who gathered the whole line; the vaults remain the other.
 	"wpn_lastword": {"wpn_worldsedge": 1, "wpn_afterlight": 1, "wpn_novatongue": 1, "void_essence": 8},
+	# --- combined relics (Ankh/Terraspark-kin): fold the lesser three into one,
+	# every power intact -- the prize is the freed slots ---
+	"relic_unbroken": {"relic_ward": 1, "relic_aegis": 1, "relic_phoenix": 1, "void_essence": 5},
+	"relic_wayfarer": {"relic_wings": 1, "relic_feather": 1, "relic_blink": 1, "void_essence": 5},
 	"potion_tears": {"tear_pale": 3, "herb": 1},
 	"food_stew": {"herb": 2, "raw_meat": 1},
 	"food_feast": {"raw_meat": 3, "herb": 1},
@@ -1667,7 +1678,7 @@ static func paint_icon(target: ColorRect, item_id: String) -> void:
 		"exc_boomerang": _icon_boomerang(target, w, h)
 		"exc_wizardsbane": _icon_runeblade(target, w, h)
 		"exc_ragnarok": _icon_ragnarok(target, w, h)
-		"relic_wings", "relic_feather": _icon_wing(target, w, h, get_item_def(item_id).get("color", Color.WHITE))
+		"relic_wings", "relic_feather", "relic_wayfarer": _icon_wing(target, w, h, get_item_def(item_id).get("color", Color.WHITE))
 		"coin_gold", "coin_silver", "coin_bronze": _icon_coin(target, w, h, col)
 		"wood": _icon_wood(target, w, h)
 		"stone": _icon_stone(target, w, h)

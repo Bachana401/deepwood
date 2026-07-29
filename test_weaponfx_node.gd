@@ -201,6 +201,34 @@ func _ready() -> void:
 			culm_ok = false
 	check("The Last Word forges from its three famous ancestors (the culmination)",
 		culm_ok, str(culm))
+	# ---- COMBINED RELICS (Ankh/Terraspark-kin 2026-07-29): each folds real
+	# lesser relics + essence, and every folded power name is a power some
+	# classic relic actually carries (no orphan strings the player can't read)
+	var known_powers := {}
+	for iid in Inventory.ITEM_DEFS:
+		var idef: Dictionary = Inventory.ITEM_DEFS[iid]
+		if str(idef.get("relic_power", "")) != "":
+			known_powers[str(idef["relic_power"])] = true
+	var combo_bad := []
+	for cid in ["relic_unbroken", "relic_wayfarer"]:
+		var cdef: Dictionary = Inventory.ITEM_DEFS.get(cid, {})
+		var rec: Dictionary = Inventory.CRAFT_RECIPES.get(cid, {})
+		if cdef.is_empty() or rec.is_empty():
+			combo_bad.append("%s: missing def or recipe" % cid)
+			continue
+		var relic_ing := 0
+		for k in rec:
+			if str(Inventory.ITEM_DEFS.get(str(k), {}).get("category", "")) == "relic":
+				relic_ing += 1
+		if relic_ing < 3 or not rec.has("void_essence"):
+			combo_bad.append("%s: wants 3 relics + essence, got %s" % [cid, str(rec)])
+		for pw in cdef.get("relic_powers", []):
+			if not known_powers.has(str(pw)):
+				combo_bad.append("%s: orphan power %s" % [cid, str(pw)])
+		if cdef.get("relic_powers", []).is_empty():
+			combo_bad.append("%s: no folded powers" % cid)
+	check("combined relics fold three real relics and only readable powers",
+		combo_bad.is_empty(), "; ".join(combo_bad))
 	# THE SOUL MUST BE READABLE (dev: "not dumb and only plain stats"): every
 	# fx-bearing weapon's CARD says what it does -- an invisible unique is
 	# stats with extra steps
