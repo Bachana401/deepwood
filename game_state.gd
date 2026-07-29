@@ -2621,6 +2621,15 @@ func start_lantern() -> void:
 		_wanderer_arrive()
 	if not wanderer.is_empty():
 		wanderer["dwell"] = maxf(float(wanderer.get("dwell", 12.0)), 14.0)
+		# prices are BAKED at arrival (hunt round 3): a cart already standing
+		# when the lanterns rise kept its old tags -- re-bake the whole board
+		# so the festival's 15% reaches it too (dawn honours the kind prices
+		# for as long as that cart stays; a deal lit is a deal kept)
+		for e in wanderer.get("stock", []):
+			# the showpiece is a flagged stock entry -- re-bake WITH its markup,
+			# or the festival would sell the piece under the cloth at base price
+			var mark: float = WANDERER_SHOWPIECE_MARKUP if e.get("showpiece", false) else 1.0
+			e["price"] = maxi(2, int(round(float(_wanderer_price(str(e.get("id", "")))) * mark)))
 		log_event("economy", "%s pitched by lantern light — staying the night, prices kind." % str(wanderer.get("name", "A wanderer")))
 
 func end_lantern() -> void:

@@ -67,6 +67,26 @@ func _ready() -> void:
 	GameState.lantern_tonight = true
 	check("lantern light makes prices kinder", lit_price < dark_price,
 		"lit %d vs dark %d" % [lit_price, dark_price])
+	# a cart ALREADY standing when the lanterns rise gets its board re-baked
+	# (prices are baked at arrival -- hunt round 3), showpiece markup intact
+	GameState.lantern_tonight = false
+	GameState.end_lantern()
+	GameState.wanderer = {"name": "Standing Cart", "arrived": GameState.game_hours, "dwell": 6.0,
+		"stock": [{"id": "potion_health", "price": 9999, "count": 3},
+			{"id": "relic_vigor", "price": 9999, "count": 1, "showpiece": true}],
+		"tier": 0, "line": "", "showline": ""}
+	GameState.start_lantern()
+	var board: Array = GameState.wanderer.get("stock", [])
+	var plain_ok := false
+	var show_ok := false
+	for e in board:
+		if str(e.get("id", "")) == "potion_health":
+			plain_ok = int(e.price) < 9999 and int(e.price) == GameState._wanderer_price("potion_health")
+		elif str(e.get("id", "")) == "relic_vigor":
+			show_ok = int(e.price) < 9999 \
+				and int(e.price) > GameState._wanderer_price("relic_vigor")
+	check("a standing cart's board softens when the lanterns rise", plain_ok)
+	check("...and the piece under the cloth keeps its markup", show_ok)
 
 	# ---- dawn eases the carried grief, once ----
 	GameState.morale_death_shock = 40.0
