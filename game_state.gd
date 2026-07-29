@@ -1742,6 +1742,7 @@ func tick_village_clock() -> void:
 		tick_caravans(hours_passed)
 		tick_fishing()            # starter rod + the Harbormaster's daily (pillar 3)
 		tick_weeping(hours_passed)   # the forest's rare grieving night
+		tick_lantern(hours_passed)   # ...and the town's rare festival one (after weeping: grief wins a shared dusk)
 
 # === HIDDEN EVENT BOSSES (2026-07-28) ==================================
 # Ten secret bosses (event_boss.gd), each armed once per run. Their trigger
@@ -2484,7 +2485,7 @@ var _weep_last_tod := -1.0
 # Every gate EXCEPT the dice, separated so the suite can prove the gates
 # without fighting randf().
 func weeping_eligible() -> bool:
-	if despair_dead or harvest_at_home or live_siege_active or live_caravan_active:
+	if despair_dead or harvest_at_home or live_siege_active or live_caravan_active or lantern_tonight:
 		return false
 	if in_dungeon:
 		return false
@@ -2551,6 +2552,84 @@ func end_weeping(interrupted: bool) -> void:
 			extra = " Something glints in the wet grass: THE MOURNER'S LOCKET."
 		notify("🌅 Dawn. The forest dries its eyes — %d pale ones laid to rest, %d Pale Tears gathered.%s" % [weeping_kills, tears, extra])
 		log_event("combat", "The Weeping Hour passed: %d laid to rest by morning." % weeping_kills)
+
+# === THE LANTERN NIGHT (festival event, 2026-07-28) ===
+# The Weeping Hour's WARM MIRROR -- the first event where nothing attacks.
+# On a rare dusk in a town doing WELL (morale 6/10+), Deepwood hangs its
+# lanterns: the fair pitches by lantern light (a wanderer's cart arrives or
+# stays the whole night, wares 15% kinder), sky lanterns rise over the
+# roofs, and at dawn the shared joy EASES OLD GRIEF -- a one-time mend of
+# morale_death_shock, because a night of light is how a town heals. It
+# yields to every heavier story and never shares a dark with the weeping.
+const LANTERN_CHANCE := 0.25
+const LANTERN_MIN_MORALE := 60       # joy is EARNED: a struggling town hangs no lanterns
+const LANTERN_MIN_GAP_HOURS := 120.0
+const LANTERN_SHOCK_MEND := 0.35     # dawn forgives a third of the town's carried grief
+const LANTERN_DISCOUNT := 0.85
+var lantern_tonight := false
+var hours_since_lantern := 0.0
+var lanterns_seen := 0
+var _lantern_last_tod := -1.0
+
+func lantern_eligible() -> bool:
+	if despair_dead or harvest_at_home or live_siege_active or live_caravan_active or weeping_tonight:
+		return false
+	if in_dungeon:
+		return false
+	if not opening_done and not dev_mode:
+		return false
+	if village_morale() < LANTERN_MIN_MORALE:
+		return false
+	return hours_since_lantern >= LANTERN_MIN_GAP_HOURS
+
+func tick_lantern(hours_passed: float) -> void:
+	hours_since_lantern += hours_passed
+	# its OWN dusk sample: tick_weeping runs first and has already advanced
+	# _weep_last_tod to the current tod, so reading theirs never sees a
+	# crossing -- caught before it ever shipped
+	var tod := time_of_day()
+	var was: float = _lantern_last_tod
+	_lantern_last_tod = tod
+	if lantern_tonight:
+		if was >= 0.0 and was < WEEP_DAWN and tod >= WEEP_DAWN and tod < 12.0:
+			end_lantern()
+		return
+	# the weeping rolled this same crossing first -- a grieving night wins
+	if weeping_tonight:
+		return
+	if not (was >= 0.0 and was < WEEP_DUSK_FROM and tod >= WEEP_DUSK_FROM):
+		return
+	if not lantern_eligible():
+		return
+	if randf() > LANTERN_CHANCE:
+		return
+	start_lantern()
+
+func start_lantern() -> void:
+	lantern_tonight = true
+	hours_since_lantern = 0.0
+	lanterns_seen += 1
+	notify("🏮 THE LANTERN NIGHT — Deepwood hangs its lights. The fair pitches by lantern glow, and nobody is afraid tonight.")
+	log_event("village", "The town hung its lanterns and kept the night warm.")
+	# the fair: a cart arrives for the night, or the one already here stays late
+	if wanderer.is_empty():
+		_wanderer_arrive()
+	if not wanderer.is_empty():
+		wanderer["dwell"] = maxf(float(wanderer.get("dwell", 12.0)), 14.0)
+		log_event("economy", "%s pitched by lantern light — staying the night, prices kind." % str(wanderer.get("name", "A wanderer")))
+
+func end_lantern() -> void:
+	if not lantern_tonight:
+		return
+	lantern_tonight = false
+	# dawn: the shared joy eases the town's CARRIED grief, once
+	var eased := morale_death_shock * LANTERN_SHOCK_MEND
+	morale_death_shock = maxf(0.0, morale_death_shock - eased)
+	if eased > 0.5:
+		notify("🌅 The lanterns come down softly — old grief sits a little lighter on Deepwood.")
+	else:
+		notify("🌅 The lanterns come down softly. A good night.")
+	log_event("village", "The Lantern Night ended at dawn; the town woke gentler.")
 
 func resolve_siege_offline(tier: int) -> void:
 	away_report.sieges += 1
@@ -4034,6 +4113,9 @@ func _wanderer_price(item_id: String) -> int:
 		base = 20.0 + float(rank * rank) * 22.0
 	# the road talks: later sellers open steeper (their stock is worth it)
 	base *= 1.0 + 0.15 * float(mini(wanderers_seen, 8))
+	# lantern light makes every price kinder (the festival's whole economy)
+	if lantern_tonight:
+		base *= LANTERN_DISCOUNT
 	return maxi(2, int(round(base)))
 
 func _wanderer_arrive() -> void:
@@ -5260,6 +5342,11 @@ func reset_for_new_game() -> void:
 	weepings_survived = 0
 	weeping_kills = 0
 	_weep_last_tod = -1.0
+	# the lanterns come down for a new world too
+	lantern_tonight = false
+	hours_since_lantern = 0.0
+	lanterns_seen = 0
+	_lantern_last_tod = -1.0
 	away_report = {"sieges": 0, "repelled": 0, "villagers_lost": 0, "adventurers_lost": 0}
 	# The village starts in ruins -- every building begins destroyed (health 0)
 	# and must be repaired before its roles work.
@@ -5482,6 +5569,8 @@ func save_game(player: Node) -> void:
 		"hours_since_weeping": hours_since_weeping,
 		"weepings_seen": weepings_seen,
 		"weepings_survived": weepings_survived,
+		"hours_since_lantern": hours_since_lantern,
+		"lanterns_seen": lanterns_seen,
 		"away_report": away_report,
 		"building_health": building_health,
 		"building_stage": building_stage,
@@ -5706,6 +5795,10 @@ func load_game() -> Dictionary:
 		weepings_survived = int(parsed.get("weepings_survived", 0))
 		weeping_tonight = false      # a live night never survives a load
 		_weep_last_tod = -1.0
+		hours_since_lantern = float(parsed.get("hours_since_lantern", 0.0))
+		lanterns_seen = int(parsed.get("lanterns_seen", 0))
+		lantern_tonight = false      # nor does a live festival
+		_lantern_last_tod = -1.0
 		caravan_warned = false          # the dust re-announces after a load
 		live_caravan_active = false     # a live fight never survives a reload
 		live_siege_active = false

@@ -57,14 +57,14 @@ func _ready() -> void:
 	add_child(cheer_sfx)
 	call_deferred("_recompute_bounds")
 
-func _recompute_bounds() -> void:
+func _recompute_bounds() -> bool:
 	# _ready schedules this via call_deferred; a scene swap (village -> underground) can
 	# free us before it fires, leaving get_tree() null. Bail if we're no longer in the tree.
 	if not is_inside_tree():
-		return
+		return false
 	var bs = get_tree().get_nodes_in_group("building")
 	if bs.is_empty():
-		return
+		return false
 	var lo = 1.0e9
 	var hi = -1.0e9
 	for b in bs:
@@ -73,12 +73,82 @@ func _recompute_bounds() -> void:
 	village_lo = lo - 200.0
 	village_hi = hi + 200.0
 	center_x = (lo + hi) * 0.5
+	return true
 
 func _process(delta: float) -> void:
 	_update_decor()
 	_update_lanterns(delta)
+	_update_sky_lanterns(delta)
 	_update_celebration(delta)
 	_update_critters(delta)
+
+# --- THE LANTERN NIGHT (festival event, 2026-07-28): sky lanterns rise ---
+# While GameState.lantern_tonight, paper lanterns lift off over the roofs
+# and drift up until dawn. Purely cosmetic, all tweens node-bound (freed
+# with their lantern -- the meteor-class rule), spawn-rate capped.
+static var _lantern_glow: GradientTexture2D = null
+static func _lantern_glow_tex() -> GradientTexture2D:
+	if _lantern_glow == null:
+		var g := Gradient.new()
+		g.set_color(0, Color(1.0, 0.8, 0.4, 0.9))
+		g.set_color(1, Color(1.0, 0.6, 0.2, 0.0))
+		_lantern_glow = GradientTexture2D.new()
+		_lantern_glow.gradient = g
+		_lantern_glow.fill = GradientTexture2D.FILL_RADIAL
+		_lantern_glow.fill_from = Vector2(0.5, 0.5)
+		_lantern_glow.fill_to = Vector2(0.5, 0.0)
+		_lantern_glow.width = 48
+		_lantern_glow.height = 48
+	return _lantern_glow
+
+var _sky_lantern_cd := 0.0
+func _update_sky_lanterns(delta: float) -> void:
+	if not GameState.lantern_tonight:
+		return
+	_sky_lantern_cd -= delta
+	if _sky_lantern_cd > 0.0:
+		return
+	_sky_lantern_cd = randf_range(0.7, 1.3)
+	# the fleet rises over the TOWN, not the empty west road: bounds were
+	# computed once at _ready (stale for a town that grows, and the 0..6000
+	# default covers the cave mouth, not the village -- EYES caught the
+	# fleet over the wrong stretch). Recompute per spawn (festival-only
+	# cost), and with no buildings standing fall back to the village row.
+	if not _recompute_bounds():
+		village_lo = 4600.0
+		village_hi = 7600.0
+	var l := Node2D.new()
+	l.z_index = 12
+	# SELF-LIT against the night modulate: a lantern at night IS its light,
+	# so the paper renders ADDITIVE and the halo is a radial gradient, not a
+	# flat rect (EYES x2: flat/dim cuts read as grey squares or dark husks)
+	var add_mat := CanvasItemMaterial.new()
+	add_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var paper := ColorRect.new()
+	paper.material = add_mat
+	paper.color = Color(0.95, 0.62, 0.28, 0.9)
+	paper.size = Vector2(8, 11)
+	paper.position = Vector2(-4, -11)
+	l.add_child(paper)
+	var halo := Sprite2D.new()
+	halo.texture = _lantern_glow_tex()
+	halo.material = add_mat
+	halo.modulate = Color(1.0, 0.72, 0.3, 1.0)
+	halo.scale = Vector2(1.5, 1.5)
+	halo.position = Vector2(0, -6)
+	l.add_child(halo)
+	l.position = Vector2(randf_range(village_lo, village_hi), GROUND_Y - randf_range(40.0, 120.0))
+	fx_layer.add_child(l)
+	var rise := randf_range(260.0, 420.0)
+	var drift := randf_range(-60.0, 60.0)
+	var dur := randf_range(8.0, 12.0)
+	var tw := l.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(l, "position", l.position + Vector2(drift, -rise), dur)
+	# bright for most of the climb, gone only near the top (EYES: an
+	# all-the-way fade left the fleet invisible for half its life)
+	tw.tween_property(l, "modulate:a", 0.0, dur * 0.35).set_delay(dur * 0.65)
+	tw.chain().tween_callback(l.queue_free)
 
 # --- 1a) Decorations that grow with the number of finished buildings ---
 func operational_buildings() -> Array:
