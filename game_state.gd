@@ -1090,7 +1090,14 @@ const BUILDING_POWERS := {
 	"Government":   {"name": "The Standing Order", "desc": "The town staffs itself — every idle soul is put to work without a Chancellor."},
 	"Builderhouse": {"name": "The Standing Crew", "desc": "The crew rebuilds on its own — ruins are repaired with no Master Builder."},
 	"Barracks":     {"name": "The Standing Watch", "desc": "The watch overlaps — every warrior holds the wall at full worth, on shift or not."},
+	"Farm":         {"name": "The Standing Harvest", "desc": "The Farm holds a reserve back, and opens it rather than let Deepwood starve."},
+	"Fishing Dock": {"name": "The Long Haul", "desc": "The boats work past the shallows — a deep catch comes in daily, unbidden."},
+	"Mine":         {"name": "The Deep Seam", "desc": "The crew breaks into ore the shallow workings never reach."},
+	"Hospital":     {"name": "The Ward That Never Sleeps", "desc": "Whoever is carried in leaves it whole — no trickle, no waiting."},
+	"Bar":          {"name": "The Matchmaker's Round", "desc": "Matches are made unbidden, and a home is raised for the couple that waits."},
 }
+# The Deep Seam's yield: skill materials the Mine has no other way to produce.
+const DEEP_SEAM_MATERIALS := ["ember_crystal", "iron_shard", "resin"]
 
 # Has this building grown into its named power?
 func has_building_power(name: String) -> bool:
@@ -2415,7 +2422,9 @@ var _deep_catch_accum := 0.0
 const DEEP_CATCH_MATERIALS = ["iron_shard", "slime", "resin"]
 
 func tick_deep_catches(hours_passed: float) -> void:
-	if not ten_freed("ten_kaldos"):
+	# THE LONG HAUL (Fishing Dock power): a grown Dock sends its boats out past the
+	# shallows on its own -- the deep catch no longer waits on Kaldos being freed.
+	if not ten_freed("ten_kaldos") and not has_building_power("Fishing Dock"):
 		return
 	var dock_hands := 0
 	for v in rescued_villagers:
@@ -2973,6 +2982,8 @@ const FOOD_STARVE_GRACE_HOURS := 30.0        # empty larder must persist this lo
 const FOOD_STARVE_HP_DRAIN_PER_HOUR := 5.0   # then hunger eats HP (x _despair_rate, staggered)
 
 var village_food := 0.0                      # current stockpile (villager-days)
+const STANDING_HARVEST_COOLDOWN := 72.0      # Farm power: hours before the reserve refills
+var _harvest_reserve_cd := 0.0
 var food_empty_hours := 0.0                  # how long the stockpile has sat empty
 
 # Edge-latches so danger toasts fire ONCE on crossing into trouble, not every
@@ -3134,6 +3145,18 @@ func tick_food(hours_passed: float) -> void:
 		return
 	var net = (food_production_per_hour() - food_consumption_per_hour()) * hours_passed
 	village_food = clampf(village_food + net, 0.0, food_capacity())
+	# THE STANDING HARVEST (Farm power): a grown Farm holds grain back, and opens
+	# the reserve rather than watch the town starve. It buys a day at a time and
+	# needs STANDING_HARVEST_COOLDOWN hours to fill again -- so neglect still
+	# bites, it just can't kill you the first time you're late home.
+	_harvest_reserve_cd = maxf(0.0, _harvest_reserve_cd - hours_passed)
+	if village_food <= 0.0 and _harvest_reserve_cd <= 0.0 and has_building_power("Farm") \
+			and not rescued_villagers.is_empty():
+		_harvest_reserve_cd = STANDING_HARVEST_COOLDOWN
+		village_food = minf(food_capacity(), food_consumption_per_hour() * 24.0)
+		food_empty_hours = 0.0
+		log_event("village", "The Farm opened its reserve — the Standing Harvest kept Deepwood fed.")
+		notify("🌾 The Standing Harvest opened the Farm's reserve.")
 	if village_food <= 0.0:
 		food_empty_hours += hours_passed
 	else:
@@ -4191,6 +4214,13 @@ func tick_mine_yield(hours_passed: float) -> void:
 		var ym := research_yield_multiplier() * (1.0 + PITMASTER_YIELD_BONUS * seated_leaders("Mine")) * building_output_multiplier("Mine")
 		_add_to_store("stone", MINE_VILLAGE_STONE_PER_MINER * miners * ym)
 		_add_to_store("iron_shard", MINE_VILLAGE_IRON_PER_MINER * miners * ym)
+		# THE DEEP SEAM (Mine power): a grown Mine breaks through to ore the
+		# shallow workings never touch -- a skill material the crew could not
+		# otherwise bring up, straight into the village stores.
+		if has_building_power("Mine"):
+			var seam: String = DEEP_SEAM_MATERIALS[_mine_cycles % DEEP_SEAM_MATERIALS.size()]
+			village_stockpile[seam] = int(village_stockpile.get(seam, 0)) + 1
+			log_event("village", "The Deep Seam gave up %s — ore the shallow workings never reach." % Inventory.get_display_name(seam))
 		var player = get_tree().get_first_node_in_group("player")
 		if player and "inventory" in player and player.inventory:
 			# honest accounting: add_item returns the LEFTOVER, so log/announce only what the
@@ -4720,7 +4750,10 @@ func _next_cottage_x() -> float:
 # everything else. Works while the player is deep: the cottage is registered, and
 # generate_houses rebuilds it on the ground chosen here when they walk back in.
 func auto_build_cottage() -> bool:
-	if seated_leaders("Builderhouse") <= 0:
+	# a grown Builderhouse works unled (The Standing Crew); a grown Bar can also
+	# call for a home when it has a couple waiting (The Matchmaker's Round)
+	if seated_leaders("Builderhouse") <= 0 and not has_building_power("Builderhouse") \
+			and not has_building_power("Bar"):
 		return false
 	if not free_cottage_ids().is_empty():
 		return false                      # a home already waits -- don't sprawl
@@ -4745,7 +4778,8 @@ func auto_build_cottage() -> bool:
 # else would couples meet?). Fills every empty cottage with a waiting pair, so
 # the player never has to walk the row pressing E again.
 func auto_pair_couples() -> void:
-	if seated_leaders("Bar") <= 0:
+	# THE MATCHMAKER'S ROUND (Bar power): a grown Bar makes its own matches
+	if seated_leaders("Bar") <= 0 and not has_building_power("Bar"):
 		return
 	for hid in free_cottage_ids():
 		var parents := find_available_parents()
@@ -4861,7 +4895,10 @@ func apply_leadership_automation() -> void:
 			auto_repair_one()                       # the crew alone: slower, but real
 	# THE FAMILY LOOP RUNS ITSELF (automation ladder): the builders raise the
 	# homes, the Publican fills them, the Principal schools what comes of it.
-	if seated_leaders("Builderhouse") > 0:
+	# THE MATCHMAKER'S ROUND (Bar power): a grown Bar doesn't let a waiting couple
+	# stall for want of a roof -- the match is made and a home is raised for it,
+	# with no Master Builder needed to order the work.
+	if seated_leaders("Builderhouse") > 0 or has_building_power("Bar"):
 		auto_build_cottage()
 	auto_pair_couples()
 	if seated_leaders("Marketplace") > 0:
@@ -4986,10 +5023,13 @@ func auto_sell_village_surplus() -> void:
 
 func auto_heal_villagers(physicians: int) -> void:
 	var amount = AUTO_HEAL_PER_PHYSICIAN * float(physicians) * building_output_multiplier("Hospital")
+	# THE WARD THAT NEVER SLEEPS (Hospital power): a grown ward doesn't trickle
+	# healing -- whoever is carried in leaves it whole.
+	var whole := has_building_power("Hospital")
 	for id in villager_hp.keys():
 		var hp = float(villager_hp[id])
 		if hp < VILLAGER_MAX_HP:
-			villager_hp[id] = minf(VILLAGER_MAX_HP, hp + amount)
+			villager_hp[id] = VILLAGER_MAX_HP if whole else minf(VILLAGER_MAX_HP, hp + amount)
 
 func auto_enroll_children(principals: int) -> void:
 	if not is_building_operational("School"):

@@ -325,6 +325,65 @@ func _ready() -> void:
 	check("THE STANDING ORDER: a grown Government staffs the town with no Chancellor",
 		idle_woken < idle_dormant, "idle %d -> %d" % [idle_dormant, idle_woken])
 
+	# THE STANDING HARVEST: an empty larder must not kill a grown Farm's town
+	var starve := func(lvl: int) -> float:
+		GameState.building_levels["Farm"] = lvl
+		GameState.building_stage["Farm"] = GameState.TOTAL_BUILD_STAGES
+		GameState.building_health["Farm"] = 100
+		GameState.rescued_villagers = [{"id": "hungry", "name": "Hungry", "sex": "Male",
+			"is_kid": false, "stat_name": "", "stat_value": 3, "role_key": "", "role_title": ""}]
+		GameState.village_food = 0.0
+		GameState._harvest_reserve_cd = 0.0
+		GameState.tick_food(1.0)
+		return GameState.village_food
+	var fed_dormant: float = starve.call(GameState.BUILDING_POWER_LEVEL - 1)
+	var fed_woken: float = starve.call(GameState.BUILDING_POWER_LEVEL)
+	check("THE STANDING HARVEST: a grown Farm opens its reserve on an empty larder",
+		fed_dormant <= 0.0 and fed_woken > 0.0, "dormant=%.1f woken=%.1f" % [fed_dormant, fed_woken])
+
+	# THE WARD THAT NEVER SLEEPS: the wounded leave whole, not trickled
+	var ward := func(lvl: int) -> float:
+		GameState.building_levels["Hospital"] = lvl
+		GameState.building_stage["Hospital"] = GameState.TOTAL_BUILD_STAGES
+		GameState.building_health["Hospital"] = 100
+		GameState.villager_hp = {"hurt": 1.0}
+		GameState.auto_heal_villagers(1)
+		return float(GameState.villager_hp["hurt"])
+	var hp_dormant: float = ward.call(GameState.BUILDING_POWER_LEVEL - 1)
+	var hp_woken: float = ward.call(GameState.BUILDING_POWER_LEVEL)
+	check("THE WARD THAT NEVER SLEEPS: a grown ward heals the hurt to FULL",
+		hp_woken >= GameState.VILLAGER_MAX_HP and hp_dormant < GameState.VILLAGER_MAX_HP,
+		"dormant=%.0f woken=%.0f" % [hp_dormant, hp_woken])
+
+	# THE MATCHMAKER'S ROUND: a grown Bar matches with no Publican seated
+	var matched := func(lvl: int) -> int:
+		GameState.building_levels["Bar"] = lvl
+		for b in ["Bar", "Builderhouse"]:
+			GameState.building_stage[b] = GameState.TOTAL_BUILD_STAGES
+			GameState.building_health[b] = 100
+		GameState.building_levels["Builderhouse"] = 1
+		GameState.cottage_homes = {}
+		GameState.mating_houses = {}
+		GameState.extra_cottage_ids = ["mm_house"]
+		GameState.extra_cottage_positions = [6000.0]
+		GameState.extra_cottages = 1
+		GameState.rescued_villagers = [
+			{"id": "mm_m", "name": "M", "sex": "Male", "is_kid": false, "stat_name": "",
+				"stat_value": 3, "role_key": "", "role_title": ""},
+			{"id": "mm_f", "name": "F", "sex": "Female", "is_kid": false, "stat_name": "",
+				"stat_value": 3, "role_key": "", "role_title": ""}]
+		GameState.auto_pair_couples()
+		return GameState.mating_houses.size() + GameState.cottage_homes.size()
+	var mm_dormant: int = matched.call(GameState.BUILDING_POWER_LEVEL - 1)
+	var mm_woken: int = matched.call(GameState.BUILDING_POWER_LEVEL)
+	check("THE MATCHMAKER'S ROUND: a grown Bar makes matches with no Publican",
+		mm_dormant == 0 and mm_woken > 0, "dormant=%d woken=%d" % [mm_dormant, mm_woken])
+
+	check("every batch-2 power is named too",
+		GameState.BUILDING_POWERS.size() == 10
+		and str(GameState.BUILDING_POWERS["Mine"]["name"]) == "The Deep Seam",
+		"%d powers declared" % GameState.BUILDING_POWERS.size())
+
 	for bn in GameState.BUILDING_POWERS.keys():
 		GameState.building_levels.erase(bn)
 
