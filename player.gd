@@ -3862,6 +3862,24 @@ func spawn_swing_trail(aim_dir: Vector2, stats: Dictionary, finisher := false) -
 	poly.rotation = aim_dir.angle()
 	poly.z_index = 6
 	add_child(poly)
+	# CORE EDGE (VFX pass 2026-07-28): a thin bright crescent riding the outer
+	# rim of the soft arc -- the Terraria trick: swings read as a crisp bright
+	# EDGE with a soft glow behind it, not one translucent smear. Drawn in the
+	# element's glow colour so a fire swing's edge burns hotter than its body.
+	var edge_glow: Color = Inventory.element_fx(elem).get("glow", col)
+	var epts := PackedVector2Array()
+	var ethick := maxf(2.5, thickness * 0.3)
+	for i in range(steps + 1):
+		var ea: float = lerpf(-arc * 0.5, arc * 0.5, float(i) / steps)
+		epts.append(Vector2(cos(ea), sin(ea)) * radius)
+	for i in range(steps, -1, -1):
+		var ea2: float = lerpf(-arc * 0.5, arc * 0.5, float(i) / steps)
+		epts.append(Vector2(cos(ea2), sin(ea2)) * (radius - ethick))
+	var edge := Polygon2D.new()
+	edge.polygon = epts
+	edge.color = Color(edge_glow.r, edge_glow.g, edge_glow.b, 0.75 + rank * 0.04)
+	edge.material = mat
+	poly.add_child(edge)   # child of the arc: shares its rotation, fade and death
 	# the tween belongs to the trail itself, so it dies with it rather than
 	# outliving the node it animates
 	var life := 0.15 + rank * 0.035
@@ -3993,6 +4011,7 @@ func launch_projectile(cfg: Dictionary, dir: Vector2, dmg: int, is_crit: bool = 
 	p.rider = str(cfg.get("rider", ""))   # flagship bespoke behavior
 	# grade-driven scale: bigger crescent, bigger hitbox, same maths everywhere
 	p.girth = maxf(0.4, float(cfg.get("girth", 1.0)))
+	p.element = Inventory.element_of(active_weapon_id)   # VFX: hit bursts in the weapon's colour
 	# a weapon's own status wins; otherwise the Elementalist's Ignite skill rides
 	# the cast so a plain wand still burns once you've taken the keystone.
 	var status = cfg.get("status", {})
@@ -4360,6 +4379,10 @@ func apply_melee_skills(target: Node2D, dealt: int) -> void:
 	# THE WEAPON'S OWN SOUL (WeaponFx, 2026-07-28): every landed blow runs
 	# the wielded weapon's unique fx -- the ladder's uniqueness engine
 	WeaponFx.on_hit(self, target, dealt, last_hit_was_crit)
+	# element impact burst (VFX pass): the blow pops in the weapon's colour
+	if target is Node2D:
+		HitFx.burst(get_parent(), (target as Node2D).global_position,
+			Inventory.element_of(active_weapon_id), last_hit_was_crit)
 	var ex = GameState.get_bonus_total("execute_threshold")
 	if ex > 0.0 and not ("boss_id" in target) and "max_health" in target and "health" in target and target.has_method("take_damage"):
 		if float(target.health) <= float(target.max_health) * ex and float(target.health) > 0.0:
@@ -5021,6 +5044,7 @@ func spawn_arrow(stats: Dictionary, aim_dir: Vector2) -> void:
 		# add_child so the arrow's _ready applies it)
 		arrow.girth = grade_projectile_girth()
 		arrow.max_range = arrow.DEFAULT_MAX_RANGE * grade_projectile_range()
+		arrow.element = Inventory.element_of(active_weapon_id)   # VFX: hit bursts in the bow's colour
 		get_parent().add_child(arrow)
 
 func cast_wand() -> void:

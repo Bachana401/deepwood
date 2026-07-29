@@ -27,6 +27,7 @@ var pierced_bodies := []   # bodies already struck this flight (so pierce never 
 # player's spawn_arrow when the wielded bow's special is "homing".
 var homing := false
 var girth := 1.0   # grade-driven scale: a heavier shaft, drawn AND felt
+var element := "physical"   # the bow's element (VFX pass): hit bursts pop in its colour
 const HOMING_TURN_RATE = 5.0     # radians/sec of steering authority
 const HOMING_RANGE = 460.0
 const HOMING_GROUPS = ["course_enemy", "dungeon_combatant", "siege_enemy"]
@@ -155,6 +156,9 @@ func _on_hit_area_body_entered(body: Node2D) -> void:
 			var landed = body.take_damage(damage)
 			if landed == null or landed:
 				FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+	# element impact burst (VFX pass): a player shaft pops in the bow's colour
+	if is_in_group("player_projectile") and not body.is_in_group("player"):
+		HitFx.burst(get_parent(), body.global_position, element, is_crit)
 	# THE WEAPON'S OWN SOUL rides the arrow too (WeaponFx 2026-07-28): bows
 	# never pass apply_melee_skills, so the fx hook lands here, right after
 	# the shot's own damage -- player arrows against non-players only

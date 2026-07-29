@@ -15,6 +15,7 @@ extends Area2D
 
 var kind := "slash"
 var girth := 1.0            # scales the visual AND the hitbox together
+var element := "physical"   # the caster weapon's element (VFX pass): hit bursts pop in its colour
 var direction := Vector2.RIGHT
 var speed := 500.0
 var damage := 10
@@ -30,6 +31,9 @@ var rider := ""             # flagship bespoke behavior (The Rumor "grows", ...)
 var _borrowed := false      # A Borrowed Star: the apex split fires only once
 
 func _apply_status_to(node) -> void:
+	# element impact burst (VFX pass): every landed projectile pops in colour
+	if node is Node2D and not node.is_in_group("player"):
+		HitFx.burst(get_parent(), (node as Node2D).global_position, element, is_crit)
 	if not on_hit_status.is_empty() and node.has_method("apply_status"):
 		node.apply_status(str(on_hit_status.get("kind","burn")), float(on_hit_status.get("dur",3.0)), float(on_hit_status.get("mag",0.0)))
 	# Stillness (Wukong road): a wand bolt may carry the stopping word --
