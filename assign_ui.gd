@@ -232,9 +232,39 @@ func add_upgrade_section(list: VBoxContainer) -> void:
 	var info = Label.new()
 	info.add_theme_font_size_override("font_size", 11)
 	info.add_theme_color_override("font_color", Color(0.72, 0.82, 0.72, 1))
-	var out_pct = int(round((GameState.building_output_multiplier(b.building_name) - 1.0) * 100.0))
-	info.text = "  +%d worker slots · +%d%% output at this level" % [(b.building_level - 1) * b.SLOTS_PER_LEVEL, out_pct]
+	# split the two sources on purpose: the level term is what an UPGRADE buys, the
+	# neighbour term is what MOVING buys. Lumping them read as a broken upgrade.
+	var lvl_pct = int(round((b.building_level - 1) * GameState.BUILDING_OUTPUT_PER_LEVEL * 100.0))
+	info.text = "  +%d worker slots · +%d%% output at this level" % [(b.building_level - 1) * b.SLOTS_PER_LEVEL, lvl_pct]
 	list.add_child(info)
+
+	# ---- ADJACENCY SYNERGY: what this building's NEIGHBOURS are worth ----
+	var links: Array = GameState.adjacency_links(b.building_name)
+	var syn = Label.new()
+	syn.add_theme_font_size_override("font_size", 11)
+	syn.autowrap_mode = TextServer.AUTOWRAP_WORD
+	syn.custom_minimum_size = Vector2(300, 0)
+	if links.is_empty():
+		syn.add_theme_color_override("font_color", Color(0.66, 0.66, 0.7, 1))
+		var partners := []
+		for pair in GameState.ADJACENCY_PAIRS:
+			if str(pair["a"]) == b.building_name:
+				partners.append(str(pair["b"]))
+			elif str(pair["b"]) == b.building_name:
+				partners.append(str(pair["a"]))
+		if partners.is_empty():
+			syn.text = "  ✦ No neighbour synergy for this building."
+		else:
+			syn.text = "  ✦ No synergy here. Stands well beside: %s (move it with the pack-up below)." % ", ".join(partners)
+	else:
+		syn.add_theme_color_override("font_color", Color(0.6, 0.9, 0.65, 1))
+		var bits := []
+		for link in links:
+			bits.append("%s +%d%% (%s)" % [str(link["partner"]),
+				int(round(float(link["bonus"]) * 100.0)), str(link["why"])])
+		syn.text = "  ✦ Neighbours: %s   →  +%d%% output total" % [" · ".join(bits),
+			int(round(GameState.adjacency_bonus(b.building_name) * 100.0))]
+	list.add_child(syn)
 
 	if b.building_level >= b.MAX_LEVEL:
 		var maxed = Label.new()

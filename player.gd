@@ -1748,8 +1748,13 @@ func try_plant_building() -> void:
 	GameState.building_positions[name] = x
 	GameState.moving_building = ""
 	GameState.log_event("village", "The %s was moved to new ground." % name)
+	# MOVING IS THE WHOLE POINT of adjacency synergy -- recompute the row and say
+	# what the new spot earned, so relocating reads as a decision, not a chore.
+	GameState.refresh_adjacency()
 	if stack:
 		stack.show_notification("🏗 The %s stands on its new ground." % name)
+		for link in GameState.adjacency_links(name):
+			stack.show_notification("✦ %s + %s — %s" % [name, str(link["partner"]), str(link["why"])])
 
 # Called DEFERRED by the door the player stepped into (never mid-flush).
 func do_portal_teleport(from: Node2D) -> void:

@@ -1,3 +1,4 @@
+test_adjacency_node
 test_adventurer_node
 test_advfix_node
 test_arena_node

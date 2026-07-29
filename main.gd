@@ -473,6 +473,9 @@ func generate_village() -> void:
 			$Village.add_child(pen)
 			cursor += FARM_PEN_WIDTH + VILLAGE_GAP
 	village_right_edge = cursor
+	# the row is settled -- cache who neighbours whom (adjacency synergy). Deferred
+	# so every body is really in the tree before we read the group.
+	GameState.refresh_adjacency.call_deferred()
 
 # A village building's blueprint def by name (for the build menu + placer).
 func building_def(bname: String) -> Dictionary:

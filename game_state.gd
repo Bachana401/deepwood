@@ -1076,8 +1076,89 @@ const BUILDING_OUTPUT_PER_LEVEL = 0.25   # +25% output per level over level 1
 func building_level(name: String) -> int:
 	return int(building_levels.get(name, 1))
 
+# ============================ ADJACENCY SYNERGY ============================
+# WHERE you build matters, not just what (settlement-depth roadmap Phase 1). The
+# village is a 1-D strip, so "adjacent" means the IMMEDIATE left/right neighbour
+# along the road -- readable at a glance, with no grid to puzzle over.
+#
+# Every pair below is a link in the City Machine's supply chain made PHYSICAL:
+# stand the Mine beside the forge and the ore has no distance to travel. POSITIVE
+# ONLY (dev call on this layer): a good layout is rewarded, a plain one is never
+# punished, so no existing save is retroactively fined for a row it laid down
+# before this existed. Medium strength, and capped, so a lucky cluster of six
+# can't run away with the economy.
+const ADJACENCY_BONUS_CAP := 0.30
+const ADJACENCY_PAIRS := [
+	{"a": "Mine",        "b": "Blacksmith",   "bonus": 0.20, "why": "ore goes straight from the seam to the forge"},
+	{"a": "Mine",        "b": "Builderhouse", "bonus": 0.15, "why": "stone lands at the masons' door"},
+	{"a": "Blacksmith",  "b": "Barracks",     "bonus": 0.15, "why": "arms are carried straight to the drill yard"},
+	{"a": "Farm",        "b": "Fishing Dock", "bonus": 0.15, "why": "one larder, filled from field and water both"},
+	{"a": "Bank",        "b": "Marketplace",  "bonus": 0.20, "why": "the counting house sits beside the carts"},
+	{"a": "Science Lab", "b": "School",       "bonus": 0.15, "why": "the lab's findings are taught the same day"},
+	{"a": "Bar",         "b": "Tavern",       "bonus": 0.15, "why": "a bed waits directly above the music"},
+	{"a": "Hospital",    "b": "Shrine",       "bonus": 0.15, "why": "healing and mercy keep one threshold"},
+]
+
+# name -> [left_neighbour, right_neighbour]. Rebuilt from the live village and
+# CACHED, because the surface scene is UNLOADED while the player is in the deep
+# and the away ticks (food, income, the stores) still need to know the row.
+# Buildings cannot move while you are away, so the last known row stays true.
+var building_neighbors: Dictionary = {}
+
+# Rebuild the neighbour map from the standing village. Physical adjacency counts
+# every building BODY -- a ruin between two halls really does separate them, and
+# raising or moving it is how you fix that. Whether a synergy FIRES is gated on
+# both halves being operational (see adjacency_links).
+func refresh_adjacency() -> void:
+	var t := get_tree()
+	if t == null:
+		return
+	var row := []
+	for b in t.get_nodes_in_group("building"):
+		if not is_instance_valid(b) or not ("building_name" in b):
+			continue
+		row.append({"name": str(b.building_name), "x": b.global_position.x})
+	if row.is_empty():
+		return                      # away from the village: keep the cached row
+	row.sort_custom(func(p, q): return float(p["x"]) < float(q["x"]))
+	var nb := {}
+	for i in range(row.size()):
+		nb[str(row[i]["name"])] = [
+			str(row[i - 1]["name"]) if i > 0 else "",
+			str(row[i + 1]["name"]) if i < row.size() - 1 else "",
+		]
+	building_neighbors = nb
+
+# The synergies LIVE for one building right now: [{partner, bonus, why}, ...].
+# Both halves must stand and work -- a rubble Blacksmith forges nothing for the
+# Mine beside it.
+func adjacency_links(name: String) -> Array:
+	var out := []
+	if not is_building_operational(name):
+		return out
+	var sides: Array = building_neighbors.get(name, [])
+	for side in sides:
+		var partner := str(side)
+		if partner == "" or not is_building_operational(partner):
+			continue
+		for pair in ADJACENCY_PAIRS:
+			var a := str(pair["a"])
+			var b := str(pair["b"])
+			if (a == name and b == partner) or (b == name and a == partner):
+				out.append({"partner": partner, "bonus": float(pair["bonus"]), "why": str(pair["why"])})
+	return out
+
+# How much a building's output is lifted by its neighbours (0.0 .. CAP).
+func adjacency_bonus(name: String) -> float:
+	var total := 0.0
+	for link in adjacency_links(name):
+		total += float(link["bonus"])
+	return minf(total, ADJACENCY_BONUS_CAP)
+
+# ONE output term per building: its upgrade level AND its neighbours. Every
+# producer in the chain reads this, so a well-laid row genuinely runs richer.
 func building_output_multiplier(name: String) -> float:
-	return 1.0 + (building_level(name) - 1) * BUILDING_OUTPUT_PER_LEVEL
+	return 1.0 + (building_level(name) - 1) * BUILDING_OUTPUT_PER_LEVEL + adjacency_bonus(name)
 
 # --- DELETED BUILDINGS (dev 2026-07-22 building menu: "player can delete these
 # ruins... game always double checks"). A building the player razes for good is
@@ -2906,12 +2987,14 @@ func farm_worker_count() -> int:
 # Passive food produced per in-game hour by a staffed farm (0 if unstaffed).
 # A seated Harvestmaster drives the fields far harder (auto-feeds the town).
 func food_production_per_hour() -> float:
-	var farm := float(farm_worker_count()) * FOOD_PER_FARMER_PER_DAY / 24.0 * (1.0 + HARVESTMASTER_FOOD_BONUS * seated_leaders("Farm")) * (2.0 if ten_freed("ten_sylvara") else 1.0)
+	# building_output_multiplier folds in BOTH the upgrade level and the adjacency
+	# synergy (Farm beside the Dock = one larder filled from field and water).
+	var farm := float(farm_worker_count()) * FOOD_PER_FARMER_PER_DAY / 24.0 * (1.0 + HARVESTMASTER_FOOD_BONUS * seated_leaders("Farm")) * (2.0 if ten_freed("ten_sylvara") else 1.0) * building_output_multiplier("Farm")
 	# The Fishing Dock is the economy's PREMIUM food source (its fish feed
 	# fewer mouths per worker than the Farm's grain, but the sea never has a
 	# bad harvest). This also makes Kaldos' boon honest end to end: the Dock
 	# genuinely yields food, and with the Tidecaller freed, materials as well.
-	var dock := float(dock_worker_count()) * FOOD_PER_FISHER_PER_DAY / 24.0 * (1.0 + HARVESTMASTER_FOOD_BONUS * seated_leaders("Fishing Dock"))
+	var dock := float(dock_worker_count()) * FOOD_PER_FISHER_PER_DAY / 24.0 * (1.0 + HARVESTMASTER_FOOD_BONUS * seated_leaders("Fishing Dock")) * building_output_multiplier("Fishing Dock")
 	return farm + dock
 
 func dock_worker_count() -> int:
@@ -4068,10 +4151,11 @@ func tick_mine_yield(hours_passed: float) -> void:
 		_mine_cycles += 1
 		# the village share (supply chain): the crew hauls for the TOWN too --
 		# straight into the stores, no bag to fill, on top of the player's cut.
-		# The Lab's researchers make every seam go further (research_yield).
-		var ym := research_yield_multiplier()
-		village_stockpile["stone"] = int(village_stockpile["stone"]) + int(round(MINE_VILLAGE_STONE_PER_MINER * miners * ym))
-		village_stockpile["iron_shard"] = int(village_stockpile["iron_shard"]) + int(round(MINE_VILLAGE_IRON_PER_MINER * miners * ym))
+		# The Lab's researchers make every seam go further (research_yield), and a
+		# Mine standing beside the forge or the masons hauls more still (adjacency).
+		var ym := research_yield_multiplier() * building_output_multiplier("Mine")
+		_add_to_store("stone", MINE_VILLAGE_STONE_PER_MINER * miners * ym)
+		_add_to_store("iron_shard", MINE_VILLAGE_IRON_PER_MINER * miners * ym)
 		var player = get_tree().get_first_node_in_group("player")
 		if player and "inventory" in player and player.inventory:
 			# honest accounting: add_item returns the LEFTOVER, so log/announce only what the
@@ -4107,14 +4191,14 @@ func tick_wood_gathering(hours_passed: float) -> void:
 	_wood_accum += hours_passed
 	while _wood_accum >= 24.0:
 		_wood_accum -= 24.0
-		var felled := int(round(WOOD_PER_BUILDER_PER_DAY * crew * research_yield_multiplier()))
+		var felled := _add_to_store("wood",
+			WOOD_PER_BUILDER_PER_DAY * crew * research_yield_multiplier() * building_output_multiplier("Builderhouse"))
 		# ...and a little FIELDSTONE besides: the Mine (floor 13) is the real
 		# quarry, but repairs need stone from day one -- without this trickle
 		# the whole repair chain deadlocked until mid-game (no stone producer).
-		var quarried := int(ceil(float(crew) / 2.0))
-		village_stockpile["wood"] = int(village_stockpile["wood"]) + felled
-		village_stockpile["stone"] = int(village_stockpile["stone"]) + quarried
-		log_event("economy", "The builders' gathering run: %d wood, %d fieldstone into the stores." % [felled, quarried])
+		var quarried := _add_to_store("stone", ceil(float(crew) / 2.0))
+		if felled > 0 or quarried > 0:
+			log_event("economy", "The builders' gathering run: %d wood, %d fieldstone into the stores." % [felled, quarried])
 
 # --- THE SHRINE (GAME_BIBLE 10, decided 2026-07-20 delegated) ---
 # Corruption's only mercy, unlocked at depth 30: a put-down demon that was
@@ -4506,6 +4590,23 @@ const LEADER_MORALE_EACH := 6           # Tavernkeeper/Publican: morale points a
 # into armory arms. More working buildings = a fuller store = a town that
 # mends and arms itself.
 var village_stockpile := {"wood": 0, "stone": 0, "iron_shard": 0}
+# Fractional remainders, banked between cycles (same trick as _gold_accum). WITHOUT
+# this every multiplier vanished at small scale: one miner hauling 1 stone/day times
+# a 1.20 adjacency bonus rounds straight back to 1, so a well-placed early Mine
+# gained literally nothing and the whole synergy layer was invisible until the
+# crews got big. Now the 0.2 accrues and lands as a whole stone on the fifth day.
+var _store_accum := {"wood": 0.0, "stone": 0.0, "iron_shard": 0.0}
+
+# Add a fractional yield to a village store; returns the WHOLE units delivered now.
+func _add_to_store(kind: String, amount: float) -> int:
+	if not village_stockpile.has(kind):
+		return 0
+	_store_accum[kind] = float(_store_accum.get(kind, 0.0)) + amount
+	var whole := int(floor(float(_store_accum[kind])))
+	if whole > 0:
+		_store_accum[kind] = float(_store_accum[kind]) - float(whole)
+		village_stockpile[kind] = int(village_stockpile[kind]) + whole
+	return whole
 const MINE_VILLAGE_STONE_PER_MINER := 1   # per day, on top of the player's haul
 const MINE_VILLAGE_IRON_PER_MINER := 1
 const WOOD_PER_BUILDER_PER_DAY := 1
@@ -4728,9 +4829,13 @@ func apply_leadership_automation() -> void:
 		# THE SMITHS SWING TOO (2026-07-29): the Forgemaster opens the forge, but
 		# every Blacksmith at a bench raises how much comes off it in a tick. The
 		# ten smith slots were declared and never read before this.
+		# ...and WHERE the forge stands multiplies the whole bench (adjacency): ore
+		# at the door from the Mine, or the drill yard next door to carry arms to.
+		# The two compose -- hands add to the bench, the ground scales it.
 		var bench: int = FORGE_ARMS_PER_TICK + int(floor(
 			SMITH_ARMS_PER_HEAD * float(count_leader_holders("Blacksmith", "Blacksmith"))))
-		var forged: int = mini(bench,
+		var per_tick: int = int(round(float(bench) * building_output_multiplier("Blacksmith")))
+		var forged: int = mini(per_tick,
 			mini(int(village_stockpile["iron_shard"]) / FORGE_IRON_PER_ARM, BARRACKS_ARMS_CAP - barracks_arms))
 		if forged > 0:
 			village_stockpile["iron_shard"] = int(village_stockpile["iron_shard"]) - forged * FORGE_IRON_PER_ARM
@@ -4827,7 +4932,8 @@ func auto_sell_village_surplus() -> void:
 		if have > AUTO_SELL_VILLAGE_KEEP:
 			var sell := have - AUTO_SELL_VILLAGE_KEEP
 			village_stockpile[k] = AUTO_SELL_VILLAGE_KEEP
-			earned += sell * AUTO_SELL_PRICE
+			# a market beside the counting house gets a better price (adjacency)
+			earned += int(round(float(sell * AUTO_SELL_PRICE) * building_output_multiplier("Marketplace")))
 	if earned > 0:
 		village_treasury += earned
 		log_event("economy", "The Merchant Prince sold the surplus stores — %d gold into the treasury." % earned)
@@ -5691,6 +5797,7 @@ func reset_for_new_game() -> void:
 	_mine_cycles = 0
 	blueprints = BLUEPRINT_STARTERS.duplicate()
 	building_positions = {}
+	building_neighbors = {}   # the row is re-read when the village generates
 	moving_building = ""
 	pregnancies = {}
 	school_enrollments = {}
@@ -5828,6 +5935,7 @@ func reset_for_new_game() -> void:
 	food_empty_hours = 0.0
 	village_food = food_capacity()
 	village_stockpile = {"wood": 0, "stone": 0, "iron_shard": 0}   # the chain starts empty
+	_store_accum = {"wood": 0.0, "stone": 0.0, "iron_shard": 0.0}
 	village_treasury = 0
 	_treasury_accum = 0.0
 	_bank_paid_full_payroll = false
@@ -5928,6 +6036,7 @@ func save_game(player: Node) -> void:
 		"wall_hp": wall_hp,
 		"blueprints": blueprints,
 		"building_positions": building_positions,
+		"building_neighbors": building_neighbors,
 		"pregnancies": pregnancies,
 		"school_enrollments": school_enrollments,
 		"highest_unlocked_level": highest_unlocked_level,
@@ -6150,6 +6259,15 @@ func load_game() -> Dictionary:
 		if parsed.has("building_positions") and parsed["building_positions"] is Dictionary:
 			for k in parsed["building_positions"].keys():
 				building_positions[k] = float(parsed["building_positions"][k])
+		# the cached neighbour row (adjacency synergy). An older save has none --
+		# generate_village rebuilds it the moment the village loads, so an absent
+		# key just means "no synergy until you walk in", never a wrong bonus.
+		building_neighbors = {}
+		if parsed.has("building_neighbors") and parsed["building_neighbors"] is Dictionary:
+			for k in parsed["building_neighbors"].keys():
+				var sides = parsed["building_neighbors"][k]
+				if sides is Array and sides.size() == 2:
+					building_neighbors[str(k)] = [str(sides[0]), str(sides[1])]
 		if parsed.has("pregnancies"):
 			pregnancies = parsed["pregnancies"]
 		if parsed.has("school_enrollments"):
