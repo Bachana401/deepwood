@@ -92,6 +92,23 @@ func run_marathon(cls: String, verbose: bool) -> Dictionary:
 	GameState.unlocked_skills = []
 	GameState.researched_materials = []
 	GameState.rescued_villagers = []
+	GameState.cottage_homes = {}
+	GameState.mating_houses = {}
+	GameState.pregnancies = {}
+	GameState.school_enrollments = {}
+	GameState.extra_cottage_ids = []
+	GameState.extra_cottage_positions = []
+	GameState.extra_cottages = 0
+	GameState.village_stockpile = {"wood": 0, "stone": 0, "iron_shard": 0}
+	# THE OPENING COHORT: the survivors who step out of the ruins in the arrival
+	# scene. Population is EARNED from here -- these few, the named rescues the
+	# deep gives up, and whatever the cradles make of them.
+	for s in range(6):
+		GameState.rescued_villagers.append({
+			"id": "surv_%d" % s, "name": "Survivor %d" % s,
+			"sex": "Male" if s % 2 == 0 else "Female", "is_kid": false,
+			"stat_name": "Farm", "stat_value": 3, "role_key": "", "role_title": "",
+		})
 	GameState.building_stage = {}
 	p.currency = 0
 	clear_bag()
@@ -179,6 +196,21 @@ func run_marathon(cls: String, verbose: bool) -> Dictionary:
 			p.inventory.get_count("herb"), p.inventory.get_count("raw_meat")])
 		say("  village: %d people, %d gold, %.0f food, morale %d, %d lost to siege/famine" % [
 			pop(), p.currency, GameState.village_food, GameState.village_morale(), siege_events])
+		# WHERE THE PEOPLE CAME FROM -- the audit view (dev target: ~70-80 villagers
+		# and 30-40 warriors by floor 60). Named rescues are a FINITE script; only
+		# the cradles can carry the town to city scale.
+		var kids := 0
+		var warriors := 0
+		var unbreak := 0
+		for v in GameState.rescued_villagers:
+			if v.get("is_kid", false): kids += 1
+			if str(v.get("stat_name", "")) == "Warrior": warriors += 1
+			if v.get("unbreakable", false): unbreak += 1
+		say("  population: %d total = %d adults + %d children  (%d of the Ten, %d warriors)" % [
+			pop(), pop() - kids, kids, unbreak, warriors])
+		say("  housing: %d cottages, %d couples housed, %d expecting, %d in school" % [
+			GameState.extra_cottages, GameState.cottage_homes.size(),
+			GameState.pregnancies.size(), GameState.school_enrollments.size()])
 		var blocked := blocked_nodes_report(cls)
 		if blocked != "":
 			say("  NEXT nodes still locked: " + blocked)
@@ -220,12 +252,30 @@ func clear_floor(floor: int) -> void:
 # Grow the town to a plausible state for this depth: buildings come online, rescues
 # arrive and get staffed (Mine + Fishing Dock so materials actually flow).
 func grow_village(floor: int) -> void:
-	# rescues: about one soul every third floor -- a managed town, not a mob
-	var want_pop := clampi(3 + int(floor / 3), 3, 26)
-	var i := GameState.rescued_villagers.size()
-	while GameState.rescued_villagers.size() < want_pop:
-		GameState.rescued_villagers.append(mk("m_%d" % i))
-		i += 1
+	# THE REAL POPULATION PIPELINES (2026-07-29). This used to FORCE the roster to
+	# `want_pop = 3 + floor/3` (capped 26) -- the town's size was a scripted curve,
+	# not an outcome, so the sim could never answer "does the game actually reach
+	# city scale?" and every birth/housing/rescue change was invisible to it. Now
+	# population is EARNED: named rescues arrive at their real floors, the player
+	# houses couples, and the game's own family machine does the rest.
+	#
+	# 1. THE DUNGEON'S NAMED RESCUES -- the VIPs (VillagerQuests.IMPORTANT_FIGURES,
+	#    every ~5 floors) and the Ten (TheTen, floors 22-63). These carry real
+	#    leadership role_key/role_title, which is what SEATS the leaders the
+	#    automation ladder runs on (a Publican pairs couples, a Master Builder
+	#    raises cottages, a Principal schools the children).
+	for lvl in range(1, floor + 1):
+		var fig: Dictionary = VillagerQuests.figure_for_level(lvl)
+		if not fig.is_empty() and not GameState.is_villager_rescued(str(fig.get("villager_id", ""))):
+			GameState.rescued_villagers.append({
+				"id": str(fig.get("villager_id", "")), "name": str(fig.get("villager_name", "?")),
+				"sex": str(fig.get("sex", "Female")), "is_kid": false,
+				"stat_name": str(fig.get("stat_name", "")), "stat_value": int(fig.get("stat_value", 4)),
+				"role_key": "", "role_title": "",
+			})
+		var ten: Dictionary = TheTen.for_level(lvl)
+		if not ten.is_empty() and not GameState.ten_freed(str(ten.get("id", ""))):
+			GameState.free_one_of_the_ten(str(ten.get("id", "")))
 	# buildings online by depth milestones (blueprints land by floor 30)
 	var online := ["Farm"]
 	if floor >= 4: online.append("Fishing Dock")
@@ -242,6 +292,12 @@ func grow_village(floor: int) -> void:
 	for v in GameState.rescued_villagers:
 		v["role_key"] = ""; v["role_title"] = ""
 	var pop_n := GameState.rescued_villagers.size()
+	# SEAT THE LEADERS FIRST. The sim only ever assigned WORKER titles
+	# (staff() takes roles.back()), so seated_leaders() was 0 everywhere and the
+	# entire automation ladder -- the Publican's matches, the Master Builder's
+	# cottages, the Merchant Prince's sales -- silently never ran. A rescued VIP
+	# IS a leader (that is the whole point of freeing them), so sit them down.
+	seat_leaders()
 	var order: Array = []
 	for k in range(maxi(3, int(ceil(float(pop_n) / 4.0)))): order.append("Farm")
 	order += ["Fishing Dock", "Fishing Dock", "Mine", "Mine",
@@ -251,6 +307,56 @@ func grow_village(floor: int) -> void:
 	# sim doesn't spiral into a famine that drowns out the development it's measuring
 	if GameState.village_food < float(pop_n) * 8.0:
 		GameState.village_food = float(pop_n) * 12.0
+	# 2. THE FAMILY MACHINE. A player raises homes as the town outgrows them and
+	#    keeps the builders' stores stocked from what they haul out of the deep.
+	#    Everything after that is the GAME's own automation ladder, untouched:
+	#    auto_build_cottage (Master Builder) / auto_pair_couples (Publican) /
+	#    update_cottage_families (the flywheel) / update_school_enrollments.
+	GameState.village_stockpile["wood"] = int(GameState.village_stockpile["wood"]) + 12
+	GameState.village_stockpile["stone"] = int(GameState.village_stockpile["stone"]) + 8
+	# the player's own hammer: one home per pair of unhoused adults, so housing
+	# tracks the town instead of waiting on the floor-55 Master Builder
+	# Raise a home only when one is actually NEEDED -- a couple waiting and no
+	# cottage standing empty. Same guard auto_build_cottage uses, so the sim can't
+	# sprawl hundreds of empty houses the way a naive "one per two adults" did.
+	var parents: Dictionary = GameState.find_available_parents()
+	if GameState.free_cottage_ids().is_empty() \
+			and str(parents.get("male_id", "")) != "" and str(parents.get("female_id", "")) != "":
+		GameState.register_cottage(6000.0 + 240.0 * float(GameState.extra_cottages))
+	# the Publican fills them when one is seated; before that the player walks the
+	# row pressing E, which is the same call
+	GameState.auto_pair_couples()
+	for hid in GameState.free_cottage_ids():
+		var pr: Dictionary = GameState.find_available_parents()
+		if str(pr.get("male_id", "")) == "" or str(pr.get("female_id", "")) == "":
+			break
+		GameState.start_pairing(hid, str(pr.male_id), str(pr.female_id))
+	# 4. THE BARRACKS. A player with a war on the horizon trains warriors -- the
+	#    only renewable source of defense (adventurers are finite and die for good).
+	if int(GameState.building_stage.get("Barracks", 0)) >= GameState.TOTAL_BUILD_STAGES:
+		var recruits := 0
+		for v in GameState.rescued_villagers:
+			if recruits >= 6:
+				break
+			var vid := str(v.get("id", ""))
+			if v.get("is_kid", false) or v.get("unbreakable", false):
+				continue
+			if str(v.get("stat_name", "")) == "Warrior" or GameState.school_enrollments.has(vid):
+				continue
+			# a player PULLS hands off the fields when the wall needs bodies -- the
+			# old `role_key == ""` filter meant staff() had already employed
+			# everyone, so nobody was ever free and 0 warriors were ever trained
+			if str(v.get("sex", "")) != "Male" or str(v.get("role_title", "")) == "Recruit":
+				continue
+			GameState.enroll_villager(vid, "Barracks", "Recruit", "Warrior")
+			recruits += 1
+	# 3. THE CHILDREN GROW UP. A player enrolls what the cradles produce -- School
+	#    turns a kid into a working adult (who can then pair), which is the only
+	#    way the flywheel compounds instead of just stacking dependents.
+	for v in GameState.rescued_villagers:
+		var vid := str(v.get("id", ""))
+		if v.get("is_kid", false) and not GameState.school_enrollments.has(vid):
+			GameState.enroll_villager(vid, "School", "Student", "random")
 
 # Model the town's DEFENSE the way a real player at this depth would have it --
 # a rampart raised with depth + the adventurers freed from the dungeon, posted to
@@ -369,6 +475,31 @@ func blocked_nodes_report(cls: String) -> String:
 func mk(id: String) -> Dictionary:
 	return {"id": id, "name": id, "sex": "Male" if hash(id) % 2 == 0 else "Female",
 		"is_kid": false, "stat_name": "Farm", "stat_value": 4, "role_key": "", "role_title": ""}
+
+# Sit every rescued VIP in the leadership post they were freed to hold. Matches
+# on the stat the figure carries (Publican -> Bar's Publican seat, Master Builder
+# -> Builderhouse, ...) exactly as BuildingRoles declares it.
+func seat_leaders() -> void:
+	for bn in GameState.building_stage.keys():
+		if int(GameState.building_stage.get(bn, 0)) < GameState.TOTAL_BUILD_STAGES:
+			continue
+		for rd in BuildingRoles.get_roles(bn):
+			if not rd.get("leadership", false):
+				continue
+			var need := int(rd.get("slots", 1))
+			var title := str(rd.get("title", ""))
+			var want_stat := str(rd.get("required_stat", ""))
+			var seated := GameState.count_leader_holders(bn, title)
+			for v in GameState.rescued_villagers:
+				if seated >= need:
+					break
+				if v.get("is_kid", false) or str(v.get("role_key", "")) != "":
+					continue
+				if str(v.get("stat_name", "")) != want_stat:
+					continue
+				v["role_key"] = bn
+				v["role_title"] = title
+				seated += 1
 
 func staff(order: Array) -> void:
 	# assign jobless adults to the given buildings in order (only operational ones)
