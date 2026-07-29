@@ -17,6 +17,12 @@ var drift := false           # What the Sky Charges: the storm WALKS toward prey
 # have exactly the same skill" -- dev. No two tomes cast the same shape now):
 var mire_mode := false       # The Mire Pages: a creeping BOG that slows+poisons
 var coven_mode := false      # The Coven's Ledger: a sigil ring pulsing INWARD
+# tome batch 2 (no two tomes cast the same shape):
+var column_mode := false     # The Deluge: three column eruptions MARCHING forward
+var lure_mode := false       # The Siren's Appendix: gathers, then the verse ends
+var tide_mode := false       # The Tidal Codex: a WALL of water travelling the lane
+var facing := 1              # cast-time facing: columns march and tides travel this way
+var _pulse_i := 0            # column/lure bookkeeping
 
 var _t := 0.0
 var _next := 0.0
@@ -57,6 +63,20 @@ func _ready() -> void:
 		# violet, closing its circle three times
 		tint = Color(0.8, 0.5, 1.0)
 		_cloud.visible = false
+	if column_mode:
+		# THE DELUGE: no cloud -- the sky itself answers in marching columns
+		tint = Color(0.5, 0.7, 1.0)
+		_cloud.visible = false
+	if lure_mode:
+		# THE SIREN'S APPENDIX: a teal song-ring; motes orbit while it gathers
+		tint = Color(0.35, 0.85, 0.8)
+		_cloud.visible = false
+	if tide_mode:
+		# THE TIDAL CODEX: a travelling WALL of water, foam at its crest
+		tint = Color(0.4, 0.7, 0.95)
+		_cloud.color = Color(0.35, 0.6, 0.9, 0.9)
+		_cloud.position = Vector2(0, -55)
+		_cloud.scale = Vector2(0.35, 1.9)
 	add_child(_cloud)
 	# the working ring on the ground, faint -- the promise of where it strikes
 	var ring := Line2D.new()
@@ -68,7 +88,7 @@ func _ready() -> void:
 	ring.width = 3.0
 	ring.default_color = Color(tint.r, tint.g, tint.b, 0.55)
 	# the zone verbs live or die by their ring (EYES: 0.55 vanished at night)
-	if mire_mode or coven_mode:
+	if mire_mode or coven_mode or lure_mode or tide_mode:
 		ring.width = 4.5
 		ring.default_color = Color(tint.r, tint.g, tint.b, 0.95)
 		var ring_mat := CanvasItemMaterial.new()
@@ -154,6 +174,85 @@ func _physics_process(delta: float) -> void:
 					FloatingText.spawn(get_parent(), e.global_position, int(round(damage * 1.5)), false)
 					if e.has_method("apply_knockback"):
 						e.apply_knockback(signf(global_position.x - e.global_position.x), 140.0)
+		return
+	if column_mode:
+		# THE DELUGE: three column eruptions MARCHING the cast's facing
+		_next = _t + maxf(0.5, duration / 3.0)
+		_pulse_i += 1
+		var cx: float = (float(_pulse_i) - 2.0) * radius * 0.5 * float(facing)
+		var col := ColorRect.new()
+		var cmat := CanvasItemMaterial.new()
+		cmat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		col.material = cmat
+		col.color = Color(0.55, 0.75, 1.0, 0.9)
+		col.size = Vector2(radius * 0.4, 220.0)
+		col.position = Vector2(cx - radius * 0.2, -220.0)
+		add_child(col)
+		var ctw := col.create_tween()
+		ctw.tween_property(col, "modulate:a", 0.0, 0.45)
+		ctw.tween_callback(col.queue_free)
+		# droplets shed off the column (the particle bar)
+		for di in range(5):
+			_bubble(to_global(Vector2(cx + randf_range(-radius * 0.2, radius * 0.2), -randf_range(10.0, 180.0))))
+		var wc := to_global(Vector2(cx, 0))
+		for group_name in HOSTILE_GROUPS:
+			for e in get_tree().get_nodes_in_group(group_name):
+				if not is_instance_valid(e) or not e.has_method("take_damage"):
+					continue
+				if "is_dead" in e and e.is_dead:
+					continue
+				if absf(e.global_position.x - wc.x) <= radius * 0.25:
+					e.take_damage(int(round(damage * 1.3)))
+					FloatingText.spawn(get_parent(), e.global_position, int(round(damage * 1.3)), false)
+					if e.has_method("apply_knockback"):
+						e.apply_knockback(signf(e.global_position.x - wc.x + 0.1), 200.0)
+		return
+	if lure_mode:
+		# THE SIREN'S APPENDIX: gathers every tick; the verse ENDS in a burst
+		_next = _t + strike_gap
+		for group_name in HOSTILE_GROUPS:
+			for e in get_tree().get_nodes_in_group(group_name):
+				if not is_instance_valid(e) or not e.has_method("take_damage"):
+					continue
+				if "is_dead" in e and e.is_dead:
+					continue
+				var d := global_position.distance_to(e.global_position)
+				if d <= radius * 1.4:
+					if e.has_method("apply_knockback"):
+						e.apply_knockback(signf(global_position.x - e.global_position.x), 120.0)
+					if d <= radius:
+						e.take_damage(maxi(1, int(round(damage * 0.4))))
+		# the song's motes (particle bar): three orbiting sparks
+		for mi in range(3):
+			var ma := _t * 2.4 + TAU * float(mi) / 3.0
+			_bubble(global_position + Vector2(cos(ma), sin(ma) * 0.35) * radius * 0.9)
+		# the final beat: everything gathered pays at once
+		if _t + strike_gap >= duration:
+			for group_name in HOSTILE_GROUPS:
+				for e in get_tree().get_nodes_in_group(group_name):
+					if is_instance_valid(e) and e.has_method("take_damage") \
+							and not ("is_dead" in e and e.is_dead) \
+							and global_position.distance_to(e.global_position) <= radius * 0.6:
+						e.take_damage(int(round(damage * 2.5)))
+						FloatingText.spawn(get_parent(), e.global_position, int(round(damage * 2.5)), false)
+		return
+	if tide_mode:
+		# THE TIDAL CODEX: the wall TRAVELS; what it touches is swept along
+		_next = _t + strike_gap
+		global_position.x += 160.0 * float(facing) * strike_gap
+		for fi in range(2):
+			_bubble(global_position + Vector2(randf_range(-14.0, 14.0), -randf_range(80.0, 110.0)))
+		for group_name in HOSTILE_GROUPS:
+			for e in get_tree().get_nodes_in_group(group_name):
+				if not is_instance_valid(e) or not e.has_method("take_damage"):
+					continue
+				if "is_dead" in e and e.is_dead:
+					continue
+				if absf(e.global_position.x - global_position.x) <= 40.0:
+					e.take_damage(damage)
+					FloatingText.spawn(get_parent(), e.global_position, damage, false)
+					if e.has_method("apply_knockback"):
+						e.apply_knockback(float(facing), 220.0)
 		return
 	_next = _t + strike_gap
 	var x := randf_range(-radius, radius)

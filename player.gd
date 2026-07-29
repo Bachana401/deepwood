@@ -4083,8 +4083,27 @@ func cast_storm_tome(special: Dictionary) -> void:
 	cloud.source = self
 	# TOME VERBS (attack-verb overhaul): no two tomes cast the same shape --
 	# the row's tome_kind picks the zone's whole character
-	cloud.mire_mode = str(special.get("tome_kind", "")) == "mire"
-	cloud.coven_mode = str(special.get("tome_kind", "")) == "coven"
+	var tkind := str(special.get("tome_kind", ""))
+	cloud.mire_mode = tkind == "mire"
+	cloud.coven_mode = tkind == "coven"
+	cloud.column_mode = tkind == "column"
+	cloud.lure_mode = tkind == "lure"
+	cloud.tide_mode = tkind == "tide"
+	cloud.facing = facing_direction
+	# GRAND TOME OF RAINS: twin flanking clouds instead of one
+	if tkind == "twin":
+		cloud.radius *= 0.6
+		cloud.damage = maxi(1, int(round(cloud.damage * 0.75)))
+		var cloud2 = STORM_CLOUD_SCRIPT.new()
+		cloud2.damage = cloud.damage
+		cloud2.radius = cloud.radius
+		cloud2.duration = cloud.duration
+		cloud2.strike_gap = cloud.strike_gap
+		cloud2.tint = cloud.tint
+		cloud2.source = self
+		get_parent().add_child(cloud2)
+		cloud2.global_position = aim_at + Vector2(cloud.radius * 1.4, 0)
+		aim_at += Vector2(-cloud.radius * 1.4, 0)
 	# What the Sky Charges: this storm WALKS toward prey
 	cloud.drift = str(special.get("rider", "")) == "walker"
 	get_parent().add_child(cloud)

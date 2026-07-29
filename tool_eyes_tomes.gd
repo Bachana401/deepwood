@@ -72,6 +72,43 @@ func _ready() -> void:
 	await _settle(0.7)
 	await _shot("t2_coven_circle")
 
+	# ---- t3: THE DELUGE -- marching columns ----
+	var col = SC.new()
+	col.column_mode = true
+	col.damage = 14
+	col.radius = 170.0
+	col.duration = 4.5
+	col.facing = 1
+	scene.add_child(col)
+	col.global_position = p.global_position + Vector2(200.0, 40.0)
+	await _settle(1.6)
+	await _shot("t3_deluge_columns")
+
+	# ---- t4: THE SIREN'S APPENDIX -- the gathering ring ----
+	var lure = SC.new()
+	lure.lure_mode = true
+	lure.damage = 10
+	lure.radius = 140.0
+	lure.duration = 5.0
+	lure.strike_gap = 0.4
+	scene.add_child(lure)
+	lure.global_position = p.global_position + Vector2(200.0, 30.0)
+	await _settle(1.2)
+	await _shot("t4_siren_lure")
+
+	# ---- t5: THE TIDAL CODEX -- the travelling wall ----
+	var tide = SC.new()
+	tide.tide_mode = true
+	tide.damage = 16
+	tide.radius = 90.0
+	tide.duration = 4.0
+	tide.strike_gap = 0.2
+	tide.facing = 1
+	scene.add_child(tide)
+	tide.global_position = p.global_position + Vector2(60.0, 40.0)
+	await _settle(1.1)
+	await _shot("t5_tide_wall")
+
 	say("EYES-T: done")
 	get_tree().quit(0)
 
