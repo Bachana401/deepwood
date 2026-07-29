@@ -2686,12 +2686,55 @@ func end_lantern() -> void:
 		notify("🌅 The lanterns come down softly. A good night.")
 	log_event("village", "The Lantern Night ended at dawn; the town woke gentler.")
 
+# Who was actually standing there, in the away-report's words. Counts real posted
+# adventurers, the Barracks' soldiers and Orin -- so the diary names the defence
+# the player chose, and an empty wall reads as the warning it is.
+func _away_line_summary() -> String:
+	ensure_adventurers()
+	var on_wall := 0
+	var on_patrol := 0
+	for id in adventurers.keys():
+		var a: Dictionary = adventurers[id]
+		if not a["rescued"] or a["dead"]:
+			continue
+		if str(a["station"]) == "wall": on_wall += 1
+		elif str(a["station"]) == "city": on_patrol += 1
+	var soldiers := 0
+	for v in rescued_villagers:
+		if v.get("is_kid", false) or str(v.get("role_title", "")) == "Recruit":
+			continue
+		if str(v.get("stat_name", "")) == "Warrior" or str(v.get("role_key", "")) == "Barracks":
+			soldiers += 1
+	var parts := []
+	if on_wall > 0: parts.append("%d on the wall" % on_wall)
+	if on_patrol > 0: parts.append("%d on patrol" % on_patrol)
+	if soldiers > 0: parts.append("%d of the Barracks" % soldiers)
+	if orin_arrived(): parts.append("Orin")
+	if wall_level > 1: parts.append("a tier-%d rampart" % wall_level)
+	if parts.is_empty():
+		return "nobody at all"
+	return ", ".join(parts)
+
 func resolve_siege_offline(tier: int, black := false) -> void:
 	away_report.sieges += 1
 	maera_stabilized_this_siege = false
+	# THE STORY OF IT (dev ask 2026-07-29). An away siege can't be acted out -- the
+	# village scene is unloaded while you're in the deep, so there are no bodies to
+	# fight with -- but the report should still say WHO stood there and what came at
+	# them, not just hand back a tally. Everything named here is real state: the
+	# wave size uses siege_manager's own count curve, the line is who you actually
+	# posted. (The OUTCOME stays the defense-power comparison below on purpose: the
+	# live combat numbers are tuned around the PLAYER doing most of the killing, so
+	# a literal round-by-round sim of the town fighting alone loses every time --
+	# measured at tier 15, defenders need 26 rounds to clear a wave that wipes them
+	# in 1.4. Narrate the fight faithfully; don't re-decide it with numbers that
+	# assume someone who isn't there.)
+	var wave: int = mini(3 + tier, 12 + (6 if black else 0))
+	log_event("combat", "%s %d raiders came up the road, and %s stood to meet them." % [
+		"🌑 A BLACK TIDE —" if black else "A tier-%d wave —" % tier, wave, _away_line_summary()])
 	if village_defense_power() >= float(tier):
 		away_report.repelled += 1
-		log_event("combat", "A tier-%d siege struck while you were away — the defense held. Nobody was lost." % tier)
+		log_event("combat", "The line held. Nobody was lost.")
 		return
 	log_event("combat", "A tier-%d siege struck while you were away — the wall could not hold it all." % tier)
 	# THE ATTRITION CURVE (2026-07-29). This was `ceil(tier - defense)` -- ONE life

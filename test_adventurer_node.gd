@@ -105,6 +105,21 @@ func _ready() -> void:
 		not GameState.adventurer_state("adv_wren").get("dead", true))
 	check("the away report names the loss", int(GameState.away_report.get("adventurers_lost", 0)) >= 1)
 
+	# ------------- THE AWAY-REPORT STORY (2026-07-29) -------------
+	# The diary must say WHO stood there and what came at them, not just a tally.
+	GameState.village_log = []
+	GameState.set_adventurer_station("adv_castor", "wall")
+	GameState.resolve_siege_offline(1, false)     # a wave the town certainly holds
+	var told := ""
+	for entry in GameState.village_log:
+		var t := str(entry.get("text", ""))
+		if t.contains("stood to meet them"):
+			told = t
+			break
+	check("the away-report names the wave and the line that met it", told != "", "log had no such line")
+	check("...and it names the real posts, not a bare number",
+		told.contains("on the wall") or told.contains("nobody at all"), told)
+
 	# ------------- THE ATTRITION CURVE (2026-07-29) -------------
 	# Was ceil(tier - defense): ONE life per single point of unmet threat,
 	# uncapped -- so a near-miss bled like a rout and a wave every ~5 real
