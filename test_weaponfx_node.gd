@@ -187,6 +187,20 @@ func _ready() -> void:
 	check("every chained rung forges from kin plus materials (106 links)",
 		chained == 106 and broken.is_empty(),
 		"chained=%d; broken: %s" % [chained, ", ".join(broken)])
+	# ---- THE CULMINATION (Zenith-kin): the melee crown forges from its three
+	# famous T7 ancestors -- the same blades whose tinted ghosts its zenith
+	# verb frees -- plus essence. The vaults stay the other road.
+	var culm: Dictionary = Inventory.CRAFT_RECIPES.get("wpn_lastword", {})
+	var roster_ids := {}
+	for row in WeaponRoster.ROWS:
+		roster_ids[str(row[0])] = true
+	var culm_ok: bool = culm.has("wpn_worldsedge") and culm.has("wpn_afterlight") \
+		and culm.has("wpn_novatongue") and culm.has("void_essence")
+	for k in culm:
+		if str(k) != "void_essence" and not roster_ids.has(str(k)):
+			culm_ok = false
+	check("The Last Word forges from its three famous ancestors (the culmination)",
+		culm_ok, str(culm))
 	# THE SOUL MUST BE READABLE (dev: "not dumb and only plain stats"): every
 	# fx-bearing weapon's CARD says what it does -- an invisible unique is
 	# stats with extra steps

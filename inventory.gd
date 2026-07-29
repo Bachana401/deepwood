@@ -1021,6 +1021,12 @@ const CRAFT_RECIPES = {
 	"wpn_paleobelisk": {"wpn_shepherdstaff": 1, "ember_crystal": 4},
 	"wpn_graniteway": {"wpn_paleobelisk": 1, "ember_crystal": 8},
 	"wpn_stillmountain": {"wpn_graniteway": 1, "void_essence": 3},
+	# --- THE CULMINATION (Zenith-kin craft path, 2026-07-29): The Last Word
+	# can be FORGED from the three famous T7 melee blades -- the very
+	# ancestors whose tinted ghosts its zenith verb frees with every swing
+	# (weapon_projectile LEGACY_TINTS). An alternate road to the crown for
+	# the collector who gathered the whole line; the vaults remain the other.
+	"wpn_lastword": {"wpn_worldsedge": 1, "wpn_afterlight": 1, "wpn_novatongue": 1, "void_essence": 8},
 	"potion_tears": {"tear_pale": 3, "herb": 1},
 	"food_stew": {"herb": 2, "raw_meat": 1},
 	"food_feast": {"raw_meat": 3, "herb": 1},
