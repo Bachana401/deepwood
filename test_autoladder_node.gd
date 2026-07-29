@@ -216,6 +216,36 @@ func _ready() -> void:
 		BuildingRoles.get_roles("Mine").any(func(r): return r.get("leadership", false)),
 		"Mine roles: %s" % str(BuildingRoles.get_roles("Mine")))
 
+	# ---- THE UPGRADE MUST BUY SOMETHING (2026-07-29) ----
+	# Every building levels 1..6 at 30*lvl^2 gold, and assign_ui PROMISES
+	# "+N% output at this level" -- but nine buildings' outputs never read
+	# building_output_multiplier(), so the player paid ~1650 gold for nothing and
+	# the UI lied. Pin it at the source: every upgradeable building must fold its
+	# own level into some output.
+	# EXCEPTION: the Shrine's only output is binary (shrine_ready -> you may
+	# cleanse), so there is no rate for a multiplier to scale.
+	const OUTPUT_EXEMPT := ["Shrine"]
+	var gs_src := FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text()
+	var deaf := []
+	for bname in GameState.STARTING_BUILDINGS + ["Mine"]:
+		if bname in OUTPUT_EXEMPT:
+			continue
+		if not gs_src.contains('building_output_multiplier("%s")' % bname):
+			deaf.append(bname)
+	check("every upgradeable building's output actually reads its LEVEL",
+		deaf.is_empty(), "these ignore their upgrades: %s" % ", ".join(deaf))
+	# and prove it end-to-end on one of them: levelling the School must school faster
+	GameState.rescued_villagers = []
+	GameState.building_stage["School"] = GameState.TOTAL_BUILD_STAGES
+	GameState.building_health["School"] = 100
+	GameState.building_levels["School"] = 1
+	var sch_l1: float = GameState.get_school_graduation_speed_multiplier()
+	GameState.building_levels["School"] = 6
+	var sch_l6: float = GameState.get_school_graduation_speed_multiplier()
+	GameState.building_levels.erase("School")
+	check("...proved end-to-end: a level-6 School graduates faster than a level-1",
+		sch_l6 > sch_l1, "L1=%.2f L6=%.2f" % [sch_l1, sch_l6])
+
 	# ---- restore ----
 	GameState.rescued_villagers = saved_roster
 	GameState.building_stage = saved_stage

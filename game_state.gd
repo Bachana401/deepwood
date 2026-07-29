@@ -3951,15 +3951,19 @@ func generate_passive_income() -> void:
 				share *= BOND_INCOME_MULT
 			taxable += share
 		taxable += PARTY_MEMBER_INCOME * float(count_leader_holders("Government", "Party"))
-		total += taxable * get_village_income_multiplier()
+		# a grander seat of government collects better -- each employee's own
+		# building already scales their share, but the Government's OWN level was
+		# the one term missing (2026-07-29)
+		total += taxable * get_village_income_multiplier() * building_output_multiplier("Government")
 	# THE BAR POURS FROM THE LARDER (chain link): no supplies, no drink, no
 	# takings -- the Farm and the Dock are what keep the taps running.
 	if is_building_operational("Bar") and has_food():
-		total += BARKEEP_TRICKLE * float(count_workers("Bar"))
+		total += BARKEEP_TRICKLE * float(count_workers("Bar")) * building_output_multiplier("Bar")
 	# the TAVERN pours too, on the same chain (no larder, no drink, no takings) --
 	# its Barmen were staffable and worthless before 2026-07-29
 	if is_building_operational("Tavern") and has_food():
-		total += BARMAN_TRICKLE * float(count_leader_holders("Tavern", "Barman"))
+		total += BARMAN_TRICKLE * float(count_leader_holders("Tavern", "Barman")) \
+			* building_output_multiplier("Tavern")
 	if total <= 0.0:
 		return
 	# a happy village is a taxable village (0.75x .. 1.25x)
@@ -4556,13 +4560,15 @@ func get_school_graduation_speed_multiplier() -> float:
 	# than an empty one. (count_leader_holders is a by-TITLE counter despite its
 	# name; count_workers("School") would wrongly sweep in the Students, who are
 	# enrolled under the same role_key.)
-	return 1.0 + count_leader_holders("School", "Principal") * LEADER_BONUS_PER_HOLDER \
-		+ count_leader_holders("School", "Teachers") * TEACHER_SPEED_PER_HEAD
+	return (1.0 + count_leader_holders("School", "Principal") * LEADER_BONUS_PER_HOLDER \
+		+ count_leader_holders("School", "Teachers") * TEACHER_SPEED_PER_HEAD) \
+		* building_output_multiplier("School")
 
 func get_barracks_graduation_speed_multiplier() -> float:
 	# Brannoc, the Wall That Stood (the Ten): warriors train twice as fast
 	var ten_mult := 2.0 if ten_freed("ten_brannoc") else 1.0
-	return (1.0 + count_leader_holders("Barracks", "Warchief") * LEADER_BONUS_PER_HOLDER) * ten_mult
+	return (1.0 + count_leader_holders("Barracks", "Warchief") * LEADER_BONUS_PER_HOLDER) * ten_mult \
+		* building_output_multiplier("Barracks")
 
 # ============================ LEADERSHIP AUTOMATION ============================
 # The rescued VIP leaders don't just buff numbers -- they RUN the village so it
@@ -4622,7 +4628,8 @@ const FORGE_IRON_PER_ARM := 1
 const RESEARCH_YIELD_PER_SEAT := 0.15
 
 func research_yield_multiplier() -> float:
-	return 1.0 + RESEARCH_YIELD_PER_SEAT * float(seated_leaders("Science Lab"))
+	return (1.0 + RESEARCH_YIELD_PER_SEAT * float(seated_leaders("Science Lab"))) \
+		* building_output_multiplier("Science Lab")
 
 # --- THE DOMESTIC AUTOMATIONS (the automation ladder, dev law 2026-07-29) ---
 # Every chore the player does BY HAND early must eventually be taken over by a
@@ -4796,7 +4803,8 @@ func apply_leadership_automation() -> void:
 		# 5.6: interest is the Bank's FUNCTION -- any staffed Financist grows
 		# the treasury (half rate); the Treasurer leader runs it at full, and
 		# Dorian Vail, the Coinbinder (the Ten), doubles whatever runs
-		var rate: float = BANK_INTEREST_RATE * (1.0 if seated_leaders("Bank") > 0 else 0.5)
+		var rate: float = BANK_INTEREST_RATE * (1.0 if seated_leaders("Bank") > 0 else 0.5) \
+			* building_output_multiplier("Bank")
 		var interest = clampi(int(player.currency * rate * (2.0 if ten_freed("ten_dorian") else 1.0)), 0, BANK_INTEREST_CAP)
 		if interest > 0:
 			player.add_currency(interest)               # the treasury grows
@@ -4942,7 +4950,7 @@ func auto_sell_village_surplus() -> void:
 		log_event("economy", "The Merchant Prince sold the surplus stores — %d gold into the treasury." % earned)
 
 func auto_heal_villagers(physicians: int) -> void:
-	var amount = AUTO_HEAL_PER_PHYSICIAN * float(physicians)
+	var amount = AUTO_HEAL_PER_PHYSICIAN * float(physicians) * building_output_multiplier("Hospital")
 	for id in villager_hp.keys():
 		var hp = float(villager_hp[id])
 		if hp < VILLAGER_MAX_HP:
