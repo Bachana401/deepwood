@@ -43,11 +43,13 @@ static func _grade_rank(p: Node) -> int:
 	var g := Inventory.get_grade(str(p.active_weapon_id))
 	return int(Inventory.GRADE_DEFS.get(g, {}).get("rank", 0))
 
-static func _gscale(p: Node) -> float:      # visual size: up to ~1.8x at the crown
-	return 1.0 + 0.11 * float(_grade_rank(p))
+static func _gscale(p: Node) -> float:      # visual size: up to ~2.1x at the crown
+	# (intensity pass 2026-07-29, dev: "make it more intense" -- the soul
+	# should be UNMISSABLE at the top of the ladder)
+	return 1.0 + 0.15 * float(_grade_rank(p))
 
-static func _rscale(p: Node) -> float:      # effect REACH: up to ~1.4x at the crown
-	return 1.0 + 0.055 * float(_grade_rank(p))
+static func _rscale(p: Node) -> float:      # effect REACH: up to ~1.5x at the crown
+	return 1.0 + 0.07 * float(_grade_rank(p))
 
 static func _fx_list(def: Dictionary) -> Array:
 	var fx = def.get("special", {}).get("fx", null)
@@ -302,7 +304,7 @@ static func _stage(p: Node) -> Node:
 static func _zap_line(p: Node, a: Vector2, b: Vector2, col: Color) -> void:
 	var l := Line2D.new()
 	l.points = PackedVector2Array([a, a.lerp(b, 0.4) + Vector2(randf_range(-14, 14), randf_range(-14, 14)), b])
-	l.width = 2.5
+	l.width = 3.5 * _gscale(p)
 	l.default_color = col
 	l.z_index = 40
 	_stage(p).add_child(l)
@@ -313,13 +315,13 @@ static func _zap_line(p: Node, a: Vector2, b: Vector2, col: Color) -> void:
 static func _puff(p: Node, at: Vector2, col: Color) -> void:
 	var d := ColorRect.new()
 	d.color = col
-	d.size = Vector2(10, 10)
-	d.position = at - Vector2(5, 5)
+	d.size = Vector2(12, 12) * _gscale(p)
+	d.position = at - d.size / 2.0
 	d.z_index = 40
 	_stage(p).add_child(d)
 	var tw := d.create_tween()
 	tw.set_parallel(true)
-	tw.tween_property(d, "scale", Vector2(2.2, 2.2), 0.3)
+	tw.tween_property(d, "scale", Vector2(2.6, 2.6), 0.3)
 	tw.tween_property(d, "modulate:a", 0.0, 0.3)
 	tw.chain().tween_callback(d.queue_free)
 
@@ -393,8 +395,8 @@ static func _comet_star(p: Node, from: Vector2, tid: int, dmg: int, dur: float, 
 	tw.parallel().tween_property(head, "rotation", 2.6, dur)
 	# the comet SHEDS as it falls (particle-density bar: OP weapons rain
 	# light constantly, not only at impact)
-	for shed_i in range(3):
-		var at_frac := 0.25 + 0.25 * float(shed_i)
+	for shed_i in range(5):
+		var at_frac := 0.15 + 0.17 * float(shed_i)
 		var shed_pos := from.lerp(to, at_frac) + Vector2(randf_range(-8.0, 8.0), 0)
 		var sd := ColorRect.new()
 		sd.color = Color(tint.r, tint.g, tint.b, 0.85)
@@ -416,7 +418,7 @@ static func _comet_star(p: Node, from: Vector2, tid: int, dmg: int, dur: float, 
 
 # the impact fountain: sparkles erupt upward and drift out
 static func _star_burst(p: Node, at: Vector2, tint: Color) -> void:
-	for i in range(9):
+	for i in range(13):
 		var s := ColorRect.new()
 		s.color = Color(minf(tint.r * 1.15, 1.0), minf(tint.g * 1.15, 1.0), tint.b, 0.95)
 		s.size = Vector2(4, 4) * _gscale(p)
