@@ -84,9 +84,22 @@ func _ready() -> void:
 	# a wave the village cannot quite hold -- costly, NOT a wipe (a tier-99
 	# hammer would leave only the unbreakable Ten and there would be no town
 	# left to harvest later, which is the town's problem, not the game's)
+	#
+	# DERIVED FROM LIVE DEFENSE, never hardcoded (fix 2026-07-29): resolve_siege_offline
+	# repels a wave OUTRIGHT at defense >= tier, so a fixed tier silently stops testing
+	# anything the moment defense is rebalanced. It did: 78cbe3c dropped the low-morale
+	# 0.5x penalty, which lifted this town's defense above the old flat tier-6 and the
+	# "costs real people" assertion went green-by-accident-then-red. A few points ABOVE
+	# whatever the town can actually field always models the intended scenario.
 	var before_roster: int = GameState.rescued_villagers.size()
 	GameState.in_dungeon = true                    # the fog comes down
-	GameState.resolve_siege_offline(6)
+	# ...and the wave must out-last the SHIELDS too: every fighting adventurer dies
+	# in place of a villager, and Maera pulls one more back from the brink, so a
+	# wave sized only just past the wall kills nothing but adventurers.
+	var shields: int = GameState.fighting_adventurers().size()
+	var stabilized: int = 1 if GameState.ten_freed("ten_maera") else 0
+	var unholdable: int = int(ceil(GameState.village_defense_power())) + shields + stabilized + 2
+	GameState.resolve_siege_offline(unholdable)
 	check("an unheld siege costs the village real people",
 		GameState.rescued_villagers.size() < before_roster)
 	check("...and it is written down while you cannot see it",

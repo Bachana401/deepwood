@@ -4463,6 +4463,25 @@ const AUTO_COTTAGE_STONE := 4
 const AUTO_COTTAGE_SPACING := 170.0
 
 # Cottages standing EMPTY right now: not a couple's home, not mid-pairing.
+# Hand the town what you're carrying (assign_ui, Builderhouse panel). The crews
+# fill the stores on their own, but early -- before the Mine, before a builder
+# crew -- the player IS the supply line, and standing there holding forty logs
+# while the repair crew idles for two was a dead end with no way out.
+# Returns how many were actually given.
+func donate_to_stores(player: Node, item_id: String) -> int:
+	if player == null or not ("inventory" in player) or player.inventory == null:
+		return 0
+	if not village_stockpile.has(item_id):
+		return 0
+	var held: int = player.inventory.get_count(item_id)
+	if held <= 0:
+		return 0
+	player.inventory.remove_item(item_id, held)
+	village_stockpile[item_id] = int(village_stockpile[item_id]) + held
+	log_event("village", "You gave %d %s to the village stores." % [held, item_id.replace("_", " ")])
+	play_sfx(SFX_YES, 1.0)
+	return held
+
 func free_cottage_ids() -> Array:
 	var out := []
 	for cid in extra_cottage_ids:

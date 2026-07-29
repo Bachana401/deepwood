@@ -123,6 +123,23 @@ func _ready() -> void:
 	check("the Bar pours from the LARDER — no food, no takings",
 		gs.contains('is_building_operational("Bar") and has_food()'))
 
+	# ---- the player can SEE the chain, and FEED it by hand when it stalls ----
+	GameState.village_stockpile = {"wood": 0, "stone": 0, "iron_shard": 0}
+	p.inventory.add_item("wood", 5)
+	var carried: int = p.inventory.get_count("wood")
+	var given: int = GameState.donate_to_stores(p, "wood")
+	check("the player can hand carried wood to the village stores (the early supply line)",
+		given == carried and int(GameState.village_stockpile["wood"]) == carried,
+		"gave=%d store=%d" % [given, int(GameState.village_stockpile["wood"])])
+	check("...and donating what you don't have gives nothing",
+		GameState.donate_to_stores(p, "wood") == 0)
+	var ui := FileAccess.open("res://assign_ui.gd", FileAccess.READ).get_as_text()
+	check("the Builderhouse panel SHOWS the stores + a donate path",
+		ui.contains("add_stores_section") and ui.contains("donate_to_stores"))
+	var mm := FileAccess.open("res://morale_meter.gd", FileAccess.READ).get_as_text()
+	check("the glance panel reads the stores out (the chain is visible)",
+		mm.contains("village_stockpile"))
+
 	# ---- restore ----
 	GameState.rescued_villagers = saved_roster
 	GameState.building_stage = saved_stage

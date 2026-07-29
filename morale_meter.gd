@@ -120,6 +120,16 @@ func _refresh_glance() -> void:
 	# needs the player for. Climbs as chores get automated (see chore_domains).
 	var ss: Dictionary = GameState.village_self_sufficiency()
 	lines.append("🕊 Self-reliance %d%%  (%d/%d chores run themselves)" % [int(round(float(ss["fraction"]) * 100.0)), int(ss["handled"]), int(ss["total"])])
+	# THE CHAIN AT A GLANCE (City Machine): the stores the crews fill and the
+	# repairs/cottages/forge spend, plus the town's own purse. Without this the
+	# whole supply chain was invisible -- "the builders idle, the stores need
+	# wood" with nowhere to check. Donate at the Builderhouse (E).
+	var st: Dictionary = GameState.village_stockpile
+	var stores_line := "🪵 Stores  wood %d · stone %d · iron %d" % [
+		int(st.get("wood", 0)), int(st.get("stone", 0)), int(st.get("iron_shard", 0))]
+	if GameState.village_treasury > 0:
+		stores_line += "   🏦 %dg" % GameState.village_treasury
+	lines.append(stores_line)
 	var rotting: int = GameState.villager_rot.size()
 	if rotting > 0:
 		lines.append("⚠ %d SLIPPING — mend their lives now" % rotting)

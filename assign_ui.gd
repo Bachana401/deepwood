@@ -56,6 +56,8 @@ func refresh() -> void:
 		add_market_stall_section(list)
 	if current_building.role_key == "Fishing Dock":
 		add_dock_section(list)
+	if current_building.role_key == "Builderhouse":
+		add_stores_section(list)
 	add_relocate_section(list)
 
 # THE MARKET STALL (numbers pass 2026-07-20): gear could never be SOLD --
@@ -606,6 +608,76 @@ func add_armory_section(list: VBoxContainer) -> void:
 		none_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6, 1))
 		none_label.text = "  (no spare weapons or armor in your bag to donate)"
 		list.add_child(none_label)
+
+# THE VILLAGE STORES (City Machine): the town's own wood/stone/iron -- what the
+# repair crew spends, what the Forge turns into arms, what a new cottage costs.
+# The Builderhouse keeps them, so this is where you SEE them and where you can
+# hand over what you're carrying. Without this the chain was invisible: the crew
+# could stall for want of two logs while the player stood there holding forty.
+const STORE_KINDS := ["wood", "stone", "iron_shard"]
+
+func add_stores_section(list: VBoxContainer) -> void:
+	var header = Label.new()
+	header.add_theme_font_size_override("font_size", 14)
+	header.add_theme_color_override("font_color", Color(0.7, 0.82, 0.6, 1))
+	header.text = "Village stores — what the town builds with"
+	list.add_child(header)
+
+	var status = Label.new()
+	status.add_theme_font_size_override("font_size", 12)
+	status.add_theme_color_override("font_color", Color(0.8, 0.85, 0.8, 1))
+	status.text = "  Wood %d   Stone %d   Iron %d      Treasury %dg" % [
+		int(GameState.village_stockpile["wood"]), int(GameState.village_stockpile["stone"]),
+		int(GameState.village_stockpile["iron_shard"]), GameState.village_treasury]
+	list.add_child(status)
+
+	var note = Label.new()
+	note.add_theme_font_size_override("font_size", 11)
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD
+	note.custom_minimum_size = Vector2(300, 0)
+	var crew := GameState.count_workers("Builderhouse")
+	var miners := GameState.count_workers("Mine")
+	if crew > 0 or miners > 0:
+		note.add_theme_color_override("font_color", Color(0.55, 0.85, 0.55, 1))
+		note.text = "  Your crews fill these daily (builders fell timber & gather fieldstone; miners haul stone & iron). Repairs, new cottages and the Forge all draw on them."
+	else:
+		note.add_theme_color_override("font_color", Color(0.85, 0.7, 0.5, 1))
+		note.text = "  ⚠ Nobody is filling these. Staff the Builderhouse (timber & stone) and the Mine (stone & iron), or donate from your own pack below."
+	list.add_child(note)
+
+	var player = get_tree().get_first_node_in_group("player")
+	if player == null or not ("inventory" in player) or player.inventory == null:
+		return
+	var found := false
+	for item_id in STORE_KINDS:
+		var held: int = player.inventory.get_count(item_id)
+		if held <= 0:
+			continue
+		found = true
+		var row = Button.new()
+		row.text = "  Donate all %s  (x%d)" % [Inventory.get_display_name(item_id), held]
+		row.custom_minimum_size = Vector2(0, 26)
+		row.pressed.connect(_on_donate_store.bind(item_id))
+		list.add_child(row)
+	if not found:
+		var none_label = Label.new()
+		none_label.add_theme_font_size_override("font_size", 11)
+		none_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6, 1))
+		none_label.text = "  (no wood, stone or iron in your pack to donate)"
+		list.add_child(none_label)
+
+func _on_donate_store(item_id: String) -> void:
+	var player = get_tree().get_first_node_in_group("player")
+	var notif = get_tree().get_first_node_in_group("notification_stack")
+	if player == null:
+		return
+	var given: int = GameState.donate_to_stores(player, item_id)
+	if notif:
+		if given > 0:
+			notif.show_notification("Gave %d %s to the village stores." % [given, Inventory.get_display_name(item_id)])
+		else:
+			notif.show_notification("Nothing to give.")
+	refresh()
 
 func _on_deposit_arm(item_id: String) -> void:
 	var player = get_tree().get_first_node_in_group("player")
