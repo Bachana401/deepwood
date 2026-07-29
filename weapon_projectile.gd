@@ -139,6 +139,19 @@ func _ready() -> void:
 		"lash":
 			_build_lash()
 			pierce = true
+		# tome batch 3b (no two tomes cast the same shape):
+		"ink_jet":
+			_build_inkjet()
+			pierce = true
+			_vel_y = -absf(float(speed)) * 0.3   # a lobbed STREAM: gentle arc
+		"wake_scythe":
+			_build_wakescythe()
+			pierce = true
+			spin_speed = 9.0
+			speed = maxf(120.0, float(speed) * 0.3)   # starts lazy, ACCELERATES
+		"soul_stream":
+			_build_soulwispshot()
+			pierce = false
 	if spin_speed == 0.0:
 		rotation = direction.angle()
 
@@ -153,6 +166,41 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind == "lob":
 		_tick_lob(delta)
+		return
+	if kind == "ink_jet":
+		# THE INKWELL OF STORMS: a piercing stream riding a gentle arc --
+		# gravity pulls the jet down as it flies, staining as it goes
+		_vel_y += 620.0 * delta
+		global_position += direction * speed * delta + Vector2(0, _vel_y * delta)
+		rotation = (direction * speed + Vector2(0, _vel_y)).angle()
+		traveled += speed * delta
+		if traveled >= max_distance or _vel_y > 700.0:
+			done = true
+			queue_free()
+		return
+	if kind == "wake_scythe":
+		# THE BOOK OF WAKES: the scythe WAKES as it travels -- lazy at the
+		# page, terrible by the far edge (accelerating pierce disc)
+		speed = minf(1100.0, speed * (1.0 + 2.4 * delta))
+		global_position += direction * speed * delta
+		traveled += speed * delta
+		if traveled >= max_distance * 1.4:
+			done = true
+			queue_free()
+		return
+	if kind == "soul_stream":
+		# THE FLOOD OF SOULS: each soul BENDS toward the nearest living thing
+		var prey := _nearest_hostile_node(420.0)
+		if prey != null:
+			var desired := (prey.global_position - global_position).normalized()
+			var maxturn := 4.2 * delta
+			direction = direction.rotated(clampf(direction.angle_to(desired), -maxturn, maxturn)).normalized()
+			rotation = direction.angle()
+		global_position += direction * speed * delta
+		traveled += speed * delta
+		if traveled >= max_distance * 1.3:
+			done = true
+			queue_free()
 		return
 	if kind == "lash":
 		# a weaving ribbon: the lane is `direction`, the weave rides across it
@@ -539,6 +587,75 @@ func explode() -> void:
 	t.parallel().tween_property(blast, "modulate:a", 0.0, 0.25)
 	t.tween_callback(blast.queue_free)
 	queue_free()
+
+# --- tome batch 3b builds + the soul's eye ------------------------------
+# THE INKWELL OF STORMS: a dark teardrop stream, ink-blue, trailing droplets
+func _build_inkjet() -> void:
+	var drop := Polygon2D.new()
+	drop.polygon = PackedVector2Array([Vector2(-14, 0), Vector2(-4, -5), Vector2(10, -3), Vector2(16, 0), Vector2(10, 3), Vector2(-4, 5)])
+	drop.color = Color(0.16, 0.2, 0.45, 0.95)
+	visual.add_child(drop)
+	var sheen := Polygon2D.new()
+	sheen.polygon = PackedVector2Array([Vector2(-8, -2), Vector2(6, -2), Vector2(10, 0), Vector2(6, 1), Vector2(-8, 1)])
+	sheen.color = Color(0.45, 0.55, 0.9, 0.8)
+	visual.add_child(sheen)
+
+# THE BOOK OF WAKES: a bone-pale scythe disc that spins as it wakes
+func _build_wakescythe() -> void:
+	var arc := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(10):
+		var a := TAU * float(i) / 10.0
+		var r := 22.0 if i % 2 == 0 else 11.0
+		pts.append(Vector2(cos(a), sin(a)) * r)
+	arc.polygon = pts
+	arc.color = Color(0.85, 0.9, 0.8, 0.95)
+	visual.add_child(arc)
+	var wash := Polygon2D.new()
+	var wpts := PackedVector2Array()
+	for i in range(12):
+		var aw := TAU * float(i) / 12.0
+		wpts.append(Vector2(cos(aw), sin(aw)) * 30.0)
+	wash.polygon = wpts
+	wash.color = Color(0.65, 0.85, 0.8, 0.3)
+	var wm := CanvasItemMaterial.new()
+	wm.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	wash.material = wm
+	visual.add_child(wash)
+	var eye := Polygon2D.new()
+	eye.polygon = PackedVector2Array([Vector2(-5, 0), Vector2(0, -5), Vector2(5, 0), Vector2(0, 5)])
+	eye.color = Color(0.3, 0.45, 0.35, 0.95)
+	visual.add_child(eye)
+
+# THE FLOOD OF SOULS: a pale wisp-skull with a streaming tail
+func _build_soulwispshot() -> void:
+	var skull := Polygon2D.new()
+	var pts2 := PackedVector2Array()
+	for i in range(10):
+		var a2 := TAU * float(i) / 10.0
+		pts2.append(Vector2(cos(a2) * 7.0, sin(a2) * 6.0))
+	skull.polygon = pts2
+	skull.color = Color(0.8, 0.88, 1.0, 0.9)
+	visual.add_child(skull)
+	var tail := Polygon2D.new()
+	tail.polygon = PackedVector2Array([Vector2(-6, -3), Vector2(-18, 0), Vector2(-6, 3)])
+	tail.color = Color(0.6, 0.72, 0.95, 0.6)
+	visual.add_child(tail)
+
+func _nearest_hostile_node(within: float) -> Node2D:
+	var best: Node2D = null
+	var bd := within
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			var d: float = global_position.distance_to(e.global_position)
+			if d < bd:
+				bd = d
+				best = e
+	return best
 
 # --- procedural looks ---
 

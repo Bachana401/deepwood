@@ -4060,6 +4060,17 @@ func cast_wand_projectile(special: Dictionary) -> void:
 	var cast: Dictionary = special.duplicate(true)
 	cast["girth"] = grade_projectile_girth()
 	cast["range"] = float(special.get("range", 450.0)) * grade_projectile_range()
+	# THE FLOOD OF SOULS (tome batch 3b): one cast, a STREAM -- three souls
+	# leave the book a beat apart, each bending toward the nearest living thing
+	if str(cast.get("type", "")) == "soul_stream":
+		var n: int = int(cast.get("count", 3))
+		launch_projectile(cast, get_aim_direction(), cr[0], cr[1])
+		for si in range(n - 1):
+			get_tree().create_timer(0.14 * float(si + 1), false).timeout.connect(
+				func():
+					if is_instance_valid(self) and not is_dead:
+						launch_projectile(cast, get_aim_direction(), cr[0], cr[1]))
+		return
 	launch_projectile(cast, get_aim_direction(), cr[0], cr[1])
 
 # TOME STORM (behavior library 2026-07-28): conjure a stormlet over the aimed

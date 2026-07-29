@@ -121,6 +121,16 @@ func _ready() -> void:
 	await _settle(2.2)
 	await _shot("t6_high_flood")
 
+	# ---- t7/t8/t9: the projectile tomes, cast for real ----
+	for spec in [["wpn_inkbook", "t7_ink_jet", 0.35], ["wpn_wakebook", "t8_wake_scythe", 0.5], ["wpn_soulflood", "t9_soul_stream", 0.45]]:
+		p.inventory.add_item(spec[0], 1)
+		p.wield_weapon(spec[0])
+		p.attack_cooldown_remaining = 0.0
+		if p.has_method("cast_wand_projectile"):
+			p.cast_wand_projectile(p.active_def.get("special", {}))
+		await _settle(spec[2])
+		await _shot(spec[1])
+
 	say("EYES-T: done")
 	get_tree().quit(0)
 

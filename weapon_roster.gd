@@ -176,7 +176,7 @@ const ROWS = [
 		"fx": [{"kind": "duelist", "pct_per": 0.18, "max": 8}, {"kind": "echo", "pct": 1, "delay": 0.4}]}],
 	["wpn_thronestrings","Throne of Strings",    "bow", 8, "volley", 27, 0.48, {"count": 5, "pierce": true,
 		"fx": [{"kind": "skyrain", "n": 3, "pct": 1, "spread": 140.0}, {"kind": "frostbloom", "radius": 160.0}]}],
-	["wpn_soulflood",    "Flood of Souls",       "wand", 8, "tome", 26, 1.2,  {"radius": 200,
+	["wpn_soulflood",    "Flood of Souls",       "wand", 8, "souls", 26, 1.1,  {
 		"fx": [{"kind": "soulwisp", "dmg": 14, "pct": 1}, {"kind": "harvest", "hp": 3, "mana": 6.0}]}],
 	["wpn_skymeasure",   "Staff That Measures the Sky", "staff", 8, "staff", 34, 0.36, {
 		"fx": [{"kind": "quake", "radius": 170.0, "pct": 1}, {"kind": "bulwark", "dr": 0.2, "dur": 3.0}]}],
@@ -256,7 +256,7 @@ const ROWS = [
 	["wpn_stormsliver",  "Stormsliver",          "wand",  4, "bolt",      21, 0.5,  {"plain": true}],
 	["wpn_paleobelisk",  "Pale Obelisk",         "staff", 4, "staff",     16, 0.46, {"plain": true}],
 	["wpn_fordstaff",    "Fordmaster",           "staff", 4, "staff",     14, 0.4,  {"plain": true}],
-	["wpn_inkbook",      "Inkwell of Storms",    "wand",  4, "tome",      12, 1.5,  {"radius": 150, "fx": [{"kind": "windup", "every": 4, "pct": 1.08}, {"kind": "echo", "pct": 0.5, "delay": 0.4}]}],
+	["wpn_inkbook",      "Inkwell of Storms",    "wand",  4, "ink",       12, 0.9,  { "fx": [{"kind": "windup", "every": 4, "pct": 1.08}, {"kind": "echo", "pct": 0.5, "delay": 0.4}]}],
 	["wpn_driftwheel",   "Driftwheel",           "melee", 4, "orbiter",   17, 0.85, {"dwell": 2.6, "fx": [{"kind": "shove", "force": 240.0}, {"kind": "gravity", "radius": 185.0, "pull": 140.0}]}],
 	# ---------------- WAVE 3 - TIER 5 (26) ----------------
 	["wpn_lastlantern",  "The Last Lantern",     "melee", 5, "arc",       23, 0.4,  {"status": "burn_w", "plain": true}],
@@ -307,7 +307,7 @@ const ROWS = [
 		"fx": [{"kind": "brand", "amp": 0.42, "dur": 4.0}, {"kind": "gravity", "radius": 200.0, "pull": 150.0}]}],
 	["wpn_sunmortar",    "A Piece of the Sun",   "bow",   6, "lob_a",     36, 1.0,  {"aoe": 125, "status": "burn_w",
 		"fx": [{"kind": "quake", "radius": 165.0, "pct": 0.65}, {"kind": "goldtouch", "chance": 0.28, "gold": 4}]}],
-	["wpn_wakebook",     "The Book of Wakes",    "wand",  6, "tome",      17, 1.3,  {"radius": 165,
+	["wpn_wakebook",     "The Book of Wakes",    "wand",  6, "wake",      17, 0.85, {
 		"fx": [{"kind": "soulwisp", "dmg": 11, "pct": 0.72}, {"kind": "bulwark", "dr": 0.14, "dur": 3.0}]}],
 	["wpn_permafrost",   "Permafrost Decree",    "wand",  6, "frost",     29, 0.54, {"status": "slow_w", "fx": [{"kind": "frostbloom", "radius": 165.0, "dur": 3.0}, {"kind": "crowd", "pct_per": 0.12, "cap": 0.5}]}],
 	["wpn_novaburst",    "Novaburst Rod",        "wand",  6, "cluster",   30, 0.76, {"shards": 8,
