@@ -2,6 +2,27 @@
 Calibration library for the attack-verb overhaul (dev order 2026-07-28: every
 weapon a unique VISIBLE attack, Terra-Blade standard at the top, rarity-scaled).
 
+## MEASURED YARDSTICKS (frame-surgery with the ruler; player-height = unit)
+MEOWMERE (crown melee): swung blade 1.7 players long; projectile head 0.4
+players dragging a 7-9 player RIBBON trail crossing 5+ targets; FULL base
+damage per pierce (215-288 numbers on 200 base). RAZORBLADE TYPHOON (crown
+magic): discs a FULL player-height, swarming, rapid repeat hits (84-103
+ticks + kilo-crits). STAR WRATH: 3 stars/hit at full damage each, 0.5-player
+heads, 3-4 player trails. CALIBRATION LAW: crown fx pay FULL price per
+projectile; trails 4-9 players; projectile heads 0.3-1.0 players; spectacle
+scales with tier while raw base stays modest.
+
+## EXTRACTED MOTION RECIPES (GIF frame-surgery; the FOREVER method)
+STAR WRATH (302 frames studied) → A Borrowed Star's starfall upgrade:
+swing itself sheds sparkles; stars enter DIAGONALLY (~60-70°) from above
+the screen at staggered heights/x-offsets (cascade, not volley); each is a
+star-glyph head dragging a long TAPERING additive trail (hot→dim fade);
+impact = sparkle FOUNTAIN erupting upward + lingering field; fast autoswing
+= near-continuous rain. Deepwood build: borrowed-gold/amber palette,
+2-3 staggered comets per hit, procedural star Polygon2D heads + fading
+Line2D streaks + tweened particle bursts. NEXT weapon to frame-study when
+its verb builds: Zenith (The Last Word), Meowmere trail, Solar Eruption.
+
 ## THE ZENITH STANDARD (dev: "top of the class" — the APEX weapon's shape)
 The Last Word (T8) graduates from on-hit rider to FULL VERB, the ladder's
 culmination: every swing hurls 2-3 blade-sprites toward the CURSOR in arcing

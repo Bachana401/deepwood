@@ -95,7 +95,7 @@ const ITEM_DEFS = {
 	"relic_reaper": {"name": "Reaper's Toll", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.35, 0.5, 0.4, 1.0), "equip_effect": {"max_health": 20.0}, "relic_power": "reaper", "relic_desc": "Every kill restores 8 HP and 5 Mana."},
 	"relic_ward": {"name": "Wardstone", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.6, 0.7, 0.9, 1.0), "equip_effect": {"max_health": 30.0, "status_resistance": 0.6}, "relic_desc": "Shrugs off 60% of the duration of enemy slows and hexes."},
 	"relic_steward": {"name": "Steward's Chain", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.85, 0.72, 0.35, 1.0), "equip_effect": {"gold_gain": 0.4, "xp_gain": 0.4, "max_health": 20.0}, "relic_desc": "The village prospers around you: +40% gold and XP."},
-	# --- Creative relics (WEAPONS.md Â§6): a mechanic, not a flat stat. ---
+	# --- Creative relics (WEAPONS.md Ã‚Â§6): a mechanic, not a flat stat. ---
 	"relic_gorgon": {"name": "Gorgon's Gaze", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.55, 0.6, 0.5, 1.0), "equip_effect": {"max_health": 25.0}, "relic_power": "petrify", "relic_value": 3.0, "relic_desc": "Your hits turn the struck foe to STONE for 3s -- it can't act and takes +50% damage. Long cooldown; apex/undying bosses resist."},
 	# --- Gloves & Boots (the two new armor slots). Standalone pieces across
 	# grades so the slots have real content to chase, plus a real "defense"
@@ -319,7 +319,7 @@ const ITEM_DEFS = {
 	"token_griefeater":  {"name": "Effigy of Grief",           "category": "consumable", "max_stack": 10, "color": Color(0.5, 0.42, 0.55, 1.0),  "use_effect": {"summon_event": "grief_eater"},  "use_desc": "Offer a fresh sorrow; the Grief-Eater comes."},
 	"token_hollowcrown": {"name": "Effigy of the Pretender",   "category": "consumable", "max_stack": 10, "color": Color(0.82, 0.72, 0.38, 1.0), "use_effect": {"summon_event": "hollow_crown"}, "use_desc": "Challenge the shadow throne again."},
 	"token_sablehound":  {"name": "Effigy of the Hound",       "category": "consumable", "max_stack": 10, "color": Color(0.34, 0.32, 0.42, 1.0), "use_effect": {"summon_event": "sable_hound"},  "use_desc": "Whistle, and the Sable Hound hunts you."},
-	"token_nihil":       {"name": "Effigy of the Last Hour",   "category": "consumable", "max_stack": 10, "color": Color(0.3, 0.95, 1.0, 1.0),   "use_effect": {"summon_event": "nihil"},        "use_desc": "Turn the last hour back to its beginning â€” Nihil returns."},
+	"token_nihil":       {"name": "Effigy of the Last Hour",   "category": "consumable", "max_stack": 10, "color": Color(0.3, 0.95, 1.0, 1.0),   "use_effect": {"summon_event": "nihil"},        "use_desc": "Turn the last hour back to its beginning Ã¢â‚¬â€ Nihil returns."},
 
 	# ---- The Duskmoon Effigy: Nihil's FIRST rite. Use it while the sun and moon
 	# BOTH ride the sky (dawn/dusk) and, four seconds later, the Last Hour comes.
@@ -513,7 +513,7 @@ const ITEM_DEFS = {
 	"tool_pickaxe": {
 		"name": "Miner's Pickaxe", "category": "weapon", "weapon_type": "melee", "tool_type": "pickaxe", "pick_tier": 1, "max_stack": 1, "color": Color(0.6, 0.6, 0.66, 1.0),
 		"weapon_stats": {"damage": 6, "cooldown": 0.5, "range_offset": 46, "area_size": Vector2(60, 36), "knockback_min": 20.0, "knockback_max": 40.0, "icon_size": Vector2(40, 10), "icon_color": Color(0.55, 0.55, 0.6), "icon_offset": 18.0},
-		"unique_desc": "Mines rocks for Stone and rare minerals. Tier 1 â€” cuts down to the Fungal Hollow.",
+		"unique_desc": "Mines rocks for Stone and rare minerals. Tier 1 Ã¢â‚¬â€ cuts down to the Fungal Hollow.",
 	},
 	# TIERED PICKAXES (2026-07-26): the deep biomes gate on pick_tier (see underground.gd
 	# BIOMES). Each is FOUND in the deepest biome the previous tier can already mine, so you
@@ -522,12 +522,12 @@ const ITEM_DEFS = {
 	"tool_pickaxe_ember": {
 		"name": "Embersteel Pickaxe", "category": "weapon", "weapon_type": "melee", "tool_type": "pickaxe", "pick_tier": 2, "max_stack": 1, "color": Color(0.95, 0.5, 0.2, 1.0),
 		"weapon_stats": {"damage": 10, "cooldown": 0.45, "range_offset": 46, "area_size": Vector2(62, 38), "knockback_min": 24.0, "knockback_max": 46.0, "icon_size": Vector2(42, 11), "icon_color": Color(0.95, 0.5, 0.2), "icon_offset": 18.0},
-		"unique_desc": "Tier 2 â€” its heat-forged head bites the Emberdeep's scorched rock.",
+		"unique_desc": "Tier 2 Ã¢â‚¬â€ its heat-forged head bites the Emberdeep's scorched rock.",
 	},
 	"tool_pickaxe_blight": {
 		"name": "Blightbreaker Pickaxe", "category": "weapon", "weapon_type": "melee", "tool_type": "pickaxe", "pick_tier": 3, "max_stack": 1, "color": Color(0.82, 0.42, 1.0, 1.0),
 		"weapon_stats": {"damage": 14, "cooldown": 0.4, "range_offset": 48, "area_size": Vector2(64, 40), "knockback_min": 28.0, "knockback_max": 52.0, "icon_size": Vector2(44, 12), "icon_color": Color(0.82, 0.42, 1.0), "icon_offset": 18.0},
-		"unique_desc": "Tier 3 â€” the only edge that breaks the cursed Blightcore stone at the world's bottom.",
+		"unique_desc": "Tier 3 Ã¢â‚¬â€ the only edge that breaks the cursed Blightcore stone at the world's bottom.",
 	},
 	# --- Excellent weapons (classless, unique effects, no skill scaling) ---
 	"exc_vampiric": {
@@ -691,7 +691,7 @@ const ITEM_DEFS = {
 		"weapon_stats": {"damage": 18, "cooldown": 0.55, "range_offset": 90, "area_size": Vector2(110, 40), "knockback_min": 24.0, "knockback_max": 48.0, "icon_size": Vector2(15, 15), "icon_color": Color(0.5, 0.8, 1.0), "icon_offset": 18.0},
 		"special": {"type": "storm_shot", "count": 6, "spread_deg": 26.0, "homing": true},
 		"unique_desc": "Unleashes 6 homing storm-arrows in a screaming fan -- the sky itself hunts your foes."},
-	# --- Grade-fill weapons (WEAPONS.md Â§3): early variety, each distinct on the
+	# --- Grade-fill weapons (WEAPONS.md Ã‚Â§3): early variety, each distinct on the
 	# existing dials -- hitbox shape (area_size), reach, attack speed, knockback.
 	# Damage already at the +15% baseline. Icons render via the by-type fallback. ---
 	# COMMON melee
@@ -877,7 +877,7 @@ const ITEM_GRADES = {
 	"wpn_warhammer": "rare", "wpn_harpoon": "rare",
 	"exc_shadowblade": "legendary", "exc_earthshaker": "mythic", "exc_gungnir": "mythic",
 	"exc_frostmourne": "mythic", "exc_voidcaller": "mythic", "exc_stormfury": "mythic",
-	# grade-fill weapons (WEAPONS.md Â§3) -- early variety
+	# grade-fill weapons (WEAPONS.md Ã‚Â§3) -- early variety
 	"wpn_shortsword": "common", "wpn_rapier": "common", "wpn_cleaver": "common", "wpn_hatchet": "common",
 	"wpn_woodspear": "common", "wpn_slingshot": "common", "wpn_huntingbow": "common", "wpn_sparkwand": "common",
 	"wpn_falchion": "uncommon", "wpn_warpick": "uncommon", "wpn_twinblades": "uncommon", "wpn_saber": "uncommon",
@@ -912,105 +912,108 @@ const ITEM_GRADES = {
 # are craftable; HP/Mana potions are deliberately DROP-ONLY (not here). See
 # GameState.try_craft and the crafting popup in inventory_ui.
 const CRAFT_RECIPES = {
-	# --- THE PLAIN LADDERS (221/129 mix, 2026-07-28): 23 material craft
-	# families, the reference's ore-weapon pattern -- each rung forges from
-	# its family predecessor + tier materials at the crafting popup. The
-	# fx audit pins the counts (129 plain, 106 rungs with recipes).
-	"wpn_coldiron": {"wpn_barrelstave": 1, "iron_shard": 4},
-	"wpn_adderfang": {"wpn_coldiron": 1, "iron_shard": 8, "stone": 6},
-	"wpn_watchmansword": {"wpn_adderfang": 1, "iron_shard": 8, "stone": 6},
+	# --- THE PLAIN LADDERS (221/129 mix, resplit 2026-07-28: plains shifted
+	# EARLIER per dev -- T1-T3 are ladder country, the late names keep souls).
+	# 23 families; every rung forges from its predecessor + tier materials.
+	"wpn_rustfang": {"wpn_barrelstave": 1, "iron_shard": 4},
+	"wpn_millsickle": {"wpn_rustfang": 1, "iron_shard": 4},
+	"wpn_curseknife": {"wpn_millsickle": 1, "iron_shard": 8, "stone": 6},
+	"wpn_tithegather": {"wpn_curseknife": 1, "iron_shard": 8, "stone": 6},
+	"wpn_tolloftheend": {"wpn_tithegather": 1, "ember_crystal": 4},
+	"wpn_griefedge": {"wpn_tolloftheend": 1, "void_essence": 3},
+	"wpn_thistleflail": {"wpn_cellarmallet": 1, "iron_shard": 4},
+	"wpn_orchardaxe": {"wpn_thistleflail": 1, "iron_shard": 4},
+	"wpn_furrowscythe": {"wpn_orchardaxe": 1, "iron_shard": 8, "stone": 6},
+	"wpn_watchmansword": {"wpn_furrowscythe": 1, "iron_shard": 8, "stone": 6},
 	"wpn_vespersting": {"wpn_watchmansword": 1, "ember_crystal": 4},
-	"wpn_griefedge": {"wpn_vespersting": 1, "void_essence": 3},
-	"wpn_gravespade": {"wpn_hearthpoker": 1, "iron_shard": 4},
-	"wpn_bellhammer": {"wpn_gravespade": 1, "iron_shard": 8, "stone": 6},
-	"wpn_barrowmaul": {"wpn_bellhammer": 1, "ember_crystal": 4},
+	"wpn_requiemedge": {"wpn_vespersting": 1, "void_essence": 3},
+	"wpn_bonepick": {"wpn_hearthpoker": 1, "iron_shard": 4},
+	"wpn_ratterdart": {"wpn_bonepick": 1, "iron_shard": 4},
+	"wpn_hookbill": {"wpn_ratterdart": 1, "iron_shard": 8, "stone": 6},
+	"wpn_barrowmaul": {"wpn_hookbill": 1, "ember_crystal": 4},
 	"wpn_asphodelknife": {"wpn_barrowmaul": 1, "ember_crystal": 8},
-	"wpn_hushfall": {"wpn_asphodelknife": 1, "void_essence": 3},
-	"wpn_lanternblade": {"wpn_mongrelknife": 1, "iron_shard": 4},
-	"wpn_curseknife": {"wpn_lanternblade": 1, "iron_shard": 8, "stone": 6},
-	"wpn_duskrender": {"wpn_curseknife": 1, "ember_crystal": 4},
+	"wpn_sorrowfang": {"wpn_asphodelknife": 1, "void_essence": 3},
+	"wpn_coldiron": {"wpn_mongrelknife": 1, "iron_shard": 4},
+	"wpn_tannerknife": {"wpn_coldiron": 1, "iron_shard": 4},
+	"wpn_quarrymaul": {"wpn_tannerknife": 1, "iron_shard": 8, "stone": 6},
+	"wpn_duskrender": {"wpn_quarrymaul": 1, "ember_crystal": 4},
 	"wpn_daybreakedge": {"wpn_duskrender": 1, "ember_crystal": 8},
-	"wpn_requiemedge": {"wpn_daybreakedge": 1, "void_essence": 3},
-	"wpn_millsickle": {"wpn_oakcudgel": 1, "iron_shard": 4},
-	"wpn_furrowscythe": {"wpn_millsickle": 1, "iron_shard": 8, "stone": 6},
-	"wpn_eveningblade": {"wpn_furrowscythe": 1, "ember_crystal": 4},
+	"wpn_gravespade": {"wpn_oakcudgel": 1, "iron_shard": 4},
+	"wpn_adderfang": {"wpn_gravespade": 1, "iron_shard": 8, "stone": 6},
+	"wpn_sextonblade": {"wpn_adderfang": 1, "iron_shard": 8, "stone": 6},
+	"wpn_eveningblade": {"wpn_sextonblade": 1, "ember_crystal": 4},
 	"wpn_hourmaul": {"wpn_eveningblade": 1, "ember_crystal": 8},
-	"wpn_sorrowfang": {"wpn_hourmaul": 1, "void_essence": 3},
-	"wpn_orchardaxe": {"wpn_rustfang": 1, "iron_shard": 4},
-	"wpn_quarrymaul": {"wpn_orchardaxe": 1, "iron_shard": 8, "stone": 6},
-	"wpn_palefang": {"wpn_quarrymaul": 1, "ember_crystal": 4},
+	"wpn_lanternblade": {"wpn_pitshovel": 1, "iron_shard": 4},
+	"wpn_bellhammer": {"wpn_lanternblade": 1, "iron_shard": 8, "stone": 6},
+	"wpn_squallblade": {"wpn_bellhammer": 1, "iron_shard": 8, "stone": 6},
+	"wpn_palefang": {"wpn_squallblade": 1, "ember_crystal": 4},
 	"wpn_lastlantern": {"wpn_palefang": 1, "ember_crystal": 8},
-	"wpn_worldanvil": {"wpn_lastlantern": 1, "void_essence": 3},
-	"wpn_tannerknife": {"wpn_bonepick": 1, "iron_shard": 4},
-	"wpn_sextonblade": {"wpn_tannerknife": 1, "iron_shard": 8, "stone": 6},
-	"wpn_tolloftheend": {"wpn_sextonblade": 1, "ember_crystal": 4},
-	"wpn_worldtoll": {"wpn_tolloftheend": 1, "ember_crystal": 8},
-	"wpn_stingerbow": {"wpn_crowbow": 1, "iron_shard": 4},
-	"wpn_shrikebow": {"wpn_stingerbow": 1, "iron_shard": 8, "stone": 6},
-	"wpn_gravebow": {"wpn_shrikebow": 1, "ember_crystal": 4},
-	"wpn_eventide": {"wpn_gravebow": 1, "ember_crystal": 8},
-	"wpn_wintermark": {"wpn_eventide": 1, "ember_crystal": 8},
-	"wpn_bogmortar": {"wpn_gutterbow": 1, "iron_shard": 8, "stone": 6},
-	"wpn_twinnock": {"wpn_bogmortar": 1, "iron_shard": 8, "stone": 6},
-	"wpn_hummingbow": {"wpn_twinnock": 1, "ember_crystal": 4},
-	"wpn_kestrelbow": {"wpn_hummingbow": 1, "ember_crystal": 8},
-	"wpn_ghostrepeater": {"wpn_kestrelbow": 1, "void_essence": 3},
-	"wpn_emberarc": {"wpn_orchardbow": 1, "iron_shard": 8, "stone": 6},
-	"wpn_veilbow": {"wpn_emberarc": 1, "iron_shard": 8, "stone": 6},
-	"wpn_larkstorm": {"wpn_veilbow": 1, "ember_crystal": 4},
-	"wpn_lastlark": {"wpn_larkstorm": 1, "ember_crystal": 8},
-	"wpn_griffvolley": {"wpn_lastlark": 1, "void_essence": 3},
-	"wpn_finchvolley": {"wpn_ashbow": 1, "iron_shard": 8, "stone": 6},
+	"wpn_emberdart": {"wpn_crowbow": 1, "iron_shard": 4},
+	"wpn_finchvolley": {"wpn_emberdart": 1, "iron_shard": 8, "stone": 6},
 	"wpn_choirbow": {"wpn_finchvolley": 1, "ember_crystal": 4},
 	"wpn_needlerain": {"wpn_choirbow": 1, "ember_crystal": 4},
-	"wpn_nightmortar": {"wpn_needlerain": 1, "ember_crystal": 8},
-	"wpn_middaybow": {"wpn_nightmortar": 1, "void_essence": 3},
-	"wpn_larkbow": {"wpn_bramblebow": 1, "iron_shard": 8, "stone": 6},
+	"wpn_ferrybow": {"wpn_gutterbow": 1, "iron_shard": 4},
+	"wpn_larkbow": {"wpn_ferrybow": 1, "iron_shard": 8, "stone": 6},
 	"wpn_curfewbow": {"wpn_larkbow": 1, "ember_crystal": 4},
 	"wpn_sapperanswer": {"wpn_curfewbow": 1, "ember_crystal": 4},
-	"wpn_quillrain": {"wpn_sapperanswer": 1, "ember_crystal": 8},
-	"wpn_silentchoir": {"wpn_quillrain": 1, "void_essence": 3},
-	"wpn_lightstep": {"wpn_emberdart": 1, "iron_shard": 8, "stone": 6},
+	"wpn_paleflight": {"wpn_orchardbow": 1, "iron_shard": 4},
+	"wpn_lightstep": {"wpn_paleflight": 1, "iron_shard": 8, "stone": 6},
 	"wpn_glasstring": {"wpn_lightstep": 1, "ember_crystal": 4},
 	"wpn_sapperkiss": {"wpn_glasstring": 1, "ember_crystal": 4},
-	"wpn_starfallbow": {"wpn_sapperkiss": 1, "ember_crystal": 8},
+	"wpn_stingerbow": {"wpn_sparrowbow": 1, "iron_shard": 4},
+	"wpn_shrikebow": {"wpn_stingerbow": 1, "iron_shard": 8, "stone": 6},
+	"wpn_gravebow": {"wpn_shrikebow": 1, "ember_crystal": 4},
+	"wpn_lastlark": {"wpn_gravebow": 1, "ember_crystal": 8},
+	"wpn_bogmortar": {"wpn_ashbow": 1, "iron_shard": 8, "stone": 6},
+	"wpn_twinnock": {"wpn_bogmortar": 1, "iron_shard": 8, "stone": 6},
+	"wpn_hummingbow": {"wpn_twinnock": 1, "ember_crystal": 4},
+	"wpn_wintermark": {"wpn_hummingbow": 1, "ember_crystal": 8},
+	"wpn_emberarc": {"wpn_bramblebow": 1, "iron_shard": 8, "stone": 6},
+	"wpn_veilbow": {"wpn_emberarc": 1, "iron_shard": 8, "stone": 6},
+	"wpn_larkstorm": {"wpn_veilbow": 1, "ember_crystal": 4},
+	"wpn_ghostrepeater": {"wpn_larkstorm": 1, "void_essence": 3},
 	"wpn_frostprong": {"wpn_eelspear": 1, "iron_shard": 4},
-	"wpn_heronlance": {"wpn_frostprong": 1, "iron_shard": 8, "stone": 6},
+	"wpn_harrowpike": {"wpn_frostprong": 1, "iron_shard": 8, "stone": 6},
+	"wpn_galeprong": {"wpn_harrowpike": 1, "ember_crystal": 4},
+	"wpn_vigilpike": {"wpn_galeprong": 1, "ember_crystal": 4},
+	"wpn_horizonpike": {"wpn_vigilpike": 1, "void_essence": 3},
+	"wpn_reedjavelin": {"wpn_fencepike": 1, "iron_shard": 4},
+	"wpn_heronlance": {"wpn_reedjavelin": 1, "iron_shard": 8, "stone": 6},
 	"wpn_hawkvolley": {"wpn_heronlance": 1, "ember_crystal": 4},
 	"wpn_winterreach": {"wpn_hawkvolley": 1, "ember_crystal": 4},
-	"wpn_stormherd": {"wpn_winterreach": 1, "ember_crystal": 8},
-	"wpn_wallpike": {"wpn_fencepike": 1, "iron_shard": 4},
+	"wpn_worldspike": {"wpn_winterreach": 1, "void_essence": 3},
+	"wpn_wallpike": {"wpn_haypike": 1, "iron_shard": 4},
 	"wpn_lamplighter": {"wpn_wallpike": 1, "iron_shard": 8, "stone": 6},
 	"wpn_marrowprong": {"wpn_lamplighter": 1, "ember_crystal": 4},
 	"wpn_borderpike": {"wpn_marrowprong": 1, "ember_crystal": 8},
-	"wpn_ashherd": {"wpn_borderpike": 1, "void_essence": 3},
-	"wpn_gatecleaver": {"wpn_haypike": 1, "iron_shard": 8, "stone": 6},
+	"wpn_gatecleaver": {"wpn_boarspit": 1, "iron_shard": 8, "stone": 6},
 	"wpn_reedvolley": {"wpn_gatecleaver": 1, "iron_shard": 8, "stone": 6},
 	"wpn_midnightlance": {"wpn_reedvolley": 1, "ember_crystal": 4},
 	"wpn_finalverdict": {"wpn_midnightlance": 1, "ember_crystal": 8},
-	"wpn_horizonpike": {"wpn_finalverdict": 1, "void_essence": 3},
-	"wpn_gullprong": {"wpn_boarspit": 1, "iron_shard": 8, "stone": 6},
+	"wpn_gullprong": {"wpn_ditchpike": 1, "iron_shard": 8, "stone": 6},
 	"wpn_stormprong": {"wpn_gullprong": 1, "iron_shard": 8, "stone": 6},
 	"wpn_sunderpike": {"wpn_stormprong": 1, "ember_crystal": 4},
 	"wpn_moonreach": {"wpn_sunderpike": 1, "ember_crystal": 8},
-	"wpn_meteorquill": {"wpn_moonreach": 1, "void_essence": 3},
-	"wpn_harrowpike": {"wpn_ditchpike": 1, "iron_shard": 8, "stone": 6},
-	"wpn_galeprong": {"wpn_harrowpike": 1, "ember_crystal": 4},
-	"wpn_vigilpike": {"wpn_galeprong": 1, "ember_crystal": 4},
-	"wpn_skyquill": {"wpn_vigilpike": 1, "ember_crystal": 8},
-	"wpn_worldspike": {"wpn_skyquill": 1, "void_essence": 3},
-	"wpn_leechwand": {"wpn_chalkwand": 1, "iron_shard": 4},
-	"wpn_leadrod": {"wpn_leechwand": 1, "iron_shard": 8, "stone": 6},
-	"wpn_magmawrit": {"wpn_leadrod": 1, "ember_crystal": 4},
-	"wpn_glacierwrit": {"wpn_magmawrit": 1, "ember_crystal": 8},
-	"wpn_mosswand": {"wpn_stubwand": 1, "iron_shard": 4},
-	"wpn_saltwand": {"wpn_mosswand": 1, "iron_shard": 8, "stone": 6},
+	"wpn_brookwand": {"wpn_chalkwand": 1, "iron_shard": 4},
+	"wpn_leechwand": {"wpn_brookwand": 1, "iron_shard": 4},
+	"wpn_finchbolt": {"wpn_leechwand": 1, "iron_shard": 8, "stone": 6},
+	"wpn_pyrelight": {"wpn_finchbolt": 1, "iron_shard": 8, "stone": 6},
+	"wpn_magmawrit": {"wpn_pyrelight": 1, "ember_crystal": 4},
+	"wpn_cinderrod": {"wpn_stubwand": 1, "iron_shard": 4},
+	"wpn_mosswand": {"wpn_cinderrod": 1, "iron_shard": 4},
+	"wpn_hollowbolt": {"wpn_mosswand": 1, "iron_shard": 8, "stone": 6},
+	"wpn_saltwand": {"wpn_hollowbolt": 1, "iron_shard": 8, "stone": 6},
 	"wpn_stormsliver": {"wpn_saltwand": 1, "ember_crystal": 4},
-	"wpn_permafrost": {"wpn_stormsliver": 1, "void_essence": 3},
-	"wpn_hollowbolt": {"wpn_brookwand": 1, "iron_shard": 8, "stone": 6},
-	"wpn_frostwrit": {"wpn_hollowbolt": 1, "ember_crystal": 4},
-	"wpn_emberhymn": {"wpn_frostwrit": 1, "ember_crystal": 8},
-	"wpn_droverstaff": {"wpn_reedstaff": 1, "iron_shard": 8, "stone": 6},
+	"wpn_foxfirewand": {"wpn_tallowwand": 1, "iron_shard": 4},
+	"wpn_courierrod": {"wpn_foxfirewand": 1, "iron_shard": 8, "stone": 6},
+	"wpn_leadrod": {"wpn_courierrod": 1, "iron_shard": 8, "stone": 6},
+	"wpn_frostwrit": {"wpn_leadrod": 1, "ember_crystal": 4},
+	"wpn_gooseherd": {"wpn_reedstaff": 1, "iron_shard": 4},
+	"wpn_wellstaff": {"wpn_gooseherd": 1, "iron_shard": 8, "stone": 6},
+	"wpn_pilgrimstaff": {"wpn_wellstaff": 1, "ember_crystal": 4},
+	"wpn_summitstaff": {"wpn_pilgrimstaff": 1, "ember_crystal": 8},
+	"wpn_twelfthpillar": {"wpn_summitstaff": 1, "void_essence": 3},
+	"wpn_droverstaff": {"wpn_willowswitch": 1, "iron_shard": 8, "stone": 6},
 	"wpn_fordstaff": {"wpn_droverstaff": 1, "ember_crystal": 4},
 	"wpn_cloudcounter": {"wpn_fordstaff": 1, "ember_crystal": 8},
 	"wpn_skyladder": {"wpn_cloudcounter": 1, "void_essence": 3},
@@ -1018,11 +1021,6 @@ const CRAFT_RECIPES = {
 	"wpn_paleobelisk": {"wpn_shepherdstaff": 1, "ember_crystal": 4},
 	"wpn_graniteway": {"wpn_paleobelisk": 1, "ember_crystal": 8},
 	"wpn_stillmountain": {"wpn_graniteway": 1, "void_essence": 3},
-	"wpn_wellstaff": {"wpn_gooseherd": 1, "iron_shard": 8, "stone": 6},
-	"wpn_pilgrimstaff": {"wpn_wellstaff": 1, "ember_crystal": 4},
-	"wpn_summitstaff": {"wpn_pilgrimstaff": 1, "ember_crystal": 8},
-	"wpn_twelfthpillar": {"wpn_summitstaff": 1, "void_essence": 3},
-	# grief, distilled (the Weeping Hour's tears are its only source)
 	"potion_tears": {"tear_pale": 3, "herb": 1},
 	"food_stew": {"herb": 2, "raw_meat": 1},
 	"food_feast": {"raw_meat": 3, "herb": 1},
@@ -1240,15 +1238,15 @@ static func build_tooltip_text(item_id: String) -> String:
 	var cat = get_category(item_id)
 	var cat_line = CATEGORY_LABELS.get(cat, "Item")
 	if cat == "armor":
-		cat_line += " Â· " + _slot_word(def.get("slot", ""))
+		cat_line += " Ã‚Â· " + _slot_word(def.get("slot", ""))
 	elif cat == "weapon":
-		cat_line += " Â· " + str(def.get("weapon_type", "")).capitalize()
+		cat_line += " Ã‚Â· " + str(def.get("weapon_type", "")).capitalize()
 		if def.get("excellent", false):
-			cat_line += " Â· Excellent"
+			cat_line += " Ã‚Â· Excellent"
 	# lead with the grade so rarity reads first
 	var grade_name = get_grade_name(item_id)
 	if grade_name != "":
-		cat_line = grade_name + " Â· " + cat_line
+		cat_line = grade_name + " Ã‚Â· " + cat_line
 	lines.append(cat_line)
 
 	var set_id = get_set(item_id)
@@ -1260,9 +1258,9 @@ static func build_tooltip_text(item_id: String) -> String:
 	if cat == "weapon":
 		var ws = def.get("weapon_stats", {})
 		if not ws.is_empty():
-			var stat_line = "DMG %d Â· CD %.2fs" % [shown_damage(item_id), ws.get("cooldown", 0.0)]
+			var stat_line = "DMG %d Ã‚Â· CD %.2fs" % [shown_damage(item_id), ws.get("cooldown", 0.0)]
 			if def.has("mana_cost"):
-				stat_line += " Â· %d Mana" % int(def.mana_cost)
+				stat_line += " Ã‚Â· %d Mana" % int(def.mana_cost)
 			lines.append(stat_line)
 		if def.has("unique_desc"):
 			lines.append("Unique: " + def.unique_desc)
@@ -1389,8 +1387,8 @@ static func build_tooltip_bbcode(item_id: String) -> String:
 	elif cat == "weapon":
 		tail = str(def.get("weapon_type", "")).capitalize()
 		if def.get("excellent", false):
-			tail += " Â· Excellent"
-	sub = (sub + " Â· " + tail) if sub != "" else tail
+			tail += " Ã‚Â· Excellent"
+	sub = (sub + " Ã‚Â· " + tail) if sub != "" else tail
 	lines.append("[color=#%s]%s[/color]" % [TT_SUB, sub])
 
 	if cat == "weapon":
@@ -1431,7 +1429,7 @@ static func build_tooltip_bbcode(item_id: String) -> String:
 		lines.append("[color=#%s]  %d pc: %s[/color]" % [TT_SPECIAL, sd.pieces.size(), sd.bonus_desc])
 
 	if def.get("is_material", false) and not GameStateRef().researched_materials.has(item_id):
-		lines.append("[color=#%s]Unidentified â€” research it at the Science Lab[/color]" % TT_WARN)
+		lines.append("[color=#%s]Unidentified Ã¢â‚¬â€ research it at the Science Lab[/color]" % TT_WARN)
 
 	# --- footer: what it's worth, in coin gold (real stall price) ---
 	if cat in ["weapon", "armor", "relic", "consumable", "material"] and not def.get("is_currency", false):
@@ -1619,7 +1617,7 @@ static func icon_texture(item_id: String) -> Texture2D:
 	return tex
 
 static func paint_icon(target: ColorRect, item_id: String) -> void:
-	if str(target.get_meta("painted_id", "ï¿¿")) == item_id:
+	if str(target.get_meta("painted_id", "Ã¯Â¿Â¿")) == item_id:
 		return
 	target.set_meta("painted_id", item_id)
 	for c in target.get_children():

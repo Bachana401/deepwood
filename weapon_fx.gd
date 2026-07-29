@@ -35,6 +35,20 @@ static var _haste := {}          # haste stacks: {"n": int, "until": float}
 static func _now() -> float:
 	return Time.get_ticks_msec() / 1000.0
 
+# SIZE IS THE CROWN'S PRIVILEGE (dev 2026-07-28: "reduce stats, increase
+# unique effects, size"): a weapon's grade scales its fx PHYSICALLY --
+# bigger heads, wider trails, fatter bursts, and genuinely larger reach.
+# Stats stay modest, Terra-style; the spectacle grows instead.
+static func _grade_rank(p: Node) -> int:
+	var g := Inventory.get_grade(str(p.active_weapon_id))
+	return int(Inventory.GRADE_DEFS.get(g, {}).get("rank", 0))
+
+static func _gscale(p: Node) -> float:      # visual size: up to ~1.8x at the crown
+	return 1.0 + 0.11 * float(_grade_rank(p))
+
+static func _rscale(p: Node) -> float:      # effect REACH: up to ~1.4x at the crown
+	return 1.0 + 0.055 * float(_grade_rank(p))
+
 static func _fx_list(def: Dictionary) -> Array:
 	var fx = def.get("special", {}).get("fx", null)
 	if fx == null:
@@ -68,7 +82,7 @@ static func _run_hit_fx(p: Node, target: Node2D, dealt: int, crit: bool, fx: Dic
 			# lightning leaps to the n nearest others, pct of the hit each
 			var n: int = int(fx.get("n", 2))
 			var pct: float = float(fx.get("pct", 0.5))
-			var hops := _others_near(p, target, float(fx.get("range", 240.0)), n)
+			var hops := _others_near(p, target, float(fx.get("range", 240.0)) * _rscale(p), n)
 			for h in hops:
 				_deal(h, int(round(dealt * pct)))
 				_zap_line(p, target.global_position, h.global_position, Color(0.65, 0.85, 1.0, 0.9))
@@ -92,7 +106,7 @@ static func _run_hit_fx(p: Node, target: Node2D, dealt: int, crit: bool, fx: Dic
 			target.set_meta("fx_rend", mini(stacks + 1, maxs))
 		"quake":
 			# the ground answers: a shockwave hits everything near the target
-			var qr: float = float(fx.get("radius", 130.0))
+			var qr: float = float(fx.get("radius", 130.0)) * _rscale(p)
 			for o in _others_near(p, target, qr, 8):
 				_deal(o, int(round(dealt * float(fx.get("pct", 0.4)))))
 				if o.has_method("apply_knockback"):
@@ -101,7 +115,7 @@ static func _run_hit_fx(p: Node, target: Node2D, dealt: int, crit: bool, fx: Dic
 				p.spawn_shock_ring(target.global_position, qr, Color(0.75, 0.6, 0.4, 0.8))
 		"splinter":
 			# the hit bursts into shards that nick everything close
-			for o in _others_near(p, target, float(fx.get("range", 150.0)), int(fx.get("n", 3))):
+			for o in _others_near(p, target, float(fx.get("range", 150.0)) * _rscale(p), int(fx.get("n", 3))):
 				_deal(o, maxi(1, int(round(dealt * float(fx.get("pct", 0.3))))))
 			_puff(p, target.global_position, Color(0.9, 0.85, 0.6, 0.8))
 		"brand":
@@ -124,7 +138,7 @@ static func _run_hit_fx(p: Node, target: Node2D, dealt: int, crit: bool, fx: Dic
 				_star_burst(p, target.global_position, Color(1.0, 0.95, 0.55))
 		"gravity":
 			# the blow PULLS the nearby dark toward the point of impact
-			for o in _others_near(p, target, float(fx.get("radius", 200.0)), 8):
+			for o in _others_near(p, target, float(fx.get("radius", 200.0)) * _rscale(p), 8):
 				if o.has_method("apply_knockback"):
 					o.apply_knockback(signf(target.global_position.x - o.global_position.x), float(fx.get("pull", 140.0)))
 		"bulwark":
@@ -236,7 +250,7 @@ static func _run_hit_fx(p: Node, target: Node2D, dealt: int, crit: bool, fx: Dic
 		"frostbloom":
 			# crits bloom into a slowing frost-flower
 			if crit:
-				for o in _others_near(p, target, float(fx.get("radius", 140.0)), 8):
+				for o in _others_near(p, target, float(fx.get("radius", 140.0)) * _rscale(p), 8):
 					if o.has_method("apply_status"):
 						o.apply_status("slow", float(fx.get("dur", 2.5)), 0.55)
 				if p.has_method("spawn_shock_ring"):
@@ -324,6 +338,7 @@ static func _ghost_blade(p: Node, from: Vector2, victim: Node2D, dmg: int, idx: 
 	var vid: int = victim.get_instance_id()
 	var blade := Polygon2D.new()
 	blade.polygon = PackedVector2Array([Vector2(-4, 12), Vector2(0, -18), Vector2(4, 12), Vector2(0, 7)])
+	blade.scale = Vector2.ONE * _gscale(p)
 	blade.color = Color(tint.r, tint.g, tint.b, 0.9)
 	blade.z_index = 42
 	_stage(p).add_child(blade)
@@ -351,7 +366,7 @@ static func _comet_star(p: Node, from: Vector2, tid: int, dmg: int, dur: float, 
 	# the trail: drawn whole, fading as the head travels it
 	var trail := Line2D.new()
 	trail.points = PackedVector2Array([from, from.lerp(to, 0.5), to])
-	trail.width = 5.0
+	trail.width = 5.0 * _gscale(p)
 	trail.default_color = Color(tint.r, tint.g, tint.b, 0.85)
 	trail.material = add_mat
 	trail.z_index = 41
@@ -367,6 +382,7 @@ static func _comet_star(p: Node, from: Vector2, tid: int, dmg: int, dur: float, 
 		var a: float = TAU * float(i) / 10.0 - PI / 2.0
 		pts.append(Vector2(cos(a), sin(a)) * r)
 	head.polygon = pts
+	head.scale = Vector2.ONE * _gscale(p)
 	head.color = Color(tint.r, tint.g, tint.b, 0.95)
 	head.material = add_mat
 	head.z_index = 42
@@ -387,7 +403,7 @@ static func _star_burst(p: Node, at: Vector2, tint: Color) -> void:
 	for i in range(9):
 		var s := ColorRect.new()
 		s.color = Color(minf(tint.r * 1.15, 1.0), minf(tint.g * 1.15, 1.0), tint.b, 0.95)
-		s.size = Vector2(4, 4)
+		s.size = Vector2(4, 4) * _gscale(p)
 		s.position = at - Vector2(2.0, 2.0)
 		s.z_index = 42
 		_stage(p).add_child(s)
