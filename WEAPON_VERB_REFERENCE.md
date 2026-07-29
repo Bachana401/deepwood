@@ -227,6 +227,43 @@ ALL of these are adaptation candidates (not just the ranked ones):
 - Fun bones: True Copper Shortsword (Zenith joke-variant via shimmer),
   Scourge's 1% FIFTEEN-eater jackpot (built-in slot machine).
 
+## MELEE DEEP SCAN 2026-07-29 — SWORDS (74 pages; scan complete, all 3 slices)
+ALL adaptation candidates. The verbs:
+- Starfury: swing calls a STAR down from the sky to the aim point (1.5x,
+  phases through blocks until open air) — sword as artillery.
+- Seedler: lobbed nut bursts into 4-7 homing thorns (guided cluster).
+- Horseman's Blade: every hit summons pumpkin heads diving from OFF-SCREEN.
+- Brand of the Inferno: right-click PARRY → reflect 200% + next melee 500%.
+- Psycho Knife: stand still 0.83s → stealth: +300% dmg +30% crit opener.
+- Bee Keeper: hits burst 1-3 homing bees + Confuse.
+- Phaseblade/saber + Keybrand: release mid-swing to THROW; embeds as a
+  ground trap (75-125%), recall on demand, return path damages.
+- Breaker Blade 250% vs FULL-HP / Keybrand up to 2x vs NEAR-DEAD — the
+  opener/finisher weapon-swap pair.
+- Bladetongue: contact spits ricochet ichor stream (defense shred).
+- Slap Hand: KB 20 "Insane" — the LAUNCH is the reward.
+- Night's Edge→Terra line: 4 themed blades fused → aura sword → beam sword
+  (the craft arc is the fantasy; we have chains + the culmination already).
+- Ham Bat: damage scales with FOOD buff tier; kills grant regen (perfect
+  Deepwood fit — village cooking feeds your sword).
+- Exotic Scimitar/Falcon/Cutlass: shared RAMP family (+12%/hit cap +50%,
+  decays 30%/s) — frenzy that must be fed.
+- Blood Butcherer/Tentacle Spike: DoT that STACKS TO 5 embeds.
+- Volcano: first hit per swing = 10x10 fire burst (3 targets).
+- Death Sickle: spinning sickle drifts THROUGH WALLS then hangs 3s.
+- Ice Blade/Enchanted/Beam Sword/Frostbrand: cooldown-metered bolt swords
+  with an audible "reload" cue; Chlorophyte Saber/Claymore spore/orb kin.
+- Light's Bane (tip slash, crit doubles) / Muramasa (echo slash) — the
+  fusion ingredients each have a micro-verb.
+- Gladius/Ruler: MULTI-STAB per click (3-4 fanned stabs).
+- Katana 19% / Slap 19% / Obsidian Swordfish 24% crit as identity.
+- Classy Cane: struck enemies DROP COINS (1-49 copper, luck-scaled).
+- Zombie Arm/Flymeal/Waffle's Iron: the joke slots.
+- Umbrella/Breathing Reed/Trident: weapon-tool hybrids whose utility
+  SUSPENDS while attacking (clean tension); Cactus = reach identity.
+- Psycho/Bladed Glove/Fetid Baghnakhs: use-8 claw class, reach traded
+  for absurd rate (25-50% speed-bonus scaling as the limiter).
+
 ## SUMMONS / WHIPS / SENTRIES (agent sweep, 50+ mechanics)
 Minions: divebombing bird; bouncing slime; stinger hornet; fireball imp;
 latching venom spiders; dash-orbit crimson bats (fly out, slash, return to a
