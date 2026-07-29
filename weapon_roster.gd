@@ -137,7 +137,7 @@ const ROWS = [
 		"fx": [{"kind": "quake", "radius": 160.0, "pct": 0.65}, {"kind": "gravity", "radius": 190.0, "pull": 150.0}]}],
 	["wpn_deluge",       "The Deluge",           "wand",  6, "tome",      18, 1.3,  {"radius": 170, "tome_kind": "column",
 		"fx": [{"kind": "crowd", "pct_per": 0.12, "cap": 0.5}, {"kind": "quake", "radius": 150.0, "pct": 0.65}]}],
-	["wpn_shatterhymn",  "Shatterhymn",          "wand",  6, "cluster",   31, 0.78, {"shards": 8,
+	["wpn_shatterhymn",  "Shatterhymn",          "wand",  6, "cluster",   31, 0.78, {"shards": 8, "companion": "wisp", "c_damage": 11, "c_gap": 2.1,
 		"fx": [{"kind": "splinter", "n": 5, "pct": 0.65, "range": 175.0}, {"kind": "frostbloom", "radius": 150.0}]}],
 	["wpn_debtcollector","The Debt Collector",   "wand",  6, "ricochet",  27, 0.58, {"bounces": 6,
 		"fx": [{"kind": "goldtouch", "chance": 0.35, "gold": 5}, {"kind": "chain", "n": 2, "pct": 0.65, "range": 250.0}]}],
@@ -295,7 +295,7 @@ const ROWS = [
 	["wpn_sorrowfang",   "Sorrowfang",           "melee", 6, "arc",       19, 0.24, {"status": "poison_w", "plain": true}],
 	["wpn_horizonrender","Horizonrender",        "melee", 6, "crescent",  27, 0.54, {"p_damage": 25,
 		"fx": [{"kind": "splinter", "n": 4, "pct": 0.65, "range": 185.0}, {"kind": "echo", "pct": 0.55, "delay": 0.4}]}],
-	["wpn_nightlash",    "A Long Night's Tongue","melee", 6, "lash",      27, 0.8,  {"status": "slow_w",
+	["wpn_nightlash",    "A Long Night's Tongue","melee", 6, "lash",      27, 0.8,  {"status": "slow_w", "companion": "blade", "c_damage": 13, "c_gap": 1.7,
 		"fx": [{"kind": "moonlit", "pct": 0.65}, {"kind": "soulwisp", "dmg": 10, "pct": 0.5}]}],
 	["wpn_griefcollect", "Grief, Collected",     "melee", 6, "ricochet",  24, 0.56, {"bounces": 6,
 		"fx": [{"kind": "harvest", "hp": 4, "mana": 3.0}, {"kind": "echo", "pct": 0.72, "delay": 0.45}]}],
@@ -303,7 +303,7 @@ const ROWS = [
 	["wpn_ashherd",      "Herd of Ashes",        "spear", 6, "jab_volley", 22, 0.86, {"count": 5, "status": "burn_w", "fx": [{"kind": "splinter", "n": 4, "pct": 0.65, "range": 175.0}, {"kind": "soulwisp", "dmg": 9, "pct": 0.65}]}],
 	["wpn_griffvolley",  "Griffin Volley",       "bow",   6, "volley",    18, 0.5,  {"count": 4, "fx": [{"kind": "chain", "n": 2, "pct": 0.65, "range": 250.0}, {"kind": "haste", "pct_per": 0.08, "max": 6, "dur": 4.0}]}],
 	["wpn_silentchoir",  "The Silent Choir",     "bow",   6, "rapid",     13, 0.15, {"fx": [{"kind": "echo", "pct": 0.65, "delay": 0.25}, {"kind": "skyrain", "n": 3, "pct": 0.72, "spread": 130.0}]}],
-	["wpn_direseeker",   "Dire Portent",         "bow",   6, "seeker",    24, 0.56, {
+	["wpn_direseeker",   "Dire Portent",         "bow",   6, "seeker",    24, 0.56, {"companion": "beast", "c_damage": 14, "c_gap": 1.9,
 		"fx": [{"kind": "brand", "amp": 0.42, "dur": 4.0}, {"kind": "gravity", "radius": 200.0, "pull": 150.0}]}],
 	["wpn_sunmortar",    "A Piece of the Sun",   "bow",   6, "lob_a",     36, 1.0,  {"aoe": 125, "status": "burn_w",
 		"fx": [{"kind": "quake", "radius": 165.0, "pct": 0.65}, {"kind": "goldtouch", "chance": 0.28, "gold": 4}]}],
@@ -532,7 +532,23 @@ static func _expand(row: Array) -> Dictionary:
 		var soul := _fx_desc(ex["fx"] if ex["fx"] is Array else [ex["fx"]])
 		if soul != "":
 			d["unique_desc"] = (str(d.get("unique_desc", "")) + " " + soul).strip_edges()
+	# COMPANIONS (light summoner 2026-07-29): a carrier row's extras name a
+	# companion; the def carries it to player._reconcile_companions, and the
+	# card SAYS it (the readable-soul rule).
+	if ex.has("companion"):
+		d["companion"] = str(ex["companion"])
+		d["c_damage"] = int(ex.get("c_damage", 12))
+		d["c_gap"] = float(ex.get("c_gap", 1.8))
+		if COMPANION_DESC.has(d["companion"]):
+			d["unique_desc"] = (str(d.get("unique_desc", "")) + " " + COMPANION_DESC[d["companion"]]).strip_edges()
 	return d
+
+# the companion, in the player's language (cards + the audit's readable rule)
+const COMPANION_DESC = {
+	"blade": "A BROTHER-BLADE walks with you while this is drawn, darting at whatever comes near.",
+	"wisp": "A WATCH-CANDLE hovers at your shoulder while this is drawn, lobbing slow seeking motes.",
+	"beast": "A SHADE-HOUND runs at your heel while this is drawn, pouncing on whatever you face.",
+}
 
 # the fx, in the player's language -- one short clause per soul
 static func _fx_desc(fxl: Array) -> String:

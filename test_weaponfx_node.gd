@@ -241,6 +241,28 @@ func _ready() -> void:
 				soul_bad.append("%s: ghost piece %s" % [pair[0], piece])
 	check("the marquee set-souls are named on their cards and completable",
 		soul_bad.is_empty(), "; ".join(soul_bad))
+	# ---- COMPANIONS (light summoner 2026-07-29): every carrier's kind is one
+	# companion.gd actually speaks, and the card SAYS the companion ----
+	var comp_kinds := {"blade": true, "wisp": true, "beast": true}
+	var comp_bad := []
+	var comp_n := 0
+	for row in WeaponRoster.ROWS:
+		var rex: Dictionary = row[7]
+		if not rex.has("companion"):
+			continue
+		comp_n += 1
+		if not comp_kinds.has(str(rex["companion"])):
+			comp_bad.append("%s: unknown kind %s" % [row[0], rex["companion"]])
+		var cdw: Dictionary = WeaponRoster.get_def(str(row[0]))
+		if not str(cdw.get("unique_desc", "")).to_upper().contains("-BLADE") \
+				and not str(cdw.get("unique_desc", "")).to_upper().contains("CANDLE") \
+				and not str(cdw.get("unique_desc", "")).to_upper().contains("HOUND"):
+			comp_bad.append("%s: companion not on the card" % row[0])
+	var guard_def: Dictionary = Inventory.ITEM_DEFS.get("relic_guardian", {})
+	if str(guard_def.get("companion", "")) == "" or not comp_kinds.has(str(guard_def.get("companion", ""))):
+		comp_bad.append("relic_guardian carries no known companion")
+	check("three weapon carriers + the Standing Star all speak real companions",
+		comp_n == 3 and comp_bad.is_empty(), "n=%d; %s" % [comp_n, "; ".join(comp_bad)])
 	# THE SOUL MUST BE READABLE (dev: "not dumb and only plain stats"): every
 	# fx-bearing weapon's CARD says what it does -- an invisible unique is
 	# stats with extra steps

@@ -2096,6 +2096,45 @@ func on_equipment_changed() -> void:
 	mana = min(mana, get_max_mana())
 	update_health_display()
 	update_mana_display()
+	_reconcile_companions()
+
+# --- COMPANIONS (light summoner 2026-07-29): an item CARRIES its companion.
+# Wield or wear the carrier and it walks with you; put it away and it bows
+# out. Reconciled here because every wield and every equip funnels through
+# on_equipment_changed -- one hook, no save plumbing (companions re-derive
+# from what you hold).
+const COMPANION_SCRIPT = preload("res://companion.gd")
+var _companions := {}   # source item id -> companion node
+
+func _reconcile_companions() -> void:
+	if not is_inside_tree() or get_parent() == null:
+		return
+	var wanted := {}
+	if has_weapon() and str(active_def.get("companion", "")) != "":
+		wanted[active_weapon_id] = active_def
+	for id in GameState.get_equipped_item_ids():
+		var idef = Inventory.get_item_def(id)
+		if str(idef.get("companion", "")) != "":
+			wanted[id] = idef
+	for sid in _companions.keys():
+		if not wanted.has(sid) or not is_instance_valid(_companions[sid]):
+			if is_instance_valid(_companions[sid]):
+				_companions[sid].queue_free()
+			_companions.erase(sid)
+	var idx := 0
+	for sid in wanted:
+		if not _companions.has(sid):
+			var c = COMPANION_SCRIPT.new()
+			c.kind = str(wanted[sid].get("companion", "blade"))
+			c.damage = int(wanted[sid].get("c_damage", 12))
+			c.gap = float(wanted[sid].get("c_gap", 1.8))
+			c.source_id = sid
+			c.player = self
+			c.position = global_position + Vector2(0, -46)
+			get_parent().add_child(c)
+			_companions[sid] = c
+		_companions[sid].slot = idx
+		idx += 1
 
 func update_health_display() -> void:
 	var percent = clamp(float(health) / get_max_health(), 0.0, 1.0)

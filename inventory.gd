@@ -103,6 +103,9 @@ const ITEM_DEFS = {
 	# player.has_relic_power alongside the classic singular. ---
 	"relic_unbroken": {"name": "The Unbroken Seal", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.75, 0.82, 0.95, 1.0), "equip_effect": {"max_health": 130.0, "status_resistance": 0.6}, "relic_powers": ["aegis", "phoenix"], "relic_desc": "Three guardians folded into one seal: shrugs off 60% of slows and hexes, a shield fully blocks one hit every 6s, and death itself is refused once every 45s."},
 	"relic_wayfarer": {"name": "The Wayfarer's Passage", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.72, 0.9, 0.95, 1.0), "equip_effect": {"flight": 1.0, "fall_immunity": 1.0, "move_speed": 0.12, "max_health": 25.0}, "relic_powers": ["blink"], "relic_desc": "Every road folded into one passage: flight on held wings, no fall can hurt you, and T still blink-dashes through danger."},
+	# --- the companion relic (light summoner 2026-07-29, Stardust-guardian-kin):
+	# a companion from the RELIC slot, alive with any build, any weapon ---
+	"relic_guardian": {"name": "The Standing Star", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.85, 0.9, 1.0, 1.0), "equip_effect": {"max_health": 25.0}, "companion": "blade", "c_damage": 16, "c_gap": 1.6, "relic_desc": "A star that STANDS GUARD: while this is worn a spectral blade walks with you, darting at whatever comes near."},
 	# --- Gloves & Boots (the two new armor slots). Standalone pieces across
 	# grades so the slots have real content to chase, plus a real "defense"
 	# axis (damage_reduction, a fraction capped at 75% in player.take_damage)
@@ -858,7 +861,7 @@ const ITEM_GRADES = {
 	"relic_godheart": "mythic", "relic_warlord": "mythic", "relic_fortune": "legendary", "relic_celerity": "mythic",
 	"relic_phoenix": "mythic", "relic_thorns": "epic", "relic_aegis": "epic", "relic_vampire": "legendary", "relic_juggernaut": "legendary",
 	"relic_blink": "rare", "relic_reaper": "legendary", "relic_ward": "rare", "relic_steward": "rare",
-	"relic_unbroken": "mythic", "relic_wayfarer": "mythic",
+	"relic_unbroken": "mythic", "relic_wayfarer": "mythic", "relic_guardian": "legendary",
 	"relic_gorgon": "epic",
 	"rune_sanctuary": "epic", "rune_stoneguise": "legendary", "rune_riddlestaff": "mythic",
 	# fishing (pillar 3)
