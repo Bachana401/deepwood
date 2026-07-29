@@ -24,7 +24,8 @@ extends RefCounted
 const HANDLED = ["chain", "echo", "rend", "quake", "splinter", "brand",
 	"harvest", "goldtouch", "stormcall", "gravity", "bulwark", "haste",
 	"moonlit", "bloodprice", "duelist", "crowd", "frostbloom", "soulwisp",
-	"shove", "sparkfly", "windup", "mendstrike", "farsight", "closequarters"]
+	"shove", "sparkfly", "windup", "mendstrike", "farsight", "closequarters",
+	"starfall", "skyrain", "legacy"]
 
 # --- per-run scratch (cleared on wield; keyed by player instance) ---------
 static var _counters := {}       # rhythm counters: weapon_id -> swing count
@@ -191,6 +192,45 @@ static func _run_hit_fx(p: Node, target: Node2D, dealt: int, crit: bool, fx: Dic
 			# fiercer nose to nose: no room to swing means no room to miss
 			if p.global_position.distance_to(target.global_position) <= float(fx.get("max_dist", 90.0)):
 				_deal(target, int(round(dealt * float(fx.get("pct", 0.4)))))
+		"starfall":
+			# (Terraria parity: the Star Wrath's cousin) every hit calls a
+			# star DOWN out of the dark onto the mark, a beat behind the blow
+			var s_tid: int = target.get_instance_id()
+			var s_at: Vector2 = target.global_position
+			var s_pct: float = float(fx.get("pct", 0.5))
+			_zap_line(p, s_at + Vector2(randf_range(-60.0, 60.0), -300.0), s_at, Color(0.85, 0.9, 1.0, 0.95))
+			p.get_tree().create_timer(float(fx.get("delay", 0.35)), false).timeout.connect(
+				func():
+					var st = instance_from_id(s_tid)
+					if st != null and is_instance_valid(st) and st.has_method("take_damage"):
+						st.take_damage(maxi(1, int(round(dealt * s_pct))))
+						_puff(p, st.global_position, Color(0.9, 0.95, 1.0, 0.9)))
+		"skyrain":
+			# (the Stormbow's cousin) the volley falls FROM THE SKY: n bolts
+			# rain down in a spread around the struck point
+			var r_n: int = int(fx.get("n", 3))
+			var r_pct: float = float(fx.get("pct", 0.35))
+			var r_spread: float = float(fx.get("spread", 130.0))
+			var near := _others_near(p, target, r_spread, r_n - 1)
+			near.push_front(target)
+			for k in range(mini(r_n, near.size())):
+				var r_tid: int = near[k].get_instance_id()
+				var lag: float = 0.2 + 0.12 * float(k)
+				var from: Vector2 = near[k].global_position + Vector2(randf_range(-30.0, 30.0), -280.0)
+				_zap_line(p, from, near[k].global_position, Color(0.7, 0.8, 1.0, 0.8))
+				p.get_tree().create_timer(lag, false).timeout.connect(
+					func():
+						var rt = instance_from_id(r_tid)
+						if rt != null and is_instance_valid(rt) and rt.has_method("take_damage"):
+							rt.take_damage(maxi(1, int(round(dealt * r_pct)))))
+		"legacy":
+			# (the Zenith's cousin -- The Last Word) every blow hurls ghost
+			# echoes of the ladder's blades, tinted and streaking to the near
+			var l_pct: float = float(fx.get("pct", 0.5))
+			var ghosts := _others_near(p, target, float(fx.get("range", 300.0)), int(fx.get("n", 2)))
+			ghosts.push_front(target)
+			for g in range(mini(ghosts.size(), int(fx.get("n", 2)) + 1)):
+				_ghost_blade(p, p.global_position, ghosts[g], maxi(1, int(round(dealt * l_pct))), g)
 		"frostbloom":
 			# crits bloom into a slowing frost-flower
 			if crit:
@@ -266,6 +306,36 @@ static func _puff(p: Node, at: Vector2, col: Color) -> void:
 	tw.tween_property(d, "scale", Vector2(2.2, 2.2), 0.3)
 	tw.tween_property(d, "modulate:a", 0.0, 0.3)
 	tw.chain().tween_callback(d.queue_free)
+
+# a ghost of the ladder's blades (legacy): a tinted sword-shade streaks from
+# the wielder to its mark and strikes on arrival. The tints cycle the grade
+# ladder itself -- every echo is a memory of some rung below.
+const LEGACY_TINTS = [Color(0.75, 0.78, 0.8), Color(0.45, 0.85, 0.5),
+	Color(0.4, 0.65, 1.0), Color(0.75, 0.5, 1.0), Color(1.0, 0.7, 0.3),
+	Color(1.0, 0.4, 0.4)]
+static var _legacy_cycle := 0
+static func _ghost_blade(p: Node, from: Vector2, victim: Node2D, dmg: int, idx: int) -> void:
+	if not is_instance_valid(victim):
+		return
+	_legacy_cycle += 1
+	var tint: Color = LEGACY_TINTS[(_legacy_cycle + idx) % LEGACY_TINTS.size()]
+	var vid: int = victim.get_instance_id()
+	var blade := Polygon2D.new()
+	blade.polygon = PackedVector2Array([Vector2(-4, 12), Vector2(0, -18), Vector2(4, 12), Vector2(0, 7)])
+	blade.color = Color(tint.r, tint.g, tint.b, 0.9)
+	blade.z_index = 42
+	_stage(p).add_child(blade)
+	blade.global_position = from + Vector2(randf_range(-18.0, 18.0), randf_range(-30.0, -6.0))
+	blade.rotation = (victim.global_position - blade.global_position).angle() + PI / 2.0
+	var tw := blade.create_tween()
+	tw.tween_property(blade, "global_position", victim.global_position, 0.22 + 0.06 * float(idx)) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.parallel().tween_property(blade, "modulate:a", 0.35, 0.22 + 0.06 * float(idx))
+	tw.tween_callback(func():
+		var v = instance_from_id(vid)
+		if v != null and is_instance_valid(v) and v.has_method("take_damage"):
+			v.take_damage(dmg)
+		blade.queue_free())
 
 # a wisp of the fallen: drifts to the next foe and pops (soulwisp)
 static func _spawn_wisp(p: Node, at: Vector2, fx: Dictionary) -> void:

@@ -178,11 +178,11 @@ const ROWS = [
 	["wpn_kingdomwheel", "A Kingdom, Turning",   "melee", 8, "orbiter",   41, 0.75, {"dwell": 4.0,
 		"fx": [{"kind": "gravity", "radius": 240.0, "pull": 180.0}, {"kind": "crowd", "pct_per": 0.1, "cap": 0.6}]}],
 	["wpn_lastword",     "The Last Word",        "melee", 8, "lash",      44, 0.78, {"status": "burn_w",
-		"fx": [{"kind": "echo", "pct": 0.8, "delay": 0.5}, {"kind": "stormcall", "every": 3, "pct": 1.0}]}],
+		"fx": [{"kind": "legacy", "n": 2, "pct": 0.5, "range": 300.0}, {"kind": "echo", "pct": 0.6, "delay": 0.5}]}],
 	["wpn_regicide",     "Regicide",             "spear", 8, "thrust",    55, 0.72, {
 		"fx": [{"kind": "duelist", "pct_per": 0.12, "max": 8}, {"kind": "bloodprice", "pct": 0.35, "cost": 1}]}],
 	["wpn_thronestrings","Throne of Strings",    "bow",   8, "volley",    30, 0.48, {"count": 5, "pierce": true,
-		"fx": [{"kind": "chain", "n": 3, "pct": 0.45, "range": 300.0}, {"kind": "frostbloom", "radius": 160.0}]}],
+		"fx": [{"kind": "skyrain", "n": 3, "pct": 0.4, "spread": 140.0}, {"kind": "frostbloom", "radius": 160.0}]}],
 	["wpn_soulflood",    "Flood of Souls",       "wand",  8, "tome",      29, 1.2,  {"radius": 200,
 		"fx": [{"kind": "soulwisp", "dmg": 14, "pct": 0.6}, {"kind": "harvest", "hp": 2, "mana": 6.0}]}],
 	["wpn_skymeasure",   "Staff That Measures the Sky", "staff", 8, "staff", 38, 0.36, {
@@ -401,7 +401,7 @@ const ROWS = [
 	["wpn_longgoodbye",  "The Long Goodbye",     "melee", 7, "lash",      40, 0.76, {"status": "poison_w", "rider": "goodbye",
 		"fx": [{"kind": "duelist", "pct_per": 0.1, "max": 7}, {"kind": "harvest", "hp": 3}]}],
 	["wpn_borrowedstar", "A Borrowed Star",      "bow",   7, "lob_a",     48, 0.95, {"aoe": 150, "status": "burn_w", "rider": "borrow",
-		"fx": [{"kind": "stormcall", "every": 4, "pct": 1.1}, {"kind": "goldtouch", "chance": 0.3, "gold": 4}]}],
+		"fx": [{"kind": "starfall", "pct": 0.55, "delay": 0.35}, {"kind": "goldtouch", "chance": 0.3, "gold": 4}]}],
 	["wpn_gravecourier", "Grave Courier",        "melee", 7, "ricochet",  30, 0.52, {"bounces": 7, "rider": "courier",
 		"fx": [{"kind": "soulwisp", "dmg": 11, "pct": 0.5}, {"kind": "echo", "pct": 0.5, "delay": 0.45}]}],
 	["wpn_summerscoffin","Summer's Coffin",      "wand",  7, "frost",     36, 0.5,  {"status": "slow_w", "rider": "coffin",
@@ -580,6 +580,9 @@ static func _fx_desc(fxl: Array) -> String:
 			"mendstrike": parts.append("True blows mend the wielder a little.")
 			"farsight": parts.append("Fiercer at a distance.")
 			"closequarters": parts.append("Fiercer nose to nose.")
+			"starfall": parts.append("Every hit calls a star down onto the mark.")
+			"skyrain": parts.append("The volley falls from the sky itself.")
+			"legacy": parts.append("Each blow hurls ghost-echoes of the ladder's blades.")
 	return " ".join(parts)
 
 static func _status_of(ex: Dictionary, tier: int) -> Dictionary:
