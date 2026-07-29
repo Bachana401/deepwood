@@ -435,6 +435,65 @@ func _ready() -> void:
 			nameless.append(bn)
 	check("every power carries a name AND a description for the UI",
 		nameless.is_empty(), str(nameless))
+	# ---- LEADER POWERS: the four who were pure STAT (2026-07-29) ----
+	# Harvestmaster/Harbormaster/Pitmaster/Warchief carried only a percentage while
+	# every other leader DID something. Each must now have a named behaviour.
+	check("all four stat-only leaders have a named power",
+		GameState.LEADER_POWERS.size() == 4
+		and str(GameState.LEADER_POWERS["Barracks"]["name"]) == "The Muster",
+		"%d declared" % GameState.LEADER_POWERS.size())
+	check("their flat percentages shrank to connective tissue",
+		GameState.HARVESTMASTER_FOOD_BONUS <= 0.15 and GameState.PITMASTER_YIELD_BONUS <= 0.15,
+		"food=%.2f ore=%.2f" % [GameState.HARVESTMASTER_FOOD_BONUS, GameState.PITMASTER_YIELD_BONUS])
+
+	# THE FULL TABLE: the Farm feeds with NO farmhands seated
+	GameState.building_stage["Farm"] = GameState.TOTAL_BUILD_STAGES
+	GameState.building_health["Farm"] = 100
+	GameState.building_levels["Farm"] = 1
+	GameState.rescued_villagers = []
+	var food_nobody: float = GameState.food_production_per_hour()
+	GameState.rescued_villagers = [{"id": "hm", "name": "Harvestmaster", "sex": "Female",
+		"is_kid": false, "stat_name": "Harvestmaster", "stat_value": 5,
+		"role_key": "Farm", "role_title": "Harvestmaster"}]
+	var food_master: float = GameState.food_production_per_hour()
+	check("THE FULL TABLE: a Harvestmaster works the fields with no farmhands",
+		food_nobody == 0.0 and food_master > 0.0,
+		"nobody=%.2f master=%.2f" % [food_nobody, food_master])
+
+	# THE MUSTER: untrained townsfolk stand to the wall
+	GameState.building_stage["Barracks"] = GameState.TOTAL_BUILD_STAGES
+	GameState.building_health["Barracks"] = 100
+	GameState.building_levels["Barracks"] = 1
+	GameState.ensure_adventurers()
+	for aid in GameState.adventurers.keys():
+		GameState.adventurers[aid]["station"] = "house"
+	var townsfolk := []
+	for i in range(8):
+		townsfolk.append({"id": "tf_%d" % i, "name": "T%d" % i, "sex": "Male",
+			"is_kid": false, "stat_name": "Farm", "stat_value": 3,
+			"role_key": "Farm", "role_title": "Farmer"})
+	GameState.rescued_villagers = townsfolk.duplicate(true)
+	var def_nomuster: float = GameState.village_defense_power()
+	GameState.rescued_villagers = townsfolk.duplicate(true)
+	GameState.rescued_villagers.append({"id": "wc", "name": "Warchief", "sex": "Female",
+		"is_kid": false, "stat_name": "Warchief", "stat_value": 7,
+		"role_key": "Barracks", "role_title": "Warchief"})
+	var def_muster: float = GameState.village_defense_power()
+	check("THE MUSTER: a Warchief calls untrained townsfolk to the wall",
+		def_muster > def_nomuster + GameState.WARCHIEF_DEFENSE,
+		"no-muster=%.2f muster=%.2f (Warchief alone would be +%.1f)" % [
+			def_nomuster, def_muster, GameState.WARCHIEF_DEFENSE])
+
+	# THE SOUNDING: the ore follows how deep the player has carved
+	var saved_deep: int = GameState.deepest_level_reached
+	GameState.deepest_level_reached = 5
+	var shallow_ore: String = GameState._sounding_material()
+	GameState.deepest_level_reached = 70
+	var deep_ore: String = GameState._sounding_material()
+	GameState.deepest_level_reached = saved_deep
+	check("THE SOUNDING: the Mine's ore tracks the deepest floor reached",
+		shallow_ore != deep_ore, "shallow=%s deep=%s" % [shallow_ore, deep_ore])
+
 	# the shrink: numbers must now be connective tissue, not the reason to upgrade
 	check("the numeric ladder shrank to connective tissue (<=10%/level)",
 		GameState.BUILDING_OUTPUT_PER_LEVEL <= 0.10,

@@ -1110,6 +1110,46 @@ const BUILDING_POWERS := {
 # The Deep Seam's yield: skill materials the Mine has no other way to produce.
 const DEEP_SEAM_MATERIALS := ["ember_crystal", "iron_shard", "resin"]
 
+# ===================== LEADER POWERS (dev law 2026-07-29) =====================
+# Four leaders were pure STAT -- Harvestmaster +60% food, Harbormaster +60%,
+# Pitmaster +50% ore, Warchief +15% training -- while every other leader already
+# DID something (the Chancellor staffs, the Publican pairs, the Master Builder
+# builds). Under the same law their flat percentages shrink to connective tissue
+# and each gains a named behaviour instead. Deliberately chosen NOT to overlap the
+# building power sitting alongside them (a Farm's Standing Harvest opens a
+# reserve; its Harvestmaster works the fields with no hands at all).
+const LEADER_POWERS := {
+	"Farm":         {"title": "Harvestmaster", "name": "The Full Table", "desc": "The master works the fields alone — the Farm feeds Deepwood with no farmhands seated."},
+	"Fishing Dock": {"title": "Harbormaster", "name": "The Tide Table", "desc": "They read the water — the boats land a sealed crate from the deep water now and then."},
+	"Mine":         {"title": "Pitmaster", "name": "The Sounding", "desc": "They sound the rock — the crew cuts ore matched to the deepest floor you have reached."},
+	"Barracks":     {"title": "Warchief", "name": "The Muster", "desc": "The horn calls everyone — every able adult stands to the wall, not only the trained."},
+}
+
+# Is this building's named LEADER seated (and the building working)?
+func has_leader_power(building: String) -> bool:
+	return LEADER_POWERS.has(building) and is_building_operational(building) \
+		and count_leader_holders(building, str(LEADER_POWERS[building]["title"])) > 0
+
+# A crew the master can work alone: THE FULL TABLE / THE SOUNDING let a building
+# produce with nobody at the benches, because the master is worth a crew.
+const MASTER_ALONE_CREW := 2
+
+# THE SOUNDING's ore: the Mine follows the player DOWN. Shallow rock gives iron;
+# only a town whose delver has carved deep sees the rarer seams surface at home.
+func _sounding_material() -> String:
+	if deepest_level_reached >= 60:
+		return "void_essence"
+	if deepest_level_reached >= 35:
+		return "ember_crystal"
+	if deepest_level_reached >= 15:
+		return "resin"
+	return "iron_shard"
+
+# THE TIDE TABLE's catch: what the Harbormaster's boats bring up from deep water.
+const TIDE_TABLE_CRATES := ["crate_driftwood", "crate_pearlbound"]
+const TIDE_TABLE_DAYS := 3.0        # a sealed crate about this often
+var _tide_table_accum := 0.0
+
 # Has this building grown into its named power?
 func has_building_power(name: String) -> bool:
 	return BUILDING_POWERS.has(name) and is_building_operational(name) \
@@ -1893,6 +1933,7 @@ func tick_village_clock() -> void:
 	update_school_enrollments(hours_passed)
 	decay_doctor_price(hours_passed)
 	tick_deep_catches(hours_passed)
+	tick_tide_table(hours_passed)     # Harbormaster: the sealed crates
 	tick_wages(hours_passed)
 	tick_wanderers(hours_passed)
 	tick_watchtower_warning()
@@ -2281,6 +2322,21 @@ func village_defense_power() -> float:
 	power += ARMED_WARRIOR_BONUS * float(armed_warriors())
 	# a seated Warchief is a standing army in themselves -- auto-repels far more
 	power += WARCHIEF_DEFENSE * seated_leaders("Barracks")
+	# THE MUSTER (Warchief): the horn calls EVERYONE. Every able adult who isn't
+	# already a fighter takes up something and stands to the wall -- a militia is
+	# worth a fraction of a trained warrior each, but a full town is a real wall.
+	# (This is what a Warchief is FOR now; their old +15% training is a trickle.)
+	if has_leader_power("Barracks"):
+		var militia := 0
+		for v in rescued_villagers:
+			if v.get("is_kid", false) or v.get("shadow", false):
+				continue
+			if str(v.get("role_title", "")) == "Recruit":
+				continue
+			if str(v.get("stat_name", "")) == "Warrior" or str(v.get("role_key", "")) == "Barracks":
+				continue          # already counted above as a fighter
+			militia += 1
+		power += MUSTER_PER_ABLE_ADULT * float(militia)
 	# the RAMPART itself blunts the wave: a higher tier is taller stone with
 	# traps set into it, worth real defense even before a body mans it
 	power += wall_defense_bonus()
@@ -2434,6 +2490,22 @@ func trigger_siege() -> void:
 # the boon's material half wired to the real hook that exists.)
 var _deep_catch_accum := 0.0
 const DEEP_CATCH_MATERIALS = ["iron_shard", "slime", "resin"]
+
+# THE TIDE TABLE (Harbormaster): they read the water, and the boats come back
+# with something sealed. Runs on its own clock beside the Dock's food.
+func tick_tide_table(hours_passed: float) -> void:
+	if not has_leader_power("Fishing Dock") or dock_worker_count() == 0:
+		return
+	_tide_table_accum += hours_passed
+	while _tide_table_accum >= TIDE_TABLE_DAYS * 24.0:
+		_tide_table_accum -= TIDE_TABLE_DAYS * 24.0
+		var crate: String = TIDE_TABLE_CRATES[randi() % TIDE_TABLE_CRATES.size()]
+		var player = get_tree().get_first_node_in_group("player")
+		if player and "inventory" in player and player.inventory:
+			# the add_item-leftover family: never claim a haul the pack refused
+			if player.inventory.add_item(crate, 1) == 0:
+				log_event("economy", "The Harbormaster's boats landed %s from the deep water." % Inventory.get_display_name(crate))
+				notify("⚓ The Tide Table: the boats brought back %s." % Inventory.get_display_name(crate))
 
 func tick_deep_catches(hours_passed: float) -> void:
 	# THE LONG HAUL (Fishing Dock power): a grown Dock sends its boats out past the
@@ -3043,7 +3115,13 @@ func farm_worker_count() -> int:
 func food_production_per_hour() -> float:
 	# building_output_multiplier folds in BOTH the upgrade level and the adjacency
 	# synergy (Farm beside the Dock = one larder filled from field and water).
-	var farm := float(farm_worker_count()) * FOOD_PER_FARMER_PER_DAY / 24.0 * (1.0 + HARVESTMASTER_FOOD_BONUS * seated_leaders("Farm")) * (2.0 if ten_freed("ten_sylvara") else 1.0) * building_output_multiplier("Farm")
+	# THE FULL TABLE (Harvestmaster): the master is worth a crew -- the fields are
+	# worked even with nobody seated at them. (Their old +60% is now a trickle;
+	# THIS is what a Harvestmaster is for.)
+	var hands := float(farm_worker_count())
+	if has_leader_power("Farm"):
+		hands = maxf(hands, float(MASTER_ALONE_CREW))
+	var farm := hands * FOOD_PER_FARMER_PER_DAY / 24.0 * (1.0 + HARVESTMASTER_FOOD_BONUS * seated_leaders("Farm")) * (2.0 if ten_freed("ten_sylvara") else 1.0) * building_output_multiplier("Farm")
 	# The Fishing Dock is the economy's PREMIUM food source (its fish feed
 	# fewer mouths per worker than the Farm's grain, but the sea never has a
 	# bad harvest). This also makes Kaldos' boon honest end to end: the Dock
@@ -4243,6 +4321,12 @@ func tick_mine_yield(hours_passed: float) -> void:
 			var seam: String = DEEP_SEAM_MATERIALS[_mine_cycles % DEEP_SEAM_MATERIALS.size()]
 			village_stockpile[seam] = int(village_stockpile.get(seam, 0)) + 1
 			log_event("village", "The Deep Seam gave up %s — ore the shallow workings never reach." % Inventory.get_display_name(seam))
+		# THE SOUNDING (Pitmaster): the master sounds the rock and sets the crew on
+		# ore matched to how deep YOU have carved -- the Mine tracks the dungeon.
+		if has_leader_power("Mine"):
+			var deep: String = _sounding_material()
+			village_stockpile[deep] = int(village_stockpile.get(deep, 0)) + 1
+			log_event("village", "The Pitmaster sounded the rock — the crew brought up %s." % Inventory.get_display_name(deep))
 		var player = get_tree().get_first_node_in_group("player")
 		if player and "inventory" in player and player.inventory:
 			# honest accounting: add_item returns the LEFTOVER, so log/announce only what the
@@ -4676,8 +4760,12 @@ const AUTO_SELL_KEEP := 12              # Merchant Prince: keep this many of eac
 const AUTO_SELL_PRICE := 4              # ...and sell the surplus at this gold each
 const AUTO_ENROLL_PER_PRINCIPAL := 2    # Principal: idle children auto-enrolled per tick
 const WARCHIEF_DEFENSE := 4.0           # Warchief: standing siege defense added per seat
-const HARVESTMASTER_FOOD_BONUS := 0.6   # Harvestmaster: +this fraction of farm food output
-const PITMASTER_YIELD_BONUS := 0.5      # Pitmaster: +this fraction of the Mine's whole haul
+const MUSTER_PER_ABLE_ADULT := 0.25     # Warchief's Muster: what an untrained townsfolk is worth at the wall
+# SHRUNK 2026-07-29 (were 0.6 and 0.5). These leaders' worth is no longer a
+# percentage -- it is The Full Table / The Tide Table / The Sounding in
+# LEADER_POWERS. What's left is connective tissue so a seat isn't literally inert.
+const HARVESTMASTER_FOOD_BONUS := 0.1   # Harvestmaster/Harbormaster: a trickle on top of their real power
+const PITMASTER_YIELD_BONUS := 0.1      # Pitmaster: likewise
 const LEADER_MORALE_EACH := 6           # Tavernkeeper/Publican: morale points added per seat
 
 # --- THE SUPPLY CHAIN (City Machine pillar A, dev call 2026-07-29) ---
