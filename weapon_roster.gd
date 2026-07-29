@@ -172,8 +172,11 @@ const ROWS = [
 		"fx": [{"kind": "gravity", "radius": 240.0, "pull": 180.0}, {"kind": "crowd", "pct_per": 0.15, "cap": 0.6}]}],
 	["wpn_lastword",     "The Last Word",        "melee", 8, "zenith", 40, 0.78, {"status": "burn_w",
 		"fx": [{"kind": "legacy", "n": 2, "pct": 1, "range": 300.0}, {"kind": "echo", "pct": 1, "delay": 0.5}]}],
-	["wpn_regicide",     "Regicide",             "spear", 8, "thrust", 50, 0.72, {
-		"fx": [{"kind": "duelist", "pct_per": 0.18, "max": 8}, {"kind": "echo", "pct": 1, "delay": 0.4}]}],
+	# CROWN TEN #4: a plain thrust shared with 23 weapons becomes the weapon its
+	# NAME always promised -- you do not stab a king once, you leave the blades
+	# in. Damage 50 -> 21: the kill is the stack, not the throw.
+	["wpn_regicide",     "Regicide",             "spear", 8, "regicide", 21, 0.62, {
+		"fx": [{"kind": "duelist", "pct_per": 0.18, "max": 8}]}],
 	["wpn_thronestrings","Throne of Strings",    "bow", 8, "volley", 27, 0.48, {"count": 5, "pierce": true,
 		"fx": [{"kind": "skyrain", "n": 3, "pct": 1, "spread": 140.0}, {"kind": "frostbloom", "radius": 160.0}]}],
 	["wpn_soulflood",    "Flood of Souls",       "wand", 8, "souls", 26, 1.1,  {
@@ -665,6 +668,10 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			# A SMALL PERSONAL SUN alone: a CHANNEL -- six sunbeams that converge
 			# into one column the longer you hold (Last-Prism-kin, never 1:1)
 			s = {"type": "prism_converge", "damage": dmg}
+		"regicide":
+			# REGICIDE alone: thrown crown-spears that STICK and stack, the sixth
+			# pushing the first out in a burst (Daybreak-kin, never 1:1)
+			s = {"type": "crown_spear", "damage": dmg, "speed": spd + 220.0, "range": rng}
 		"staff":
 			s = {"type": "staff_extend"}
 	if not st.is_empty():
@@ -734,6 +741,7 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"zenith":     return "Every swing frees the GHOST of a blade it culminates: out, one whirl at the far point, and home -- cutting the whole way, each image a different ancestor."
 		"court":      return "Every swing calls the COURT: %d shades of the people you brought home appear at your side, each carrying a different ancestor blade, and all of them sweep at once." % int(ex.get("count", 4))
 		"edict":      return "The law REACHES: a jointed arm of light unfolds the length of the hall, cutting everything along it and blooming where it touches -- and stone does not stop a sentence."
+		"regicide":   return "You do not stab a king once. Every throw leaves a crown-spear STANDING in them, biting while it stays -- five at a time, and the sixth shoves the first out in a burst."
 		"prism":      return "HOLD IT. Six sunbeams open in a fan and draw slowly together; the longer you stand and pour, the tighter they close, until all six burn through the same body at once. Moving lets the sun go out."
 		"staff":      return "Landed blows in rhythm DRAW IT LONGER; the fourth strikes the earth as a pillar."
 		"arc", "thrust", "shot", "rapid":

@@ -98,6 +98,7 @@ var _behave_state := 0      # orbiter: 0 fly out, 1 spin, 2 thread home
 var _rehit_t := 0.0         # orbiter/lash: clears the hit list to strike again
 
 const HOSTILE_GROUPS = ["course_enemy", "dungeon_combatant", "siege_enemy"]
+const EMBEDDED_STACK = preload("res://embedded_stack.gd")
 
 func _ready() -> void:
 	# findable in flight, so a mirror boss has something to reflect (boss.gd
@@ -148,6 +149,11 @@ func _ready() -> void:
 			_behave_state = 0
 			_orbit_t = 0.0
 			_build_zenithblade()
+		"crown_spear":
+			# REGICIDE: a thrown crown-spear that STICKS. The kill is not the
+			# throw -- it is the fifth spear, and the sixth pushing the first
+			# one out (Daybreak-kin, never 1:1).
+			_build_crownspear()
 		"edict_lash":
 			# THE FINAL EDICT: the law reaches everyone. A segmented arm extends
 			# from the wielder THROUGH solid rock, cuts everything along its
@@ -556,6 +562,16 @@ func _on_body_entered(body: Node2D) -> void:
 			# The Long Goodbye: the RETURN pass cuts double -- it hurts most
 			# on the way out of your life
 			var dealt := damage * (2 if kind == "lash" and returning and rider == "goodbye" else 1)
+			# REGICIDE: the spear does NOT merely hit -- it stays in them, and
+			# the stack it joins is the weapon (see embedded_stack.gd)
+			if kind == "crown_spear":
+				var st = EMBEDDED_STACK.drive(body, "regicide", {
+					"max": 5, "gap": 0.5, "life": 6.0,
+					"tick": maxi(1, int(round(float(damage) * 0.22))),
+					"pop": maxi(1, int(round(float(damage) * 1.35))),
+					"tint": Color(1.0, 0.86, 0.42), "player": source})
+				if st != null:
+					st.add_one(damage)
 			var landed = body.take_damage(dealt)
 			if landed == null or landed:
 				# CLUSTER LAW (study/DESIGN_LAWS.md): several projectiles landing
@@ -1045,6 +1061,32 @@ func _zen_sparkle(at: Vector2) -> void:
 # point-first (+X) -- a hooded cloak streaming behind an ancestor blade. The
 # blade wears the tint; the shade stays dark, so a swing reads as SEVERAL
 # distinct people arriving, not one effect repeated.
+# REGICIDE's thrown spear: a slim crown-gold lance, point-first
+func _build_crownspear() -> void:
+	var glow := Polygon2D.new()
+	glow.polygon = PackedVector2Array([
+		Vector2(30, 0), Vector2(6, -7), Vector2(-24, -4), Vector2(-24, 4), Vector2(6, 7)])
+	glow.color = Color(1.0, 0.82, 0.36, 0.3)
+	var gm := CanvasItemMaterial.new()
+	gm.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	glow.material = gm
+	visual.add_child(glow)
+	var shaft := Polygon2D.new()
+	shaft.polygon = PackedVector2Array([
+		Vector2(10, -1.8), Vector2(-26, -1.8), Vector2(-26, 1.8), Vector2(10, 1.8)])
+	shaft.color = Color(0.46, 0.36, 0.22, 0.95)
+	visual.add_child(shaft)
+	var head := Polygon2D.new()
+	head.polygon = PackedVector2Array([
+		Vector2(26, 0), Vector2(9, -5.5), Vector2(4, 0), Vector2(9, 5.5)])
+	head.color = Color(1.0, 0.9, 0.5, 0.98)
+	visual.add_child(head)
+	var fletch := Polygon2D.new()
+	fletch.polygon = PackedVector2Array([
+		Vector2(-20, -1.8), Vector2(-30, -7.0), Vector2(-27, 0), Vector2(-30, 7.0), Vector2(-20, 1.8)])
+	fletch.color = Color(0.88, 0.72, 0.3, 0.9)
+	visual.add_child(fletch)
+
 func _build_courtier() -> void:
 	var cloak := Polygon2D.new()
 	cloak.polygon = PackedVector2Array([

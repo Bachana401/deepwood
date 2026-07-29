@@ -3647,6 +3647,12 @@ func perform_attack() -> void:
 	if active_weapon_type == "spear":
 		if special_type == "javelin_volley":
 			throw_javelin_volley(special)
+		elif special_type == "crown_spear":
+			# REGICIDE: the thrust throws the spear instead of keeping it
+			play_sfx(SFX_SPEAR)
+			animate_spear(stats)
+			var rcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("spear"))))
+			launch_projectile(special, get_aim_direction(), rcr[0], rcr[1])
 		elif special_type == "edict_lash":
 			# THE FINAL EDICT: the thrust becomes an ARM that unfolds down the
 			# hall and through the rock; the projectile owns the whole motion

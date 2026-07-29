@@ -113,6 +113,28 @@ func _ready() -> void:
 	await _settle(0.2)
 	await _shot("s4_sun_released")
 
+	await _settle(0.8)
+
+	# ---- REGICIDE: the spears STAY IN, and the sixth shoves the first out ----
+	p.inventory.add_item("wpn_regicide", 1)
+	p.wield_weapon("wpn_regicide")
+	# step back: the T8 spear's held sprite is long enough to sit on top of the
+	# nearest dummy, and the whole point of this weapon is SEEING the stack
+	p.global_position.x -= 150.0
+	await _settle(0.2)
+	var rs: Dictionary = p.active_def.get("special", {})
+	for throw_i in range(6):
+		p.launch_projectile(rs, Vector2.RIGHT, int(rs.get("damage", 21)))
+		await _settle(0.22)
+		if throw_i == 1:
+			await _shot("r1_regicide_two")     # a pair standing in them
+		elif throw_i == 4:
+			await _shot("r2_regicide_five")    # the full countable stack
+	await _settle(0.3)
+	await _shot("r3_regicide_overflow")        # the sixth pushed the first out
+	await _settle(1.2)
+	await _shot("r4_regicide_biting")          # the stack still eating
+
 	say("EYES-CROWN: done")
 	get_tree().quit(0)
 
