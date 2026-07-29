@@ -23,7 +23,8 @@ extends RefCounted
 # every kind the engine resolves; the audit fails on any fx outside it
 const HANDLED = ["chain", "echo", "rend", "quake", "splinter", "brand",
 	"harvest", "goldtouch", "stormcall", "gravity", "bulwark", "haste",
-	"moonlit", "bloodprice", "duelist", "crowd", "frostbloom", "soulwisp"]
+	"moonlit", "bloodprice", "duelist", "crowd", "frostbloom", "soulwisp",
+	"shove", "sparkfly", "windup", "mendstrike", "farsight", "closequarters"]
 
 # --- per-run scratch (cleared on wield; keyed by player instance) ---------
 static var _counters := {}       # rhythm counters: weapon_id -> swing count
@@ -150,6 +151,46 @@ static func _run_hit_fx(p: Node, target: Node2D, dealt: int, crit: bool, fx: Dic
 			var around := _others_near(p, p, float(fx.get("radius", 260.0)), 8).size()
 			if around > 0:
 				_deal(target, int(round(dealt * minf(float(fx.get("pct_per", 0.08)) * around, float(fx.get("cap", 0.5))))))
+		"shove":
+			# the blow lands like a battering ram -- everything about the
+			# strike says GET BACK
+			if target.has_method("apply_knockback"):
+				target.apply_knockback(signf(target.global_position.x - p.global_position.x),
+					float(fx.get("force", 220.0)))
+		"sparkfly":
+			# a spark leaps OFF the wound and finds another foe a beat later
+			# (the slow cousin of chain: it travels, it doesn't arc)
+			var sn: int = int(fx.get("n", 1))
+			var spct: float = float(fx.get("pct", 0.4))
+			var flyers := _others_near(p, target, float(fx.get("range", 260.0)), sn)
+			for fl in flyers:
+				var fid: int = fl.get_instance_id()
+				var from: Vector2 = target.global_position
+				p.get_tree().create_timer(float(fx.get("delay", 0.35)), false).timeout.connect(
+					func():
+						var t2 = instance_from_id(fid)
+						if t2 != null and is_instance_valid(t2) and t2.has_method("take_damage"):
+							t2.take_damage(maxi(1, int(round(dealt * spct))))
+							_zap_line(p, from, t2.global_position, Color(1.0, 0.8, 0.4, 0.8)))
+		"windup":
+			# the rhythm hit: every Nth swing this weapon's OWN blow lands heavier
+			var wwid := str(p.active_weapon_id)
+			if int(_counters.get(wwid, 0)) % maxi(2, int(fx.get("every", 3))) == 0:
+				_deal(target, int(round(dealt * float(fx.get("pct", 0.8)))))
+				_puff(p, target.global_position, Color(1.0, 0.9, 0.7, 0.85))
+		"mendstrike":
+			# the weapon mends its wielder a little with each true blow
+			if randf() < float(fx.get("chance", 0.35)):
+				p.health = mini(p.get_max_health(), int(p.health) + int(fx.get("hp", 2)))
+				p.update_health_display()
+		"farsight":
+			# fiercer at a distance: the far shot is the true one
+			if p.global_position.distance_to(target.global_position) >= float(fx.get("min_dist", 260.0)):
+				_deal(target, int(round(dealt * float(fx.get("pct", 0.4)))))
+		"closequarters":
+			# fiercer nose to nose: no room to swing means no room to miss
+			if p.global_position.distance_to(target.global_position) <= float(fx.get("max_dist", 90.0)):
+				_deal(target, int(round(dealt * float(fx.get("pct", 0.4)))))
 		"frostbloom":
 			# crits bloom into a slowing frost-flower
 			if crit:

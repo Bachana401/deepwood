@@ -1,4 +1,4 @@
-extends Node
+﻿extends Node
 
 # WEAPONFX ENGINE, Phase A (2026-07-28): every primitive the engine claims
 # to handle fires clean through a dummy foe -- no missing keys, no crashes,
@@ -117,7 +117,7 @@ func _ready() -> void:
 	# HANDLED (the named-but-never-read trap), every tier at or above the
 	# authored bar must CARRY an fx, and no two fx-bearing weapons may share
 	# a signature (their sorted set of kinds). The bar rises as tiers land.
-	const AUTHORED_BAR := 7      # tiers >= this must all have fx (raise per batch)
+	const AUTHORED_BAR := 1      # the whole ladder carries fx, top to bottom
 	var unknown := []
 	var bare := []
 	var sigs := {}
@@ -138,12 +138,27 @@ func _ready() -> void:
 			kinds.append(k)
 		kinds.sort()
 		var sig := ",".join(kinds)
-		if sigs.has(sig):
-			dupes.append("%s == %s (%s)" % [str(row[0]), str(sigs[sig]), sig])
-		sigs[sig] = str(row[0])
+		# COMMONS are exempt from the dupe rule by tier policy (dev-chosen):
+		# a light flavored touch may share its family; T2+ must be UNIQUE
+		if tier >= 2:
+			if sigs.has(sig):
+				dupes.append("%s == %s (%s)" % [str(row[0]), str(sigs[sig]), sig])
+			sigs[sig] = str(row[0])
 	check("every declared fx kind is handled by the engine", unknown.is_empty(), ", ".join(unknown))
 	check("every tier-%d+ weapon carries its own fx" % AUTHORED_BAR, bare.is_empty(), ", ".join(bare))
 	check("no two weapons share an fx signature", dupes.is_empty(), "; ".join(dupes))
+	# THE SOUL MUST BE READABLE (dev: "not dumb and only plain stats"): every
+	# fx-bearing weapon's CARD says what it does -- an invisible unique is
+	# stats with extra steps
+	var mute := []
+	for row in WeaponRoster.ROWS:
+		var ex2: Dictionary = row[7]
+		if not ex2.has("fx"):
+			continue
+		var def: Dictionary = Inventory.get_item_def(str(row[0]))
+		if str(def.get("unique_desc", "")).strip_edges() == "":
+			mute.append(str(row[0]))
+	check("every soul is written on its weapon's card", mute.is_empty(), ", ".join(mute))
 
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)
