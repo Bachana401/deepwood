@@ -229,6 +229,18 @@ func _ready() -> void:
 			combo_bad.append("%s: no folded powers" % cid)
 	check("combined relics fold three real relics and only readable powers",
 		combo_bad.is_empty(), "; ".join(combo_bad))
+	# ---- SET-SOULS (2026-07-29): the three marquee sets carry a named
+	# triggered soul, and the card SAYS so (an invisible soul is a stat bump)
+	var soul_bad := []
+	for pair in [["bulwark", "TEMPER"], ["windstalker", "DEADEYE"], ["runeweave", "SOULTHREAD"]]:
+		var sdef: Dictionary = Inventory.SET_DEFS.get(pair[0], {})
+		if not str(sdef.get("bonus_desc", "")).contains(pair[1]):
+			soul_bad.append("%s lacks %s on its card" % [pair[0], pair[1]])
+		for piece in sdef.get("pieces", []):
+			if not Inventory.ITEM_DEFS.has(str(piece)):
+				soul_bad.append("%s: ghost piece %s" % [pair[0], piece])
+	check("the marquee set-souls are named on their cards and completable",
+		soul_bad.is_empty(), "; ".join(soul_bad))
 	# THE SOUL MUST BE READABLE (dev: "not dumb and only plain stats"): every
 	# fx-bearing weapon's CARD says what it does -- an invisible unique is
 	# stats with extra steps

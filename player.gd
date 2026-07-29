@@ -1454,6 +1454,13 @@ func skill_damage_mult(weapon: String) -> float:
 	var lowhp = GameState.get_bonus_total("low_hp_damage_mult")
 	if lowhp > 0.0 and float(health) <= float(get_max_health()) * 0.40:
 		base += lowhp
+	# TEMPER (Bulwark set-soul, Beetle-kin): every blow you WEATHER hardens the
+	# next you land -- +6% melee per stack, up to three, fading if unfed
+	if (weapon == "melee" or weapon == "spear") and _temper_stacks > 0:
+		if _now() < _temper_until:
+			base += 0.06 * float(_temper_stacks)
+		else:
+			_temper_stacks = 0
 	# Avatar of Slaughter / Godslayer: each recent kill stacks bonus damage
 	if rampage_stacks > 0:
 		if _now() < rampage_until:
@@ -1491,6 +1498,29 @@ func roll_crit(base: int) -> Array:
 		return [int(round(base * (1.0 + get_crit_damage()))), true]
 	last_hit_was_crit = false
 	return [base, false]
+
+# a crit by DECREE, no dice: the Deadeye set-soul's certain shot
+func force_crit(base: int) -> Array:
+	last_hit_was_crit = true
+	return [int(round(base * (1.0 + get_crit_damage()))), true]
+
+# --- ARMOR SET-SOULS (2026-07-29, Terraria-kin set mechanics): a completed
+# marquee set carries a TRIGGERED soul on top of its stats, alive with ANY
+# weapon of its class (Spectre works with any magic weapon -- so do these).
+func set_soul_active(set_id: String) -> bool:
+	return GameState.is_set_complete(set_id)
+
+# SOULTHREAD (Runeweave, Spectre-kin): a tenth of the wand damage you deal
+# threads back to you as life.
+func apply_soulthread(dealt: int) -> void:
+	if dealt <= 0 or not set_soul_active("runeweave"):
+		return
+	if active_weapon_type != "wand" and active_weapon_type != "staff":
+		return
+	var heal = int(round(dealt * 0.10))
+	if heal > 0:
+		health = min(get_max_health(), health + heal)
+		update_health_display()
 
 # Pop a floating damage number over a struck enemy.
 func show_hit(target: Node2D, amount: int, is_crit: bool) -> void:
@@ -2550,6 +2580,11 @@ func take_damage(amount: int) -> void:
 	health -= amount
 	update_health_display()
 	play_sfx(SFX_HURT)
+	# TEMPER (Bulwark set-soul): the blow you just weathered hardens you --
+	# read in skill_damage_mult's melee branch
+	if amount > 0 and set_soul_active("bulwark"):
+		_temper_stacks = mini(3, _temper_stacks + 1)
+		_temper_until = _now() + 6.0
 	hurt_timer = HURT_SHAKE_TIME
 	if has_node("Camera2D"):
 		$Camera2D.shake(4.0, 0.15)
@@ -2802,6 +2837,11 @@ var _pillar_next_arc := 0.0
 var _pillar_ring: Node2D = null
 var _still_t := 0.0            # sanctuary: how long we've stood truly still
 var _sanctuary_ring: Node2D = null
+# --- set-souls state (2026-07-29): Deadeye's stillness prime, Temper's stacks
+var _deadeye_t := 0.0
+var _deadeye_primed := false
+var _temper_stacks := 0
+var _temper_until := 0.0
 var hair_ready_at := 0.0
 var stone_guise_floor := ""    # the floor key where the stone last saved us
 
@@ -2880,6 +2920,7 @@ func spawn_cloudlet() -> void:
 func tick_wukong(delta: float) -> void:
 	_tick_pillar_stance(delta)
 	_tick_sanctuary(delta)
+	_tick_deadeye(delta)
 	_tick_hair_clone()
 
 # The Immovable Pillar: hold S on the ground half a second to PLANT. Rooted
@@ -2920,6 +2961,28 @@ func _tick_pillar_stance(delta: float) -> void:
 
 # Circle of Sanctuary (rune): stand TRULY still for a second and a ward ring
 # rises; enemy shots die at its edge. A single step breaks it.
+# DEADEYE (Windstalker set-soul, Shroomite-kin): stand truly still for a
+# breath and the next volley you loose is a CERTAIN crit. The prime is shown:
+# the weapon icon glints. Movement spends nothing -- only loosing does.
+func _tick_deadeye(delta: float) -> void:
+	if not set_soul_active("windstalker") or is_dead:
+		_deadeye_t = 0.0
+		_deadeye_primed = false
+		return
+	if velocity.length() >= 24.0:
+		_deadeye_t = 0.0
+		_deadeye_primed = false
+		return
+	_deadeye_t += delta
+	if _deadeye_t >= 0.9 and not _deadeye_primed:
+		_deadeye_primed = true
+		SfxSynth.play_at(self, global_position, "chime", -16.0, 1.8)
+		if has_node("WeaponIcon"):
+			var wi = $WeaponIcon
+			var tw := create_tween()
+			tw.tween_property(wi, "modulate", Color(1.6, 1.6, 1.2), 0.12)
+			tw.tween_property(wi, "modulate", Color.WHITE, 0.25)
+
 func _tick_sanctuary(delta: float) -> void:
 	var has_rune := GameState.get_bonus_total("sanctuary") > 0.0
 	# "still" is about intent, not altitude: near-zero velocity is enough (the
@@ -4374,6 +4437,7 @@ func channel_beam(delta: float) -> bool:
 			target.take_damage(cr[0])
 			show_hit(target, cr[0], cr[1])
 			apply_omnivamp(cr[0])
+			apply_soulthread(cr[0])   # Runeweave set-soul: the beam threads life
 	return true
 
 func apply_omnivamp(total_damage: int) -> void:
@@ -4535,6 +4599,7 @@ func on_projectile_hit(target: Node2D, damage_dealt: int) -> void:
 	_in_projectile_unique = true
 	apply_excellent_effect(target, damage_dealt)
 	apply_melee_skills(target, damage_dealt)
+	apply_soulthread(damage_dealt)   # Runeweave set-soul: wand damage -> life
 	_in_projectile_unique = false
 
 # Charge-style uniques wind up on every SWING, hit or miss. Whiffing still
@@ -5084,7 +5149,10 @@ func spawn_arrow(stats: Dictionary, aim_dir: Vector2) -> void:
 		var arrow = ARROW_SCENE.instantiate()
 		# loose from the held bow rather than from the middle of his body
 		arrow.position = global_position + dir * (stats.icon_offset + 8.0)
-		var cr = roll_crit(int(round(stats.damage * skill_damage_mult("bow"))))
+		# DEADEYE (Windstalker set-soul): a primed stillness makes this whole
+		# volley CERTAIN -- every shaft of it flies as a crit
+		var cr = force_crit(int(round(stats.damage * skill_damage_mult("bow")))) \
+			if _deadeye_primed else roll_crit(int(round(stats.damage * skill_damage_mult("bow"))))
 		arrow.setup(dir, cr[0], stats.knockback_min, stats.knockback_max, 4)
 		arrow.is_crit = cr[1]
 		arrow.homing = homing
@@ -5099,6 +5167,11 @@ func spawn_arrow(stats: Dictionary, aim_dir: Vector2) -> void:
 		arrow.max_range = arrow.DEFAULT_MAX_RANGE * grade_projectile_range()
 		arrow.element = Inventory.element_of(active_weapon_id)   # VFX: hit bursts in the bow's colour
 		get_parent().add_child(arrow)
+	# loosing SPENDS the Deadeye prime; the next certainty is earned by
+	# another breath of stillness
+	if _deadeye_primed:
+		_deadeye_primed = false
+		_deadeye_t = 0.0
 
 func cast_wand() -> void:
 	play_sfx(SFX_BOW)
