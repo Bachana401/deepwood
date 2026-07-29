@@ -117,7 +117,13 @@ func _ready() -> void:
 	# HANDLED (the named-but-never-read trap), every tier at or above the
 	# authored bar must CARRY an fx, and no two fx-bearing weapons may share
 	# a signature (their sorted set of kinds). The bar rises as tiers land.
-	const AUTHORED_BAR := 1      # the whole ladder carries fx, top to bottom
+	# THE 221/129 MIX (dev decision): mirroring the reference game's honest
+	# split -- 129 ladder rows are PLAIN ("plain": true, tiers 1-6 only, the
+	# crown never plain): stat rungs upgraded by materials, NO fx. Every
+	# other weapon is DISTINCT and must carry its soul. Both counts pinned.
+	const PLAIN_QUOTA := 129
+	var plain_n := 0
+	var overdressed := []
 	var unknown := []
 	var bare := []
 	var sigs := {}
@@ -125,9 +131,15 @@ func _ready() -> void:
 	for row in WeaponRoster.ROWS:
 		var ex: Dictionary = row[7]
 		var tier: int = int(row[3])
+		if bool(ex.get("plain", false)):
+			plain_n += 1
+			if ex.has("fx"):
+				overdressed.append(str(row[0]))
+			if tier >= 7:
+				overdressed.append(str(row[0]) + " (crown tier gone plain)")
+			continue
 		if not ex.has("fx"):
-			if tier >= AUTHORED_BAR:
-				bare.append(str(row[0]))
+			bare.append(str(row[0]))
 			continue
 		var fxl: Array = ex["fx"] if ex["fx"] is Array else [ex["fx"]]
 		var kinds := []
@@ -145,8 +157,11 @@ func _ready() -> void:
 				dupes.append("%s == %s (%s)" % [str(row[0]), str(sigs[sig]), sig])
 			sigs[sig] = str(row[0])
 	check("every declared fx kind is handled by the engine", unknown.is_empty(), ", ".join(unknown))
-	check("every tier-%d+ weapon carries its own fx" % AUTHORED_BAR, bare.is_empty(), ", ".join(bare))
-	check("no two weapons share an fx signature", dupes.is_empty(), "; ".join(dupes))
+	check("every DISTINCT weapon carries its own fx", bare.is_empty(), ", ".join(bare))
+	check("no two distinct weapons share an fx signature", dupes.is_empty(), "; ".join(dupes))
+	check("the plain ladder is exactly %d rungs, none dressed, none crowned" % PLAIN_QUOTA,
+		plain_n == PLAIN_QUOTA and overdressed.is_empty(),
+		"plain=%d; %s" % [plain_n, ", ".join(overdressed)])
 	# THE SOUL MUST BE READABLE (dev: "not dumb and only plain stats"): every
 	# fx-bearing weapon's CARD says what it does -- an invisible unique is
 	# stats with extra steps
