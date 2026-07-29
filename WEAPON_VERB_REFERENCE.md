@@ -417,3 +417,23 @@ trap ~80s); Sticky/Bouncy grenade physics variants; dart guns = identity
 lives in AMMO (ricochet/split/ground-flame); Star Cannon (power gated by
 unbuyable ammo); Molotov (6 lingering fire patches); Gatligator (inaccuracy
 AS identity); Chain Gun (UT4, 15/s).
+## SUMMONS DEEP SCAN 2026-07-29 — MINIONS/SENTRIES/WHIPS (60 weapons, all opened)
+Top verbs (ALL candidates): Stardust Dragon (ONE pet GROWS per re-cast —
+visible segments = levels; noclip coiling); Desert Tiger (stack-to-EVOLVE
+cub→adult→armored + cross-terrain pounce); Terraprisma (skill-gated flawless
+drop; never whiffs); THE WHIP TAG SYSTEM (player swing MARKS target, all
+pets focus it + flat/crit tag per pet hit — summoner made ACTIVE; Kaleidoscope
+= 20 tag +10% crit flagship); Firecracker (mark detonates next pet hit 2.75x
+— favors heavy pets); Electric Eel (marks ARC between tagged enemies, scales
+with count painted); Sanguine bats (fixed-period elliptical loop = metronome
+reliability archetype); Stardust Cells (latching stacking DoT 10x20/s);
+Foxparks (HOLD to grab your pet and fire it as a flamethrower); Cattiva
+(combat pet that MINES and chops — worker crossover); Lunar Portal (beams
+SWEEP 60° for ~1s); Queen Spider (eggs hatch homing spiderlings — two-stage
+sentry ammo); Lightning Aura (defense-ignoring tick ZONE, explicit 50% tag
+tax); Abigail (ONE ghost empowered per cast, immobile while attacking);
+Barnacle (balloon sentry anchors on ceilings); Xeno (teleport-snipe UFO);
+Mushroom (divebomb 133% then teleport home); Blade Staff (6 dmg, 25 pen —
+hit-RATE thesis, whips double it); Ballista Panic (turret goes berserk when
+the PLAYER takes a hit — defender fantasy); Explosive Trap (self-rearming
+mines); Snapthorn/Durendal/Dark Harvest (whip-speed ramp while hitting).
