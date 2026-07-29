@@ -45,8 +45,34 @@ func _ready() -> void:
 	check("graduations are written", gs.contains("finished school — a"))
 	check("a couple making a home is written", gs.contains("made a cottage their home"))
 	check("deaths are written", gs.contains("Deepwood grieves"))
-	check("away sieges are written, both outcomes",
-		gs.contains("the defense held") and gs.contains("could not hold it all"))
+	# EXERCISED, NOT GREPPED (fix 2026-07-29). This asserted the literal prose "the
+	# defense held", so the away-battle rewrite (c9e5d89) -- which renamed the repelled
+	# line to "The line held" and added a who-stood-there preamble -- turned the check
+	# red while the behaviour was better than before. Drive BOTH branches and require a
+	# line to land, so any future rewording is free and a SILENT branch still fails.
+	# Staged so nobody can actually die: an empty roster has no villager to take, and
+	# every adventurer is sheltered indoors ("house"), so none is spent as a shield.
+	var saved_roster_lg: Array = GameState.rescued_villagers
+	var saved_adv_lg: Dictionary = GameState.adventurers.duplicate(true)
+	var saved_report_lg: Dictionary = GameState.away_report.duplicate(true)
+	GameState.rescued_villagers = []
+	for aid in GameState.adventurers.keys():
+		GameState.adventurers[aid]["station"] = "house"
+	# >= 2 entries, not merely "some": the who-stood-there preamble is written on EVERY
+	# away siege, so a non-empty log would still pass with the OUTCOME line deleted --
+	# which is the one thing this check exists to guarantee.
+	GameState.village_log = []
+	GameState.resolve_siege_offline(0)                 # defense >= 0: the town holds
+	var repelled_lines: int = GameState.village_log.size()
+	GameState.village_log = []
+	GameState.resolve_siege_offline(9999)              # a wave nothing could hold
+	var breach_lines: int = GameState.village_log.size()
+	check("away sieges are written, both outcomes (the wave AND how it ended)",
+		repelled_lines >= 2 and breach_lines >= 2,
+		"repelled=%d lines breached=%d lines" % [repelled_lines, breach_lines])
+	GameState.rescued_villagers = saved_roster_lg
+	GameState.adventurers = saved_adv_lg
+	GameState.away_report = saved_report_lg
 	check("a live wall holding is written", gs.contains("The wave broke against the wall"))
 	check("a fallen adventurer is written by NAME", gs.contains("fell holding the line"))
 	check("a freed legend is written", gs.contains("walks free of Orin's vaults"))
