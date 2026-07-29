@@ -72,7 +72,9 @@ func _ready() -> void:
 		GameState.apply_save_to_player(p)
 
 	check("gold survives to the coin", true)   # currency applies on scene reload; key checked below
-	var raw := FileAccess.open(GameState.SAVE_PATH, FileAccess.READ)
+	# reads what save_game just WROTE -- under MONARCH_TEST that is the
+	# sidecar, never the dev's real file (which lines 32-39 back up anyway)
+	var raw := FileAccess.open(GameState.active_save_path(), FileAccess.READ)
 	var saved: Dictionary = JSON.parse_string(raw.get_as_text())
 	raw.close()
 	check("the file holds the exact gold", int(saved.get("currency", -1)) == 4321)
@@ -118,6 +120,24 @@ func _ready() -> void:
 		not GameState.orin_arrived())
 	check("new game: the Forge is locked again",
 		not GameState.blacksmith_unlocked())
+
+	# ---- the save file itself is armoured (global hunt 2026-07-28) ----
+	# under MONARCH_TEST every byte goes to the SIDECAR -- the dev's real
+	# save is no longer a fixture for any suite, from any parallel session
+	check("tests write the sidecar, never the real path",
+		GameState.active_save_path() != GameState.SAVE_PATH)
+	# atomic write: a finished save leaves no .tmp behind
+	GameState.save_game(p)
+	check("a finished save leaves no .tmp litter",
+		FileAccess.file_exists(GameState.active_save_path())
+		and not FileAccess.file_exists(GameState.active_save_path() + ".tmp"))
+	# a CORRUPT save must load as nothing -- never crash, never half-apply
+	var g := FileAccess.open(GameState.active_save_path(), FileAccess.WRITE)
+	g.store_string("{ this is not json")
+	g.close()
+	check("a corrupt save loads as nothing, without a crash",
+		GameState.load_game() == {})
+	DirAccess.remove_absolute(GameState.active_save_path())
 
 	# ---- restore the dev's real save, no matter what ----
 	if had_save:

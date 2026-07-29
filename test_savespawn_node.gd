@@ -62,13 +62,13 @@ func _ready() -> void:
 	GameState.in_dungeon = false
 	p.global_position = Vector2(-300.0, -150.0)
 	GameState.save_game(p)                             # a complete, valid save file
-	var raw := FileAccess.open(GameState.SAVE_PATH, FileAccess.READ)
+	var raw := FileAccess.open(GameState.active_save_path(), FileAccess.READ)
 	var save: Dictionary = JSON.parse_string(raw.get_as_text())
 	raw.close()
 	save["position_x"] = 0.0
 	save["position_y"] = 0.0                            # the ACTUAL bug: a (0,0) origin save,
 	                                                    # below the village floor (surface y=-39)
-	var w := FileAccess.open(GameState.SAVE_PATH, FileAccess.WRITE)
+	var w := FileAccess.open(GameState.active_save_path(), FileAccess.WRITE)
 	w.store_string(JSON.stringify(save))
 	w.close()
 	GameState.pending_load = true

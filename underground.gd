@@ -1080,10 +1080,21 @@ func _chips(at: Vector2, col: Color, spark: bool) -> void:
 		t.chain().tween_callback(p.queue_free)
 
 # ── persistence: save only the diff ───────────────────────────────────────────
+# the dev's real dig-diff is not a test fixture either (global hunt
+# 2026-07-28): under MONARCH_TEST the tunnels save to a sidecar, same as
+# GameState.active_save_path
+func _save_path() -> String:
+	if OS.has_environment("MONARCH_TEST"):
+		return "user://underground_save_test.json"
+	return SAVE_PATH
+
 func _load_save() -> void:
-	if not FileAccess.file_exists(SAVE_PATH):
-		return
-	var f := FileAccess.open(SAVE_PATH, FileAccess.READ)
+	var path := _save_path()
+	if not FileAccess.file_exists(path):
+		path = _save_path() + ".tmp"      # the crash-window survivor
+		if not FileAccess.file_exists(path):
+			return
+	var f := FileAccess.open(path, FileAccess.READ)
 	var data = JSON.parse_string(f.get_as_text())
 	if typeof(data) != TYPE_DICTIONARY:
 		return
@@ -1106,9 +1117,14 @@ func _save() -> void:
 	var fl := {}
 	for id in _flags.keys():
 		fl[id] = 1
-	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	# tmp-then-rename, like the main save: open(WRITE) truncates at once, and
+	# a crash mid-write used to cost every tunnel ever dug
+	var f := FileAccess.open(_save_path() + ".tmp", FileAccess.WRITE)
 	if f != null:
 		f.store_string(JSON.stringify({"edits": e, "flags": fl}))
+		f.close()
+		DirAccess.remove_absolute(_save_path())
+		DirAccess.rename_absolute(_save_path() + ".tmp", _save_path())
 
 func _exit_tree() -> void:
 	_save()

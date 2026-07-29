@@ -1,6 +1,17 @@
 extends Node
 
 const SAVE_PATH = "user://savegame.json"
+
+# THE DEV'S REAL SAVE IS NOT A TEST FIXTURE (global hunt 2026-07-28).
+# autosave() was already MONARCH_TEST-gated, but three suites call
+# save_game() DIRECTLY (save / cleared / savespawn) -- so every suite run,
+# from any parallel session, banked test fiction over the real playthrough.
+# Under a test harness every save byte now goes to a sidecar instead; the
+# suites still exercise the real save/load code end to end.
+func active_save_path() -> String:
+	if OS.has_environment("MONARCH_TEST"):
+		return "user://savegame_test.json"
+	return SAVE_PATH
 const DEEPEST_LEVEL_PATH = "user://deepest_level.dat"
 
 var pending_load = false
@@ -5460,7 +5471,8 @@ func reset_for_new_game() -> void:
 	_black_omen_armed = true
 
 func has_save() -> bool:
-	return FileAccess.file_exists(SAVE_PATH)
+	return FileAccess.file_exists(active_save_path()) \
+		or FileAccess.file_exists(active_save_path() + ".tmp")
 
 func save_game(player: Node) -> void:
 	var save_pos = pre_dungeon_position if in_dungeon else player.global_position
@@ -5611,17 +5623,35 @@ func save_game(player: Node) -> void:
 		"has_whisperstone": has_whisperstone,
 		"sieges_seen": sieges_seen,
 	}
-	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	# ATOMIC-ish (global hunt 2026-07-28): open(WRITE) TRUNCATES at once, so
+	# a crash mid-serialize used to leave a zero-byte save -- the whole world
+	# gone. Write the sidecar fully first, only then replace the real file;
+	# the worst crash window now leaves a complete .tmp that load_game reads.
+	var tmp := active_save_path() + ".tmp"
+	var file = FileAccess.open(tmp, FileAccess.WRITE)
 	file.store_string(JSON.stringify(data))
 	file.close()
+	DirAccess.remove_absolute(active_save_path())
+	DirAccess.rename_absolute(tmp, active_save_path())
 
 func load_game() -> Dictionary:
 	if not has_save():
 		return {}
-	var file = FileAccess.open(SAVE_PATH, FileAccess.READ)
+	var path := active_save_path()
+	if not FileAccess.file_exists(path):
+		path = active_save_path() + ".tmp"   # the crash-window survivor
+	var file = FileAccess.open(path, FileAccess.READ)
 	var text = file.get_as_text()
 	file.close()
 	var parsed = JSON.parse_string(text)
+	# a CORRUPT save (power cut mid-write, disk hiccup) must never crash the
+	# load nor wipe state -- try the .tmp survivor once, else load nothing
+	if not (parsed is Dictionary) and path == active_save_path() \
+			and FileAccess.file_exists(active_save_path() + ".tmp"):
+		push_warning("savegame.json is corrupt -- falling back to the .tmp survivor")
+		var f2 = FileAccess.open(active_save_path() + ".tmp", FileAccess.READ)
+		parsed = JSON.parse_string(f2.get_as_text())
+		f2.close()
 	if parsed is Dictionary:
 		if parsed.has("difficulty"):
 			difficulty = parsed["difficulty"]
@@ -5915,8 +5945,10 @@ func load_game() -> Dictionary:
 	return {}
 
 func delete_save() -> void:
-	if has_save():
-		DirAccess.remove_absolute(SAVE_PATH)
+	if FileAccess.file_exists(active_save_path()):
+		DirAccess.remove_absolute(active_save_path())
+	if FileAccess.file_exists(active_save_path() + ".tmp"):
+		DirAccess.remove_absolute(active_save_path() + ".tmp")
 
 func rescue_villager(data: Dictionary) -> void:
 	lost_souls.erase(str(data.get("id", "")))   # a soul brought home is no longer lost
