@@ -4089,6 +4089,7 @@ func cast_storm_tome(special: Dictionary) -> void:
 	cloud.column_mode = tkind == "column"
 	cloud.lure_mode = tkind == "lure"
 	cloud.tide_mode = tkind == "tide"
+	cloud.flood_mode = tkind == "flood"
 	cloud.facing = facing_direction
 	# GRAND TOME OF RAINS: twin flanking clouds instead of one
 	if tkind == "twin":
@@ -4104,8 +4105,10 @@ func cast_storm_tome(special: Dictionary) -> void:
 		get_parent().add_child(cloud2)
 		cloud2.global_position = aim_at + Vector2(cloud.radius * 1.4, 0)
 		aim_at += Vector2(-cloud.radius * 1.4, 0)
-	# What the Sky Charges: this storm WALKS toward prey
+	# What the Sky Charges: this storm WALKS toward prey -- and every strike
+	# now also drops a FLARE out of the dark (tome batch 3, Lunar-Flare kin)
 	cloud.drift = str(special.get("rider", "")) == "walker"
+	cloud.flare_strikes = cloud.drift
 	get_parent().add_child(cloud)
 	cloud.global_position = aim_at
 

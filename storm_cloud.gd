@@ -21,8 +21,11 @@ var coven_mode := false      # The Coven's Ledger: a sigil ring pulsing INWARD
 var column_mode := false     # The Deluge: three column eruptions MARCHING forward
 var lure_mode := false       # The Siren's Appendix: gathers, then the verse ends
 var tide_mode := false       # The Tidal Codex: a WALL of water travelling the lane
+var flood_mode := false      # The High Flood: the water RISES where it is cast
+var flare_strikes := false   # What the Sky Charges: each strike also drops a flare
 var facing := 1              # cast-time facing: columns march and tides travel this way
 var _pulse_i := 0            # column/lure bookkeeping
+var _flood_rect: ColorRect = null
 
 var _t := 0.0
 var _next := 0.0
@@ -77,6 +80,15 @@ func _ready() -> void:
 		_cloud.color = Color(0.35, 0.6, 0.9, 0.9)
 		_cloud.position = Vector2(0, -55)
 		_cloud.scale = Vector2(0.35, 1.9)
+	if flood_mode:
+		# THE HIGH FLOOD: no cloud -- the water itself, rising as it works
+		tint = Color(0.35, 0.65, 0.95)
+		_cloud.visible = false
+		_flood_rect = ColorRect.new()
+		_flood_rect.color = Color(0.3, 0.55, 0.9, 0.55)
+		_flood_rect.size = Vector2(radius * 2.0, 8.0)
+		_flood_rect.position = Vector2(-radius, -8.0)
+		add_child(_flood_rect)
 	add_child(_cloud)
 	# the working ring on the ground, faint -- the promise of where it strikes
 	var ring := Line2D.new()
@@ -236,6 +248,29 @@ func _physics_process(delta: float) -> void:
 						e.take_damage(int(round(damage * 2.5)))
 						FloatingText.spawn(get_parent(), e.global_position, int(round(damage * 2.5)), false)
 		return
+	if flood_mode:
+		# THE HIGH FLOOD: the water RISES; what stands in it is lifted and hurt
+		_next = _t + strike_gap
+		var rise_frac: float = clampf(_t / maxf(0.5, duration * 0.7), 0.0, 1.0)
+		var depth: float = 8.0 + 96.0 * rise_frac
+		if _flood_rect != null:
+			_flood_rect.size.y = depth
+			_flood_rect.position.y = -depth
+		for fi2 in range(2):
+			_bubble(global_position + Vector2(randf_range(-radius * 0.8, radius * 0.8), -randf_range(4.0, depth)))
+		for group_name in HOSTILE_GROUPS:
+			for e in get_tree().get_nodes_in_group(group_name):
+				if not is_instance_valid(e) or not e.has_method("take_damage"):
+					continue
+				if "is_dead" in e and e.is_dead:
+					continue
+				if absf(e.global_position.x - global_position.x) <= radius \
+						and e.global_position.y > global_position.y - depth - 20.0:
+					e.take_damage(damage)
+					FloatingText.spawn(get_parent(), e.global_position, damage, false)
+					if e.has_method("apply_knockback"):
+						e.apply_knockback(signf(e.global_position.x - global_position.x + 0.1), 160.0)
+		return
 	if tide_mode:
 		# THE TIDAL CODEX: the wall TRAVELS; what it touches is swept along
 		_next = _t + strike_gap
@@ -276,6 +311,29 @@ func _strike(local: Vector2) -> void:
 	var t := bolt.create_tween()
 	t.tween_property(bolt, "modulate:a", 0.0, 0.22)
 	t.tween_callback(bolt.queue_free)
+	# What the Sky Charges: the strike is answered by a FLARE streaking in
+	# from high above, a beat behind the bolt (Lunar-Flare kin)
+	if flare_strikes:
+		var flare := Polygon2D.new()
+		flare.polygon = PackedVector2Array([Vector2(-3, 8), Vector2(0, -10), Vector2(3, 8)])
+		flare.color = Color(1.0, 0.8, 0.45, 0.95)
+		var fmat := CanvasItemMaterial.new()
+		fmat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		flare.material = fmat
+		add_child(flare)
+		flare.position = local + Vector2(randf_range(-40.0, 40.0), -260.0)
+		var ftw := flare.create_tween()
+		ftw.tween_interval(0.25)
+		ftw.tween_property(flare, "position", local, 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		ftw.tween_callback(func():
+			var wp := to_global(local)
+			for group_name2 in HOSTILE_GROUPS:
+				for e2 in get_tree().get_nodes_in_group(group_name2):
+					if is_instance_valid(e2) and e2.has_method("take_damage") \
+							and not ("is_dead" in e2 and e2.is_dead) \
+							and wp.distance_to(e2.global_position) <= 60.0:
+						e2.take_damage(maxi(1, int(round(damage * 0.6))))
+			flare.queue_free())
 	# the strike lands on anything close to the point
 	var world := to_global(local)
 	for group_name in HOSTILE_GROUPS:

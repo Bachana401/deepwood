@@ -109,6 +109,18 @@ func _ready() -> void:
 	await _settle(1.1)
 	await _shot("t5_tide_wall")
 
+	# ---- t6: THE HIGH FLOOD -- the water rises ----
+	var flood = SC.new()
+	flood.flood_mode = true
+	flood.damage = 12
+	flood.radius = 150.0
+	flood.duration = 5.0
+	flood.strike_gap = 0.4
+	scene.add_child(flood)
+	flood.global_position = p.global_position + Vector2(200.0, 44.0)
+	await _settle(2.2)
+	await _shot("t6_high_flood")
+
 	say("EYES-T: done")
 	get_tree().quit(0)
 
