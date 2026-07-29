@@ -74,6 +74,20 @@ func _ready() -> void:
 	await _settle(0.20)
 	await _shot("c4_court_second_rank")
 
+	await _settle(0.8)
+
+	# ---- THE FINAL EDICT: the arm of the law unfolds down the hall ----
+	p.inventory.add_item("wpn_edictpike", 1)
+	p.wield_weapon("wpn_edictpike")
+	var es: Dictionary = p.active_def.get("special", {})
+	p.launch_projectile(es, Vector2.RIGHT, int(es.get("damage", 26)))
+	await _settle(0.13)
+	await _shot("e1_edict_unfolding")   # mid-extension
+	await _settle(0.16)
+	await _shot("e2_edict_full")        # full reach, blooms along the row
+	await _settle(0.22)
+	await _shot("e3_edict_withdraw")    # the sentence ends
+
 	say("EYES-CROWN: done")
 	get_tree().quit(0)
 

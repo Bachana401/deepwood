@@ -360,8 +360,10 @@ const ROWS = [
 	# fx riders on a shared orbiter became ONE verb you can say in a sentence.
 	["wpn_courtwheel",   "The Whole Court, Spinning", "melee", 8, "court", 33, 0.8, {"count": 4,
 		"fx": [{"kind": "crowd", "pct_per": 0.15, "cap": 0.6}]}],
-	["wpn_edictpike",    "The Final Edict",      "spear", 8, "jab_volley", 30, 0.82, {"count": 6, "status": "burn_w",
-		"fx": [{"kind": "chain", "n": 3, "pct": 1, "range": 280.0}, {"kind": "brand", "amp": 0.42, "dur": 5.0}, {"kind": "quake", "radius": 150.0, "pct": 1}]}],
+	# CROWN TEN #2: apex weapon. Six jabs + three fx riders became one arm of
+	# law that reaches through rock -- the "walls do not apply to me" weapon.
+	["wpn_edictpike",    "The Final Edict",      "spear", 8, "edict", 26, 1.05, {"status": "burn_w",
+		"fx": [{"kind": "brand", "amp": 0.42, "dur": 5.0}]}],
 	["wpn_hollowking",   "The Hollow King's Rain","bow", 8, "lob_a", 47, 0.95, {"aoe": 155, "status": "burn_w",
 		"fx": [{"kind": "soulwisp", "dmg": 14, "pct": 1}, {"kind": "quake", "radius": 170.0, "pct": 1}, {"kind": "moonlit", "pct": 1}]}],
 	["wpn_nightparade",  "Night Parade",         "bow", 8, "seeker", 33, 0.5,  {
@@ -649,6 +651,10 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			# THE WHOLE COURT, SPINNING alone: a RANK of ancestor-blade shades
 			# arrives at once (First-Fractal-kin) -- the apex spectacle weapon
 			s = {"type": "court_barrage", "damage": dmg, "count": int(ex.get("count", 4)), "range": rng + 60.0}
+		"edict":
+			# THE FINAL EDICT alone: the arm of the law extends THROUGH ROCK and
+			# cuts along its whole length (Solar-Eruption-kin, never 1:1)
+			s = {"type": "edict_lash", "damage": dmg, "range": rng + 300.0}
 		"staff":
 			s = {"type": "staff_extend"}
 	if not st.is_empty():
@@ -717,6 +723,7 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"lash":       return "A weaving ribbon that rakes its lane on BOTH passes."
 		"zenith":     return "Every swing frees the GHOST of a blade it culminates: out, one whirl at the far point, and home -- cutting the whole way, each image a different ancestor."
 		"court":      return "Every swing calls the COURT: %d shades of the people you brought home appear at your side, each carrying a different ancestor blade, and all of them sweep at once." % int(ex.get("count", 4))
+		"edict":      return "The law REACHES: a jointed arm of light unfolds the length of the hall, cutting everything along it and blooming where it touches -- and stone does not stop a sentence."
 		"staff":      return "Landed blows in rhythm DRAW IT LONGER; the fourth strikes the earth as a pillar."
 		"arc", "thrust", "shot", "rapid":
 			if ex.has("status"):

@@ -59,6 +59,10 @@ func _apply_status_to(node) -> void:
 					e.apply_status("burn", 3.0, mag)
 
 var beam_tint := Color(0, 0, 0, 0)   # slash: a weapon may colour its crescent
+var _lash_len := 0.0                 # edict_lash: how far the law currently reaches
+var _lash_t := 0.0
+var _lash_line: Line2D = null
+var _lash_hits := {}                 # instance_id -> next time this body may be cut again
 var court_index := 0                 # courtier: which ancestor tint this shade wears
 var court_target := Vector2.ZERO     # courtier: ITS OWN mark (the court spreads out)
 var _zen_start := Vector2.ZERO       # zenith_blade: the three-phase swoop
@@ -144,6 +148,14 @@ func _ready() -> void:
 			_behave_state = 0
 			_orbit_t = 0.0
 			_build_zenithblade()
+		"edict_lash":
+			# THE FINAL EDICT: the law reaches everyone. A segmented arm extends
+			# from the wielder THROUGH solid rock, cuts everything along its
+			# whole length, and blooms where it touches (Solar-Eruption-kin,
+			# never 1:1). It owns its own damage -- no physics body at all.
+			monitoring = false
+			pierce = true
+			_build_edict()
 		"courtier":
 			# THE WHOLE COURT, SPINNING: a shade of someone you brought home,
 			# holding one of the ladder's ancestor blades. Many appear at once
@@ -227,6 +239,9 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind == "courtier":
 		_tick_courtier(delta)
+		return
+	if kind == "edict_lash":
+		_tick_edict(delta)
 		return
 	if kind == "ink_jet":
 		# THE INKWELL OF STORMS: a piercing stream riding a gentle arc --
@@ -779,6 +794,175 @@ func _tick_zenith(delta: float) -> void:
 			global_position += to_home.normalized() * 1300.0 * delta
 			rotation = to_home.angle()
 	_zen_trail_tick()
+
+# THE FINAL EDICT (crown spear, Solar-Eruption-kin never 1:1): the arm of the
+# law extends over 0.26s, holds a beat, and withdraws over 0.24s. It is drawn
+# and damaged along its WHOLE LENGTH, and it does not care about terrain --
+# reaching through rock is the entire point of the weapon.
+const EDICT_OUT := 0.26
+const EDICT_HOLD := 0.1
+const EDICT_BACK := 0.24
+const EDICT_BAND := 34.0     # how far off the line a body still gets cut
+const EDICT_REHIT := 0.22    # the grind: a body inside the arm is cut again
+
+func _tick_edict(delta: float) -> void:
+	_lash_t += delta
+	# the wielder is the anchor -- the arm stays attached while it works
+	if is_instance_valid(source):
+		global_position = source.global_position + Vector2(0, -10.0)
+	if _lash_t <= EDICT_OUT:
+		_lash_len = max_distance * ease(_lash_t / EDICT_OUT, 0.45)
+	elif _lash_t <= EDICT_OUT + EDICT_HOLD:
+		_lash_len = max_distance
+	else:
+		var b := (_lash_t - EDICT_OUT - EDICT_HOLD) / EDICT_BACK
+		_lash_len = max_distance * (1.0 - clampf(b, 0.0, 1.0))
+		if b >= 1.0:
+			done = true
+			queue_free()
+			return
+	# the tip traces a shallow arc as it goes out -- the sweep of a sentence
+	var sweep := sin(clampf(_lash_t / (EDICT_OUT + EDICT_HOLD), 0.0, 1.0) * PI) * 46.0
+	var perp := Vector2(-direction.y, direction.x)
+	var tip: Vector2 = global_position + direction * _lash_len - perp * sweep
+	_draw_edict(tip)
+	_cut_along_edict(tip)
+
+# damage everything within the band of the segment, terrain be damned
+func _cut_along_edict(tip: Vector2) -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	var a := global_position
+	var ab := tip - a
+	var ab_len2 := maxf(1.0, ab.length_squared())
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			var eid := e.get_instance_id()
+			if _lash_hits.has(eid) and now < _lash_hits[eid]:
+				continue
+			# closest point on the arm to this body
+			var t: float = clampf((e.global_position - a).dot(ab) / ab_len2, 0.0, 1.0)
+			var closest: Vector2 = a + ab * t
+			if closest.distance_to(e.global_position) > EDICT_BAND:
+				continue
+			_lash_hits[eid] = now + EDICT_REHIT
+			var landed = e.take_damage(damage)
+			if landed == null or landed:
+				FloatingText.spawn(get_parent(), e.global_position
+					+ Vector2(randf_range(-22.0, 22.0), randf_range(-18.0, 6.0)), damage, is_crit)
+			_apply_status_to(e)
+			_edict_bloom(e.global_position)
+			if is_instance_valid(source) and source.has_method("on_projectile_hit"):
+				source.on_projectile_hit(e, damage)
+
+# every contact blooms: a short bright flare where the law touched
+func _edict_bloom(at: Vector2) -> void:
+	var host := get_parent()
+	if host == null:
+		return
+	var ring := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(10):
+		var ang := TAU * float(i) / 10.0
+		pts.append(Vector2(cos(ang), sin(ang)) * 17.0)
+	ring.polygon = pts
+	ring.color = Color(1.0, 0.86, 0.42, 0.75)
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	ring.material = m
+	ring.z_index = 44
+	host.add_child(ring)
+	ring.global_position = at
+	var tw := ring.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(ring, "scale", Vector2(2.3, 2.3), 0.24)
+	tw.tween_property(ring, "modulate:a", 0.0, 0.24)
+	tw.chain().tween_callback(ring.queue_free)
+
+var _lash_glow: Line2D = null
+var _lash_knuckles: Array = []   # the joints, repositioned each frame (no churn)
+var _lash_head: Polygon2D = null
+
+func _build_edict() -> void:
+	var add_m := CanvasItemMaterial.new()
+	add_m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	# the halo the whole arm sits in
+	_lash_glow = Line2D.new()
+	_lash_glow.top_level = true
+	_lash_glow.width = 40.0 * girth
+	_lash_glow.default_color = Color(1.0, 0.66, 0.18, 0.22)
+	_lash_glow.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	_lash_glow.end_cap_mode = Line2D.LINE_CAP_ROUND
+	_lash_glow.z_index = 42
+	_lash_glow.material = add_m
+	add_child(_lash_glow)
+	# the core: a solid gold cord, NOT additive, so it stays gold instead of
+	# washing out to white against a dark hall
+	_lash_line = Line2D.new()
+	_lash_line.top_level = true
+	_lash_line.width = 15.0 * girth
+	_lash_line.default_color = Color(0.98, 0.74, 0.24, 0.96)
+	_lash_line.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	_lash_line.end_cap_mode = Line2D.LINE_CAP_ROUND
+	_lash_line.z_index = 43
+	add_child(_lash_line)
+	# the joints -- this is what makes it an ARM and not a laser
+	for i in range(7):
+		var k := Polygon2D.new()
+		var kp := PackedVector2Array()
+		for j in range(6):
+			var a := TAU * float(j) / 6.0
+			kp.append(Vector2(cos(a), sin(a)) * 13.0 * girth)
+		k.polygon = kp
+		k.color = Color(1.0, 0.88, 0.5, 0.95)
+		k.top_level = true
+		k.z_index = 44
+		add_child(k)
+		_lash_knuckles.append(k)
+	# the writing tip
+	_lash_head = Polygon2D.new()
+	var hp := PackedVector2Array()
+	for j in range(10):
+		var a2 := TAU * float(j) / 10.0
+		hp.append(Vector2(cos(a2), sin(a2)) * (20.0 if j % 2 == 0 else 9.0) * girth)
+	_lash_head.polygon = hp
+	_lash_head.color = Color(1.0, 0.95, 0.72, 0.95)
+	_lash_head.top_level = true
+	_lash_head.z_index = 45
+	_lash_head.material = add_m
+	add_child(_lash_head)
+
+# the arm is drawn as SEGMENTS -- links of a sentence, brightening to the tip
+func _draw_edict(tip: Vector2) -> void:
+	if _lash_line == null:
+		return
+	var pts := PackedVector2Array()
+	var n := 16
+	var perp := Vector2(-direction.y, direction.x)
+	for i in range(n + 1):
+		var f := float(i) / float(n)
+		var base: Vector2 = global_position.lerp(tip, f)
+		# a real serpentine, wide enough to READ at play zoom -- the arm coils
+		pts.append(base + perp * sin(f * PI * 2.2 + _lash_t * 7.0) * 15.0 * (1.0 - f * 0.35))
+	_lash_line.points = pts
+	_lash_line.width = (14.0 + 3.0 * sin(_lash_t * 18.0)) * girth
+	if _lash_glow != null:
+		_lash_glow.points = pts
+	# seat the joints along the cord, biggest at the wrist, smallest at the tip
+	for ki in range(_lash_knuckles.size()):
+		var k: Polygon2D = _lash_knuckles[ki]
+		var idx: int = int(round(float(ki + 1) / float(_lash_knuckles.size() + 1) * float(n)))
+		k.global_position = pts[clampi(idx, 0, pts.size() - 1)]
+		var taper := 1.0 - 0.55 * (float(ki) / float(maxi(1, _lash_knuckles.size() - 1)))
+		k.scale = Vector2.ONE * taper
+		k.visible = _lash_len > 60.0
+	if _lash_head != null:
+		_lash_head.global_position = pts[pts.size() - 1]
+		_lash_head.rotation = _lash_t * 5.0
+		_lash_head.visible = _lash_len > 40.0
 
 # THE WHOLE COURT, SPINNING: materialise (0.14s, the court arrives) -> sweep
 # together at the mark -> fade out. Deliberately BUSY: this is the culmination
