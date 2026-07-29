@@ -379,10 +379,66 @@ func _ready() -> void:
 	check("THE MATCHMAKER'S ROUND: a grown Bar makes matches with no Publican",
 		mm_dormant == 0 and mm_woken > 0, "dormant=%d woken=%d" % [mm_dormant, mm_woken])
 
-	check("every batch-2 power is named too",
-		GameState.BUILDING_POWERS.size() == 10
-		and str(GameState.BUILDING_POWERS["Mine"]["name"]) == "The Deep Seam",
-		"%d powers declared" % GameState.BUILDING_POWERS.size())
+	# THE UNBROKEN LIGHT: despair takes root in nobody while the light holds
+	var rooted := func(lvl: int) -> int:
+		GameState.building_levels["Shrine"] = lvl
+		GameState.building_stage["Shrine"] = GameState.TOTAL_BUILD_STAGES
+		GameState.building_health["Shrine"] = 100
+		GameState.villager_rot = {}
+		GameState.rescued_villagers = [{"id": "sad", "name": "Sad", "sex": "Male",
+			"is_kid": false, "stat_name": "", "stat_value": 3, "role_key": "",
+			"role_title": "", "morale": 0.0}]
+		GameState.tick_rot(1.0)
+		return GameState.villager_rot.size()
+	var rot_dormant: int = rooted.call(GameState.BUILDING_POWER_LEVEL - 1)
+	var rot_woken: int = rooted.call(GameState.BUILDING_POWER_LEVEL)
+	check("THE UNBROKEN LIGHT: despair takes root in nobody while the light holds",
+		rot_dormant > 0 and rot_woken == 0, "dormant=%d woken=%d" % [rot_dormant, rot_woken])
+
+	# THE WHISPER NETWORK: every material known at once, not one per tick
+	var known := func(lvl: int) -> int:
+		GameState.building_levels["Science Lab"] = lvl
+		GameState.building_stage["Science Lab"] = GameState.TOTAL_BUILD_STAGES
+		GameState.building_health["Science Lab"] = 100
+		GameState.researched_materials = []
+		GameState.auto_research(1)
+		return GameState.researched_materials.size()
+	var known_dormant: int = known.call(GameState.BUILDING_POWER_LEVEL - 1)
+	var known_woken: int = known.call(GameState.BUILDING_POWER_LEVEL)
+	check("THE WHISPER NETWORK: a grown Lab knows every material on sight",
+		known_woken > known_dormant + 1, "dormant=%d woken=%d" % [known_dormant, known_woken])
+
+	# THE LONG NIGHT: a floor under the town's spirit
+	GameState.building_stage["Tavern"] = GameState.TOTAL_BUILD_STAGES
+	GameState.building_health["Tavern"] = 100
+	GameState.village_food = 200.0
+	GameState.morale_death_shock = 0.0
+	GameState.rescued_villagers = [{"id": "bleak", "name": "Bleak", "sex": "Male",
+		"is_kid": false, "stat_name": "", "stat_value": 3, "role_key": "",
+		"role_title": "", "morale": 0.0}]
+	GameState.building_levels["Tavern"] = GameState.BUILDING_POWER_LEVEL - 1
+	var mood_dormant: int = GameState.village_morale()
+	GameState.building_levels["Tavern"] = GameState.BUILDING_POWER_LEVEL
+	var mood_woken: int = GameState.village_morale()
+	check("THE LONG NIGHT: no heart falls all the way to nothing",
+		mood_woken > mood_dormant and mood_woken >= int(GameState.LONG_NIGHT_MORALE_FLOOR),
+		"dormant=%d woken=%d" % [mood_dormant, mood_woken])
+
+	# ALL FIFTEEN declared, named, and described
+	check("all 15 buildings have a named power",
+		GameState.BUILDING_POWERS.size() == 15,
+		"%d declared" % GameState.BUILDING_POWERS.size())
+	var nameless := []
+	for bn in GameState.BUILDING_POWERS.keys():
+		var d: Dictionary = GameState.BUILDING_POWERS[bn]
+		if str(d.get("name", "")) == "" or str(d.get("desc", "")) == "":
+			nameless.append(bn)
+	check("every power carries a name AND a description for the UI",
+		nameless.is_empty(), str(nameless))
+	# the shrink: numbers must now be connective tissue, not the reason to upgrade
+	check("the numeric ladder shrank to connective tissue (<=10%/level)",
+		GameState.BUILDING_OUTPUT_PER_LEVEL <= 0.10,
+		"%.2f per level" % GameState.BUILDING_OUTPUT_PER_LEVEL)
 
 	for bn in GameState.BUILDING_POWERS.keys():
 		GameState.building_levels.erase(bn)

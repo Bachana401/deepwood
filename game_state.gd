@@ -1071,7 +1071,13 @@ func restore_all_buildings() -> void:
 # Higher level = bigger building, more worker slots, and more output. Absent
 # key = level 1. See building.gd for size/slots and the multiplier below.
 var building_levels: Dictionary = {}
-const BUILDING_OUTPUT_PER_LEVEL = 0.25   # +25% output per level over level 1
+# THE SHRINK (dev law 2026-07-29: "stats not important at all"). This was 0.25 --
+# a level-6 building's whole identity was +125% output, and the upgrade UI sold
+# that percentage as the reason to spend ~1650 gold. Numbers are now connective
+# tissue only: the REASON to raise a building is the named power it wakes at
+# BUILDING_POWER_LEVEL (see BUILDING_POWERS), not the trickle of extra output.
+const BUILDING_OUTPUT_PER_LEVEL = 0.05   # +5% output per level over level 1
+const LONG_NIGHT_MORALE_FLOOR := 25.0    # Tavern power: the town's spirit cannot fall below this
 
 func building_level(name: String) -> int:
 	return int(building_levels.get(name, 1))
@@ -1095,6 +1101,11 @@ const BUILDING_POWERS := {
 	"Mine":         {"name": "The Deep Seam", "desc": "The crew breaks into ore the shallow workings never reach."},
 	"Hospital":     {"name": "The Ward That Never Sleeps", "desc": "Whoever is carried in leaves it whole — no trickle, no waiting."},
 	"Bar":          {"name": "The Matchmaker's Round", "desc": "Matches are made unbidden, and a home is raised for the couple that waits."},
+	"Tavern":       {"name": "The Long Night", "desc": "The fire never goes out — grief burns off twice as fast, and no heart falls all the way to nothing."},
+	"Shrine":       {"name": "The Unbroken Light", "desc": "The light holds — despair can no longer take root in anyone."},
+	"Bank":         {"name": "The Ledger That Pays", "desc": "The Bank covers any shortfall — payday never touches your purse again."},
+	"Marketplace":  {"name": "The Caravan Road", "desc": "The road knows Deepwood — traders come far more often, and never stop coming."},
+	"Science Lab":  {"name": "The Whisper Network", "desc": "Every material is known on sight — nothing waits to be identified."},
 }
 # The Deep Seam's yield: skill materials the Mine has no other way to produce.
 const DEEP_SEAM_MATERIALS := ["ember_crystal", "iron_shard", "resin"]
@@ -1893,7 +1904,10 @@ func tick_village_clock() -> void:
 	tick_hidden_events()      # secret event bosses, woken by what the player does
 	if hours_passed > 0.0:
 		# grief heals with time -- the forgiving half of the death-shock system
-		morale_death_shock = maxf(0.0, morale_death_shock - hours_passed * DEATH_SHOCK_DECAY_PER_HOUR * (2.0 if ten_freed("ten_seraphel") else 1.0))
+		# THE LONG NIGHT (Tavern power): the fire never goes out, and grief burns
+		# off twice as fast in a room that stays warm
+		morale_death_shock = maxf(0.0, morale_death_shock - hours_passed * DEATH_SHOCK_DECAY_PER_HOUR \
+			* (2.0 if ten_freed("ten_seraphel") else 1.0) * (2.0 if has_building_power("Tavern") else 1.0))
 		tick_food(hours_passed)          # eat/produce first, so hunger drain sees fresh state
 		tick_morale_effects(hours_passed)
 		tick_village_tribute(hours_passed)
@@ -3387,6 +3401,10 @@ func village_morale() -> int:
 	for v in rescued_villagers:
 		total += get_personal_morale(v)
 	var avg100 := total / float(rescued_villagers.size()) * 10.0
+	# THE LONG NIGHT (Tavern power): somewhere warm to sit means no heart falls
+	# ALL the way to nothing -- a floor under the town's spirit, not a bonus on top
+	if has_building_power("Tavern") and has_food():
+		avg100 = maxf(avg100, LONG_NIGHT_MORALE_FLOOR)
 	# morale_admin_offset is a dev-panel nudge (0 in normal play)
 	return clampi(int(round(avg100)) + morale_admin_offset, 0, 100)
 
@@ -3544,7 +3562,11 @@ func tick_rot(_hours_passed: float) -> void:
 		# reach entirely (pledged, needless); the Ten are UNBREAKABLE -- hope not even
 		# a starving village can kill (every other loss path already exempts them).
 		# None ever enters the rot.
-		if is_warrior_villager(v) or v.get("shadow", false) or v.get("unbreakable", false):
+		# THE UNBROKEN LIGHT (Shrine power): while the light holds, despair takes
+		# root in nobody -- the Shrine stops corruption SPREADING, which is a
+		# different mercy from cleansing someone it already took.
+		if is_warrior_villager(v) or v.get("shadow", false) or v.get("unbreakable", false) \
+				or has_building_power("Shrine"):
 			villager_rot.erase(id)
 			continue
 		var m := get_personal_morale(v)
@@ -4386,6 +4408,7 @@ const WANDERER_SHOWPIECE_MARKUP := 1.6  # the best piece opens steep -- hospital
 const WANDERER_GAP_MIN := 12.0
 const WANDERER_GAP_MAX := 30.0
 const WANDERER_DISCOUNT_MAX := 0.25    # a happy town's slow markdown across the stay
+const CARAVAN_ROAD_GAP_MULT := 0.35    # Marketplace power: the road brings carts ~3x as often
 const WANDERER_NEVER_SOLD = ["wpn_soulsplit", "relic_rewound_hour", "wpn_wand"]
 var wanderer: Dictionary = {}          # active seller: name/arrived/dwell/stock/tier
 var wanderer_next_at_hours := 8.0      # the first drifts in early on day one
@@ -4409,7 +4432,12 @@ func tick_wanderers(_hours_passed: float) -> void:
 	elif game_hours >= float(wanderer["arrived"]) + float(wanderer["dwell"]):
 		log_event("economy", "%s packed the cart and moved on." % str(wanderer.get("name", "The wanderer")))
 		wanderer = {}
-		wanderer_next_at_hours = game_hours + randf_range(WANDERER_GAP_MIN, WANDERER_GAP_MAX)
+		# THE CARAVAN ROAD (Marketplace power): the road knows Deepwood now -- the
+		# next cart is already on its way instead of maybe turning up in a day.
+		var gap := randf_range(WANDERER_GAP_MIN, WANDERER_GAP_MAX)
+		if has_building_power("Marketplace"):
+			gap *= CARAVAN_ROAD_GAP_MULT
+		wanderer_next_at_hours = game_hours + gap
 
 # canon curve: 5/10+ hospitality earns the full ~24h stay; below it the
 # visit shortens with the gloom, down to a 6-hour stop-and-go
@@ -4569,8 +4597,12 @@ func tick_wages(hours_passed: float) -> void:
 		var pay_total: int = int(round(per * float(affordable)))
 		var from_treasury: int = mini(village_treasury, pay_total)
 		village_treasury -= from_treasury
-		if pay_total - from_treasury > 0:
+		# THE LEDGER THAT PAYS (Bank power): a grown Bank covers the shortfall on
+		# its own books -- payday never reaches the player's purse again.
+		if pay_total - from_treasury > 0 and not has_building_power("Bank"):
 			player.add_currency(-(pay_total - from_treasury))
+		elif pay_total - from_treasury > 0:
+			log_event("economy", "The Ledger covered the shortfall — %d gold, none of it yours." % (pay_total - from_treasury))
 		_bank_paid_full_payroll = affordable == staff.size() and from_treasury >= pay_total
 		if _bank_paid_full_payroll:
 			log_event("economy", "The Bank met the whole payroll — %d gold, not a coin from your purse." % pay_total)
@@ -4967,6 +4999,10 @@ func role_capacity(building_key: String, role_def: Dictionary) -> int:
 	return int(role_def.get("slots", 0))
 
 func auto_research(n: int) -> void:
+	# THE WHISPER NETWORK (Science Lab power): a grown Lab knows every material on
+	# sight -- nothing sits in the queue waiting to be identified.
+	if has_building_power("Science Lab"):
+		n = Inventory.ITEM_DEFS.size()
 	var done := 0
 	for item_id in Inventory.ITEM_DEFS.keys():
 		if done >= n:

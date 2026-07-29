@@ -238,6 +238,26 @@ func add_upgrade_section(list: VBoxContainer) -> void:
 	info.text = "  +%d worker slots · +%d%% output at this level" % [(b.building_level - 1) * b.SLOTS_PER_LEVEL, lvl_pct]
 	list.add_child(info)
 
+	# ---- THE NAMED POWER: what raising this building is really FOR ----
+	# (dev law 2026-07-29: stats aren't where power lives. The percentage above is
+	# connective tissue; THIS is the reason to spend the gold, so it must be the
+	# loudest thing in the panel -- and visible from level 1 as a promise.)
+	if GameState.BUILDING_POWERS.has(b.building_name):
+		var pw: Dictionary = GameState.BUILDING_POWERS[b.building_name]
+		var woken: bool = GameState.has_building_power(b.building_name)
+		var pl = Label.new()
+		pl.add_theme_font_size_override("font_size", 12)
+		pl.autowrap_mode = TextServer.AUTOWRAP_WORD
+		pl.custom_minimum_size = Vector2(300, 0)
+		if woken:
+			pl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.35, 1))
+			pl.text = "  ★ %s — awake.\n     %s" % [str(pw.get("name", "")), str(pw.get("desc", ""))]
+		else:
+			pl.add_theme_color_override("font_color", Color(0.62, 0.66, 0.78, 1))
+			pl.text = "  ☆ %s — wakes at level %d.\n     %s" % [
+				str(pw.get("name", "")), GameState.BUILDING_POWER_LEVEL, str(pw.get("desc", ""))]
+		list.add_child(pl)
+
 	# ---- ADJACENCY SYNERGY: what this building's NEIGHBOURS are worth ----
 	var links: Array = GameState.adjacency_links(b.building_name)
 	var syn = Label.new()
