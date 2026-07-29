@@ -437,3 +437,31 @@ Mushroom (divebomb 133% then teleport home); Blade Staff (6 dmg, 25 pen —
 hit-RATE thesis, whips double it); Ballista Panic (turret goes berserk when
 the PLAYER takes a hit — defender fantasy); Explosive Trap (self-rearming
 mines); Snapthorn/Durendal/Dark Harvest (whip-speed ramp while hitting).
+## MAGIC DEEP SCAN 2026-07-29 — ALL 76 WEAPONS (scan complete; ALL FOUR CATEGORIES DONE)
+Top verbs (ALL candidates): Last Prism (6 beams CONVERGE over 3.4s into one
+annihilation ray; mana cost climbs as it focuses — commitment dial); Charged
+Blaster (4 verbs by HOLD duration: tap/burst/heavy orb/sweeping death beam);
+Nebula Arcanum (mothership orb accretes orbiting drones then bursts into
+10-16 seekers); Killing Deck (stick cards then RECALL all through walls at
+150% — set up, then harvest); Magnet Sphere (drifting orb auto-zaps nearest
+— projectile that is a turret); Zapinators (chaos table: teleport/reverse/
+x10 jackpots); Ice Rod (conjures SOLID terrain midair — spell as bridge);
+Rainbow Gun (paints a 40s persistent damaging arc IN THE WORLD); Blood
+Thorn (attacks erupt FROM terrain at the cursor); Magical Harp (cursor
+DISTANCE sets projectile speed; infinite pierce+bounce); Stellar Tune
+(stars arrive at cursor in fixed 0.5s, lead targets); Life Drain (channeled
+drain aura, healing scales with enemies drained); Magic Missile family
+(hold-to-STEER, home on release — one mechanic maturing 3 tiers); Clinger
+(15-tile standing firewall 5min); Nimbus (2 placeable rainclouds 5min);
+Water Bolt (10-pierce 30s ricochet ball + lava supercharge); Shadowbeam
+(instant beam FOLDS around the room off walls); Nebula Blaze (1-in-5
+jackpot bolt at 300%); Medusa Head (held gaze aura, mana only ON HIT);
+Staff of Earth (physics boulder, damage scales with ROLL SPEED); Vilethorn→
+CrystalVile→Nettle (wall-phasing lance family = 3-tier upgrade chain model);
+Demon Scythe (stationary then accelerating buzzsaw); Weather Pain (parked
+grinder tornado); Inferno Fork (lingering firestorm); Tome of Infinite
+Wisdom (right-click terrain-crawling tornado); Spirit Flame (aimless wrath
+finds targets); Razorpine (zero-gimmick hose DONE WELL earns a slot);
+Betsy's Wrath/Golden Shower (defense-shred sticks defining loadouts);
+Sky Fracture (3 swords from mini-portals); Blizzard/Meteor/Lunar Flare
+(sky-rain ladder, Lunar phases through terrain to cursor depth).
