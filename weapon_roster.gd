@@ -223,7 +223,7 @@ const ROWS = [
 	["wpn_bogmortar",    "Bog Belcher",          "bow",   3, "lob_a",     17, 1.0,  {"aoe": 80, "plain": true}],
 	["wpn_lightstep",    "Lightstep",            "bow",   3, "rapid",     6,  0.19, {"plain": true}],
 	["wpn_hollowbolt",   "Hollowbolt",           "wand",  3, "bolt",      15, 0.5,  {"plain": true}],
-	["wpn_mirebook",     "The Mire Pages",       "wand",  3, "tome",      8,  1.45, {"radius": 120, "fx": [{"kind": "mendstrike", "chance": 0.28, "hp": 3}, {"kind": "gravity", "radius": 170.0, "pull": 120.0}]}],
+	["wpn_mirebook",     "The Mire Pages",       "wand",  3, "tome",      8,  1.45, {"radius": 120, "tome_kind": "mire", "fx": [{"kind": "mendstrike", "chance": 0.28, "hp": 3}, {"kind": "gravity", "radius": 170.0, "pull": 120.0}]}],
 	["wpn_shalewand",    "Shalebreaker",         "wand",  3, "cluster",   14, 0.85, {"shards": 5, "fx": [{"kind": "windup", "every": 4, "pct": 0.94}, {"kind": "gravity", "radius": 165.0, "pull": 120.0}]}],
 	["wpn_pyrelight",    "Pyrelight",            "wand",  3, "fire",      18, 0.8,  {"aoe": 95, "status": "burn_w", "plain": true}],
 	["wpn_courierrod",   "Courier's Bad News",   "wand",  3, "ricochet",  12, 0.62, {"bounces": 3, "plain": true}],
@@ -248,7 +248,7 @@ const ROWS = [
 	["wpn_huntmaster",   "Huntmaster's Word",    "bow",   4, "seeker",    15, 0.62, {"fx": [{"kind": "farsight", "min_dist": 260.0, "pct": 0.57}, {"kind": "echo", "pct": 0.55, "delay": 0.4}]}],
 	["wpn_sapperkiss",   "Sapper's Kiss",        "bow",   4, "lob_a",     23, 1.0,  {"aoe": 95, "status": "burn_w", "plain": true}],
 	["wpn_glasstring",   "Glasstring",           "bow",   4, "shot",      17, 0.5,  {"status": "slow_w", "plain": true}],
-	["wpn_covenbook",    "The Coven's Ledger",   "wand",  4, "tome",      10, 1.4,  {"radius": 135, "fx": [{"kind": "mendstrike", "chance": 0.32, "hp": 3}, {"kind": "sparkfly", "n": 1, "pct": 0.5}]}],
+	["wpn_covenbook",    "The Coven's Ledger",   "wand",  4, "tome",      10, 1.4,  {"radius": 135, "tome_kind": "coven", "fx": [{"kind": "mendstrike", "chance": 0.32, "hp": 3}, {"kind": "sparkfly", "n": 1, "pct": 0.5}]}],
 	["wpn_frostwrit",    "Frost Writ",           "wand",  4, "frost",     19, 0.55, {"status": "slow_w", "plain": true}],
 	["wpn_gloamburst",   "Gloamburst",           "wand",  4, "cluster",   19, 0.8,  {"shards": 6, "fx": [{"kind": "sparkfly", "n": 2, "pct": 0.45}, {"kind": "bloodprice", "pct": 0.45, "cost": 1}]}],
 	["wpn_howlbolt",     "Howling Bolt",         "wand",  4, "ricochet",  16, 0.58, {"bounces": 4, "fx": [{"kind": "sparkfly", "n": 1, "pct": 0.57}, {"kind": "quake", "radius": 140.0, "pct": 0.47}]}],
@@ -611,6 +611,10 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			s = {"type": "cluster", "damage": dmg, "speed": spd, "range": rng, "shards": int(ex.get("shards", 5))}
 		"tome":
 			s = {"type": "tome_storm", "damage": dmg, "range": rng + 60.0, "radius": float(ex.get("radius", 130.0)), "dur": 4.5, "gap": 0.4}
+			# no two tomes cast the same shape: the row's tome_kind rides into
+			# cast_storm_tome and picks the zone's whole character
+			if ex.has("tome_kind"):
+				s["tome_kind"] = str(ex["tome_kind"])
 		"sentry":
 			s = {"type": "sentry", "damage": dmg, "dur": float(ex.get("dur", 16.0)), "gap": 0.85}
 		"orbiter":

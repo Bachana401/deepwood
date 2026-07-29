@@ -4081,6 +4081,10 @@ func cast_storm_tome(special: Dictionary) -> void:
 	cloud.strike_gap = float(special.get("gap", 0.4))
 	cloud.tint = active_def.get("color", Color(0.55, 0.75, 1.0))
 	cloud.source = self
+	# TOME VERBS (attack-verb overhaul): no two tomes cast the same shape --
+	# the row's tome_kind picks the zone's whole character
+	cloud.mire_mode = str(special.get("tome_kind", "")) == "mire"
+	cloud.coven_mode = str(special.get("tome_kind", "")) == "coven"
 	# What the Sky Charges: this storm WALKS toward prey
 	cloud.drift = str(special.get("rider", "")) == "walker"
 	get_parent().add_child(cloud)

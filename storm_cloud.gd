@@ -13,6 +13,10 @@ var source: Node2D = null    # the caster (for on-kill credits later)
 # flagship variants (2026-07-28):
 var sun_mode := false        # A Small Personal Sun: a grounded sunlet, warm palette
 var drift := false           # What the Sky Charges: the storm WALKS toward prey
+# TOME VERBS (attack-verb overhaul 2026-07-28: "Mire Pages and Coven's Ledger
+# have exactly the same skill" -- dev. No two tomes cast the same shape now):
+var mire_mode := false       # The Mire Pages: a creeping BOG that slows+poisons
+var coven_mode := false      # The Coven's Ledger: a sigil ring pulsing INWARD
 
 var _t := 0.0
 var _next := 0.0
@@ -41,6 +45,18 @@ func _ready() -> void:
 		_cloud.color = Color(1.0, 0.75, 0.3, 0.85)
 		_cloud.position = Vector2(0, -46)
 		_cloud.scale = Vector2(0.55, 0.9)
+	if mire_mode:
+		# THE MIRE PAGES: no cloud -- a low BOG slick lying ON the ground,
+		# bright bile-green, breathing; it slows and sickens what stands in it
+		tint = Color(0.5, 0.72, 0.32)
+		_cloud.color = Color(0.5, 0.78, 0.3, 1.0)
+		_cloud.position = Vector2(0, 2)
+		_cloud.scale = Vector2(2.2, 0.42)
+	if coven_mode:
+		# THE COVEN'S LEDGER: no cloud at all -- the sigil RING is the cast,
+		# violet, closing its circle three times
+		tint = Color(0.8, 0.5, 1.0)
+		_cloud.visible = false
 	add_child(_cloud)
 	# the working ring on the ground, faint -- the promise of where it strikes
 	var ring := Line2D.new()
@@ -51,12 +67,24 @@ func _ready() -> void:
 	ring.points = rp
 	ring.width = 3.0
 	ring.default_color = Color(tint.r, tint.g, tint.b, 0.55)
+	# the zone verbs live or die by their ring (EYES: 0.55 vanished at night)
+	if mire_mode or coven_mode:
+		ring.width = 4.5
+		ring.default_color = Color(tint.r, tint.g, tint.b, 0.95)
+		var ring_mat := CanvasItemMaterial.new()
+		ring_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		ring.material = ring_mat
+		# the bog BODY stays solid paint (additive washed it out -- EYES);
+		# only its ring glows
 	add_child(ring)
 
 func _physics_process(delta: float) -> void:
 	_t += delta
-	if _cloud != null and not sun_mode:
+	if _cloud != null and not sun_mode and not mire_mode and not coven_mode:
 		_cloud.position.y = -110.0 + sin(_t * 2.2) * 5.0
+	elif _cloud != null and mire_mode:
+		# the bog BREATHES in place instead of bobbing in the sky
+		_cloud.scale.y = 0.3 + sin(_t * 3.0) * 0.05
 	# What the Sky Charges: the storm walks its ring toward the nearest prey
 	if drift:
 		var prey := _nearest_hostile(700.0)
@@ -71,6 +99,61 @@ func _physics_process(delta: float) -> void:
 		set_physics_process(false)
 		return
 	if _t < _next:
+		return
+	if mire_mode:
+		# the bog doesn't strike -- it SOAKS: everything standing in the
+		# slick takes its toll and comes away slowed and sickened. And it
+		# BREATHES visibly: ambient bubbles rise whether anyone stands in
+		# it or not (the particle-density bar: OP zones shed light)
+		_next = _t + strike_gap
+		for bi in range(3):
+			_bubble(global_position + Vector2(randf_range(-radius * 0.8, radius * 0.8), 0))
+		var world_c := global_position
+		for group_name in HOSTILE_GROUPS:
+			for e in get_tree().get_nodes_in_group(group_name):
+				if not is_instance_valid(e) or not e.has_method("take_damage"):
+					continue
+				if "is_dead" in e and e.is_dead:
+					continue
+				if absf(e.global_position.x - world_c.x) <= radius \
+						and absf(e.global_position.y - world_c.y) <= 70.0:
+					e.take_damage(damage)
+					FloatingText.spawn(get_parent(), e.global_position, damage, false)
+					if e.has_method("apply_status"):
+						e.apply_status("slow", 1.2, 0.5)
+						e.apply_status("poison", 2.0, 2.0)
+					_bubble(e.global_position)
+		return
+	if coven_mode:
+		# the ledger closes its circle three times; the circle COLLECTS --
+		# and every pulse sheds violet sparks around the rim
+		_next = _t + maxf(0.6, duration / 3.0)
+		var pulse := create_tween()
+		pulse.tween_property(self, "scale", Vector2(1.12, 1.12), 0.12)
+		pulse.tween_property(self, "scale", Vector2.ONE, 0.14)
+		for si in range(8):
+			var a := TAU * float(si) / 8.0
+			var spark := Polygon2D.new()
+			spark.polygon = PackedVector2Array([Vector2(-2.5, 0), Vector2(0, -5), Vector2(2.5, 0), Vector2(0, 5)])
+			spark.color = Color(0.85, 0.6, 1.0, 0.95)
+			get_parent().add_child(spark)
+			spark.global_position = global_position + Vector2(cos(a), sin(a) * 0.35) * radius
+			var stw := spark.create_tween()
+			stw.set_parallel(true)
+			stw.tween_property(spark, "global_position", spark.global_position + Vector2(cos(a), sin(a) * 0.35) * -radius * 0.5, 0.4)
+			stw.tween_property(spark, "modulate:a", 0.0, 0.4)
+			stw.chain().tween_callback(spark.queue_free)
+		for group_name in HOSTILE_GROUPS:
+			for e in get_tree().get_nodes_in_group(group_name):
+				if not is_instance_valid(e) or not e.has_method("take_damage"):
+					continue
+				if "is_dead" in e and e.is_dead:
+					continue
+				if global_position.distance_to(e.global_position) <= radius:
+					e.take_damage(int(round(damage * 1.5)))
+					FloatingText.spawn(get_parent(), e.global_position, int(round(damage * 1.5)), false)
+					if e.has_method("apply_knockback"):
+						e.apply_knockback(signf(global_position.x - e.global_position.x), 140.0)
 		return
 	_next = _t + strike_gap
 	var x := randf_range(-radius, radius)
@@ -107,6 +190,23 @@ func _strike(local: Vector2) -> void:
 				FloatingText.spawn(get_parent(), e.global_position, damage, false)
 				if sun_mode and e.has_method("apply_status"):
 					e.apply_status("burn", 2.0, 4.0)   # the sunlet clings
+
+# a bog bubble: rises a little way and pops (mire_mode's breathing)
+func _bubble(at: Vector2) -> void:
+	var b := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(8):
+		var a := TAU * float(i) / 8.0
+		pts.append(Vector2(cos(a), sin(a)) * 3.5)
+	b.polygon = pts
+	b.color = Color(0.55, 0.75, 0.4, 0.8)
+	get_parent().add_child(b)
+	b.global_position = at + Vector2(randf_range(-14.0, 14.0), -4.0)
+	var t := b.create_tween()
+	t.set_parallel(true)
+	t.tween_property(b, "global_position", b.global_position + Vector2(0, -22.0), 0.5)
+	t.tween_property(b, "modulate:a", 0.0, 0.5)
+	t.chain().tween_callback(b.queue_free)
 
 func _nearest_hostile(within: float) -> Node2D:
 	var best: Node2D = null

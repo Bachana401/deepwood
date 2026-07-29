@@ -391,6 +391,22 @@ static func _comet_star(p: Node, from: Vector2, tid: int, dmg: int, dur: float, 
 	var tw := head.create_tween()
 	tw.tween_property(head, "global_position", to, dur).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tw.parallel().tween_property(head, "rotation", 2.6, dur)
+	# the comet SHEDS as it falls (particle-density bar: OP weapons rain
+	# light constantly, not only at impact)
+	for shed_i in range(3):
+		var at_frac := 0.25 + 0.25 * float(shed_i)
+		var shed_pos := from.lerp(to, at_frac) + Vector2(randf_range(-8.0, 8.0), 0)
+		var sd := ColorRect.new()
+		sd.color = Color(tint.r, tint.g, tint.b, 0.85)
+		sd.size = Vector2(3, 3) * _gscale(p)
+		sd.position = shed_pos
+		sd.z_index = 41
+		_stage(p).add_child(sd)
+		var sdt := sd.create_tween()
+		sdt.set_parallel(true)
+		sdt.tween_property(sd, "position", sd.position + Vector2(randf_range(-14.0, 14.0), 18.0), 0.55)
+		sdt.tween_property(sd, "modulate:a", 0.0, 0.55)
+		sdt.chain().tween_callback(sd.queue_free)
 	tw.tween_callback(func():
 		var t = instance_from_id(tid)
 		if t != null and is_instance_valid(t) and t.has_method("take_damage"):
