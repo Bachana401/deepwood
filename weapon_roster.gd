@@ -356,8 +356,10 @@ const ROWS = [
 		"fx": [{"kind": "stormcall", "every": 3, "pct": 1.6}, {"kind": "gravity", "radius": 200.0, "pull": 170.0}, {"kind": "bloodprice", "pct": 1, "cost": 1}]}],
 	["wpn_worldslash",   "A Cut Across the World","melee", 8, "crescent", 38, 0.52, {"p_damage": 40,
 		"fx": [{"kind": "splinter", "n": 5, "pct": 1, "range": 200.0}, {"kind": "echo", "pct": 1, "delay": 0.45}, {"kind": "rend", "pct_per": 0.12, "max": 6}]}],
-	["wpn_courtwheel",   "The Whole Court, Spinning", "melee", 8, "orbiter", 35, 0.72, {"dwell": 4.2,
-		"fx": [{"kind": "gravity", "radius": 250.0, "pull": 190.0}, {"kind": "crowd", "pct_per": 0.15, "cap": 0.6}, {"kind": "frostbloom", "radius": 170.0}]}],
+	# THE CROWN TEN (overhaul wave, 2026-07-29): apex weapon #1. Three stacked
+	# fx riders on a shared orbiter became ONE verb you can say in a sentence.
+	["wpn_courtwheel",   "The Whole Court, Spinning", "melee", 8, "court", 33, 0.8, {"count": 4,
+		"fx": [{"kind": "crowd", "pct_per": 0.15, "cap": 0.6}]}],
 	["wpn_edictpike",    "The Final Edict",      "spear", 8, "jab_volley", 30, 0.82, {"count": 6, "status": "burn_w",
 		"fx": [{"kind": "chain", "n": 3, "pct": 1, "range": 280.0}, {"kind": "brand", "amp": 0.42, "dur": 5.0}, {"kind": "quake", "radius": 150.0, "pct": 1}]}],
 	["wpn_hollowking",   "The Hollow King's Rain","bow", 8, "lob_a", 47, 0.95, {"aoe": 155, "status": "burn_w",
@@ -643,6 +645,10 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			# THE LAST WORD alone: every swing looses a ghost-image of an
 			# ancestor blade -- out, whirl, home (Zenith-kin, never 1:1)
 			s = {"type": "zenith_blade", "damage": dmg, "speed": spd, "range": rng + 140.0}
+		"court":
+			# THE WHOLE COURT, SPINNING alone: a RANK of ancestor-blade shades
+			# arrives at once (First-Fractal-kin) -- the apex spectacle weapon
+			s = {"type": "court_barrage", "damage": dmg, "count": int(ex.get("count", 4)), "range": rng + 60.0}
 		"staff":
 			s = {"type": "staff_extend"}
 	if not st.is_empty():
@@ -710,6 +716,7 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"chain_maul": return "WHIRLS about you gathering speed, hurls itself as a comet, then hauls back on its chain."
 		"lash":       return "A weaving ribbon that rakes its lane on BOTH passes."
 		"zenith":     return "Every swing frees the GHOST of a blade it culminates: out, one whirl at the far point, and home -- cutting the whole way, each image a different ancestor."
+		"court":      return "Every swing calls the COURT: %d shades of the people you brought home appear at your side, each carrying a different ancestor blade, and all of them sweep at once." % int(ex.get("count", 4))
 		"staff":      return "Landed blows in rhythm DRAW IT LONGER; the fourth strikes the earth as a pillar."
 		"arc", "thrust", "shot", "rapid":
 			if ex.has("status"):

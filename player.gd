@@ -3766,6 +3766,10 @@ func perform_attack() -> void:
 	# out, whirl, home (the projectile owns the whole flight)
 	elif special_type == "zenith_blade":
 		launch_projectile(special, aim_dir, int(round(special.get("damage", 10) * skill_damage_mult("melee"))))
+	# THE WHOLE COURT, SPINNING: the swing calls the people you brought home --
+	# several shades at once, each carrying a different ancestor blade
+	elif special_type == "court_barrage":
+		unleash_court(special, aim_dir)
 	# High-grade blades hurl the swing itself forward as a crescent. This is how
 	# a melee weapon earns ranged comfort -- the replacement for the old
 	# levitation reach, except you EARN it by finding the weapon instead of
@@ -4079,6 +4083,57 @@ func swing_slash_config() -> Dictionary:
 	if explicit.has("status"):
 		out["status"] = explicit["status"]
 	return out
+
+# THE WHOLE COURT, SPINNING (crown melee, First-Fractal-kin never 1:1): every
+# swing materialises a rank of courtiers -- shades of the villagers you
+# rescued -- fanned around the wielder, each wearing a DIFFERENT ancestor
+# tint, each finding its own mark and sweeping. The court fights beside you.
+# Deliberately busy: the culmination weapon is allowed to break the crown rule.
+const COURT_SCRIPT = preload("res://weapon_projectile.gd")
+var _court_cycle := 0
+func unleash_court(special: Dictionary, aim_dir: Vector2) -> void:
+	var n: int = int(special.get("count", 4))
+	var reach := float(special.get("range", 420.0))
+	var base := int(round(float(special.get("damage", 10)) * skill_damage_mult("melee")))
+	# gather the marks first: the court SPREADS across the row, one shade per
+	# body where it can, doubling up only when the court outnumbers the foes
+	var marks: Array = []
+	for group_name in ["course_enemy", "dungeon_combatant", "siege_enemy"]:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if global_position.distance_to(e.global_position) <= reach \
+					and (e.global_position - global_position).dot(aim_dir) > -40.0:
+				marks.append(e)
+	marks.sort_custom(func(a, b): return global_position.distance_to(a.global_position) \
+		< global_position.distance_to(b.global_position))
+	# each shade rolls its own crit -- the court is many people, not one blow
+	for i in range(n):
+		var cr = roll_crit(base)
+		var c = COURT_SCRIPT.new()
+		c.kind = "courtier"
+		c.court_index = _court_cycle + i
+		c.damage = cr[0]
+		c.is_crit = cr[1]
+		c.direction = aim_dir
+		c.max_distance = reach
+		c.girth = maxf(0.4, float(special.get("girth", 1.0)))
+		c.element = Inventory.element_of(active_weapon_id)
+		c.on_hit_status = special.get("status", {})
+		c.source = self
+		if not marks.is_empty():
+			c.court_target = marks[i % marks.size()].global_position
+		# fanned rank: spread across the swing arc, alternating high and low so
+		# the court reads as a LINE of people, not a stack
+		var spread := deg_to_rad(52.0)
+		var frac := 0.0 if n <= 1 else float(i) / float(n - 1) - 0.5
+		var off := aim_dir.rotated(frac * spread) * 46.0 + Vector2(0, -18.0 + 26.0 * float(i % 2))
+		c.position = global_position + off
+		get_parent().add_child(c)
+	_court_cycle = (_court_cycle + n) % WeaponFx.LEGACY_TINTS.size()
+	SfxSynth.play_at(self, global_position, "chime", -10.0, 0.8)
 
 func launch_swing_slash(cfg: Dictionary, dir: Vector2, stats: Dictionary) -> void:
 	var mult := float(cfg.get("damage_mult", 0.5))

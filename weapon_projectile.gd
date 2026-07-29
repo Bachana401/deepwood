@@ -59,6 +59,8 @@ func _apply_status_to(node) -> void:
 					e.apply_status("burn", 3.0, mag)
 
 var beam_tint := Color(0, 0, 0, 0)   # slash: a weapon may colour its crescent
+var court_index := 0                 # courtier: which ancestor tint this shade wears
+var court_target := Vector2.ZERO     # courtier: ITS OWN mark (the court spreads out)
 var _zen_start := Vector2.ZERO       # zenith_blade: the three-phase swoop
 var _zen_target := Vector2.ZERO
 var _zen_tint := Color.WHITE
@@ -113,6 +115,8 @@ func _ready() -> void:
 		shape.size = Vector2(44, 58) * girth
 	elif kind == "zenith_blade":
 		shape.size = Vector2(52, 52) * girth
+	elif kind == "courtier":
+		shape.size = Vector2(46, 46) * girth
 	cs.shape = shape
 	add_child(cs)
 	body_entered.connect(_on_body_entered)
@@ -140,6 +144,28 @@ func _ready() -> void:
 			_behave_state = 0
 			_orbit_t = 0.0
 			_build_zenithblade()
+		"courtier":
+			# THE WHOLE COURT, SPINNING: a shade of someone you brought home,
+			# holding one of the ladder's ancestor blades. Many appear at once
+			# (First-Fractal-kin, never 1:1) -- they materialise around the
+			# wielder, hold a beat, then all sweep together.
+			pierce = true
+			_zen_tint = WeaponFx.LEGACY_TINTS[court_index % WeaponFx.LEGACY_TINTS.size()]
+			_zen_start = global_position
+			# each shade takes ITS OWN mark when the caller assigned one, so a
+			# rank of courtiers fans across the row instead of bunching on one
+			# body; falls back to the nearest when the court outnumbers the foes
+			if court_target != Vector2.ZERO:
+				_zen_target = court_target
+			else:
+				_zen_target = global_position + direction * max_distance
+				var cprey := _nearest_hostile_node(max_distance)
+				if cprey != null:
+					_zen_target = cprey.global_position
+			_behave_state = 0
+			_orbit_t = 0.0
+			_build_courtier()
+			modulate.a = 0.0
 		"javelin": _build_javelin()
 		"fireball": _build_fireball()
 		"frost_shard": _build_frost()
@@ -198,6 +224,9 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind == "zenith_blade":
 		_tick_zenith(delta)
+		return
+	if kind == "courtier":
+		_tick_courtier(delta)
 		return
 	if kind == "ink_jet":
 		# THE INKWELL OF STORMS: a piercing stream riding a gentle arc --
@@ -514,7 +543,13 @@ func _on_body_entered(body: Node2D) -> void:
 			var dealt := damage * (2 if kind == "lash" and returning and rider == "goodbye" else 1)
 			var landed = body.take_damage(dealt)
 			if landed == null or landed:
-				FloatingText.spawn(get_parent(), body.global_position, dealt, is_crit)
+				# CLUSTER LAW (study/DESIGN_LAWS.md): several projectiles landing
+				# together must read as a RAGGED BURST of small numbers, not one
+				# blob stacked at the same pixel -- scatter the court's numbers
+				var at: Vector2 = body.global_position
+				if kind == "courtier":
+					at += Vector2(randf_range(-26.0, 26.0), randf_range(-22.0, 10.0))
+				FloatingText.spawn(get_parent(), at, dealt, is_crit)
 			_apply_status_to(body)
 			# Terra semantics (2026-07-28): the wind-wall loses a quarter of its
 			# edge for each body it carves through -- crowds FEEL it without
@@ -745,6 +780,46 @@ func _tick_zenith(delta: float) -> void:
 			rotation = to_home.angle()
 	_zen_trail_tick()
 
+# THE WHOLE COURT, SPINNING: materialise (0.14s, the court arrives) -> sweep
+# together at the mark -> fade out. Deliberately BUSY: this is the culmination
+# weapon, the one place the crown rule ("cleaner, not busier") is broken on
+# purpose, exactly as Zenith breaks it.
+func _tick_courtier(delta: float) -> void:
+	_orbit_t += delta
+	match _behave_state:
+		0:
+			# the shade fades in and draws itself up to full height
+			var t := clampf(_orbit_t / 0.14, 0.0, 1.0)
+			modulate.a = t
+			visual.scale = Vector2.ONE * girth * lerpf(0.45, 1.0, t)
+			# it faces its mark while it gathers
+			var face := _zen_target - global_position
+			if face.length_squared() > 1.0:
+				visual.scale.x = absf(visual.scale.x) * (-1.0 if face.x < 0.0 else 1.0)
+			if t >= 1.0:
+				_behave_state = 1
+				_orbit_t = 0.0
+				# the mark may have moved (or died) while the court gathered
+				var late := _nearest_hostile_node(max_distance)
+				if late != null:
+					_zen_target = late.global_position
+				direction = (_zen_target - global_position).normalized()
+		1:
+			global_position += direction * 1150.0 * delta
+			rotation = direction.angle()
+			traveled += 1150.0 * delta
+			if traveled >= max_distance * 1.15 or _orbit_t > 0.55:
+				_behave_state = 2
+				_orbit_t = 0.0
+		2:
+			global_position += direction * 420.0 * delta
+			modulate.a = maxf(0.0, 1.0 - _orbit_t / 0.2)
+			if _orbit_t >= 0.2:
+				done = true
+				queue_free()
+				return
+	_zen_trail_tick()
+
 func _zen_trail_tick() -> void:
 	if _zen_trail == null:
 		_zen_trail = Line2D.new()
@@ -782,6 +857,46 @@ func _zen_sparkle(at: Vector2) -> void:
 # the ghost of an ancestor blade: a full sword-image drawn point-first (+X),
 # glowing in its legacy tint with a pale core -- The Last Word remembers
 # every sword that was folded into it
+# a courtier of the Whole Court: the shade of someone you brought home, drawn
+# point-first (+X) -- a hooded cloak streaming behind an ancestor blade. The
+# blade wears the tint; the shade stays dark, so a swing reads as SEVERAL
+# distinct people arriving, not one effect repeated.
+func _build_courtier() -> void:
+	var cloak := Polygon2D.new()
+	cloak.polygon = PackedVector2Array([
+		Vector2(6, -9), Vector2(-6, -11), Vector2(-22, -4),
+		Vector2(-26, 0), Vector2(-22, 4), Vector2(-6, 11), Vector2(6, 9)])
+	cloak.color = Color(0.09, 0.08, 0.13, 0.72)
+	visual.add_child(cloak)
+	var hem := Polygon2D.new()   # a tint-lit edge so each shade is legible
+	hem.polygon = PackedVector2Array([
+		Vector2(-6, -11), Vector2(-22, -4), Vector2(-26, 0), Vector2(-21, -1), Vector2(-7, -8)])
+	hem.color = Color(_zen_tint.r, _zen_tint.g, _zen_tint.b, 0.55)
+	visual.add_child(hem)
+	var hood := Polygon2D.new()
+	hood.polygon = PackedVector2Array([
+		Vector2(8, -6), Vector2(2, -9), Vector2(-4, -5), Vector2(-3, 4), Vector2(4, 6), Vector2(9, 2)])
+	hood.color = Color(0.05, 0.05, 0.09, 0.9)
+	visual.add_child(hood)
+	var glow := Polygon2D.new()
+	glow.polygon = PackedVector2Array([
+		Vector2(34, 0), Vector2(10, -8), Vector2(-2, -5), Vector2(-4, 0), Vector2(-2, 5), Vector2(10, 8)])
+	glow.color = Color(_zen_tint.r, _zen_tint.g, _zen_tint.b, 0.32)
+	var gm := CanvasItemMaterial.new()
+	gm.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	glow.material = gm
+	visual.add_child(glow)
+	var blade := Polygon2D.new()
+	blade.polygon = PackedVector2Array([
+		Vector2(30, 0), Vector2(8, -4), Vector2(-2, -2.5), Vector2(-2, 2.5), Vector2(8, 4)])
+	blade.color = Color(_zen_tint.r, _zen_tint.g, _zen_tint.b, 0.95)
+	visual.add_child(blade)
+	var core := Polygon2D.new()
+	core.polygon = PackedVector2Array([
+		Vector2(26, 0), Vector2(8, -1.6), Vector2(0, -1.0), Vector2(0, 1.0), Vector2(8, 1.6)])
+	core.color = Color(1.0, 1.0, 1.0, 0.8)
+	visual.add_child(core)
+
 func _build_zenithblade() -> void:
 	var glow := Polygon2D.new()
 	glow.polygon = PackedVector2Array([
