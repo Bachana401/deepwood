@@ -384,7 +384,7 @@ const ROWS = [
 	["wpn_longgoodbye",  "The Long Goodbye",     "melee", 7, "lash",      40, 0.76, {"status": "poison_w", "rider": "goodbye",
 		"fx": [{"kind": "duelist", "pct_per": 0.1, "max": 7}, {"kind": "harvest", "hp": 3}]}],
 	["wpn_borrowedstar", "A Borrowed Star",      "bow",   7, "lob_a",     48, 0.95, {"aoe": 150, "status": "burn_w", "rider": "borrow",
-		"fx": [{"kind": "starfall", "pct": 0.55, "delay": 0.35}, {"kind": "goldtouch", "chance": 0.3, "gold": 4}]}],
+		"fx": [{"kind": "starfall", "pct": 0.55, "stars": 3}, {"kind": "goldtouch", "chance": 0.3, "gold": 4}]}],
 	["wpn_gravecourier", "Grave Courier",        "melee", 7, "ricochet",  30, 0.52, {"bounces": 7, "rider": "courier",
 		"fx": [{"kind": "soulwisp", "dmg": 11, "pct": 0.5}, {"kind": "echo", "pct": 0.5, "delay": 0.45}]}],
 	["wpn_summerscoffin","Summer's Coffin",      "wand",  7, "frost",     36, 0.5,  {"status": "slow_w", "rider": "coffin",

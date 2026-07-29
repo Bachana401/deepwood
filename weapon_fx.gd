@@ -1,4 +1,4 @@
-﻿class_name WeaponFx
+class_name WeaponFx
 extends RefCounted
 
 # ========================== THE WEAPON FX ENGINE ==========================
@@ -114,11 +114,14 @@ static func _run_hit_fx(p: Node, target: Node2D, dealt: int, crit: bool, fx: Dic
 				if p.has_method("update_currency_display"):
 					p.update_currency_display()
 		"stormcall":
-			# every Nth swing, the sky answers the hit with a bolt
+			# every Nth swing, the sky answers the hit with a bolt -- lightning
+			# stays INSTANT (that is its whole character), but the strike now
+			# leaves a spark fountain where it lands (frame-study family)
 			var wid := str(p.active_weapon_id)
 			if int(_counters.get(wid, 0)) % maxi(2, int(fx.get("every", 4))) == 0:
 				_deal(target, int(round(dealt * float(fx.get("pct", 0.9)))))
 				_zap_line(p, target.global_position + Vector2(0, -220), target.global_position, Color(1.0, 0.95, 0.5, 0.95))
+				_star_burst(p, target.global_position, Color(1.0, 0.95, 0.55))
 		"gravity":
 			# the blow PULLS the nearby dark toward the point of impact
 			for o in _others_near(p, target, float(fx.get("radius", 200.0)), 8):
@@ -193,18 +196,19 @@ static func _run_hit_fx(p: Node, target: Node2D, dealt: int, crit: bool, fx: Dic
 			if p.global_position.distance_to(target.global_position) <= float(fx.get("max_dist", 90.0)):
 				_deal(target, int(round(dealt * float(fx.get("pct", 0.4)))))
 		"starfall":
-			# (Terraria parity: the Star Wrath's cousin) every hit calls a
-			# star DOWN out of the dark onto the mark, a beat behind the blow
-			var s_tid: int = target.get_instance_id()
-			var s_at: Vector2 = target.global_position
-			var s_pct: float = float(fx.get("pct", 0.5))
-			_zap_line(p, s_at + Vector2(randf_range(-60.0, 60.0), -300.0), s_at, Color(0.85, 0.9, 1.0, 0.95))
-			p.get_tree().create_timer(float(fx.get("delay", 0.35)), false).timeout.connect(
-				func():
-					var st = instance_from_id(s_tid)
-					if st != null and is_instance_valid(st) and st.has_method("take_damage"):
-						st.take_damage(maxi(1, int(round(dealt * s_pct))))
-						_puff(p, st.global_position, Color(0.9, 0.95, 1.0, 0.9)))
+			# (Star Wrath, 302 frames studied): a staggered CASCADE of comets
+			# falls diagonally onto the mark -- star-glyph heads, tapering
+			# additive trails, impact sparkle fountains. Borrowed-gold, ours.
+			var sw_n: int = int(fx.get("stars", 2))
+			var sw_pct: float = float(fx.get("pct", 0.5))
+			var sw_tid: int = target.get_instance_id()
+			for si in range(sw_n):
+				var side: float = 1.0 if randf() < 0.5 else -1.0
+				var from_sw: Vector2 = target.global_position + Vector2(
+					side * randf_range(70.0, 170.0), -300.0 - 60.0 * float(si))
+				_comet_star(p, from_sw, sw_tid,
+					maxi(1, int(round(dealt * sw_pct))), 0.26 + 0.13 * float(si),
+					Color(1.0, 0.72, 0.22))
 		"skyrain":
 			# (the Stormbow's cousin) the volley falls FROM THE SKY: n bolts
 			# rain down in a spread around the struck point
@@ -213,16 +217,14 @@ static func _run_hit_fx(p: Node, target: Node2D, dealt: int, crit: bool, fx: Dic
 			var r_spread: float = float(fx.get("spread", 130.0))
 			var near := _others_near(p, target, r_spread, r_n - 1)
 			near.push_front(target)
+			# comet treatment (Star Wrath frame-study family): silver-blue
+			# strings falling steeply, near-vertical -- rain, not stars
 			for k in range(mini(r_n, near.size())):
 				var r_tid: int = near[k].get_instance_id()
-				var lag: float = 0.2 + 0.12 * float(k)
-				var from: Vector2 = near[k].global_position + Vector2(randf_range(-30.0, 30.0), -280.0)
-				_zap_line(p, from, near[k].global_position, Color(0.7, 0.8, 1.0, 0.8))
-				p.get_tree().create_timer(lag, false).timeout.connect(
-					func():
-						var rt = instance_from_id(r_tid)
-						if rt != null and is_instance_valid(rt) and rt.has_method("take_damage"):
-							rt.take_damage(maxi(1, int(round(dealt * r_pct)))))
+				var from: Vector2 = near[k].global_position + Vector2(randf_range(-34.0, 34.0), -280.0 - 40.0 * float(k))
+				_comet_star(p, from, r_tid,
+					maxi(1, int(round(dealt * r_pct))), 0.2 + 0.12 * float(k),
+					Color(0.72, 0.82, 1.0))
 		"legacy":
 			# (the Zenith's cousin -- The Last Word) every blow hurls ghost
 			# echoes of the ladder's blades, tinted and streaking to the near
@@ -336,6 +338,65 @@ static func _ghost_blade(p: Node, from: Vector2, victim: Node2D, dmg: int, idx: 
 		if v != null and is_instance_valid(v) and v.has_method("take_damage"):
 			v.take_damage(dmg)
 		blade.queue_free())
+
+# a comet-star: a glyph head streaking down a tapering additive trail; on
+# arrival it pays its damage and erupts in a sparkle fountain
+static func _comet_star(p: Node, from: Vector2, tid: int, dmg: int, dur: float, tint: Color) -> void:
+	var t0 = instance_from_id(tid)
+	if t0 == null or not is_instance_valid(t0):
+		return
+	var to: Vector2 = t0.global_position
+	var add_mat := CanvasItemMaterial.new()
+	add_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	# the trail: drawn whole, fading as the head travels it
+	var trail := Line2D.new()
+	trail.points = PackedVector2Array([from, from.lerp(to, 0.5), to])
+	trail.width = 5.0
+	trail.default_color = Color(tint.r, tint.g, tint.b, 0.85)
+	trail.material = add_mat
+	trail.z_index = 41
+	_stage(p).add_child(trail)
+	var tw_t := trail.create_tween()
+	tw_t.tween_property(trail, "modulate:a", 0.0, dur + 0.25)
+	tw_t.tween_callback(trail.queue_free)
+	# the head: a five-point star glyph
+	var head := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(10):
+		var r: float = 9.0 if i % 2 == 0 else 3.8
+		var a: float = TAU * float(i) / 10.0 - PI / 2.0
+		pts.append(Vector2(cos(a), sin(a)) * r)
+	head.polygon = pts
+	head.color = Color(tint.r, tint.g, tint.b, 0.95)
+	head.material = add_mat
+	head.z_index = 42
+	_stage(p).add_child(head)
+	head.global_position = from
+	var tw := head.create_tween()
+	tw.tween_property(head, "global_position", to, dur).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.parallel().tween_property(head, "rotation", 2.6, dur)
+	tw.tween_callback(func():
+		var t = instance_from_id(tid)
+		if t != null and is_instance_valid(t) and t.has_method("take_damage"):
+			t.take_damage(dmg)
+		_star_burst(p, head.global_position, tint)
+		head.queue_free())
+
+# the impact fountain: sparkles erupt upward and drift out
+static func _star_burst(p: Node, at: Vector2, tint: Color) -> void:
+	for i in range(9):
+		var s := ColorRect.new()
+		s.color = Color(minf(tint.r * 1.15, 1.0), minf(tint.g * 1.15, 1.0), tint.b, 0.95)
+		s.size = Vector2(4, 4)
+		s.position = at - Vector2(2.0, 2.0)
+		s.z_index = 42
+		_stage(p).add_child(s)
+		var v := Vector2(randf_range(-46.0, 46.0), randf_range(-88.0, -30.0))
+		var tw := s.create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(s, "position", s.position + v, 0.8).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.tween_property(s, "modulate:a", 0.0, 0.8)
+		tw.chain().tween_callback(s.queue_free)
 
 # a wisp of the fallen: drifts to the next foe and pops (soulwisp)
 static func _spawn_wisp(p: Node, at: Vector2, fx: Dictionary) -> void:
