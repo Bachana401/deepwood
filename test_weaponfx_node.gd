@@ -111,5 +111,39 @@ func _ready() -> void:
 	WeaponFx.on_hit(p, foe, 20, true)
 	check("...and blooms on one", not other.statuses.is_empty())
 
+	# ============ THE UNIQUENESS AUDIT (the dev's order, enforced) ============
+	# "all these weapons skills and effects and aftereffects should be unique"
+	# -- so the ROSTER is audited, not trusted. Every declared kind must be
+	# HANDLED (the named-but-never-read trap), every tier at or above the
+	# authored bar must CARRY an fx, and no two fx-bearing weapons may share
+	# a signature (their sorted set of kinds). The bar rises as tiers land.
+	const AUTHORED_BAR := 7      # tiers >= this must all have fx (raise per batch)
+	var unknown := []
+	var bare := []
+	var sigs := {}
+	var dupes := []
+	for row in WeaponRoster.ROWS:
+		var ex: Dictionary = row[7]
+		var tier: int = int(row[3])
+		if not ex.has("fx"):
+			if tier >= AUTHORED_BAR:
+				bare.append(str(row[0]))
+			continue
+		var fxl: Array = ex["fx"] if ex["fx"] is Array else [ex["fx"]]
+		var kinds := []
+		for f in fxl:
+			var k := str(f.get("kind", ""))
+			if not WeaponFx.HANDLED.has(k):
+				unknown.append("%s:%s" % [str(row[0]), k])
+			kinds.append(k)
+		kinds.sort()
+		var sig := ",".join(kinds)
+		if sigs.has(sig):
+			dupes.append("%s == %s (%s)" % [str(row[0]), str(sigs[sig]), sig])
+		sigs[sig] = str(row[0])
+	check("every declared fx kind is handled by the engine", unknown.is_empty(), ", ".join(unknown))
+	check("every tier-%d+ weapon carries its own fx" % AUTHORED_BAR, bare.is_empty(), ", ".join(bare))
+	check("no two weapons share an fx signature", dupes.is_empty(), "; ".join(dupes))
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)
