@@ -397,3 +397,23 @@ PATTERNS: verbs are saved for drops/bosses (24 stat-stick rungs pace the
 reward); unique bows are AMMO CONVERTERS (cheap ammo stays relevant);
 launchers differentiate by what they DO to shared ammo; shared i-frames tax
 every multishot/pierce design.
+## RANGED DEEP SCAN 2026-07-29 — GUNS/THROWN/ODDBALLS (64 pages, all opened)
+Top verbs (ALL candidates): Xenopopper (harmless bubbles that each SNAP-FIRE
+a real shot at the cursor 0.5s later — plant then steer); Piranha Gun (3
+latch-and-chew fish, hold to sustain, re-home on kill); Coin Gun (fires
+MONEY, damage by denomination — economy as emergency DPS, perfect for a
+colony game); Sandgun (shots are BLOCKS that stay — combat terraforms);
+Revolver (perfect-timing trigger stacks +100% speed +20% crit — rhythm
+skill); Onyx Blaster (spread + delayed 200% crystal nuke in one pull);
+Harpoon (chained spear pierces OUT then AGAIN on reel-back); Pew-matic
+(random junk ammo 0.1-2.0x — jackpot projectiles); Bone Javelin (stacks 6
+embedded, flat DoT ignoring defense — countable spears); Beenade (explosion
+IS 15-24 homing bees); Clockwork (3-burst, only first bills ammo); Slime/
+Water Gun (0-dmg sprayers priming fire vulnerability + toggling LIGHTS);
+Toxikarp (flat-then-skyward bubbles own vertical shafts); Sniper (200 dmg,
+29% crit, right-click ZOOM); Quad-Barrel (8 pellets, ONE always true);
+Blowpipe (holding it makes plants drop ammo); Spiky Ball (thrown ground
+trap ~80s); Sticky/Bouncy grenade physics variants; dart guns = identity
+lives in AMMO (ricochet/split/ground-flame); Star Cannon (power gated by
+unbuyable ammo); Molotov (6 lingering fire patches); Gatligator (inaccuracy
+AS identity); Chain Gun (UT4, 15/s).
