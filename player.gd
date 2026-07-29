@@ -3660,6 +3660,10 @@ func perform_attack() -> void:
 	# the Windcutter's signature: the swing releases a slash that flies onward
 	if special_type == "flying_slash":
 		launch_projectile(special, aim_dir, int(round(special.get("damage", 10) * skill_damage_mult("melee"))))
+	# The Last Word: the swing looses a ghost-image of an ancestor blade --
+	# out, whirl, home (the projectile owns the whole flight)
+	elif special_type == "zenith_blade":
+		launch_projectile(special, aim_dir, int(round(special.get("damage", 10) * skill_damage_mult("melee"))))
 	# High-grade blades hurl the swing itself forward as a crescent. This is how
 	# a melee weapon earns ranged comfort -- the replacement for the old
 	# levitation reach, except you EARN it by finding the weapon instead of
@@ -4009,6 +4013,11 @@ func launch_projectile(cfg: Dictionary, dir: Vector2, dmg: int, is_crit: bool = 
 	p.bounces = int(cfg.get("bounces", 3))
 	p.shards = int(cfg.get("shards", 5))
 	p.rider = str(cfg.get("rider", ""))   # flagship bespoke behavior
+	# a weapon may colour its thrown crescent (Terra standard: the beam wears
+	# the blade's own identity, not a stock wind-blue)
+	var tint_arr = cfg.get("tint", [])
+	if tint_arr is Array and tint_arr.size() >= 3:
+		p.beam_tint = Color(float(tint_arr[0]), float(tint_arr[1]), float(tint_arr[2]))
 	# grade-driven scale: bigger crescent, bigger hitbox, same maths everywhere
 	p.girth = maxf(0.4, float(cfg.get("girth", 1.0)))
 	p.element = Inventory.element_of(active_weapon_id)   # VFX: hit bursts in the weapon's colour

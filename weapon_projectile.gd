@@ -58,6 +58,11 @@ func _apply_status_to(node) -> void:
 				if node.global_position.distance_to(e.global_position) <= 110.0:
 					e.apply_status("burn", 3.0, mag)
 
+var beam_tint := Color(0, 0, 0, 0)   # slash: a weapon may colour its crescent
+var _zen_start := Vector2.ZERO       # zenith_blade: the three-phase swoop
+var _zen_target := Vector2.ZERO
+var _zen_tint := Color.WHITE
+static var _zenith_cycle := 0        # each swing cycles the ancestor tints
 var traveled := 0.0
 var returning := false      # boomerang/lash: on the way back
 var done := false
@@ -102,6 +107,12 @@ func _ready() -> void:
 	# hit -- so a mythic crescent is genuinely a wall of force sweeping the room
 	# rather than a small sprite that merely looks impressive.
 	shape.size = Vector2(36, 20) * girth
+	# Terra standard: the wind-crescent is TALL now, and its reach must be
+	# honest about it; the zenith image is a whole blade
+	if kind == "slash":
+		shape.size = Vector2(44, 58) * girth
+	elif kind == "zenith_blade":
+		shape.size = Vector2(52, 52) * girth
 	cs.shape = shape
 	add_child(cs)
 	body_entered.connect(_on_body_entered)
@@ -111,6 +122,24 @@ func _ready() -> void:
 	match kind:
 		"soul_split": _build_soulbolt()
 		"slash": _build_slash()
+		"zenith_blade":
+			# THE LAST WORD: a ghost-image of an ancestor blade. Swoops out,
+			# whirls one tight loop at the far point, and comes home. Each
+			# swing wears the next tint in the culminated line.
+			pierce = true
+			_zenith_cycle = (_zenith_cycle + 1) % WeaponFx.LEGACY_TINTS.size()
+			_zen_tint = WeaponFx.LEGACY_TINTS[_zenith_cycle]
+			_zen_start = global_position
+			# the image flies to where the FIGHT is: the nearest living thing
+			# ahead of the swing (Zenith flies to the cursor; an aim-direction
+			# game sends it to the foe instead), else a half-range point
+			_zen_target = global_position + direction * max_distance * 0.5
+			var zprey := _nearest_hostile_node(max_distance * 0.8)
+			if zprey != null and (zprey.global_position - global_position).dot(direction) > 0.0:
+				_zen_target = zprey.global_position
+			_behave_state = 0
+			_orbit_t = 0.0
+			_build_zenithblade()
 		"javelin": _build_javelin()
 		"fireball": _build_fireball()
 		"frost_shard": _build_frost()
@@ -166,6 +195,9 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind == "lob":
 		_tick_lob(delta)
+		return
+	if kind == "zenith_blade":
+		_tick_zenith(delta)
 		return
 	if kind == "ink_jet":
 		# THE INKWELL OF STORMS: a piercing stream riding a gentle arc --
@@ -484,6 +516,14 @@ func _on_body_entered(body: Node2D) -> void:
 			if landed == null or landed:
 				FloatingText.spawn(get_parent(), body.global_position, dealt, is_crit)
 			_apply_status_to(body)
+			# Terra semantics (2026-07-28): the wind-wall loses a quarter of its
+			# edge for each body it carves through -- crowds FEEL it without
+			# being erased by one swing from across the room
+			if kind == "slash" and pierce:
+				damage = maxi(1, int(round(damage * 0.75)))
+			# The Last Word: every landing is punctuated in the image's own tint
+			if kind == "zenith_blade":
+				_zen_sparkle(body.global_position)
 			# Summer's Coffin: what it kills SHATTERS -- the cold bursts onto
 			# the mourners crowded round
 			if rider == "coffin" and "is_dead" in body and body.is_dead:
@@ -657,6 +697,117 @@ func _nearest_hostile_node(within: float) -> Node2D:
 				best = e
 	return best
 
+# THE LAST WORD (Zenith-kin, GIF-measured 2026-07-28): the three-phase swoop.
+# Out along a bowed arc (~0.22s), one tight whirl at the far point (~0.34s,
+# re-hitting every fifth-second like the orbiter), then home to the wielder's
+# CURRENT position, cutting on the way back. ~0.55s more or less, exactly the
+# measured cadence. The image never minds terrain -- it is only an image.
+var _zen_trail: Line2D = null
+func _tick_zenith(delta: float) -> void:
+	_orbit_t += delta
+	match _behave_state:
+		0:
+			var t := clampf(_orbit_t / 0.22, 0.0, 1.0)
+			var e := t * t * (3.0 - 2.0 * t)   # smoothstep: launch soft, arrive keen
+			var perp := Vector2(-direction.y, direction.x)
+			var prev := global_position
+			# minus: the arc bows UP over the field (Godot +y is down)
+			global_position = _zen_start.lerp(_zen_target, e) - perp * sin(t * PI) * 88.0
+			if (global_position - prev).length_squared() > 1.0:
+				rotation = (global_position - prev).angle()
+			if t >= 1.0:
+				_behave_state = 1
+				_orbit_t = 0.0
+				_rehit_t = 0.2
+		1:
+			var a := _orbit_t / 0.34 * TAU
+			var prev1 := global_position
+			global_position = _zen_target + Vector2(cos(a), sin(a)) * 66.0
+			rotation = (global_position - prev1).angle()
+			_rehit_t -= delta
+			if _rehit_t <= 0.0:
+				hit_bodies.clear()   # the whirl grinds: each lap cuts again
+				_rehit_t = 0.2
+			if _orbit_t >= 0.34:
+				_behave_state = 2
+				_orbit_t = 0.0
+				hit_bodies.clear()   # the return pass is its own sentence
+		2:
+			var home := _zen_start
+			if is_instance_valid(source):
+				home = source.global_position
+			var to_home := home - global_position
+			if to_home.length() <= 44.0 or _orbit_t > 0.8:
+				done = true
+				queue_free()
+				return
+			global_position += to_home.normalized() * 1300.0 * delta
+			rotation = to_home.angle()
+	_zen_trail_tick()
+
+func _zen_trail_tick() -> void:
+	if _zen_trail == null:
+		_zen_trail = Line2D.new()
+		_zen_trail.top_level = true
+		_zen_trail.width = 7.0
+		_zen_trail.default_color = Color(_zen_tint.r, _zen_tint.g, _zen_tint.b, 0.5)
+		var m := CanvasItemMaterial.new()
+		m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		_zen_trail.material = m
+		add_child(_zen_trail)
+	_zen_trail.add_point(global_position)
+	while _zen_trail.get_point_count() > 16:
+		_zen_trail.remove_point(0)
+
+# the sparkle burst every zenith landing pops -- white heart, tinted rim
+func _zen_sparkle(at: Vector2) -> void:
+	var host := get_parent()
+	if host == null:
+		return
+	for i in range(4):
+		var s := Polygon2D.new()
+		s.polygon = PackedVector2Array([Vector2(-1.6, 0), Vector2(0, -5), Vector2(1.6, 0), Vector2(0, 5)])
+		s.color = Color.WHITE if i % 2 == 0 else Color(_zen_tint.r, _zen_tint.g, _zen_tint.b, 0.95)
+		var m2 := CanvasItemMaterial.new()
+		m2.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		s.material = m2
+		host.add_child(s)
+		s.global_position = at + Vector2(randf_range(-10, 10), randf_range(-10, 10))
+		var tw := s.create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(s, "global_position", s.global_position + Vector2(randf_range(-26, 26), randf_range(-30, 6)), 0.4)
+		tw.tween_property(s, "modulate:a", 0.0, 0.4)
+		tw.chain().tween_callback(s.queue_free)
+
+# the ghost of an ancestor blade: a full sword-image drawn point-first (+X),
+# glowing in its legacy tint with a pale core -- The Last Word remembers
+# every sword that was folded into it
+func _build_zenithblade() -> void:
+	var glow := Polygon2D.new()
+	glow.polygon = PackedVector2Array([
+		Vector2(30, 0), Vector2(6, -11), Vector2(-20, -7), Vector2(-26, 0),
+		Vector2(-20, 7), Vector2(6, 11)])
+	glow.color = Color(_zen_tint.r, _zen_tint.g, _zen_tint.b, 0.35)
+	var gm := CanvasItemMaterial.new()
+	gm.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	glow.material = gm
+	visual.add_child(glow)
+	var blade := Polygon2D.new()
+	blade.polygon = PackedVector2Array([
+		Vector2(26, 0), Vector2(4, -6), Vector2(-14, -4), Vector2(-14, 4), Vector2(4, 6)])
+	blade.color = Color(_zen_tint.r, _zen_tint.g, _zen_tint.b, 0.9)
+	visual.add_child(blade)
+	var core := Polygon2D.new()
+	core.polygon = PackedVector2Array([
+		Vector2(22, 0), Vector2(4, -2.5), Vector2(-12, -1.5), Vector2(-12, 1.5), Vector2(4, 2.5)])
+	core.color = Color(1.0, 1.0, 1.0, 0.85)
+	visual.add_child(core)
+	var guard := Polygon2D.new()
+	guard.polygon = PackedVector2Array([
+		Vector2(-14, -8), Vector2(-11, 0), Vector2(-14, 8), Vector2(-17, 0)])
+	guard.color = Color(minf(1.0, _zen_tint.r + 0.2), minf(1.0, _zen_tint.g + 0.2), minf(1.0, _zen_tint.b + 0.2), 0.95)
+	visual.add_child(guard)
+
 # --- procedural looks ---
 
 # The Soul Split Wand's bolt: a pale prismatic orb. It deals NO damage --
@@ -673,17 +824,46 @@ func _build_soulbolt() -> void:
 	visual.add_child(halo)
 
 func _build_slash() -> void:
-	var arc = Polygon2D.new()   # a thin crescent, like a slice of wind
+	# TERRA STANDARD (2026-07-28, GIF-measured): the beam IS the weapon -- a
+	# tall readable crescent near player height, riding an additive wake that
+	# streaks behind it. A weapon may tint the whole thing (beam_tint).
+	var tint := beam_tint if beam_tint.a > 0.0 else Color(0.75, 0.95, 1.0)
+	var wake = Polygon2D.new()   # the streak: a soft afterglow swept backward
+	var wpts = PackedVector2Array()
+	for i in range(9):
+		var a = lerp(-0.75, 0.75, i / 8.0)
+		wpts.append(Vector2(cos(a), sin(a)) * 30.0)
+	for i in range(9):
+		var a = lerp(0.75, -0.75, i / 8.0)
+		wpts.append(Vector2(cos(a) * 30.0 - 46.0, sin(a) * 26.0))
+	wake.polygon = wpts
+	wake.color = Color(tint.r, tint.g, tint.b, 0.28)
+	var wm := CanvasItemMaterial.new()
+	wm.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	wake.material = wm
+	visual.add_child(wake)
+	var arc = Polygon2D.new()   # the blade of wind itself
 	var pts = PackedVector2Array()
 	for i in range(9):
-		var a = lerp(-0.9, 0.9, i / 8.0)
-		pts.append(Vector2(cos(a), sin(a)) * 22.0)
+		var a = lerp(-0.95, 0.95, i / 8.0)
+		pts.append(Vector2(cos(a), sin(a)) * 34.0)
 	for i in range(9):
-		var a = lerp(0.9, -0.9, i / 8.0)
-		pts.append(Vector2(cos(a), sin(a)) * 14.0)
+		var a = lerp(0.95, -0.95, i / 8.0)
+		pts.append(Vector2(cos(a), sin(a)) * 22.0)
 	arc.polygon = pts
-	arc.color = Color(0.75, 0.95, 1.0, 0.85)
+	arc.color = Color(tint.r, tint.g, tint.b, 0.9)
 	visual.add_child(arc)
+	var edge = Polygon2D.new()   # a bright leading lip
+	var epts = PackedVector2Array()
+	for i in range(9):
+		var a = lerp(-0.95, 0.95, i / 8.0)
+		epts.append(Vector2(cos(a), sin(a)) * 34.0)
+	for i in range(9):
+		var a = lerp(0.95, -0.95, i / 8.0)
+		epts.append(Vector2(cos(a), sin(a)) * 30.0)
+	edge.polygon = epts
+	edge.color = Color(minf(1.0, tint.r + 0.25), minf(1.0, tint.g + 0.25), minf(1.0, tint.b + 0.25), 0.95)
+	visual.add_child(edge)
 
 func _build_javelin() -> void:
 	var shaft = Polygon2D.new()

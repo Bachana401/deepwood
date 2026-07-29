@@ -145,7 +145,7 @@ const ROWS = [
 	# ---------------- TIER 7 - ASCENDED (floors 70-97) ----------------
 	["wpn_afterlight",   "Afterlight",           "melee", 7, "arc", 33, 0.38, {"status": "burn_w",
 		"fx": [{"kind": "echo", "pct": 0.98, "delay": 0.4}, {"kind": "moonlit", "pct": 0.8}]}],
-	["wpn_worldsedge",   "Edge of the World",    "melee", 7, "crescent", 30, 0.55, {"p_damage": 30,
+	["wpn_worldsedge",   "Edge of the World",    "melee", 7, "crescent", 30, 0.55, {"p_damage": 30, "tint": [0.35, 0.95, 0.5],
 		"fx": [{"kind": "splinter", "n": 4, "pct": 0.8, "range": 190.0}, {"kind": "rend", "pct_per": 0.15, "max": 6}]}],
 	["wpn_ascendwheel",  "Wheel of Ascension",   "melee", 7, "orbiter", 30, 0.78, {"dwell": 3.6, "status": "slow_w",
 		"fx": [{"kind": "frostbloom", "radius": 170.0, "dur": 3.0}, {"kind": "bulwark", "dr": 0.16, "dur": 2.5}]}],
@@ -170,7 +170,7 @@ const ROWS = [
 		"fx": [{"kind": "brand", "amp": 0.49, "dur": 5.0}, {"kind": "splinter", "n": 3, "pct": 1, "range": 170.0}]}],
 	["wpn_kingdomwheel", "A Kingdom, Turning",   "melee", 8, "orbiter", 37, 0.75, {"dwell": 4.0,
 		"fx": [{"kind": "gravity", "radius": 240.0, "pull": 180.0}, {"kind": "crowd", "pct_per": 0.15, "cap": 0.6}]}],
-	["wpn_lastword",     "The Last Word",        "melee", 8, "lash", 40, 0.78, {"status": "burn_w",
+	["wpn_lastword",     "The Last Word",        "melee", 8, "zenith", 40, 0.78, {"status": "burn_w",
 		"fx": [{"kind": "legacy", "n": 2, "pct": 1, "range": 300.0}, {"kind": "echo", "pct": 1, "delay": 0.5}]}],
 	["wpn_regicide",     "Regicide",             "spear", 8, "thrust", 50, 0.72, {
 		"fx": [{"kind": "duelist", "pct_per": 0.18, "max": 8}, {"kind": "echo", "pct": 1, "delay": 0.4}]}],
@@ -623,6 +623,10 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			s = {"type": "chain_maul", "damage": dmg, "speed": spd + 40.0, "range": 260.0 + float(tier) * 18.0}
 		"lash":
 			s = {"type": "lash", "damage": dmg, "speed": spd + 60.0, "range": 300.0 + float(tier) * 20.0}
+		"zenith":
+			# THE LAST WORD alone: every swing looses a ghost-image of an
+			# ancestor blade -- out, whirl, home (Zenith-kin, never 1:1)
+			s = {"type": "zenith_blade", "damage": dmg, "speed": spd, "range": rng + 140.0}
 		"staff":
 			s = {"type": "staff_extend"}
 	if not st.is_empty():
@@ -632,6 +636,10 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			s["status"] = st
 	if bool(ex.get("pierce", false)):
 		s["pierce"] = true
+	# Terra standard: a crescent-thrower may paint its beam in the blade's own
+	# colour (weapon_projectile beam_tint) instead of the stock wind-blue
+	if ex.has("tint") and not s.is_empty():
+		s["tint"] = ex["tint"]
 	# THE WEAPON'S OWN SOUL (WeaponFx 2026-07-28): a row's extras carry its
 	# unique fx, riding special.fx into the def the engine reads. A typeless
 	# special (plain arc/shot + fx) falls through to the ordinary swing
@@ -678,6 +686,7 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"orbiter":    return "Flies out, SPINS a cutting wheel at the far point, then threads home."
 		"chain_maul": return "WHIRLS about you gathering speed, hurls itself as a comet, then hauls back on its chain."
 		"lash":       return "A weaving ribbon that rakes its lane on BOTH passes."
+		"zenith":     return "Every swing frees the GHOST of a blade it culminates: out, one whirl at the far point, and home -- cutting the whole way, each image a different ancestor."
 		"staff":      return "Landed blows in rhythm DRAW IT LONGER; the fourth strikes the earth as a pillar."
 		"arc", "thrust", "shot", "rapid":
 			if ex.has("status"):
