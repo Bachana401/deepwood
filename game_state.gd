@@ -3992,8 +3992,13 @@ func tick_wood_gathering(hours_passed: float) -> void:
 	while _wood_accum >= 24.0:
 		_wood_accum -= 24.0
 		var felled := WOOD_PER_BUILDER_PER_DAY * crew
+		# ...and a little FIELDSTONE besides: the Mine (floor 13) is the real
+		# quarry, but repairs need stone from day one -- without this trickle
+		# the whole repair chain deadlocked until mid-game (no stone producer).
+		var quarried := int(ceil(float(crew) / 2.0))
 		village_stockpile["wood"] = int(village_stockpile["wood"]) + felled
-		log_event("economy", "The builders felled timber — %d wood into the village stores." % felled)
+		village_stockpile["stone"] = int(village_stockpile["stone"]) + quarried
+		log_event("economy", "The builders' gathering run: %d wood, %d fieldstone into the stores." % [felled, quarried])
 
 # --- THE SHRINE (GAME_BIBLE 10, decided 2026-07-20 delegated) ---
 # Corruption's only mercy, unlocked at depth 30: a put-down demon that was
