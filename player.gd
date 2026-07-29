@@ -4065,9 +4065,11 @@ func cast_wand_projectile(special: Dictionary) -> void:
 	weapon_anim_tween.tween_property(icon, "scale", Vector2(1.4, 1.4), 0.08)
 	weapon_anim_tween.tween_property(icon, "scale", Vector2.ONE, 0.15)
 	var cr = roll_crit(int(round(special.get("damage", 10) * skill_damage_mult("wand"))))
-	# a higher-grade wand throws a visibly fatter bolt that carries further
+	# a higher-grade wand throws a visibly fatter bolt that carries further --
+	# multiplied onto the tier's own size (verb sweep 2026-07-29), never
+	# replacing it: what the weapon IS times how well this one was made
 	var cast: Dictionary = special.duplicate(true)
-	cast["girth"] = grade_projectile_girth()
+	cast["girth"] = grade_projectile_girth() * float(special.get("girth", 1.0))
 	cast["range"] = float(special.get("range", 450.0)) * grade_projectile_range()
 	# THE FLOOD OF SOULS (tome batch 3b): one cast, a STREAM -- three souls
 	# leave the book a beat apart, each bending toward the nearest living thing

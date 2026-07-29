@@ -33,6 +33,18 @@ the Forge from the ladder's famous crown blades + a rare catalyst (the
 Zenith-culmination recipe at the top of the fusion-chain system). The swing
 should FILL THE SCREEN and still never one-shot bosses (house rule).
 
+### BUILT (bf572e3, GIF frame-study 403 frames, 300x103):
+Measured: 2-3 differently-tinted sword-comets in flight at once; whirl arc
+~2.5-3 player heights across, blade ~1 player height; sparkle residue on
+retract; ~0.55s per image out-whirl-home. Deepwood build: "zenith" behavior →
+"zenith_blade" kind (weapon_projectile): swoop UP AND OVER (bow 88px, minus
+perp — Godot +y is down) to the NEAREST FOE ahead of the swing (cursor→foe
+translation), one whirl loop r=66 re-cutting every 0.2s, home to the
+wielder's current position cutting on return; LEGACY_TINTS cycle per swing
+(static _zenith_cycle); additive trail + sparkle burst per landing. The Terra
+slash upgrade landed with it: 34px tinted crescent + wake + lip, 44x58
+hitbox, 25% pierce-decay, roster "tint" extra (Edge of the World = emerald).
+
 ## THE TERRA STANDARD (from Terra Blade, the dev's dropped example)
 - Swing-aura BIGGER than the weapon (multi-hit cap ~3), autoswing, fast.
 - EVERY swing also fires a signature traveling slash: infinite pierce with

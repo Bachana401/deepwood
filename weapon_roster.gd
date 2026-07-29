@@ -636,6 +636,13 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			s["status"] = st
 	if bool(ex.get("pierce", false)):
 		s["pierce"] = true
+	# THE LADDER WEARS ITS SIZE (verb sweep 2026-07-29): a projectile special
+	# grows with its tier -- visual AND hitbox together (weapon_projectile
+	# girth) -- so a crown cluster is visibly a crown cluster before a single
+	# number appears. Grade multiplies ON TOP for wand casts (the two axes
+	# stack: what the weapon IS times how well this one was made).
+	if s.has("type"):
+		s["girth"] = minf(1.5, 0.9 + float(tier) * 0.08)
 	# Terra standard: a crescent-thrower may paint its beam in the blade's own
 	# colour (weapon_projectile beam_tint) instead of the stock wind-blue
 	if ex.has("tint") and not s.is_empty():
