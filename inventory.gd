@@ -972,6 +972,16 @@ static func get_display_name(item_id: String) -> String:
 		return "Unknown Substance"
 	return def.get("name", item_id)
 
+# The item's name wrapped in its rarity colour as BBCode (name-plate pass
+# 2026-07-28): every toast that speaks an item's name shows it the way the
+# tooltip does -- a mythic drop reads mythic-red in the corner of your eye,
+# Terraria-style. Ungraded items keep their own def colour, brightened for
+# legibility on the dark HUD.
+static func name_bbcode(item_id: String) -> String:
+	var col: Color = get_grade_color(item_id) if get_grade(item_id) != "" \
+		else get_item_def(item_id).get("color", Color(0.95, 0.93, 0.85))
+	return "[color=#%s]%s[/color]" % [_hex(col.lightened(0.15)), get_display_name(item_id)]
+
 # Item sets. Wearing every armor piece of a set at once grants its "bonus"
 # (checked via GameState.is_set_complete / folded into GameState.
 # get_bonus_total). A set may also name a "weapon": WIELDING it (hotbar) while

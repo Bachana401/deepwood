@@ -1816,7 +1816,7 @@ func use_item(item_id: String) -> bool:
 		on_equipment_changed()
 	inventory.remove_item(item_id, 1)
 	if stack:
-		stack.show_notification("Used " + Inventory.get_display_name(item_id) + ".")
+		stack.show_notification("Used " + Inventory.name_bbcode(item_id) + ".")
 	var inv_ui = get_tree().get_first_node_in_group("inventory_ui")
 	if inv_ui and inv_ui.has_method("refresh"):
 		inv_ui.refresh()
@@ -2364,7 +2364,7 @@ func select_hotbar_slot(index: int) -> void:
 	if wield_weapon(slot.item_id):
 		var stack = get_tree().get_first_node_in_group("notification_stack")
 		if stack:
-			stack.show_notification("Wielding " + Inventory.get_display_name(slot.item_id))
+			stack.show_notification("Wielding " + Inventory.name_bbcode(slot.item_id))
 
 # Shows/sizes the crossguard for bladed melee weapons (melee/spear), hides it
 # for bow and wand. The guard is a child of WeaponIcon, so it swings/aims with
@@ -3425,9 +3425,9 @@ func _fish_strike() -> void:
 			stack.show_notification("Your bag is full — the catch slips back into the dark.")
 	else:
 		if stack:
-			stack.show_notification("Caught: %s [%s]!" % [Inventory.get_display_name(got), Inventory.get_grade_name(got)])
+			stack.show_notification("Caught: %s [%s]!" % [Inventory.name_bbcode(got), Inventory.get_grade_name(got)])
 			if got == GameState.fishing_quest_oddity():
-				stack.show_notification("The %s! Doran will want to see this." % Inventory.get_display_name(got))
+				stack.show_notification("The %s! Doran will want to see this." % Inventory.name_bbcode(got))
 		var inv_ui = get_tree().get_first_node_in_group("inventory_ui")
 		if inv_ui and inv_ui.has_method("refresh"):
 			inv_ui.refresh()

@@ -2375,9 +2375,9 @@ func roll_material_drop(guaranteed: bool = false) -> void:
 	# while still toasting "Found:" (dev sweep 2026-07-25).
 	var _mleft: int = player.inventory.add_item(mat_id, 1)
 	if _mleft > 0:
-		show_notification("A " + Inventory.get_display_name(mat_id) + " drops, but your bag is full.")
+		show_notification("A " + Inventory.name_bbcode(mat_id) + " drops, but your bag is full.")
 	else:
-		show_notification("Found: " + Inventory.get_display_name(mat_id))
+		show_notification("Found: " + Inventory.name_bbcode(mat_id))
 
 # --- Gear loot ---
 # Every boss also drops one piece of real gear, drawn from level-gated pools
@@ -2500,12 +2500,12 @@ func _gear_unowned(ids: Array, player: Node) -> Array:
 
 func _give_gear(player: Node, item_id: String, excellent: bool) -> void:
 	if player.inventory.add_item(item_id, 1) > 0:
-		show_notification("Your bag is full -- the %s was left behind!" % Inventory.get_display_name(item_id))
+		show_notification("Your bag is full -- the %s was left behind!" % Inventory.name_bbcode(item_id))
 		return
 	if excellent:
-		show_notification("EXCELLENT find: %s!" % Inventory.get_display_name(item_id))
+		show_notification("EXCELLENT find: %s!" % Inventory.name_bbcode(item_id))
 	else:
-		show_notification("Gear drop: %s!" % Inventory.get_display_name(item_id))
+		show_notification("Gear drop: %s!" % Inventory.name_bbcode(item_id))
 
 # A combatant spawned MID-FIGHT (e.g. a summoner's minions) joins the live count, so the
 # floor isn't declared cleared while it's still alive and hostile -- and then left to linger,
