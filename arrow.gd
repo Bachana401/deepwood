@@ -155,6 +155,13 @@ func _on_hit_area_body_entered(body: Node2D) -> void:
 			var landed = body.take_damage(damage)
 			if landed == null or landed:
 				FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+	# THE WEAPON'S OWN SOUL rides the arrow too (WeaponFx 2026-07-28): bows
+	# never pass apply_melee_skills, so the fx hook lands here, right after
+	# the shot's own damage -- player arrows against non-players only
+	if not body.is_in_group("player") and is_instance_valid(body):
+		var _pl = get_tree().get_first_node_in_group("player")
+		if _pl != null and is_in_group("player_projectile"):
+			WeaponFx.on_hit(_pl, body, damage, is_crit)
 	# KILLSHOT (Archer keystone): arrows execute a low-HP non-boss, same as apply_melee_skills
 	# does for melee -- routed here because arrows never go through that path (dev 2026-07-26).
 	if execute_threshold > 0.0 and not body.is_in_group("player") and not ("boss_id" in body) \

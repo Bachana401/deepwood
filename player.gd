@@ -260,7 +260,7 @@ var helmet_visual: Polygon2D = null
 var chest_visual: Polygon2D = null
 var pants_visual: Polygon2D = null
 var weapon_guard: ColorRect = null
-var weapon_sprite: TextureRect = null   # item-art overhaul: the held weapon's real sprite (art/items/<id>.png), else hidden and the ColorRect bar shows
+var weapon_sprite: Sprite2D = null   # item-art overhaul: the held weapon's real sprite (art/items/<id>.png), else hidden and the ColorRect bar shows
 
 # Pixel-art body = an AnimatedSprite2D assembled from PNGs in art/. Drop
 # numbered frames (from 1) to fill each state:
@@ -576,42 +576,53 @@ func build_weapon_guard() -> void:
 	weapon_guard.visible = false
 	weapon_guard.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	$WeaponIcon.add_child(weapon_guard)
-	# The real held-weapon sprite: a TextureRect filling the WeaponIcon rect, so
-	# it inherits the exact same swing/aim transform (rotates about the grip
-	# pivot) as the fallback bar and guard. Hidden until a weapon with real art
-	# is wielded. Nearest filter keeps the pixels crisp.
-	weapon_sprite = TextureRect.new()
-	weapon_sprite.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	weapon_sprite.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	# The real held-weapon sprite: a Sprite2D CHILD of WeaponIcon, so it inherits
+	# the exact same aim rotation (WeaponIcon rotates to the cursor about the grip
+	# pivot) AND the swing scale-punch for free. The art is authored DIAGONALLY
+	# (blade to the upper-right); update_weapon_sprite rotates it +45deg so the
+	# blade lands along WeaponIcon's +x (the aim axis) and scales it to the
+	# weapon's reach. Hidden until a real-art weapon is wielded.
+	weapon_sprite = Sprite2D.new()
+	weapon_sprite.centered = true
 	weapon_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	weapon_sprite.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	weapon_sprite.visible = false
+	weapon_sprite.z_index = 1        # in front of the (transparent) bar
 	$WeaponIcon.add_child(weapon_sprite)
 
 # Shows the wielded weapon's real sprite when one exists (art/items/<id>.png),
 # and blanks the fallback ColorRect bar + crossguard so they don't show through
 # behind it. Returns true when a texture is in use, so the guard update can skip
 # the bar treatment. The SAME texture is the inventory icon -- bag and hand match.
-# NOTE (2026-07-28): weapon art is now authored DIAGONALLY (blade up-right,
-# Terraria-style) and COMPACT -- great in the inventory, but it would SQUISH if
-# forced to fill the thin in-hand bar (icon_size ~56x12). So the in-hand render
-# stays on the proven procedural bar for now; showing the diagonal sprite in the
-# hand needs a proper aim+45deg rotate/scale/hilt-anchor pass verified with live
-# screenshots (EYES walker). Gated off until that calibration lands. Inventory
-# already shows the real sprite via Inventory.paint_icon (unaffected by this).
-const HELD_SPRITE_ENABLED := false
+# In-hand render of the diagonal weapon art (2026-07-28 calibration). The art
+# is drawn with the blade to the UPPER-RIGHT (~-45deg on screen). WeaponIcon
+# already rotates to the aim (its local +x = the aim direction) and pivots about
+# the grip, so we only set the sprite's LOCAL transform once per wield:
+#   * rotate +HELD_ROT_DEG so the NE blade lines up with local +x (the aim),
+#   * scale so the blade spans ~the weapon's reach,
+#   * push the centre out along +x so the grip sits near the hand and the blade
+#     reaches forward.
+# Tunable so it can be eyeballed via screenshots. Bows keep their own BowVisual.
+const HELD_SPRITE_ENABLED := true
+const HELD_ROT_DEG := 45.0        # NE-authored blade -> WeaponIcon +x
+const HELD_BLADE_FRAC := 0.80     # fraction of the square art the blade spans
+const HELD_LEN_MULT := 1.25       # blade reach relative to the weapon's icon length
+const HELD_MIN_LEN := 30.0
 func update_weapon_sprite() -> bool:
 	if not weapon_sprite:
 		return false
 	var tex: Texture2D = Inventory.icon_texture(active_weapon_id) if has_weapon() else null
-	if not HELD_SPRITE_ENABLED or tex == null:
+	# bows draw their own procedural bow (BowVisual); everything else (melee/
+	# spear/wand) shows the real sprite in hand
+	if not HELD_SPRITE_ENABLED or tex == null or active_weapon_type == "bow":
 		weapon_sprite.visible = false
 		return false
 	weapon_sprite.texture = tex
-	# fill the icon rect; the WeaponIcon owns the aim/swing rotation about the grip
-	weapon_sprite.position = Vector2.ZERO
-	weapon_sprite.size = active_stats.icon_size
-	weapon_sprite.pivot_offset = $WeaponIcon.pivot_offset
+	var blade_len: float = maxf(active_stats.icon_size.x, HELD_MIN_LEN) * HELD_LEN_MULT
+	var s: float = blade_len / (float(tex.get_width()) * HELD_BLADE_FRAC)
+	weapon_sprite.scale = Vector2(s, s)
+	weapon_sprite.rotation = deg_to_rad(HELD_ROT_DEG)
+	# centre placed along the aim axis (+x), lifted to the grip line (pivot.y)
+	weapon_sprite.position = Vector2(blade_len * 0.5, active_stats.icon_size.y * 0.5)
 	weapon_sprite.visible = true
 	$WeaponIcon.color = Color(0, 0, 0, 0)   # hide the fallback bar; the sprite carries the look
 	return true
@@ -1460,9 +1471,15 @@ func get_crit_damage() -> float:
 	return BASE_CRIT_DAMAGE + GameState.get_bonus_total("crit_damage") + weapon_crit_damage_bonus()
 
 # Rolls a crit against a base amount. Returns [final_amount, is_crit].
+var last_hit_was_crit := false
 func roll_crit(base: int) -> Array:
+	# the one choke point every damage roll passes -- remembered so
+	# WeaponFx.on_hit (called downstream in apply_melee_skills, which never
+	# receives the flag) can pay crit-keyed effects like frostbloom
 	if base > 0 and randf() < get_crit_chance():
+		last_hit_was_crit = true
 		return [int(round(base * (1.0 + get_crit_damage()))), true]
+	last_hit_was_crit = false
 	return [base, false]
 
 # Pop a floating damage number over a struck enemy.
@@ -1911,6 +1928,8 @@ var pull_vel_x := 0.0        # per-frame horizontal pull (void rift etc.), consu
 # Called by enemies/bosses when they die to player damage. Reaper's Toll heals
 # on kill.
 func on_enemy_killed() -> void:
+	# the wielded weapon's own on-kill soul (WeaponFx: harvest/haste/soulwisp)
+	WeaponFx.on_kill(self, global_position)
 	if has_relic_power("reaper"):
 		health = min(get_max_health(), health + 8)
 		update_health_display()
@@ -2292,6 +2311,7 @@ func wield_weapon(item_id: String) -> bool:
 	active_stats = stats
 	active_weapon_type = def.get("weapon_type", "melee")
 	reset_combo()   # a string belongs to the weapon that started it
+	WeaponFx.on_wield(self)   # rhythm counters and ramps belong to a wield too
 	$AttackArea/CollisionShape2D.shape.size = stats.area_size
 	if weapon_anim_tween:
 		weapon_anim_tween.kill()
@@ -2353,10 +2373,19 @@ func update_weapon_guard(has_art := false) -> void:
 	weapon_guard.visible = true
 
 func get_aim_direction() -> Vector2:
-	var to_mouse = get_global_mouse_position() - global_position
+	var to_mouse = aim_world_point() - global_position
 	if to_mouse.length() < 1.0:
 		return Vector2(facing_direction, 0)
 	return to_mouse.normalized()
+
+# Where the player is aiming, in world space. On touch devices the held aim
+# finger replaces the mouse (Godot only mouse-emulates the FIRST finger, so
+# with a thumb on the joystick the mouse position goes stale); everywhere
+# else this is exactly get_global_mouse_position().
+func aim_world_point() -> Vector2:
+	if TouchControls.active and TouchControls.aim_touch_down:
+		return TouchControls.aim_world_pos(get_viewport())
+	return get_global_mouse_position()
 
 # TERRARIA MINING (2026-07-25): while a pickaxe is wielded, HOLD left-click to dig
 # the tile at the cursor in a minable tile world (group "tile_world"). Hold SHIFT
@@ -2421,9 +2450,10 @@ func _tick_dig(delta: float) -> void:
 	if world == null or not world.has_method("mine_at"):
 		return
 	_dig_cd = DIG_INTERVAL
-	var smart := Input.is_key_pressed(KEY_SHIFT)
+	# fingers aren't pixel-precise: touch play always digs with the smart cursor
+	var smart := Input.is_key_pressed(KEY_SHIFT) or TouchControls.active
 	var tier: int = int(active_def.get("pick_tier", 1))   # deeper biomes gate on the pickaxe tier
-	world.mine_at(get_global_mouse_position(), global_position, DIG_REACH, smart, tier, self)
+	world.mine_at(aim_world_point(), global_position, DIG_REACH, smart, tier, self)
 
 func update_weapon_visual(offset: float) -> void:
 	if not has_weapon():
@@ -3434,6 +3464,7 @@ func perform_attack() -> void:
 	if str(active_def.get("tool_type", "")) == "rod" and _rod_fish_action():
 		attack_cooldown_remaining = active_stats.cooldown
 		return
+	WeaponFx.on_swing(self)   # rhythm counters (stormcall's every-Nth and kin)
 	var stats = active_stats
 	var special = active_def.get("special", {})
 	var special_type = str(special.get("type", ""))
@@ -4003,7 +4034,7 @@ const STORM_CLOUD_SCRIPT = preload("res://storm_cloud.gd")
 func cast_storm_tome(special: Dictionary) -> void:
 	play_sfx(SFX_BOW)
 	var cr = roll_crit(int(round(special.get("damage", 8) * skill_damage_mult("wand"))))
-	var aim_at := get_global_mouse_position()
+	var aim_at := aim_world_point()
 	var max_reach := float(special.get("range", 520.0))
 	var to_aim := aim_at - global_position
 	if to_aim.length() > max_reach:
@@ -4310,6 +4341,9 @@ func apply_melee_skills(target: Node2D, dealt: int) -> void:
 		if landed:
 			gorgon_ready_at = _now() + GORGON_COOLDOWN
 			spawn_shock_ring(target.global_position, 60.0, Color(0.6, 0.6, 0.62, 0.9))
+	# THE WEAPON'S OWN SOUL (WeaponFx, 2026-07-28): every landed blow runs
+	# the wielded weapon's unique fx -- the ladder's uniqueness engine
+	WeaponFx.on_hit(self, target, dealt, last_hit_was_crit)
 	var ex = GameState.get_bonus_total("execute_threshold")
 	if ex > 0.0 and not ("boss_id" in target) and "max_health" in target and "health" in target and target.has_method("take_damage"):
 		if float(target.health) <= float(target.max_health) * ex and float(target.health) > 0.0:
