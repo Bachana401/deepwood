@@ -151,5 +151,36 @@ func _ready() -> void:
 		check("...and restores after the last line", probe.visible)
 		if get_tree().paused: get_tree().paused = false
 
+	# ---- finish() is teardown-safe (0xC0000005 fix 2026-07-29) ----
+	# Tests drain boxes by calling finish() off the group every frame, which can
+	# double-fire on the same box, or land after the box's scene died mid-reload.
+	# Both used to dispatch the callback anyway -- the second is a native crash.
+	var fired := [0]                  # array: a lambda captures locals BY VALUE
+	DialogueBox.play(self, [{"speaker": "Test", "text": "x"}], func(): fired[0] += 1)
+	await get_tree().process_frame
+	var bx: Node = get_tree().get_first_node_in_group("dialogue_box")
+	check("teardown probe box exists", bx != null)
+	if bx != null:
+		bx.finish()
+		bx.finish()                   # the race path: a second call must be a no-op
+		check("finish() is idempotent -- callback fired exactly once", fired[0] == 1,
+			str(fired[0]))
+		await get_tree().process_frame
+	if get_tree().paused: get_tree().paused = false
+	var fired2 := [0]
+	DialogueBox.play(self, [{"speaker": "Test", "text": "x"}], func(): fired2[0] += 1)
+	await get_tree().process_frame
+	bx = get_tree().get_first_node_in_group("dialogue_box")
+	check("dead-scene probe box exists", bx != null)
+	if bx != null:
+		var ghost := Node.new()       # stands in for a current_scene freed mid-swap
+		bx._host_id = ghost.get_instance_id()
+		ghost.free()
+		bx.finish()
+		check("a dead-scene finish() DROPS its callback (no dispatch into freed nodes)",
+			fired2[0] == 0, str(fired2[0]))
+		await get_tree().process_frame
+	if get_tree().paused: get_tree().paused = false
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

@@ -42,7 +42,12 @@ var _shown := 0.0         # characters revealed so far (float for smooth typing)
 var _typing := false
 var _blink := 0.0
 var _pointer: SpeakerIndicator = null   # the chevron hovering over the live speaker
-var _host_scene: Node = null            # the scene whose beat this is (see _process)
+# The scene whose beat this is, held BY INSTANCE ID (see _host_gone): a freed
+# object compares EQUAL to null in GDScript, so a plain `scene != null and not
+# is_instance_valid(scene)` check reads false the moment the scene actually dies
+# -- exactly when it must fire. instance_from_id() has no such blind spot.
+var _host_id := 0
+var _finished := false                  # finish() ran; every later call is a no-op
 
 static func play(host: Node, script_lines: Array, on_finished := Callable()) -> void:
 	# a deferred opening beat can fire during a scene swap, when host has left the tree and
@@ -58,7 +63,8 @@ static func play(host: Node, script_lines: Array, on_finished := Callable()) -> 
 	box._on_finished = on_finished
 	# root-mounted on purpose (survives pauses, owns layer 60) -- but remember
 	# WHOSE beat this is, so a scene change can dissolve it (see _process)
-	box._host_scene = host.get_tree().current_scene
+	var host_scene := host.get_tree().current_scene
+	box._host_id = host_scene.get_instance_id() if host_scene != null else 0
 	host.get_tree().root.add_child(box)
 
 func _ready() -> void:
@@ -299,13 +305,21 @@ func _find_speaker(speaker: String) -> Array:
 				return [n, -76.0]
 	return []
 
+# The scene that spoke this beat no longer exists (freed mid scene-swap or
+# quit-to-menu). Its callback aims at freed nodes and must never dispatch.
+func _host_gone() -> bool:
+	if _host_id == 0:
+		return false                      # a sceneless beat has nobody to outlive
+	var host = instance_from_id(_host_id)
+	return host == null or not is_instance_valid(host)
+
 func _process(delta: float) -> void:
 	# THE BEAT DIES WITH ITS SCENE. We are parented to root (survives scene
 	# swaps by design), so a Quit-to-Menu or dungeon exit mid-beat used to
 	# strand this box -- full-screen shade + panel eating input over the next
 	# scene, and a finish() whose callback fired into freed nodes. If the scene
 	# that spoke us is gone, dissolve: drop the callback, release the pause.
-	if _host_scene != null and not is_instance_valid(_host_scene):
+	if _host_gone():
 		_on_finished = Callable()
 		finish()
 		return
@@ -348,18 +362,41 @@ func _exit_tree() -> void:
 	_pointer = null
 
 func finish() -> void:
+	# IDEMPOTENT + TEARDOWN-SAFE (0xC0000005 fix 2026-07-29): tests and the
+	# tool_eyes_* walkers call finish() straight off the "dialogue_box" group, and
+	# during a scene reload that call can land in the one-frame window where the
+	# scene owning our callback is already freed but _process hasn't dissolved us
+	# yet. Dispatching _on_finished then is a NATIVE crash (the lambda's captured
+	# self is a dangling script instance), not a catchable script error -- so the
+	# box guards here, once, instead of trusting its many direct callers.
+	if _finished:
+		return
+	_finished = true
+	if _pointer != null and is_instance_valid(_pointer):
+		_pointer.queue_free()             # the speaker chevron dies with the box
+	_pointer = null
+	var cb = _on_finished
+	_on_finished = Callable()
+	# the beat's scene is gone (mid scene-swap): the callback aims at freed nodes.
+	# The same rule _process applies, enforced for direct callers too.
+	if _host_gone():
+		cb = Callable()
 	var t := get_tree()
+	if t == null:                             # already off the tree: just die quietly
+		queue_free()
+		return
 	# release the pause -- UNLESS the pause menu is open on top of us (ESC works
 	# during a beat): blind-unpausing here left the world running behind a
 	# visible pause menu, desynced from its own toggle.
 	var pm = t.get_first_node_in_group("pause_menu")
 	t.paused = pm != null and is_instance_valid(pm) and pm.visible
-	if _pointer != null and is_instance_valid(_pointer):
-		_pointer.queue_free()             # the speaker chevron dies with the box
-	_pointer = null
-	var cb = _on_finished
 	queue_free()                              # deferred: this box still counts below
-	if cb.is_valid():
+	# only dispatch a callback whose owner still breathes AND still stands in the
+	# tree -- a Callable outlives its object, and is_valid() alone does not cover
+	# a lambda whose captured self was freed
+	var cb_owner = cb.get_object() if cb.is_valid() else null
+	if cb.is_valid() and is_instance_valid(cb_owner) \
+			and (not cb_owner is Node or cb_owner.is_inside_tree()):
 		cb.call()                             # a chained line re-hides on its _ready
 	# restore the HUD only when the conversation is truly over -- if the callback
 	# opened another box, one still lives in the group and we stay hidden
