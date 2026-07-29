@@ -375,3 +375,25 @@ SCAN COMPLETE: ~350+ mechanics banked (magic 76, melee 60+, ranged 60+,
 summons/whips/sentries 50+, armor sets 30, accessory chains 40+, ammo 25+,
 materials 15, stations, craft lineages). The picking + adaptation phase now
 runs on this library alone — no more fetching needed for the build.
+
+## RANGED DEEP SCAN 2026-07-29 — BOWS/REPEATERS/LAUNCHERS (51 pages, all opened)
+Top verbs (ALL are candidates): Daedalus Stormbow (shots FALL FROM THE SKY at
+the aim; useless under a roof = built-in balance); Celebration Mk2 (7-color
+random rocket table — slot-machine weapon); Phantasm (wind-up fire rate +
+on-hit 3 target-locked spectral homers; 66% ammo save); Proximity Mine
+Launcher (lays armed 300% traps, cap 20, oldest expires); Nail Gun (15% now,
+embedded 135% blast 1.5s later; nails EJECT and re-stick on kill); Stynger
+(direct-hit double + 2-5 FULL-dmg shrapnel); Aerial Bane (6 arrows each
+split 5 downward; +50% vs airborne); Electrosphere (missile becomes 5s zone
+at cursor, new replaces old); Bee's Knees (recursive homing bee swarm);
+Eventide (4 chaff + 1 lance 200%; CHEAP ammo upcycled); Pulse Bow (5-bounce
+ricochet geometry toy); Phantom Phoenix (every 3rd shot = 200% phoenix —
+metronome design); Barrel Launcher (no ammo; +33% if bounced first — pays
+for bank shots); Blood Rain (sky-rain at low tier); Jack O Lantern (bouncy
+rolling contact bombs); Tsunami (5 flat parallel); Hellwing (inaccurate
+infinite-pierce bats = identity); Marrow (identity from raw velocity);
+Chlorophyte Shotbow (2-3-for-1).
+PATTERNS: verbs are saved for drops/bosses (24 stat-stick rungs pace the
+reward); unique bows are AMMO CONVERTERS (cheap ammo stays relevant);
+launchers differentiate by what they DO to shared ammo; shared i-frames tax
+every multishot/pierce design.
