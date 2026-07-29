@@ -3793,6 +3793,10 @@ func perform_attack() -> void:
 	# several shades at once, each carrying a different ancestor blade
 	elif special_type == "court_barrage":
 		unleash_court(special, aim_dir)
+	# The Crown's Sorrow: every beat of the pour is one narrow piercing lance
+	elif special_type == "grief_beam":
+		var gcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+		launch_projectile(special, aim_dir, gcr[0], gcr[1])
 	# High-grade blades hurl the swing itself forward as a crescent. This is how
 	# a melee weapon earns ranged comfort -- the replacement for the old
 	# levitation reach, except you EARN it by finding the weapon instead of

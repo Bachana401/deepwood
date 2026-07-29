@@ -33,6 +33,8 @@ const HITS_PER_USE := {
 	"prism":    6.0,   # six beams; at full focus all six are on one body
 	"regicide": 2.4,   # the throw, plus a 5-stack ticking 22% every 0.5s
 	"brazier":  2.2,   # whirl/hurl contacts plus ~7 embers at 45% over the sit
+	"sorrow":   1.4,   # one narrow lance per beat, piercing (the RATE is in
+	                   # the cooldown, not here -- do not double-count it)
 	# --- pre-existing multi-hit verbs, for a fair comparison ---
 	"volley":     2.0,
 	"jab_volley": 3.0,

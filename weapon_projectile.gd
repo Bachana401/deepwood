@@ -149,6 +149,13 @@ func _ready() -> void:
 			_behave_state = 0
 			_orbit_t = 0.0
 			_build_zenithblade()
+		"grief_beam":
+			# THE CROWN'S SORROW: not a swing -- a POUR. Narrow lances of grief
+			# leave the blade many times a second, each piercing whatever it
+			# passes through (Starlight-kin: the identity is hit RATE, and the
+			# per-hit number is deliberately small).
+			pierce = true
+			_build_griefbeam()
 		"brazier_flail":
 			# THRONE OF EMBERS: a flail whose head, when it comes to REST on the
 			# ground, stops being a weapon and becomes a THRONE -- a burning
@@ -1216,6 +1223,28 @@ func _recolor_brazier() -> void:
 			p.color = Color(1.0, 0.9, 0.58, 0.95)       # the live coal
 		else:
 			p.color = Color(0.93, 0.44, 0.13, 1.0)      # ember-lit spikes
+
+# THE CROWN'S SORROW's lance: a narrow spindle of pale light with a white
+# core -- small, fast, and there are always several in the air
+func _build_griefbeam() -> void:
+	var halo := Polygon2D.new()
+	halo.polygon = PackedVector2Array([
+		Vector2(30, 0), Vector2(4, -6), Vector2(-16, 0), Vector2(4, 6)])
+	halo.color = Color(0.62, 0.78, 1.0, 0.34)
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	halo.material = m
+	visual.add_child(halo)
+	var body := Polygon2D.new()
+	body.polygon = PackedVector2Array([
+		Vector2(25, 0), Vector2(3, -2.6), Vector2(-12, 0), Vector2(3, 2.6)])
+	body.color = Color(0.82, 0.9, 1.0, 0.95)
+	visual.add_child(body)
+	var core := Polygon2D.new()
+	core.polygon = PackedVector2Array([
+		Vector2(20, 0), Vector2(2, -1.1), Vector2(-8, 0), Vector2(2, 1.1)])
+	core.color = Color(1.0, 1.0, 1.0, 0.98)
+	visual.add_child(core)
 
 # REGICIDE's thrown spear: a slim crown-gold lance, point-first
 func _build_crownspear() -> void:

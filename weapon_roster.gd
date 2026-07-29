@@ -166,8 +166,11 @@ const ROWS = [
 	["wpn_skypillar",    "Pillar of the Sky",    "staff", 7, "staff", 27, 0.38, {
 		"fx": [{"kind": "quake", "radius": 150.0, "pct": 0.8}, {"kind": "haste", "pct_per": 0.08, "max": 5, "dur": 5.0}]}],
 	# ---------------- TIER 8 - MONARCH (floors 88-100) ----------------
-	["wpn_crownsorrow",  "The Crown's Sorrow",   "melee", 8, "arc", 41, 0.36, {"status": "slow_w",
-		"fx": [{"kind": "brand", "amp": 0.49, "dur": 5.0}, {"kind": "splinter", "n": 3, "pct": 1, "range": 170.0}]}],
+	# CROWN TEN #6: a plain `arc` shared with 27 weapons becomes a POUR. Damage
+	# 41 -> 11 with the cadence more than doubled: many small griefs, not one
+	# big one -- the per-hit number is supposed to look modest.
+	["wpn_crownsorrow",  "The Crown's Sorrow",   "melee", 8, "sorrow", 11, 0.15, {"status": "slow_w",
+		"fx": [{"kind": "brand", "amp": 0.49, "dur": 5.0}]}],
 	["wpn_kingdomwheel", "A Kingdom, Turning",   "melee", 8, "orbiter", 37, 0.75, {"dwell": 4.0,
 		"fx": [{"kind": "gravity", "radius": 240.0, "pull": 180.0}, {"kind": "crowd", "pct_per": 0.15, "cap": 0.6}]}],
 	["wpn_lastword",     "The Last Word",        "melee", 8, "zenith", 40, 0.78, {"status": "burn_w",
@@ -678,6 +681,10 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			# THRONE OF EMBERS alone: the flail head SITS where it lands and
 			# burns as a brazier before you take it up (Flower-Pow-kin)
 			s = {"type": "brazier_flail", "damage": dmg, "speed": spd + 40.0, "range": 240.0 + float(tier) * 16.0}
+		"sorrow":
+			# THE CROWN'S SORROW alone: a POUR of narrow piercing lances rather
+			# than a swing (Starlight-kin: the identity is hit RATE)
+			s = {"type": "grief_beam", "damage": dmg, "speed": spd + 420.0, "range": 300.0}
 		"staff":
 			s = {"type": "staff_extend"}
 	if not st.is_empty():
@@ -747,6 +754,7 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"zenith":     return "Every swing frees the GHOST of a blade it culminates: out, one whirl at the far point, and home -- cutting the whole way, each image a different ancestor."
 		"court":      return "Every swing calls the COURT: %d shades of the people you brought home appear at your side, each carrying a different ancestor blade, and all of them sweep at once." % int(ex.get("count", 4))
 		"edict":      return "The law REACHES: a jointed arm of light unfolds the length of the hall, cutting everything along it and blooming where it touches -- and stone does not stop a sentence."
+		"sorrow":     return "It does not swing so much as WEEP: narrow lances of grief leave the blade many times a second, each one passing clean through whatever stands in it. No single tear is much. There are a great many tears."
 		"brazier":    return "Whirl it, hurl it -- and where the head comes to REST it stops being a weapon and becomes a THRONE, a brazier sitting in the dirt spitting embers at whatever comes near, until you take it up again."
 		"regicide":   return "You do not stab a king once. Every throw leaves a crown-spear STANDING in them, biting while it stays -- five at a time, and the sixth shoves the first out in a burst."
 		"prism":      return "HOLD IT. Six sunbeams open in a fan and draw slowly together; the longer you stand and pour, the tighter they close, until all six burn through the same body at once. Moving lets the sun go out."
