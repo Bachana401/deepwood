@@ -246,6 +246,88 @@ func _ready() -> void:
 	check("...proved end-to-end: a level-6 School graduates faster than a level-1",
 		sch_l6 > sch_l1, "L1=%.2f L6=%.2f" % [sch_l1, sch_l6])
 
+	# ---- BUILDING POWERS (dev law 2026-07-29: behaviour, not stats) ----
+	# At BUILDING_POWER_LEVEL each building wakes a NAMED power that changes what
+	# it DOES. Batch 1's through-line: the building stops needing its leader.
+	# Every power must be provably absent below the threshold and present at it.
+	var lvl_all := func(n: int) -> void:
+		for bn in GameState.BUILDING_POWERS.keys():
+			GameState.building_levels[bn] = n
+			GameState.building_stage[bn] = GameState.TOTAL_BUILD_STAGES
+			GameState.building_health[bn] = 100
+	lvl_all.call(GameState.BUILDING_POWER_LEVEL - 1)
+	var dormant := []
+	for bn in GameState.BUILDING_POWERS.keys():
+		if GameState.has_building_power(bn):
+			dormant.append(bn)
+	check("no power wakes BELOW the milestone level", dormant.is_empty(), str(dormant))
+	lvl_all.call(GameState.BUILDING_POWER_LEVEL)
+	var asleep := []
+	for bn in GameState.BUILDING_POWERS.keys():
+		if not GameState.has_building_power(bn):
+			asleep.append(bn)
+	check("every declared power wakes AT the milestone level", asleep.is_empty(), str(asleep))
+	check("each power is NAMED (identity, not a stat line)",
+		GameState.building_power_name("Blacksmith") == "The Night Forge")
+
+	# THE STANDING WATCH: an off-shift warrior must count full once it wakes
+	GameState.rescued_villagers = [{"id": "sw1", "name": "Nightguard", "sex": "Male",
+		"is_kid": false, "stat_name": "Warrior", "stat_value": 4,
+		"role_key": "Barracks", "role_title": "Warrior"}]
+	GameState.ensure_adventurers()
+	for aid in GameState.adventurers.keys():
+		GameState.adventurers[aid]["station"] = "house"
+	var off_shift := not GameState.warrior_on_duty(GameState.rescued_villagers[0])
+	GameState.building_levels["Barracks"] = GameState.BUILDING_POWER_LEVEL - 1
+	var def_before: float = GameState.village_defense_power()
+	GameState.building_levels["Barracks"] = GameState.BUILDING_POWER_LEVEL
+	var def_after: float = GameState.village_defense_power()
+	if off_shift:
+		check("THE STANDING WATCH: the off-shift hold the wall at full worth",
+			def_after > def_before, "%.2f -> %.2f" % [def_before, def_after])
+	else:
+		check("THE STANDING WATCH: on-shift already full, power costs nothing",
+			is_equal_approx(def_after, def_before), "%.2f -> %.2f" % [def_before, def_after])
+
+	# THE NIGHT FORGE: arms are made with NO Forgemaster seated
+	GameState.rescued_villagers = []
+	for b in ["Blacksmith", "Barracks"]:
+		GameState.building_stage[b] = GameState.TOTAL_BUILD_STAGES
+		GameState.building_health[b] = 100
+	GameState.building_levels["Blacksmith"] = GameState.BUILDING_POWER_LEVEL - 1
+	GameState.barracks_arms = 0
+	GameState.village_stockpile["iron_shard"] = 999
+	GameState.apply_leadership_automation()
+	var arms_dormant: int = GameState.barracks_arms
+	GameState.building_levels["Blacksmith"] = GameState.BUILDING_POWER_LEVEL
+	GameState.barracks_arms = 0
+	GameState.village_stockpile["iron_shard"] = 999
+	GameState.apply_leadership_automation()
+	check("THE NIGHT FORGE: a grown forge arms the town with no Forgemaster",
+		arms_dormant == 0 and GameState.barracks_arms > 0,
+		"dormant=%d woken=%d" % [arms_dormant, GameState.barracks_arms])
+
+	# THE STANDING ORDER: idle souls get work with NO Chancellor
+	var idle := func(lvl: int) -> int:
+		GameState.building_levels["Government"] = lvl
+		GameState.rescued_villagers = []
+		for i in range(4):
+			GameState.rescued_villagers.append({"id": "idle_%d" % i, "name": "Idle%d" % i,
+				"sex": "Male", "is_kid": false, "stat_name": "Farm", "stat_value": 3,
+				"role_key": "", "role_title": ""})
+		GameState.apply_leadership_automation()
+		var n := 0
+		for v in GameState.rescued_villagers:
+			if str(v.get("role_key", "")) == "": n += 1
+		return n
+	var idle_dormant: int = idle.call(GameState.BUILDING_POWER_LEVEL - 1)
+	var idle_woken: int = idle.call(GameState.BUILDING_POWER_LEVEL)
+	check("THE STANDING ORDER: a grown Government staffs the town with no Chancellor",
+		idle_woken < idle_dormant, "idle %d -> %d" % [idle_dormant, idle_woken])
+
+	for bn in GameState.BUILDING_POWERS.keys():
+		GameState.building_levels.erase(bn)
+
 	# ---- restore ----
 	GameState.rescued_villagers = saved_roster
 	GameState.building_stage = saved_stage

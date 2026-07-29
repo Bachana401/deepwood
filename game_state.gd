@@ -1076,6 +1076,33 @@ const BUILDING_OUTPUT_PER_LEVEL = 0.25   # +25% output per level over level 1
 func building_level(name: String) -> int:
 	return int(building_levels.get(name, 1))
 
+# ===================== BUILDING POWERS (dev law 2026-07-29) =====================
+# "i want stats to be not important at all, transfer their importance to their
+# unique behavior." A building's levels used to buy nothing but a percentage --
+# the WRONG shape for progression. At BUILDING_POWER_LEVEL every building instead
+# wakes a NAMED power that changes what it DOES, and the numeric ladder shrinks to
+# connective tissue. The through-line is the automated-city vision: a grown
+# building stops needing to be managed.
+const BUILDING_POWER_LEVEL := 4
+const BUILDING_POWERS := {
+	"Blacksmith":   {"name": "The Night Forge", "desc": "The forge runs unattended — arms are made even with no Forgemaster seated."},
+	"School":       {"name": "The Open Doors", "desc": "Children enrol themselves — no Principal needed to school the town."},
+	"Government":   {"name": "The Standing Order", "desc": "The town staffs itself — every idle soul is put to work without a Chancellor."},
+	"Builderhouse": {"name": "The Standing Crew", "desc": "The crew rebuilds on its own — ruins are repaired with no Master Builder."},
+	"Barracks":     {"name": "The Standing Watch", "desc": "The watch overlaps — every warrior holds the wall at full worth, on shift or not."},
+}
+
+# Has this building grown into its named power?
+func has_building_power(name: String) -> bool:
+	return BUILDING_POWERS.has(name) and is_building_operational(name) \
+		and building_level(name) >= BUILDING_POWER_LEVEL
+
+# The power's display name, or "" if this building has none / hasn't grown into it.
+func building_power_name(name: String) -> String:
+	if not has_building_power(name):
+		return ""
+	return str(BUILDING_POWERS[name].get("name", ""))
+
 # ============================ ADJACENCY SYNERGY ============================
 # WHERE you build matters, not just what (settlement-depth roadmap Phase 1). The
 # village is a 1-D strip, so "adjacent" means the IMMEDIATE left/right neighbour
@@ -2211,7 +2238,9 @@ func village_defense_power() -> float:
 		if v.get("stat_name", "") == "Warrior" or v.get("role_key", "") == "Barracks":
 			# 7.3: the on-shift holds the wall at full worth; the off-shift
 			# scrambles from their bunks at half
-			power += SIEGE_DEF_PER_WARRIOR * (1.0 if warrior_on_duty(v) else 0.5)
+			# THE STANDING WATCH (power): a grown Barracks overlaps its shifts, so
+			# the off-shift no longer scrambles from their bunks at half worth
+			power += SIEGE_DEF_PER_WARRIOR * (1.0 if (warrior_on_duty(v) or has_building_power("Barracks")) else 0.5)
 		# a barracks-forged HERO is a one-person garrison (and never sleeps
 		# through a horn)
 		if v.get("hero_trained", false):
@@ -4797,8 +4826,9 @@ func seated_leaders(role_key: String) -> int:
 
 func apply_leadership_automation() -> void:
 	var player = get_tree().get_first_node_in_group("player")
-	if seated_leaders("Government") > 0:            # Chancellor: staff the town
-		auto_staff_villagers()
+	# THE STANDING ORDER (power): a grown Government runs its own rolls
+	if seated_leaders("Government") > 0 or has_building_power("Government"):
+		auto_staff_villagers()                      # Chancellor: staff the town
 	if player and player.has_method("add_currency") and (seated_leaders("Bank") > 0 or (is_building_operational("Bank") and count_workers("Bank") > 0)):
 		# 5.6: interest is the Bank's FUNCTION -- any staffed Financist grows
 		# the treasury (half rate); the Treasurer leader runs it at full, and
@@ -4816,11 +4846,14 @@ func apply_leadership_automation() -> void:
 	var physicians = seated_leaders("Hospital")
 	if physicians > 0:
 		auto_heal_villagers(physicians)             # Chief Physician: heal the hurt
-	if seated_leaders("School") > 0:
-		auto_enroll_children(seated_leaders("School"))  # Principal: school the kids
+	# THE OPEN DOORS (power): a grown School takes children in by itself
+	if seated_leaders("School") > 0 or has_building_power("School"):
+		auto_enroll_children(maxi(1, seated_leaders("School")))  # Principal: school the kids
 	# Grammar (5.1): a staffed Worker crew rebuilds on its own -- delegated,
 	# at half the leaders' pace; Master Builder/Foreman run it every tick
-	if seated_leaders("Builderhouse") > 0:
+	# THE STANDING CREW (power): a grown Builderhouse rebuilds at full pace with
+	# nobody in charge -- the crew knows the work now
+	if seated_leaders("Builderhouse") > 0 or has_building_power("Builderhouse"):
 		auto_repair_one()                           # leaders: rebuild the ruins
 	elif count_workers("Builderhouse") > 0:
 		_builder_half_tick = not _builder_half_tick
@@ -4833,7 +4866,9 @@ func apply_leadership_automation() -> void:
 	auto_pair_couples()
 	if seated_leaders("Marketplace") > 0:
 		auto_sell_village_surplus()                 # Merchant Prince: stores -> treasury
-	if forgemaster_supplying() and barracks_arms < BARRACKS_ARMS_CAP:
+	# THE NIGHT FORGE (power): a grown forge no longer waits on its master
+	if (forgemaster_supplying() or (has_building_power("Blacksmith") and is_building_operational("Barracks"))) \
+			and barracks_arms < BARRACKS_ARMS_CAP:
 		# THE CHAIN: every arm is forged FROM village iron (Mine -> Forge ->
 		# armory) -- an empty ore store means a cold forge, however grand the
 		# Forgemaster. Seat miners to feed him.
