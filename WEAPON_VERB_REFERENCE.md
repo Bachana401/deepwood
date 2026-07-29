@@ -494,3 +494,26 @@ Systems (ALL candidates, colony-game hooks noted by the scan):
 - Numeric anchors: 100:1 coin steps, 20% soul rate, 1/2500 keys, 60s heal
   lockout, +8 def Ironskin baseline, 33% ingredient-save station, 3:1→5:1
   ore-bar creep, souls-from-all-three convergence gates (Drax pattern).
+## ITEM-SPACE SCAN 2026-07-29 — ARMOR, ALL 50+ SETS (complete)
+Top set-bonus verbs (ALL candidates): STARDUST GUARDIAN (armor grants a
+free stationed bodyguard — double-tap to post him at a spot; village-
+defense gold); NEBULA BOOSTERS (your hits DROP stacking buff pickups you
+must run over — DPS as movement minigame, allies can grab); BEETLE
+Shell/Might (visible orbiting beetles = ablative DR eaten per hit, OR
+decaying melee ramp — stacks as diegetic UI); SPECTRE Hood/Mask (headpiece
+flips the set healer↔selfish: lifesteal orbs fly to LOWEST-HP ally, hidden
+throttle meters); SOLAR (shield charges = bonus DR AND dash ammo, spent
+only on contact); METEOR lock-and-key (set zeroes ONE weapon's cost —
+hunt combos not stats); VORTEX toggle-stealth vs SHROOMITE stand-still
+stealth (stance systems); OOA SETS = TOWER-MOD CARDS (each boosts one
+sentry; Squire's turrets ENRAGE when wearer is hit; Huntress OILED combo-
+debuff); ORICHALCUM (every hit fires screen-crossing wall-piercing petal,
+0.33s metronome); CHLOROPHYTE leaf crystal (orbiting auto-turret snipes
+through walls at YOUR tagged targets); HALLOWED (striking ARMS a
+guaranteed dodge, 30s re-arm); PALLADIUM (hits refresh 5s regen —
+aggro-vampire); TURTLE/CACTUS taunt-thorns line (+750 aggro, 200%
+reflect); FROST (dual-class chassis coats ALL hits with 25dps frostbite).
+META-PATTERNS: ore twins fork stats-vs-toys per world; interchangeable-
+piece families; class helmets on shared chassis (4-way at Chlorophyte);
+utility sets as wearable MODES (Angler suppresses spawns); same-tier
+siblings tuned to playstyle not power (Tiki whips vs Spooky raw).
