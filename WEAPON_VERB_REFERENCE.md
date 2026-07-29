@@ -129,16 +129,104 @@ Shell (thorns+slow); Frog Leg (jump); wings tiers; Angler Earring/Tackle Box
 (fishing power — ties to OUR fishing!).
 
 ## DEEPWOOD ADAPTATION QUEUE (dev: pick best, similar-but-different)
-1. Verb overhaul (task #20, in-flight) — melee/magic libraries above feed it.
-2. WEAPON FUSION CHAINS at the Forge: 4-blade fusion → an Edge; True ancestors
-   + rare catalyst → Terra-cousin; The Last Word = Zenith-culmination of the
-   ladder's famous blades. Ranged/wand lineages from the ranged agent's sweep.
-3. RELIC COMBINATION CHAINS (the Ankh lesson): our relics gain tinker-fusions
-   (e.g. all status-immunity trinkets → one Bulwark Locket; speed line →
-   all-terrain stride; info trinkets → a Whisperstone-tier compendium relic).
-4. ARMOR SET BONUSES (awaiting summon/armor agent report): sets with MECHANIC
-   bonuses (guardian minion, stacking kill-buffs, stealth-while-still, ramping
-   defense), rarity-scaled.
+1. ✅ Verb overhaul — DONE (task #20 closed at a136a20): 12/12 tomes, zenith
+   crown, Terra slash, tier girth. See the BUILT notes above.
+2. ✅ WEAPON FUSION CHAINS — the culmination landed (f6018db): The Last Word
+   forges from worldsedge + afterlight + novatongue + 8 void essence, the
+   same three blades its zenith tints remember. Further lineages (ranged/
+   wand culminations) remain open ideas.
+3. ✅ RELIC COMBINATION CHAINS — landed (1217ead): the Unbroken Seal
+   (ward+aegis+phoenix) and the Wayfarer's Passage (wings+feather+blink),
+   "relic_powers" plural in the engine. More fusions remain open ideas
+   (info-trinket compendium etc.).
+4. ✅ ARMOR SET BONUSES — landed (80b4e73): TEMPER / DEADEYE / SOULTHREAD
+   triggered set-souls on the full-armor tier, audit-enforced card lines.
+5. ✅ COMPANIONS (light summoner, dev call) — landed (e3a49cd): companion.gd
+   blade/wisp/beast on three existing carriers + The Standing Star relic.
+   Open ideas from the sweep below: merging-beast scaling, whip tag-loop.
+## MELEE DEEP SCAN 2026-07-29 — YOYOS / FLAILS / BOOMERANGS / ODDBALLS
+(67 pages opened individually; full stats + GIF filenames in the scan digest.
+This section = the adaptation-grade essence.)
+
+THE THREE FAMILY CONTROL SCHEMES (the real prizes):
+- YOYO: thrown orb DWELLS at the aim inside a reach radius for a spin
+  duration, steerable while held, returns on release. Progression = reach +
+  dwell growing until dwell is INFINITE. Crown: Terrarian (reach 25 tiles,
+  while spinning fires bouncing orbs every 0.1s at foes within 25 tiles).
+- FLAIL: HOLD = ball orbits the player (close shredder); TAP = launch on
+  chain, retract on impact. Launched subtype (Chain Knife/KO Cannon/Golem
+  Fist) is throw-only, fire rate scales with proximity.
+- BOOMERANG: flies ~0.5s, returns fast — and the RETURN pass gains infinite
+  pierce and phases through blocks (park at max range for the sweet spot).
+
+TOP VERBS TO ADAPT (ranked by the scan):
+1. Solar Eruption — segmented lash sweeping a 33-tile ellipse THROUGH WALLS,
+   every hit spawns explosions + a stacking burn (Daybroken 100/s).
+2. Terrarian — the parked dwell-point becomes a bullet fountain.
+3. Flairon — swing/launch mode toggle + constant ~15/sec homing bubbles;
+   every miss still productive.
+4. Daybreak — spears STICK and tick, stack to 8 (800 DPS), 9th pops the
+   oldest as an explosion — a debuff meter you can SEE sticking out of the boss.
+5. Sergeant United Shield — 5-hop ricochet throw + 0.33s parry that reflects
+   200% and grants +500% next melee (defense-into-offense timing).
+6. Jousting Lance line — damage scales with the PLAYER'S OWN SPEED.
+7. Flower Pow — flail head RESTED ON THE GROUND becomes a petal turret
+   (0.33s→0.17s fire when planted).
+8. Scourge of the Corruptor — javelin bursts into ~3 homing larvae that
+   bounce 5x and chase within 50 tiles.
+9. Vampire Knives — 4-8 knife fan, every hit heals 7.5% as VISIBLE red
+   life-threads flying home.
+10. Golem Fist — rocket punch; past 9.4 tiles every impact detonates a
+    through-wall 12.5-tile shockwave (KB 12, "Insane").
+11. Flying Knife — held blade that orbits the aim drunkenly, up to 1 min.
+12. Hive-Five / Terragrim — on-hit bee summons on a starter yoyo; and the
+    12-hit/sec cursor-aimed flurry (melee as a held shredder cone, 5-frame
+    i-frames as the rate limiter).
+
+Also worth stealing: Blue Moon + Sunfury INVENTORY-PAIR synergy (both fire
+mirrored when the twin is carried, 80% each); Anchor's block-impact
+shockwave through walls (33% confuse); Dao of Pow's 80% Confuse roll per
+swing; Paladin's Hammer block-impact explosion + Broken Armor; Amarok's
+frostbite-on-most-hits; Cascade/Hel-Fire as light-source weapons; Bloody
+Machete's gravity arc that returns only after a hit; Thorn Chakram corridor
+pinball; Light Disc x6 / Bananarang x10 multi-throw ceilings; KO Cannon's
+proximity-scaled fire rate; Sleepy Octopod's slam-on-block 300% explosion;
+Flint's charged ground-crawling 13-pillar flame wave; Ale Tosser as the
+joke-weapon slot ("69% chance to save ammo").
+
+## MELEE DEEP SCAN 2026-07-29 — SPEARS + ENDGAME (every page opened)
+ALL of these are adaptation candidates (not just the ranked ones):
+- Storm Spear: thrust fires a 160%-dmg electric bolt (short, tile-blocked).
+- Rotted Fork / Dark Lance / Gungnir: tip SHOCKWAVE stretching reach
+  (11.5 → 13.5 → 16.8 tiles); Dark Lance adds shadowflame; Gungnir lit.
+- Trident: weapon that is ALSO a traversal item (water mobility while held).
+- Slime Spear: 100% sticky-slime debuff starter.
+- Obsidian Swordfish: stubby reach but 24% CRIT + 1-3 gravity embers/thrust.
+- Chlorophyte Partisan: thrust apex exhales a spore cloud that drifts
+  THROUGH WALLS ~1.7s, infinite pierce.
+- Mushroom Spear: each thrust leaves SEVEN hovering mushroom mines along
+  the thrust line (~1s, 33% each) — melee minefield.
+- Ghastly Glaive: curved thrust; every hit summons a ghast NEXT TO a random
+  other enemy within 50 tiles (spear the front, haunt the back).
+- North Pole: thrown icy spear sheds a CURTAIN of falling snowflakes (70%
+  each, every 0.15s, persist 4s) — one input, two damage zones.
+- Influx Waver: sword beam that TELEPORT-RE-STRIKES 2 extra times on hit,
+  seeking within 15 tiles of the vanish point.
+- Horseman's Blade: swing aura (3 targets) + every struck enemy summons a
+  flaming pumpkin head diving in FROM OFF-SCREEN through blocks, retargeting.
+- Christmas Tree Sword: star projectile that SHEDS ball ornaments every
+  0.17s which hang then fall (projectile dripping projectiles).
+- Starlight: melee rapier machine-gunning piercing light beams ~15 hits/s
+  (tiny i-frames = the anti-armor DPS drill), reach ~13.7 tiles.
+- Flying Dragon: every swing a huge crescent through walls, pierce 4, 1s.
+- Sky Dragon's Fury: TWO verbs — 360° spin blender / 3-orb fan bursting
+  into lingering electrospheres (melee alt-fire pattern).
+- Solar Eruption + Daybreak: (already in the family digest above).
+- First Fractal (cut content): dye-stripped player-copies swinging a
+  15-sword flying barrage — legally safe to homage since it never shipped.
+- Fun bones: True Copper Shortsword (Zenith joke-variant via shimmer),
+  Scourge's 1% FIFTEEN-eater jackpot (built-in slot machine).
+
 ## SUMMONS / WHIPS / SENTRIES (agent sweep, 50+ mechanics)
 Minions: divebombing bird; bouncing slime; stinger hornet; fireball imp;
 latching venom spiders; dash-orbit crimson bats (fly out, slash, return to a
