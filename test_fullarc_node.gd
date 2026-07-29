@@ -93,13 +93,19 @@ func _ready() -> void:
 	# whatever the town can actually field always models the intended scenario.
 	var before_roster: int = GameState.rescued_villagers.size()
 	GameState.in_dungeon = true                    # the fog comes down
-	# ...and the wave must out-last the SHIELDS too: every fighting adventurer dies
-	# in place of a villager, and Maera pulls one more back from the brink, so a
-	# wave sized only just past the wall kills nothing but adventurers.
+	# ...and it must out-last the SHIELDS: every fighting adventurer dies in place of
+	# a villager and Maera pulls one more back, so a wave sized just past the wall
+	# kills nobody the roster counts. Since the attrition curve (b13d93e) an ORDINARY
+	# wave is also capped at SIEGE_MAX_CASUALTIES, which the shields alone can eat --
+	# so the only siege that can still cost VILLAGERS is the Black Tide, the designed
+	# catastrophe that is announced ahead of time. That is what this beat models.
+	# Sized off the live constants so a retune of the curve can't quietly gut it.
 	var shields: int = GameState.fighting_adventurers().size()
 	var stabilized: int = 1 if GameState.ten_freed("ten_maera") else 0
-	var unholdable: int = int(ceil(GameState.village_defense_power())) + shields + stabilized + 2
-	GameState.resolve_siege_offline(unholdable)
+	var must_kill: int = shields + stabilized + 1          # ...and one real villager
+	var unholdable: int = int(ceil(GameState.village_defense_power()
+		+ GameState.SIEGE_SHORTFALL_PER_CASUALTY * float(must_kill))) + 1
+	GameState.resolve_siege_offline(unholdable, true)      # black tide: uncapped
 	check("an unheld siege costs the village real people",
 		GameState.rescued_villagers.size() < before_roster)
 	check("...and it is written down while you cannot see it",
