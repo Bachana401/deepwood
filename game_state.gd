@@ -1184,17 +1184,89 @@ const ADJACENCY_PAIRS := [
 	{"a": "Hospital",    "b": "Shrine",       "bonus": 0.15, "why": "healing and mercy keep one threshold"},
 ]
 
+# ============================ DISTRICTS (roadmap Phase 2) ============================
+# The second spatial axis. Adjacency asks WHO you stand next to; a district asks
+# WHERE ON THE MAP you stand. The road runs west (the gate the sieges come from)
+# to east (open working land), so the strip has three natural quarters:
+#
+#   GATEFRONT  the war quarter -- the exposed ground the waves reach first.
+#              Soldiers, arms and the ward that receives the wounded belong here
+#              (and the Sick Road already walks the hurt toward the nearest ward).
+#   HEART      the civic quarter -- the town square. Rule, coin, trade, learning
+#              and the places people gather.
+#   OUTSKIRTS  the working land -- fields, water, seams, timber, and a shrine set
+#              apart from the crowd.
+#
+# Measured off the REAL row (probe 2026-07-29: gate 4700, buildings from ~5269 to
+# ~17600, ~880px slots), and anchored in ABSOLUTE distance from the gate on
+# purpose. Fractional thirds would have re-drawn every boundary each time the town
+# grew east, silently moving a building out of its district and taking a bonus
+# away that the player never spent -- a hidden retro-penalty. Only MOVING a
+# building changes its district now.
+const DISTRICT_GATEFRONT_DEPTH := 4500.0     # gate .. +4500
+const DISTRICT_HEART_DEPTH := 9500.0         # +4500 .. +9500, then outskirts
+const DISTRICT_BONUS := 0.10                 # standing in your own quarter
+# Positive only, like adjacency: the right quarter PAYS, the wrong one simply
+# doesn't. Nobody's existing row is fined for predating this.
+const DISTRICT_HOME := {
+	"Barracks": "gatefront", "Blacksmith": "gatefront", "Hospital": "gatefront",
+	"Government": "heart", "Bank": "heart", "Marketplace": "heart",
+	"School": "heart", "Science Lab": "heart", "Bar": "heart", "Tavern": "heart",
+	"Farm": "outskirts", "Fishing Dock": "outskirts", "Mine": "outskirts",
+	"Builderhouse": "outskirts", "Shrine": "outskirts",
+}
+const DISTRICT_LABEL := {
+	"gatefront": "Gatefront — the war quarter",
+	"heart": "The Heart — the civic quarter",
+	"outskirts": "Outskirts — the working land",
+}
+
+# Which quarter a piece of ground belongs to. Anything at or west of the gate
+# counts as gatefront: that IS the exposed edge, by definition.
+func district_at(x: float) -> String:
+	var gate := SURFACE_WEST_FALLBACK_X
+	var t := get_tree()
+	if t != null:
+		for w in t.get_nodes_in_group("village_wall"):
+			if "flank" in w and str(w.flank) == "west":
+				gate = w.global_position.x
+				break
+	var east := x - gate
+	if east <= DISTRICT_GATEFRONT_DEPTH:
+		return "gatefront"
+	if east <= DISTRICT_HEART_DEPTH:
+		return "heart"
+	return "outskirts"
+
+# name -> district, cached beside the neighbour row for the same reason (the
+# surface scene is unloaded while the player is in the deep).
+var building_districts: Dictionary = {}
+
+func building_district(name: String) -> String:
+	return str(building_districts.get(name, ""))
+
+# Is this building standing in the quarter that suits it?
+func in_home_district(name: String) -> bool:
+	var home := str(DISTRICT_HOME.get(name, ""))
+	return home != "" and building_district(name) == home
+
+func district_bonus(name: String) -> float:
+	if not is_building_operational(name):
+		return 0.0
+	return DISTRICT_BONUS if in_home_district(name) else 0.0
+
 # name -> [left_neighbour, right_neighbour]. Rebuilt from the live village and
 # CACHED, because the surface scene is UNLOADED while the player is in the deep
 # and the away ticks (food, income, the stores) still need to know the row.
 # Buildings cannot move while you are away, so the last known row stays true.
 var building_neighbors: Dictionary = {}
 
-# Rebuild the neighbour map from the standing village. Physical adjacency counts
-# every building BODY -- a ruin between two halls really does separate them, and
-# raising or moving it is how you fix that. Whether a synergy FIRES is gated on
-# both halves being operational (see adjacency_links).
-func refresh_adjacency() -> void:
+# Read the village's LAYOUT off the standing bodies: who neighbours whom, and
+# which quarter each building stands in. Physical adjacency counts every building
+# BODY -- a ruin between two halls really does separate them, and raising or
+# moving it is how you fix that. Whether a synergy FIRES is gated on both halves
+# being operational (see adjacency_links).
+func refresh_layout() -> void:
 	var t := get_tree()
 	if t == null:
 		return
@@ -1204,15 +1276,19 @@ func refresh_adjacency() -> void:
 			continue
 		row.append({"name": str(b.building_name), "x": b.global_position.x})
 	if row.is_empty():
-		return                      # away from the village: keep the cached row
+		return                      # away from the village: keep the cached layout
 	row.sort_custom(func(p, q): return float(p["x"]) < float(q["x"]))
 	var nb := {}
+	var dist := {}
 	for i in range(row.size()):
-		nb[str(row[i]["name"])] = [
+		var bn := str(row[i]["name"])
+		nb[bn] = [
 			str(row[i - 1]["name"]) if i > 0 else "",
 			str(row[i + 1]["name"]) if i < row.size() - 1 else "",
 		]
+		dist[bn] = district_at(float(row[i]["x"]))
 	building_neighbors = nb
+	building_districts = dist
 
 # The synergies LIVE for one building right now: [{partner, bonus, why}, ...].
 # Both halves must stand and work -- a rubble Blacksmith forges nothing for the
@@ -1240,10 +1316,12 @@ func adjacency_bonus(name: String) -> float:
 		total += float(link["bonus"])
 	return minf(total, ADJACENCY_BONUS_CAP)
 
-# ONE output term per building: its upgrade level AND its neighbours. Every
-# producer in the chain reads this, so a well-laid row genuinely runs richer.
+# ONE output term per building: its upgrade level, its NEIGHBOURS, and the QUARTER
+# it stands in. Every producer in the chain reads this, so a well-laid town
+# genuinely runs richer than a scattered one.
 func building_output_multiplier(name: String) -> float:
-	return 1.0 + (building_level(name) - 1) * BUILDING_OUTPUT_PER_LEVEL + adjacency_bonus(name)
+	return 1.0 + (building_level(name) - 1) * BUILDING_OUTPUT_PER_LEVEL \
+		+ adjacency_bonus(name) + district_bonus(name)
 
 # --- DELETED BUILDINGS (dev 2026-07-22 building menu: "player can delete these
 # ruins... game always double checks"). A building the player razes for good is
@@ -6008,6 +6086,7 @@ func reset_for_new_game() -> void:
 	blueprints = BLUEPRINT_STARTERS.duplicate()
 	building_positions = {}
 	building_neighbors = {}   # the row is re-read when the village generates
+	building_districts = {}
 	moving_building = ""
 	pregnancies = {}
 	school_enrollments = {}
@@ -6247,6 +6326,7 @@ func save_game(player: Node) -> void:
 		"blueprints": blueprints,
 		"building_positions": building_positions,
 		"building_neighbors": building_neighbors,
+		"building_districts": building_districts,
 		"pregnancies": pregnancies,
 		"school_enrollments": school_enrollments,
 		"highest_unlocked_level": highest_unlocked_level,
@@ -6478,6 +6558,10 @@ func load_game() -> Dictionary:
 				var sides = parsed["building_neighbors"][k]
 				if sides is Array and sides.size() == 2:
 					building_neighbors[str(k)] = [str(sides[0]), str(sides[1])]
+		building_districts = {}
+		if parsed.has("building_districts") and parsed["building_districts"] is Dictionary:
+			for k in parsed["building_districts"].keys():
+				building_districts[str(k)] = str(parsed["building_districts"][k])
 		if parsed.has("pregnancies"):
 			pregnancies = parsed["pregnancies"]
 		if parsed.has("school_enrollments"):

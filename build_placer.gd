@@ -240,10 +240,13 @@ func _try_place(x: float) -> void:
 	GameState.play_sfx(GameState.SFX_YES, 1.0)
 	# the row changed -- recompute who neighbours whom (adjacency synergy), and tell
 	# the player when the new ground actually earned something
-	GameState.refresh_adjacency()
+	GameState.refresh_layout()
 	var links: Array = GameState.adjacency_links(build_name)
 	if stack:
 		stack.show_notification("🏗 The %s is raised on its new ground." % build_name)
+		if GameState.in_home_district(build_name):
+			stack.show_notification("🗺 %s — the %s belongs here." % [
+				str(GameState.DISTRICT_LABEL.get(GameState.building_district(build_name), "")), build_name])
 		for link in links:
 			stack.show_notification("✦ %s + %s — %s" % [build_name, str(link["partner"]), str(link["why"])])
 	GameState.log_event("village", "The %s was raised from the build menu." % build_name)

@@ -25,6 +25,7 @@ test_cottageids_node
 test_craft_node
 test_deep_node
 test_deepreach_node
+test_districts_node
 test_doorloop_node
 test_dotdeath_node
 test_dragsplit_node

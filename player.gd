@@ -1750,9 +1750,12 @@ func try_plant_building() -> void:
 	GameState.log_event("village", "The %s was moved to new ground." % name)
 	# MOVING IS THE WHOLE POINT of adjacency synergy -- recompute the row and say
 	# what the new spot earned, so relocating reads as a decision, not a chore.
-	GameState.refresh_adjacency()
+	GameState.refresh_layout()
 	if stack:
 		stack.show_notification("🏗 The %s stands on its new ground." % name)
+		if GameState.in_home_district(name):
+			stack.show_notification("🗺 %s — the %s belongs here." % [
+				str(GameState.DISTRICT_LABEL.get(GameState.building_district(name), "")), name])
 		for link in GameState.adjacency_links(name):
 			stack.show_notification("✦ %s + %s — %s" % [name, str(link["partner"]), str(link["why"])])
 

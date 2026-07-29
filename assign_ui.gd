@@ -258,6 +258,27 @@ func add_upgrade_section(list: VBoxContainer) -> void:
 				str(pw.get("name", "")), GameState.BUILDING_POWER_LEVEL, str(pw.get("desc", ""))]
 		list.add_child(pl)
 
+	# ---- DISTRICT: which quarter of the road it stands in, and whether that suits ----
+	var dist_key := GameState.building_district(b.building_name)
+	if dist_key != "":
+		var dl = Label.new()
+		dl.add_theme_font_size_override("font_size", 11)
+		dl.autowrap_mode = TextServer.AUTOWRAP_WORD
+		dl.custom_minimum_size = Vector2(300, 0)
+		var home := str(GameState.DISTRICT_HOME.get(b.building_name, ""))
+		if GameState.in_home_district(b.building_name):
+			dl.add_theme_color_override("font_color", Color(0.6, 0.9, 0.65, 1))
+			dl.text = "  🗺 %s  →  +%d%% output (this is where it belongs)" % [
+				str(GameState.DISTRICT_LABEL.get(dist_key, dist_key)),
+				int(round(GameState.DISTRICT_BONUS * 100.0))]
+		else:
+			dl.add_theme_color_override("font_color", Color(0.66, 0.66, 0.7, 1))
+			dl.text = "  🗺 %s.  Belongs in the %s — move it there for +%d%%." % [
+				str(GameState.DISTRICT_LABEL.get(dist_key, dist_key)),
+				str(GameState.DISTRICT_LABEL.get(home, home)),
+				int(round(GameState.DISTRICT_BONUS * 100.0))]
+		list.add_child(dl)
+
 	# ---- ADJACENCY SYNERGY: what this building's NEIGHBOURS are worth ----
 	var links: Array = GameState.adjacency_links(b.building_name)
 	var syn = Label.new()

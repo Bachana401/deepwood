@@ -122,16 +122,16 @@ func _ready() -> void:
 		food_paired > food_alone, "%.4f -> %.4f" % [food_alone, food_paired])
 
 	# ---- the row is DERIVED from real positions, and survives a save ----
-	GameState.refresh_adjacency()
+	GameState.refresh_layout()
 	check("refresh reads the row off the standing village",
 		not GameState.building_neighbors.is_empty(), str(GameState.building_neighbors.size()))
 	var gs := FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text()
 	check("the neighbour row is saved (away ticks still know the layout)",
 		gs.contains('"building_neighbors": building_neighbors'))
 	check("...and rebuilt when the village generates",
-		FileAccess.open("res://main.gd", FileAccess.READ).get_as_text().contains("refresh_adjacency"))
+		FileAccess.open("res://main.gd", FileAccess.READ).get_as_text().contains("refresh_layout"))
 	check("moving a building re-reads the row",
-		FileAccess.open("res://player.gd", FileAccess.READ).get_as_text().contains("refresh_adjacency"))
+		FileAccess.open("res://player.gd", FileAccess.READ).get_as_text().contains("refresh_layout"))
 	var ui := FileAccess.open("res://assign_ui.gd", FileAccess.READ).get_as_text()
 	check("the E-panel names the live synergies (and the level term stays separate)",
 		ui.contains("adjacency_links") and ui.contains("BUILDING_OUTPUT_PER_LEVEL"))
