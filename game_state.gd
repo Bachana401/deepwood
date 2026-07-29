@@ -1541,6 +1541,16 @@ func kid_is_housed(v: Dictionary) -> bool:
 # whose brake is the cottage count itself. A starving or despairing village
 # does not conceive.
 const FAMILY_CYCLE_HOURS := 60.0
+# Per HOUSED COUPLE, per cycle. THE FLYWHEEL FIX (2026-07-29): this used to pick
+# exactly ONE couple per cycle no matter how many cottages stood -- so a town of
+# 20 cottages bred at precisely the same rate as a town of 1, the "brake is the
+# cottage count" promised above was never implemented, and the population could
+# never approach the intended city scale (dev: ~70-80 villagers by floor 60; the
+# marathon sim topped out around 11). Now every couple rolls its own cradle, so
+# cottages are what actually grow the town -- and the natural brakes still hold:
+# a couple already expecting is skipped, and no one conceives while the larder is
+# empty or the village is in despair.
+const FAMILY_CONCEPTION_CHANCE := 0.4
 var _family_cycle_accum := 0.0
 
 func _couple_expecting(a: String, b: String) -> bool:
@@ -1568,9 +1578,14 @@ func update_cottage_families(hours_passed: float) -> void:
 		candidates.append(h)
 	if candidates.is_empty():
 		return
-	var pick: Dictionary = candidates[randi() % candidates.size()]
-	var pregnancy_id = _mint_birth_id("preg")
-	pregnancies[pregnancy_id] = {"male_id": pick.get("a", ""), "female_id": pick.get("b", ""), "remaining_hours": GESTATION_DURATION_HOURS}
+	# EVERY housed couple rolls for the cradle -- more cottages, more children.
+	# (_mint_birth_id is sequence-backed, so several conceptions in ONE frame
+	# still get unique ids -- see the _birth_seq note.)
+	for h in candidates:
+		if randf() >= FAMILY_CONCEPTION_CHANCE:
+			continue
+		var pregnancy_id = _mint_birth_id("preg")
+		pregnancies[pregnancy_id] = {"male_id": h.get("a", ""), "female_id": h.get("b", ""), "remaining_hours": GESTATION_DURATION_HOURS}
 
 # Active School/Barracks enrollments, keyed by villager_id:
 # {"remaining_hours", "grants_stat"}. grants_stat is either "random" (School

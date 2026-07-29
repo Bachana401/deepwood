@@ -125,6 +125,48 @@ func _ready() -> void:
 	check("the roster (and each soul's solitude clock) survives the save",
 		gs.contains('"rescued_villagers": rescued_villagers'))
 
+	# ---- THE FLYWHEEL (2026-07-29): more cottages MUST mean more cradles ----
+	# The bug this pins: update_cottage_families used to conceive exactly ONE
+	# child per cycle regardless of how many couples were housed, so the town
+	# could never grow to city scale. Births must now scale with the cottage
+	# count -- that is the whole "the brake is the cottage count itself" contract.
+	var conceptions := func(couples: int) -> int:
+		GameState.village_food = 500.0
+		GameState.morale_death_shock = 0.0
+		GameState.rescued_villagers = []
+		GameState.cottage_homes = {}
+		GameState.pregnancies = {}
+		for i in range(couples):
+			var m := {"id": "fw_m%d" % i, "name": "M%d" % i, "sex": "Male", "is_kid": false,
+				"stat_name": "Farm", "stat_value": 3, "role_key": "", "role_title": ""}
+			var f := {"id": "fw_f%d" % i, "name": "F%d" % i, "sex": "Female", "is_kid": false,
+				"stat_name": "Farm", "stat_value": 3, "role_key": "", "role_title": ""}
+			GameState.rescued_villagers.append(m)
+			GameState.rescued_villagers.append(f)
+			GameState.cottage_homes["fw_h%d" % i] = {"a": m.id, "b": f.id}
+		# run several cycles so the per-couple roll averages out
+		var total := 0
+		for _c in range(12):
+			GameState.pregnancies = {}
+			GameState._family_cycle_accum = 0.0
+			GameState.update_cottage_families(GameState.FAMILY_CYCLE_HOURS)
+			total += GameState.pregnancies.size()
+		return total
+	var few: int = conceptions.call(1)
+	var many: int = conceptions.call(12)
+	check("a single housed couple still conceives (the cradle isn't dead)", few > 0, "%d over 12 cycles" % few)
+	check("TWELVE cottages out-breed ONE by a wide margin (the flywheel spins)",
+		many > few * 4, "1 cottage=%d births, 12 cottages=%d births over 12 cycles" % [few, many])
+	check("a couple already expecting is not double-booked",
+		many <= 12 * 12, "%d (cap %d)" % [many, 12 * 12])
+	# the brakes still hold: an empty larder stops conception dead
+	GameState.village_food = 0.0
+	GameState.pregnancies = {}
+	GameState._family_cycle_accum = 0.0
+	GameState.update_cottage_families(GameState.FAMILY_CYCLE_HOURS)
+	check("a starving village conceives nobody, however many cottages stand",
+		GameState.pregnancies.is_empty(), "%d conceived on an empty larder" % GameState.pregnancies.size())
+
 	# ---- restore ----
 	GameState.rescued_villagers = saved_roster
 	GameState.mating_houses = saved_houses
