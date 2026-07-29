@@ -517,3 +517,26 @@ META-PATTERNS: ore twins fork stats-vs-toys per world; interchangeable-
 piece families; class helmets on shared chassis (4-way at Chlorophyte);
 utility sets as wearable MODES (Angler suppresses spawns); same-tier
 siblings tuned to playstyle not power (Tiki whips vs Spooky raw).
+## ITEM-SPACE SCAN 2026-07-29 — ACCESSORIES + ALL TINKER TREES (~60 pages; FULL-TERRARIA SCAN COMPLETE)
+Top verbs (ALL candidates): ANKH SHIELD (11 scattered single-debuff charms
+fuse via 5 pairs into one immunity capstone — the collect-a-thon relic
+model; we built the light version already); SHIELD OF CTHULHU (first boss
+pays out a MOVEMENT VERB — dash with ram+i-frames); CELL PHONE tree (13
+junk trinkets each showing one HUD stat fuse into the all-knower — UI
+unlocked as ITEMS); TERRASPARK (two long parallel boot lines merge; hoard
+intermediates); SOARING INSIGNIA (endgame DELETES the flight meter — "the
+rule stops applying" reward); BRAIN OF CONFUSION (dodge triggers a crit
+window — defense as offense); BUNDLE OF BALLOONS (jump TYPES stack:
+spin/thrust/blast → quadruple); CELESTIAL SHELL (day/night/water
+shapeshifts + stat brick); MASTER NINJA GEAR (climb+dash+dodge = fantasy
+kit); PAPYRUS SCARAB (stacks WITH its own ingredients); GRAVITY GLOBE;
+SHINY STONE (huge regen only standing still); GREEDY RING (economy build
+path from pirates); STAR CLOAK forks (one proc forked 3 ways by fusion);
+PALADIN/HERO/FROZEN SHIELD (absorb ally damage + aggro — tank role as an
+accessory); ROYAL GEL (boss reward pacifies its minion family — rescue-
+fantasy gold); RAM RUNE (ground-pound, height-scaled damage — fits our
+92px jump game); on-hurt bee/panic family; MUSIC BOX (records world music);
+STRESS BALL (auto-attack idle); expert-bag uniques (Worm Scarf -17%,
+Volatile Gelatin, Spore Sac, Bone Helm shadow hands, Demon Heart +1 slot);
+YOYO BAG (counterweight+string+glove = the family's mastery item); boot/
+glove/quiver/scope/emblem/cuff chains all mapped in the scan digest.
