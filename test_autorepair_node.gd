@@ -29,7 +29,17 @@ func _ready() -> void:
 		and not GameState.is_building_operational(placed),
 		"stage=%d" % GameState.building_build_stage(placed))
 
-	# run the Builderhouse crew a long time
+	# THE CHAIN (City Machine pillar A): with EMPTY village stores the crew idles --
+	# repairs are no longer conjured free
+	var stage_before: int = GameState.building_build_stage(placed)
+	GameState.village_stockpile = {"wood": 0, "stone": 0, "iron_shard": 0}
+	GameState.auto_repair_one()
+	check("an empty store means the crew IDLES (no free repairs)",
+		GameState.building_build_stage(placed) == stage_before,
+		"stage=%d" % GameState.building_build_stage(placed))
+
+	# stock the stores, then run the Builderhouse crew a long time
+	GameState.village_stockpile = {"wood": 999, "stone": 999, "iron_shard": 0}
 	for i in range(120):
 		GameState.auto_repair_one()
 

@@ -281,6 +281,51 @@ func _ready() -> void:
 	check("no staff, no service", GameState.hospital_heal(p) == "unstaffed")
 	p.health = p.get_max_health()
 
+	# ---- THE CITY MACHINE (pillar A + the Bank slice, dev call 2026-07-29) ----
+	# the Mine hauls a village share into the STORES on top of the player's cut
+	GameState.building_stage["Mine"] = GameState.TOTAL_BUILD_STAGES
+	GameState.rescued_villagers = [{"id": "cm_m", "name": "Digger", "sex": "Male", "is_kid": false,
+		"stat_name": "Mine", "stat_value": 3, "role_key": "Mine", "role_title": "Miner"}]
+	GameState.village_stockpile = {"wood": 0, "stone": 0, "iron_shard": 0}
+	GameState._mine_accum = 0.0
+	GameState.tick_mine_yield(24.5)
+	check("the Mine hauls a village share into the stores",
+		int(GameState.village_stockpile["stone"]) >= 1
+		and int(GameState.village_stockpile["iron_shard"]) >= 1,
+		str(GameState.village_stockpile))
+	# the builders fell the town's timber -- wood finally has a producer
+	GameState.building_stage["Builderhouse"] = GameState.TOTAL_BUILD_STAGES
+	GameState.rescued_villagers.append({"id": "cm_w", "name": "Sawyer", "sex": "Male", "is_kid": false,
+		"stat_name": "", "stat_value": 1, "role_key": "Builderhouse", "role_title": "Worker"})
+	GameState._wood_accum = 0.0
+	GameState.tick_wood_gathering(24.5)
+	check("the builders fell timber into the stores",
+		int(GameState.village_stockpile["wood"]) >= 1, str(GameState.village_stockpile))
+	# the Forge turns STORE iron into arms -- and a bare store means a cold forge
+	GameState.building_stage["Blacksmith"] = GameState.TOTAL_BUILD_STAGES
+	GameState.building_stage["Barracks"] = GameState.TOTAL_BUILD_STAGES
+	GameState.rescued_villagers.append({"id": "cm_f", "name": "Forge", "sex": "Male", "is_kid": false,
+		"stat_name": "Forgemaster", "stat_value": 5, "role_key": "Blacksmith", "role_title": "Forgemaster"})
+	GameState.barracks_arms = 0
+	GameState.village_stockpile["iron_shard"] = 2
+	GameState.apply_leadership_automation()
+	check("the Forge arms the Barracks FROM village iron (Mine → Forge → armory)",
+		GameState.barracks_arms == 2 and int(GameState.village_stockpile["iron_shard"]) == 0,
+		"arms=%d iron=%d" % [GameState.barracks_arms, int(GameState.village_stockpile["iron_shard"])])
+	GameState.apply_leadership_automation()
+	check("...and an empty ore store means a COLD forge",
+		GameState.barracks_arms == 2, "arms=%d" % GameState.barracks_arms)
+	# the Bank pays the payroll before the player's pocket is touched
+	GameState.village_treasury = 500
+	p.currency = 300
+	GameState.wage_accum_hours = 0.0
+	GameState.tick_wages(24.0)
+	check("payday draws the TREASURY before the player's purse",
+		p.currency == 300 and GameState.village_treasury < 500,
+		"purse=%d treasury=%d" % [p.currency, GameState.village_treasury])
+	GameState.village_treasury = 0
+	GameState.village_stockpile = {"wood": 0, "stone": 0, "iron_shard": 0}
+
 	# ---- restore ----
 	GameState.rescued_villagers = saved_roster
 	GameState.building_stage = saved_stage

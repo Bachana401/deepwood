@@ -1739,6 +1739,7 @@ func tick_village_clock() -> void:
 	tick_wanderers(hours_passed)
 	tick_watchtower_warning()
 	tick_mine_yield(hours_passed)
+	tick_wood_gathering(hours_passed)
 	tick_self_sufficiency()   # celebrate each chore the moment it starts running itself
 	tick_village_peril()      # escalating dread as the hearth empties (pierces the fog)
 	tick_black_tide_omen()    # the fog-piercing warning of a coming Black Tide
@@ -3766,6 +3767,17 @@ func generate_passive_income() -> void:
 		return
 	# a happy village is a taxable village (0.75x .. 1.25x)
 	total *= village_morale_multiplier()
+	# THE BANK BANKS (City Machine B-slice): a staffed Bank sets aside a cut of
+	# the tax take into the town's OWN purse, which pays wages before the
+	# player's pocket is ever touched (see tick_wages)
+	if is_building_operational("Bank") and count_workers("Bank") > 0:
+		var cut := total * TREASURY_TAX_SHARE
+		total -= cut
+		_treasury_accum += cut
+		if _treasury_accum >= 1.0:
+			var banked := int(_treasury_accum)
+			_treasury_accum -= float(banked)
+			village_treasury += banked
 	# fractions accrue: a six-soul town earns a coin every few ticks instead
 	# of rounding forever to zero
 	_gold_accum += total
@@ -3940,6 +3952,10 @@ func tick_mine_yield(hours_passed: float) -> void:
 	while _mine_accum >= 24.0:
 		_mine_accum -= 24.0
 		_mine_cycles += 1
+		# the village share (supply chain): the crew hauls for the TOWN too --
+		# straight into the stores, no bag to fill, on top of the player's cut
+		village_stockpile["stone"] = int(village_stockpile["stone"]) + MINE_VILLAGE_STONE_PER_MINER * miners
+		village_stockpile["iron_shard"] = int(village_stockpile["iron_shard"]) + MINE_VILLAGE_IRON_PER_MINER * miners
 		var player = get_tree().get_first_node_in_group("player")
 		if player and "inventory" in player and player.inventory:
 			# honest accounting: add_item returns the LEFTOVER, so log/announce only what the
@@ -3960,6 +3976,24 @@ func tick_mine_yield(hours_passed: float) -> void:
 				log_event("economy", "The Mine's haul came up: %d stone, %d iron." % [stone_got, iron_got])
 			else:
 				notify("⛏ The Mine struck ore, but your pack is full — make room to carry the haul.")
+
+# The wood leg of the supply chain: the Builderhouse crew fells timber into the
+# village stores daily -- wood finally has a producer that isn't the player's
+# hands, so the repair chain (wood+stone -> auto_repair_one) can close.
+var _wood_accum := 0.0
+
+func tick_wood_gathering(hours_passed: float) -> void:
+	if not is_building_operational("Builderhouse"):
+		return
+	var crew := count_workers("Builderhouse")
+	if crew == 0:
+		return
+	_wood_accum += hours_passed
+	while _wood_accum >= 24.0:
+		_wood_accum -= 24.0
+		var felled := WOOD_PER_BUILDER_PER_DAY * crew
+		village_stockpile["wood"] = int(village_stockpile["wood"]) + felled
+		log_event("economy", "The builders felled timber — %d wood into the village stores." % felled)
 
 # --- THE SHRINE (GAME_BIBLE 10, decided 2026-07-20 delegated) ---
 # Corruption's only mercy, unlocked at depth 30: a put-down demon that was
@@ -4256,9 +4290,22 @@ func tick_wages(hours_passed: float) -> void:
 	var player = get_tree().get_first_node_in_group("player")
 	if player == null or not player.has_method("add_currency"):
 		return
-	var affordable: int = mini(staff.size(), int(floor(float(player.currency) / per)))
+	# THE BANK PAYS FIRST (City Machine B-slice): payroll draws the town's own
+	# treasury down to zero before it touches the player's pocket -- a Bank that
+	# banked well makes payday free for the player entirely.
+	var affordable: int = mini(staff.size(),
+		int(floor(float(village_treasury + player.currency) / per)))
 	if affordable > 0:
-		player.add_currency(-int(round(per * float(affordable))))
+		var pay_total: int = int(round(per * float(affordable)))
+		var from_treasury: int = mini(village_treasury, pay_total)
+		village_treasury -= from_treasury
+		if pay_total - from_treasury > 0:
+			player.add_currency(-(pay_total - from_treasury))
+		_bank_paid_full_payroll = affordable == staff.size() and from_treasury >= pay_total
+		if _bank_paid_full_payroll:
+			log_event("economy", "The Bank met the whole payroll — %d gold, not a coin from your purse." % pay_total)
+	else:
+		_bank_paid_full_payroll = false
 	var unpaid: int = staff.size() - affordable
 	if unpaid > 0:
 		staff.shuffle()
@@ -4319,6 +4366,32 @@ const AUTO_ENROLL_PER_PRINCIPAL := 2    # Principal: idle children auto-enrolled
 const WARCHIEF_DEFENSE := 4.0           # Warchief: standing siege defense added per seat
 const HARVESTMASTER_FOOD_BONUS := 0.6   # Harvestmaster: +this fraction of farm food output
 const LEADER_MORALE_EACH := 6           # Tavernkeeper/Publican: morale points added per seat
+
+# --- THE SUPPLY CHAIN (City Machine pillar A, dev call 2026-07-29) ---
+# The village's OWN stores, fed by working buildings and spent by others -- the
+# chain that lets the town run without the player's bag: Mine crews haul a
+# village share of stone+iron here (tick_mine_yield, ON TOP of the player's
+# unchanged haul); Builderhouse workers fell wood into it daily
+# (tick_wood_gathering); the repair crew SPENDS it per stage (auto_repair_one --
+# repairs are no longer conjured free); the Forgemaster's smiths turn its iron
+# into armory arms. More working buildings = a fuller store = a town that
+# mends and arms itself.
+var village_stockpile := {"wood": 0, "stone": 0, "iron_shard": 0}
+const MINE_VILLAGE_STONE_PER_MINER := 1   # per day, on top of the player's haul
+const MINE_VILLAGE_IRON_PER_MINER := 1
+const WOOD_PER_BUILDER_PER_DAY := 1
+const REPAIR_STAGE_WOOD := 2              # what one auto-repair stage consumes
+const REPAIR_STAGE_STONE := 1
+const FORGE_IRON_PER_ARM := 1
+
+# --- THE VILLAGE TREASURY (City Machine, B-slice: "the Bank pays") ---
+# A staffed Bank banks a cut of the tax take into the town's own purse, and
+# payday draws from that purse BEFORE the player's pocket -- the first rung of
+# the city funding itself.
+var village_treasury := 0
+const TREASURY_TAX_SHARE := 0.25
+var _treasury_accum := 0.0
+var _bank_paid_full_payroll := false      # last payday came wholly from the treasury
 
 # --- Barracks armory ---
 # Warriors fight far harder when ARMED. Early game the player hand-carries spare
@@ -4411,7 +4484,14 @@ func apply_leadership_automation() -> void:
 		if _builder_half_tick:
 			auto_repair_one()                       # the crew alone: slower, but real
 	if forgemaster_supplying() and barracks_arms < BARRACKS_ARMS_CAP:
-		barracks_arms = min(BARRACKS_ARMS_CAP, barracks_arms + FORGE_ARMS_PER_TICK)  # Forgemaster: arm the barracks
+		# THE CHAIN: every arm is forged FROM village iron (Mine -> Forge ->
+		# armory) -- an empty ore store means a cold forge, however grand the
+		# Forgemaster. Seat miners to feed him.
+		var forged: int = mini(FORGE_ARMS_PER_TICK,
+			mini(int(village_stockpile["iron_shard"]) / FORGE_IRON_PER_ARM, BARRACKS_ARMS_CAP - barracks_arms))
+		if forged > 0:
+			village_stockpile["iron_shard"] = int(village_stockpile["iron_shard"]) - forged * FORGE_IRON_PER_ARM
+			barracks_arms += forged
 
 # Chancellor: seat every idle adult in an understaffed, operational worker role
 # they qualify for (matching-stat first, then any open role). Leadership seats
@@ -4530,6 +4610,7 @@ func auto_enroll_children(principals: int) -> void:
 # Builderhouse: advance the single most-ruined building one construction stage
 # each tick, for free -- the crew slowly rebuilds Deepwood on its own.
 var _builder_half_tick := false
+var _builders_short_told := false   # one shortage notice per dry spell, not per tick
 
 func auto_repair_one() -> void:
 	var worst := ""
@@ -4549,6 +4630,19 @@ func auto_repair_one() -> void:
 			worst = bn
 	if worst == "" or worst_stage >= TOTAL_BUILD_STAGES:
 		return
+	# THE CHAIN: a stage costs real timber and stone from the village stores --
+	# the crew no longer conjures repairs from nothing (City Machine pillar A).
+	# Feed the stores with Mine crews and the builders' own timber runs.
+	if int(village_stockpile["wood"]) < REPAIR_STAGE_WOOD \
+			or int(village_stockpile["stone"]) < REPAIR_STAGE_STONE:
+		if not _builders_short_told:
+			_builders_short_told = true
+			notify("🔨 The builders idle — the stores need wood and stone (timber runs + the Mine).")
+			log_event("village", "Repairs stalled: the village stores ran out of wood and stone.")
+		return
+	_builders_short_told = false
+	village_stockpile["wood"] = int(village_stockpile["wood"]) - REPAIR_STAGE_WOOD
+	village_stockpile["stone"] = int(village_stockpile["stone"]) - REPAIR_STAGE_STONE
 	building_stage[worst] = worst_stage + 1
 	if int(building_stage[worst]) >= TOTAL_BUILD_STAGES:
 		building_health[worst] = BUILDING_MAX_HEALTH
@@ -4596,6 +4690,11 @@ func chore_domains() -> Array:
 			"handled": seated_leaders("Science Lab") > 0 or seated_leaders("Marketplace") > 0,
 			"freed": "⚖ The market and lab turn your haul to coin and knowledge without you lifting a finger.",
 		},
+		{
+			"key": "wages", "label": "Payroll",
+			"handled": _bank_paid_full_payroll,
+			"freed": "🏦 The Bank met the whole payroll from the town's own purse — your gold is yours again.",
+		},
 	]
 
 # How much of the village's daily upkeep now runs itself, 0..1 (plus the raw
@@ -4620,7 +4719,7 @@ var selfsuf_celebrated: Array = []
 
 func tick_self_sufficiency() -> void:
 	# once every chore has been celebrated there is nothing left to watch
-	if dev_mode or selfsuf_celebrated.size() >= 5 or not village_info_available():
+	if dev_mode or selfsuf_celebrated.size() >= chore_domains().size() or not village_info_available():
 		return
 	for d in chore_domains():
 		var key := str(d["key"])
@@ -5462,6 +5561,12 @@ func reset_for_new_game() -> void:
 	# comfortable runway to rebuild the Farm before hunger bites.
 	food_empty_hours = 0.0
 	village_food = food_capacity()
+	village_stockpile = {"wood": 0, "stone": 0, "iron_shard": 0}   # the chain starts empty
+	village_treasury = 0
+	_treasury_accum = 0.0
+	_bank_paid_full_payroll = false
+	_builders_short_told = false
+	_wood_accum = 0.0
 	selfsuf_celebrated = []   # a fresh run earns every "your day is your own" beat again
 	_peril_band = -1          # the fading-of-Deepwood dread starts quiet
 	village_lost = false
@@ -5616,6 +5721,8 @@ func save_game(player: Node) -> void:
 		"seen_intro": seen_intro,
 		"seen_l100_reveal": seen_l100_reveal,
 		"village_food": village_food,
+		"village_stockpile": village_stockpile,
+		"village_treasury": village_treasury,
 		"food_empty_hours": food_empty_hours,
 		"selfsuf_celebrated": selfsuf_celebrated,
 		"lost_souls": lost_souls,
@@ -5930,6 +6037,10 @@ func load_game() -> Dictionary:
 		seen_intro = bool(parsed.get("seen_intro", true))   # old saves: don't replay
 		seen_l100_reveal = bool(parsed.get("seen_l100_reveal", false))
 		village_food = float(parsed.get("village_food", food_capacity()))
+		var vs: Dictionary = parsed.get("village_stockpile", {})
+		for k in village_stockpile.keys():
+			village_stockpile[k] = int(vs.get(k, 0))
+		village_treasury = int(parsed.get("village_treasury", 0))
 		selfsuf_celebrated = parsed.get("selfsuf_celebrated", [])
 		lost_souls = parsed.get("lost_souls", [])
 		village_lost = bool(parsed.get("village_lost", false))
