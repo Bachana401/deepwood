@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 
 GameState="*res://game_state.gd"
 DragState="*res://drag_state.gd"
+TouchControls="*res://mobile/touch_controls.gd"
 
 [debug]
 
@@ -29,6 +30,7 @@ file_logging/max_log_files=10
 
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
+window/handheld/orientation=4
 
 [gui]
 
@@ -204,6 +206,7 @@ toggle_skill_tree={
 
 [rendering]
 
+textures/vram_compression/import_etc2_astc=true
 rendering_device/driver.windows="d3d12"
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
