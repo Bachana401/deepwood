@@ -84,7 +84,17 @@ func _ready() -> void:
 			["wpn_silentchoir",  "o1_choir_sings", 0.30, 5],
 			["wpn_sunmortar",    "p1_sun_hung",    1.30, 1],
 			["wpn_permafrost",   "q1_ice_spread",  2.60, 1],
-			["wpn_novaburst",    "r1_nova_beats",  0.60, 1]]:  # it caught someone
+			["wpn_novaburst",    "r1_nova_beats",  0.60, 1],
+			["wpn_voidwheel",    "s1_hollow_guard", 0.40, 1],
+			["wpn_direseeker",   "t1_portent_sign", 0.90, 1],
+			["wpn_lastcourier",  "u1_courier_route", 0.80, 1],
+			["wpn_griffvolley",  "v1_griffin_stoop", 0.55, 1],
+			["wpn_meteorquill",  "w1_quill_rain",  0.95, 1],
+			["wpn_ashherd",      "x1_ash_herd",    0.40, 1],
+			["wpn_cindershelf",  "y1_cinder_ledge", 0.45, 1],
+			["wpn_griefcollect", "z1_grief_stops", 0.95, 1],
+			["wpn_nightlash",    "z2_night_echo",  0.72, 1],
+			["wpn_middaybow",    "z3_noon_wall",   0.16, 1]]:  # it caught someone
 		p.global_position = _home
 		if "velocity" in p: p.velocity = Vector2.ZERO
 		p.inventory.add_item(spec[0], 1)

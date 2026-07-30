@@ -128,8 +128,8 @@ const ROWS = [
 	["wpn_dawntongue",   "Dawn's Long Tongue",   "melee", 6, "longtongue", 28, 0.82, {"status": "burn_w",
 		"fx": [{"kind": "echo", "pct": 0.8, "delay": 0.4}, {"kind": "goldtouch", "chance": 0.22, "gold": 4}]}],
 	["wpn_horizonpike",  "Horizon Pike",         "spear", 6, "thrust",    36, 0.78, {"plain": true}],
-	["wpn_meteorquill",  "Meteor Quills",        "spear", 6, "jab_volley", 23, 0.88, {"count": 5, "status": "burn_w", "fx": [{"kind": "splinter", "n": 4, "pct": 0.65, "range": 180.0}, {"kind": "stormcall", "every": 4, "pct": 1.45}]}],
-	["wpn_middaybow",    "Midday Massacre",      "bow",   6, "volley",    19, 0.52, {"count": 4, "fx": [{"kind": "crowd", "pct_per": 0.14, "cap": 0.5}, {"kind": "splinter", "n": 3, "pct": 0.65, "range": 160.0}]}],
+	["wpn_meteorquill",  "Meteor Quills",        "spear", 6, "meteorquill", 23, 0.88, {"count": 5, "status": "burn_w", "fx": [{"kind": "splinter", "n": 4, "pct": 0.65, "range": 180.0}, {"kind": "stormcall", "every": 4, "pct": 1.45}]}],
+	["wpn_middaybow",    "Midday Massacre",      "bow",   6, "middaysun", 19, 0.52, {"count": 4, "fx": [{"kind": "crowd", "pct_per": 0.14, "cap": 0.5}, {"kind": "splinter", "n": 3, "pct": 0.65, "range": 160.0}]}],
 	["wpn_ghostrepeater","Ghost Repeater",       "bow",   6, "rapid",     14, 0.15, {"plain": true}],
 	["wpn_lodestar",     "Lodestar",             "bow",   6, "lodestar",  25, 0.58, {
 		"fx": [{"kind": "brand", "amp": 0.39, "dur": 4.5}, {"kind": "chain", "n": 2, "pct": 0.65, "range": 240.0}]}],
@@ -296,20 +296,20 @@ const ROWS = [
 	["wpn_worldanvil",   "The World-Anvil",      "melee", 6, "anviltoll", 42, 1.08, {"knockup": true, "fx": [{"kind": "quake", "radius": 175.0, "pct": 0.8}, {"kind": "duelist", "pct_per": 0.14, "max": 6}]}],
 	["wpn_cinderchain",  "Cinderchain",          "melee", 6, "cinderdrag", 32, 0.92, {"status": "burn_w",
 		"fx": [{"kind": "chain", "n": 2, "pct": 0.65, "range": 250.0}, {"kind": "quake", "radius": 145.0, "pct": 0.65}]}],
-	["wpn_voidwheel",    "Wheel of the Hollow",  "melee", 6, "orbiter",   26, 0.78, {"dwell": 3.2,
+	["wpn_voidwheel",    "Wheel of the Hollow",  "melee", 6, "hollowwheel", 26, 0.78, {"dwell": 3.2,
 		"fx": [{"kind": "gravity", "radius": 230.0, "pull": 170.0}, {"kind": "bloodprice", "pct": 0.65, "cost": 1}]}],
 	["wpn_sorrowfang",   "Sorrowfang",           "melee", 6, "arc",       19, 0.24, {"status": "poison_w", "plain": true}],
 	["wpn_horizonrender","Horizonrender",        "melee", 6, "horizonrend", 27, 0.54, {"p_damage": 25,
 		"fx": [{"kind": "splinter", "n": 4, "pct": 0.65, "range": 185.0}, {"kind": "echo", "pct": 0.55, "delay": 0.4}]}],
-	["wpn_nightlash",    "A Long Night's Tongue","melee", 6, "lash",      27, 0.8,  {"status": "slow_w", "companion": "blade", "c_damage": 13, "c_gap": 1.7,
+	["wpn_nightlash",    "A Long Night's Tongue","melee", 6, "nightlash", 27, 0.8,  {"status": "slow_w", "companion": "blade", "c_damage": 13, "c_gap": 1.7,
 		"fx": [{"kind": "moonlit", "pct": 0.65}, {"kind": "soulwisp", "dmg": 10, "pct": 0.5}]}],
-	["wpn_griefcollect", "Grief, Collected",     "melee", 6, "ricochet",  24, 0.56, {"bounces": 6,
+	["wpn_griefcollect", "Grief, Collected",     "melee", 6, "griefcollect", 24, 0.56, {"bounces": 6,
 		"fx": [{"kind": "harvest", "hp": 4, "mana": 3.0}, {"kind": "echo", "pct": 0.72, "delay": 0.45}]}],
 	["wpn_worldspike",   "Worldspike",           "spear", 6, "thrust",    35, 0.76, {"plain": true}],
-	["wpn_ashherd",      "Herd of Ashes",        "spear", 6, "jab_volley", 22, 0.86, {"count": 5, "status": "burn_w", "fx": [{"kind": "splinter", "n": 4, "pct": 0.65, "range": 175.0}, {"kind": "soulwisp", "dmg": 9, "pct": 0.65}]}],
-	["wpn_griffvolley",  "Griffin Volley",       "bow",   6, "volley",    18, 0.5,  {"count": 4, "fx": [{"kind": "chain", "n": 2, "pct": 0.65, "range": 250.0}, {"kind": "haste", "pct_per": 0.08, "max": 6, "dur": 4.0}]}],
+	["wpn_ashherd",      "Herd of Ashes",        "spear", 6, "ashherd",   22, 0.86, {"count": 5, "status": "burn_w", "fx": [{"kind": "splinter", "n": 4, "pct": 0.65, "range": 175.0}, {"kind": "soulwisp", "dmg": 9, "pct": 0.65}]}],
+	["wpn_griffvolley",  "Griffin Volley",       "bow",   6, "griffinvolley", 18, 0.5,  {"count": 4, "fx": [{"kind": "chain", "n": 2, "pct": 0.65, "range": 250.0}, {"kind": "haste", "pct_per": 0.08, "max": 6, "dur": 4.0}]}],
 	["wpn_silentchoir",  "The Silent Choir",     "bow",   6, "silentchoir", 13, 0.15, {"fx": [{"kind": "echo", "pct": 0.65, "delay": 0.25}, {"kind": "skyrain", "n": 3, "pct": 0.72, "spread": 130.0}]}],
-	["wpn_direseeker",   "Dire Portent",         "bow",   6, "seeker",    24, 0.56, {"companion": "beast", "c_damage": 14, "c_gap": 1.9,
+	["wpn_direseeker",   "Dire Portent",         "bow",   6, "direportent", 24, 0.56, {"companion": "beast", "c_damage": 14, "c_gap": 1.9,
 		"fx": [{"kind": "brand", "amp": 0.42, "dur": 4.0}, {"kind": "gravity", "radius": 200.0, "pull": 150.0}]}],
 	["wpn_sunmortar",    "A Piece of the Sun",   "bow",   6, "sunpiece",  36, 1.0,  {"aoe": 125, "status": "burn_w",
 		"fx": [{"kind": "quake", "radius": 165.0, "pct": 0.65}, {"kind": "goldtouch", "chance": 0.28, "gold": 4}]}],
@@ -318,11 +318,11 @@ const ROWS = [
 	["wpn_permafrost",   "Permafrost Decree",    "wand",  6, "permafrost", 29, 0.54, {"status": "slow_w", "fx": [{"kind": "frostbloom", "radius": 165.0, "dur": 3.0}, {"kind": "crowd", "pct_per": 0.12, "cap": 0.5}]}],
 	["wpn_novaburst",    "Novaburst Rod",        "wand",  6, "novaburst", 30, 0.76, {"shards": 8,
 		"fx": [{"kind": "splinter", "n": 5, "pct": 0.65, "range": 180.0}, {"kind": "bloodprice", "pct": 0.65, "cost": 1}]}],
-	["wpn_lastcourier",  "The Last Courier",     "wand",  6, "ricochet",  26, 0.56, {"bounces": 6,
+	["wpn_lastcourier",  "The Last Courier",     "wand",  6, "lastcourier", 26, 0.56, {"bounces": 6,
 		"fx": [{"kind": "echo", "pct": 0.72, "delay": 0.5}, {"kind": "stormcall", "every": 4, "pct": 0.9}]}],
 	["wpn_watchfire",    "Watchfire",            "wand",  6, "watchfire", 17, 1.15, {"dur": 24,
 		"fx": [{"kind": "moonlit", "pct": 0.65}, {"kind": "quake", "radius": 150.0, "pct": 0.65}]}],
-	["wpn_cindershelf",  "Cindershelf",          "wand",  6, "fire",      36, 0.8,  {"aoe": 140, "status": "burn_w",
+	["wpn_cindershelf",  "Cindershelf",          "wand",  6, "cindershelf", 36, 0.8,  {"aoe": 140, "status": "burn_w",
 		"fx": [{"kind": "quake", "radius": 160.0, "pct": 0.65}, {"kind": "farsight", "pct_per": 0.1, "max": 5}]}],
 	["wpn_skyladder",    "Ladder to Nowhere",    "staff", 6, "staff",     23, 0.42, {"plain": true}],
 	["wpn_stillmountain","The Still Mountain",   "staff", 6, "staff",     26, 0.48, {"plain": true}],
@@ -828,6 +828,34 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 		"novaburst":
 			s = {"type": "nova_seed", "damage": maxi(1, int(round(float(dmg) * 0.72))),
 				"speed": spd, "range": rng}
+		# ---- T6 batch 4: the last ten ----
+		"hollowwheel":
+			s = {"type": "hollow_wheel", "damage": maxi(1, int(round(float(dmg) * 0.75)))}
+		"direportent":
+			s = {"type": "portent", "damage": dmg, "speed": spd + 60.0, "range": rng}
+		"lastcourier":
+			s = {"type": "courier_route", "damage": maxi(1, int(round(float(dmg) * 0.62))),
+				"speed": spd - 60.0, "range": rng}
+		"griffinvolley":
+			s = {"type": "stoop_arrow", "damage": maxi(1, int(round(float(dmg) * 0.8))),
+				"count": 3, "speed": spd - 60.0, "range": rng + 160.0}
+		"meteorquill":
+			s = {"type": "quill_fall", "damage": maxi(1, int(round(float(dmg) * 0.85))),
+				"count": 5, "speed": spd - 210.0, "range": rng, "lift": 400.0}
+		"ashherd":
+			s = {"type": "ash_cloud", "damage": maxi(1, int(round(float(dmg) * 0.55))),
+				"count": 3}
+		"cindershelf":
+			s = {"type": "cinder_shelf", "damage": maxi(1, int(round(float(dmg) * 0.35)))}
+		"griefcollect":
+			s = {"type": "grief_return", "damage": maxi(1, int(round(float(dmg) * 0.65))),
+				"speed": spd - 90.0, "range": rng}
+		"nightlash":
+			s = {"type": "night_lash", "damage": maxi(1, int(round(float(dmg) * 0.7))),
+				"speed": spd - 150.0, "range": rng * 0.4}
+		"middaysun":
+			s = {"type": "noon_shaft", "damage": maxi(1, int(round(float(dmg) * 0.8))),
+				"count": 7, "speed": spd + 140.0, "range": rng}
 		"debtmark":
 			s = {"type": "debt_mark", "damage": dmg, "speed": spd + 60.0, "range": rng}
 		"cinderdrag":
@@ -908,6 +936,16 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"hushfall":    return "The blow lands in SILENCE. The sound of it arrives a moment later, from where you struck, and the sound is the heavier half."
 		"eclipse":     return "The wheel rolls out and goes DARK, and the shadow it throws is the weapon -- a long band of night that cuts everything standing in it."
 		"cometfall":   return "Lobs high and comes down as a COMET, cratering where it lands and leaving the ground burning for whatever walks in next."
+		"hollowwheel": return "It is not thrown. It GUARDS -- a hollow wheel running a tight fast ring around you, shoving off anything that comes close."
+		"direportent": return "The shaft does not kill. It FIXES an omen over them, and the sign sinks lower and shakes harder until the hour comes -- and then it falls."
+		"lastcourier": return "A route, not a ricochet. It keeps a list, never knocks twice, and every delivery weighs the same as the first."
+		"griffinvolley": return "The shafts CLIMB, then fold and stoop like birds -- each one picking its own body out of the room."
+		"meteorquill": return "The volley goes UP. What comes down is a shower of burning quills across everything in front of you."
+		"ashherd":     return "Every jab leaves a cloud of ash standing where it struck. Enough jabs and the ground ahead is a HERD of them, all smouldering."
+		"cindershelf": return "Hangs a burning LEDGE in the air. Anything that shares that line keeps paying for it."
+		"griefcollect": return "A ricochet loses an edge each bounce; this one GATHERS. It takes something from every body it visits, grows heavier for it, and brings the whole weight home to you."
+		"nightlash":   return "The crack lands now. The DARK answers a moment later, from every place the whip passed through."
+		"middaysun":   return "Noon has no shadows and this has no gaps -- seven shafts abreast, all arriving at once."
 		"anviltoll":   return "Struck once, it RINGS DOWN -- three shockwaves out of the same blow, each tighter and quieter than the last, like a bell dying."
 		"horizonrend": return "The crescent SPLITS. Two halves bow apart around whatever stands between, and close again on the far side."
 		"silentchoir": return "The shafts barely wound. Each one leaves a VOICE in the body, and the fifth completes the chord -- then all of it sings at once."

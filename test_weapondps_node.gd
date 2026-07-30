@@ -88,6 +88,17 @@ const HITS_PER_USE := {
 	"sunpiece":    3.4, # ~12 sweeps at 0.5x over 3.6s, then a 0.8x nova
 	"permafrost":  3.6, # 11 bites over 5s escalating 0.5x -> 1.4x, one cast
 	"novaburst":   2.2, # the hit plus two delayed 0.6x novas in a radius
+	# ---- T6 batch 4: the last ten ----
+	"hollowwheel": 2.2, # ONE guard wheel, 3.6s of 0.22s bites; recast renews
+	"direportent": 1.6, # a 0.35x prick, then the omen falls for a 0.8x nova
+	"lastcourier": 2.5, # four deliveries, no decay -- but to four DIFFERENT bodies
+	"griffinvolley": 2.4, # 3 birds, and each picks a DIFFERENT body
+	"meteorquill": 2.6, # 5 quills, but they RAIN across a lane -- one body
+	"ashherd":     3.0, # 3 clouds down the lane; a body stands in ONE of them
+	"cindershelf": 1.7, # ONE ledge (recast moves it); ~10 ticks over its 4s
+	"griefcollect": 3.4, # 4 stops, each heavier: 1.0 + 1.3 + 1.6 + 1.9
+	"nightlash":   2.4, # the crack, then a 0.65x echo out of the dark
+	"middaysun":   3.2, # seven abreast; a body catches maybe three of them
 	"asphodel":    4.0, # the post sends ~8 wisps over its 9s life
 	# --- pre-existing multi-hit verbs, for a fair comparison ---
 	"volley":     2.0,

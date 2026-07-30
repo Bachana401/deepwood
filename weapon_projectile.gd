@@ -174,6 +174,26 @@ func _ready() -> void:
 		"ice_sheet": _build_ice_sheet()
 		"silent_note": _build_silent_note()
 		"nova_seed": _build_nova_seed()
+		# ---- T6 batch 4: the last ten ----
+		"hollow_wheel":
+			pierce = true
+			_build_hollow_wheel()
+		"portent": _build_portent()
+		"courier_route":
+			pierce = true
+			_build_courier()
+			_cour_next()
+		"stoop_arrow": _build_stoop_arrow()
+		"quill_fall": _build_quill()
+		"ash_cloud": _build_ash_cloud()
+		"cinder_shelf": _build_cinder_shelf()
+		"grief_return":
+			pierce = true
+			_build_grief_return()
+		"night_lash":
+			pierce = true
+			_build_night_lash()
+		"noon_shaft": _build_noon_shaft()
 		"zenith_blade":
 			# THE LAST WORD: a ghost-image of an ancestor blade. Swoops out,
 			# whirls one tight loop at the far point, and comes home. Each
@@ -497,6 +517,27 @@ func _physics_process(delta: float) -> void:
 	if kind == "ice_sheet":
 		_tick_ice_sheet(delta)
 		return
+	if kind == "hollow_wheel":
+		_tick_hollow_wheel(delta)
+		return
+	if kind == "grief_return":
+		_tick_grief(delta)
+		return
+	if kind == "portent":
+		_tick_portent(delta)
+		return
+	if kind == "courier_route":
+		_tick_courier(delta)
+		return
+	if kind == "stoop_arrow":
+		_tick_stoop(delta)
+		return
+	if kind == "quill_fall":
+		_tick_quill(delta)
+		return
+	if kind in ["ash_cloud", "cinder_shelf"]:
+		_tick_standing_zone(delta)
+		return
 	if kind == "regent_shard":
 		_tick_regent_shard(delta)
 		return
@@ -798,6 +839,30 @@ func _on_body_entered(body: Node2D) -> void:
 	if is_instance_valid(source) and source.has_method("on_projectile_hit"):
 		source.on_projectile_hit(body, damage)
 	match kind:
+		"portent":
+			# DIRE PORTENT: the shaft does not kill, it FIXES the omen in place
+			var landed_p = body.take_damage(maxi(1, int(round(float(damage) * 0.35))))
+			if landed_p == null or landed_p:
+				FloatingText.spawn(get_parent(), body.global_position,
+					maxi(1, int(round(float(damage) * 0.35))), false)
+			_apply_status_to(body)
+			_portent_fix(body)
+		"night_lash":
+			# A LONG NIGHT'S TONGUE: the crack lands now, the dark answers late
+			var landed_nl = body.take_damage(damage)
+			if landed_nl == null or landed_nl:
+				FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+			_apply_status_to(body)
+			var host_nl := get_parent()
+			if host_nl != null:
+				var echo = (load("res://weapon_projectile.gd") as GDScript).new()
+				echo.kind = "late_thunder"
+				echo.damage = maxi(1, int(round(float(damage) * 0.65)))
+				echo.element = element
+				echo.on_hit_status = on_hit_status
+				echo.source = source
+				host_nl.add_child(echo)
+				echo.global_position = body.global_position
 		"silent_note":
 			# THE SILENT CHOIR: the shaft does almost nothing. It leaves a
 			# VOICE. Five voices and the chord goes off all at once.
@@ -4083,6 +4148,489 @@ func _build_nova_seed() -> void:
 	var tw := seed_core.create_tween().set_loops()
 	tw.tween_property(seed_core, "rotation", PI, 0.5)
 	tw.tween_property(seed_core, "rotation", TAU, 0.5)
+
+# ==========================================================================
+# TIER 6, BATCH 4 -- the last ten. Closes the tier.
+# ==========================================================================
+
+# --- WHEEL OF THE HOLLOW: not thrown. It GUARDS. -------------------------
+var _hw_t := 0.0
+const HW_LIFE := 3.6
+const HW_R := 62.0
+
+func _tick_hollow_wheel(delta: float) -> void:
+	_hw_t += delta
+	if _hw_t >= HW_LIFE or not is_instance_valid(source):
+		done = true
+		queue_free()
+		return
+	var centre: Vector2 = (source as Node2D).global_position
+	var ang: float = _hw_t * 11.0            # fast: it is a guard, not a moon
+	global_position = centre + Vector2(cos(ang), sin(ang) * 0.5) * HW_R
+	if visual:
+		visual.rotation += 15.0 * delta
+	_rehit_t += delta
+	if _rehit_t < 0.22:
+		return
+	_rehit_t = 0.0
+	var host := get_parent()
+	var pay: int = maxi(1, int(round(float(damage) * 0.5)))
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if global_position.distance_to((e as Node2D).global_position) > 40.0:
+				continue
+			var landed = e.take_damage(pay)
+			if landed == null or landed:
+				FloatingText.spawn(host, (e as Node2D).global_position
+					+ Vector2(randf_range(-16.0, 16.0), -26.0), pay, false)
+			_apply_status_to(e)
+			# the point of a guard is that it MOVES them off you
+			if e.has_method("apply_knockback"):
+				e.apply_knockback(1 if (e as Node2D).global_position.x >= centre.x else -1, 210.0)
+
+func _build_hollow_wheel() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var rim := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(14):
+		var a := TAU * float(i) / 14.0
+		pts.append(Vector2(cos(a), sin(a)) * 17.0)
+	for i in range(14):
+		var a2 := TAU * float(13 - i) / 14.0
+		pts.append(Vector2(cos(a2), sin(a2)) * 10.0)
+	rim.polygon = pts
+	rim.color = Color(0.58, 0.5, 0.72, 0.9)
+	rim.material = m
+	visual.add_child(rim)
+	# the HOLLOW: an empty middle you can see the room through
+	for k in range(3):
+		var tooth := Polygon2D.new()
+		tooth.polygon = PackedVector2Array([
+			Vector2(-2.4, -20.0), Vector2(2.4, -20.0), Vector2(1.4, -14.0), Vector2(-1.4, -14.0)])
+		tooth.color = Color(0.8, 0.74, 0.95, 0.85)
+		tooth.material = m
+		tooth.rotation = deg_to_rad(120.0 * float(k))
+		visual.add_child(tooth)
+
+# --- DIRE PORTENT: a sign hangs over them, and then it FALLS -------------
+var _port_t := 0.0
+var _port_mark: Node2D = null
+var _port_sign: Polygon2D = null
+const PORT_WARN := 1.4
+
+func _tick_portent(delta: float) -> void:
+	if _port_mark == null:
+		global_position += direction * speed * delta
+		traveled += speed * delta
+		if traveled >= max_distance:
+			done = true
+			queue_free()
+		return
+	if is_instance_valid(_port_mark) and not ("is_dead" in _port_mark and _port_mark.is_dead):
+		global_position = (_port_mark as Node2D).global_position
+	_port_t += delta
+	var frac: float = clampf(_port_t / PORT_WARN, 0.0, 1.0)
+	# the sign sinks toward them as the hour comes: the telegraph IS the fun
+	if _port_sign != null and is_instance_valid(_port_sign):
+		_port_sign.position = Vector2(0.0, lerpf(-96.0, -26.0, frac * frac))
+		_port_sign.rotation = sin(_port_t * 13.0) * (0.06 + 0.22 * frac)
+		_port_sign.scale = Vector2.ONE * (1.0 + 0.5 * frac)
+	if _port_t < PORT_WARN:
+		return
+	# and the hour comes
+	_nova_burst_tinted(global_position, Color(0.72, 0.5, 0.86))
+	done = true
+	queue_free()
+
+func _portent_fix(victim: Node2D) -> void:
+	_port_mark = victim
+	speed = 0.0
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	_port_sign = Polygon2D.new()
+	# an omen reads as a SHAPE, not a bar: a downward wedge with an eye
+	_port_sign.polygon = PackedVector2Array([
+		Vector2(0, 16.0), Vector2(-15.0, -11.0), Vector2(15.0, -11.0)])
+	_port_sign.color = Color(0.76, 0.54, 0.92, 0.85)
+	_port_sign.material = m
+	add_child(_port_sign)
+	var eye := Polygon2D.new()
+	eye.polygon = PackedVector2Array([
+		Vector2(0, 2.0), Vector2(-5.0, -4.0), Vector2(0, -8.0), Vector2(5.0, -4.0)])
+	eye.color = Color(1.0, 0.96, 1.0, 0.95)
+	eye.material = m
+	_port_sign.add_child(eye)
+
+func _build_portent() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var shaft := Polygon2D.new()
+	shaft.polygon = PackedVector2Array([
+		Vector2(11, -1.4), Vector2(-15, -1.4), Vector2(-15, 1.4), Vector2(11, 1.4)])
+	shaft.color = Color(0.66, 0.5, 0.82, 0.92)
+	visual.add_child(shaft)
+	var head := Polygon2D.new()
+	head.polygon = PackedVector2Array([Vector2(19, 0), Vector2(8, -4.4), Vector2(8, 4.4)])
+	head.color = Color(0.9, 0.78, 1.0, 0.96)
+	head.material = m
+	visual.add_child(head)
+
+# --- THE LAST COURIER: a ROUTE, not a ricochet ---------------------------
+# A ricochet bounces at random and loses an edge each time. A courier keeps a
+# list, never knocks twice, and every delivery is the same weight.
+var _cour_left := 4
+var _cour_seen: Array = []
+var _cour_target: Node2D = null
+
+func _tick_courier(delta: float) -> void:
+	if _cour_target == null or not is_instance_valid(_cour_target) \
+			or ("is_dead" in _cour_target and _cour_target.is_dead):
+		_cour_next()
+		if _cour_target == null:
+			done = true
+			queue_free()
+			return
+	var to_t: Vector2 = (_cour_target as Node2D).global_position - global_position
+	if to_t.length() < 20.0:
+		_deliver(_cour_target)
+		return
+	direction = to_t.normalized()
+	rotation = direction.angle()
+	global_position += direction * speed * delta
+
+func _cour_next() -> void:
+	_cour_target = null
+	var best_d := 460.0
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or e in _cour_seen:
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if not e.has_method("take_damage"):
+				continue
+			var d: float = global_position.distance_to((e as Node2D).global_position)
+			if d < best_d:
+				best_d = d
+				_cour_target = e
+
+func _deliver(who: Node2D) -> void:
+	_cour_seen.append(who)
+	_cour_left -= 1
+	var host := get_parent()
+	var landed = who.take_damage(damage)     # no decay: every letter matters
+	if landed == null or landed:
+		FloatingText.spawn(host, (who as Node2D).global_position
+			+ Vector2(randf_range(-16.0, 16.0), -26.0), damage, false)
+	_apply_status_to(who)
+	if host != null:
+		var m := CanvasItemMaterial.new()
+		m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		var seal := Polygon2D.new()
+		seal.polygon = _circle(9.0, 8)
+		seal.color = Color(0.95, 0.84, 0.5, 0.85)
+		seal.material = m
+		seal.z_index = 44
+		host.add_child(seal)
+		seal.global_position = global_position
+		var tw := seal.create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(seal, "scale", Vector2(2.2, 2.2), 0.24)
+		tw.tween_property(seal, "modulate:a", 0.0, 0.24)
+		tw.chain().tween_callback(seal.queue_free)
+	if _cour_left <= 0:
+		done = true
+		queue_free()
+		return
+	_cour_next()
+
+func _build_courier() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var env := Polygon2D.new()
+	env.polygon = PackedVector2Array([
+		Vector2(-10, -7.0), Vector2(10, -7.0), Vector2(10, 7.0), Vector2(-10, 7.0)])
+	env.color = Color(0.94, 0.9, 0.78, 0.95)
+	visual.add_child(env)
+	var fold := Polygon2D.new()
+	fold.polygon = PackedVector2Array([
+		Vector2(-10, -7.0), Vector2(10, -7.0), Vector2(0, 1.0)])
+	fold.color = Color(0.74, 0.68, 0.56, 0.95)
+	visual.add_child(fold)
+	var glow := Polygon2D.new()
+	glow.polygon = _circle(13.0, 10)
+	glow.color = Color(1.0, 0.9, 0.6, 0.28)
+	glow.material = m
+	visual.add_child(glow)
+
+# --- GRIFFIN VOLLEY: each shaft STOOPS on its own bird ------------------
+var _stoop_t := 0.0
+var _stoop_prey: Node2D = null
+
+func _tick_stoop(delta: float) -> void:
+	_stoop_t += delta
+	# it climbs first, then folds and dives -- a stoop, not a homing missile
+	if _stoop_t < 0.26:
+		global_position += (direction + Vector2(0, -1.5)).normalized() * speed * delta
+		rotation = (direction + Vector2(0, -1.5)).angle()
+		traveled += speed * delta
+		return
+	if _stoop_prey == null or not is_instance_valid(_stoop_prey) \
+			or ("is_dead" in _stoop_prey and _stoop_prey.is_dead):
+		_stoop_prey = _nearest_hostile_node(520.0)
+	var aim: Vector2 = direction
+	if _stoop_prey != null:
+		aim = ((_stoop_prey as Node2D).global_position - global_position).normalized()
+		direction = direction.lerp(aim, 6.0 * delta).normalized()
+	global_position += direction * (speed * 1.5) * delta
+	rotation = direction.angle()
+	traveled += speed * delta
+	if traveled >= max_distance:
+		done = true
+		queue_free()
+
+func _build_stoop_arrow() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	# swept wings, so a flight of them reads as birds and not as darts
+	for s in [-1.0, 1.0]:
+		var wing := Polygon2D.new()
+		wing.polygon = PackedVector2Array([
+			Vector2(2, 0), Vector2(-11, 9.0 * s), Vector2(-4, 1.5 * s)])
+		wing.color = Color(0.92, 0.84, 0.6, 0.8)
+		wing.material = m
+		visual.add_child(wing)
+	var body_p := Polygon2D.new()
+	body_p.polygon = PackedVector2Array([
+		Vector2(15, 0), Vector2(2, -3.2), Vector2(-12, 0), Vector2(2, 3.2)])
+	body_p.color = Color(1.0, 0.95, 0.78, 0.95)
+	body_p.material = m
+	visual.add_child(body_p)
+
+# --- METEOR QUILLS: the volley goes UP and comes down as a shower --------
+var _quill_vy := 0.0
+
+func _tick_quill(delta: float) -> void:
+	_quill_vy += 980.0 * delta
+	global_position += direction * speed * delta + Vector2(0, _quill_vy * delta)
+	var vel := direction * speed + Vector2(0, _quill_vy)
+	rotation = vel.angle()
+	traveled += speed * delta
+	if _quill_vy > 60.0 and _on_floor_now():
+		_rock_smoke(global_position)
+		var host := get_parent()
+		for group_name in HOSTILE_GROUPS:
+			for e in get_tree().get_nodes_in_group(group_name):
+				if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+					continue
+				if "is_dead" in e and e.is_dead:
+					continue
+				if global_position.distance_to((e as Node2D).global_position) > 46.0:
+					continue
+				var landed = e.take_damage(damage)
+				if landed == null or landed:
+					FloatingText.spawn(host, (e as Node2D).global_position
+						+ Vector2(randf_range(-14.0, 14.0), -26.0), damage, false)
+				_apply_status_to(e)
+		done = true
+		queue_free()
+
+func _build_quill() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var trail := Polygon2D.new()
+	trail.polygon = PackedVector2Array([
+		Vector2(-8, -2.6), Vector2(-30, 0), Vector2(-8, 2.6)])
+	trail.color = Color(1.0, 0.64, 0.34, 0.45)
+	trail.material = m
+	visual.add_child(trail)
+	var quill := Polygon2D.new()
+	quill.polygon = PackedVector2Array([
+		Vector2(13, 0), Vector2(-2, -2.8), Vector2(-9, 0), Vector2(-2, 2.8)])
+	quill.color = Color(1.0, 0.88, 0.62, 0.96)
+	quill.material = m
+	visual.add_child(quill)
+
+# --- HERD OF ASHES: each jab leaves a cloud, and clouds make a HERD ------
+func _build_ash_cloud() -> void:
+	_zone_max = 3.0
+	_zone_r = 52.0
+	_zone_gap = 0.5
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	for k in range(4):
+		var puff := Polygon2D.new()
+		puff.polygon = _circle(randf_range(13.0, 21.0), 9)
+		puff.color = Color(0.44, 0.4, 0.38, 0.42)
+		puff.position = Vector2(randf_range(-22.0, 22.0), randf_range(-14.0, 8.0))
+		visual.add_child(puff)
+		var tw := puff.create_tween().set_loops()
+		tw.tween_property(puff, "position:y", puff.position.y - 7.0, 1.1)
+		tw.tween_property(puff, "position:y", puff.position.y, 1.1)
+	var ember := Polygon2D.new()
+	ember.polygon = _circle(7.0, 8)
+	ember.color = Color(1.0, 0.5, 0.2, 0.5)
+	ember.material = m
+	visual.add_child(ember)
+
+# --- CINDERSHELF: a burning LEDGE hung in the air ------------------------
+func _build_cinder_shelf() -> void:
+	_zone_max = 4.0
+	_zone_r = 86.0
+	_zone_gap = 0.4
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var shelf := Polygon2D.new()
+	shelf.polygon = PackedVector2Array([
+		Vector2(-84, -5.0), Vector2(84, -5.0), Vector2(78, 5.0), Vector2(-78, 5.0)])
+	shelf.color = Color(0.9, 0.36, 0.12, 0.66)
+	shelf.material = m
+	visual.add_child(shelf)
+	for k in range(7):
+		var fl := Polygon2D.new()
+		fl.polygon = PackedVector2Array([
+			Vector2(-5.0, 0), Vector2(0, -randf_range(14.0, 24.0)), Vector2(5.0, 0)])
+		fl.color = Color(1.0, 0.62, 0.2, 0.8)
+		fl.material = m
+		fl.position = Vector2(-72.0 + 24.0 * float(k), -4.0)
+		visual.add_child(fl)
+		var tw := fl.create_tween().set_loops()
+		tw.tween_property(fl, "scale", Vector2(0.7, 1.35), randf_range(0.2, 0.3))
+		tw.tween_property(fl, "scale", Vector2(1.15, 0.8), randf_range(0.18, 0.26))
+
+# --- GRIEF, COLLECTED: it GATHERS instead of decaying, then comes home ---
+# A ricochet loses an edge each bounce. This one does the opposite: it takes
+# something from every body it touches, and brings the whole weight back.
+var _grief_carried := 0
+var _grief_going_home := false
+var _grief_seen: Array = []
+const GRIEF_STOPS := 4
+
+func _tick_grief(delta: float) -> void:
+	if _grief_going_home:
+		if not is_instance_valid(source):
+			done = true
+			queue_free()
+			return
+		var home: Vector2 = (source as Node2D).global_position
+		var to_home: Vector2 = home - global_position
+		if to_home.length() < 28.0:
+			_grief_arrive()
+			return
+		direction = to_home.normalized()
+		rotation = direction.angle()
+		global_position += direction * (speed * 1.2) * delta
+		return
+	var prey := _grief_next()
+	if prey == null:
+		_grief_going_home = true
+		return
+	var to_p: Vector2 = (prey as Node2D).global_position - global_position
+	if to_p.length() < 22.0:
+		_grief_take(prey)
+		return
+	direction = to_p.normalized()
+	rotation = direction.angle()
+	global_position += direction * speed * delta
+
+func _grief_next() -> Node2D:
+	if _grief_seen.size() >= GRIEF_STOPS:
+		return null
+	var best: Node2D = null
+	var best_d := 440.0
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or e in _grief_seen:
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if not e.has_method("take_damage"):
+				continue
+			var d: float = global_position.distance_to((e as Node2D).global_position)
+			if d < best_d:
+				best_d = d
+				best = e
+	return best
+
+func _grief_take(who: Node2D) -> void:
+	_grief_seen.append(who)
+	# heavier at every stop: the collected weight is the weapon
+	var pay: int = maxi(1, int(round(float(damage) * (1.0 + 0.3 * float(_grief_carried)))))
+	_grief_carried += 1
+	var landed = who.take_damage(pay)
+	if landed == null or landed:
+		FloatingText.spawn(get_parent(), (who as Node2D).global_position
+			+ Vector2(randf_range(-16.0, 16.0), -26.0), pay, _grief_carried >= 3)
+	_apply_status_to(who)
+	if visual:
+		visual.scale = visual.scale * 1.16
+
+func _grief_arrive() -> void:
+	# and what it carried is given back to you
+	if is_instance_valid(source) and _grief_carried > 0 and source.has_method("heal"):
+		source.heal(_grief_carried * 3)
+		FloatingText.spawn_word(get_parent(),
+			(source as Node2D).global_position + Vector2(0, -52),
+			"grief, collected", Color(0.7, 0.86, 0.8))
+	done = true
+	queue_free()
+
+func _build_grief_return() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var urn := Polygon2D.new()
+	urn.polygon = PackedVector2Array([
+		Vector2(-7, -9.0), Vector2(7, -9.0), Vector2(10, 3.0),
+		Vector2(0, 11.0), Vector2(-10, 3.0)])
+	urn.color = Color(0.5, 0.62, 0.6, 0.95)
+	visual.add_child(urn)
+	var mist := Polygon2D.new()
+	mist.polygon = _circle(14.0, 10)
+	mist.color = Color(0.66, 0.86, 0.82, 0.3)
+	mist.material = m
+	visual.add_child(mist)
+
+func _build_night_lash() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	for i in range(3):
+		var coil := Polygon2D.new()
+		var off: float = -6.0 + 6.0 * float(i)
+		coil.polygon = PackedVector2Array([
+			Vector2(-28, off * 0.3), Vector2(4, off), Vector2(30, off * 0.6),
+			Vector2(30, off * 0.6 + 2.4), Vector2(4, off + 2.8), Vector2(-28, off * 0.3 + 2.2)])
+		coil.color = Color(0.34, 0.26, 0.5, 0.85 - 0.16 * float(i))
+		visual.add_child(coil)
+	var tip := Polygon2D.new()
+	tip.polygon = PackedVector2Array([Vector2(36, 0), Vector2(24, -5.0), Vector2(24, 5.0)])
+	tip.color = Color(0.7, 0.6, 0.95, 0.9)
+	tip.material = m
+	visual.add_child(tip)
+
+func _build_noon_shaft() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var glare := Polygon2D.new()
+	glare.polygon = PackedVector2Array([
+		Vector2(-4, -3.4), Vector2(-26, -1.2), Vector2(-26, 1.2), Vector2(-4, 3.4)])
+	glare.color = Color(1.0, 0.96, 0.7, 0.4)
+	glare.material = m
+	visual.add_child(glare)
+	var shaft := Polygon2D.new()
+	shaft.polygon = PackedVector2Array([
+		Vector2(10, -1.3), Vector2(-14, -1.3), Vector2(-14, 1.3), Vector2(10, 1.3)])
+	shaft.color = Color(1.0, 0.98, 0.86, 0.95)
+	visual.add_child(shaft)
+	var head := Polygon2D.new()
+	head.polygon = PackedVector2Array([Vector2(18, 0), Vector2(8, -3.6), Vector2(8, 3.6)])
+	head.color = Color(1.0, 1.0, 0.96, 0.98)
+	head.material = m
+	visual.add_child(head)
 
 func _circle(radius: float, sides: int) -> PackedVector2Array:
 	var pts = PackedVector2Array()
