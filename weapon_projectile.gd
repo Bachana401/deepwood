@@ -2949,16 +2949,7 @@ func _build_dawn_line() -> void:
 
 # THE QUIET RECKONING's arrow: pale, quiet, and carrying a bill
 func _build_debt_arrow() -> void:
-	var shaft := Polygon2D.new()
-	shaft.polygon = PackedVector2Array([
-		Vector2(12, -1.4), Vector2(-18, -1.4), Vector2(-18, 1.4), Vector2(12, 1.4)])
-	shaft.color = Color(0.62, 0.66, 0.78, 0.95)
-	visual.add_child(shaft)
-	var head := Polygon2D.new()
-	head.polygon = PackedVector2Array([
-		Vector2(21, 0), Vector2(9, -4.0), Vector2(9, 4.0)])
-	head.color = Color(0.86, 0.92, 1.0, 0.98)
-	visual.add_child(head)
+	_art_blade(22.0, 3.0, Color(0.74, 0.8, 0.94))
 
 # FLOCK OF STORMS' bird: a dark wedge with a lit edge
 func _build_storm_bird() -> void:
@@ -3220,6 +3211,9 @@ func _build_anvil() -> void:
 		Vector2(-16, -26), Vector2(20, -26), Vector2(18, -18), Vector2(-14, -18)])
 	face.color = Color(0.42, 0.4, 0.46, 1.0)
 	visual.add_child(face)
+	# the same rim-light problem as the boulder: a near-black anvil falling
+	# through a near-black night is a hole in the screen, not a weapon
+	_art_rim(body.polygon, Color(1.0, 0.82, 0.55), 2.4)
 
 # --- GRIEF WEARS A CROWN: the ground carries the blow ------------------
 const SUNDER_SPEED := 1400.0
@@ -3434,6 +3428,12 @@ func _build_boulder() -> void:
 			Vector2(cos(a2 + 0.9), sin(a2 + 0.9)) * 7.0])
 		chip.color = Color(0.47, 0.44, 0.41, 1.0)
 		visual.add_child(chip)
+	# A RIM LIGHT, because the problem here was never the shape. The boulder is
+	# a well-built rock that happens to be dark grey, and Deepwood's surface is
+	# a dark blue night -- on film it read as a small black box sliding along
+	# the floor. A lit edge separates a dark object from a dark background; more
+	# polygons never would have. (2026-07-30)
+	_art_rim(pts, Color(1.0, 0.86, 0.62), 2.6)
 
 # --- NIGHT PARADE: they come in from off the edge of the world ----------
 func _tick_marcher(delta: float) -> void:
@@ -3633,14 +3633,7 @@ func _build_zenithblade() -> void:
 # whatever it strikes is asked to divide, and what that means is the target's
 # business (a joke for everything alive; the end of the world for one thing).
 func _build_soulbolt() -> void:
-	var orb = Polygon2D.new()
-	orb.polygon = _circle(9.0, 12)
-	orb.color = Color(0.95, 0.8, 1.0, 0.9)
-	visual.add_child(orb)
-	var halo = Polygon2D.new()
-	halo.polygon = _circle(14.0, 12)
-	halo.color = Color(0.8, 0.6, 1.0, 0.3)
-	visual.add_child(halo)
+	_art_orb(9.0, Color(0.9, 0.72, 1.0))
 
 func _build_slash() -> void:
 	# TERRA STANDARD (2026-07-28, GIF-measured): the beam IS the weapon -- a
@@ -3685,25 +3678,11 @@ func _build_slash() -> void:
 	visual.add_child(edge)
 
 func _build_javelin() -> void:
-	var shaft = Polygon2D.new()
-	shaft.polygon = PackedVector2Array([
-		Vector2(-24, -2), Vector2(16, -2), Vector2(16, 2), Vector2(-24, 2)])
-	shaft.color = Color(0.85, 0.8, 0.55, 0.9)
-	visual.add_child(shaft)
-	var tip = Polygon2D.new()
-	tip.polygon = PackedVector2Array([Vector2(16, -5), Vector2(28, 0), Vector2(16, 5)])
-	tip.color = Color(0.95, 0.92, 0.75, 0.95)
-	visual.add_child(tip)
+	# was: a beige quad with a triangle stuck on the end
+	_art_blade(30.0, 3.2, Color(0.9, 0.85, 0.6))
 
 func _build_fireball() -> void:
-	var glow = Polygon2D.new()
-	glow.polygon = _circle(14.0, 14)
-	glow.color = Color(1.0, 0.5, 0.1, 0.4)
-	visual.add_child(glow)
-	var core = Polygon2D.new()
-	core.polygon = _circle(8.0, 12)
-	core.color = Color(1.0, 0.75, 0.3, 0.95)
-	visual.add_child(core)
+	_art_orb(9.5, Color(1.0, 0.62, 0.18))
 	var trail = CPUParticles2D.new()
 	trail.amount = 14
 	trail.lifetime = 0.35
@@ -3717,16 +3696,15 @@ func _build_fireball() -> void:
 	visual.add_child(trail)
 
 func _build_frost() -> void:
-	var shard = Polygon2D.new()
-	shard.polygon = PackedVector2Array([
-		Vector2(-16, 0), Vector2(-4, -6), Vector2(18, 0), Vector2(-4, 6)])
-	shard.color = Color(0.7, 0.9, 1.0, 0.9)
-	visual.add_child(shard)
-	var gleam = Polygon2D.new()
-	gleam.polygon = PackedVector2Array([
-		Vector2(-8, 0), Vector2(0, -2), Vector2(10, 0), Vector2(0, 2)])
-	gleam.color = Color(0.95, 1.0, 1.0, 0.9)
-	visual.add_child(gleam)
+	# was: two flat diamonds. Ice should read as CRYSTAL -- faceted, with one
+	# face catching the light -- and it should carry a splinter behind it.
+	_art_shard(9.0, Color(0.72, 0.92, 1.0), 6)
+	var splinter := Polygon2D.new()
+	splinter.polygon = PackedVector2Array([
+		Vector2(-19, 0), Vector2(-7, -2.6), Vector2(-5, 0), Vector2(-7, 2.6)])
+	splinter.color = Color(0.85, 0.96, 1.0, 0.6)
+	splinter.material = _add_mat()
+	visual.add_child(splinter)
 
 # A soulthread charm: a rune-disc that spins on its thread.
 func _build_orbiter() -> void:
@@ -3787,15 +3765,13 @@ func _build_chainmaul() -> void:
 
 # An angular dart that looks eager to change its mind.
 func _build_ricochet() -> void:
-	var glow = Polygon2D.new()
-	glow.polygon = _circle(15.0, 10)
-	glow.color = Color(1.0, 0.85, 0.4, 0.2)
-	visual.add_child(glow)
-	var dart = Polygon2D.new()
-	dart.polygon = PackedVector2Array([
-		Vector2(-19, -7), Vector2(17, 0), Vector2(-19, 7), Vector2(-11, 0)])
-	dart.color = Color(1.0, 0.88, 0.45, 1.0)
-	visual.add_child(dart)
+	# a ricocheting dart: a lit blade with a bloom, so each bounce reads
+	_art_blade(19.0, 5.0, Color(1.0, 0.88, 0.45))
+	var tailfin := Polygon2D.new()
+	tailfin.polygon = PackedVector2Array([
+		Vector2(-19, -7), Vector2(-9, 0), Vector2(-19, 7), Vector2(-13, 0)])
+	tailfin.color = Color(1.0, 0.8, 0.35, 0.85)
+	visual.add_child(tailfin)
 
 # A pregnant orb with its shards already showing.
 func _build_cluster() -> void:
@@ -3881,13 +3857,14 @@ func _build_hook() -> void:
 	add_child(rope)
 
 func _build_boomerang() -> void:
-	for ang in [0.0, PI * 0.5]:   # two blades in a V
-		var blade = Polygon2D.new()
-		blade.polygon = PackedVector2Array([
-			Vector2(-3, 0), Vector2(22, -4), Vector2(24, 0), Vector2(22, 4)])
-		blade.color = Color(0.35, 0.8, 0.75, 0.95)
-		blade.rotation = ang
-		visual.add_child(blade)
+	# was: two flat quads. Now two real blades in a V, each lit along its top
+	# edge, around a small hub -- a spinning object rather than a paper cross.
+	for ang in [0.0, PI * 0.5]:
+		var arm := Node2D.new()
+		arm.rotation = ang
+		visual.add_child(arm)
+		_art_blade(24.0, 3.4, Color(0.42, 0.86, 0.8), arm)
+	_art_orb(4.6, Color(0.6, 0.95, 0.9))
 
 # ==========================================================================
 # TIER 6, BATCH 1. Six weapons off the crowded verbs (arc/cleave/orbiter/
@@ -8223,6 +8200,140 @@ func _build_sickle_glide() -> void:
 	glint.color = Color(0.86, 0.98, 0.9, 0.85)
 	glint.material = m
 	visual.add_child(glint)
+
+# ==========================================================================
+# SHARED PROJECTILE ART (2026-07-30). The census said it plainly: of 121 build
+# functions, 27 drew no additive layer at all and 17 were two flat polygons.
+# The Iron Javelin was a beige quad with a triangle stuck on the end; the
+# boomerang was two flat quads. That is what "the shapes are crude" meant.
+#
+# These three helpers are the house style, so the fix is one look applied
+# consistently rather than twenty hand-made answers. Each builds the same way a
+# painter would: a dark ground to sit the shape on, the body, then a lit edge
+# and a bloom on top. The bloom is ADDITIVE -- that is the whole difference
+# between "a coloured shape" and "a thing that is glowing".
+# ==========================================================================
+
+func _add_mat() -> CanvasItemMaterial:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	return m
+
+# A bolt/orb: bloom, body, hot core, and a bright rim crescent offset toward
+# the leading edge so the thing reads as lit from the front rather than flat.
+func _art_orb(r: float, col: Color, host: Node2D = null) -> void:
+	var into: Node2D = host if host != null else visual
+	var m := _add_mat()
+	var bloom := Polygon2D.new()
+	bloom.polygon = _circle(r * 1.75, 14)
+	bloom.color = Color(col.r, col.g, col.b, 0.26)
+	bloom.material = m
+	into.add_child(bloom)
+	var body := Polygon2D.new()
+	body.polygon = _circle(r, 13)
+	body.color = Color(col.r * 0.72, col.g * 0.72, col.b * 0.72, 0.95)
+	into.add_child(body)
+	var mid := Polygon2D.new()
+	mid.polygon = _circle(r * 0.72, 12)
+	mid.color = col
+	mid.material = m
+	into.add_child(mid)
+	var core := Polygon2D.new()
+	core.polygon = _circle(r * 0.34, 10)
+	core.color = Color(1.0, 1.0, 1.0, 0.9)
+	core.material = m
+	into.add_child(core)
+	# the lit rim: a thin crescent on the leading side
+	var rim := Polygon2D.new()
+	rim.polygon = _circle(r * 0.86, 12)
+	rim.color = Color(1.0, 1.0, 1.0, 0.34)
+	rim.material = m
+	rim.position = Vector2(r * 0.3, -r * 0.22)
+	rim.scale = Vector2(0.5, 0.42)
+	into.add_child(rim)
+
+# A shaft/blade: a dark spine under it, the body, a bright top edge, and a
+# flare at the point. `len` runs +x (the direction of travel).
+func _art_blade(length: float, wid: float, col: Color, host: Node2D = null) -> void:
+	var into: Node2D = host if host != null else visual
+	var m := _add_mat()
+	var back := -length * 0.45
+	var shade := Polygon2D.new()
+	shade.polygon = PackedVector2Array([
+		Vector2(back, -wid * 0.9), Vector2(length * 0.62, -wid * 1.25),
+		Vector2(length, 0.0), Vector2(length * 0.62, wid * 1.25),
+		Vector2(back, wid * 0.9)])
+	shade.color = Color(col.r * 0.28, col.g * 0.28, col.b * 0.3, 0.9)
+	into.add_child(shade)
+	var body := Polygon2D.new()
+	body.polygon = PackedVector2Array([
+		Vector2(back + 2.0, -wid * 0.6), Vector2(length * 0.6, -wid * 0.9),
+		Vector2(length * 0.93, 0.0), Vector2(length * 0.6, wid * 0.9),
+		Vector2(back + 2.0, wid * 0.6)])
+	body.color = col
+	into.add_child(body)
+	# the lit top edge -- one bright line is what makes a flat shape read as
+	# a solid object catching light
+	var edge := Line2D.new()
+	edge.points = PackedVector2Array([
+		Vector2(back + 3.0, -wid * 0.45), Vector2(length * 0.6, -wid * 0.62),
+		Vector2(length * 0.9, -wid * 0.08)])
+	edge.width = maxf(1.4, wid * 0.34)
+	edge.default_color = Color(1.0, 1.0, 1.0, 0.55)
+	edge.material = m
+	into.add_child(edge)
+	# and a flare riding the point
+	var flare := Polygon2D.new()
+	flare.polygon = _circle(wid * 1.5, 10)
+	flare.color = Color(col.r, col.g, col.b, 0.4)
+	flare.material = m
+	flare.position = Vector2(length * 0.9, 0.0)
+	into.add_child(flare)
+
+# A RIM LIGHT along an existing outline. This is the single most useful thing
+# in the kit: Deepwood's surface is a dark blue night, so any dark-coloured
+# projectile -- rock, iron, shadow -- silhouettes into the background no matter
+# how well it is modelled. A lit edge is what separates the two.
+func _art_rim(outline: PackedVector2Array, col: Color, w: float = 2.0,
+		host: Node2D = null) -> void:
+	var into: Node2D = host if host != null else visual
+	var rim := Line2D.new()
+	var pts := PackedVector2Array(outline)
+	if pts.size() > 1:
+		pts.append(pts[0])          # close the loop
+	rim.points = pts
+	rim.width = w
+	rim.default_color = Color(col.r, col.g, col.b, 0.5)
+	rim.material = _add_mat()
+	rim.joint_mode = Line2D.LINE_JOINT_ROUND
+	into.add_child(rim)
+
+# A crystal: faceted, with one facet catching the light. For ice, glass, stone.
+func _art_shard(r: float, col: Color, facets: int = 6, host: Node2D = null) -> void:
+	var into: Node2D = host if host != null else visual
+	var m := _add_mat()
+	var pts := PackedVector2Array()
+	for i in range(facets):
+		var a: float = TAU * float(i) / float(facets)
+		var rr: float = r * (1.35 if i % 2 == 0 else 0.72)
+		pts.append(Vector2(cos(a) * rr * 1.25, sin(a) * rr))
+	var bloom := Polygon2D.new()
+	bloom.polygon = pts
+	bloom.color = Color(col.r, col.g, col.b, 0.24)
+	bloom.material = m
+	bloom.scale = Vector2(1.7, 1.7)
+	into.add_child(bloom)
+	var body := Polygon2D.new()
+	body.polygon = pts
+	body.color = Color(col.r * 0.8, col.g * 0.85, col.b * 0.95, 0.94)
+	into.add_child(body)
+	# one lit facet, so it reads as a solid with an angle to it
+	var lit := Polygon2D.new()
+	lit.polygon = PackedVector2Array([
+		Vector2(0, 0), pts[0], pts[1 % pts.size()]])
+	lit.color = Color(1.0, 1.0, 1.0, 0.42)
+	lit.material = m
+	into.add_child(lit)
 
 func _circle(radius: float, sides: int) -> PackedVector2Array:
 	var pts = PackedVector2Array()

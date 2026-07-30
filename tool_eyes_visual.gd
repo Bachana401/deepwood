@@ -36,14 +36,12 @@ var _home := Vector2(6000.0, -80.0)
 # id, shot name, seconds to wait AFTER firing before the photo. That delay is
 # the whole point: catch the thing in the air, not the aftermath.
 const SHOTS := [
-	["wpn_shortbow",     "v1_plain_arrow",   0.06],
-	["wpn_windcutter",   "v2_crescent",      0.09],
 	["wpn_emberstaff",   "v3_fireball",      0.10],
 	["wpn_iciclewand",   "v4_frost_pierce",  0.10],
+	["wpn_javelin",      "v9_javelin",       0.09],
+	["exc_boomerang",    "v10_boomerang",    0.14],
 	["wpn_soulflood",    "v5_monarch_flood", 0.16],
-	["wpn_hollowking",   "v6_monarch_rain",  0.22],
-	["wpn_mountainking", "v7_boulder_scree", 0.55],
-	["wpn_griefcrown",   "v8_grief_passes",  0.30],
+	["wpn_trickbolt",    "v11_ricochet",     0.10],
 ]
 
 func _ready() -> void:
