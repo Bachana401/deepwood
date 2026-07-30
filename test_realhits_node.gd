@@ -58,7 +58,9 @@ const PROBE_IDS := ["wpn_lastword", "wpn_griefcrown", "wpn_unbentcolumn",
 	# nothing -- that was true of three weapons before this probe existed.
 	"wpn_chalkwand", "wpn_tallowwand", "wpn_stubwand",
 	"wpn_brookwand", "wpn_mosswand",
-	"wpn_saltwand", "wpn_hollowbolt", "wpn_stormsliver"]
+	"wpn_saltwand", "wpn_hollowbolt", "wpn_stormsliver",
+	# the two the ladder exposed when their tiers got stronger
+	"wpn_nightmortar", "wpn_wispwarden"]
 const PROBE_RANGES := [90.0, 170.0, 280.0]
 
 func _ready() -> void:

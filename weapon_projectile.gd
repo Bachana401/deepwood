@@ -3612,8 +3612,15 @@ func _tick_salt_ring(delta: float) -> void:
 			_apply_status_to(e)
 	# the burn ledger clears on a slow clock, so a body that KEEPS pushing
 	# keeps paying, but standing against the edge is not a damage treadmill
+	# A PRISON IS NOT A DAMAGE TREADMILL. At a 0.5s clear this measured 1 hit in
+	# one run and 7 in the next -- the same weapon, the same dummy, a different
+	# spot relative to a narrow boundary band. A weapon whose output swings 7x
+	# on where a body happens to stand cannot be balanced and makes the audit
+	# flap red and green. 1.2s gives it about three burns across its life:
+	# still positional, no longer a lottery. Its job is holding them there; the
+	# damage is what it costs them to keep trying.
 	_ink_rehit += delta
-	if _ink_rehit >= 0.5:
+	if _ink_rehit >= 1.2:
 		_ink_rehit = 0.0
 		_salt_burn.clear()
 
@@ -7895,6 +7902,46 @@ func _midnight_out() -> void:
 	var host := get_parent()
 	if host == null:
 		return
+	# IT GATHERED THEM -- SO THE PAYOFF LANDS ON THE GATHERING (2026-07-30).
+	# The post spent its whole charge hauling everything into one pile and then
+	# fired eight spokes OUTWARD past them, so a body it had just dragged to the
+	# centre caught a single spoke on the way out. That is the verb working
+	# against itself, and it is why a Legendary sat at 40 dps under a Tier-4
+	# median of 47. The implosion is the entire point of a gather: everything in
+	# the pile eats the blast, and the eight spokes are what escapes it.
+	var blast: int = maxi(1, int(round(float(damage) * 0.9)))
+	for gname in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(gname):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if global_position.distance_to((e as Node2D).global_position) > MP_R:
+				continue
+			var landed_b = e.take_damage(blast)
+			if landed_b == null or landed_b:
+				FloatingText.spawn(host, (e as Node2D).global_position
+					+ Vector2(0, -30.0), blast, true)
+			_apply_status_to(e)
+	# a dark implosion ring, so the blast reads as coming FROM the pile
+	var iring := Line2D.new()
+	var rp := PackedVector2Array()
+	for i2 in range(21):
+		var ra: float = TAU * float(i2) / 20.0
+		rp.append(Vector2(cos(ra), sin(ra) * 0.55) * MP_R)
+	iring.points = rp
+	iring.width = 6.0
+	iring.default_color = Color(0.55, 0.42, 0.78, 0.85)
+	iring.material = _add_mat()
+	host.add_child(iring)
+	iring.global_position = global_position
+	iring.scale = Vector2.ONE * 0.15
+	var rt: Tween = iring.create_tween()
+	rt.set_parallel(true)
+	rt.tween_property(iring, "scale", Vector2.ONE, 0.18)
+	rt.tween_property(iring, "modulate:a", 0.0, 0.24)
+	rt.chain().tween_callback(iring.queue_free)
+
 	var m := CanvasItemMaterial.new()
 	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	var pay: int = maxi(1, damage)

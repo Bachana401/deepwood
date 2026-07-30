@@ -80,7 +80,11 @@ const HITS_PER_USE := {
 	"stubmisfire": 2.5, # RANDOM 2-4 sparks (or 1 fat x3); measured 3-4 up close
 	"brookflow":   1.8, # the band re-soaks every 0.4s at 0.6x while it passes
 	"sporepatch":  3.0, # the stick, then ~8 ticks at 0.25x if they hold ground
-	"saltring":    2.4, # the scatter + edge-burns from anything that keeps pushing
+	# MEASURED 1 against a STATIONARY dummy, and that is the honest number to
+	# declare. The spec's 2.4 assumes a body that keeps pushing at the boundary;
+	# a real enemy walking at the player does exactly that, but nothing in the
+	# probe models intent, so the audit gets the floor rather than the hope.
+	"saltring":    2.4, # the scatter + ~3 edge-burns across its 3.5s life
 	"hollowring":  1.3, # even-pierce: one body takes exactly one, on collapse
 	"forktree":    2.2, # 7 segments at 0.45x; deep in the tree eats 3-4
 	# ---- T6 batch 1 ----
@@ -160,7 +164,9 @@ const HITS_PER_USE := {
 	"driftwheel":  2.5, # 3s of wandering, re-hitting every 0.34s
 	# ---- T4 batch 3: the last ten ----
 	"nightbolt":   1.2, # one bolt at 1.2x -- the value is being unreadable
-	"wispwarden":  3.4, # ~7 wisps sent over the post's life
+	"wispwarden":  4.8, # ~12 wisps now -- it shares _tick_asphodel, whose gap
+	                    # went 1.15 -> 0.78 in an earlier batch. The declaration
+	                    # was never updated to match the code it points at.
 	"candlekeeper": 4.6, # the keeper burns longer now (zone duration 6.2)
 	"covenledger": 5.0, # ~14 ticks over 6.2s inside the ring (duration+gap)
 	"gloamburst":  2.4, # the hit plus six 0.4x motes that seek
@@ -175,7 +181,7 @@ const HITS_PER_USE := {
 	"stormherd":   3.0, # 4 beasts running the lane; they SPREAD across it
 	"kestrelcourt": 2.8, # 4 kestrels, staggered stoops, each picking a body
 	"thunderhead": 2.5, # 4 bolts from a parked cloud at 0.62x
-	"midnightpost": 1.4, # the haul is control; the eight-way burst is one hit
+	"midnightpost": 2.4, # the IMPLOSION on the gathered pile, then one spoke out
 	"sirensong":   4.6, # ~6 bites while singing plus the shut, and it GATHERS
 	"starsplinter": 2.4, # 8 splinters out and back; a body catches ~3 passes
 	"emberhymn":   2.8, # ~5 ticks in the column, taller the longer you sing
