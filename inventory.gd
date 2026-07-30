@@ -48,7 +48,10 @@ const ITEM_DEFS = {
 	# the village with them.
 	"helm_bondwarden": {"name": "Bondwarden's Hood", "category": "armor", "slot": "helmet", "set": "bondwarden", "max_stack": 1, "color": Color(0.82, 0.62, 0.3, 1.0), "equip_effect": {"max_health": 20.0, "summon_damage": 0.04}},
 	"armor_bondwarden": {"name": "Bondwarden's Vestment", "category": "armor", "slot": "chest", "set": "bondwarden", "max_stack": 1, "color": Color(0.82, 0.62, 0.3, 1.0), "equip_effect": {"max_health": 30.0, "summon_damage": 0.05}},
-	"pants_bondwarden": {"name": "Bondwarden's Wraps", "category": "armor", "slot": "legs", "set": "bondwarden", "max_stack": 1, "color": Color(0.82, 0.62, 0.3, 1.0), "equip_effect": {"max_health": 20.0, "whip_damage": 0.05}},
+	# slot is "pants", NOT "legs" -- see ARMOUR_SLOTS. Shipped as "legs" in the
+	# Summoner gear batch, which is not a slot this game has, so the Wraps could
+	# never be equipped and the 3-piece set bonus and PACKLAW could never fire.
+	"pants_bondwarden": {"name": "Bondwarden's Wraps", "category": "armor", "slot": "pants", "set": "bondwarden", "max_stack": 1, "color": Color(0.82, 0.62, 0.3, 1.0), "equip_effect": {"max_health": 20.0, "whip_damage": 0.05}},
 	"helm_bulwark": {"name": "Bulwark Warhelm", "category": "armor", "slot": "helmet", "set": "bulwark", "max_stack": 1, "color": Color(0.66, 0.3, 0.2, 1.0), "equip_effect": {"max_health": 25.0, "melee_damage": 0.05}},
 	"armor_bulwark": {"name": "Bulwark Breastplate", "category": "armor", "slot": "chest", "set": "bulwark", "max_stack": 1, "color": Color(0.58, 0.26, 0.17, 1.0), "equip_effect": {"max_health": 40.0}},
 	"pants_bulwark": {"name": "Bulwark Greaves", "category": "armor", "slot": "pants", "set": "bulwark", "max_stack": 1, "color": Color(0.5, 0.23, 0.15, 1.0), "equip_effect": {"max_health": 20.0, "melee_cooldown": 0.05}},

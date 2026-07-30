@@ -267,8 +267,19 @@ func _ready() -> void:
 		"%.2f" % pl.staff_reach_mult())
 	pl._staff_last_hit_at = pl._now() - 5.0
 	check("...and a broken rhythm shrinks it back", absf(pl.staff_reach_mult() - 1.0) < 0.01)
+	# WAS: "a whiff resets the combo count". Inverted 2026-07-30 on the dev's
+	# call -- "their unique behavior doesn't get triggered unless I hit enemy, I
+	# want it to trigger anyway as long as the player attacks". Wiping the combo
+	# on any miss meant the staff's whole signature (growing reach, pillar slam)
+	# was invisible to anyone who whiffed once at the start of a fight, across
+	# all 16 staff weapons. The RHYTHM is still the discipline -- letting 1.6s
+	# lapse shrinks it back, asserted two lines above -- but the enemy no longer
+	# gets a vote on whether your weapon works.
+	pl._staff_combo = 2
+	pl._staff_last_hit_at = pl._now()
 	pl.staff_note_swing(false, pl.global_position)
-	check("a whiff resets the combo count", pl._staff_combo == 0)
+	check("a whiff does NOT reset the combo -- the rhythm is the player's",
+		pl._staff_combo == 3, "combo went to %d" % pl._staff_combo)
 	if keep_weapon != "":
 		pl.wield_weapon(keep_weapon)
 

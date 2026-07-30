@@ -396,6 +396,31 @@ func _ready() -> void:
 	check("...but an unknown id is still dropped, not resurrected",
 		junk.get_count("wpn_does_not_exist") == 0)
 
+	# --- EVERY ARMOUR PIECE MUST DECLARE A SLOT THAT EXISTS ---------------
+	# The Bondwarden's Wraps shipped with slot "legs". This game's slots are
+	# ["helmet", "chest", "pants"], so "legs" is not a slot at all: the piece
+	# could never be equipped, and therefore the 3-piece set bonus and the
+	# PACKLAW set-soul could never fire either. Nothing noticed until the ICON
+	# test flagged a blank tile -- a cosmetic symptom of an unwearable item.
+	# A typo'd slot silently deletes a piece of gear; this makes it loud.
+	# RETIRED, not wrong: gloves and boots were real slots once. Their pieces
+	# survive as bag curios and must never drop again (see the note on
+	# GEAR_ARMOR_IDS in dungeon_interior). They are named here so the check
+	# catches a TYPO without also condemning a deliberate historical decision.
+	var RETIRED_SLOTS := ["gloves", "boots"]
+	var bad_slots := []
+	for aid in Inventory.ITEM_DEFS.keys():
+		var adef: Dictionary = Inventory.ITEM_DEFS[aid]
+		if str(adef.get("category", "")) != "armor":
+			continue
+		var slot := str(adef.get("slot", ""))
+		if slot in GameState.ARMOUR_SLOTS or slot in RETIRED_SLOTS:
+			continue
+		bad_slots.append("%s -> '%s'" % [aid, slot])
+	check("every armour piece declares a real slot (%s)"
+		% ", ".join(GameState.ARMOUR_SLOTS), bad_slots.is_empty(),
+		", ".join(bad_slots))
+
 	# --- NO PLAIN RUNG MAY WEAR A FLAGSHIP'S NAME -------------------------
 	# The dev asked four times where the Zenith-like weapon was and could not
 	# find it. It existed -- The Last Word, T8, behavior "zenith" -- but a
