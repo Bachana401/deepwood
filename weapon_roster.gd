@@ -106,17 +106,17 @@ const ROWS = [
 	["wpn_pilgrimstaff", "Pilgrim's Milestone",  "staff", 4, "staff",     15, 0.45, {"plain": true}],
 	# ---------------- TIER 5 - LEGENDARY (floors 42-72) ----------------
 	["wpn_daybreakedge", "Daybreak Edge",        "melee", 5, "arc",       24, 0.42, {"status": "burn_w", "plain": true}],
-	["wpn_worldtoll",    "Worldtoll Maul",       "melee", 5, "cleave",    36, 1.1,  {"knockup": true, "fx": [{"kind": "quake", "radius": 200.0, "pct": 0.91}]}],
+	["wpn_worldtoll",    "Worldtoll Maul",       "melee", 5, "worldtoll", 36, 1.1,  {"knockup": true, "fx": [{"kind": "quake", "radius": 200.0, "pct": 0.91}]}],
 	["wpn_quietwheel",   "Wheel of Quiet",       "melee", 5, "orbiter",   21, 0.8,  {"dwell": 2.8, "fx": [{"kind": "gravity", "radius": 260.0, "pull": 200.0}]}],
-	["wpn_serpentsermon","Serpent's Sermon",     "melee", 5, "lash",      22, 0.85, {"status": "poison_w", "fx": [{"kind": "rend", "pct_per": 0.18, "max": 8}, {"kind": "frostbloom", "radius": 155.0}]}],
+	["wpn_serpentsermon","Serpent's Sermon",     "melee", 5, "serpentsermon", 22, 0.85, {"status": "poison_w", "fx": [{"kind": "rend", "pct_per": 0.18, "max": 8}, {"kind": "frostbloom", "radius": 155.0}]}],
 	["wpn_finalverdict", "Final Verdict",        "spear", 5, "thrust",    29, 0.8,  {"plain": true}],
 	["wpn_skyquill",     "Sky of Quills",        "spear", 5, "jab_volley", 18, 0.9, {"count": 5, "fx": [{"kind": "splinter", "n": 6, "pct": 0.6, "range": 200.0}]}],
 	["wpn_eventide",     "Eventide",             "bow",   5, "volley",    15, 0.55, {"count": 3, "fx": [{"kind": "moonlit", "pct": 0.84}, {"kind": "stormcall", "every": 4, "pct": 1.26}]}],
 	["wpn_lastlark",     "The Last Lark",        "bow",   5, "rapid",     11, 0.16, {"plain": true}],
 	["wpn_omenseeker",   "Omen Seeker",          "bow",   5, "seeker",    20, 0.6,  {"fx": [{"kind": "brand", "amp": 0.56, "dur": 5.0}, {"kind": "stormcall", "every": 4, "pct": 0.6}]}],
-	["wpn_starfallbow",  "Starfall Bow",         "bow",   5, "lob_a",     30, 1.0,  {"aoe": 115, "fx": [{"kind": "chain", "n": 4, "pct": 0.7, "range": 320.0}]}],
+	["wpn_starfallbow",  "Starfall Bow",         "bow",   5, "starfall",  30, 1.0,  {"aoe": 115, "fx": [{"kind": "chain", "n": 4, "pct": 0.7, "range": 320.0}]}],
 	["wpn_grandrains",   "Grand Tome of Rains",  "wand",  5, "tome",      14, 1.35, {"radius": 155, "tome_kind": "twin", "fx": [{"kind": "crowd", "pct_per": 0.18, "cap": 0.7}, {"kind": "sparkfly", "n": 1, "pct": 0.6}]}],
-	["wpn_twinburst",    "Twinburst Sceptre",    "wand",  5, "cluster",   25, 0.8,  {"shards": 7, "fx": [{"kind": "frostbloom", "radius": 190.0, "dur": 3.5}]}],
+	["wpn_twinburst",    "Twinburst Sceptre",    "wand",  5, "twinburst", 25, 0.8,  {"shards": 7, "fx": [{"kind": "frostbloom", "radius": 190.0, "dur": 3.5}]}],
 	["wpn_kingsransom",  "King's Ransom",        "wand",  5, "ricochet",  22, 0.6,  {"bounces": 5, "fx": [{"kind": "goldtouch", "chance": 0.5, "gold": 6}, {"kind": "splinter", "n": 3, "pct": 0.6, "range": 170.0}]}],
 	["wpn_longwatch",    "Warden's Long Watch",  "wand",  5, "sentry",    14, 1.2,  {"dur": 22, "fx": [{"kind": "bulwark", "dr": 0.23, "dur": 4.0}, {"kind": "echo", "pct": 0.6, "delay": 0.4}]}],
 	["wpn_summitstaff",  "Summit That Walks",    "staff", 5, "staff",     19, 0.42, {"plain": true}],
@@ -270,7 +270,7 @@ const ROWS = [
 	["wpn_gallowsflail", "Gallows Swing",        "melee", 5, "chain_maul", 26, 0.95, {"fx": [{"kind": "harvest", "hp": 6, "mana": 5.0}, {"kind": "quake", "radius": 150.0, "pct": 0.6}]}],
 	["wpn_midwinterwheel","Midwinter Wheel",     "melee", 5, "orbiter",   20, 0.78, {"dwell": 2.8, "status": "slow_w", "fx": [{"kind": "frostbloom", "radius": 170.0}, {"kind": "gravity", "radius": 220.0, "pull": 160.0}]}],
 	["wpn_asphodelknife","Asphodel Kiss",        "melee", 5, "arc",       15, 0.24, {"status": "poison_w", "plain": true}],
-	["wpn_seawallblade", "Seawall",              "melee", 5, "crescent",  21, 0.55, {"p_damage": 19, "fx": [{"kind": "bulwark", "dr": 0.16, "dur": 3.0}, {"kind": "chain", "n": 2, "pct": 0.6, "range": 250.0}]}],
+	["wpn_seawallblade", "Seawall",              "melee", 5, "seawall",   21, 0.55, {"p_damage": 19, "fx": [{"kind": "bulwark", "dr": 0.16, "dur": 3.0}, {"kind": "chain", "n": 2, "pct": 0.6, "range": 250.0}]}],
 	["wpn_pilgrimlash",  "Pilgrim's Scourge",    "melee", 5, "lash",      21, 0.83, {"fx": [{"kind": "haste", "pct_per": 0.08, "max": 6, "dur": 4.5}, {"kind": "frostbloom", "radius": 155.0}]}],
 	["wpn_omenblade",    "Omen of Iron",         "melee", 5, "ricochet",  19, 0.58, {"bounces": 5, "fx": [{"kind": "brand", "amp": 0.39, "dur": 4.5}, {"kind": "echo", "pct": 0.7, "delay": 0.4}]}],
 	["wpn_borderpike",   "Border of the Realm",  "spear", 5, "thrust",    28, 0.78, {"plain": true}],
@@ -285,7 +285,7 @@ const ROWS = [
 	["wpn_glacierwrit",  "Glacier Writ",         "wand",  5, "frost",     24, 0.55, {"status": "slow_w", "fx": [{"kind": "frostbloom", "radius": 170.0, "dur": 3.2}, {"kind": "harvest", "hp": 4}]}],
 	["wpn_starsplinter", "Starsplinter",         "wand",  5, "cluster",   24, 0.78, {"shards": 7, "fx": [{"kind": "splinter", "n": 5, "pct": 0.6, "range": 185.0}, {"kind": "moonlit", "pct": 0.6}]}],
 	["wpn_omenbolt",     "The Third Omen",       "wand",  5, "ricochet",  21, 0.58, {"bounces": 5, "fx": [{"kind": "echo", "pct": 0.7, "delay": 0.45}, {"kind": "quake", "radius": 150.0, "pct": 0.6}]}],
-	["wpn_beaconpost",   "Beacon of the Deep",   "wand",  5, "sentry",    13, 1.18, {"dur": 22, "fx": [{"kind": "moonlit", "pct": 0.6}, {"kind": "chain", "n": 2, "pct": 0.5, "range": 250.0}]}],
+	["wpn_beaconpost",   "Beacon of the Deep",   "wand",  5, "deepbeacon", 13, 1.18, {"dur": 22, "fx": [{"kind": "moonlit", "pct": 0.6}, {"kind": "chain", "n": 2, "pct": 0.5, "range": 250.0}]}],
 	["wpn_emberhymn",    "Emberhymn",            "wand",  5, "fire",      30, 0.82, {"aoe": 130, "status": "burn_w", "fx": [{"kind": "quake", "radius": 165.0, "pct": 0.63}, {"kind": "soulwisp", "dmg": 10, "pct": 0.7}]}],
 	["wpn_graniteway",   "The Granite Way",      "staff", 5, "staff",     20, 0.44, {"plain": true}],
 	["wpn_cloudcounter", "Cloudcounter",         "staff", 5, "staff",     18, 0.38, {"plain": true}],
@@ -856,6 +856,24 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 		"middaysun":
 			s = {"type": "noon_shaft", "damage": maxi(1, int(round(float(dmg) * 0.8))),
 				"count": 7, "speed": spd + 140.0, "range": rng}
+		# ---- T5 batch 1 ----
+		"seawall":
+			s = {"type": "sea_wall", "damage": maxi(1, int(round(float(dmg) * 0.8))),
+				"speed": spd - 300.0}
+		"serpentsermon":
+			s = {"type": "serpent_coil", "damage": dmg,
+				"speed": spd - 180.0, "range": rng * 0.38}
+		"twinburst":
+			s = {"type": "twin_bolt", "damage": maxi(1, int(round(float(dmg) * 0.7))),
+				"speed": spd - 70.0, "range": rng}
+		"deepbeacon":
+			s = {"type": "deep_beacon", "damage": maxi(1, int(round(float(dmg) * 0.9)))}
+		"starfall":
+			s = {"type": "star_fall", "damage": maxi(1, int(round(float(dmg) * 0.75))),
+				"count": 3, "speed": spd - 250.0, "range": rng, "lift": 430.0}
+		"worldtoll":
+			s = {"type": "under_toll", "damage": maxi(1, int(round(float(dmg) * 0.85))),
+				"speed": spd - 260.0, "range": rng * 0.55}
 		"debtmark":
 			s = {"type": "debt_mark", "damage": dmg, "speed": spd + 60.0, "range": rng}
 		"cinderdrag":
@@ -936,6 +954,12 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"hushfall":    return "The blow lands in SILENCE. The sound of it arrives a moment later, from where you struck, and the sound is the heavier half."
 		"eclipse":     return "The wheel rolls out and goes DARK, and the shadow it throws is the weapon -- a long band of night that cuts everything standing in it."
 		"cometfall":   return "Lobs high and comes down as a COMET, cratering where it lands and leaving the ground burning for whatever walks in next."
+		"seawall":     return "The swing does not travel -- it STOPS and stands there, a wall of water on the wrong side of them, shoving anything that tries to cross."
+		"serpentsermon": return "The lash finds one body and COILS around it, and then it stays and preaches, biting on every breath until it is done."
+		"twinburst":   return "Two bolts winding around one another, and everywhere their paths CROSS the air goes off."
+		"deepbeacon":  return "A lamp planted in the ground that PULSES on a slow count. Each ring shoves the room a little further away from it."
+		"starfall":    return "The shot goes up and out of sight. Three stars come down where it was pointed."
+		"worldtoll":   return "The blow goes DOWN. It runs under the floor and comes up somewhere out ahead of you, which is the last place they were watching."
 		"hollowwheel": return "It is not thrown. It GUARDS -- a hollow wheel running a tight fast ring around you, shoving off anything that comes close."
 		"direportent": return "The shaft does not kill. It FIXES an omen over them, and the sign sinks lower and shakes harder until the hour comes -- and then it falls."
 		"lastcourier": return "A route, not a ricochet. It keeps a list, never knocks twice, and every delivery weighs the same as the first."

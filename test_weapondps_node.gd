@@ -100,6 +100,14 @@ const HITS_PER_USE := {
 	"nightlash":   2.4, # the crack, then a 0.65x echo out of the dark
 	"middaysun":   3.2, # seven abreast; a body catches maybe three of them
 	"asphodel":    4.0, # the post sends ~8 wisps over its 9s life
+	# ---- T5 batch 1 ----
+	"seawall":     2.4, # a 3.2s barrier re-hitting every 0.3s at 0.6x, but it
+	                    # only pays when they keep pushing into it
+	"serpentsermon": 3.2, # the strike, then ~6 bites at 0.5x while coiled
+	"twinburst":   2.2, # two bolts, and a crossing burst roughly every 0.42s
+	"deepbeacon":  4.0, # ONE beacon (recast moves it): ~5 pulses over 6.5s
+	"starfall":    2.0, # 3 stars, but they SPREAD where they land
+	"worldtoll":   1.5, # a 0.35x rumble in passing, then the 0.8x eruption
 	# --- pre-existing multi-hit verbs, for a fair comparison ---
 	"volley":     2.0,
 	"jab_volley": 3.0,

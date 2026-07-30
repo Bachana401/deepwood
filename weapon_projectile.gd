@@ -194,6 +194,19 @@ func _ready() -> void:
 			pierce = true
 			_build_night_lash()
 		"noon_shaft": _build_noon_shaft()
+		# ---- T5 batch 1 ----
+		"sea_wall":
+			pierce = true
+			_build_sea_wall()
+		"serpent_coil": _build_serpent_coil()
+		"twin_bolt":
+			pierce = true
+			_build_twin_bolt()
+		"deep_beacon": _build_deep_beacon()
+		"star_fall": _build_star_fall()
+		"under_toll":
+			pierce = true
+			_build_under_toll()
 		"zenith_blade":
 			# THE LAST WORD: a ghost-image of an ancestor blade. Swoops out,
 			# whirls one tight loop at the far point, and comes home. Each
@@ -538,6 +551,31 @@ func _physics_process(delta: float) -> void:
 	if kind in ["ash_cloud", "cinder_shelf"]:
 		_tick_standing_zone(delta)
 		return
+	if kind == "sea_wall":
+		_tick_seawall(delta)
+		return
+	if kind == "serpent_coil":
+		_tick_serpent(delta)
+		return
+	if kind == "twin_bolt":
+		_tick_twin(delta)
+		return
+	if kind == "deep_beacon":
+		_tick_beacon(delta)
+		return
+	if kind == "star_fall":
+		_tick_quill(delta)      # same fall, its own face (see _build_star_fall)
+		return
+	if kind == "under_toll":
+		# it runs along the floor and SURFACES at the end of its run
+		global_position += direction * speed * delta
+		traveled += speed * delta
+		if traveled >= max_distance:
+			_nova_burst_tinted(global_position, Color(0.92, 0.66, 0.32))
+			_rock_smoke(global_position)
+			done = true
+			queue_free()
+		return
 	if kind == "regent_shard":
 		_tick_regent_shard(delta)
 		return
@@ -847,6 +885,21 @@ func _on_body_entered(body: Node2D) -> void:
 					maxi(1, int(round(float(damage) * 0.35))), false)
 			_apply_status_to(body)
 			_portent_fix(body)
+		"serpent_coil":
+			# SERPENT'S SERMON: it stops being a whip and becomes a grip
+			var landed_sc = body.take_damage(damage)
+			if landed_sc == null or landed_sc:
+				FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+			_apply_status_to(body)
+			_serpent_wrap(body)
+		"under_toll":
+			# WORLDTOLL MAUL: it runs UNDER them, so contact is a rumble, and
+			# the eruption where it surfaces is the real blow
+			var landed_ut = body.take_damage(maxi(1, int(round(float(damage) * 0.35))))
+			if landed_ut == null or landed_ut:
+				FloatingText.spawn(get_parent(), body.global_position,
+					maxi(1, int(round(float(damage) * 0.35))), false)
+			_apply_status_to(body)
 		"night_lash":
 			# A LONG NIGHT'S TONGUE: the crack lands now, the dark answers late
 			var landed_nl = body.take_damage(damage)
@@ -4631,6 +4684,318 @@ func _build_noon_shaft() -> void:
 	head.color = Color(1.0, 1.0, 0.96, 0.98)
 	head.material = m
 	visual.add_child(head)
+
+# ==========================================================================
+# TIER 5, BATCH 1.
+# ==========================================================================
+
+# --- SEAWALL: the swing STOPS and stands there -------------------------
+var _wall_t := 0.0
+const WALL_LIFE := 3.2
+const WALL_HALF := 52.0
+
+func _tick_seawall(delta: float) -> void:
+	_wall_t += delta
+	# it runs out a short way, then plants
+	if _wall_t < 0.2:
+		global_position += direction * speed * delta
+	if visual:
+		visual.modulate.a = 1.0 - pow(_wall_t / WALL_LIFE, 3.0)
+	if _wall_t >= WALL_LIFE:
+		done = true
+		queue_free()
+		return
+	_rehit_t += delta
+	if _rehit_t < 0.3:
+		return
+	_rehit_t = 0.0
+	var host := get_parent()
+	var pay: int = maxi(1, int(round(float(damage) * 0.6)))
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			var rel: Vector2 = (e as Node2D).global_position - global_position
+			if absf(rel.x) > 24.0 or absf(rel.y) > WALL_HALF:
+				continue
+			var landed = e.take_damage(pay)
+			if landed == null or landed:
+				FloatingText.spawn(host, (e as Node2D).global_position
+					+ Vector2(randf_range(-16.0, 16.0), -26.0), pay, false)
+			_apply_status_to(e)
+			# a wall's job is to be on the WRONG side of them
+			if e.has_method("apply_knockback"):
+				e.apply_knockback(1 if rel.x >= 0.0 else -1, 240.0)
+
+func _build_sea_wall() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var body_w := Polygon2D.new()
+	body_w.polygon = PackedVector2Array([
+		Vector2(-11, WALL_HALF), Vector2(-7, -WALL_HALF * 0.6),
+		Vector2(3, -WALL_HALF), Vector2(12, -WALL_HALF * 0.55),
+		Vector2(10, WALL_HALF)])
+	body_w.color = Color(0.36, 0.68, 0.92, 0.55)
+	body_w.material = m
+	visual.add_child(body_w)
+	for k in range(4):
+		var crest := Polygon2D.new()
+		crest.polygon = PackedVector2Array([
+			Vector2(-9, 0), Vector2(0, -9.0), Vector2(11, 0), Vector2(0, 5.0)])
+		crest.color = Color(0.86, 0.96, 1.0, 0.7)
+		crest.material = m
+		crest.position = Vector2(0, -WALL_HALF * 0.7 + 26.0 * float(k))
+		visual.add_child(crest)
+		var tw := crest.create_tween().set_loops()
+		tw.tween_property(crest, "position:x", 5.0, randf_range(0.5, 0.8))
+		tw.tween_property(crest, "position:x", -5.0, randf_range(0.5, 0.8))
+
+# --- SERPENT'S SERMON: the lash COILS and preaches at close range -------
+var _coil_t := 0.0
+var _coil_on: Node2D = null
+const COIL_LIFE := 2.6
+const COIL_BITE := 0.42
+
+func _tick_serpent(delta: float) -> void:
+	if _coil_on == null:
+		global_position += direction * speed * delta
+		traveled += speed * delta
+		if traveled >= max_distance:
+			done = true
+			queue_free()
+		return
+	if not is_instance_valid(_coil_on) or ("is_dead" in _coil_on and _coil_on.is_dead):
+		done = true
+		queue_free()
+		return
+	global_position = (_coil_on as Node2D).global_position
+	_coil_t += delta
+	if visual:
+		visual.rotation += 3.4 * delta
+		visual.scale = Vector2.ONE * _draw_girth * (1.0 + 0.1 * sin(_coil_t * 9.0))
+	if _coil_t >= COIL_LIFE:
+		done = true
+		queue_free()
+		return
+	_rehit_t += delta
+	if _rehit_t < COIL_BITE:
+		return
+	_rehit_t = 0.0
+	var pay: int = maxi(1, int(round(float(damage) * 0.5)))
+	var landed = _coil_on.take_damage(pay)
+	if landed == null or landed:
+		FloatingText.spawn(get_parent(), (_coil_on as Node2D).global_position
+			+ Vector2(randf_range(-16.0, 16.0), -26.0), pay, false)
+	_apply_status_to(_coil_on)
+
+func _serpent_wrap(who: Node2D) -> void:
+	_coil_on = who
+	speed = 0.0
+	# the lash stops being a whip and becomes a ring of scales
+	if visual:
+		for c in visual.get_children():
+			c.queue_free()
+		var m := CanvasItemMaterial.new()
+		m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		for band in range(3):
+			var ring := Polygon2D.new()
+			var rr: float = 20.0 - 4.0 * float(band)
+			var pts := PackedVector2Array()
+			for i in range(12):
+				var a := TAU * float(i) / 12.0
+				pts.append(Vector2(cos(a) * rr, sin(a) * rr * 0.42))
+			for i in range(12):
+				var a2 := TAU * float(11 - i) / 12.0
+				pts.append(Vector2(cos(a2) * (rr - 3.5), sin(a2) * (rr - 3.5) * 0.42))
+			ring.polygon = pts
+			ring.color = Color(0.42, 0.76, 0.44, 0.8)
+			ring.material = m
+			ring.position = Vector2(0, -18.0 + 17.0 * float(band))
+			visual.add_child(ring)
+
+func _build_serpent_coil() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	for i in range(3):
+		var seg := Polygon2D.new()
+		var off: float = -5.0 + 5.0 * float(i)
+		seg.polygon = PackedVector2Array([
+			Vector2(-26, off * 0.4), Vector2(6, off), Vector2(28, off * 0.7),
+			Vector2(28, off * 0.7 + 2.6), Vector2(6, off + 3.0), Vector2(-26, off * 0.4 + 2.4)])
+		seg.color = Color(0.36, 0.7, 0.4, 0.88 - 0.16 * float(i))
+		visual.add_child(seg)
+	var headp := Polygon2D.new()
+	headp.polygon = PackedVector2Array([
+		Vector2(34, 0), Vector2(24, -6.0), Vector2(20, 0), Vector2(24, 6.0)])
+	headp.color = Color(0.7, 0.95, 0.6, 0.95)
+	headp.material = m
+	visual.add_child(headp)
+
+# --- TWINBURST SCEPTRE: two bolts winding, and they blow where they CROSS
+var _twin_t := 0.0
+var _twin_side := 1.0
+var _twin_origin := Vector2.ZERO
+const TWIN_WIND := 0.42     # seconds per half-turn
+const TWIN_AMP := 34.0
+
+func _tick_twin(delta: float) -> void:
+	_twin_t += delta
+	if _twin_origin == Vector2.ZERO:
+		_twin_origin = global_position
+	traveled += speed * delta
+	var perp := Vector2(-direction.y, direction.x)
+	var wind: float = sin(_twin_t * PI / TWIN_WIND) * TWIN_AMP * _twin_side
+	global_position = _twin_origin + direction * traveled + perp * wind
+	rotation = direction.angle()
+	# they cross whenever the winding passes through zero -- and only ONE of
+	# the pair fires the burst, or every crossing would go off twice
+	if _twin_side > 0.0 and _twin_t > 0.05:
+		var beat: float = fmod(_twin_t, TWIN_WIND)
+		if beat < delta:
+			_nova_burst_tinted(global_position, Color(0.86, 0.6, 1.0))
+	if traveled >= max_distance:
+		done = true
+		queue_free()
+
+func set_twin_side(s: float) -> void:
+	_twin_side = s
+
+func _build_twin_bolt() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var tail := Polygon2D.new()
+	tail.polygon = PackedVector2Array([
+		Vector2(-4, -3.0), Vector2(-22, 0), Vector2(-4, 3.0)])
+	tail.color = Color(0.7, 0.44, 0.95, 0.4)
+	tail.material = m
+	visual.add_child(tail)
+	var core := Polygon2D.new()
+	core.polygon = _circle(7.0, 9)
+	core.color = Color(0.95, 0.82, 1.0, 0.96)
+	core.material = m
+	visual.add_child(core)
+
+# --- BEACON OF THE DEEP: a slow pulse, and the pulse SHOVES --------------
+var _bea_t := 0.0
+var _bea_next := 0.0
+const BEA_LIFE := 6.5
+const BEA_GAP := 1.15
+const BEA_R := 118.0
+
+func _tick_beacon(delta: float) -> void:
+	_bea_t += delta
+	if _bea_t >= BEA_LIFE:
+		done = true
+		queue_free()
+		return
+	if visual:
+		visual.scale = Vector2.ONE * _draw_girth * (1.0 + 0.08 * sin(_bea_t * 4.0))
+	if _bea_t < _bea_next:
+		return
+	_bea_next += BEA_GAP
+	var host := get_parent()
+	var pay: int = maxi(1, damage)
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			var rel: Vector2 = (e as Node2D).global_position - global_position
+			if rel.length() > BEA_R:
+				continue
+			var landed = e.take_damage(pay)
+			if landed == null or landed:
+				FloatingText.spawn(host, (e as Node2D).global_position
+					+ Vector2(randf_range(-16.0, 16.0), -26.0), pay, false)
+			_apply_status_to(e)
+			if e.has_method("apply_knockback"):
+				e.apply_knockback(1 if rel.x >= 0.0 else -1, 150.0)
+	if host == null:
+		return
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var pulse := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(20):
+		var a := TAU * float(i) / 20.0
+		pts.append(Vector2(cos(a) * 22.0, sin(a) * 9.0))
+	for i in range(20):
+		var a2 := TAU * float(19 - i) / 20.0
+		pts.append(Vector2(cos(a2) * 18.0, sin(a2) * 7.0))
+	pulse.polygon = pts
+	pulse.color = Color(0.5, 0.86, 0.96, 0.72)
+	pulse.material = m
+	pulse.z_index = 42
+	host.add_child(pulse)
+	pulse.global_position = global_position
+	var tw := pulse.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(pulse, "scale", Vector2.ONE * (BEA_R / 20.0), 0.62)
+	tw.tween_property(pulse, "modulate:a", 0.0, 0.62)
+	tw.chain().tween_callback(pulse.queue_free)
+
+func _build_deep_beacon() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var post := Polygon2D.new()
+	post.polygon = PackedVector2Array([
+		Vector2(-3.4, 18.0), Vector2(-2.2, -14.0), Vector2(2.2, -14.0), Vector2(3.4, 18.0)])
+	post.color = Color(0.24, 0.34, 0.4, 0.96)
+	visual.add_child(post)
+	var lamp := Polygon2D.new()
+	lamp.polygon = _circle(10.0, 10)
+	lamp.color = Color(0.62, 0.94, 1.0, 0.94)
+	lamp.material = m
+	lamp.position = Vector2(0, -20.0)
+	visual.add_child(lamp)
+	var glow := Polygon2D.new()
+	glow.polygon = _circle(17.0, 10)
+	glow.color = Color(0.4, 0.8, 1.0, 0.32)
+	glow.material = m
+	glow.position = Vector2(0, -20.0)
+	visual.add_child(glow)
+
+# --- STARFALL BOW: the same fall as a quill, a very different face -------
+func _build_star_fall() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var trail := Polygon2D.new()
+	trail.polygon = PackedVector2Array([
+		Vector2(-6, -3.4), Vector2(-34, 0), Vector2(-6, 3.4)])
+	trail.color = Color(0.72, 0.82, 1.0, 0.5)
+	trail.material = m
+	visual.add_child(trail)
+	var star := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(8):
+		var a := TAU * float(i) / 8.0 - PI * 0.5
+		pts.append(Vector2(cos(a), sin(a)) * (13.0 if i % 2 == 0 else 4.6))
+	star.polygon = pts
+	star.color = Color(0.94, 0.96, 1.0, 0.97)
+	star.material = m
+	visual.add_child(star)
+
+# --- WORLDTOLL MAUL: the blow travels UNDER the ground and erupts --------
+func _build_under_toll() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	# a crack running along the floor: low, wide, and clearly BELOW them
+	var crack := Polygon2D.new()
+	crack.polygon = PackedVector2Array([
+		Vector2(-22, 2.0), Vector2(-8, -6.0), Vector2(6, 1.0),
+		Vector2(20, -5.0), Vector2(22, 3.0), Vector2(-20, 7.0)])
+	crack.color = Color(0.86, 0.62, 0.3, 0.72)
+	crack.material = m
+	visual.add_child(crack)
+	for k in range(3):
+		var grit := Polygon2D.new()
+		grit.polygon = _circle(randf_range(3.0, 6.0), 6)
+		grit.color = Color(0.5, 0.42, 0.34, 0.7)
+		grit.position = Vector2(randf_range(-18.0, 18.0), randf_range(-14.0, -4.0))
+		visual.add_child(grit)
 
 func _circle(radius: float, sides: int) -> PackedVector2Array:
 	var pts = PackedVector2Array()

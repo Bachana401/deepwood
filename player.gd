@@ -605,7 +605,15 @@ func build_weapon_guard() -> void:
 const HELD_SPRITE_ENABLED := true
 const HELD_ROT_DEG := 45.0        # NE-authored blade -> WeaponIcon +x
 const HELD_BLADE_FRAC := 0.80     # fraction of the square art the blade spans
-const HELD_LEN_MULT := 1.25       # blade reach relative to the weapon's icon length
+# SIZED AGAINST THE REFERENCE, not by eye. tool_held_report.gd measures the
+# tip distance as icon.x * 1.40625, and the census said melee sat at a median
+# 1.6 player-heights (max 2.6), spears at 2.5 (max 3.3), wands at 1.4 -- while
+# the study's own frame measurements put a sword blade at ~0.9 PH and swing
+# arcs at 0.8-1 PH. At 0.75 the roster lands on that reference: melee median
+# ~0.95 PL, spear ~1.5 (longer on purpose, a spear should be), wand ~0.85.
+# One constant, because the whole roster derives from it -- the earlier size
+# passes only ever touched PROJECTILES and never the thing in the hand.
+const HELD_LEN_MULT := 0.75       # blade reach relative to the weapon's icon length
 const HELD_MIN_LEN := 30.0
 const HELD_BOW_HEIGHT := 40.0     # on-screen bow height in hand (BowVisual was 28)
 func update_weapon_sprite() -> bool:
@@ -3633,6 +3641,38 @@ func perform_attack() -> void:
 		elif special_type == "debt_mark":
 			var dcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("wand"))))
 			launch_projectile(special, get_aim_direction(), dcr[0], dcr[1])
+		# TWINBURST SCEPTRE (T5): two bolts, and they detonate where they CROSS
+		elif special_type == "twin_bolt":
+			var tb = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("wand"))))
+			for tside in [1.0, -1.0]:
+				var tbp = WEAPON_PROJECTILE_SCRIPT.new()
+				tbp.kind = "twin_bolt"
+				tbp.damage = tb[0]
+				tbp.is_crit = tb[1]
+				tbp.element = Inventory.element_of(active_weapon_id)
+				tbp.on_hit_status = special.get("status", {})
+				tbp.source = self
+				tbp.girth = grade_projectile_girth()
+				tbp.direction = get_aim_direction()
+				tbp.speed = float(special.get("speed", 480.0))
+				tbp.max_distance = float(special.get("range", 420.0))
+				get_parent().add_child(tbp)
+				tbp.global_position = global_position + tbp.direction * 26.0
+				tbp.set_twin_side(tside)
+		# BEACON OF THE DEEP (T5): planted, then it pulses on its own count
+		elif special_type == "deep_beacon":
+			for old_b in get_tree().get_nodes_in_group("deep_beacon_instance"):
+				if is_instance_valid(old_b):
+					old_b.queue_free()
+			var bp = WEAPON_PROJECTILE_SCRIPT.new()
+			bp.add_to_group("deep_beacon_instance")
+			bp.kind = "deep_beacon"
+			bp.damage = maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("wand"))))
+			bp.element = Inventory.element_of(active_weapon_id)
+			bp.on_hit_status = special.get("status", {})
+			bp.source = self
+			get_parent().add_child(bp)
+			bp.global_position = global_position + get_aim_direction() * 158.0 + Vector2(0, 16.0)
 		# CINDERSHELF (T6): the ledge is HUNG, at chest height, out in front
 		elif special_type == "cinder_shelf":
 			# ONE ledge. Same trap Second Moon fell into: a 4s zone on a 0.8s
@@ -3792,6 +3832,26 @@ func perform_attack() -> void:
 			return
 		# COMETFALL (T6): lofted on purpose -- the shot leaves the string ANGLED
 		# UP and gravity does the rest, so you lead the ground, not the target.
+		# STARFALL BOW (T5): the shot goes up out of sight; stars come down
+		if special_type == "star_fall":
+			play_sfx(SFX_BOW)
+			animate_bow(stats)
+			var sfd := maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("bow"))))
+			var sfdir := get_aim_direction()
+			for st_i in range(int(special.get("count", 3))):
+				var sf = WEAPON_PROJECTILE_SCRIPT.new()
+				sf.kind = "star_fall"
+				sf.damage = sfd
+				sf.element = Inventory.element_of(active_weapon_id)
+				sf.on_hit_status = special.get("status", {})
+				sf.source = self
+				sf.girth = grade_projectile_girth()
+				sf.direction = sfdir
+				sf.speed = float(special.get("speed", 280.0)) * (0.6 + 0.3 * float(st_i))
+				get_parent().add_child(sf)
+				sf.global_position = global_position + sfdir * 30.0 + Vector2(0, -16.0)
+				sf.set("_quill_vy", -float(special.get("lift", 430.0)) * randf_range(0.9, 1.1))
+			return
 		# MIDDAY MASSACRE / GRIFFIN VOLLEY (T6): two very different volleys --
 		# one wall arriving together, one flight that picks its own targets
 		if special_type == "noon_shaft" or special_type == "stoop_arrow":
@@ -3899,7 +3959,7 @@ func perform_attack() -> void:
 					continue
 				# METEOR QUILLS: up first, then down across the lane
 				var qv = WEAPON_PROJECTILE_SCRIPT.new()
-				qv.kind = "quill_fall"
+				qv.kind = special_type
 				qv.damage = qd
 				qv.element = Inventory.element_of(active_weapon_id)
 				qv.on_hit_status = special.get("status", {})
@@ -4174,6 +4234,11 @@ func perform_attack() -> void:
 	elif special_type == "eclipse_disc":
 		var ecr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
 		launch_projectile(special, aim_dir, ecr[0], ecr[1])
+	# SEAWALL / SERPENT'S SERMON / WORLDTOLL MAUL (T5)
+	elif special_type == "sea_wall" or special_type == "serpent_coil" \
+			or special_type == "under_toll":
+		var t5cr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+		launch_projectile(special, aim_dir, t5cr[0], t5cr[1])
 	# WHEEL OF THE HOLLOW (T6): a guard, not a throw
 	elif special_type == "hollow_wheel":
 		for old_hw in get_tree().get_nodes_in_group("hollow_wheel_instance"):
