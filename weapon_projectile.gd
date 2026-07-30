@@ -1778,7 +1778,7 @@ const EDICT_OUT := 0.26
 const EDICT_HOLD := 0.1
 const EDICT_BACK := 0.24
 const EDICT_BAND := 34.0     # how far off the line a body still gets cut
-const EDICT_REHIT := 0.22    # the grind: a body inside the arm is cut again
+const EDICT_REHIT := 0.17    # the grind: a body inside the arm is cut again
 
 func _tick_edict(delta: float) -> void:
 	_lash_t += delta
@@ -4004,7 +4004,7 @@ var _watch_eye: Polygon2D = null
 var _watch_ring: Polygon2D = null
 const WATCH_LIFE := 11.0
 const WATCH_SEE := 132.0
-const WATCH_RECOVER := 1.1
+const WATCH_RECOVER := 0.78    # was 1.1; a watchfire that blinks is not a watch
 
 func _tick_watch_fire(delta: float) -> void:
 	_watch_t += delta
@@ -4405,10 +4405,31 @@ func _build_moon_orbit() -> void:
 	visual.add_child(_moon_dark)
 
 # --- SHATTERHYMN: a glass note that BREAKS into ringing splinters ---------
+const NOTE_GLASS_R := 116.0
+
 func _shatter_note(at: Vector2) -> void:
 	var host := get_parent()
 	if host == null:
 		return
+	# THE GLASS CUTS (2026-07-30). This function used to spawn seven polygons
+	# that flew prettily outward and did absolutely nothing -- the audit's own
+	# note read "the splinters are theatre, not damage", and Shatterhymn was a
+	# 40 dps Mythic because of it. A hymn that BREAKS should hurt the people
+	# standing near whoever it broke on.
+	var cut: int = maxi(1, int(round(float(damage) * 0.5)))
+	for gname in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(gname):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if at.distance_to((e as Node2D).global_position) > NOTE_GLASS_R:
+				continue
+			var lc = e.take_damage(cut)
+			if lc == null or lc:
+				FloatingText.spawn(host,
+					(e as Node2D).global_position + Vector2(0, -30.0), cut, false)
+			_apply_status_to(e)
 	var m := CanvasItemMaterial.new()
 	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	for i in range(7):

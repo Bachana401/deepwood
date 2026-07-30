@@ -9,7 +9,9 @@ const WP = preload("res://weapon_projectile.gd")
 
 var damage := 7
 var lifetime := 16.0
-var fire_gap := 0.85
+# 0.85 made the high lantern a 51 dps Ascended -- a sentry you plant and then
+# out-damage yourself is not worth the cast. 0.62 is a working watchman.
+var fire_gap := 0.62
 var seek_range := 540.0
 var tint := Color(0.55, 0.75, 1.0)
 var source: Node2D = null

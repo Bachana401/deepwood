@@ -29,7 +29,7 @@ const HITS_PER_USE := {
 	# --- the overhaul's new verbs (each measured against its own code) ---
 	"court":    2.0,   # 4 shades, but they SPREAD one per body; ~2 cross any
 	                   # single target on the sweep (weapon_projectile courtier)
-	"edict":    2.7,   # the arm is out ~0.6s and re-cuts every 0.22s (EDICT_REHIT)
+	"edict":    3.4,   # the arm is out ~0.6s, re-cutting every 0.17s (EDICT_REHIT)
 	"prism":    6.0,   # six beams; at full focus all six are on one body
 	"regicide": 2.4,   # the throw, plus a 5-stack ticking 22% every 0.5s
 	"brazier":  2.2,   # whirl/hurl contacts plus ~7 embers at 45% over the sit
@@ -54,7 +54,7 @@ const HITS_PER_USE := {
 	# T7 batch 2
 	"reckoning":  2.4, # the small hit, then the 7x bill 1.5s later
 	"cometchain": 2.5, # the maul's contacts plus the crater it leaves
-	"stormflock": 2.0, # several birds, but they SPREAD across the row
+	"stormflock": 3.0, # NINE birds now; they still spread, but the row is thick
 	"dawnline":   1.0, # the bar climbs past each body exactly once
 	# T7 batch 3 -- the remaining melee
 	"worldedge":  1.8, # the swing AND a widening crescent that pierces
@@ -79,17 +79,17 @@ const HITS_PER_USE := {
 	"cometfall":   2.2, # crater nova at 0.8x + the burning patch ticking 0.3x
 	"debtmark":    2.4, # the hit, then 4 barbs biting and each paying out
 	"cinderdrag":  1.5, # the maul's own hits; the embers are theatre, not dps
-	"watchfire":   3.0, # ~3 flares across 11s if something stays in the light
+	"watchfire":   4.0, # WATCH_RECOVER 1.1 -> 0.78: it flares oftener
 	# ---- T6 batch 2 ----
 	"horizonpike": 2.6, # three staged lengths, 1.0 / 0.84 / 0.68 down one line
 	"deluge":      2.0, # re-hits every 0.2s across a 1.5s run, but pays in shove
 	"lodestar":    2.3, # the strike, then the gathered crowd eats one 0.8x nova
 	"secondmoon":  1.5, # ONE moon only, so a recast renews rather than stacks:
 	                    # the sky adds ~half the swing's dps, it does not multiply
-	"shatterhymn": 1.0, # one note; the splinters are theatre, not damage
+	"shatterhymn": 1.8, # the note, then the GLASS cuts everything near it
 	"longtongue":  1.6, # pierces the row and grows, so ~2 bodies a swing
 	# ---- T6 batch 3 ----
-	"anviltoll":   1.3, # three tolls at 0.55x, each fainter: 0.55+0.40+0.28
+	"anviltoll":   1.3, # three tolls at 0.55x, each fainter: 0.55+0.40+0.28  [T6]
 	"horizonrend": 1.7, # two halves on one cast, but they overlap on the row
 	"silentchoir": 1.3, # 5 near-silent shafts at 0.2x, then one 1.15x*5 chord
 	"sunpiece":    3.4, # ~12 sweeps at 0.5x over 3.6s, then a 0.8x nova
@@ -192,7 +192,9 @@ const HITS_PER_USE := {
 	"chain_maul": 2.0,
 	"crescent":   1.6,   # the swing AND the thrown crescent
 	"tome":       4.2,   # a zone that ticks -- strike_gap 0.4 -> 0.28, a downpour
-	"sentry":     3.0,
+	"sentry":     4.1,   # fire_gap 0.85 -> 0.62
+	# a homing shaft SPLITS on impact into two lesser seekers (arrow.split_gen)
+	"seeker":     1.6,
 	"souls":      3.0,
 	"zenith":     4.0, # THE STORM: 9 blades, ~5 bites over its 1.05s life,
 	"ink":        1.4,

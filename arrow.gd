@@ -26,6 +26,29 @@ var pierced_bodies := []   # bodies already struck this flight (so pierce never 
 # (capped turn rate, so point-blank dodges still work). Enabled by the
 # player's spawn_arrow when the wielded bow's special is "homing".
 var homing := false
+# 0 = the shot you fired; 1 = a shaft born from a split. Splits are one deep.
+var split_gen := 0
+
+func _split_seekers() -> void:
+	var host := get_parent()
+	if host == null or not is_instance_valid(host):
+		return
+	var script: GDScript = get_script()
+	for side in [-0.7, 0.7]:
+		var s = script.new()
+		s.homing = true
+		s.split_gen = 1
+		s.damage = maxi(1, int(round(float(damage) * 0.5)))
+		s.element = element
+		s.is_crit = is_crit
+		s.direction = Vector2(direction.x, direction.y).rotated(side).normalized()
+		# arrow.gd has no per-instance speed -- SPEED is a const, and range is
+		# what an instance carries. A split shaft is a short-lived one.
+		s.max_range = max_range * 0.5
+		s.start_position = global_position
+		s.add_to_group("player_projectile")
+		host.add_child(s)
+		s.global_position = global_position
 var girth := 1.0   # grade-driven scale: a heavier shaft, drawn AND felt
 var element := "physical"   # the bow's element (VFX pass): hit bursts pop in its colour
 const HOMING_TURN_RATE = 5.0     # radians/sec of steering authority
@@ -166,6 +189,15 @@ func _on_hit_area_body_entered(body: Node2D) -> void:
 		var _pl = get_tree().get_first_node_in_group("player")
 		if _pl != null and is_in_group("player_projectile"):
 			WeaponFx.on_hit(_pl, body, damage, is_crit)
+	# THE SEEKER SPLITS (2026-07-30). A homing shaft used to bend to a target,
+	# land, and be over -- which made both Seeker bows the weakest Rares in the
+	# game, under the Uncommon median. A seeking arrow should not stop seeking
+	# because it found something: on impact it breaks into two lesser shafts
+	# that go looking for whatever is left. They do NOT split again (split_gen),
+	# or one shot would clear a floor.
+	if homing and split_gen == 0 and not body.is_in_group("player") \
+			and is_in_group("player_projectile"):
+		_split_seekers()
 	# KILLSHOT (Archer keystone): arrows execute a low-HP non-boss, same as apply_melee_skills
 	# does for melee -- routed here because arrows never go through that path (dev 2026-07-26).
 	if execute_threshold > 0.0 and not body.is_in_group("player") and not ("boss_id" in body) \
