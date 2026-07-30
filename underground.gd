@@ -928,9 +928,196 @@ func _populate_chunk(c: Vector2i) -> void:
 				nodes.append(_spawn_torch(lc))
 	_place_lake_life(c, nodes)
 	_place_road_lamps(c, nodes)
+	_place_decor(c, nodes, biome, rng)
 	_place_floor_doors(c, nodes)
 	if not nodes.is_empty():
 		_content[c] = nodes
+
+# ══ CAVE DECOR ═══════════════════════════════════════════════════════════════
+# The caves were BARE: correct rock shapes with nothing growing on them. Terraria's
+# undergrounds are dense with small things hanging off the geometry, and that
+# clutter is most of why they feel like caves rather than carved tunnels. All of
+# it is plain Polygon2D / Line2D -- no lights (the forever-rule), no collision, no
+# gameplay, streamed and freed with its chunk like every other bit of content.
+const DECOR_TRIES := 30                # sample points per chunk (the world sits at 0.6 zoom --
+                                       # 160 tiles across -- so fine detail has to be dense to read)
+
+func _place_decor(c: Vector2i, nodes: Array, biome: int, rng: RandomNumberGenerator) -> void:
+	var base: Color = BIOMES[biome].base
+	var accent: Color = BIOMES[biome].accent
+	for i in range(DECOR_TRIES):
+		var cell := Vector2i(c.x * CHUNK + rng.randi_range(1, CHUNK - 2),
+			c.y * CHUNK + rng.randi_range(1, CHUNK - 2))
+		if _cell_kind(cell) != AIR:
+			continue
+		var roof := _solid_kind(cell + Vector2i(0, -1))
+		var floor_below := _solid_kind(cell + Vector2i(0, 1))
+		if roof and rng.randf() < 0.62:
+			# hanging from the ceiling: a stone tooth, a vine, or a web
+			var roll := rng.randf()
+			if roll < 0.45:
+				nodes.append(_decor_spike(cell, base, rng, true))
+			elif roll < 0.78:
+				nodes.append(_decor_vine(cell, accent, rng))
+			else:
+				nodes.append(_decor_web(cell, rng))
+		elif floor_below and rng.randf() < 0.5:
+			# standing on the floor: a stalagmite, a pot to smash, or a little rubble
+			var roll := rng.randf()
+			if roll < 0.5:
+				nodes.append(_decor_spike(cell, base, rng, false))
+			elif roll < 0.66:
+				nodes.append(_spawn_pot(cell, biome, rng))
+			else:
+				nodes.append(_decor_rubble(cell, base, rng))
+
+# ── POTS ──────────────────────────────────────────────────────────────────────
+# Terraria litters its caves with clay pots you smash in passing for a trickle of
+# loot. They cost nothing to notice and they make a corridor worth walking down.
+# Broken state persists through the same chest ledger as everything else, keyed
+# by CELL (not chunk -- a chunk holds several), so a cleared corridor stays
+# cleared and cannot be farmed by walking away and back.
+func _spawn_pot(cell: Vector2i, biome: int, rng: RandomNumberGenerator) -> Node:
+	var id := "ug_pot_%d_%d" % [cell.x, cell.y]
+	var n := _decor_at(cell, 5)
+	if GameState.chest_contents.has(id):
+		# already smashed: leave the shards on the floor
+		for i in range(3):
+			var shard := Polygon2D.new()
+			var r := rng.randf_range(1.4, 2.6)
+			shard.polygon = PackedVector2Array([Vector2(-r, 0), Vector2(r, -r * 0.6), Vector2(r * 0.6, r * 0.7)])
+			shard.color = Color(0.52, 0.34, 0.22)
+			shard.position = Vector2(rng.randf_range(-6.0, 6.0), float(TILE) * 0.5 - 1.0)
+			n.add_child(shard)
+		return n
+	n.add_to_group("ug_pot")
+	n.set_meta("pot_id", id)
+	n.set_meta("biome", biome)
+	var body := Polygon2D.new()
+	body.polygon = PackedVector2Array([
+		Vector2(-5, 1), Vector2(-6, -5), Vector2(-3, -9), Vector2(3, -9),
+		Vector2(6, -5), Vector2(5, 1)])
+	body.color = Color(0.55, 0.36, 0.23)
+	body.position = Vector2(0, float(TILE) * 0.5)
+	n.add_child(body)
+	var lip := Polygon2D.new()
+	lip.polygon = PackedVector2Array([Vector2(-4, -9), Vector2(4, -9), Vector2(4, -11), Vector2(-4, -11)])
+	lip.color = Color(0.44, 0.28, 0.18)
+	lip.position = Vector2(0, float(TILE) * 0.5)
+	n.add_child(lip)
+	return n
+
+# Smash the pot nearest the cursor, if the swing landed on one. Called from
+# mine_at, so it rides the pickaxe swing the player already makes -- no new input
+# and nothing added to player.gd.
+func _smash_pot(cursor: Vector2, from: Vector2, reach_px: float, player: Node) -> bool:
+	for p in get_tree().get_nodes_in_group("ug_pot"):
+		if not is_instance_valid(p):
+			continue
+		if from.distance_to(p.global_position) > reach_px + 14.0:
+			continue
+		if cursor.distance_to(p.global_position) > 22.0:
+			continue
+		var biome := int(p.get_meta("biome", 0))
+		GameState.chest_contents[String(p.get_meta("pot_id"))] = {}   # persist: smashed
+		var table: Array = LOOT[clampi(biome, 0, LOOT.size() - 1)]
+		var got := {}
+		if player != null and "inventory" in player and player.inventory != null:
+			for i in range(randi_range(1, 2)):
+				var id: String = table[randi_range(0, table.size() - 1)]
+				if player.inventory.add_item(id, 1) <= 0:
+					got[id] = int(got.get(id, 0)) + 1
+		_chips(p.global_position + Vector2(0, 4), Color(0.55, 0.36, 0.23), false)
+		if not got.is_empty():
+			var parts := []
+			for id in got:
+				parts.append("%s ×%d" % [Inventory.get_display_name(id), got[id]])
+			_notify("🏺 " + ", ".join(parts))
+		p.queue_free()
+		return true
+	return false
+
+func _decor_at(cell: Vector2i, z := 4) -> Node2D:
+	var n := Node2D.new()
+	add_child(n)
+	n.global_position = _map.to_global(_map.map_to_local(cell))
+	n.z_index = z
+	return n
+
+# a stalactite (down=true) or stalagmite: a tapering stone tooth
+func _decor_spike(cell: Vector2i, base: Color, rng: RandomNumberGenerator, down: bool) -> Node:
+	var n := _decor_at(cell)
+	var h := rng.randf_range(10.0, 27.0)
+	var w := rng.randf_range(3.0, 5.6)
+	var y0 := -float(TILE) * 0.5 if down else float(TILE) * 0.5
+	var tip := y0 + (h if down else -h)
+	var p := Polygon2D.new()
+	p.polygon = PackedVector2Array([Vector2(-w, y0), Vector2(w, y0), Vector2(0, tip)])
+	p.color = base.lightened(0.18)
+	n.add_child(p)
+	return n
+
+# a vine trailing off the ceiling -- stops where the rock does
+func _decor_vine(cell: Vector2i, accent: Color, rng: RandomNumberGenerator) -> Node:
+	var n := _decor_at(cell, 3)
+	var len_cells := rng.randi_range(1, 5)
+	var drop := 0
+	while drop < len_cells and _cell_kind(cell + Vector2i(0, drop)) == AIR:
+		drop += 1
+	if drop <= 0:
+		return n
+	var line := Line2D.new()
+	var pts := PackedVector2Array()
+	var sway := rng.randf_range(-2.5, 2.5)
+	for s in range(drop * 2 + 1):
+		var t := float(s) / 2.0
+		pts.append(Vector2(sin(t * 1.4) * sway, -float(TILE) * 0.5 + t * TILE))
+	line.points = pts
+	line.width = rng.randf_range(1.2, 2.2)
+	line.default_color = accent.darkened(0.25)
+	n.add_child(line)
+	# a few leaves so it isn't a bare wire
+	for l in range(rng.randi_range(1, 3)):
+		var leaf := Polygon2D.new()
+		var r := rng.randf_range(1.6, 2.8)
+		leaf.polygon = PackedVector2Array([Vector2(-r, 0), Vector2(0, -r * 1.5), Vector2(r, 0), Vector2(0, r * 1.5)])
+		leaf.color = accent.darkened(0.1)
+		leaf.position = pts[rng.randi_range(1, pts.size() - 1)] + Vector2(rng.randf_range(-2, 2), 0)
+		n.add_child(leaf)
+	return n
+
+# a cobweb strung into a corner
+func _decor_web(cell: Vector2i, rng: RandomNumberGenerator) -> Node:
+	var n := _decor_at(cell, 3)
+	var s := rng.randf_range(5.0, 9.0)
+	var col := Color(0.82, 0.84, 0.88, 0.22)
+	var flip := -1.0 if rng.randf() < 0.5 else 1.0
+	var web := Polygon2D.new()
+	web.polygon = PackedVector2Array([
+		Vector2(flip * -s, -s), Vector2(flip * s, -s), Vector2(flip * -s, s)])
+	web.color = col
+	n.add_child(web)
+	for i in range(3):
+		var strand := Line2D.new()
+		var t := float(i + 1) / 4.0
+		strand.points = PackedVector2Array([
+			Vector2(flip * -s, lerpf(-s, s, t)), Vector2(lerpf(flip * s, flip * -s, t), -s)])
+		strand.width = 0.8
+		strand.default_color = Color(0.86, 0.88, 0.92, 0.35)
+		n.add_child(strand)
+	return n
+
+# loose stones scattered on a cave floor
+func _decor_rubble(cell: Vector2i, base: Color, rng: RandomNumberGenerator) -> Node:
+	var n := _decor_at(cell, 3)
+	for i in range(rng.randi_range(2, 5)):
+		var r := rng.randf_range(1.2, 3.0)
+		var stone := Polygon2D.new()
+		stone.polygon = _disc(r)
+		stone.color = base.lightened(rng.randf_range(0.04, 0.2))
+		stone.position = Vector2(rng.randf_range(-5.0, 5.0), float(TILE) * 0.5 - r * 0.7)
+		n.add_child(stone)
+	return n
 
 # the lanterns that mark the Delver's Road (see _build_route)
 func _place_road_lamps(c: Vector2i, nodes: Array) -> void:
@@ -1660,6 +1847,7 @@ func _process(delta: float) -> void:
 	if _unstick_cd <= 0.0:
 		_unstick_cd = 1.0
 		_free_the_stuck()
+	_update_depth_hud()
 
 # ── NOTHING STAYS BURIED ──────────────────────────────────────────────────────
 # _spot_ok stops mobs being BORN in rock, but a mob can still end up inside a
@@ -1803,6 +1991,8 @@ func _update_breath_hud() -> void:
 func mine_at(cursor: Vector2, from: Vector2, reach_px: float, smart: bool, pick_tier: int, player: Node) -> bool:
 	if _map == null:
 		return false
+	if _smash_pot(cursor, from, reach_px, player):
+		return true                       # the swing broke a pot instead of rock
 	var cell: Vector2i
 	if smart:
 		var dir := (cursor - from)
@@ -2344,11 +2534,36 @@ func _build_hud_extras() -> void:
 	death.name = "DeathScreen"
 	add_child(death)
 	_build_breath_hud()
+	_build_depth_hud()
 	# LAST child, so its _physics_process runs AFTER the player's: swimming is a
 	# correction applied to velocity once move_and_slide has already had its say.
 	var wt := _WaterTick.new()
 	wt.ug = self
 	add_child(wt)
+
+# HOW DEEP AM I. Terraria puts this on screen constantly, and it is most of what
+# makes a cave system feel like a place with a shape rather than an endless brown
+# tunnel -- you always know which layer you're in and whether you're making
+# progress. Feet at Terraria's own scale: 1 tile = 2 ft.
+var _depth_label: Label = null
+
+func _build_depth_hud() -> void:
+	var cl := get_node_or_null("CanvasLayer")
+	if cl == null:
+		return
+	_depth_label = Label.new()
+	_depth_label.add_theme_color_override("font_color", Color(0.88, 0.86, 0.78))
+	_depth_label.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	_depth_label.add_theme_constant_override("outline_size", 5)
+	_depth_label.position = Vector2(20, 80)
+	cl.add_child(_depth_label)
+
+func _update_depth_hud() -> void:
+	if _depth_label == null or _player == null or not is_instance_valid(_player):
+		return
+	var rows := int(_player.global_position.y / TILE)
+	var b := _biome_of(rows)
+	_depth_label.text = "%s  ·  %d ft" % [String(BIOMES[b].name), maxi(0, rows * 2)]
 
 # The air meter. Hidden until you actually go under, so a dry run never carries
 # a bar that means nothing.

@@ -22,6 +22,11 @@ func _ready() -> void:
 	var ug = get_tree().get_first_node_in_group("tile_world")
 	if ug == null:
 		say("EYES-UG: no tile world"); get_tree().quit(1); return
+	# This tool teleports the player into the middle of mob crowds all over the
+	# map; without this it gets killed halfway through the run and every shot
+	# after that is a death screen.
+	if "god_mode" in p:
+		p.god_mode = true
 	await _settle(1.2)
 	await _shot("ug_entry")                      # the arrival chamber + the road out of it
 
@@ -65,6 +70,17 @@ func _ready() -> void:
 				await _shot("ug_ore")
 				found = true
 				break
+	# ── CLOSE-UP: the world sits at 0.6 zoom (160 tiles across), where cave decor
+	# is a few pixels tall and impossible to judge. Zoom right in on a lit stretch
+	# of road so the stalactites, vines, webs, rubble and pots can be inspected.
+	var cam = p.get_node_or_null("Camera2D")
+	if cam != null:
+		cam.zoom = Vector2(2.2, 2.2)
+	for lvl in [12, 40]:
+		var d: Vector2i = ug._door_stand(ug._doors[lvl - 1])
+		await _tp(p, ug, d + Vector2i(6, -2))
+		await _settle(0.5)
+		await _shot("ug_closeup_%d" % lvl)
 	say("EYES-UG: done -> %s" % shot_dir)
 	get_tree().quit(0)
 
