@@ -74,6 +74,8 @@ const HITS_PER_USE := {
 	"choirstring": 3.2, # 3 notes, each humming ~4x over 2.4s
 	"heavenpoint": 1.6, # it RE-cuts what it is still travelling through (0.22s)
 	"frost":       1.5, # the shard pierces AND re-cuts (same 0.22s rake)
+	# --- the eleven wands freed from the shared ice dart (2026-07-30) ---
+	"chalkline":   1.2, # a static stroke; a body crosses it about once
 	# ---- T6 batch 1 ----
 	"hushfall":    1.8, # the swing, then the late nova at 0.8x in a radius
 	"eclipse":     1.7, # the disc out and back, plus one shadow band at 0.85x

@@ -154,7 +154,12 @@ func _ready() -> void:
 	# split -- 129 ladder rows are PLAIN ("plain": true, tiers 1-6 only, the
 	# crown never plain): stat rungs upgraded by materials, NO fx. Every
 	# other weapon is DISTINCT and must carry its soul. Both counts pinned.
-	const PLAIN_QUOTA := 129
+	# COMES DOWN by one for every plain rung given a real verb. The 129 recorded
+	# a 2026-07-28 decision ("a material ladder between the interesting
+	# weapons") that the dev overruled on 2026-07-30: "70-80% of the weapons
+	# should be reworked ... they should be creative and unique". This number is
+	# a ledger of how much of that ladder is left, not a target to defend.
+	var PLAIN_QUOTA := 128
 	var plain_n := 0
 	var overdressed := []
 	var unknown := []
@@ -248,7 +253,15 @@ func _ready() -> void:
 	# from ANOTHER plain weapon (its predecessor) plus materials ----
 	var plain_ids := {}
 	for row in WeaponRoster.ROWS:
-		if bool(row[7].get("plain", false)):
+		# LADDER MEMBERSHIP IS NOT THE SAME AS BEING PLAIN (2026-07-30).
+		# The chain check used to read `plain`, so the moment a rung was given a
+		# real verb its CHILD went "broken: forges from no kin" -- Chalk Wand
+		# gained a verb and Brookwand, which forges from it, failed instantly.
+		# Being a forge step and being featureless are different facts about a
+		# weapon; the dev is converting ~40 rungs, so they had to be separated
+		# before the first conversion rather than after the fortieth.
+		# `rung` marks "still a step in a craft ladder, verb or no verb".
+		if bool(row[7].get("plain", false)) or bool(row[7].get("rung", false)):
 			plain_ids[str(row[0])] = true
 	var chained := 0
 	var broken := []

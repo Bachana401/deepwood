@@ -136,7 +136,12 @@ const ROWS = [
 	["wpn_orchardbow",   "Orchard Bow",          "bow",   1, "shot",      7,  0.55, {"plain": true}],
 	["wpn_gutterbow",    "Gutter Bow",           "bow",   1, "shot",      6,  0.45, {"plain": true}],
 	["wpn_tallowwand",   "Tallow Wand",          "wand",  1, "bolt",      9,  0.6,  {"plain": true}],
-	["wpn_chalkwand",    "Chalk Wand",           "wand",  1, "bolt",      7,  0.45, {"plain": true}],
+	# was behavior "bolt" -> frost_shard. A wand named for CHALK fired an ice
+	# dart, along with the tallow, moss, leech, salt, hollow and storm wands:
+	# one match arm gave eleven differently-named weapons the same icicle.
+	# "rung" (not "plain"): it keeps its place in the forge ladder -- Brookwand
+	# still forges from it -- while no longer being featureless.
+	["wpn_chalkwand",    "Chalk Wand",           "wand",  1, "chalkline", 7,  0.45, {"rung": true}],
 	["wpn_willowswitch", "Willow Switch",        "staff", 1, "staff",     6,  0.4,  {"plain": true}],
 	# ---------------- TIER 2 - UNCOMMON (floors 5-18) ----------------
 	["wpn_gravespade",   "Gravekeeper's Spade",  "melee", 2, "cleave",    14, 0.8,  {"plain": true}],
@@ -757,6 +762,11 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			s = {"type": "homing"}
 		"lob_a", "lob":
 			s = {"type": "lob", "damage": dmg, "speed": spd, "range": rng, "aoe": float(ex.get("aoe", 90.0))}
+		"chalkline":
+			# THE CHALK WAND draws instead of throwing: a stroke that hangs in
+			# the air and cuts whatever crosses it. The only zero-velocity wand
+			# in the game, which is what makes it readable at a glance.
+			s = {"type": "chalk_line", "damage": dmg, "range": 96.0}
 		"bolt":
 			s = {"type": "frost_shard", "damage": dmg, "speed": spd + 100.0, "range": rng}
 		"fire":

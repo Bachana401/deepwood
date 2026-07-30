@@ -239,6 +239,9 @@ func _ready() -> void:
 			_build_kingdom_ring()
 		"rumor_bolt": _build_rumor_bolt()
 		"scree": _build_scree()
+		"chalk_line":
+			pierce = true          # a drawn line cuts everyone who crosses it
+			_build_chalk_line()
 		"sky_measure": _build_sky_measure()
 		"colonnade": _build_colonnade()
 		"harmonic": _build_harmonic()
@@ -978,6 +981,9 @@ func _physics_process(delta: float) -> void:
 		if _ink_rehit >= 0.22:
 			_ink_rehit = 0.0
 			hit_bodies.clear()
+	if kind == "chalk_line":
+		_tick_chalk_line(delta)
+		return
 	if kind == "scree":
 		# THE MOUNTAIN THAT KNEELS, second half: the shards the boulder leaves
 		# when it breaks. Heavy little rocks -- they arc hard and die on the
@@ -3335,6 +3341,79 @@ func _tick_boulder(delta: float) -> void:
 
 var _wake_returned := false
 var _ink_rehit := 0.0
+
+# --- THE CHALK WAND: it draws, it does not throw -------------------------
+# The first of the eleven wands freed from the shared ice dart (2026-07-30).
+# Zero velocity on purpose: a piece of geometry the player PLACES. At world
+# zoom that silhouette is unmistakable among ten travelling projectiles, which
+# is the whole reason this weapon now exists as itself.
+const CHALK_DRAW := 0.12      # the stroke draws itself, so the eye follows the hand
+const CHALK_HOLD := 0.80
+const CHALK_CRUMBLE := 0.30
+var _chalk_t := 0.0
+var _chalk_line: Line2D = null
+var _chalk_grain: Line2D = null
+var _chalk_pts: PackedVector2Array = PackedVector2Array()
+
+func _build_chalk_line() -> void:
+	# chalk is POWDER, not light -- deliberately not additive, so it reads as
+	# matte against every glowing thing in the game
+	_chalk_grain = Line2D.new()
+	_chalk_grain.width = 6.0
+	_chalk_grain.default_color = Color(0.95, 0.95, 0.92, 0.25)
+	visual.add_child(_chalk_grain)
+	_chalk_line = Line2D.new()
+	_chalk_line.width = 4.0
+	_chalk_line.default_color = Color(0.95, 0.95, 0.92, 0.9)
+	visual.add_child(_chalk_line)
+
+func _tick_chalk_line(delta: float) -> void:
+	_chalk_t += delta
+	var full: float = maxf(24.0, max_distance)
+	if _chalk_t <= CHALK_DRAW:
+		# grows from the tip outward, a point at a time
+		var reach: float = full * (_chalk_t / CHALK_DRAW)
+		var n: int = maxi(2, int(reach / 8.0))
+		_chalk_pts = PackedVector2Array()
+		for i in range(n):
+			var along: float = full * (float(i) / float(maxi(1, n - 1))) * (reach / full)
+			# jittered so the stroke is visibly HAND-DRAWN rather than ruled
+			_chalk_pts.append(direction * along
+				+ Vector2(-direction.y, direction.x) * randf_range(-1.5, 1.5))
+	elif _chalk_t >= CHALK_DRAW + CHALK_HOLD:
+		# crumbles from the FAR end back toward the hand
+		var gone: float = (_chalk_t - CHALK_DRAW - CHALK_HOLD) / CHALK_CRUMBLE
+		var keep: int = int(float(_chalk_pts.size()) * (1.0 - clampf(gone, 0.0, 1.0)))
+		if keep < 2:
+			done = true
+			queue_free()
+			return
+		_chalk_pts = _chalk_pts.slice(0, keep)
+	if _chalk_line != null and is_instance_valid(_chalk_line):
+		_chalk_line.points = _chalk_pts
+		_chalk_grain.points = _chalk_pts
+	# anything CROSSING the stroke is cut, once per body
+	if _chalk_pts.size() < 2:
+		return
+	var tip: Vector2 = global_position + _chalk_pts[_chalk_pts.size() - 1]
+	for gname in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(gname):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead or hit_bodies.has(e):
+				continue
+			var rel: Vector2 = (e as Node2D).global_position - global_position
+			var along2: float = rel.dot(direction)
+			if along2 < -12.0 or along2 > tip.distance_to(global_position) + 12.0:
+				continue
+			if absf(rel.dot(Vector2(-direction.y, direction.x))) > 26.0:
+				continue
+			hit_bodies.append(e)
+			var landed = e.take_damage(damage)
+			if landed == null or landed:
+				FloatingText.spawn(get_parent(),
+					(e as Node2D).global_position + Vector2(0, -24.0), damage, is_crit)
+			_apply_status_to(e)
 
 const SCREE_SHARDS := 6
 
