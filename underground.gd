@@ -525,6 +525,8 @@ func _entry_kind(x: int, y: int) -> int:
 	var floor_y := ENTRY_ROW + 2
 	if absi(x - ex) > ENTRY_HALF:
 		return -999                                  # not the chamber
+	if y < 1:
+		return -999                                  # the chamber has a roof (see _gen_kind)
 	if y < floor_y:
 		return AIR
 	if y <= floor_y + 1:
@@ -712,7 +714,11 @@ func _gen_kind(x: int, y: int) -> int:
 	if x < 2 or x >= WIDTH - 2 or y >= DEPTH:
 		return _biome_of(clampi(y, 0, DEPTH - 1))     # solid walls / bedrock floor
 	if y < 1:
-		return AIR                                    # open sky above the entry
+		# ROCK, not sky. This world is entered by a scene change from the village,
+		# so there is no surface to see up here -- leaving it open just put a wall
+		# of dead black above the arrival chamber that read as unfinished. A
+		# ceiling makes the entry feel like the inside of a cave, which it is.
+		return _biome_of(0)
 	# ── THE DELVER'S ROAD ─────────────────────────────────────────────────────
 	# Checked FIRST, so it pierces the seal bands, the lakes and the noise alike:
 	# the way down is never blocked and never a fall (see _build_route).
@@ -923,6 +929,7 @@ func _populate_chunk(c: Vector2i) -> void:
 		# lanterns still light the first stretch of road -- a lamp is not a threat,
 		# so the arrival chamber stays a safe landing AND has a visible way out
 		_place_road_lamps(c, top_nodes)
+		_light_entry(c, top_nodes)
 		_place_floor_doors(c, top_nodes)
 		if not top_nodes.is_empty():
 			_content[c] = top_nodes
@@ -1176,6 +1183,17 @@ func _decor_rubble(cell: Vector2i, base: Color, rng: RandomNumberGenerator) -> N
 		stone.position = Vector2(rng.randf_range(-5.0, 5.0), float(TILE) * 0.5 - r * 0.7)
 		n.add_child(stone)
 	return n
+
+# The arrival chamber is the first thing anyone sees of this place, and unlit it
+# was a figure on a dark ledge under a black void. Brackets along its back wall
+# give it the look of somewhere people came down to on purpose.
+func _light_entry(c: Vector2i, nodes: Array) -> void:
+	var floor_y := ENTRY_ROW + 2
+	for dx in [-ENTRY_HALF + 3, -ENTRY_HALF + 9, ENTRY_HALF - 9, ENTRY_HALF - 3]:
+		var cell := Vector2i(_route_start.x + dx, floor_y - 1)
+		if _chunk_of_cell(cell) != c:
+			continue
+		nodes.append(_spawn_torch(cell))
 
 # the lanterns that mark the Delver's Road (see _build_route)
 func _place_road_lamps(c: Vector2i, nodes: Array) -> void:
