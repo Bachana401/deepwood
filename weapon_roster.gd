@@ -32,6 +32,15 @@ const TIER_FLOORS = [[0, 0], [1, 9], [5, 18], [12, 32], [24, 52], [42, 72],
 
 const ROWS = [
 	# ---------------- TIER 1 - COMMON (floors 1-9) ----------------
+	# THE SUMMONER'S FIRST THREE (batch 1). The engine is worth nothing until
+	# something can hold it, so the class's starters land with the engine
+	# rather than waiting for the full 38-row slice. All three are ordinary T1
+	# drops for every class -- the Summoner just begins holding two of them.
+	["smn_smallloyalty", "A Small Loyalty",      "scepter", 1, "minion", 5, 0.9,
+		{"m_kind": "mudling", "m_gap": 1.9}],
+	["whp_firstlesson",  "First Lesson",         "whip",  1, "whipcrack", 6, 0.5, {}],
+	["pst_watchingstone", "The Watching Stone",  "totem", 2, "post",      8, 1.0,
+		{"s_kind": "watchstone", "p_gap": 1.1}],
 	["wpn_oakcudgel",    "Oak Cudgel",           "melee", 1, "arc",       8,  0.55, {"plain": true}],
 	["wpn_mongrelknife", "Mongrel Knife",        "melee", 1, "arc",       5,  0.28, {"plain": true}],
 	["wpn_pitshovel",    "Pit Shovel",           "melee", 1, "cleave",    11, 0.85, {"plain": true}],
@@ -487,6 +496,11 @@ static func _expand(row: Array) -> Dictionary:
 	var wtype := klass
 	if klass == "staff":
 		wtype = "melee"
+	# THE SUMMONER (batch 1). "staff" was already taken by the Wukong melee
+	# staff, so the caller is a SCEPTER. Scepters and totems both cast, so both
+	# resolve to weapon_type "summon"; the whip is its own swinging type.
+	elif klass == "scepter" or klass == "totem":
+		wtype = "summon"
 	var reach := 46.0
 	var area := Vector2(60, 36)
 	var icon := Vector2(52, 12)
@@ -511,6 +525,21 @@ static func _expand(row: Array) -> Dictionary:
 			area = Vector2(64, 30)
 			icon = Vector2(88, 7)
 			icon_off = 14.0
+		# ---- THE SUMMONER ----
+		"whip":
+			# long and thin: the lash reaches past a sword but weighs nothing
+			reach = 74.0
+			area = Vector2(120, 26)
+			icon = Vector2(64, 5)
+			icon_off = 16.0
+		"scepter":
+			reach = 30.0
+			area = Vector2(10, 10)
+			icon = Vector2(50, 9)
+		"totem":
+			reach = 30.0
+			area = Vector2(10, 10)
+			icon = Vector2(44, 12)
 	# heavier tiers read bigger in the hand, gently
 	var tier_scale := 1.0 + float(tier - 1) * 0.05
 	icon *= tier_scale
@@ -895,6 +924,21 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			s = {"type": "rain_cloud", "damage": maxi(1, int(round(float(dmg) * 0.8)))}
 		"wardenwatch":
 			s = {"type": "warden_post", "damage": maxi(1, int(round(float(dmg) * 1.35)))}
+		# ---- THE SUMMONER (batch 1: the three starters) ----
+		"minion":
+			s = {"type": "minion", "damage": dmg,
+				"m_kind": str(ex.get("m_kind", "mudling")),
+				"m_gap": float(ex.get("m_gap", 1.8)),
+				"mana": 10.0 + 3.0 * float(tier)}
+		"whipcrack":
+			s = {"type": "whipcrack", "damage": dmg,
+				"reach": float(ex.get("reach", 0.0)),
+				"tag_dmg": float(ex.get("tag_dmg", 0.0))}
+		"post":
+			s = {"type": "post", "damage": dmg,
+				"s_kind": str(ex.get("s_kind", "watchstone")),
+				"p_gap": float(ex.get("p_gap", 1.1)),
+				"mana": 14.0 + 3.0 * float(tier)}
 		# ---- T4 batch 1 ----
 		"howlpiece":
 			s = {"type": "howl_crescent", "damage": maxi(1, int(round(float(dmg) * 0.85))),
@@ -1102,6 +1146,9 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"riverrender": return "The cut RUNS along the floor like water and SWELLS the further it goes."
 		"smokelash":   return "Where the lash cracks it leaves a PALL -- ash hanging in the air that keeps working on anything standing in it."
 		"driftwheel":  return "Thrown once and never returned: it DRIFTS on, turning slowly toward whatever is nearest, cutting the whole way."
+		"minion":      return "Calls a bond into the world and it STAYS -- through weapon swaps, through floors, for as long as the scepter is in your bag."
+		"whipcrack":   return "A fast thin lash that barely stings. What it does is TAG: the one it marks is the one your whole pack turns to look at."
+		"post":        return "Plants a guardian where you stand and LEAVES it there -- not for a while, but until you plant another."
 		"howlpiece":   return "The crescent HOWLS as it flies -- every beat it throws a ring out across its own path, so the lane it cuts is far wider than the blade."
 		"winterwheel": return "It ROLLS, and the floor freezes behind it. The lane it took stays cold long after the wheel is gone."
 		"reaperrebuke": return "The scythe takes a round of the room and comes back HEAVIER for every visit, then returns to your hand."

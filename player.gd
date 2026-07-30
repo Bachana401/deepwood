@@ -1443,6 +1443,11 @@ func skill_damage_mult(weapon: String) -> float:
 		base = 1.0 + GameState.get_bonus_total("melee_damage")
 	elif weapon == "bow":
 		base = 1.0 + GameState.get_bonus_total("bow_damage")
+	elif weapon == "whip":
+		# the whip is a modest stick on purpose -- its power is the TAG
+		base = 1.0 + GameState.get_bonus_total("whip_damage")
+	elif weapon == "summon":
+		base = 1.0 + GameState.get_bonus_total("summon_damage")
 	elif weapon == "wand":
 		# scales the Mage's PROJECTILE wands (Emberstaff etc.); the classic
 		# nuke wand doesn't deal numeric damage so it ignores this.
@@ -2120,6 +2125,8 @@ func on_equipment_changed() -> void:
 # on_equipment_changed -- one hook, no save plumbing (companions re-derive
 # from what you hold).
 const COMPANION_SCRIPT = preload("res://companion.gd")
+const SUMMON_POST_SCRIPT = preload("res://summon_post.gd")
+const BOND_MARK_SCRIPT = preload("res://bond_mark.gd")
 var _companions := {}   # source item id -> companion node
 
 func _reconcile_companions() -> void:
@@ -2132,6 +2139,31 @@ func _reconcile_companions() -> void:
 		var idef = Inventory.get_item_def(id)
 		if str(idef.get("companion", "")) != "":
 			wanted[id] = idef
+	# THE SUMMON LEDGER (Summoner batch 1). Two sources feed one reconcile:
+	# carriers above (an item you hold, unchanged, works for every class) and
+	# the cast pack below. Carriers are GUESTS -- they never eat a Summoner
+	# slot, because the slot budget is the class's power curve and a borrowed
+	# wisp must not spend it.
+	var summon_slots: int = summon_slot_budget()
+	var live_summons: Array = []
+	for entry in GameState.active_summons:
+		if live_summons.size() >= summon_slots:
+			break
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		# the pack is reaped when its scepter leaves the bag -- source_id
+		# discipline, exactly like the carriers
+		# get_count, NOT has_item -- there is no has_item on the inventory, and
+		# calling it threw inside _reconcile_companions, which silently took
+		# the CARRIER companions down with it (the dispatch audit caught Crown
+		# of the Deep Court losing its courtiers the moment this landed)
+		if inventory.get_count(str(entry.get("scepter_id", ""))) <= 0:
+			continue
+		live_summons.append(entry)
+	# drop anything that fell off the ledger (scepter sold, slots shrank)
+	if live_summons.size() != GameState.active_summons.size():
+		GameState.active_summons = live_summons
+
 	# An item may carry MORE THAN ONE. Crown of the Deep Court's card promises
 	# "three drowned courtiers" and this only ever made one -- the dynamic
 	# dispatch audit caught it counting 1 of the 3 it promises. Slots are keyed
@@ -2160,6 +2192,151 @@ func _reconcile_companions() -> void:
 			_companions[key] = c
 		_companions[key].slot = idx
 		idx += 1
+
+	# ...and now the SUMMONED pack, keyed "summon#<n>" so it can never collide
+	# with a carrier key and the two ledgers stay separable.
+	var want_pack := {}
+	for i in range(live_summons.size()):
+		want_pack["summon#%d" % i] = live_summons[i]
+	for key2 in _companions.keys():
+		if str(key2).begins_with("summon#") and not want_pack.has(key2):
+			if is_instance_valid(_companions[key2]):
+				_companions[key2].queue_free()
+			_companions.erase(key2)
+	for key2 in want_pack:
+		var ent: Dictionary = want_pack[key2]
+		if not _companions.has(key2) or not is_instance_valid(_companions[key2]):
+			var sc = COMPANION_SCRIPT.new()
+			sc.kind = str(ent.get("kind", "mudling"))
+			sc.damage = int(ent.get("damage", 6))
+			sc.gap = float(ent.get("gap", 1.8))
+			sc.source_id = str(ent.get("scepter_id", ""))
+			sc.summoned = true          # <- the whole difference: it takes orders
+			sc.player = self
+			sc.position = global_position + Vector2(0, -46)
+			get_parent().add_child(sc)
+			_companions[key2] = sc
+		_companions[key2].slot = idx
+		idx += 1
+
+# HOW MANY the class may hold standing. Base 1 the moment a scepter is in the
+# bag; the tree, the relic and the set add the rest. Hard-capped for the same
+# reason the 92-pixel rule exists -- past this the screen stops being readable.
+const MINION_HARD_CAP := 9
+func summon_slot_budget() -> int:
+	var n: int = 1 + int(round(GameState.get_bonus_total("summon_cap")))
+	return clampi(n, 1, MINION_HARD_CAP)
+
+func post_budget() -> int:
+	return clampi(1 + int(round(GameState.get_bonus_total("post_cap"))), 1, 4)
+
+# THE WHIP CRACK: a fast thin arc that TAGS. Its raw damage is deliberately
+# modest -- the power is the mark it paints and the army that answers it.
+func whip_crack(stats, special: Dictionary) -> void:
+	play_sfx(SFX_SWORD)
+	var aim := get_aim_direction()
+	var reach: float = 132.0 + float(special.get("reach", 0.0))
+	var dmg := maxi(1, int(round(float(special.get("damage", stats.damage))
+		* skill_damage_mult("whip"))))
+	var host := get_parent()
+	var perp := Vector2(-aim.y, aim.x)
+	# the ribbon: a long thin lash drawn along the aim, gone in a blink
+	if host != null:
+		var m := CanvasItemMaterial.new()
+		m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		var lash := Polygon2D.new()
+		lash.polygon = PackedVector2Array([
+			Vector2(0, -3.0), Vector2(reach * 0.5, -9.0), Vector2(reach, -2.0),
+			Vector2(reach, 2.0), Vector2(reach * 0.5, 9.0), Vector2(0, 3.0)])
+		lash.color = Color(0.95, 0.74, 0.36, 0.88)
+		lash.material = m
+		lash.z_index = 41
+		lash.rotation = aim.angle()
+		host.add_child(lash)
+		lash.global_position = global_position
+		var tw := lash.create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(lash, "scale", Vector2(1.06, 0.3), 0.16)
+		tw.tween_property(lash, "modulate:a", 0.0, 0.16)
+		tw.chain().tween_callback(lash.queue_free)
+	# it hits everything along the lane, and TAGS the first thing it reaches
+	var struck: Node2D = null
+	var best_along := 1e9
+	for group_name in ["course_enemy", "dungeon_combatant", "siege_enemy"]:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			var rel: Vector2 = (e as Node2D).global_position - global_position
+			var along: float = rel.dot(aim)
+			if along < -20.0 or along > reach:
+				continue
+			if absf(rel.dot(perp)) > 34.0:
+				continue
+			var cr = roll_crit(dmg)
+			var landed = e.take_damage(cr[0])
+			if landed == null or landed:
+				FloatingText.spawn(host, (e as Node2D).global_position
+					+ Vector2(randf_range(-16.0, 16.0), -26.0), cr[0], cr[1])
+			apply_melee_skills(e, cr[0])
+			if along < best_along:
+				best_along = along
+				struck = e
+	if struck != null:
+		BOND_MARK_SCRIPT.paint(struck, 4.0 + GameState.get_bonus_total("tag_duration"))
+
+# CAST a minion into the next free slot. The pack is the power curve, so a
+# full pack re-flavours its oldest member rather than silently doing nothing.
+func cast_summon(special: Dictionary) -> bool:
+	var cost: float = float(special.get("mana", 12.0)) \
+		* (1.0 - clampf(GameState.get_bonus_total("summon_mana_cut"), 0.0, 0.8))
+	if mana < cost:
+		FloatingText.spawn_word(get_parent(), global_position + Vector2(0, -56),
+			"not enough", Color(0.7, 0.75, 0.9))
+		return false
+	mana -= cost
+	var entry := {
+		"scepter_id": active_weapon_id,
+		"kind": str(special.get("m_kind", "mudling")),
+		"damage": int(special.get("damage", 6)),
+		"gap": float(special.get("m_gap", 1.8)),
+	}
+	if GameState.active_summons.size() >= summon_slot_budget():
+		GameState.active_summons.pop_front()
+	GameState.active_summons.append(entry)
+	_reconcile_companions()
+	SfxSynth.play_at(self, global_position, "chime", -14.0, 0.9)
+	return true
+
+# PLANT a post where you stand. Permanent until replaced -- that is the whole
+# difference from the wand's timed sentry, and the player reads it as one.
+func plant_post(special: Dictionary) -> bool:
+	var cost: float = float(special.get("mana", 16.0)) \
+		* (1.0 - clampf(GameState.get_bonus_total("summon_mana_cut"), 0.0, 0.8))
+	if mana < cost:
+		FloatingText.spawn_word(get_parent(), global_position + Vector2(0, -56),
+			"not enough", Color(0.7, 0.75, 0.9))
+		return false
+	mana -= cost
+	var live := []
+	for p in get_tree().get_nodes_in_group("summon_post"):
+		if is_instance_valid(p):
+			live.append(p)
+	while live.size() >= post_budget():
+		var oldest = live.pop_front()
+		if is_instance_valid(oldest):
+			oldest.queue_free()
+	var post = SUMMON_POST_SCRIPT.new()
+	post.s_kind = str(special.get("s_kind", "watchstone"))
+	post.damage = int(special.get("damage", 8))
+	post.gap = float(special.get("p_gap", 1.1))
+	post.source_id = active_weapon_id
+	post.player = self
+	get_parent().add_child(post)
+	post.global_position = global_position + Vector2(0, 8.0)
+	SfxSynth.play_at(self, global_position, "pop", -14.0, 0.7)
+	return true
 
 func update_health_display() -> void:
 	var percent = clamp(float(health) / get_max_health(), 0.0, 1.0)
@@ -3621,6 +3798,24 @@ func perform_attack() -> void:
 	# right-click so it never fires a stray projectile
 	if special_type == "percent_burst":
 		cast_percent_burst(special)
+		return
+	# ---- THE SUMMONER (batch 1, 2026-07-30) ----
+	# The whip is the ACTIVE weapon: it swings fast, hits modestly, and paints
+	# the bond-mark that the whole army answers.
+	if active_weapon_type == "whip":
+		attack_cooldown_remaining = stats.cooldown * skill_cooldown_mult("whip")
+		whip_crack(stats, special)
+		return
+	# Scepters and totems CAST: they pay mana up front and buy something that
+	# stays. A refused cast costs no cooldown, same courtesy the wands get.
+	if active_weapon_type == "summon":
+		var ok := false
+		if special_type == "post":
+			ok = plant_post(special)
+		else:
+			ok = cast_summon(special)
+		if ok:
+			attack_cooldown_remaining = stats.cooldown
 		return
 	if active_weapon_type == "wand":
 		# wands draw on the mana pool -- refusing the cast costs no cooldown

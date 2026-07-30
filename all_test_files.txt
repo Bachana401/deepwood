@@ -87,6 +87,7 @@ test_skilltree_node
 test_soak_node
 test_startpop_node
 test_status_node
+test_summoner_node
 test_supermob_node
 test_ten_node
 test_tenkits_node

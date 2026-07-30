@@ -122,6 +122,11 @@ const HITS_PER_USE := {
 	"eventide":    2.0, # 3 shafts out and back -- two tolls on a single body
 	"tomeofrains": 5.0, # ~28 drops over 4.6s, one body each, wide area denial
 	"wardenwatch": 4.5, # ONE post: ~6 lane shots over 9s at 1.35x, all piercing
+	# ---- THE SUMMONER (batch 1) ----
+	"minion":      2.4, # a standing minion strikes on its own cadence forever;
+	                    # the slot budget is the real limiter, not this number
+	"whipcrack":   1.0, # a modest lash -- the value is the TAG it paints
+	"post":        3.0, # a permanent post firing on its own gap
 	# ---- T4 batch 1 ----
 	"howlpiece":   2.4, # the blade plus ~5 howl rings at 0.45x down its lane
 	"winterwheel": 2.0, # it rolls THROUGH, re-hitting every 0.3s, and chills

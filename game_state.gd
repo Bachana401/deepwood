@@ -218,6 +218,12 @@ var player_level = 1
 var skill_points = 0
 var chosen_class = ""
 var unlocked_skills: Array = []
+# THE SUMMON LEDGER (Summoner batch 1, 2026-07-30). Which minions are standing
+# right now, as [{scepter_id, kind}]. The pack persists across weapon swaps
+# and floors -- the scepter only has to stay in the bag -- so it cannot live on
+# the Player node, which is re-instanced on every dungeon entry/exit.
+# Saved with a [] default so old saves load clean (the house pattern).
+var active_summons: Array = []
 # Material types the Science Lab has identified -- until a material id is in
 # here, the UI shows it as an unknown substance and skill nodes can't spend it.
 var researched_materials: Array = []
@@ -6349,6 +6355,7 @@ func save_game(player: Node) -> void:
 		"skill_points": skill_points,
 		"chosen_class": chosen_class,
 		"unlocked_skills": unlocked_skills,
+		"active_summons": active_summons,
 		"researched_materials": researched_materials,
 		"equipment": equipment,
 		"game_hours": game_hours,
@@ -6607,6 +6614,8 @@ func load_game() -> Dictionary:
 		skill_points = int(parsed.get("skill_points", skill_points))
 		chosen_class = parsed.get("chosen_class", chosen_class)
 		unlocked_skills = parsed.get("unlocked_skills", unlocked_skills)
+		# a save written before the Summoner existed simply has no pack
+		active_summons = parsed.get("active_summons", [])
 		researched_materials = parsed.get("researched_materials", researched_materials)
 		if parsed.has("equipment"):
 			load_equipment(parsed["equipment"])

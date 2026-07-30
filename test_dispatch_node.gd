@@ -63,6 +63,9 @@ const KIND_ALIAS := {
 	"tome_storm":     ["script:storm_cloud.gd"],
 	"sentry":         ["group:player_sentry"],
 	"homing":         ["arrow", "shot", "script:arrow.gd"],  # a FLAG on a normal shaft
+	# ---- the Summoner ----
+	"minion":         ["script:companion.gd"],   # the pack IS companion nodes
+	"post":           ["group:summon_post"],
 }
 
 # Verbs that deliberately create NO node of their own on a single press.
@@ -72,6 +75,7 @@ const NO_NODE_EXPECTED := {
 	"prism_converge": "a CHANNEL -- it needs the attack held, not tapped",
 	"cleave": "a plain heavy swing; the hit is the melee area, not a node",
 	"commandment": "a METRONOME -- the ruling lands on the ninth press, not the first",
+	"whipcrack": "its product is the bond-MARK, which lives on the foe, not on the stage",
 }
 
 # Verbs whose declared "count" is a CYCLE rather than a single press.
