@@ -796,6 +796,24 @@ func _drain_stream_queue() -> void:
 			_load_chunk(c)
 			return   # one chunk a frame is plenty -- these are offscreen
 
+# which face a block wears, from what surrounds it. Air and water both count as
+# "open" -- a block under a lake is a lakebed surface, not buried rock.
+func _face_for(above: int, left: int, right: int) -> int:
+	if above == AIR or above == WATER:
+		return TILE_EXPOSED
+	if left == AIR or left == WATER or right == AIR or right == WATER:
+		return TILE_FACE
+	return TILE_INTERIOR
+
+# Re-derive one cell's face from the live map. Used after a dig, so the blocks
+# a new tunnel uncovers stop looking like buried interior rock.
+func _reface(cell: Vector2i) -> void:
+	if _map.get_cell_source_id(cell) == -1:
+		return
+	_map.set_cell(cell, 0, Vector2i(_map.get_cell_atlas_coords(cell).x,
+		_face_for(_cell_kind(cell + Vector2i(0, -1)), _cell_kind(cell + Vector2i(-1, 0)),
+			_cell_kind(cell + Vector2i(1, 0)))))
+
 func _load_chunk(c: Vector2i) -> void:
 	_loaded[c] = true
 	# Resolve the chunk's cells ONCE, one row taller than the chunk, so each block
@@ -804,24 +822,24 @@ func _load_chunk(c: Vector2i) -> void:
 	var kinds: Array = []
 	for ly in range(-1, CHUNK):
 		var row: Array = []
-		row.resize(CHUNK)
-		for lx in range(CHUNK):
-			row[lx] = _cell_kind(Vector2i(c.x * CHUNK + lx, c.y * CHUNK + ly))
+		row.resize(CHUNK + 2)
+		for lx in range(-1, CHUNK + 1):
+			row[lx + 1] = _cell_kind(Vector2i(c.x * CHUNK + lx, c.y * CHUNK + ly))
 		kinds.append(row)
 	for ly in range(CHUNK):
 		for lx in range(CHUNK):
 			var cell := Vector2i(c.x * CHUNK + lx, c.y * CHUNK + ly)
 			_wallmap.set_cell(cell, 0, Vector2i(_biome_of(cell.y), 0))   # back-wall always
-			var kind: int = kinds[ly + 1][lx]
-			var above: int = kinds[ly][lx]
+			var kind: int = kinds[ly + 1][lx + 1]
+			var above: int = kinds[ly][lx + 1]
 			if kind == WATER:
 				# the SURFACE tile (atlas 1) wherever there's no water directly above,
 				# so every lake gets Terraria's bright waterline instead of a flat slab
 				_watermap.set_cell(cell, 0, Vector2i(0 if above == WATER else 1, 0))
 			elif kind != AIR:
-				# lit lip only where the block is actually open to the air
-				var face := TILE_EXPOSED if (above == AIR or above == WATER) else TILE_INTERIOR
-				_map.set_cell(cell, 0, Vector2i(kind, face))
+				var left: int = kinds[ly + 1][lx]
+				var right: int = kinds[ly + 1][lx + 2]
+				_map.set_cell(cell, 0, Vector2i(kind, _face_for(above, left, right)))
 				if kind >= ORE_COL:
 					_sparkmap.set_cell(cell, 0, Vector2i(kind - ORE_COL, 0))   # + its glint
 	_populate_chunk(c)
@@ -1842,11 +1860,10 @@ func _break(cell: Vector2i, pick_tier: int, player: Node) -> bool:
 		_map.erase_cell(cell)
 		_sparkmap.erase_cell(cell)      # ...and its glint, or the vein you just mined
 		                                # keeps twinkling in mid-air until the chunk reloads
-		# the block you just uncovered is open to the air now, so give it the lit
-		# surface lip -- otherwise a dug tunnel is floored with flat interior rock
-		var under := cell + Vector2i(0, 1)
-		if _map.get_cell_source_id(under) != -1:
-			_map.set_cell(under, 0, Vector2i(_map.get_cell_atlas_coords(under).x, TILE_EXPOSED))
+		# everything this swing just uncovered is open now -- re-face all four
+		# neighbours, or a tunnel you dig stays walled in flat interior rock
+		for d in [Vector2i(0, 1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(1, 0)]:
+			_reface(cell + d)
 		if player != null and "inventory" in player and player.inventory != null:
 			var drop_id: String = ORE_DROP[bi] if is_ore else "stone"
 			var leftover: int = player.inventory.add_item(drop_id, 1)
@@ -1943,23 +1960,29 @@ func _exit_tree() -> void:
 #   row 1  EXPOSED    -- the lit lip and the gradient, for a block open to the air.
 const TILE_INTERIOR := 0
 const TILE_EXPOSED := 1
+const TILE_FACE := 2
+const TILE_ROWS := 3
 
 func _build_tileset() -> void:
 	var n := BIOMES.size()
-	var img := Image.create(n * 2 * TILE, 2 * TILE, false, Image.FORMAT_RGBA8)
+	var img := Image.create(n * 2 * TILE, TILE_ROWS * TILE, false, Image.FORMAT_RGBA8)
 	for c in range(n):
 		var base: Color = BIOMES[c].base
 		var gem: Color = ORE_GEM[c]
-		for row in range(2):
-			var exposed := row == TILE_EXPOSED
+		for row in range(TILE_ROWS):
 			for x in range(TILE):
 				for y in range(TILE):
 					var col: Color
-					if exposed:
+					if row == TILE_EXPOSED:
 						var t := float(y) / float(TILE - 1)
 						col = base.lightened(0.10 * (1.0 - t)).darkened(0.16 * t)
 						if y <= 1:
 							col = base.lightened(0.20)         # the lit surface lip
+					elif row == TILE_FACE:
+						# a cave WALL: roofed over, but open to one side. Catches a
+						# little light so the outline of a cavern reads instead of
+						# dissolving into one flat dark mass.
+						col = base.lightened(0.05)
 					else:
 						col = base.darkened(0.10)              # buried: flat and a touch darker
 					var h := ((x * 73856093) ^ (y * 19349663) ^ (c * 83492791)) & 0x7fffffff
