@@ -5103,6 +5103,9 @@ func perform_attack() -> void:
 		la.rotation = aim_dir.angle()
 		la.position = global_position + aim_dir * 52.0
 		get_parent().add_child(la)
+	# DAYBREAK EDGE (T5): the swing does not reach -- the LIGHT does
+	elif special_type == "sky_star":
+		call_the_daybreak(special, aim_dir)
 	# ANVIL OF ENDINGS (T7): the mass falls on the spot a beat later
 	elif special_type == "anvil_drop":
 		var av = WEAPON_PROJECTILE_SCRIPT.new()
@@ -5762,6 +5765,38 @@ func unleash_court(special: Dictionary, aim_dir: Vector2) -> void:
 # descends from). THE ROOF RULE is the balance dial and it is deliberately
 # LOUD -- a ceiling halves the volley and says so, rather than silently
 # eating the shot and leaving the player thinking the weapon is broken.
+# DAYBREAK EDGE: the swing calls stars down onto the mark. The roof rule is
+# borrowed from The Hollow King's Rain on purpose -- if the sky is the delivery
+# route then a ceiling has to mean something, or the verb is just a reskin of
+# "damage happens over there".
+func call_the_daybreak(special: Dictionary, aim_dir: Vector2) -> void:
+	var mark: Vector2 = global_position + aim_dir * 108.0
+	var n: int = int(special.get("count", 3))
+	var space := get_world_2d().direct_space_state
+	var q := PhysicsRayQueryParameters2D.create(mark, mark + Vector2(0, -430.0))
+	q.collision_mask = 1
+	q.exclude = [self]
+	var roofed := space.intersect_ray(q)
+	if roofed:
+		n = maxi(1, n / 2)
+		_roof_holds_puff(roofed.position)
+	var base: int = int(round(float(special.get("damage", 10)) * skill_damage_mult("melee")))
+	for i in range(n):
+		var cr = roll_crit(base)
+		var st = WEAPON_PROJECTILE_SCRIPT.new()
+		st.kind = "sky_star"
+		st.damage = cr[0]
+		st.is_crit = cr[1]
+		st.speed = 1250.0
+		st.aoe_radius = float(special.get("aoe", 58.0))
+		st.element = Inventory.element_of(active_weapon_id)
+		st.on_hit_status = special.get("status", {})
+		st.source = self
+		get_parent().add_child(st)
+		# AFTER add_child: set_star_target places it up in the sky, and doing
+		# that before the node is in the tree loses the position.
+		st.set_star_target(mark + Vector2(randf_range(-38.0, 38.0), 0.0))
+
 func call_the_kings_rain(special: Dictionary) -> void:
 	play_sfx(SFX_BOW)
 	animate_bow(active_stats)

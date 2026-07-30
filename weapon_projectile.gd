@@ -469,6 +469,13 @@ func _ready() -> void:
 			monitoring = false
 			pierce = true
 			_build_lingering_arc()
+		"sky_star":
+			# DAYBREAK EDGE (T5): the swing does not reach the mark -- the
+			# LIGHT does. Stars fall from off the top of the frame. Not
+			# monitoring: this one does all of its damage in the burst where it
+			# lands, so there is nothing for a body to enter.
+			monitoring = false
+			_build_sky_star()
 		"anvil_drop":
 			# ANVIL OF ENDINGS (T7): the ending arrives a beat LATE -- a mass
 			# falls out of the dark onto the place you struck.
@@ -872,6 +879,9 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind in ["lingering_arc", "ground_thorn", "sun_pool", "sky_pillar"]:
 		_tick_standing_zone(delta)
+		return
+	if kind == "sky_star":
+		_tick_sky_star(delta)
 		return
 	if kind == "anvil_drop":
 		_tick_anvil(delta)
@@ -2188,6 +2198,119 @@ func explode() -> void:
 
 # --- tome batch 3b builds + the soul's eye ------------------------------
 # THE INKWELL OF STORMS: a dark teardrop stream, ink-blue, trailing droplets
+# ==========================================================================
+# THE STAR WRATH LAW (measured from the dev's reference clip, 2026-07-30).
+#
+# The reference sword does not extend its reach -- it calls damage down from
+# OUTSIDE THE FRAME onto the cursor. Deepwood had exactly one weapon doing
+# this (The Hollow King's Rain, a bow) and no melee weapon at all, so the whole
+# idea of "the blow arrives from somewhere else" was almost unused.
+#
+# Measured: each star is small (0.25 PL), bright yellow, fast, with a short
+# trail; each LANDING is a ~1.2 PL starburst on the ground, away from the
+# player. The burst is where the damage is -- so it is modelled that way here
+# rather than being a flash over a hitbox that lives somewhere else.
+# ==========================================================================
+var _star_target := Vector2.ZERO
+
+func set_star_target(p: Vector2) -> void:
+	_star_target = p
+	# spawn ABOVE the frame, not at the hand. The jitter is what stops a volley
+	# reading as one thick column.
+	global_position = p + Vector2(randf_range(-86.0, 86.0), -430.0)
+
+func _build_sky_star() -> void:
+	var m := _add_mat()
+	var body := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(8):
+		var a: float = TAU * float(i) / 8.0
+		# a four-pointed star is a CROSS with a small diamond at its centre:
+		# the long spikes run ~6x the short ones. An octagon-ish ratio reads as
+		# a blob, and that is the easiest way to get this particle wrong.
+		var r: float = 12.0 if i % 2 == 0 else 2.1
+		pts.append(Vector2(cos(a), sin(a)) * r)
+	body.polygon = pts
+	body.color = Color(1.0, 0.95, 0.55, 0.95)
+	body.material = m
+	visual.add_child(body)
+	var core := Polygon2D.new()
+	core.polygon = _circle(3.0, 8)
+	core.color = Color(1.0, 1.0, 1.0, 0.95)
+	core.material = m
+	visual.add_child(core)
+
+func _tick_sky_star(delta: float) -> void:
+	var to: Vector2 = _star_target - global_position
+	var step: float = maxf(60.0, speed) * delta
+	if to.length() <= maxf(step, 18.0):
+		global_position = _star_target
+		_star_land()
+		return
+	global_position += to.normalized() * step
+	if visual != null:
+		visual.rotation += 7.0 * delta
+
+func _star_land() -> void:
+	if done:
+		return
+	done = true
+	var host := get_parent()
+	var r: float = maxf(34.0, aoe_radius)
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if not (e is Node2D):
+				continue
+			if global_position.distance_to((e as Node2D).global_position) <= r:
+				e.take_damage(damage)
+				_apply_status_to(e)
+	if host != null and is_instance_valid(host):
+		_star_burst_fx(host, global_position, r)
+	queue_free()
+
+# the landing: overlapping four-point stars plus a white flash, sized to the
+# damage radius so what the player sees is what the weapon actually hit.
+func _star_burst_fx(host: Node2D, at: Vector2, r: float) -> void:
+	var m := _add_mat()
+	var flash := Polygon2D.new()
+	flash.polygon = _circle(r * 0.55, 14)
+	flash.color = Color(1.0, 0.98, 0.80, 0.55)
+	flash.material = m
+	flash.z_index = 40
+	host.add_child(flash)
+	flash.global_position = at
+	var ftw := flash.create_tween()
+	ftw.set_parallel(true)
+	ftw.tween_property(flash, "scale", Vector2(1.9, 1.9), 0.22)
+	ftw.tween_property(flash, "modulate:a", 0.0, 0.22)
+	ftw.chain().tween_callback(flash.queue_free)
+	for i in range(10):
+		var star := Polygon2D.new()
+		var sr: float = randf_range(4.0, 10.0)
+		var sp := PackedVector2Array()
+		for k in range(8):
+			var ka: float = TAU * float(k) / 8.0
+			sp.append(Vector2(cos(ka), sin(ka)) * (sr if k % 2 == 0 else sr * 0.17))
+		star.polygon = sp
+		star.color = Color(1.0, randf_range(0.90, 1.0), randf_range(0.55, 0.85),
+			randf_range(0.7, 1.0))
+		star.material = m
+		star.z_index = 41
+		star.rotation = randf_range(0.0, TAU)
+		host.add_child(star)
+		star.global_position = at + Vector2(randf_range(-r, r), randf_range(-r * 0.6, 6.0))
+		var tw := star.create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(star, "global_position",
+			star.global_position + Vector2(randf_range(-18, 18), randf_range(-30, -8)), 0.45)
+		tw.tween_property(star, "scale", Vector2(0.15, 0.15), 0.45)
+		tw.tween_property(star, "modulate:a", 0.0, 0.45)
+		tw.chain().tween_callback(star.queue_free)
+
 func _build_inkjet() -> void:
 	var drop := Polygon2D.new()
 	drop.polygon = PackedVector2Array([Vector2(-14, 0), Vector2(-4, -5), Vector2(10, -3), Vector2(16, 0), Vector2(10, 3), Vector2(-4, 5)])

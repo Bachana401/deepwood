@@ -49,6 +49,7 @@ const HITS_PER_USE := {
 	"lob_a":      2.0,
 	"lob":        2.0,
 	"cleave":     1.9,   # the arc, plus the CARVE the swing now throws
+	"daybreak":   3.0, # three stars fall, each bursting for the full 0.55x hit
 	"anvil":      1.8, # the mass lands, then the floor CRACKS outward (0.7x ring)
 	"worldthorn": 2.6, # three spikes, ~4 bites over 1.3s
 	"sunspill":   2.8, # the shell, then the pool ticking ~10x over 4.2s at 30%

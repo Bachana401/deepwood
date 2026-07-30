@@ -204,7 +204,7 @@ const ROWS = [
 	["wpn_magmawrit",    "Magma Writ",           "wand",  4, "fire",      26, 0.85, {"aoe": 120, "status": "burn_w", "plain": true}],
 	["wpn_pilgrimstaff", "Pilgrim's Milestone",  "staff", 4, "staff",     15, 0.45, {"plain": true}],
 	# ---------------- TIER 5 - LEGENDARY (floors 42-72) ----------------
-	["wpn_daybreakedge", "Daybreak Edge",        "melee", 5, "arc",       24, 0.42, {"status": "burn_w", "plain": true}],
+	["wpn_daybreakedge", "Daybreak Edge",        "melee", 5, "daybreak",  24, 0.42, {"status": "burn_w", "count": 3, "aoe": 58}],
 	["wpn_worldtoll",    "Worldtoll Maul",       "melee", 5, "worldtoll", 36, 1.1,  {"knockup": true}],
 	["wpn_quietwheel",   "Wheel of Quiet",       "melee", 5, "quietwheel", 21, 0.8,  {"dwell": 2.8}],
 	["wpn_serpentsermon","Serpent's Sermon",     "melee", 5, "serpentsermon", 22, 0.85, {"status": "poison_w"}],
@@ -1008,6 +1008,14 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 		# the attack happened and keeps working.
 		"afterlight":
 			s = {"type": "lingering_arc", "damage": maxi(1, int(round(float(dmg) * 0.42)))}
+		"daybreak":
+			# DAYBREAK EDGE (T5): the swing does not reach the mark -- the
+			# LIGHT does. Star-Wrath-kin, at a Legendary's intensity: three
+			# stars, not a sky full of them. The verb is the identity; the
+			# COUNT is the tier.
+			s = {"type": "sky_star",
+				"damage": maxi(1, int(round(float(dmg) * 0.55))),
+				"count": int(ex.get("count", 3)), "aoe": float(ex.get("aoe", 58.0))}
 		"anvil":
 			s = {"type": "anvil_drop", "damage": dmg}
 		"worldthorn":
@@ -1566,6 +1574,7 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"stormflock":  return "Every jab looses a bird. They turn in the air, pick their own targets, and come down on them -- a flock answering one thrust."
 		"dawnline":    return "Lays a bar of first light along the floor, and then the dawn RISES: the line climbs through everything standing in it."
 		"afterlight":  return "The swing does not END. Its shape hangs in the air behind it -- a blade of light standing where you cut, still cutting whatever walks into it."
+		"daybreak":    return "The blade never reaches them. Swing, and %d stars fall out of the sky onto the mark instead -- each one bursting where it lands. A roof is the only argument against it." % int(ex.get("count", 3))
 		"anvil":       return "The ending arrives a beat LATE: the cleave lands, and then a mass comes down out of the dark onto the same spot. The shadow tells you where."
 		"worldthorn":  return "The thrust wakes the GROUND. Where the point goes in, thorns come up -- a row of them, standing until they are done."
 		"sunspill":    return "What it throws does not burst so much as SPILL: the shell arcs over and leaves a pool of burning daylight on the floor, and standing in it is a decision."
