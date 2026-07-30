@@ -3629,6 +3629,20 @@ func perform_attack() -> void:
 					"damage": stats.damage, "speed": 560.0, "range": 460.0})
 		elif special_type == "nuke":
 			cast_wand_nuke(special)   # Runeweave Scepter -- big FINITE screen AoE
+		# THE DEBT COLLECTOR (T6): a seal, not a bolt -- it books the debt
+		elif special_type == "debt_mark":
+			var dcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("wand"))))
+			launch_projectile(special, get_aim_direction(), dcr[0], dcr[1])
+		# WATCHFIRE (T6): planted where you aim, then it waits
+		elif special_type == "watch_fire":
+			var wf = WEAPON_PROJECTILE_SCRIPT.new()
+			wf.kind = "watch_fire"
+			wf.damage = maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("wand"))))
+			wf.element = Inventory.element_of(active_weapon_id)
+			wf.on_hit_status = special.get("status", {})
+			wf.source = self
+			get_parent().add_child(wf)
+			wf.global_position = global_position + get_aim_direction() * 138.0 + Vector2(0, 18.0)
 		elif special_type == "asphodel_post":
 			# ASPHODEL POST (T7): planted at your feet, sends on its own
 			play_sfx(SFX_BOW)
@@ -3743,6 +3757,27 @@ func perform_attack() -> void:
 			animate_bow(stats)
 			var cr_d = roll_crit(int(round(float(special.get("damage", stats.damage)) * skill_damage_mult("bow"))))
 			launch_projectile(special, get_aim_direction(), cr_d[0], cr_d[1])
+			return
+		# COMETFALL (T6): lofted on purpose -- the shot leaves the string ANGLED
+		# UP and gravity does the rest, so you lead the ground, not the target.
+		if special_type == "comet":
+			play_sfx(SFX_BOW)
+			animate_bow(stats)
+			var cr_c = roll_crit(int(round(float(special.get("damage", stats.damage)) * skill_damage_mult("bow"))))
+			var cm = WEAPON_PROJECTILE_SCRIPT.new()
+			cm.kind = "comet"
+			cm.damage = cr_c[0]
+			cm.is_crit = cr_c[1]
+			cm.element = Inventory.element_of(active_weapon_id)
+			cm.on_hit_status = special.get("status", {})
+			cm.source = self
+			cm.girth = grade_projectile_girth()
+			cm.direction = get_aim_direction()
+			cm.speed = float(special.get("speed", 420.0))
+			cm.max_distance = float(special.get("range", 520.0))
+			cm.set("_comet_vy", -float(special.get("lift", 470.0)))
+			get_parent().add_child(cm)
+			cm.global_position = global_position + cm.direction * 34.0 + Vector2(0, -10.0)
 			return
 		animate_bow(stats)
 		return
@@ -3984,6 +4019,26 @@ func perform_attack() -> void:
 		av.source = self
 		get_parent().add_child(av)
 		av.set_anvil_target(global_position + aim_dir * 96.0 + Vector2(0, 6.0))
+	# HUSHFALL (T6): the swing lands silent; the SOUND arrives a beat later at
+	# the point you struck, and the sound is the heavier half.
+	elif special_type == "late_thunder":
+		var lt = WEAPON_PROJECTILE_SCRIPT.new()
+		lt.kind = "late_thunder"
+		lt.damage = int(round(float(special.get("damage", 10)) * skill_damage_mult("melee")))
+		lt.element = Inventory.element_of(active_weapon_id)
+		lt.on_hit_status = special.get("status", {})
+		lt.source = self
+		get_parent().add_child(lt)
+		lt.global_position = global_position + aim_dir * float(special.get("reach", 70.0)) \
+			+ Vector2(0, 4.0)
+	# ECLIPSE WHEEL (T6): out, dark, and the shadow does the cutting
+	elif special_type == "eclipse_disc":
+		var ecr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+		launch_projectile(special, aim_dir, ecr[0], ecr[1])
+	# CINDERCHAIN (T6): the chain-maul flight, but the floor keeps the arc
+	elif special_type == "cinder_drag":
+		var ccr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+		launch_projectile(special, aim_dir, ccr[0], ccr[1])
 	# Grief Wears a Crown: the ground carries the blow outward from the impact
 	elif special_type == "sunder_wave":
 		var scr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))

@@ -139,6 +139,19 @@ func _ready() -> void:
 	match kind:
 		"soul_split": _build_soulbolt()
 		"slash": _build_slash()
+		# ---- T6 batch 1 ----
+		"late_thunder": _build_late_thunder()
+		"eclipse_disc":
+			# it must SURVIVE the row to reach its eclipse point -- without
+			# this the generic hit path ate the disc on the first body it
+			# touched and the whole verb never happened (film caught it)
+			pierce = true
+			_build_eclipse_disc()
+		"comet": _build_comet()
+		"cinder_patch": _build_cinder_patch()
+		"cinder_drag": _build_chainmaul()
+		"watch_fire": _build_watch_fire()
+		"debt_mark": _build_debt_mark()
 		"zenith_blade":
 			# THE LAST WORD: a ghost-image of an ancestor blade. Swoops out,
 			# whirls one tight loop at the far point, and comes home. Each
@@ -419,6 +432,24 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind == "asphodel_post":
 		_tick_asphodel(delta)
+		return
+	if kind == "late_thunder":
+		_tick_late_thunder(delta)
+		return
+	if kind == "eclipse_disc":
+		_tick_eclipse(delta)
+		return
+	if kind == "comet":
+		_tick_comet(delta)
+		return
+	if kind == "cinder_drag":
+		_tick_cinder_drag(delta)
+		return
+	if kind == "cinder_patch":
+		_tick_standing_zone(delta)
+		return
+	if kind == "watch_fire":
+		_tick_watch_fire(delta)
 		return
 	if kind == "regent_shard":
 		_tick_regent_shard(delta)
@@ -721,6 +752,34 @@ func _on_body_entered(body: Node2D) -> void:
 	if is_instance_valid(source) and source.has_method("on_projectile_hit"):
 		source.on_projectile_hit(body, damage)
 	match kind:
+		"eclipse_disc":
+			# a graze on the way out: the real damage is the shadow it throws
+			var landed_e = body.take_damage(maxi(1, int(round(float(damage) * 0.4))))
+			if landed_e == null or landed_e:
+				FloatingText.spawn(get_parent(), body.global_position,
+					maxi(1, int(round(float(damage) * 0.4))), false)
+			_apply_status_to(body)
+		"debt_mark":
+			var landed_d = body.take_damage(damage)
+			if landed_d == null or landed_d:
+				FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+			_apply_status_to(body)
+			# THE DEBT IS BOOKED. It ticks, and if the debtor dies still owing,
+			# the book does not close -- it moves to whoever is standing
+			# nearest. Third economy on the embedded-stack system (Regicide
+			# overflows, the Reckoning comes due, this one INHERITS).
+			var st = load("res://embedded_stack.gd").drive(body, "debt", {
+				"max": 4, "gap": 0.6, "life": 5.0,
+				"tick": maxi(1, int(round(float(damage) * 0.16))),
+				"pop": maxi(1, int(round(float(damage) * 0.55))),
+				"player": source, "pop_on_expire": true,
+				"transfer_on_death": true,
+				"tint": Color(0.98, 0.86, 0.42)})
+			if st != null:
+				st.add_one(damage)
+			done = true
+			queue_free()
+			return
 		"fireball":
 			explode()
 		"lob":
@@ -2841,6 +2900,445 @@ func _build_boomerang() -> void:
 		blade.color = Color(0.35, 0.8, 0.75, 0.95)
 		blade.rotation = ang
 		visual.add_child(blade)
+
+# ==========================================================================
+# TIER 6, BATCH 1. Six weapons off the crowded verbs (arc/cleave/orbiter/
+# lob_a/rapid/ricochet/chain_maul). Each reuses an engine already standing --
+# standing zones, the nova, the chain-maul flight, the embedded stack -- so
+# the tier gets souls without six bespoke physics implementations.
+# ==========================================================================
+
+# --- HUSHFALL: the blow lands in silence, the SOUND arrives late ----------
+var _hush_t := 0.0
+var _hush_ring: Polygon2D = null
+const HUSH_DELAY := 0.55
+
+func _tick_late_thunder(delta: float) -> void:
+	_hush_t += delta
+	var frac: float = clampf(_hush_t / HUSH_DELAY, 0.0, 1.0)
+	# the held breath: a ring of quiet CONTRACTING toward the point, so the
+	# eye knows something is coming back for them
+	if _hush_ring != null and is_instance_valid(_hush_ring):
+		_hush_ring.scale = Vector2.ONE * lerpf(2.5, 0.35, frac * frac)
+		_hush_ring.modulate.a = 0.16 + 0.5 * frac
+	if _hush_t < HUSH_DELAY:
+		return
+	# ...and then the sound catches up
+	_nova_burst_tinted(global_position, Color(0.78, 0.88, 1.0))
+	done = true
+	queue_free()
+
+func _build_late_thunder() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	_hush_ring = Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(20):
+		var a := TAU * float(i) / 20.0
+		pts.append(Vector2(cos(a), sin(a)) * 26.0)
+	for i in range(20):
+		var a2 := TAU * float(19 - i) / 20.0
+		pts.append(Vector2(cos(a2), sin(a2)) * 22.0)
+	_hush_ring.polygon = pts
+	_hush_ring.color = Color(0.8, 0.9, 1.0, 0.3)
+	_hush_ring.material = m
+	visual.add_child(_hush_ring)
+
+# --- ECLIPSE WHEEL: the wheel goes dark, and its SHADOW is the attack -----
+var _ecl_t := 0.0
+var _ecl_home := Vector2.ZERO
+var _ecl_shadow: Polygon2D = null
+var _ecl_struck := false
+# FILM NOTE: at 0.38 it went dark about a step from the player's hand, which
+# wasted the whole image -- the eclipse wants ROOM around it.
+const ECL_OUT := 0.34          # time flying to the eclipse point
+const ECL_HOLD := 0.5          # how long it stays dark
+const ECL_SHADOW_LEN := 190.0
+
+func _tick_eclipse(delta: float) -> void:
+	_ecl_t += delta
+	if _ecl_home == Vector2.ZERO and is_instance_valid(source):
+		_ecl_home = (source as Node2D).global_position
+	if _ecl_t <= ECL_OUT:
+		# out along the aim, spinning up
+		global_position += direction * speed * delta
+		if visual:
+			visual.rotation += 13.0 * delta
+		return
+	if _ecl_t <= ECL_OUT + ECL_HOLD:
+		# THE ECLIPSE: it stops, goes black, and throws a long shadow onward
+		if visual:
+			visual.rotation += 2.0 * delta
+		if _ecl_shadow == null:
+			_go_dark()
+		if not _ecl_struck:
+			_ecl_struck = true
+			_strike_shadow()
+		return
+	# and comes back to the hand
+	var home: Vector2 = (source as Node2D).global_position \
+		if is_instance_valid(source) else _ecl_home
+	var to_home: Vector2 = home - global_position
+	if to_home.length() < 26.0:
+		done = true
+		queue_free()
+		return
+	global_position += to_home.normalized() * (speed * 1.25) * delta
+	if visual:
+		visual.rotation += 16.0 * delta
+
+func _go_dark() -> void:
+	# the disc itself eats its own light
+	if visual:
+		for c in visual.get_children():
+			if c is Polygon2D:
+				(c as Polygon2D).color = Color(0.06, 0.05, 0.10, 0.98)
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	# the corona: the only bright thing left
+	var cor := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(22):
+		var a := TAU * float(i) / 22.0
+		pts.append(Vector2(cos(a), sin(a)) * 25.0)
+	for i in range(22):
+		var a2 := TAU * float(21 - i) / 22.0
+		pts.append(Vector2(cos(a2), sin(a2)) * 20.0)
+	cor.polygon = pts
+	cor.color = Color(1.0, 0.94, 0.72, 0.85)
+	cor.material = m
+	if visual:
+		visual.add_child(cor)
+	# the shadow it casts, thrown AWAY from the player
+	_ecl_shadow = Polygon2D.new()
+	_ecl_shadow.polygon = PackedVector2Array([
+		Vector2(0, -15.0), Vector2(ECL_SHADOW_LEN, -30.0),
+		Vector2(ECL_SHADOW_LEN, 30.0), Vector2(0, 15.0)])
+	_ecl_shadow.color = Color(0.05, 0.04, 0.09, 0.62)
+	_ecl_shadow.z_index = -2
+	_ecl_shadow.rotation = direction.angle()
+	add_child(_ecl_shadow)
+	# FILM NOTE: black-on-night is invisible. The band only reads if its EDGES
+	# do, so the shadow gets two lit rims -- the light going around the disc.
+	for s in [-1.0, 1.0]:
+		var rim := Polygon2D.new()
+		rim.polygon = PackedVector2Array([
+			Vector2(0, 15.0 * s), Vector2(ECL_SHADOW_LEN, 30.0 * s),
+			Vector2(ECL_SHADOW_LEN, 26.0 * s), Vector2(0, 11.5 * s)])
+		rim.color = Color(0.86, 0.78, 1.0, 0.5)
+		rim.material = m
+		rim.z_index = -1
+		rim.rotation = direction.angle()
+		add_child(rim)
+		var rt := rim.create_tween()
+		rt.tween_property(rim, "modulate:a", 0.0, ECL_HOLD)
+	var tw := _ecl_shadow.create_tween()
+	tw.tween_property(_ecl_shadow, "modulate:a", 0.0, ECL_HOLD)
+
+func _strike_shadow() -> void:
+	# everything standing in the cast shadow, once
+	var host := get_parent()
+	var pay: int = maxi(1, int(round(float(damage) * 0.85)))
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			var rel: Vector2 = (e as Node2D).global_position - global_position
+			var along: float = rel.dot(direction)
+			if along < 0.0 or along > ECL_SHADOW_LEN:
+				continue
+			if absf(rel.dot(Vector2(-direction.y, direction.x))) > 34.0:
+				continue
+			var landed = e.take_damage(pay)
+			if landed == null or landed:
+				FloatingText.spawn(host, (e as Node2D).global_position
+					+ Vector2(randf_range(-18.0, 18.0), -26.0), pay, true)
+			_apply_status_to(e)
+
+func _build_eclipse_disc() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var rim := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(16):
+		var a := TAU * float(i) / 16.0
+		pts.append(Vector2(cos(a), sin(a)) * 20.0)
+	for i in range(16):
+		var a2 := TAU * float(15 - i) / 16.0
+		pts.append(Vector2(cos(a2), sin(a2)) * 13.0)
+	rim.polygon = pts
+	rim.color = Color(0.86, 0.84, 0.96, 0.9)
+	rim.material = m
+	visual.add_child(rim)
+	# four spokes so the spin is legible
+	for k in range(4):
+		var spoke := Polygon2D.new()
+		spoke.polygon = PackedVector2Array([
+			Vector2(-2.2, -14.0), Vector2(2.2, -14.0), Vector2(2.2, 14.0), Vector2(-2.2, 14.0)])
+		spoke.color = Color(0.7, 0.68, 0.85, 0.8)
+		spoke.rotation = deg_to_rad(45.0 * float(k))
+		visual.add_child(spoke)
+
+# --- COMETFALL: up, over, and DOWN in a burning line ----------------------
+var _comet_vy := 0.0
+var _comet_t := 0.0
+
+func _tick_comet(delta: float) -> void:
+	_comet_t += delta
+	_comet_vy += 1150.0 * delta          # heavier than a lob: it FALLS
+	global_position += direction * speed * delta + Vector2(0, _comet_vy * delta)
+	var vel := direction * speed + Vector2(0, _comet_vy)
+	rotation = vel.angle()
+	# it brightens as it comes down -- a comet is only a comet on the way in
+	if visual and _comet_vy > 0.0:
+		visual.scale = Vector2.ONE * _draw_girth * (1.0 + minf(0.5, _comet_vy / 1400.0))
+	traveled += speed * delta
+	if _comet_t > 0.16 and _on_floor_now():
+		_comet_land()
+
+func _comet_land() -> void:
+	_nova_burst_tinted(global_position, Color(1.0, 0.66, 0.3))
+	_rock_smoke(global_position)
+	# the crater keeps burning: a standing patch of fire, the reason you lob
+	# it AHEAD of something rather than at it
+	var host := get_parent()
+	if host != null:
+		var patch = (load("res://weapon_projectile.gd") as GDScript).new()
+		patch.kind = "cinder_patch"
+		patch.damage = maxi(1, int(round(float(damage) * 0.3)))
+		patch.element = element
+		patch.on_hit_status = on_hit_status
+		patch.source = source
+		patch.girth = girth
+		host.add_child(patch)
+		patch.global_position = global_position
+	done = true
+	queue_free()
+
+# a cheap floor probe: the world's ground sits on the terrain layer
+func _on_floor_now() -> bool:
+	var space := get_world_2d().direct_space_state
+	var q := PhysicsRayQueryParameters2D.create(
+		global_position, global_position + Vector2(0, 16.0))
+	q.collision_mask = 1
+	return not space.intersect_ray(q).is_empty()
+
+func _build_comet() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var tail := Polygon2D.new()
+	tail.polygon = PackedVector2Array([
+		Vector2(-14, -6.0), Vector2(-42, -2.4), Vector2(-64, 0),
+		Vector2(-42, 2.4), Vector2(-14, 6.0)])
+	tail.color = Color(1.0, 0.62, 0.24, 0.45)
+	tail.material = m
+	visual.add_child(tail)
+	var head := Polygon2D.new()
+	head.polygon = _circle(11.0, 12)
+	head.color = Color(1.0, 0.9, 0.62, 0.98)
+	visual.add_child(head)
+	var halo := Polygon2D.new()
+	halo.polygon = _circle(17.0, 12)
+	halo.color = Color(1.0, 0.72, 0.35, 0.4)
+	halo.material = m
+	visual.add_child(halo)
+
+# the burning crater left behind
+func _build_cinder_patch() -> void:
+	_zone_max = 3.4
+	_zone_r = 62.0
+	_zone_gap = 0.42
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var pool := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(14):
+		var a := TAU * float(i) / 14.0
+		pts.append(Vector2(cos(a) * 58.0, sin(a) * 15.0))
+	pool.polygon = pts
+	pool.color = Color(1.0, 0.42, 0.12, 0.6)
+	pool.material = m
+	visual.add_child(pool)
+	for k in range(5):
+		var flame := Polygon2D.new()
+		flame.polygon = PackedVector2Array([
+			Vector2(-5.0, 0), Vector2(0, -19.0), Vector2(5.0, 0)])
+		flame.color = Color(1.0, 0.6, 0.16, 0.85)
+		flame.material = m
+		flame.position = Vector2(-42.0 + 21.0 * float(k), -2.0)
+		visual.add_child(flame)
+		var tw := flame.create_tween().set_loops()
+		tw.tween_property(flame, "scale", Vector2(0.75, 1.35), 0.26)
+		tw.tween_property(flame, "scale", Vector2(1.1, 0.8), 0.22)
+
+# --- CINDERCHAIN: the head drags, and the ground it crosses catches -------
+var _cinder_drop := 0.0
+
+func _tick_cinder_drag(delta: float) -> void:
+	_tick_chainmaul(delta)
+	if done:
+		return
+	_cinder_drop -= delta
+	if _cinder_drop > 0.0:
+		return
+	_cinder_drop = 0.19
+	# a small ember where the head is now -- a TRAIL of them draws the arc of
+	# the swing on the floor, which is the whole reason to hold this thing
+	var host := get_parent()
+	if host == null:
+		return
+	var em := Polygon2D.new()
+	em.polygon = _circle(randf_range(4.0, 7.5), 7)
+	em.color = Color(1.0, randf_range(0.45, 0.7), 0.2, 0.75)
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	em.material = m
+	em.z_index = 38
+	host.add_child(em)
+	em.global_position = global_position + Vector2(randf_range(-5.0, 5.0), randf_range(-4.0, 4.0))
+	var tw := em.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(em, "global_position:y", em.global_position.y + 22.0, 0.5)
+	tw.tween_property(em, "modulate:a", 0.0, 0.5)
+	tw.chain().tween_callback(em.queue_free)
+
+# --- WATCHFIRE: it holds its fire until something crosses the light -------
+# The generic `sentry` shoots on a timer and the T7 Asphodel Post sends
+# constantly; this one does NOTHING until a body enters its ring, which makes
+# where you plant it the whole decision.
+var _watch_t := 0.0
+var _watch_cool := 0.0
+var _watch_eye: Polygon2D = null
+var _watch_ring: Polygon2D = null
+const WATCH_LIFE := 11.0
+const WATCH_SEE := 132.0
+const WATCH_RECOVER := 1.1
+
+func _tick_watch_fire(delta: float) -> void:
+	_watch_t += delta
+	if _watch_t >= WATCH_LIFE:
+		done = true
+		queue_free()
+		return
+	_watch_cool = maxf(0.0, _watch_cool - delta)
+	# banked while it waits, blinding when it catches something
+	var banked: bool = _watch_cool > 0.0
+	if _watch_eye != null and is_instance_valid(_watch_eye):
+		var breathe: float = 0.55 + 0.2 * sin(_watch_t * 3.4)
+		_watch_eye.modulate.a = 0.3 if banked else breathe
+		_watch_eye.scale = Vector2.ONE * (0.7 if banked else (0.9 + 0.14 * sin(_watch_t * 3.4)))
+	if _watch_ring != null and is_instance_valid(_watch_ring):
+		_watch_ring.modulate.a = 0.08 if banked else 0.2
+	if banked:
+		return
+	var seen := _nearest_hostile_node(WATCH_SEE)
+	if seen == null:
+		return
+	_watch_flare(seen)
+
+func _watch_flare(_seen: Node2D) -> void:
+	_watch_cool = WATCH_RECOVER
+	var host := get_parent()
+	var pay: int = maxi(1, damage)
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if global_position.distance_to((e as Node2D).global_position) > WATCH_SEE * 1.15:
+				continue
+			var landed = e.take_damage(pay)
+			if landed == null or landed:
+				FloatingText.spawn(host, (e as Node2D).global_position
+					+ Vector2(randf_range(-18.0, 18.0), -26.0), pay, false)
+			_apply_status_to(e)
+	# the flare itself: a hard ring of light thrown out from the post
+	if host == null:
+		return
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var flash := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(18):
+		var a := TAU * float(i) / 18.0
+		pts.append(Vector2(cos(a), sin(a)) * 30.0)
+	for i in range(18):
+		var a2 := TAU * float(17 - i) / 18.0
+		pts.append(Vector2(cos(a2), sin(a2)) * 23.0)
+	flash.polygon = pts
+	flash.color = Color(1.0, 0.82, 0.42, 0.9)
+	flash.material = m
+	flash.z_index = 44
+	host.add_child(flash)
+	flash.global_position = global_position
+	var tw := flash.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(flash, "scale", Vector2(4.2, 4.2), 0.3)
+	tw.tween_property(flash, "modulate:a", 0.0, 0.3)
+	tw.chain().tween_callback(flash.queue_free)
+
+func _build_watch_fire() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	# the ring it watches: faint, so you can SEE where the trap is armed
+	_watch_ring = Polygon2D.new()
+	var rp := PackedVector2Array()
+	for i in range(24):
+		var a := TAU * float(i) / 24.0
+		rp.append(Vector2(cos(a) * WATCH_SEE, sin(a) * WATCH_SEE * 0.42))
+	for i in range(24):
+		var a2 := TAU * float(23 - i) / 24.0
+		rp.append(Vector2(cos(a2) * (WATCH_SEE - 4.0), sin(a2) * (WATCH_SEE - 4.0) * 0.42))
+	_watch_ring.polygon = rp
+	_watch_ring.color = Color(1.0, 0.78, 0.4, 0.2)
+	_watch_ring.material = m
+	_watch_ring.z_index = -1
+	visual.add_child(_watch_ring)
+	# a low iron cresset on three legs
+	for leg_i in range(3):
+		var leg := Polygon2D.new()
+		leg.polygon = PackedVector2Array([
+			Vector2(-1.6, 0), Vector2(1.6, 0), Vector2(0.8, 16.0), Vector2(-0.8, 16.0)])
+		leg.color = Color(0.26, 0.23, 0.24, 0.95)
+		leg.rotation = deg_to_rad(-22.0 + 22.0 * float(leg_i))
+		visual.add_child(leg)
+	var bowl := Polygon2D.new()
+	bowl.polygon = PackedVector2Array([
+		Vector2(-13, -2.0), Vector2(13, -2.0), Vector2(9, 6.0), Vector2(-9, 6.0)])
+	bowl.color = Color(0.3, 0.27, 0.28, 0.98)
+	visual.add_child(bowl)
+	_watch_eye = Polygon2D.new()
+	_watch_eye.polygon = PackedVector2Array([
+		Vector2(-7.0, -3.0), Vector2(0, -20.0), Vector2(7.0, -3.0)])
+	_watch_eye.color = Color(1.0, 0.74, 0.32, 0.8)
+	_watch_eye.material = m
+	_watch_eye.position = Vector2(0, -2.0)
+	visual.add_child(_watch_eye)
+
+# --- THE DEBT COLLECTOR: a seal that outlives the debtor ------------------
+func _build_debt_mark() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var halo := Polygon2D.new()
+	halo.polygon = _circle(14.0, 12)
+	halo.color = Color(0.95, 0.82, 0.38, 0.35)
+	halo.material = m
+	visual.add_child(halo)
+	# a coin on edge, turning: the collector's calling card
+	var coin := Polygon2D.new()
+	coin.polygon = _circle(8.5, 10)
+	coin.color = Color(0.98, 0.88, 0.46, 0.96)
+	visual.add_child(coin)
+	var inner := Polygon2D.new()
+	inner.polygon = _circle(4.0, 8)
+	inner.color = Color(0.62, 0.46, 0.14, 0.9)
+	visual.add_child(inner)
+	var tw := coin.create_tween().set_loops()
+	tw.tween_property(coin, "scale", Vector2(0.25, 1.0), 0.34)
+	tw.tween_property(coin, "scale", Vector2(1.0, 1.0), 0.34)
 
 func _circle(radius: float, sides: int) -> PackedVector2Array:
 	var pts = PackedVector2Array()

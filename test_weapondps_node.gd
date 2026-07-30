@@ -66,6 +66,13 @@ const HITS_PER_USE := {
 	"heavenstring":1.2, # one shaft, one pull; the value is the reposition
 	"choirstring": 3.2, # 3 notes, each humming ~4x over 2.4s
 	"heavenpoint": 1.0, # even-pierce: same wound to each, one pass
+	# ---- T6 batch 1 ----
+	"hushfall":    1.8, # the swing, then the late nova at 0.8x in a radius
+	"eclipse":     1.7, # the disc out and back, plus one shadow band at 0.85x
+	"cometfall":   2.2, # crater nova at 0.8x + the burning patch ticking 0.3x
+	"debtmark":    2.4, # the hit, then 4 barbs biting and each paying out
+	"cinderdrag":  1.5, # the maul's own hits; the embers are theatre, not dps
+	"watchfire":   3.0, # ~3 flares across 11s if something stays in the light
 	"asphodel":    4.0, # the post sends ~8 wisps over its 9s life
 	# --- pre-existing multi-hit verbs, for a fair comparison ---
 	"volley":     2.0,

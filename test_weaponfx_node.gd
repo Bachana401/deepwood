@@ -47,8 +47,12 @@ func _ready() -> void:
 	# with a parse error and all four audits still reported ALL PASS -- they
 	# read the ROSTER, never the engine the roster drives. A broken projectile
 	# script must never leave the gate green again.
+	# player.gd belongs on this list too: a bad SFX constant in a new weapon
+	# dispatch broke it and TWO audits still said ALL PASS, because only the
+	# melee walker actually instances a player (and it just timed out).
 	for engine_path in ["res://weapon_projectile.gd", "res://weapon_fx.gd",
-			"res://companion.gd", "res://embedded_stack.gd"]:
+			"res://companion.gd", "res://embedded_stack.gd",
+			"res://player.gd", "res://weapon_roster.gd"]:
 		var scr = load(engine_path)
 		check("engine compiles: " + engine_path.get_file(),
 			scr != null and scr is GDScript and (scr as GDScript).can_instantiate(),

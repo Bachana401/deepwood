@@ -122,8 +122,8 @@ const ROWS = [
 	["wpn_summitstaff",  "Summit That Walks",    "staff", 5, "staff",     19, 0.42, {"plain": true}],
 	# ---------------- TIER 6 - MYTHIC (floors 58-88) ----------------
 	["wpn_griefedge",    "Grief Made Sharp",     "melee", 6, "arc",       30, 0.4,  {"plain": true}],
-	["wpn_hushfall",     "Hushfall",             "melee", 6, "cleave",    44, 1.1,  {"knockup": true, "status": "slow_w", "fx": [{"kind": "quake", "radius": 165.0, "pct": 0.72}, {"kind": "frostbloom", "radius": 150.0}]}],
-	["wpn_eclipsewheel", "Eclipse Wheel",        "melee", 6, "orbiter",   27, 0.8,  {"dwell": 3.2,
+	["wpn_hushfall",     "Hushfall",             "melee", 6, "hushfall",  44, 1.1,  {"knockup": true, "status": "slow_w", "fx": [{"kind": "quake", "radius": 165.0, "pct": 0.72}, {"kind": "frostbloom", "radius": 150.0}]}],
+	["wpn_eclipsewheel", "Eclipse Wheel",        "melee", 6, "eclipse",   27, 0.8,  {"dwell": 3.2,
 		"fx": [{"kind": "gravity", "radius": 220.0, "pull": 160.0}, {"kind": "moonlit", "pct": 0.65}]}],
 	["wpn_dawntongue",   "Dawn's Long Tongue",   "melee", 6, "lash",      28, 0.82, {"status": "burn_w",
 		"fx": [{"kind": "echo", "pct": 0.8, "delay": 0.4}, {"kind": "goldtouch", "chance": 0.22, "gold": 4}]}],
@@ -133,13 +133,13 @@ const ROWS = [
 	["wpn_ghostrepeater","Ghost Repeater",       "bow",   6, "rapid",     14, 0.15, {"plain": true}],
 	["wpn_lodestar",     "Lodestar",             "bow",   6, "seeker",    25, 0.58, {
 		"fx": [{"kind": "brand", "amp": 0.39, "dur": 4.5}, {"kind": "chain", "n": 2, "pct": 0.65, "range": 240.0}]}],
-	["wpn_cometfall",    "Cometfall",            "bow",   6, "lob_a",     38, 1.0,  {"aoe": 130, "status": "burn_w",
+	["wpn_cometfall",    "Cometfall",            "bow",   6, "cometfall", 38, 1.0,  {"aoe": 130, "status": "burn_w",
 		"fx": [{"kind": "quake", "radius": 160.0, "pct": 0.65}, {"kind": "gravity", "radius": 190.0, "pull": 150.0}]}],
 	["wpn_deluge",       "The Deluge",           "wand",  6, "tome",      18, 1.3,  {"radius": 170, "tome_kind": "column",
 		"fx": [{"kind": "crowd", "pct_per": 0.12, "cap": 0.5}, {"kind": "quake", "radius": 150.0, "pct": 0.65}]}],
 	["wpn_shatterhymn",  "Shatterhymn",          "wand",  6, "cluster",   31, 0.78, {"shards": 8, "companion": "wisp", "c_damage": 11, "c_gap": 2.1,
 		"fx": [{"kind": "splinter", "n": 5, "pct": 0.65, "range": 175.0}, {"kind": "frostbloom", "radius": 150.0}]}],
-	["wpn_debtcollector","The Debt Collector",   "wand",  6, "ricochet",  27, 0.58, {"bounces": 6,
+	["wpn_debtcollector","The Debt Collector",   "wand",  6, "debtmark",  27, 0.58, {"bounces": 6,
 		"fx": [{"kind": "goldtouch", "chance": 0.35, "gold": 5}, {"kind": "chain", "n": 2, "pct": 0.65, "range": 250.0}]}],
 	["wpn_twelfthpillar","Twelfth Pillar",       "staff", 6, "staff",     24, 0.4,  {"plain": true}],
 	# ---------------- TIER 7 - ASCENDED (floors 70-97) ----------------
@@ -294,7 +294,7 @@ const ROWS = [
 	# ---------------- WAVE 3 - TIER 6 (22) ----------------
 	["wpn_requiemedge",  "Requiem Edge",         "melee", 6, "arc",       29, 0.38, {"plain": true}],
 	["wpn_worldanvil",   "The World-Anvil",      "melee", 6, "cleave",    42, 1.08, {"knockup": true, "fx": [{"kind": "quake", "radius": 175.0, "pct": 0.8}, {"kind": "duelist", "pct_per": 0.14, "max": 6}]}],
-	["wpn_cinderchain",  "Cinderchain",          "melee", 6, "chain_maul", 32, 0.92, {"status": "burn_w",
+	["wpn_cinderchain",  "Cinderchain",          "melee", 6, "cinderdrag", 32, 0.92, {"status": "burn_w",
 		"fx": [{"kind": "chain", "n": 2, "pct": 0.65, "range": 250.0}, {"kind": "quake", "radius": 145.0, "pct": 0.65}]}],
 	["wpn_voidwheel",    "Wheel of the Hollow",  "melee", 6, "orbiter",   26, 0.78, {"dwell": 3.2,
 		"fx": [{"kind": "gravity", "radius": 230.0, "pull": 170.0}, {"kind": "bloodprice", "pct": 0.65, "cost": 1}]}],
@@ -320,7 +320,7 @@ const ROWS = [
 		"fx": [{"kind": "splinter", "n": 5, "pct": 0.65, "range": 180.0}, {"kind": "bloodprice", "pct": 0.65, "cost": 1}]}],
 	["wpn_lastcourier",  "The Last Courier",     "wand",  6, "ricochet",  26, 0.56, {"bounces": 6,
 		"fx": [{"kind": "echo", "pct": 0.72, "delay": 0.5}, {"kind": "stormcall", "every": 4, "pct": 0.9}]}],
-	["wpn_watchfire",    "Watchfire",            "wand",  6, "sentry",    17, 1.15, {"dur": 24,
+	["wpn_watchfire",    "Watchfire",            "wand",  6, "watchfire", 17, 1.15, {"dur": 24,
 		"fx": [{"kind": "moonlit", "pct": 0.65}, {"kind": "quake", "radius": 150.0, "pct": 0.65}]}],
 	["wpn_cindershelf",  "Cindershelf",          "wand",  6, "fire",      36, 0.8,  {"aoe": 140, "status": "burn_w",
 		"fx": [{"kind": "quake", "radius": 160.0, "pct": 0.65}, {"kind": "farsight", "pct_per": 0.1, "max": 5}]}],
@@ -743,7 +743,7 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 		"worldedge":
 			# a sliver at the hilt, a horizon by the time it arrives
 			s = {"type": "world_edge", "damage": int(ex.get("p_damage", dmg)),
-				"speed": spd - 60.0, "range": rng, "tint": ex.get("tint", [0.35, 0.95, 0.5])}
+				"speed": spd - 150.0, "range": rng, "tint": ex.get("tint", [0.35, 0.95, 0.5])}
 		"risingwheel":
 			s = {"type": "rising_wheel", "damage": dmg, "speed": spd, "range": 150.0}
 		"nova":
@@ -783,6 +783,23 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			s = {"type": "piercing_point", "damage": dmg, "speed": spd + 340.0, "range": rng + 90.0}
 		"asphodel":
 			s = {"type": "asphodel_post", "damage": maxi(1, int(round(float(dmg) * 0.9)))}
+		# ---- T6 batch 1 ----
+		"hushfall":
+			# a CLEAVE: the sound comes back to where the blade actually was,
+			# not to bow range (rng * 0.55 put it 324px away, off the fight)
+			s = {"type": "late_thunder", "damage": dmg, "reach": 78.0}
+		"eclipse":
+			s = {"type": "eclipse_disc", "damage": dmg,
+				"speed": spd + 260.0, "range": rng}
+		"cometfall":
+			s = {"type": "comet", "damage": dmg, "speed": spd - 150.0,
+				"range": rng + 20.0, "lift": 330.0}
+		"watchfire":
+			s = {"type": "watch_fire", "damage": maxi(1, int(round(float(dmg) * 0.85)))}
+		"debtmark":
+			s = {"type": "debt_mark", "damage": dmg, "speed": spd + 60.0, "range": rng}
+		"cinderdrag":
+			s = {"type": "cinder_drag", "damage": dmg, "range": rng + 40.0}
 		"staff":
 			s = {"type": "staff_extend"}
 	if not st.is_empty():
@@ -856,6 +873,12 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"choirstring": return "Each shaft that lands plants a NOTE, humming where it stuck. Fill a room with notes and the room sings -- and singing hurts."
 		"heavenpoint": return "One lance, and everything standing in the line takes the SAME wound. It does not weaken for the second body, or the third."
 		"asphodel":    return "Plants a pale marker in the ground. It stands there on its own and keeps sending wisps out after whatever is nearest, long after you have moved on."
+		"hushfall":    return "The blow lands in SILENCE. The sound of it arrives a moment later, from where you struck, and the sound is the heavier half."
+		"eclipse":     return "The wheel rolls out and goes DARK, and the shadow it throws is the weapon -- a long band of night that cuts everything standing in it."
+		"cometfall":   return "Lobs high and comes down as a COMET, cratering where it lands and leaving the ground burning for whatever walks in next."
+		"watchfire":   return "Plants a low fire that WAITS. It burns quiet and does nothing at all until something walks into its light -- and then it answers all at once."
+		"debtmark":    return "Marks a debtor. The debt bites while they live -- and if they die still owing, the book does not close: it passes to whoever is standing nearest."
+		"cinderdrag":  return "The head drags as it goes, and everything the chain crosses catches. The floor keeps the shape of your swing in embers."
 		"riftburst":   return "The bolt does not burst, it OPENS: a tear hangs in the air hauling everything toward its middle -- and then it shuts, and the shutting is what kills."
 		"shardregent": return "The shards do not leave together. They CROWN you first, orbiting a moment, and then go one after another at whatever is nearest."
 		"bentheaven":  return "The ray refuses to go straight. It climbs over whatever stands between and comes down on the far side, which makes cover an opinion rather than a fact."

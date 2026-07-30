@@ -25,6 +25,11 @@ var pop_damage := 30         # what the OLDEST barb does when pushed out
 # this set, a barb pays its pop when its own time runs out, not only when a
 # newer one shoves it off.
 var pop_on_expire := false
+# THE DEBT COLLECTOR (T6) wants a THIRD economy: Regicide overflows, the
+# Reckoning comes due, and this one INHERITS. If the debtor dies still owing,
+# the book does not close -- it moves to whoever is standing nearest, one
+# stack heavier for the trouble.
+var transfer_on_death := false
 var tint := Color(0.95, 0.85, 0.45)
 var owner_player: Node = null
 
@@ -47,6 +52,7 @@ static func drive(victim: Node2D, k: String, cfg: Dictionary) -> Node:
 	s.pop_damage = int(cfg.get("pop", 30))
 	s.owner_player = cfg.get("player", null)
 	s.pop_on_expire = bool(cfg.get("pop_on_expire", false))
+	s.transfer_on_death = bool(cfg.get("transfer_on_death", false))
 	if cfg.has("tint"):
 		s.tint = cfg["tint"]
 	s.add_to_group(GROUP)
@@ -70,6 +76,8 @@ func _process(delta: float) -> void:
 	var victim := get_parent()
 	if victim == null or not is_instance_valid(victim) \
 			or ("is_dead" in victim and victim.is_dead):
+		if transfer_on_death and not _barbs.is_empty():
+			_inherit()
 		queue_free()
 		return
 	# barbs whose time ran out leave the same way they would if pushed
@@ -91,6 +99,49 @@ func _process(delta: float) -> void:
 				FloatingText.spawn(_stage(), (victim as Node2D).global_position
 					+ Vector2(randf_range(-20.0, 20.0), -26.0), total, false)
 	_animate_barbs()
+
+# the debtor died owing: the book moves to the nearest body still standing,
+# one stack heavier. A room can pass one debt around until it runs out of
+# people, which is the entire fantasy of the weapon.
+func _inherit() -> void:
+	var here: Vector2 = global_position
+	var owed: int = _barbs.size()
+	var best: Node2D = null
+	var best_d := 340.0
+	for group_name in ["course_enemy", "dungeon_combatant", "siege_enemy"]:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or e == get_parent():
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if not e.has_method("take_damage"):
+				continue
+			var d: float = here.distance_to((e as Node2D).global_position)
+			if d < best_d:
+				best_d = d
+				best = e
+	if best == null:
+		return
+	var heir = (load("res://embedded_stack.gd") as GDScript).new()
+	heir.kind = kind
+	heir.max_stacks = max_stacks
+	heir.tick_gap = tick_gap
+	heir.life = life
+	heir.tick_damage = tick_damage
+	heir.pop_damage = pop_damage
+	heir.owner_player = owner_player
+	heir.pop_on_expire = pop_on_expire
+	heir.transfer_on_death = transfer_on_death
+	heir.tint = tint
+	heir.add_to_group(GROUP)
+	heir.z_index = 6
+	best.add_child(heir)
+	for i in range(mini(max_stacks, owed + 1)):
+		heir.add_one(0)
+	var host := _stage()
+	if host != null:
+		FloatingText.spawn_word(host, (best as Node2D).global_position + Vector2(0, -46),
+			"the debt passes", Color(0.98, 0.86, 0.42))
 
 func _pop_oldest() -> void:
 	if _barbs.is_empty():
