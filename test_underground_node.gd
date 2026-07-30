@@ -32,7 +32,7 @@ func check(label: String, ok: bool) -> void:
 # another session) stopped it booting, the run reported "ALL PASS (27 passed)"
 # and exited 0 -- a green light over a third of a suite. Never again: the count
 # itself is now an assertion.
-const EXPECTED_CHECKS := 96
+const EXPECTED_CHECKS := 101
 
 func _ready() -> void:
 	_test_generator()
@@ -69,11 +69,48 @@ func _test_generator() -> void:
 				blocked += 1
 				break
 		if not _solid(ug, c.x, c.y):
+			# sinkholes are DELIBERATE falls (checked by their own rules above)
+			if ug._in_span(ug._hole_air, c.y, c.x) or ug._in_span(ug._hole_air, c.y + 1, c.x) \
+					or ug._hole_caps.has(c) or ug._hole_caps.has(c + Vector2i(-1, 0)):
+				continue
 			var drop := 0
 			while drop < 60 and ug._gen_kind(c.x, c.y + 1 + drop) == UG.AIR:
 				drop += 1
 			worst_fall = maxi(worst_fall, drop)
 	check("the player fits along the whole road", blocked == 0)
+	# ── 1a. SINKHOLES: deliberate falls, by the dev's own correction ──
+	# "0 fall damage should not be a thing -- there should be places to fall,
+	# just not at the very spawn, and holes should lead somewhere."
+	check("the road carries sinkholes (%d)" % ug._holes.size(), ug._holes.size() >= 6)
+	var safe_y: int = ug._doors[UG.SAFE_DOORS - 1].y
+	var too_early := 0
+	var too_deep := 0
+	var no_floor := 0
+	var wet_n := 0
+	var capped_n := 0
+	var chest_n := 0
+	for h in ug._holes:
+		if int(h.top.y) < safe_y - 10:
+			too_early += 1
+		if int(h.depth) > UG.HOLE_DROP_MAX:
+			too_deep += 1
+		# the pocket must LAND you: solid ground under it, not a stacked second fall
+		var bot: Vector2i = h.bottom
+		if not _solid(ug, bot.x, bot.y + 1):
+			no_floor += 1
+		if bool(h.wet):
+			wet_n += 1
+		if h.has("chest") and bool(h.chest):
+			chest_n += 1
+	for cap in ug._hole_caps.keys():
+		capped_n += 1
+	check("no sinkhole before the safe first %d floors (%d early)" % [UG.SAFE_DOORS, too_early],
+		too_early == 0)
+	check("every fall stings but never mauls (max %d tiles, %d over)" % [UG.HOLE_DROP_MAX, too_deep],
+		too_deep == 0)
+	check("every sinkhole LANDS somewhere (%d bottomless)" % no_floor, no_floor == 0)
+	check("some are flooded, some capped with sand, some pay a chest (%d/%d/%d)"
+		% [wet_n, capped_n, chest_n], wet_n > 0 and capped_n > 0 and chest_n > 0)
 	# THE GUARANTEE IS "NO FALL DAMAGE", not "no fall". Where two passes of the
 	# road run close, one loses its floor to the other's headroom, and the honest
 	# fix is to let you drop onto the road below rather than to seal that lower
@@ -115,7 +152,11 @@ func _test_generator() -> void:
 				var land: int = top + run + drop
 				if not (ug._in_span(ug._road_air, land, c.x)
 						or ug._in_span(ug._road_air, land - 1, c.x)
-						or ug._gen_kind(c.x, land) == UG.WATER):
+						or ug._gen_kind(c.x, land) == UG.WATER
+						or ug._in_span(ug._hole_air, land, c.x)
+						or ug._in_span(ug._hole_air, land - 1, c.x)):
+					# a sinkhole's shaft or pocket is a DESTINATION, floored and
+					# enclosed -- falling into one is the feature, not a bypass
 					breakthroughs += 1
 	var mean_dig := int(float(dig_total) / maxf(1.0, float(dig_n)))
 	check("the road rides on real mass (mean %d tiles to dig through)" % mean_dig, mean_dig >= 9)

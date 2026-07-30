@@ -109,6 +109,7 @@ var _route_start := Vector2i.ZERO      # where the road leaves the entry chamber
 
 func _ready() -> void:
 	add_to_group("tile_world")
+	add_to_group("esc_window")   # the fullscreen map counts as UI: no mining through it
 	GameState.in_dungeon = true          # so village-only ticks stay quiet
 	GameState.returning_from_dungeon = false   # we own the return here; don't hand the village a stale flag
 	_init_noise()
@@ -197,6 +198,7 @@ func _init_noise() -> void:
 	_roadw.frequency = 0.018
 	_build_route()          # the walkable way down + the 100 doors chained along it
 	_build_lakes()          # water basins, placed around the road
+	_build_sinkholes()      # the road's deliberate treachery (after lakes: pockets can flood)
 	_build_crystals()       # the Life Crystals, once the terrain is settled
 
 const ENTRY_ROW := 5
@@ -549,6 +551,135 @@ func _entry_kind(x: int, y: int) -> int:
 		return _biome_of(y)
 	return -999
 
+# ══ SINKHOLES ════════════════════════════════════════════════════════════════
+# The dev's correction to a road that had become TOO safe: "0 fall damage should
+# not be a thing -- there should be places to fall, just not at the very spawn,
+# and holes should lead somewhere."
+#
+# So beyond the early game the road carries deliberate treachery: shafts that
+# pierce the bed and its apron and drop you 30-50 tiles into a carved pocket --
+# flooded (a soft landing and a swim out), or dry with a chest (paid for in
+# health), or straight through into whatever cave the shaft crossed on the way.
+# Half are CAPPED WITH SAND: the road looks whole until you stand on it and the
+# floor gives way underfoot. The fall stings (up to ~40 damage) but is never
+# close to lethal, and the first SAFE_DOORS floors of road carry none at all.
+const SAFE_DOORS := 8                  # the spawn stretch keeps the old guarantee
+const HOLE_EVERY := 340                # ~one per this many path cells beyond the safe zone
+const HOLE_DROP_MIN := 30              # tiles: 360px -> 9 damage
+const HOLE_DROP_MAX := 48              # tiles: 576px -> 41 damage. Felt, survivable.
+var _hole_air: Array = []              # y -> spans: the shaft + its pocket
+var _hole_caps := {}                   # cell -> true: the sand lids
+var _holes: Array = []                 # registry: {top, bottom, depth, wet, chest}
+var _holes_by_chunk := {}
+
+func _build_sinkholes() -> void:
+	_hole_air = _new_rows()
+	_hole_caps = {}
+	_holes = []
+	_holes_by_chunk = {}
+	if _doors.size() < SAFE_DOORS + 2 or _path.is_empty():
+		return
+	# where the safe stretch ends, in path-index terms
+	var safe_end := 0
+	var d_i := 0
+	for k in range(_path.size()):
+		if d_i < _doors.size() and _path[k] == _doors[d_i]:
+			d_i += 1
+			if d_i > SAFE_DOORS:
+				safe_end = k
+				break
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0x51C0 ^ _seed
+	var i := safe_end + rng.randi_range(60, HOLE_EVERY)
+	while i < _path.size() - 40:
+		var top: Vector2i = _path[i]
+		i += rng.randi_range(int(HOLE_EVERY * 0.6), int(HOLE_EVERY * 1.5))
+		# never beside a door (landings stay honest) and never under a wade
+		# (the water would drain through the road into the shaft)
+		var near_door := false
+		for dcell in _doors:
+			if absi(dcell.x - top.x) < 14 and absi(dcell.y - top.y) < 10:
+				near_door = true
+				break
+		if near_door or _in_span(_road_flood, top.y - 1, top.x):
+			continue
+		var depth := rng.randi_range(HOLE_DROP_MIN, HOLE_DROP_MAX)
+		if top.y + depth + 8 >= DEPTH - 6:
+			continue
+		# never through ANOTHER pass of the road: a shaft that crosses a lower
+		# corridor punches a gap in its bed and hangs sand in its headroom --
+		# the audit's 3 unfittable cells. The road promised itself first.
+		var crosses := false
+		for dy in range(0, depth + 6):
+			if _in_span(_road_air, top.y + dy, top.x) or _in_span(_road_rock, top.y + dy, top.x) \
+					or _in_span(_road_air, top.y + dy, top.x - 1) or _in_span(_road_rock, top.y + dy, top.x - 1):
+				if dy > 1:                     # our own bed at the lip is expected
+					crosses = true
+					break
+		if crosses:
+			continue
+		var wet := rng.randf() < 0.35
+		var chest := not wet and rng.randf() < 0.55
+		var capped := rng.randf() < 0.5
+		# the shaft: 2 wide, from the bed down through the apron
+		for dy in range(0, depth):
+			_add_span(_hole_air, top.y + dy, top.x - 1, top.x)
+		# the pocket at the bottom: wide enough to stand and look around in
+		var by := top.y + depth
+		for dy in range(0, 4):
+			_add_span(_hole_air, by + dy, top.x - 4, top.x + 3)
+		# a GUARANTEED floor under the pocket (audit: a shaft that happened to
+		# open into natural cave below stacked the two drops into 64 tiles --
+		# past the promise that a sinkhole stings but never mauls)
+		for dy in range(4, 6):
+			_add_span(_road_rock, by + dy, top.x - 5, top.x + 4)
+		if wet:
+			for dy in range(1, 4):
+				_add_span(_water_rows, by + dy, top.x - 4, top.x + 3)
+		if capped:
+			_hole_caps[Vector2i(top.x - 1, top.y)] = true
+			_hole_caps[Vector2i(top.x, top.y)] = true
+		var bottom := Vector2i(top.x, by + 3)
+		_holes.append({"top": top, "bottom": bottom, "depth": depth, "wet": wet, "chest": chest})
+		var key := _chunk_of_cell(bottom)
+		if not _holes_by_chunk.has(key):
+			_holes_by_chunk[key] = []
+		_holes_by_chunk[key].append(_holes.size() - 1)
+	_merge_rows(_hole_air)
+	_merge_rows(_water_rows)               # the flooded pockets joined after the lakes
+	_merge_rows(_road_rock)                # ...and the pocket floors joined the bed table
+
+# the chest at the bottom of a dry sinkhole -- the fall, paid back
+func _place_hole_loot(c: Vector2i, nodes: Array, rng: RandomNumberGenerator) -> void:
+	var here = _holes_by_chunk.get(c)
+	if here == null:
+		return
+	for hi in here:
+		var h: Dictionary = _holes[hi]
+		if not bool(h.chest):
+			continue
+		var bc: Vector2i = h.bottom
+		var floor_c := _floor_near(bc.x, bc.y - 2)
+		if floor_c.x > -9000:
+			nodes.append(_spawn_chest(floor_c, _biome_of(bc.y), rng, "ug_hole%d" % hi))
+
+# a sand cap CREAKS AND GOES when someone stands on it
+var _cap_cd := 0.0
+func _tick_hole_caps(delta: float) -> void:
+	_cap_cd -= delta
+	if _cap_cd > 0.0 or _player == null or not is_instance_valid(_player):
+		return
+	_cap_cd = 0.2
+	var fc := _cell_at(_player.global_position + Vector2(0, 30))
+	for probe in [fc, fc + Vector2i(-1, 0), fc + Vector2i(1, 0)]:
+		if _hole_caps.has(probe) and _cell_kind(probe) == SAND:
+			_notify("⚠ The ground gives way!")
+			_topple_sand(probe + Vector2i(0, 1))
+			for n in [probe + Vector2i(-1, 0), probe + Vector2i(1, 0)]:
+				if _hole_caps.has(n) and _cell_kind(n) == SAND:
+					_topple_sand(n + Vector2i(0, 1))
+			return
+
 # ══ WATER: CARVED BASINS ═════════════════════════════════════════════════════
 # Terraria's water sits in real bowls with a flat surface. Noise can't promise
 # that, and a chunk-local flood fill can't either (a basin straddling two chunks
@@ -750,6 +881,12 @@ func _gen_kind(x: int, y: int) -> int:
 	# would punch a real hole are prevented up front instead, in _leg_clear.
 	if _in_span(_road_flood, y, x):
 		return WATER                                  # a stretch the road wades through
+	# SINKHOLES pierce everything the road guarantees -- that is their job.
+	# The sand caps come first so a capped shaft still reads as floor.
+	if _hole_caps.has(Vector2i(x, y)):
+		return SAND
+	if _in_span(_hole_air, y, x):
+		return AIR
 	if _in_span(_road_air, y, x):
 		return AIR
 	if _in_span(_road_rock, y, x):
@@ -962,8 +1099,6 @@ func _unload_chunk(c: Vector2i) -> void:
 			_watermap.erase_cell(cell)
 			_lavamap.erase_cell(cell)
 			_lavaglow.erase_cell(cell)
-			_lavamap.erase_cell(cell)
-			_lavaglow.erase_cell(cell)
 			_sparkmap.erase_cell(cell)
 	_loaded.erase(c)
 
@@ -1049,6 +1184,7 @@ func _populate_chunk(c: Vector2i) -> void:
 	_place_lake_life(c, nodes)
 	_place_road_lamps(c, nodes)
 	_place_crystals(c, nodes)
+	_place_hole_loot(c, nodes, rng)
 	_seed_traversal(c, rng)
 	_place_traversal(c, nodes, rng)
 	_place_tracks(c, nodes)
@@ -1613,11 +1749,33 @@ func _set_lava(cell: Vector2i, v: int) -> void:
 func _quench(cell: Vector2i) -> void:
 	_lv.erase(cell)
 	_ll.erase(cell)
+	# ON THE ROAD, THE MEETING FLASHES TO STEAM instead (review finding 7): a
+	# quench in the corridor or a wade planted tier-2 obsidian across the one
+	# route the game promises is always passable -- and across the minecart
+	# rails that ride it. The liquids are still both spent; there is just no
+	# stone left behind where the road runs.
+	if _in_span(_road_air, cell.y, cell.x) or _in_span(_road_flood, cell.y, cell.x):
+		_watermap.erase_cell(cell)
+		_lavamap.erase_cell(cell)
+		_lavaglow.erase_cell(cell)
+		_edits[cell] = AIR
+		_map.erase_cell(cell)
+		_fk[cell] = false
+		_disturb(cell)
+		_chips(_map.to_global(_map.map_to_local(cell)), Color(0.85, 0.88, 0.92), false)
+		return
 	_edits[cell] = OBSIDIAN
+	# TELL THE TICK CACHE (chaos soak, I2). _fk assumes solidity cannot change
+	# during a flow tick, and quenching is the one thing that changes it: without
+	# this line a later flow in the SAME tick still read this cell as open,
+	# poured liquid into the new obsidian, and the wake queue -- which refuses
+	# solid cells -- could never clean it out again.
+	_fk[cell] = true
 	_watermap.erase_cell(cell)
 	_lavamap.erase_cell(cell)
 	_lavaglow.erase_cell(cell)
 	_map.set_cell(cell, 0, Vector2i(OBSIDIAN, TILE_EXPOSED))
+	_reface(cell)                     # ...with its real neighbour mask, not a guess
 	for d in [Vector2i(0, 1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(1, 0)]:
 		_reface(cell + d)
 	_disturb(cell)
@@ -1862,6 +2020,11 @@ func _cart_tick(delta: float) -> bool:
 	if _riding == null or not is_instance_valid(_riding):
 		_riding = null
 		return false
+	# the chart is up: HOLD. Driving blind through wades and keg fields at
+	# 430 px/s behind an opaque map was the review's finding 4.
+	if _mapview != null and _mapview.visible:
+		_player.velocity = Vector2.ZERO
+		return true
 	var run: int = int(_riding.get_meta("run"))
 	var from: int = int(_track_runs[run][0])
 	var to: int = int(_track_runs[run][1])
@@ -1879,6 +2042,13 @@ func _cart_tick(delta: float) -> bool:
 		_leave_cart()
 		return false
 	var cell: Vector2i = _path[int(_cart_i)]
+	# an OBSTRUCTION on the line -- quenched obsidian, landed sand, anything solid
+	# where the rail runs -- stops the cart instead of teleporting the rider
+	# through rock (review finding 7)
+	if _solid_kind(cell) or _solid_kind(cell + Vector2i(0, -1)):
+		_leave_cart()
+		_notify("🛑 The line is blocked — the cart stops.")
+		return false
 	_player.global_position = _map.to_global(_map.map_to_local(cell)) + Vector2(0, -18.0)
 	_player.velocity = Vector2.ZERO
 	if _riding != null:
@@ -1919,6 +2089,10 @@ func _start_sand_fall(cell: Vector2i) -> void:
 	_hp.erase(cell)
 	_map.erase_cell(cell)
 	_reface(cell + Vector2i(0, 1))
+	# the grain may have been HOLDING LIQUID UP (review finding: a pool settled on
+	# a sand column hung frozen in the air when the column toppled -- the exact
+	# "water like glass" class the flow automaton exists to kill)
+	_disturb(cell)
 	var g := Node2D.new()
 	g.z_index = 9
 	add_child(g)
@@ -1965,6 +2139,7 @@ func _sand_tick(delta: float) -> void:
 			_lavamap.erase_cell(here)
 			_lavaglow.erase_cell(here)
 			_map.set_cell(here, 0, Vector2i(SAND, TILE_EXPOSED))
+			_reface(here)
 			_reface(here + Vector2i(0, 1))
 			_disturb(here)                     # neighbouring water reacts to the new block
 			_chips(g.global_position, Color(0.72, 0.61, 0.38), false)
@@ -2148,6 +2323,11 @@ func _attach(n: Node, cell: Vector2i) -> void:
 func _rope_tick(delta: float) -> bool:
 	var cell := _cell_at(_player.global_position)
 	var on := _ropes.has(cell) or _ropes.has(cell + Vector2i(0, 1))
+	if on and _on_rope and _mapview != null and _mapview.visible:
+		# chart up: just hang where we are, deaf to the climb keys
+		_player.global_position.y = _rope_y
+		_player.velocity.y = 0.0
+		return true
 	if not on or Input.is_action_just_pressed("jump"):
 		_on_rope = false
 		return false
@@ -2217,12 +2397,24 @@ var _map_drag := false
 func _map_w() -> int: return int(WIDTH / MAP_SCALE)
 func _map_h() -> int: return int(DEPTH / MAP_SCALE)
 
+# the ui_blocks_world_input contract (player.gd): while the map is up, swings
+# and digs must not carve the world behind the chart
+func esc_is_open() -> bool:
+	return _mapview != null and _mapview.visible
+
 func _toggle_map() -> void:
 	if _mapview != null and _mapview.visible:
 		_mapview.visible = false
 		return
-	if _mapview == null:
-		_build_mapview()
+	# REBUILD EVERY OPEN (review finding: the chart went permanently stale after
+	# its one sweep -- digs, craters and taken crystals never appeared, and a
+	# spent Life Crystal kept its dot). A fresh build restarts the surveyor's
+	# sweep over the CURRENT world and re-reads every marker's state.
+	if _mapview != null:
+		_mapview.queue_free()
+		_mapview = null
+	_map_built = 0
+	_build_mapview()
 	_mapview.visible = true
 	# open FITTED, the whole world in view, centred -- then wheel in
 	var vp := get_viewport().get_visible_rect().size
@@ -2318,10 +2510,17 @@ func _map_build_step() -> void:
 	_map_tex.update(_map_img)
 
 func _map_pixel(cell: Vector2i) -> Color:
+	# LEDGERS FIRST (review finding: flowed liquid painted as open cave, drained
+	# lakes painted full). _wlevel/_llevel already fold generation in, so this is
+	# simply the truth: where liquid IS, not where it was born.
+	if _wlevel(cell) >= 1:
+		return Color(0.16, 0.38, 0.80)
+	if _llevel(cell) >= 1:
+		return Color(0.95, 0.42, 0.10)
 	var k := _cell_kind(cell)
 	match k:
-		WATER: return Color(0.16, 0.38, 0.80)
-		LAVA: return Color(0.95, 0.42, 0.10)
+		WATER: return Color(0.07, 0.065, 0.08)    # drained: open cave now
+		LAVA: return Color(0.07, 0.065, 0.08)
 		SAND: return Color(0.66, 0.56, 0.34)
 		OBSIDIAN: return Color(0.28, 0.20, 0.42)
 		AIR:
@@ -2358,7 +2557,8 @@ func _map_name_at(cell: Vector2i, px: Vector2) -> String:
 func _map_input(e: InputEvent) -> bool:
 	if _mapview == null or not _mapview.visible:
 		return false
-	if e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_ESCAPE:
+	if e is InputEventKey and e.pressed and not e.echo \
+			and (e.keycode == KEY_ESCAPE or e.keycode == KEY_M):
 		_mapview.visible = false
 		return true
 	if e is InputEventMouseButton:
@@ -2623,7 +2823,7 @@ func _spot_ok(cell: Vector2i, need_dry := true) -> bool:
 	if not _solid_kind(cell + Vector2i(0, 1)):
 		return false                                   # nothing to stand on
 	var ck := _cell_kind(cell)
-	if need_dry and (ck == WATER or ck == LAVA):
+	if need_dry and (ck == WATER or ck == LAVA or _wlevel(cell) >= 4 or _llevel(cell) >= 1):
 		return false                                   # don't spawn things in a lake
 	for dy in range(0, SPOT_H):
 		for dx in range(-SPOT_HALF_W, SPOT_HALF_W + 1):
@@ -3245,6 +3445,7 @@ func _process(delta: float) -> void:
 				ev.y = clampf(ev.y, SWIM_RISE, SWIM_SINK)
 				ev.x = clampf(ev.x, -SWIM_X, SWIM_X)
 				e.velocity = ev
+	_tick_hole_caps(delta)
 	_update_depth_hud()
 	_update_cursor_box()
 	if _mapview != null and _mapview.visible:
@@ -3268,6 +3469,13 @@ func _free_the_stuck() -> void:
 		if not is_instance_valid(e) or e.get_parent() != self:
 			continue
 		var cell := _map.local_to_map(_map.to_local(e.global_position))
+		# OUTSIDE THE LOADED BUBBLE nothing is real: no tiles, no collision --
+		# a mob knocked out of it (a blast off the bubble's edge) free-falls
+		# through unloaded space forever, simulating all the way (the chaos
+		# soak's I4 phantoms, two of them at the same x hundreds of rows deep).
+		if not _loaded.has(_chunk_of_cell(cell)):
+			e.queue_free()
+			continue
 		if not _solid_kind(cell):
 			continue                                   # standing in open air, fine
 		var moved := false
@@ -3284,6 +3492,19 @@ func _free_the_stuck() -> void:
 				break
 		if not moved:
 			e.queue_free()                             # sealed in solid rock -> let it go
+	# ...and the PLAYER gets the same mercy, minus the letting-go (review finding
+	# 7: sand or a quench can solidify the cell they stand in, and no sweep
+	# covered them -- a CharacterBody2D cannot push itself out of collision).
+	if _player != null and is_instance_valid(_player):
+		var pcell := _cell_at(_player.global_position)
+		if _solid_kind(pcell) and _loaded.has(_chunk_of_cell(pcell)):
+			for up in range(1, 13):
+				var pc2 := pcell - Vector2i(0, up)
+				if not _solid_kind(pc2) and not _solid_kind(pc2 - Vector2i(0, 1)) \
+						and not _solid_kind(pc2 - Vector2i(0, 2)):
+					_player.global_position = _map.to_global(_map.map_to_local(pc2 - Vector2i(0, 1)))
+					_player.velocity = Vector2.ZERO
+					break
 
 # ══ SWIMMING ═════════════════════════════════════════════════════════════════
 # Terraria water: you slow right down, you sink gently instead of falling, you
@@ -3571,6 +3792,12 @@ func _load_save() -> void:
 			var wp: PackedStringArray = String(k).split(",")
 			if wp.size() == 2:
 				var wcell := Vector2i(int(wp[0]), int(wp[1]))
+				# HEAL, don't trust: a level recorded inside solid rock (a save
+				# written by an older bug, or rock added after the save) would be
+				# unreachable forever -- the wake queue refuses solid cells. The
+				# edits are already loaded above, so solidity here is the truth.
+				if int(wsave[k]) > 0 and (_solid_kind(wcell) or _cell_kind(wcell) == LAVA):
+					continue
 				_lv[wcell] = int(wsave[k])
 				# WAKE what we load (review finding 7): leaving the cave mid-drain
 				# saved the water in whatever half-poured shape it held, and on
@@ -3585,6 +3812,8 @@ func _load_save() -> void:
 			var lp: PackedStringArray = String(k).split(",")
 			if lp.size() == 2:
 				var lcell := Vector2i(int(lp[0]), int(lp[1]))
+				if int(lsave[k]) > 0 and (_solid_kind(lcell) or _cell_kind(lcell) == WATER):
+					continue                       # heal phantom lava the same way
 				_ll[lcell] = int(lsave[k])
 				if int(lsave[k]) > 0:
 					_wake(lcell)
@@ -4107,7 +4336,11 @@ func _spawn_exit() -> void:
 var _exit_area: Area2D = null
 
 func _unhandled_input(e: InputEvent) -> void:
-	if _map_input(e):
+	# WHILE THE CHART IS UP, IT OWNS THE KEYBOARD (review finding: E still boarded
+	# carts, lit kegs and entered floor doors BLIND behind the 93%-opaque map).
+	# Everything goes to the map; what it doesn't use dies here.
+	if _mapview != null and _mapview.visible:
+		_map_input(e)
 		return
 	# the full map is ADMIN kit (dev call, 2026-07-30): launch --dev to use it
 	if e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_M and GameState.dev_mode:

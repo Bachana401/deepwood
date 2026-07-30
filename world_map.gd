@@ -40,6 +40,7 @@ func _ready() -> void:
 	# an hour of "the loop is right, where are the dots". The map lives above
 	# the pause.
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	add_to_group("esc_window")   # ui_blocks_world_input: no swinging through the chart
 
 func open_map(rects: Array, markers: Array, live_groups: Dictionary, player: Node) -> void:
 	_teardown()
@@ -205,3 +206,7 @@ func _live_name(n: Node) -> String:
 	if dot != null and is_instance_valid(dot):
 		return String(dot.get_meta("map_label", "Someone"))
 	return "Someone"
+
+# the ui_blocks_world_input contract (player.gd)
+func esc_is_open() -> bool:
+	return visible

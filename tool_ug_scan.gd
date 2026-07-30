@@ -84,6 +84,8 @@ func _audit_descent() -> void:
 	var blocked_at := []
 	var holes := 0                   # a cell with no floor under it
 	var wet_bed := 0
+	var sink_falls := 0
+	var sink_worst := 0
 	var air_bed := 0
 	var worst_fall := 0
 	var worst_fall_at := Vector2i.ZERO
@@ -117,6 +119,13 @@ func _audit_descent() -> void:
 			var drop := 0
 			while drop < 300 and ug._gen_kind(c.x, c.y + 1 + drop) == UG.AIR:
 				drop += 1
+			# a SINKHOLE is a deliberate fall (dev: "0 fall damage should not be a
+			# thing") -- judged by its own rules below, not as a road defect
+			if ug._in_span(ug._hole_air, c.y, c.x) or ug._in_span(ug._hole_air, c.y + 1, c.x) \
+					or ug._hole_caps.has(c) or ug._hole_caps.has(c + Vector2i(-1, 0)):
+				sink_falls += 1
+				sink_worst = maxi(sink_worst, drop)
+				continue
 			if drop > 0:
 				holes += 1
 			if drop > worst_fall:
@@ -208,7 +217,9 @@ func _audit_descent() -> void:
 	say("  ⛔ cells the player CANNOT FIT through : %d %s"
 		% [blocked, str(blocked_at) if blocked > 0 else ""])
 	say("  cells with no floor underfoot         : %d  (bed turned to AIR: %d, to WATER: %d)" % [holes, air_bed, wet_bed])
-	say("  WORST FALL from the road : %d tiles (%d px) at %s"
+	say("  SINKHOLES met on the walk: %d   deepest %d tiles (%d px -> %d damage)  [deliberate]"
+		% [sink_falls, sink_worst, sink_worst * UG.TILE, int(maxf(0.0, float(sink_worst * UG.TILE) - 300.0) * 0.15)])
+	say("  WORST ACCIDENTAL FALL    : %d tiles (%d px) at %s"
 		% [worst_fall, worst_fall * UG.TILE, str(worst_fall_at)])
 	say("  falls that cost health   : %d   total fall damage walking the whole road: %d"
 		% [falls_that_hurt, total_damage])
