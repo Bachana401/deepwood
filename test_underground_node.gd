@@ -327,6 +327,64 @@ func _test_in_engine() -> void:
 	ug._try_place_own_torch()
 	check("a torch cannot be planted inside solid rock", ug._own_torches.size() == n_before)
 
+	# ── ROPES AND PLATFORMS ──
+	ug._ropes = {}
+	ug._platforms = {}
+	p.inventory.add_item("resin", 4)
+	p.inventory.add_item("wood", 6)
+	# a rope pays out down an open shaft and can be climbed both ways
+	var shaft: Vector2i = ug._door_stand(ug._doors[2]) - Vector2i(0, 1)
+	p.global_position = ug._map.to_global(ug._map.map_to_local(shaft))
+	var resin_before: int = p.inventory.get_count("resin")
+	ug._try_place_rope()
+	check("a rope pays out from where you stand", ug._ropes.size() >= 1)
+	check("...and it costs resin", p.inventory.get_count("resin") == resin_before - 1)
+	# every rope cell must be open -- a rope through rock would be nonsense
+	var rope_in_rock := 0
+	for cell in ug._ropes.keys():
+		if ug._cell_kind(cell) != UG.AIR:
+			rope_in_rock += 1
+	check("no rope cell runs through solid rock", rope_in_rock == 0)
+	# climbing: hold on the rope, then haul up
+	var rc: Vector2i = ug._ropes.keys()[0]
+	p.global_position = ug._map.to_global(ug._map.map_to_local(rc))
+	p.velocity = Vector2(0, 800.0)                 # falling hard
+	ug._on_rope = false
+	var held: bool = ug._rope_tick(0.016)
+	check("grabbing a rope arrests a fall", held and p.velocity.y == 0.0)
+	var y0: float = p.global_position.y
+	ug._rope_tick(0.016)
+	check("...and hanging still does not sag", is_equal_approx(p.global_position.y, y0))
+
+	# a platform is one-way: solid from above, open from below
+	var pf_at: Vector2i = shaft + Vector2i(0, -3)
+	p.global_position = ug._map.to_global(ug._map.map_to_local(pf_at + Vector2i(0, -2)))
+	var wood_b: int = p.inventory.get_count("wood")
+	ug._try_place_platform()
+	check("a platform is laid at your feet", ug._platforms.size() >= 1)
+	check("...and it costs wood", p.inventory.get_count("wood") == wood_b - 2)
+	var plat = get_tree().get_nodes_in_group("ug_platform")
+	check("the platform exists as a body you can stand on", plat.size() >= 1)
+	if plat.size() >= 1:
+		var one = plat[0]
+		var shape: CollisionShape2D = one.get_child(0)
+		check("the platform is ONE-WAY, so you jump up through it", shape.one_way_collision)
+		# holding down drops you through it
+		p.global_position = one.global_position - Vector2(0, 24)
+		ug._drop_cd = 0.0
+		Input.action_press("ui_down")              # KEY_DOWN is what _drop_through reads
+		ug._drop_through(0.016)
+		Input.action_release("ui_down")
+	# and both survive the round trip
+	ug._save()
+	var ropes_n: int = ug._ropes.size()
+	var plats_n: int = ug._platforms.size()
+	ug._ropes = {}
+	ug._platforms = {}
+	ug._load_save()
+	check("ropes and platforms survive a save and reload",
+		ug._ropes.size() == ropes_n and ug._platforms.size() == plats_n)
+
 	# ── THE POWDER KEGS ──
 	# Somewhere solid, well away from the road, so the crater is measurable.
 	var kc := Vector2i(ug._doors[3].x + 60, ug._doors[3].y + 40)

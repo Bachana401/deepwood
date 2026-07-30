@@ -101,6 +101,35 @@ func _ready() -> void:
 		await _shot("ug_keg_fuse")
 		await _settle(0.9)
 		await _shot("ug_keg_boom")
+	# ── a rope and a plank walkway, found in the world ──
+	for lvl in [30, 55]:
+		var d: Vector2i = ug._door_stand(ug._doors[lvl - 1])
+		await _tp(p, ug, d + Vector2i(0, -2))
+		await _settle(0.6)
+		var best := Vector2i(-9999, -9999)
+		for cell in ug._ropes.keys():
+			if absi(cell.x - d.x) < 90 and absi(cell.y - d.y) < 60:
+				best = cell
+				break
+		if best.x > -9000:
+			await _tp(p, ug, best - Vector2i(0, 2))
+			await _settle(0.5)
+			await _shot("ug_rope_%d" % lvl)
+			break
+	for lvl in [30, 55, 70]:
+		var d2: Vector2i = ug._door_stand(ug._doors[lvl - 1])
+		await _tp(p, ug, d2 + Vector2i(0, -2))
+		await _settle(0.6)
+		var bp := Vector2i(-9999, -9999)
+		for cell in ug._platforms.keys():
+			if absi(cell.x - d2.x) < 90 and absi(cell.y - d2.y) < 60:
+				bp = cell
+				break
+		if bp.x > -9000:
+			await _tp(p, ug, bp - Vector2i(0, 3))
+			await _settle(0.5)
+			await _shot("ug_platform_%d" % lvl)
+			break
 	say("EYES-UG: done -> %s" % shot_dir)
 	get_tree().quit(0)
 

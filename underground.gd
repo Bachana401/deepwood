@@ -1003,6 +1003,8 @@ func _populate_chunk(c: Vector2i) -> void:
 	_place_lake_life(c, nodes)
 	_place_road_lamps(c, nodes)
 	_place_crystals(c, nodes)
+	_seed_traversal(c, rng)
+	_place_traversal(c, nodes, rng)
 	_place_own_torches(c, nodes)
 	_place_decor(c, nodes, biome, rng)
 	_place_floor_doors(c, nodes)
@@ -1464,6 +1466,219 @@ func _decor_rubble(cell: Vector2i, base: Color, rng: RandomNumberGenerator) -> N
 		stone.position = Vector2(rng.randf_range(-5.0, 5.0), float(TILE) * 0.5 - r * 0.7)
 		n.add_child(stone)
 	return n
+
+# ══ ROPES AND PLATFORMS ══════════════════════════════════════════════════════
+# The two traversal verbs Terraria has and this did not. Until now the ONLY way
+# to change height was the road's staircase: caves you could see into but not
+# enter, and drops you could take but never climb back. A rope makes any shaft a
+# two-way street, and a platform lets you bridge a gap or build a landing
+# without filling the space in with rock.
+#
+# Both are found in the world AND placeable, and neither needed a new input
+# action (project.godot belongs to another session): the torch key carries them
+# on modifiers -- Shift for rope, Ctrl for platform.
+const ROPE_COST := {"resin": 1}
+const PLATFORM_COST := {"wood": 2}
+const ROPE_CLIMB := 108.0              # px/s up or down a rope
+const ROPE_MAX_DROP := 26              # tiles a placed rope pays out before it runs out
+const PLATFORM_SPAN := 5               # tiles laid per placement
+const DROP_THROUGH := 0.45             # seconds a platform ignores you when you press down
+
+var _ropes := {}                       # Vector2i(cell) -> true, persisted
+var _platforms := {}                   # Vector2i(cell) -> true, persisted
+var _rope_y := 0.0                     # the exact height we're holding on a rope
+var _on_rope := false
+
+func _place_traversal(c: Vector2i, nodes: Array, rng: RandomNumberGenerator) -> void:
+	for cell in _ropes.keys():
+		if _chunk_of_cell(cell) == c:
+			nodes.append(_spawn_rope_cell(cell))
+	for cell in _platforms.keys():
+		if _chunk_of_cell(cell) == c:
+			nodes.append(_spawn_platform_cell(cell))
+
+func _spawn_rope_cell(cell: Vector2i) -> Node:
+	var n := _decor_at(cell, 4)
+	n.add_to_group("ug_rope")
+	var line := Line2D.new()
+	line.points = PackedVector2Array([Vector2(0, -float(TILE) * 0.5), Vector2(0, float(TILE) * 0.5)])
+	line.width = 2.0
+	line.default_color = Color(0.60, 0.47, 0.26)
+	n.add_child(line)
+	var knot := Polygon2D.new()
+	knot.polygon = PackedVector2Array([Vector2(-2, -1), Vector2(2, -1), Vector2(2, 1), Vector2(-2, 1)])
+	knot.color = Color(0.44, 0.34, 0.18)
+	n.add_child(knot)
+	return n
+
+# A one-way floor: you jump up THROUGH it and land on top, and holding down drops
+# you back through (see _drop_through). Its own StaticBody2D rather than a tile,
+# so the terrain, the mining and the face logic never have to know about it.
+func _spawn_platform_cell(cell: Vector2i) -> Node:
+	var body := StaticBody2D.new()
+	body.collision_layer = 1
+	body.collision_mask = 0
+	body.add_to_group("ug_platform")
+	add_child(body)
+	body.global_position = _map.to_global(_map.map_to_local(cell)) + Vector2(0, -float(TILE) * 0.5)
+	var cs := CollisionShape2D.new()
+	var r := RectangleShape2D.new()
+	r.size = Vector2(TILE, 3)
+	cs.shape = r
+	cs.one_way_collision = true
+	cs.one_way_collision_margin = 2.0
+	body.add_child(cs)
+	var plank := Polygon2D.new()
+	plank.polygon = PackedVector2Array([
+		Vector2(-TILE / 2.0, -2), Vector2(TILE / 2.0, -2), Vector2(TILE / 2.0, 2), Vector2(-TILE / 2.0, 2)])
+	plank.color = Color(0.46, 0.33, 0.20)
+	body.add_child(plank)
+	var grain := Line2D.new()
+	grain.points = PackedVector2Array([Vector2(-TILE / 2.0, 0), Vector2(TILE / 2.0, 0)])
+	grain.width = 1.0
+	grain.default_color = Color(0.33, 0.23, 0.14)
+	body.add_child(grain)
+	return body
+
+# ── found in the world ────────────────────────────────────────────────────────
+# Ropes hang in shafts the road never reaches; platforms bridge gaps in caverns.
+# Both are recorded in the same dictionaries the player's own placements use, so
+# there is one code path for streaming, persistence and climbing.
+func _seed_traversal(c: Vector2i, rng: RandomNumberGenerator) -> void:
+	# A rope hangs from a CEILING into open space. Anchoring it under a
+	# _find_floor_cell instead put its first link inside the floor that cell was
+	# standing on, so the drop scan died at once and not one rope ever generated.
+	if rng.randf() < 0.34:
+		for attempt in range(14):
+			var cell := Vector2i(c.x * CHUNK + rng.randi_range(1, CHUNK - 2),
+				c.y * CHUNK + rng.randi_range(1, CHUNK - 2))
+			if _cell_kind(cell) != AIR or not _solid_kind(cell + Vector2i(0, -1)):
+				continue                            # needs rock overhead to tie to
+			var drop := 0
+			while drop < 22 and _cell_kind(cell + Vector2i(0, drop)) == AIR:
+				drop += 1
+			if drop < 6:
+				continue                            # too short to be worth climbing
+			for d in range(drop):
+				_ropes[cell + Vector2i(0, d)] = true
+			break
+	if rng.randf() < 0.18:                          # a plank walkway over a gap
+		var at = _find_floor_cell(c, rng)
+		if at != null:
+			var cell: Vector2i = at + Vector2i(0, -3)
+			var span := rng.randi_range(3, 7)
+			var ok := true
+			for i in range(span):
+				if _cell_kind(cell + Vector2i(i, 0)) != AIR:
+					ok = false
+					break
+			if ok:
+				for i in range(span):
+					_platforms[cell + Vector2i(i, 0)] = true
+
+# ── placing them yourself ─────────────────────────────────────────────────────
+func _try_place_rope() -> void:
+	if _player == null or _map == null:
+		return
+	var start := _cell_at(_player.global_position)
+	if _cell_kind(start) != AIR or _ropes.has(start):
+		return
+	if not _pay(ROPE_COST, "A rope"):
+		return
+	var n := 0
+	while n < ROPE_MAX_DROP and _cell_kind(start + Vector2i(0, n)) == AIR:
+		var cell := start + Vector2i(0, n)
+		_ropes[cell] = true
+		_attach(_spawn_rope_cell(cell), cell)
+		n += 1
+	_notify("🪢 Rope paid out %d tiles." % n)
+
+func _try_place_platform() -> void:
+	if _player == null or _map == null:
+		return
+	var base := _cell_at(_player.global_position + Vector2(0, 20))
+	var laid := 0
+	for i in range(PLATFORM_SPAN):
+		var cell := base + Vector2i(i - int(PLATFORM_SPAN / 2), 0)
+		if _cell_kind(cell) != AIR or _platforms.has(cell):
+			continue
+		if laid == 0 and not _pay(PLATFORM_COST, "A platform"):
+			return
+		_platforms[cell] = true
+		_attach(_spawn_platform_cell(cell), cell)
+		laid += 1
+	if laid > 0:
+		_notify("🪵 Platform laid.")
+
+# spend the materials, or say what's missing
+func _pay(cost: Dictionary, what: String) -> bool:
+	var inv = _player.inventory if "inventory" in _player else null
+	if inv == null:
+		return false
+	for mat in cost:
+		if inv.get_count(mat) < int(cost[mat]):
+			_notify("%s needs %d %s." % [what, int(cost[mat]), Inventory.get_display_name(mat)])
+			return false
+	for mat in cost:
+		inv.remove_item(mat, int(cost[mat]))
+	return true
+
+# hand a live-placed node to the chunk that owns it, so it streams out normally
+func _attach(n: Node, cell: Vector2i) -> void:
+	var ch := _chunk_of_cell(cell)
+	if _content.has(ch):
+		_content[ch].append(n)
+	else:
+		_content[ch] = [n]
+
+# ── climbing, and dropping through ────────────────────────────────────────────
+# Driven from outside the player like the swimming, so player.gd is untouched.
+# Vertical position is taken over completely while you hold a rope: setting
+# velocity alone leaks a frame of gravity every tick and you sag off the bottom.
+func _rope_tick(delta: float) -> bool:
+	var cell := _cell_at(_player.global_position)
+	var on := _ropes.has(cell) or _ropes.has(cell + Vector2i(0, 1))
+	if not on or Input.is_action_just_pressed("jump"):
+		_on_rope = false
+		return false
+	if not _on_rope:
+		_on_rope = true
+		_rope_y = _player.global_position.y
+	var up := Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP)
+	var down := Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN)
+	if up:
+		var above := _cell_at(Vector2(_player.global_position.x, _rope_y - ROPE_CLIMB * delta))
+		if _ropes.has(above) or _ropes.has(above + Vector2i(0, 1)):
+			_rope_y -= ROPE_CLIMB * delta
+	elif down:
+		var below := _cell_at(Vector2(_player.global_position.x, _rope_y + ROPE_CLIMB * delta))
+		if _ropes.has(below):
+			_rope_y += ROPE_CLIMB * delta
+	_player.global_position.y = _rope_y
+	_player.velocity.y = 0.0
+	return true
+
+# holding down on a platform lets you fall back through it
+var _drop_cd := 0.0
+func _drop_through(delta: float) -> void:
+	_drop_cd = maxf(0.0, _drop_cd - delta)
+	if _drop_cd > 0.0:
+		return
+	if not (Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN)):
+		return
+	for pf in get_tree().get_nodes_in_group("ug_platform"):
+		if not is_instance_valid(pf) or pf.collision_layer == 0:
+			continue
+		if absf(pf.global_position.x - _player.global_position.x) > float(TILE) \
+				or absf(pf.global_position.y - (_player.global_position.y + 24.0)) > 10.0:
+			continue
+		pf.collision_layer = 0
+		_drop_cd = DROP_THROUGH
+		var t := get_tree().create_timer(DROP_THROUGH, false)
+		t.timeout.connect(func():
+			if is_instance_valid(pf):
+				pf.collision_layer = 1)
+		return
 
 # ══ TORCHES YOU PLANT YOURSELF ═══════════════════════════════════════════════
 # Lighting your own way is the core loop of a Terraria cave, and the reason a
@@ -2333,6 +2548,10 @@ func _water_tick(delta: float) -> void:
 		return
 	# the player box is 32x48: sample the head and the feet separately, so wading
 	# through the shallows is not the same as being under
+	# a rope takes over vertical movement entirely, so it goes first
+	if _rope_tick(delta):
+		return
+	_drop_through(delta)
 	var head := _cell_kind(_cell_at(_player.global_position + Vector2(0, -17))) == WATER
 	var feet := _cell_kind(_cell_at(_player.global_position + Vector2(0, 19))) == WATER
 	var wet := head or feet
@@ -2548,6 +2767,14 @@ func _load_save() -> void:
 	if typeof(flags) == TYPE_DICTIONARY:
 		for k in flags.keys():
 			_flags[String(k)] = true
+	for k in data.get("ropes", []):
+		var rp: PackedStringArray = String(k).split(",")
+		if rp.size() == 2:
+			_ropes[Vector2i(int(rp[0]), int(rp[1]))] = true
+	for k in data.get("platforms", []):
+		var pp: PackedStringArray = String(k).split(",")
+		if pp.size() == 2:
+			_platforms[Vector2i(int(pp[0]), int(pp[1]))] = true
 	for k in data.get("torches", []):
 		var tp: PackedStringArray = String(k).split(",")
 		if tp.size() == 2:
@@ -2567,7 +2794,14 @@ func _save() -> void:
 		var tor := []
 		for cell in _own_torches.keys():
 			tor.append("%d,%d" % [cell.x, cell.y])
-		f.store_string(JSON.stringify({"edits": e, "flags": fl, "seed": _seed, "torches": tor}))
+		var rop := []
+		for cell in _ropes.keys():
+			rop.append("%d,%d" % [cell.x, cell.y])
+		var plt := []
+		for cell in _platforms.keys():
+			plt.append("%d,%d" % [cell.x, cell.y])
+		f.store_string(JSON.stringify({"edits": e, "flags": fl, "seed": _seed, "torches": tor,
+			"ropes": rop, "platforms": plt}))
 		f.close()
 		DirAccess.remove_absolute(_save_path())
 		DirAccess.rename_absolute(_save_path() + ".tmp", _save_path())
@@ -2866,7 +3100,12 @@ var _exit_area: Area2D = null
 
 func _unhandled_input(e: InputEvent) -> void:
 	if e.is_action_pressed("place_torch"):
-		_try_place_own_torch()
+		if Input.is_key_pressed(KEY_SHIFT):
+			_try_place_rope()
+		elif Input.is_key_pressed(KEY_CTRL):
+			_try_place_platform()
+		else:
+			_try_place_own_torch()
 		return
 	if e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_E:
 		if _player != null:
