@@ -3676,7 +3676,7 @@ func perform_attack() -> void:
 			bp.global_position = global_position + get_aim_direction() * 158.0 + Vector2(0, 16.0)
 		# THE MONARCH WANDS/STAVES (T8): each PLACES a spectacle, none of them
 		# a bolt. Measure/colonnade/harp/storm all cast from a marker node.
-		elif special_type == "sky_charge":
+		elif special_type == "sky_charge" or special_type == "siren_song":
 			var mk = WEAPON_PROJECTILE_SCRIPT.new()
 			mk.kind = special_type
 			mk.damage = maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("wand"))))
@@ -3686,6 +3686,46 @@ func perform_attack() -> void:
 			mk.direction = get_aim_direction()
 			get_parent().add_child(mk)
 			mk.global_position = global_position + get_aim_direction() * 120.0
+		# STARSPLINTER (T5): eight splinters out, hang, then all back through
+		elif special_type == "star_splinter":
+			var spd_dmg := maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("wand"))))
+			for s_i in range(int(special.get("count", 8))):
+				var sp = WEAPON_PROJECTILE_SCRIPT.new()
+				sp.kind = "star_splinter"
+				sp.damage = spd_dmg
+				sp.element = Inventory.element_of(active_weapon_id)
+				sp.on_hit_status = special.get("status", {})
+				sp.source = self
+				sp.girth = grade_projectile_girth()
+				get_parent().add_child(sp)
+				sp.global_position = global_position + get_aim_direction() * 40.0
+				sp.set_splinter_angle(TAU * float(s_i) / 8.0)
+		# EMBERHYMN (T5): the verse climbs while you keep singing
+		elif special_type == "ember_hymn":
+			var now_h: float = Time.get_ticks_msec() / 1000.0
+			if now_h - _hymn_last > 1.4:
+				_hymn_verse = 0
+			_hymn_last = now_h
+			_hymn_verse = mini(5, _hymn_verse + 1)
+			var eh = WEAPON_PROJECTILE_SCRIPT.new()
+			eh.kind = "ember_hymn"
+			eh.damage = maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("wand"))))
+			eh.element = Inventory.element_of(active_weapon_id)
+			eh.on_hit_status = special.get("status", {})
+			eh.source = self
+			eh.girth = grade_projectile_girth()
+			get_parent().add_child(eh)
+			eh.global_position = global_position + get_aim_direction() * 92.0 + Vector2(0, 22.0)
+			eh.set_hymn_height(52.0 + 34.0 * float(_hymn_verse))
+		# THE THIRD OMEN (T5): two warnings, then the one that is not
+		elif special_type == "omen_sigil":
+			_omen_count = (_omen_count + 1) % 3
+			var third: bool = _omen_count == 0
+			var ocr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("wand")
+				* (2.6 if third else 1.0))))
+			var cfg_o: Dictionary = special.duplicate()
+			cfg_o["girth"] = grade_projectile_girth() * (1.9 if third else 1.0)
+			launch_projectile(cfg_o, get_aim_direction(), ocr[0], ocr[1])
 		# THE WORLD'S GRIEF (T8): twelve tears, and each finds someone
 		elif special_type == "grief_tear":
 			var gtd := maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("wand"))))
@@ -3883,6 +3923,63 @@ func perform_attack() -> void:
 			return
 		# COMETFALL (T6): lofted on purpose -- the shot leaves the string ANGLED
 		# UP and gravity does the rest, so you lead the ground, not the target.
+		# THUNDERHEAD / MIDNIGHT POST (T5): both are BOWS, both are PLACED
+		if special_type == "thunderhead" or special_type == "midnight_post":
+			play_sfx(SFX_BOW)
+			animate_bow(stats)
+			var pl = WEAPON_PROJECTILE_SCRIPT.new()
+			pl.kind = special_type
+			pl.damage = maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("bow"))))
+			pl.element = Inventory.element_of(active_weapon_id)
+			pl.on_hit_status = special.get("status", {})
+			pl.source = self
+			pl.girth = grade_projectile_girth()
+			get_parent().add_child(pl)
+			if special_type == "thunderhead":
+				pl.global_position = global_position + get_aim_direction() * 150.0 + Vector2(0, -120.0)
+			else:
+				pl.global_position = global_position + get_aim_direction() * 150.0 + Vector2(0, 16.0)
+			return
+		# OMEN SEEKER (T5): a slow drifting eye that reads the room
+		if special_type == "omen_eye":
+			play_sfx(SFX_BOW)
+			animate_bow(stats)
+			var oe = WEAPON_PROJECTILE_SCRIPT.new()
+			oe.kind = "omen_eye"
+			oe.damage = maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("bow"))))
+			oe.element = Inventory.element_of(active_weapon_id)
+			oe.on_hit_status = special.get("status", {})
+			oe.source = self
+			oe.girth = grade_projectile_girth()
+			oe.direction = get_aim_direction()
+			oe.speed = float(special.get("speed", 200.0))
+			get_parent().add_child(oe)
+			oe.global_position = global_position + oe.direction * 34.0
+			return
+		# KESTREL COURT (T5): four go up and hold, then stoop in turn
+		if special_type == "kestrel":
+			play_sfx(SFX_BOW)
+			animate_bow(stats)
+			var kdir := get_aim_direction()
+			var kn: int = int(special.get("count", 4))
+			for k_i in range(kn):
+				var kcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("bow"))))
+				var kb = WEAPON_PROJECTILE_SCRIPT.new()
+				kb.kind = "kestrel"
+				kb.damage = kcr[0]
+				kb.is_crit = kcr[1]
+				kb.element = Inventory.element_of(active_weapon_id)
+				kb.on_hit_status = special.get("status", {})
+				kb.source = self
+				kb.girth = grade_projectile_girth()
+				kb.direction = kdir
+				kb.speed = float(special.get("speed", 380.0))
+				kb.max_distance = float(special.get("range", 600.0))
+				get_parent().add_child(kb)
+				kb.global_position = global_position + kdir * (54.0 + 40.0 * float(k_i)) \
+					+ Vector2(0, -68.0 - 14.0 * float(k_i % 2))
+				kb.set_kestrel_hover(0.25 + 0.22 * float(k_i))
+			return
 		# THRONE OF STRINGS (T8): a BOW, so it plucks from the bow path
 		if special_type == "harp_string":
 			play_sfx(SFX_BOW)
@@ -4025,6 +4122,24 @@ func perform_attack() -> void:
 	if active_weapon_type == "spear":
 		if special_type == "javelin_volley":
 			throw_javelin_volley(special)
+		elif special_type == "storm_beast":
+			# STORMHERD (T5): each jab looses a beast that runs on ahead
+			play_sfx(SFX_SPEAR)
+			animate_spear(stats)
+			var sbd := maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("spear"))))
+			var sbdir := get_aim_direction()
+			for b_i in range(int(special.get("count", 4))):
+				var sb = WEAPON_PROJECTILE_SCRIPT.new()
+				sb.kind = "storm_bird"      # the runner engine (_tick_marcher)
+				sb.damage = sbd
+				sb.element = Inventory.element_of(active_weapon_id)
+				sb.on_hit_status = special.get("status", {})
+				sb.source = self
+				sb.girth = grade_projectile_girth()
+				sb.direction = sbdir
+				get_parent().add_child(sb)
+				sb.global_position = global_position + sbdir * (40.0 + 34.0 * float(b_i)) \
+					+ Vector2(0, randf_range(-26.0, 6.0))
 		elif special_type == "sky_quill":
 			# SKY OF QUILLS (T5): they go up and WAIT, then all fall together
 			play_sfx(SFX_SPEAR)
@@ -4341,7 +4456,8 @@ func perform_attack() -> void:
 	# SEAWALL / SERPENT'S SERMON / WORLDTOLL MAUL / GALLOWS / SCOURGE (T5)
 	elif special_type == "sea_wall" or special_type == "serpent_coil" \
 			or special_type == "under_toll" or special_type == "gallows_head" \
-			or special_type == "pilgrim_lash" or special_type == "quiet_wheel":
+			or special_type == "pilgrim_lash" or special_type == "quiet_wheel" \
+			or special_type == "omen_sigil":
 		var t5cr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
 		launch_projectile(special, aim_dir, t5cr[0], t5cr[1])
 	# THE LAST WORD (T8): the storm. One at a time -- a recast RENEWS the
@@ -4385,6 +4501,21 @@ func perform_attack() -> void:
 		wc.direction = aim_dir
 		get_parent().add_child(wc)
 		wc.global_position = global_position + aim_dir * 26.0
+	# SAINT'S REWARD (T5): a halo that turns above your shoulder
+	elif special_type == "saint_halo":
+		for old_sn in get_tree().get_nodes_in_group("saint_halo_instance"):
+			if is_instance_valid(old_sn):
+				old_sn.queue_free()
+		var sn = WEAPON_PROJECTILE_SCRIPT.new()
+		sn.add_to_group("saint_halo_instance")
+		sn.kind = "saint_halo"
+		sn.damage = maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+		sn.element = Inventory.element_of(active_weapon_id)
+		sn.on_hit_status = special.get("status", {})
+		sn.source = self
+		sn.girth = grade_projectile_girth()
+		get_parent().add_child(sn)
+		sn.global_position = global_position + Vector2(72.0, -30.0)
 	# MIDWINTER WHEEL (T5): a wide cold circuit around you, one at a time
 	elif special_type == "winter_wheel":
 		for old_mw in get_tree().get_nodes_in_group("winter_wheel_instance"):
@@ -5475,6 +5606,10 @@ func heal(amount: int) -> void:
 # over them. Checked here rather than by an Area2D per cairn -- there can be
 # a dozen standing and they are cheap points, not bodies.
 var _waymark_t := 0.0
+# EMBERHYMN builds while you keep casting; THE THIRD OMEN counts to three
+var _hymn_verse := 0
+var _hymn_last := 0.0
+var _omen_count := 0
 func _tick_waymarks(delta: float) -> void:
 	_waymark_t -= delta
 	if _waymark_t > 0.0:

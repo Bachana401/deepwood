@@ -113,7 +113,7 @@ const ROWS = [
 	["wpn_skyquill",     "Sky of Quills",        "spear", 5, "skyquills", 18, 0.9, {"count": 5}],
 	["wpn_eventide",     "Eventide",             "bow",   5, "eventide",  15, 0.55, {"count": 3}],
 	["wpn_lastlark",     "The Last Lark",        "bow",   5, "rapid",     11, 0.16, {"plain": true}],
-	["wpn_omenseeker",   "Omen Seeker",          "bow",   5, "seeker",    20, 0.6,  {}],
+	["wpn_omenseeker",   "Omen Seeker",          "bow",   5, "omenseek",  20, 0.6,  {}],
 	["wpn_starfallbow",  "Starfall Bow",         "bow",   5, "starfall",  30, 1.0,  {"aoe": 115}],
 	["wpn_grandrains",   "Grand Tome of Rains",  "wand",  5, "tomeofrains", 14, 1.35, {"radius": 155, "tome_kind": "twin"}],
 	["wpn_twinburst",    "Twinburst Sceptre",    "wand",  5, "twinburst", 25, 0.8,  {"shards": 7}],
@@ -265,25 +265,25 @@ const ROWS = [
 	["wpn_asphodelknife","Asphodel Kiss",        "melee", 5, "arc",       15, 0.24, {"status": "poison_w", "plain": true}],
 	["wpn_seawallblade", "Seawall",              "melee", 5, "seawall",   21, 0.55, {"p_damage": 19}],
 	["wpn_pilgrimlash",  "Pilgrim's Scourge",    "melee", 5, "pilgrimscourge", 21, 0.83, {}],
-	["wpn_omenblade",    "Omen of Iron",         "melee", 5, "ricochet",  19, 0.58, {"bounces": 5}],
+	["wpn_omenblade",    "Omen of Iron",         "melee", 5, "ironomen",  19, 0.58, {"bounces": 5}],
 	["wpn_borderpike",   "Border of the Realm",  "spear", 5, "thrust",    28, 0.78, {"plain": true}],
-	["wpn_stormherd",    "Stormherd",            "spear", 5, "jab_volley", 17, 0.88, {"count": 5}],
+	["wpn_stormherd",    "Stormherd",            "spear", 5, "stormherd", 17, 0.88, {"count": 5}],
 	["wpn_moonreach",    "Moonreach",            "spear", 5, "thrust",    23, 0.58, {"status": "slow_w", "plain": true}],
-	["wpn_kestrelbow",   "Kestrel's Court",      "bow",   5, "volley",    14, 0.54, {"count": 3}],
+	["wpn_kestrelbow",   "Kestrel's Court",      "bow",   5, "kestrelcourt", 14, 0.54, {"count": 3}],
 	["wpn_quillrain",    "Quillrain",            "bow",   5, "quillrain", 10, 0.16, {}],
 	["wpn_wintermark",   "Wintermark",           "bow",   5, "shot",      26, 0.58, {"pierce": true, "status": "slow_w", "plain": true}],
 	["wpn_owlseeker",    "The Owl Remembers",    "bow",   5, "owlremembers", 19, 0.58, {}],
-	["wpn_thunderhead",  "Thunderhead",          "bow",   5, "lob_a",     29, 1.0,  {"aoe": 110}],
-	["wpn_sirensbook",   "The Siren's Appendix", "wand",  5, "tome",      13, 1.35, {"radius": 150, "tome_kind": "lure"}],
+	["wpn_thunderhead",  "Thunderhead",          "bow",   5, "thunderhead", 29, 1.0,  {"aoe": 110}],
+	["wpn_sirensbook",   "The Siren's Appendix", "wand",  5, "sirensong", 13, 1.35, {"radius": 150, "tome_kind": "lure"}],
 	["wpn_glacierwrit",  "Glacier Writ",         "wand",  5, "glacierwrit", 24, 0.55, {"status": "slow_w"}],
-	["wpn_starsplinter", "Starsplinter",         "wand",  5, "cluster",   24, 0.78, {"shards": 7}],
-	["wpn_omenbolt",     "The Third Omen",       "wand",  5, "ricochet",  21, 0.58, {"bounces": 5}],
+	["wpn_starsplinter", "Starsplinter",         "wand",  5, "starsplinter", 24, 0.78, {"shards": 7}],
+	["wpn_omenbolt",     "The Third Omen",       "wand",  5, "thirdomen", 21, 0.58, {"bounces": 5}],
 	["wpn_beaconpost",   "Beacon of the Deep",   "wand",  5, "deepbeacon", 13, 1.18, {"dur": 22}],
-	["wpn_emberhymn",    "Emberhymn",            "wand",  5, "fire",      30, 0.82, {"aoe": 130, "status": "burn_w"}],
+	["wpn_emberhymn",    "Emberhymn",            "wand",  5, "emberhymn", 30, 0.82, {"aoe": 130, "status": "burn_w"}],
 	["wpn_graniteway",   "The Granite Way",      "staff", 5, "staff",     20, 0.44, {"plain": true}],
 	["wpn_cloudcounter", "Cloudcounter",         "staff", 5, "staff",     18, 0.38, {"plain": true}],
-	["wpn_nightmortar",  "Midnight Post",        "bow",   5, "lob_a",     27, 0.95, {"aoe": 105}],
-	["wpn_saintwheel",   "Saint's Reward",       "melee", 5, "orbiter",   22, 0.8,  {"dwell": 3.0}],
+	["wpn_nightmortar",  "Midnight Post",        "bow",   5, "midnightpost", 27, 0.95, {"aoe": 105}],
+	["wpn_saintwheel",   "Saint's Reward",       "melee", 5, "saintsreward", 22, 0.8,  {"dwell": 3.0}],
 	# ---------------- WAVE 3 - TIER 6 (22) ----------------
 	["wpn_requiemedge",  "Requiem Edge",         "melee", 6, "arc",       29, 0.38, {"plain": true}],
 	["wpn_worldanvil",   "The World-Anvil",      "melee", 6, "anviltoll", 42, 1.08, {"knockup": true}],
@@ -888,6 +888,38 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			s = {"type": "rain_cloud", "damage": maxi(1, int(round(float(dmg) * 0.8)))}
 		"wardenwatch":
 			s = {"type": "warden_post", "damage": maxi(1, int(round(float(dmg) * 1.35)))}
+		# ---- T5 batch 4: the last eleven (incl. the OMEN TRIO) ----
+		"omenseek":
+			s = {"type": "omen_eye", "damage": maxi(1, int(round(float(dmg) * 0.5))),
+				"speed": spd - 330.0}
+		"ironomen":
+			s = {"type": "omen_sigil", "damage": maxi(1, int(round(float(dmg) * 0.8))),
+				"bounces": 4, "speed": spd - 60.0, "range": rng}
+		"thirdomen":
+			s = {"type": "omen_sigil", "damage": maxi(1, int(round(float(dmg) * 0.6))),
+				"count": 3, "third": true, "speed": spd, "range": rng}
+		"stormherd":
+			# NOT type "marcher": that name has no dispatch of its own -- Night
+			# Parade calls it from a HIT hook, so a weapon declaring it would
+			# have fired nothing at all.
+			s = {"type": "storm_beast", "damage": maxi(1, int(round(float(dmg) * 0.75))),
+				"count": 4}
+		"kestrelcourt":
+			s = {"type": "kestrel", "damage": maxi(1, int(round(float(dmg) * 0.9))),
+				"count": 4, "speed": spd - 130.0, "range": rng + 200.0}
+		"thunderhead":
+			s = {"type": "thunderhead", "damage": maxi(1, int(round(float(dmg) * 0.62)))}
+		"midnightpost":
+			s = {"type": "midnight_post", "damage": maxi(1, int(round(float(dmg) * 0.9)))}
+		"sirensong":
+			s = {"type": "siren_song", "damage": maxi(1, int(round(float(dmg) * 0.85)))}
+		"starsplinter":
+			s = {"type": "star_splinter", "damage": maxi(1, int(round(float(dmg) * 0.55))),
+				"count": 8}
+		"emberhymn":
+			s = {"type": "ember_hymn", "damage": maxi(1, int(round(float(dmg) * 0.6)))}
+		"saintsreward":
+			s = {"type": "saint_halo", "damage": maxi(1, int(round(float(dmg) * 0.6)))}
 		# ---- THE MONARCH ELEVEN: power in the VERB, not in stat riders ----
 		"patientknife":
 			s = {"type": "patient_storm", "damage": maxi(1, int(round(float(dmg) * 0.8)))}
@@ -994,6 +1026,17 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"hushfall":    return "The blow lands in SILENCE. The sound of it arrives a moment later, from where you struck, and the sound is the heavier half."
 		"eclipse":     return "The wheel rolls out and goes DARK, and the shadow it throws is the weapon -- a long band of night that cuts everything standing in it."
 		"cometfall":   return "Lobs high and comes down as a COMET, cratering where it lands and leaving the ground burning for whatever walks in next."
+		"omenseek":    return "It drifts through the room and SEES them, one after another, and the seeing is the whole cost -- when the eye closes, everything it looked at pays at once."
+		"ironomen":    return "The sigil bounces from body to body, and every place it touches down it leaves IRON standing in the ground behind it."
+		"thirdomen":   return "Omens come in threes. The first two are warnings. The THIRD is not."
+		"stormherd":   return "Each jab looses a beast of storm that runs on ahead of you. Enough jabs and there is a HERD out there trampling."
+		"kestrelcourt": return "Four kestrels go up and HOLD, hanging on the air, and then they stoop one after another -- not together. A court takes its turns."
+		"thunderhead": return "Lobs a cloud that parks overhead and throws lightning down four times before it is spent."
+		"midnightpost": return "Plants a post that HAULS the dark in around it, tighter and tighter, and then throws all of it back out in eight directions."
+		"sirensong":   return "It sings, and they COME -- walking toward the book whether or not they meant to. Then the book shuts."
+		"starsplinter": return "The star breaks into eight splinters that fly out and HANG there a moment, and then all eight come back through the middle at once."
+		"emberhymn":   return "Every verse without a pause builds the fire HIGHER -- a column that climbs as long as you keep singing."
+		"saintsreward": return "A halo turns above your shoulder, striking on its own, and a saint's work comes back to the one who did it."
 		"patientknife": return "It does not swing once. TWELVE knives come out of the dark around you at the same moment, and they are all patient, and they are all yours."
 		"kingdomturning": return "A KINGDOM turns about you -- six crowned shades with spears, wheeling out and back, and every one of them is striking."
 		"rumor":       return "It does not bounce, it SPREADS. Everyone it reaches tells two more, and it grows a little in every telling, until the whole room has heard."

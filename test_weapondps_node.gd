@@ -122,6 +122,18 @@ const HITS_PER_USE := {
 	"eventide":    2.0, # 3 shafts out and back -- two tolls on a single body
 	"tomeofrains": 5.0, # ~28 drops over 4.6s, one body each, wide area denial
 	"wardenwatch": 4.5, # ONE post: ~6 lane shots over 9s at 1.35x, all piercing
+	# ---- T5 batch 4: the last eleven ----
+	"omenseek":    2.6, # a slow read, then every marked body eats a 1.3x nova
+	"ironomen":    2.2, # 4 bounces, each planting a spike that ticks its zone
+	"thirdomen":   1.8, # two 1.0x warnings then a 2.6x third, averaged
+	"stormherd":   3.0, # 4 beasts running the lane; they SPREAD across it
+	"kestrelcourt": 2.8, # 4 kestrels, staggered stoops, each picking a body
+	"thunderhead": 2.5, # 4 bolts from a parked cloud at 0.62x
+	"midnightpost": 1.4, # the haul is control; the eight-way burst is one hit
+	"sirensong":   3.2, # ~3 bites while singing plus the shut, and it GATHERS
+	"starsplinter": 2.4, # 8 splinters out and back; a body catches ~3 passes
+	"emberhymn":   2.8, # ~5 ticks in the column, taller the longer you sing
+	"saintsreward": 2.6, # ~12 halo bites over 4s, and it pays HP back
 	# ---- THE MONARCH ELEVEN: apex weapons, deliberately near the ceiling ----
 	"patientknife": 3.6, # 12 knives on the storm engine, ~5 bites over 1.05s
 	"kingdomturning": 3.2, # 6 crowned shades wheeling, biting every 0.2s

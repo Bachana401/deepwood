@@ -59,26 +59,17 @@ func _ready() -> void:
 
 	# id, shot name, settle before the shot, swings
 	for spec in [
-			["wpn_seawallblade", "a1_seawall",     0.42, 1],
-			["wpn_serpentsermon", "b1_serpent_coil", 0.70, 1],
-			["wpn_twinburst",    "c1_twin_cross",  0.50, 1],
-			["wpn_beaconpost",   "d1_beacon_pulse", 1.30, 1],
-			["wpn_starfallbow",  "e1_starfall",    0.85, 1],
-			["wpn_worldtoll",    "f1_under_toll",  0.62, 1],
-			["wpn_glacierwrit",  "g1_ice_floe",    0.80, 1],
-			["wpn_owlseeker",    "h1_owl_pass",    0.95, 1],
-			["wpn_quillrain",    "i1_quill_rain",  0.55, 4],
-			["wpn_kingsransom",  "j1_ransom_seal", 0.45, 1],
-			["wpn_gallowsflail", "k1_gallows_hang", 0.75, 1],
-			["wpn_pilgrimlash",  "l1_waymarks",    0.50, 1],
-			["wpn_quietwheel",   "m1_quiet_work",  1.20, 1],
-			["wpn_quietwheel",   "m2_quiet_bill",  3.00, 1],
-			["wpn_midwinterwheel", "n1_winter_ring", 1.40, 1],
-			["wpn_skyquill",     "o1_sky_hanging", 0.60, 1],
-			["wpn_skyquill",     "o2_sky_falling", 1.05, 1],
-			["wpn_eventide",     "p1_tide_return", 0.60, 1],
-			["wpn_grandrains",   "q1_raining",     1.60, 1],
-			["wpn_longwatch",    "r1_warden_shot", 0.85, 1]]: # it caught someone
+			["wpn_omenseeker",  "n01_omen_read",  1.95, 1],
+			["wpn_omenblade",   "n02_iron_omen",  0.70, 1],
+			["wpn_omenbolt",    "n03_third_omen", 0.30, 3],
+			["wpn_stormherd",   "n04_stormherd",  0.55, 1],
+			["wpn_kestrelbow",  "n05_kestrels",   0.32, 1],
+			["wpn_thunderhead", "n06_thunder",    1.10, 1],
+			["wpn_sirensbook",  "n07_siren",      0.80, 1],
+			["wpn_starsplinter","n08_splinters",  0.48, 1],
+			["wpn_emberhymn",   "n09_hymn",       0.35, 4],
+			["wpn_nightmortar", "n10_midnight",   1.20, 1],
+			["wpn_saintwheel",  "n11_saint",      0.90, 1]]:# it caught someone
 		p.global_position = _home
 		if "velocity" in p: p.velocity = Vector2.ZERO
 		p.inventory.add_item(spec[0], 1)

@@ -241,6 +241,30 @@ func _ready() -> void:
 		"world_cut":
 			pierce = true
 			_build_world_cut()
+		# ---- T5 batch 4: the last eleven ----
+		"omen_eye":
+			pierce = true
+			_build_omen_eye()
+		"omen_sigil": _build_omen_sigil()
+		"iron_spike": _build_iron_spike()
+		"kestrel": _build_kestrel()
+		"thunderhead":
+			pierce = true
+			_build_thunderhead()
+		"midnight_post":
+			pierce = true
+			_build_midnight_post()
+		"siren_song":
+			pierce = true
+			_build_siren_song()
+		"star_splinter":
+			pierce = true
+			_build_star_splinter()
+		"ember_hymn":
+			pierce = true
+		"saint_halo":
+			pierce = true
+			_build_saint_halo()
 		"quiet_wheel":
 			pierce = true
 			_build_quiet_wheel()
@@ -643,6 +667,33 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind == "world_cut":
 		_tick_worldcut(delta)
+		return
+	if kind == "omen_eye":
+		_tick_omeneye(delta)
+		return
+	if kind == "kestrel":
+		_tick_kestrel(delta)
+		return
+	if kind == "thunderhead":
+		_tick_thunderhead(delta)
+		return
+	if kind == "midnight_post":
+		_tick_midnight(delta)
+		return
+	if kind == "siren_song":
+		_tick_siren(delta)
+		return
+	if kind == "star_splinter":
+		_tick_splinter(delta)
+		return
+	if kind == "ember_hymn":
+		_tick_emberhymn(delta)
+		return
+	if kind == "saint_halo":
+		_tick_saint(delta)
+		return
+	if kind == "iron_spike":
+		_tick_standing_zone(delta)
 		return
 	if kind == "quiet_wheel":
 		_tick_quiet(delta)
@@ -6394,6 +6445,547 @@ func _build_kingdom_ring() -> void:
 		part.add_child(spear)
 		visual.add_child(part)
 		_zs_parts.append(part)
+
+# ==========================================================================
+# TIER 5, BATCH 4 -- the last eleven. Closes the tier.
+# Includes the OMEN TRIO (Seeker / of Iron / the Third), built as a family:
+# one reads the room, one weighs it down, one arrives in threes.
+# ==========================================================================
+
+# --- OMEN SEEKER: it reads the room, then everything it read pays --------
+var _oe_t := 0.0
+var _oe_marked: Array = []
+const OE_LIFE := 1.9
+const OE_SEE := 62.0
+
+func _tick_omeneye(delta: float) -> void:
+	_oe_t += delta
+	global_position += direction * speed * delta
+	if visual:
+		visual.rotation = sin(_oe_t * 5.0) * 0.3
+		visual.scale = Vector2.ONE * _draw_girth * (1.0 + 0.12 * sin(_oe_t * 8.0))
+	# everything it drifts past is SEEN, and being seen is the whole cost
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or e in _oe_marked:
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if not e.has_method("take_damage"):
+				continue
+			if global_position.distance_to((e as Node2D).global_position) > OE_SEE:
+				continue
+			_oe_marked.append(e)
+			_omen_mark(e)
+	if _oe_t >= OE_LIFE:
+		_omen_reckon()
+
+func _omen_mark(who: Node2D) -> void:
+	var host := get_parent()
+	if host == null:
+		return
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var eye := Polygon2D.new()
+	eye.polygon = PackedVector2Array([
+		Vector2(-9, 0), Vector2(0, -6.0), Vector2(9, 0), Vector2(0, 6.0)])
+	eye.color = Color(0.86, 0.72, 1.0, 0.85)
+	eye.material = m
+	eye.z_index = 44
+	eye.position = Vector2(0, -38.0)
+	who.add_child(eye)
+	var tw := eye.create_tween().set_loops()
+	tw.tween_property(eye, "scale", Vector2(1.2, 0.8), 0.3)
+	tw.tween_property(eye, "scale", Vector2(0.9, 1.15), 0.3)
+
+func _omen_reckon() -> void:
+	var host := get_parent()
+	var pay: int = maxi(1, int(round(float(damage) * 1.3)))
+	for e in _oe_marked:
+		if not is_instance_valid(e) or not (e is Node2D):
+			continue
+		if "is_dead" in e and e.is_dead:
+			continue
+		var landed = e.take_damage(pay)
+		if landed == null or landed:
+			FloatingText.spawn(host, (e as Node2D).global_position
+				+ Vector2(randf_range(-18.0, 18.0), -26.0), pay, true)
+		_apply_status_to(e)
+		_nova_burst_tinted((e as Node2D).global_position, Color(0.8, 0.66, 1.0))
+	done = true
+	queue_free()
+
+func _build_omen_eye() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var lid := Polygon2D.new()
+	lid.polygon = PackedVector2Array([
+		Vector2(-17, 0), Vector2(0, -11.0), Vector2(17, 0), Vector2(0, 11.0)])
+	lid.color = Color(0.72, 0.58, 0.94, 0.75)
+	lid.material = m
+	visual.add_child(lid)
+	var pupil := Polygon2D.new()
+	pupil.polygon = _circle(5.5, 8)
+	pupil.color = Color(1.0, 0.96, 1.0, 0.98)
+	pupil.material = m
+	visual.add_child(pupil)
+
+# --- KESTREL'S COURT: they HOVER, then stoop one after another ----------
+var _ks_t := 0.0
+var _ks_hover := 0.0
+var _ks_prey: Node2D = null
+var _ks_diving := false
+
+func _tick_kestrel(delta: float) -> void:
+	_ks_t += delta
+	if not _ks_diving:
+		# hold station, wings working, waiting its turn
+		global_position += Vector2(0, sin(_ks_t * 9.0) * 22.0) * delta
+		if _ks_t >= _ks_hover:
+			_ks_diving = true
+			_ks_prey = _nearest_hostile_node(560.0)
+		return
+	if _ks_prey != null and is_instance_valid(_ks_prey) \
+			and not ("is_dead" in _ks_prey and _ks_prey.is_dead):
+		var want: Vector2 = ((_ks_prey as Node2D).global_position - global_position).normalized()
+		direction = direction.lerp(want, 9.0 * delta).normalized()
+	global_position += direction * (speed * 1.7) * delta
+	rotation = direction.angle()
+	traveled += speed * delta
+	if traveled >= max_distance:
+		done = true
+		queue_free()
+
+func set_kestrel_hover(h: float) -> void:
+	_ks_hover = h
+
+func _build_kestrel() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	for s in [-1.0, 1.0]:
+		var wing := Polygon2D.new()
+		wing.polygon = PackedVector2Array([
+			Vector2(2, 0), Vector2(-7, 8.0 * s), Vector2(-11, 2.0 * s)])
+		wing.color = Color(0.76, 0.62, 0.4, 0.9)
+		visual.add_child(wing)
+		var tw := wing.create_tween().set_loops()
+		tw.tween_property(wing, "scale", Vector2(1.0, 0.5), 0.09)
+		tw.tween_property(wing, "scale", Vector2(1.0, 1.0), 0.09)
+	var body_ks := Polygon2D.new()
+	body_ks.polygon = PackedVector2Array([
+		Vector2(12, 0), Vector2(1, -3.4), Vector2(-9, 0), Vector2(1, 3.4)])
+	body_ks.color = Color(0.92, 0.82, 0.6, 0.96)
+	body_ks.material = m
+	visual.add_child(body_ks)
+
+# --- THUNDERHEAD: it parks overhead and throws lightning ----------------
+var _th_t := 0.0
+var _th_struck := 0
+const TH_BOLTS := 4
+const TH_GAP := 0.42
+
+func _tick_thunderhead(delta: float) -> void:
+	_th_t += delta
+	if visual:
+		visual.position.x = sin(_th_t * 1.4) * 8.0
+	if _th_struck < TH_BOLTS and _th_t >= 0.3 + float(_th_struck) * TH_GAP:
+		_strike_bolt(_th_struck)     # shared with What the Sky Charges
+		_th_struck += 1
+		return
+	if _th_t >= 0.3 + float(TH_BOLTS) * TH_GAP + 0.4:
+		done = true
+		queue_free()
+
+func _build_thunderhead() -> void:
+	for k in range(4):
+		var puff := Polygon2D.new()
+		puff.polygon = _circle(randf_range(17.0, 26.0), 9)
+		puff.color = Color(0.22, 0.24, 0.34, 0.88)
+		puff.position = Vector2(-44.0 + 30.0 * float(k), randf_range(-5.0, 5.0))
+		visual.add_child(puff)
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var spark := Polygon2D.new()
+	spark.polygon = PackedVector2Array([
+		Vector2(-4, 8.0), Vector2(2, -4.0), Vector2(-1, -3.0), Vector2(5, -14.0),
+		Vector2(0, -2.0), Vector2(3, -1.0)])
+	spark.color = Color(0.9, 0.94, 1.0, 0.7)
+	spark.material = m
+	visual.add_child(spark)
+	var tw := spark.create_tween().set_loops()
+	tw.tween_property(spark, "modulate:a", 0.15, 0.24)
+	tw.tween_property(spark, "modulate:a", 0.9, 0.18)
+
+# --- MIDNIGHT POST: it gathers the dark in, then throws it out ----------
+var _mp_t := 0.0
+var _mp_burst := false
+const MP_GATHER := 1.1
+const MP_R := 130.0
+
+func _tick_midnight(delta: float) -> void:
+	_mp_t += delta
+	var frac: float = clampf(_mp_t / MP_GATHER, 0.0, 1.0)
+	if visual:
+		visual.scale = Vector2.ONE * _draw_girth * (1.0 + 0.5 * frac)
+		visual.rotation += (1.4 + 5.0 * frac) * delta
+	if not _mp_burst:
+		# haul everything nearby toward the post while it charges
+		for group_name in HOSTILE_GROUPS:
+			for e in get_tree().get_nodes_in_group(group_name):
+				if not (e is Node2D) or not is_instance_valid(e):
+					continue
+				if "is_dead" in e and e.is_dead:
+					continue
+				var to_post: Vector2 = global_position - (e as Node2D).global_position
+				var d: float = to_post.length()
+				if d < 20.0 or d > MP_R * 1.5:
+					continue
+				(e as Node2D).global_position += to_post.normalized() * 118.0 * delta
+		if _mp_t >= MP_GATHER:
+			_mp_burst = true
+			_midnight_out()
+		return
+	if _mp_t >= MP_GATHER + 0.5:
+		done = true
+		queue_free()
+
+func _midnight_out() -> void:
+	var host := get_parent()
+	if host == null:
+		return
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var pay: int = maxi(1, damage)
+	# eight spokes of night, straight out
+	for i in range(8):
+		var a := TAU * float(i) / 8.0
+		var spoke := Polygon2D.new()
+		spoke.polygon = PackedVector2Array([
+			Vector2(0, -6.0), Vector2(MP_R, -14.0), Vector2(MP_R, 14.0), Vector2(0, 6.0)])
+		spoke.color = Color(0.36, 0.24, 0.52, 0.85)
+		spoke.material = m
+		spoke.z_index = 43
+		spoke.rotation = a
+		host.add_child(spoke)
+		spoke.global_position = global_position
+		spoke.scale = Vector2(0.05, 1.0)
+		var tw := spoke.create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(spoke, "scale", Vector2.ONE, 0.16)
+		tw.tween_property(spoke, "modulate:a", 0.0, 0.42)
+		tw.chain().tween_callback(spoke.queue_free)
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			var rel: Vector2 = (e as Node2D).global_position - global_position
+			if rel.length() > MP_R:
+				continue
+			var landed = e.take_damage(pay)
+			if landed == null or landed:
+				FloatingText.spawn(host, (e as Node2D).global_position
+					+ Vector2(randf_range(-18.0, 18.0), -26.0), pay, true)
+			_apply_status_to(e)
+			if e.has_method("apply_knockback"):
+				e.apply_knockback(1 if rel.x >= 0.0 else -1, 260.0)
+
+func _build_midnight_post() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var post := Polygon2D.new()
+	post.polygon = PackedVector2Array([
+		Vector2(-3.0, 22.0), Vector2(-2.0, -22.0), Vector2(2.0, -22.0), Vector2(3.0, 22.0)])
+	post.color = Color(0.2, 0.17, 0.26, 0.96)
+	visual.add_child(post)
+	for k in range(3):
+		var ring := Polygon2D.new()
+		var rr: float = 12.0 + 6.0 * float(k)
+		var pts := PackedVector2Array()
+		for i in range(12):
+			var a := TAU * float(i) / 12.0
+			pts.append(Vector2(cos(a) * rr, sin(a) * rr * 0.4))
+		for i in range(12):
+			var a2 := TAU * float(11 - i) / 12.0
+			pts.append(Vector2(cos(a2) * (rr - 2.0), sin(a2) * (rr - 2.0) * 0.4))
+		ring.polygon = pts
+		ring.color = Color(0.5, 0.34, 0.72, 0.55 - 0.12 * float(k))
+		ring.material = m
+		visual.add_child(ring)
+
+# --- THE SIREN'S APPENDIX: it SINGS them in, then shuts ------------------
+var _sr_t := 0.0
+const SR_SING := 1.3
+const SR_CONE := 250.0
+
+func _tick_siren(delta: float) -> void:
+	_sr_t += delta
+	if _sr_t >= SR_SING:
+		_nova_burst_tinted(global_position, Color(0.5, 0.9, 0.86))
+		done = true
+		queue_free()
+		return
+	if visual:
+		visual.scale = Vector2.ONE * _draw_girth * (1.0 + 0.14 * sin(_sr_t * 11.0))
+	# they walk toward the singing, whether or not they meant to
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			var rel: Vector2 = global_position - (e as Node2D).global_position
+			if rel.length() > SR_CONE:
+				continue
+			(e as Node2D).global_position += rel.normalized() * 96.0 * delta
+	_rehit_t += delta
+	if _rehit_t < 0.4:
+		return
+	_rehit_t = 0.0
+	var host := get_parent()
+	var pay: int = maxi(1, damage)
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if global_position.distance_to((e as Node2D).global_position) > SR_CONE:
+				continue
+			var landed = e.take_damage(pay)
+			if landed == null or landed:
+				FloatingText.spawn(host, (e as Node2D).global_position
+					+ Vector2(randf_range(-16.0, 16.0), -26.0), pay, false)
+			_apply_status_to(e)
+
+func _build_siren_song() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var book := Polygon2D.new()
+	book.polygon = PackedVector2Array([
+		Vector2(-15, -10.0), Vector2(0, -6.0), Vector2(15, -10.0),
+		Vector2(15, 10.0), Vector2(0, 14.0), Vector2(-15, 10.0)])
+	book.color = Color(0.24, 0.5, 0.52, 0.95)
+	visual.add_child(book)
+	# the song: staves rippling outward
+	for k in range(3):
+		var wave := Polygon2D.new()
+		var rr: float = 24.0 + 16.0 * float(k)
+		var pts := PackedVector2Array()
+		for i in range(14):
+			var a := TAU * float(i) / 14.0
+			pts.append(Vector2(cos(a) * rr, sin(a) * rr * 0.55))
+		for i in range(14):
+			var a2 := TAU * float(13 - i) / 14.0
+			pts.append(Vector2(cos(a2) * (rr - 3.0), sin(a2) * (rr - 3.0) * 0.55))
+		wave.polygon = pts
+		wave.color = Color(0.56, 0.94, 0.9, 0.4 - 0.1 * float(k))
+		wave.material = m
+		visual.add_child(wave)
+		var tw := wave.create_tween().set_loops()
+		tw.tween_property(wave, "scale", Vector2(1.25, 1.25), 0.5 + 0.14 * float(k))
+		tw.tween_property(wave, "scale", Vector2(1.0, 1.0), 0.5 + 0.14 * float(k))
+
+# --- STARSPLINTER: eight splinters that hang, then converge -------------
+var _sp_t := 0.0
+var _sp_home := Vector2.ZERO
+var _sp_ang := 0.0
+const SP_HANG := 0.5
+
+func _tick_splinter(delta: float) -> void:
+	_sp_t += delta
+	if _sp_home == Vector2.ZERO:
+		_sp_home = global_position
+	if _sp_t < SP_HANG:
+		# fly out to its station and wait, glinting
+		var t: float = _sp_t / SP_HANG
+		global_position = _sp_home + Vector2(cos(_sp_ang), sin(_sp_ang)) * (128.0 * t)
+		rotation = _sp_ang
+		return
+	# then they all come back through the middle at once
+	var toward: Vector2 = (_sp_home - global_position)
+	if toward.length() < 18.0:
+		done = true
+		queue_free()
+		return
+	global_position += toward.normalized() * 620.0 * delta
+	rotation = toward.angle()
+
+func set_splinter_angle(a: float) -> void:
+	_sp_ang = a
+
+func _build_star_splinter() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var shard := Polygon2D.new()
+	shard.polygon = PackedVector2Array([
+		Vector2(14, 0), Vector2(-2, -4.4), Vector2(-11, 0), Vector2(-2, 4.4)])
+	shard.color = Color(0.92, 0.94, 1.0, 0.96)
+	shard.material = m
+	visual.add_child(shard)
+
+# --- EMBERHYMN: each cast is another verse, and the fire climbs ----------
+var _eh_t := 0.0
+var _eh_h := 0.0
+const EH_LIFE := 1.6
+
+func _tick_emberhymn(delta: float) -> void:
+	_eh_t += delta
+	if visual:
+		visual.scale = Vector2(1.0, 1.0) * _draw_girth
+		visual.modulate.a = 1.0 - pow(_eh_t / EH_LIFE, 3.0)
+	if _eh_t >= EH_LIFE:
+		done = true
+		queue_free()
+		return
+	_rehit_t += delta
+	if _rehit_t < 0.3:
+		return
+	_rehit_t = 0.0
+	var host := get_parent()
+	var pay: int = maxi(1, damage)
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			var rel: Vector2 = (e as Node2D).global_position - global_position
+			if absf(rel.x) > 40.0 or rel.y < -_eh_h or rel.y > 40.0:
+				continue
+			var landed = e.take_damage(pay)
+			if landed == null or landed:
+				FloatingText.spawn(host, (e as Node2D).global_position
+					+ Vector2(randf_range(-16.0, 16.0), -26.0), pay, false)
+			_apply_status_to(e)
+
+func set_hymn_height(h: float) -> void:
+	_eh_h = h
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	# the verse so far, drawn as a column: the taller it is, the longer you
+	# have kept singing without stopping
+	var col := Polygon2D.new()
+	col.polygon = PackedVector2Array([
+		Vector2(-26, 30.0), Vector2(-15, -h * 0.55), Vector2(0, -h),
+		Vector2(15, -h * 0.55), Vector2(26, 30.0)])
+	col.color = Color(1.0, 0.5, 0.16, 0.62)
+	col.material = m
+	visual.add_child(col)
+	var core := Polygon2D.new()
+	core.polygon = PackedVector2Array([
+		Vector2(-12, 26.0), Vector2(-6, -h * 0.5), Vector2(0, -h * 0.86),
+		Vector2(6, -h * 0.5), Vector2(12, 26.0)])
+	core.color = Color(1.0, 0.86, 0.42, 0.8)
+	core.material = m
+	visual.add_child(core)
+
+# --- SAINT'S REWARD: the halo pays you back for every strike -------------
+var _sn_t := 0.0
+var _sn_given := 0
+const SN_LIFE := 4.0
+
+func _tick_saint(delta: float) -> void:
+	_sn_t += delta
+	if _sn_t >= SN_LIFE or not is_instance_valid(source):
+		done = true
+		queue_free()
+		return
+	var centre: Vector2 = (source as Node2D).global_position + Vector2(0, -30.0)
+	var ang: float = _sn_t * 4.4
+	global_position = centre + Vector2(cos(ang), sin(ang) * 0.4) * 72.0
+	if visual:
+		visual.rotation += 3.0 * delta
+	_rehit_t += delta
+	if _rehit_t < 0.3:
+		return
+	_rehit_t = 0.0
+	var host := get_parent()
+	var pay: int = maxi(1, damage)
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if global_position.distance_to((e as Node2D).global_position) > 38.0:
+				continue
+			var landed = e.take_damage(pay)
+			if landed == null or landed:
+				FloatingText.spawn(host, (e as Node2D).global_position
+					+ Vector2(randf_range(-16.0, 16.0), -26.0), pay, false)
+			_apply_status_to(e)
+			# THE REWARD: a saint's work comes back to the one who did it
+			if _sn_given < 8 and is_instance_valid(source) and source.has_method("heal"):
+				_sn_given += 1
+				source.heal(2)
+				FloatingText.spawn_word(host,
+					(source as Node2D).global_position + Vector2(0, -54), "+2",
+					Color(1.0, 0.94, 0.7))
+
+func _build_saint_halo() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var ring := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(18):
+		var a := TAU * float(i) / 18.0
+		pts.append(Vector2(cos(a) * 19.0, sin(a) * 8.0))
+	for i in range(18):
+		var a2 := TAU * float(17 - i) / 18.0
+		pts.append(Vector2(cos(a2) * 14.0, sin(a2) * 5.0))
+	ring.polygon = pts
+	ring.color = Color(1.0, 0.94, 0.62, 0.92)
+	ring.material = m
+	visual.add_child(ring)
+	for k in range(4):
+		var ray := Polygon2D.new()
+		ray.polygon = PackedVector2Array([
+			Vector2(-1.8, -24.0), Vector2(1.8, -24.0), Vector2(1.0, -18.0), Vector2(-1.0, -18.0)])
+		ray.color = Color(1.0, 0.98, 0.8, 0.75)
+		ray.material = m
+		ray.rotation = deg_to_rad(90.0 * float(k))
+		visual.add_child(ray)
+
+# --- OMEN OF IRON: the sigil leaves IRON standing where it bounced ------
+func _build_iron_spike() -> void:
+	_zone_max = 3.4
+	_zone_r = 44.0
+	_zone_gap = 0.5
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	for k in range(3):
+		var spike := Polygon2D.new()
+		var h: float = randf_range(20.0, 34.0)
+		spike.polygon = PackedVector2Array([
+			Vector2(-5.0, 8.0), Vector2(0, -h), Vector2(5.0, 8.0)])
+		spike.color = Color(0.48, 0.5, 0.56, 0.95)
+		spike.position = Vector2(-14.0 + 14.0 * float(k), 0)
+		visual.add_child(spike)
+		var glint := Polygon2D.new()
+		glint.polygon = PackedVector2Array([
+			Vector2(-1.4, 2.0), Vector2(0, -h * 0.9), Vector2(1.4, 2.0)])
+		glint.color = Color(0.86, 0.9, 1.0, 0.6)
+		glint.material = m
+		glint.position = spike.position
+		visual.add_child(glint)
+
+func _build_omen_sigil() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var plate := Polygon2D.new()
+	plate.polygon = PackedVector2Array([
+		Vector2(0, -13.0), Vector2(11, -5.0), Vector2(7, 10.0),
+		Vector2(-7, 10.0), Vector2(-11, -5.0)])
+	plate.color = Color(0.52, 0.54, 0.6, 0.96)
+	visual.add_child(plate)
+	var rune := Polygon2D.new()
+	rune.polygon = PackedVector2Array([
+		Vector2(-4, -5.0), Vector2(4, -5.0), Vector2(0, 1.0), Vector2(4, 6.0), Vector2(-4, 6.0)])
+	rune.color = Color(0.9, 0.82, 0.5, 0.9)
+	rune.material = m
+	visual.add_child(rune)
 
 func _circle(radius: float, sides: int) -> PackedVector2Array:
 	var pts = PackedVector2Array()
