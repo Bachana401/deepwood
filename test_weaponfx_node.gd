@@ -42,6 +42,18 @@ class FxProbe extends Node2D:
 
 func _ready() -> void:
 	await get_tree().process_frame
+
+	# THE ENGINE ITSELF COMPILES. A size pass once left weapon_projectile.gd
+	# with a parse error and all four audits still reported ALL PASS -- they
+	# read the ROSTER, never the engine the roster drives. A broken projectile
+	# script must never leave the gate green again.
+	for engine_path in ["res://weapon_projectile.gd", "res://weapon_fx.gd",
+			"res://companion.gd", "res://embedded_stack.gd"]:
+		var scr = load(engine_path)
+		check("engine compiles: " + engine_path.get_file(),
+			scr != null and scr is GDScript and (scr as GDScript).can_instantiate(),
+			"script failed to load or instantiate")
+
 	var p := FxProbe.new()
 	add_child(p)
 	var foe := Dummy.new()

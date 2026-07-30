@@ -14,7 +14,8 @@ extends Area2D
 # All visuals are procedural polygons, self-cleaning on despawn.
 
 var kind := "slash"
-var girth := 1.0            # scales the visual AND the hitbox together
+var girth := 1.0            # scales the HITBOX (and, gently, the drawing)
+var _draw_girth := 1.0      # what the eye gets: see the note in _ready()
 var element := "physical"   # the caster weapon's element (VFX pass): hit bursts pop in its colour
 var direction := Vector2.RIGHT
 var speed := 500.0
@@ -127,7 +128,13 @@ func _ready() -> void:
 	add_child(cs)
 	body_entered.connect(_on_body_entered)
 	visual = Node2D.new()
-	visual.scale = Vector2.ONE * girth
+	# The HITBOX takes girth in full (late-game weapons stay forgiving to land),
+	# but the DRAWN size grows far more gently. Those were one number, and it
+	# stacked with WeaponFx._gscale until a crown arrow drew at 5.6 player-
+	# heights -- the dev's "sizes are still big". Hitbox slightly larger than
+	# the image is the friendly direction for the mismatch to run.
+	_draw_girth = 1.0 + (girth - 1.0) * 0.32
+	visual.scale = Vector2.ONE * _draw_girth
 	add_child(visual)
 	match kind:
 		"soul_split": _build_soulbolt()
@@ -150,6 +157,27 @@ func _ready() -> void:
 			_behave_state = 0
 			_orbit_t = 0.0
 			_build_zenithblade()
+		"tether_arrow":
+			# HEAVENSTRING (T7): the shaft trails a thread of light, and when
+			# it lands the thread goes TAUT -- what it hit comes to you.
+			_build_tether_arrow()
+		"choir_note":
+			# CHOIRSTRING (T7): each shaft that lands plants a NOTE, and notes
+			# left standing near each other hum together.
+			monitoring = false
+			pierce = true
+			_build_choir_note()
+		"piercing_point":
+			# THE HEAVEN-PIERCING POINT (T7): one lance, and everything in the
+			# line takes the SAME wound. The study's even-pierce family, which
+			# feels nothing like the stepped-falloff kind.
+			pierce = true
+			_build_piercing_point()
+		"asphodel_post":
+			# ASPHODEL POST (T7): a planted marker that sends wisps out on its
+			# own, slowly, for as long as it stands.
+			monitoring = false
+			_build_asphodel_post()
 		"rift_bloom":
 			# RIFTBURST ROD (T7): the bolt does not explode, it OPENS. A tear
 			# hangs there hauling everything toward its middle, and then it
@@ -386,6 +414,12 @@ func _physics_process(delta: float) -> void:
 	if kind == "rift_bloom":
 		_tick_rift(delta)
 		return
+	if kind == "choir_note":
+		_tick_standing_zone(delta)
+		return
+	if kind == "asphodel_post":
+		_tick_asphodel(delta)
+		return
 	if kind == "regent_shard":
 		_tick_regent_shard(delta)
 		return
@@ -404,7 +438,7 @@ func _physics_process(delta: float) -> void:
 		# it grows the whole way: a sliver at the hilt, a horizon at the end
 		var grow: float = 1.0 + 1.7 * clampf(traveled / maxf(1.0, max_distance), 0.0, 1.0)
 		if visual:
-			visual.scale = Vector2.ONE * girth * grow
+			visual.scale = Vector2.ONE * _draw_girth * grow
 	if kind == "rising_wheel":
 		_tick_rising_wheel(delta)
 		return
@@ -513,7 +547,7 @@ func _tick_orbiter(delta: float) -> bool:
 			if _rehit_t >= 0.35:
 				_rehit_t = 0.0
 				hit_bodies.clear()   # the wheel keeps cutting
-			var r := 30.0 * girth
+			var r := 30.0 * _draw_girth
 			global_position = _orbit_centre + Vector2(cos(_orbit_t * 9.0), sin(_orbit_t * 9.0)) * r
 			if _orbit_t >= dwell:
 				_behave_state = 2
@@ -556,7 +590,7 @@ func _tick_chainmaul(delta: float) -> void:
 				hit_bodies.clear()   # every lap of the whirl cuts again
 				if rider == "moon":
 					_moon_pull()     # Second Moon: the whirl has its own tide
-			var r := (44.0 + _orbit_t * 75.0) * girth
+			var r := (44.0 + _orbit_t * 75.0) * _draw_girth
 			var side := 1.0 if direction.x >= 0.0 else -1.0
 			global_position = source.global_position \
 				+ Vector2(cos(_orbit_t * 9.5 * side), sin(_orbit_t * 9.5 * side)) * r
@@ -649,7 +683,7 @@ func _burst() -> void:
 		child.global_position = global_position
 	# a soft pop so the split reads
 	var pop = Polygon2D.new()
-	pop.polygon = _circle(16.0 * girth, 12)
+	pop.polygon = _circle(16.0 * _draw_girth, 12)
 	pop.color = Color(0.8, 0.9, 1.0, 0.6)
 	get_parent().add_child(pop)
 	pop.global_position = global_position
@@ -762,6 +796,11 @@ func _on_body_entered(body: Node2D) -> void:
 			if kind == "kneeling_stone":
 				dealt = boulder_damage()
 				_rock_smoke(body.global_position)   # the source bursts white smoke
+			# HEAVENSTRING: the thread snaps taut and brings them to you
+			if kind == "tether_arrow" and is_instance_valid(source) \
+					and body.has_method("apply_knockback"):
+				var toward: int = 1 if source.global_position.x > body.global_position.x else -1
+				body.apply_knockback(toward, 165.0)
 			# THE QUIET RECKONING: the arrow stays in, and the bill comes due
 			# a second and a half later. Small now, large then.
 			if kind == "debt_arrow":
@@ -1147,7 +1186,7 @@ func _build_edict() -> void:
 	# the halo the whole arm sits in
 	_lash_glow = Line2D.new()
 	_lash_glow.top_level = true
-	_lash_glow.width = 28.0 * girth
+	_lash_glow.width = 28.0 * _draw_girth
 	_lash_glow.default_color = Color(1.0, 0.66, 0.18, 0.22)
 	_lash_glow.begin_cap_mode = Line2D.LINE_CAP_ROUND
 	_lash_glow.end_cap_mode = Line2D.LINE_CAP_ROUND
@@ -1158,7 +1197,7 @@ func _build_edict() -> void:
 	# washing out to white against a dark hall
 	_lash_line = Line2D.new()
 	_lash_line.top_level = true
-	_lash_line.width = 11.0 * girth
+	_lash_line.width = 11.0 * _draw_girth
 	_lash_line.default_color = Color(0.98, 0.74, 0.24, 0.96)
 	_lash_line.begin_cap_mode = Line2D.LINE_CAP_ROUND
 	_lash_line.end_cap_mode = Line2D.LINE_CAP_ROUND
@@ -1170,7 +1209,7 @@ func _build_edict() -> void:
 		var kp := PackedVector2Array()
 		for j in range(6):
 			var a := TAU * float(j) / 6.0
-			kp.append(Vector2(cos(a), sin(a)) * 9.0 * girth)
+			kp.append(Vector2(cos(a), sin(a)) * 9.0 * _draw_girth)
 		k.polygon = kp
 		k.color = Color(1.0, 0.88, 0.5, 0.95)
 		k.top_level = true
@@ -1182,7 +1221,7 @@ func _build_edict() -> void:
 	var hp := PackedVector2Array()
 	for j in range(10):
 		var a2 := TAU * float(j) / 10.0
-		hp.append(Vector2(cos(a2), sin(a2)) * (14.0 if j % 2 == 0 else 6.5) * girth)
+		hp.append(Vector2(cos(a2), sin(a2)) * (14.0 if j % 2 == 0 else 6.5) * _draw_girth)
 	_lash_head.polygon = hp
 	_lash_head.color = Color(1.0, 0.95, 0.72, 0.95)
 	_lash_head.top_level = true
@@ -1203,7 +1242,7 @@ func _draw_edict(tip: Vector2) -> void:
 		# a real serpentine, wide enough to READ at play zoom -- the arm coils
 		pts.append(base + perp * sin(f * PI * 2.2 + _lash_t * 7.0) * 15.0 * (1.0 - f * 0.35))
 	_lash_line.points = pts
-	_lash_line.width = (10.5 + 2.0 * sin(_lash_t * 18.0)) * girth
+	_lash_line.width = (10.5 + 2.0 * sin(_lash_t * 18.0)) * _draw_girth
 	if _lash_glow != null:
 		_lash_glow.points = pts
 	# seat the joints along the cord, biggest at the wrist, smallest at the tip
@@ -1230,7 +1269,7 @@ func _tick_courtier(delta: float) -> void:
 			# the shade fades in and draws itself up to full height
 			var t := clampf(_orbit_t / 0.14, 0.0, 1.0)
 			modulate.a = t
-			visual.scale = Vector2.ONE * girth * lerpf(0.45, 1.0, t)
+			visual.scale = Vector2.ONE * _draw_girth * lerpf(0.45, 1.0, t)
 			# it faces its mark while it gathers
 			var face := _zen_target - global_position
 			if face.length_squared() > 1.0:
@@ -1365,7 +1404,7 @@ func _tick_brazier(delta: float) -> void:
 			if _rehit_t >= 0.3:
 				_rehit_t = 0.0
 				hit_bodies.clear()
-			var r := (40.0 + _orbit_t * 70.0) * girth
+			var r := (40.0 + _orbit_t * 70.0) * _draw_girth
 			var side := 1.0 if direction.x >= 0.0 else -1.0
 			global_position = source.global_position \
 				+ Vector2(cos(_orbit_t * 9.0 * side), sin(_orbit_t * 9.0 * side)) * r
@@ -1484,6 +1523,129 @@ func _recolor_brazier() -> void:
 		else:
 			p.color = Color(0.93, 0.44, 0.13, 1.0)      # ember-lit spikes
 
+# --- T7, the last four ---------------------------------------------------
+
+# HEAVENSTRING: the shaft trails a thread and the thread goes taut
+func _build_tether_arrow() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var thread := Polygon2D.new()
+	thread.polygon = PackedVector2Array([
+		Vector2(-8, -1.2), Vector2(-64, -0.5), Vector2(-64, 0.5), Vector2(-8, 1.2)])
+	thread.color = Color(0.9, 0.94, 1.0, 0.5)
+	thread.material = m
+	visual.add_child(thread)
+	var shaft := Polygon2D.new()
+	shaft.polygon = PackedVector2Array([
+		Vector2(11, -1.3), Vector2(-15, -1.3), Vector2(-15, 1.3), Vector2(11, 1.3)])
+	shaft.color = Color(0.78, 0.84, 0.96, 0.95)
+	visual.add_child(shaft)
+	var head := Polygon2D.new()
+	head.polygon = PackedVector2Array([Vector2(20, 0), Vector2(8, -4), Vector2(8, 4)])
+	head.color = Color(1.0, 1.0, 0.95, 0.98)
+	visual.add_child(head)
+
+# CHOIRSTRING: a note left standing where the shaft landed
+func _build_choir_note() -> void:
+	_zone_max = 2.4
+	_zone_r = 54.0
+	_zone_gap = 0.5      # it HUMS on a beat rather than grinding
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	for r in [26.0, 16.0]:
+		var ring := Polygon2D.new()
+		var pts := PackedVector2Array()
+		for i in range(14):
+			var a := TAU * float(i) / 14.0
+			pts.append(Vector2(cos(a), sin(a)) * r)
+		for i in range(14):
+			var a2 := TAU * float(13 - i) / 14.0
+			pts.append(Vector2(cos(a2), sin(a2)) * (r - 3.0))
+		ring.polygon = pts
+		ring.color = Color(0.82, 0.9, 1.0, 0.5 if r > 20.0 else 0.75)
+		ring.material = m
+		visual.add_child(ring)
+		var tw := ring.create_tween()
+		tw.set_loops()
+		tw.tween_property(ring, "scale", Vector2(1.18, 1.18), 0.5)
+		tw.tween_property(ring, "scale", Vector2(0.94, 0.94), 0.5)
+
+# THE HEAVEN-PIERCING POINT: one lance, everything in the line takes the same
+func _build_piercing_point() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var glow := Polygon2D.new()
+	glow.polygon = PackedVector2Array([
+		Vector2(36, 0), Vector2(11, -6), Vector2(-26, -3), Vector2(-26, 3), Vector2(11, 6)])
+	glow.color = Color(0.86, 0.92, 1.0, 0.3)
+	glow.material = m
+	visual.add_child(glow)
+	var shaft := Polygon2D.new()
+	shaft.polygon = PackedVector2Array([
+		Vector2(9, -1.6), Vector2(-25, -1.6), Vector2(-25, 1.6), Vector2(9, 1.6)])
+	shaft.color = Color(0.72, 0.78, 0.9, 0.95)
+	visual.add_child(shaft)
+	var head := Polygon2D.new()
+	head.polygon = PackedVector2Array([
+		Vector2(32, 0), Vector2(9, -3.4), Vector2(5, 0), Vector2(9, 3.4)])
+	head.color = Color(1.0, 1.0, 0.98, 0.98)
+	visual.add_child(head)
+
+# --- ASPHODEL POST: a marker that keeps sending ---------------------------
+var _post_t := 0.0
+var _post_send := 0.0
+const POST_LIFE := 9.0
+const POST_GAP := 1.15
+
+func _tick_asphodel(delta: float) -> void:
+	_post_t += delta
+	_post_send += delta
+	if visual:
+		visual.modulate.a = clampf((POST_LIFE - _post_t) / 1.2, 0.0, 1.0)
+	if _post_send >= POST_GAP:
+		_post_send = 0.0
+		var prey := _nearest_hostile_node(700.0)
+		var w = get_script().new()
+		w.kind = "soul_stream"          # the homing wisp already exists
+		w.damage = damage
+		w.speed = 250.0
+		w.max_distance = 700.0
+		w.direction = Vector2.RIGHT if prey == null \
+			else (prey.global_position - global_position).normalized()
+		w.girth = 0.75
+		w.element = element
+		w.on_hit_status = on_hit_status
+		w.source = source
+		w.position = global_position + Vector2(0, -26.0)
+		get_parent().call_deferred("add_child", w)
+		SfxSynth.play_at(self, global_position, "chime", -20.0, 1.2)
+	if _post_t >= POST_LIFE:
+		done = true
+		queue_free()
+
+func _build_asphodel_post() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var post := Polygon2D.new()
+	post.polygon = PackedVector2Array([
+		Vector2(-3.5, 16), Vector2(-2.5, -34), Vector2(2.5, -34), Vector2(3.5, 16)])
+	post.color = Color(0.36, 0.34, 0.4, 1.0)
+	visual.add_child(post)
+	var bloom := Polygon2D.new()   # the asphodel itself, pale on top
+	var pts := PackedVector2Array()
+	for i in range(10):
+		var a := TAU * float(i) / 10.0
+		pts.append(Vector2(cos(a) * 9.0, sin(a) * 9.0 - 38.0))
+	bloom.polygon = pts
+	bloom.color = Color(0.92, 0.94, 0.86, 0.95)
+	visual.add_child(bloom)
+	var halo := Polygon2D.new()
+	halo.polygon = _circle(20.0, 12)
+	halo.position = Vector2(0, -38)
+	halo.color = Color(0.8, 0.86, 1.0, 0.22)
+	halo.material = m
+	visual.add_child(halo)
+
 # --- RIFTBURST ROD: the tear that hauls, then shuts ----------------------
 var _rift_t := 0.0
 var _bent_t := 0.0
@@ -1495,7 +1657,7 @@ func _tick_rift(delta: float) -> void:
 	var f: float = clampf(_rift_t / RIFT_HOLD, 0.0, 1.0)
 	if visual:
 		# it opens fast, hangs, then snaps shut
-		visual.scale = Vector2.ONE * girth * (0.4 + 1.1 * sin(f * PI))
+		visual.scale = Vector2.ONE * _draw_girth * (0.4 + 1.1 * sin(f * PI))
 		visual.rotation += 3.4 * delta
 	# the HAUL: everything in reach is dragged toward the middle
 	for group_name in HOSTILE_GROUPS:

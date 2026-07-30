@@ -3629,6 +3629,17 @@ func perform_attack() -> void:
 					"damage": stats.damage, "speed": 560.0, "range": 460.0})
 		elif special_type == "nuke":
 			cast_wand_nuke(special)   # Runeweave Scepter -- big FINITE screen AoE
+		elif special_type == "asphodel_post":
+			# ASPHODEL POST (T7): planted at your feet, sends on its own
+			play_sfx(SFX_BOW)
+			var ap = WEAPON_PROJECTILE_SCRIPT.new()
+			ap.kind = "asphodel_post"
+			ap.damage = maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("wand"))))
+			ap.element = Inventory.element_of(active_weapon_id)
+			ap.on_hit_status = special.get("status", {})
+			ap.source = self
+			ap.position = global_position + Vector2(20.0 * float(facing_direction), 22.0)
+			get_parent().add_child(ap)
 		elif special_type == "rift_bloom":
 			# RIFTBURST ROD (T7): the tear opens at the aim and hauls inward
 			play_sfx(SFX_BOW)
@@ -3698,6 +3709,32 @@ func perform_attack() -> void:
 			launch_projectile(special, get_aim_direction(), cr_c[0], cr_c[1])
 			SfxSynth.play_at(self, global_position, "chime", -6.0, 0.5)
 			return
+		# HEAVENSTRING / THE CHOIRSTRING: both are bow verbs that own their
+		# own shafts (a tethered arrow, and a volley that plants notes)
+		if special_type == "tether_arrow":
+			play_sfx(SFX_BOW)
+			animate_bow(stats)
+			var cr_t = roll_crit(int(round(float(special.get("damage", stats.damage)) * skill_damage_mult("bow"))))
+			launch_projectile(special, get_aim_direction(), cr_t[0], cr_t[1])
+			return
+		if special_type == "choir_note":
+			play_sfx(SFX_BOW)
+			animate_bow(stats)
+			# the shafts land in a spread and each leaves a note standing
+			var aimc := get_aim_direction()
+			for ci in range(int(special.get("count", 3))):
+				var note = WEAPON_PROJECTILE_SCRIPT.new()
+				note.kind = "choir_note"
+				var cr_n = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("bow"))))
+				note.damage = cr_n[0]
+				note.is_crit = cr_n[1]
+				note.element = Inventory.element_of(active_weapon_id)
+				note.on_hit_status = special.get("status", {})
+				note.source = self
+				note.position = global_position + aimc * (150.0 + 78.0 * float(ci)) \
+					+ Vector2(0, randf_range(-16.0, 16.0))
+				get_parent().add_child(note)
+			return
 		# THE QUIET RECKONING: the shaft that stays in and comes due later.
 		# (Without this branch it fell through to animate_bow and fired an
 		# ORDINARY arrow -- the verb never happened at all.)
@@ -3712,6 +3749,12 @@ func perform_attack() -> void:
 	if active_weapon_type == "spear":
 		if special_type == "javelin_volley":
 			throw_javelin_volley(special)
+		elif special_type == "piercing_point":
+			# THE HEAVEN-PIERCING POINT (T7): one lance, even pierce
+			play_sfx(SFX_SPEAR)
+			animate_spear(stats)
+			var hcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("spear"))))
+			launch_projectile(special, get_aim_direction(), hcr[0], hcr[1])
 		elif special_type == "storm_flock":
 			# FLOCK OF STORMS (T7): the jab looses birds that pick their own
 			# marks. They spawn at the thrust APEX, per the spear guardrail.

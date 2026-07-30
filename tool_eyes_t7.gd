@@ -78,7 +78,11 @@ func _ready() -> void:
 			["wpn_sunspill",     "t15_sunspill",   1.00, 1],
 			["wpn_riftburst",    "t16_riftburst",  0.70, 1],
 			["wpn_shardregent",  "t17_shardregent", 0.85, 1],
-			["wpn_bentheaven",   "t18_bentheaven", 0.42, 1]]:
+			["wpn_bentheaven",   "t18_bentheaven", 0.42, 1],
+			["wpn_heavenstring", "t19_heavenstring", 0.40, 1],
+			["wpn_choirstring",  "t20_choirstring", 0.55, 1],
+			["wpn_heavenpoint",  "t21_heavenpoint", 0.34, 1],
+			["wpn_asphodelpost", "t22_asphodel",   1.60, 1]]:
 		p.global_position = _home
 		if "velocity" in p: p.velocity = Vector2.ZERO
 		p.inventory.add_item(spec[0], 1)

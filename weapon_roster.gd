@@ -143,27 +143,27 @@ const ROWS = [
 		"fx": [{"kind": "goldtouch", "chance": 0.35, "gold": 5}, {"kind": "chain", "n": 2, "pct": 0.65, "range": 250.0}]}],
 	["wpn_twelfthpillar","Twelfth Pillar",       "staff", 6, "staff",     24, 0.4,  {"plain": true}],
 	# ---------------- TIER 7 - ASCENDED (floors 70-97) ----------------
-	["wpn_afterlight",   "Afterlight",           "melee", 7, "afterlight", 26, 0.42, {"status": "burn_w",
+	["wpn_afterlight",   "Afterlight",           "melee", 7, "afterlight", 29, 0.42, {"status": "burn_w",
 		"fx": [{"kind": "echo", "pct": 0.98, "delay": 0.4}, {"kind": "moonlit", "pct": 0.8}]}],
-	["wpn_worldsedge",   "Edge of the World",    "melee", 7, "worldedge", 26, 0.6, {"p_damage": 26, "tint": [0.35, 0.95, 0.5],
+	["wpn_worldsedge",   "Edge of the World",    "melee", 7, "worldedge", 29, 0.6, {"p_damage": 26, "tint": [0.35, 0.95, 0.5],
 		"fx": [{"kind": "splinter", "n": 4, "pct": 0.8, "range": 190.0}, {"kind": "rend", "pct_per": 0.15, "max": 6}]}],
-	["wpn_ascendwheel",  "Wheel of Ascension",   "melee", 7, "risingwheel", 24, 0.85, {"status": "slow_w",
+	["wpn_ascendwheel",  "Wheel of Ascension",   "melee", 7, "risingwheel", 27, 0.85, {"status": "slow_w",
 		"fx": [{"kind": "frostbloom", "radius": 170.0, "dur": 3.0}, {"kind": "bulwark", "dr": 0.16, "dur": 2.5}]}],
-	["wpn_novatongue",   "Nova Tongue",          "melee", 7, "nova", 26, 0.88, {"status": "burn_w",
+	["wpn_novatongue",   "Nova Tongue",          "melee", 7, "nova", 29, 0.88, {"status": "burn_w",
 		"fx": [{"kind": "quake", "radius": 140.0, "pct": 0.8}, {"kind": "stormcall", "every": 4, "pct": 1.6}]}],
 	["wpn_zenithpike",   "Zenith",               "spear", 7, "thrust", 40, 0.75, {
 		"fx": [{"kind": "duelist", "pct_per": 0.15, "max": 6}, {"kind": "frostbloom", "radius": 155.0}]}],
-	["wpn_ninthcommand", "Ninth Commandment",    "bow", 7, "commandment", 20, 0.52, {"pierce": true,
+	["wpn_ninthcommand", "Ninth Commandment",    "bow", 7, "commandment", 22, 0.52, {"pierce": true,
 		"fx": [{"kind": "chain", "n": 2, "pct": 0.8, "range": 260.0}, {"kind": "sparkfly", "n": 1, "pct": 0.5}]}],
-	["wpn_heavenstring", "Heavenstring",         "bow", 7, "seeker", 28, 0.55, {
+	["wpn_heavenstring", "Heavenstring",         "bow", 7, "heavenstring", 29, 0.6, {
 		"fx": [{"kind": "brand", "amp": 0.42, "dur": 4.0}, {"kind": "sparkfly", "n": 1, "pct": 0.5}]}],
 	["wpn_highflood",    "The High Flood",       "wand", 7, "tome", 21, 1.25, {"radius": 185,
 		"fx": [{"kind": "crowd", "pct_per": 0.14, "cap": 0.55}, {"kind": "chain", "n": 2, "pct": 0.5, "range": 250.0}]}],
-	["wpn_riftburst",    "Riftburst Rod",        "wand", 7, "riftburst", 30, 1.0, {
+	["wpn_riftburst",    "Riftburst Rod",        "wand", 7, "riftburst", 34, 1.0, {
 		"fx": [{"kind": "splinter", "n": 5, "pct": 0.8, "range": 170.0}, {"kind": "gravity", "radius": 180.0, "pull": 150.0}]}],
-	["wpn_asphodelpost", "Asphodel Post",        "wand", 7, "sentry", 20, 1.15, {"dur": 26,
+	["wpn_asphodelpost", "Asphodel Post",        "wand", 7, "asphodel", 19, 1.5, {
 		"fx": [{"kind": "soulwisp", "dmg": 10, "pct": 0.8}, {"kind": "bloodprice", "pct": 0.8, "cost": 1}]}],
-	["wpn_skypillar",    "Pillar of the Sky",    "staff", 7, "skypillar", 30, 0.6, {
+	["wpn_skypillar",    "Pillar of the Sky",    "staff", 7, "skypillar", 34, 0.6, {
 		"fx": [{"kind": "quake", "radius": 150.0, "pct": 0.8}, {"kind": "haste", "pct_per": 0.08, "max": 5, "dur": 5.0}]}],
 	# ---------------- TIER 8 - MONARCH (floors 88-100) ----------------
 	# CROWN TEN #6: a plain `arc` shared with 27 weapons becomes a POUR. Damage
@@ -327,37 +327,37 @@ const ROWS = [
 	["wpn_skyladder",    "Ladder to Nowhere",    "staff", 6, "staff",     23, 0.42, {"plain": true}],
 	["wpn_stillmountain","The Still Mountain",   "staff", 6, "staff",     26, 0.48, {"plain": true}],
 	# ---------------- WAVE 3 - TIER 7 (14) ----------------
-	["wpn_dawnchorus",   "Dawn Chorus",          "melee", 7, "dawnline", 27, 0.42, {"status": "burn_w",
+	["wpn_dawnchorus",   "Dawn Chorus",          "melee", 7, "dawnline", 30, 0.42, {"status": "burn_w",
 		"fx": [{"kind": "echo", "pct": 0.9, "delay": 0.35}, {"kind": "haste", "pct_per": 0.08, "max": 4, "dur": 4.0}]}],
-	["wpn_finalanvil",   "Anvil of Endings",     "melee", 7, "anvil", 38, 1.15, {"knockup": true,
+	["wpn_finalanvil",   "Anvil of Endings",     "melee", 7, "anvil", 43, 1.15, {"knockup": true,
 		"fx": [{"kind": "quake", "radius": 160.0, "pct": 0.8}, {"kind": "rend", "pct_per": 0.14, "max": 6}]}],
-	["wpn_cometchain",   "Chained Comet",        "melee", 7, "cometchain", 30, 0.95, {"status": "burn_w",
+	["wpn_cometchain",   "Chained Comet",        "melee", 7, "cometchain", 34, 0.95, {"status": "burn_w",
 		"fx": [{"kind": "gravity", "radius": 200.0, "pull": 160.0}, {"kind": "echo", "pct": 0.82, "delay": 0.5}]}],
-	["wpn_silencelash",  "The Shape of Silence", "melee", 7, "hush", 25, 0.84, {"status": "slow_w",
+	["wpn_silencelash",  "The Shape of Silence", "melee", 7, "hush", 28, 0.84, {"status": "slow_w",
 		"fx": [{"kind": "brand", "amp": 0.39, "dur": 4.5}, {"kind": "frostbloom", "radius": 150.0}]}],
-	["wpn_worldthorn",   "Thorn of the World",   "spear", 7, "worldthorn", 30, 0.8, {
+	["wpn_worldthorn",   "Thorn of the World",   "spear", 7, "worldthorn", 34, 0.8, {
 		"fx": [{"kind": "rend", "pct_per": 0.16, "max": 6}, {"kind": "chain", "n": 2, "pct": 0.8, "range": 250.0}]}],
-	["wpn_stormflock",   "Flock of Storms",      "spear", 7, "stormflock", 18, 0.9, {"count": 6,
+	["wpn_stormflock",   "Flock of Storms",      "spear", 7, "stormflock", 20, 0.9, {"count": 6,
 		"fx": [{"kind": "chain", "n": 2, "pct": 0.8, "range": 240.0}, {"kind": "splinter", "n": 3, "pct": 0.8, "range": 160.0}]}],
-	["wpn_choirstring",  "Choirstring",          "bow", 7, "volley", 21, 0.48, {"count": 4, "pierce": true,
+	["wpn_choirstring",  "Choirstring",          "bow", 7, "choirstring", 18, 0.62, {"count": 3, "pierce": true,
 		"fx": [{"kind": "echo", "pct": 0.8, "delay": 0.4}, {"kind": "chain", "n": 2, "pct": 0.8, "range": 250.0}]}],
-	["wpn_reckoningbow", "The Quiet Reckoning",  "bow", 7, "reckoning", 26, 0.6, {
+	["wpn_reckoningbow", "The Quiet Reckoning",  "bow", 7, "reckoning", 29, 0.6, {
 		"fx": [{"kind": "brand", "amp": 0.42, "dur": 4.0}, {"kind": "soulwisp", "dmg": 10, "pct": 0.5}]}],
-	["wpn_sunspill",     "Sunspill",             "bow", 7, "sunspill", 30, 1.02, {"aoe": 130, "status": "burn_w",
+	["wpn_sunspill",     "Sunspill",             "bow", 7, "sunspill", 34, 1.02, {"aoe": 130, "status": "burn_w",
 		"fx": [{"kind": "splinter", "n": 4, "pct": 0.8, "range": 180.0}, {"kind": "brand", "amp": 0.3, "dur": 4.0}]}],
 	["wpn_tidebook",     "The Tidal Codex",      "wand", 7, "tome", 20, 1.25, {"radius": 180,
 		"fx": [{"kind": "gravity", "radius": 220.0, "pull": 150.0}, {"kind": "harvest", "hp": 3, "mana": 5.0}]}],
-	["wpn_shardregent",  "The Shard Regent",     "wand", 7, "shardregent", 26, 0.85, {"shards": 5,
+	["wpn_shardregent",  "The Shard Regent",     "wand", 7, "shardregent", 29, 0.85, {"shards": 5,
 		# fx must SUPPORT the verb, never overwrite it. skyrain drops sky-comets
 		# -- that is the starfall weapons' signature, and on film it completely
 		# buried this weapon's own crown-of-shards. splinter suits shards; haste
 		# suits a regent whose court answers faster the better it goes.
 		"fx": [{"kind": "splinter", "n": 5, "pct": 0.8, "range": 170.0}, {"kind": "bulwark", "dr": 0.14, "dur": 2.5}]}],
-	["wpn_finaldebt",    "The Final Debt",       "wand", 7, "finaldebt", 22, 0.6, {"bounces": 7,
+	["wpn_finaldebt",    "The Final Debt",       "wand", 7, "finaldebt", 25, 0.6, {"bounces": 7,
 		"fx": [{"kind": "goldtouch", "chance": 0.3, "gold": 5}, {"kind": "stormcall", "every": 4, "pct": 0.8}]}],
 	["wpn_highlantern",  "Lantern of the High Road", "wand", 7, "sentry", 19, 1.12, {"dur": 26,
 		"fx": [{"kind": "moonlit", "pct": 0.8}, {"kind": "bulwark", "dr": 0.15, "dur": 3.0}]}],
-	["wpn_bentheaven",   "Heaven, Bent",         "staff", 7, "bentheaven", 24, 0.52, {
+	["wpn_bentheaven",   "Heaven, Bent",         "staff", 7, "bentheaven", 27, 0.52, {
 		"fx": [{"kind": "gravity", "radius": 210.0, "pull": 170.0}, {"kind": "stormcall", "every": 4, "pct": 1.5}]}],
 	# ---------------- WAVE 3 - TIER 8 (10) ----------------
 	# CROWN TEN #7: a cleave shared with 14 becomes a blow the GROUND carries.
@@ -422,7 +422,7 @@ const ROWS = [
 		"fx": [{"kind": "harvest", "hp": 5}, {"kind": "chain", "n": 2, "pct": 0.5, "range": 250.0}]}],
 	["wpn_secondmoon",   "Second Moon",          "melee", 6, "chain_maul", 36, 0.85, {"status": "slow_w", "rider": "moon",
 		"fx": [{"kind": "moonlit", "pct": 0.72}, {"kind": "frostbloom", "radius": 155.0, "dur": 3.0}]}],
-	["wpn_heavenpoint",  "The Heaven-Piercing Point", "spear", 7, "jab_volley", 26, 0.84, {"count": 5, "status": "slow_w",
+	["wpn_heavenpoint",  "The Heaven-Piercing Point", "spear", 7, "heavenpoint", 38, 0.8, { "status": "slow_w",
 		"fx": [{"kind": "chain", "n": 2, "pct": 0.8, "range": 260.0}, {"kind": "frostbloom", "radius": 155.0}]}],
 	["wpn_unbentcolumn", "The Unbent Column",    "staff", 8, "staff", 36, 0.35, {
 		"fx": [{"kind": "bulwark", "dr": 0.2, "dur": 3.5}, {"kind": "haste", "pct_per": 0.08, "max": 6, "dur": 5.0}, {"kind": "chain", "n": 2, "pct": 1, "range": 250.0}]}]
@@ -512,7 +512,7 @@ static func _expand(row: Array) -> Dictionary:
 		"spear":
 			reach = 58.0
 			area = Vector2(74, 38)
-			icon = Vector2(104, 8)
+			icon = Vector2(78, 8)
 			icon_off = 16.0
 		"bow":
 			reach = 90.0
@@ -773,6 +773,16 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 				"count": int(ex.get("shards", 5)), "speed": spd + 160.0, "range": rng}
 		"bentheaven":
 			s = {"type": "bent_ray", "damage": dmg, "speed": spd + 60.0, "range": rng + 120.0}
+		# ---- T7 VERBS (batch 6): the tier's last four ----
+		"heavenstring":
+			s = {"type": "tether_arrow", "damage": dmg, "speed": spd + 240.0, "range": rng}
+		"choirstring":
+			s = {"type": "choir_note", "damage": maxi(1, int(round(float(dmg) * 0.5))),
+				"count": int(ex.get("count", 3)), "speed": spd + 120.0, "range": rng}
+		"heavenpoint":
+			s = {"type": "piercing_point", "damage": dmg, "speed": spd + 340.0, "range": rng + 90.0}
+		"asphodel":
+			s = {"type": "asphodel_post", "damage": maxi(1, int(round(float(dmg) * 0.9)))}
 		"staff":
 			s = {"type": "staff_extend"}
 	if not st.is_empty():
@@ -842,6 +852,10 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"zenith":     return "Every swing frees the GHOST of a blade it culminates: out, one whirl at the far point, and home -- cutting the whole way, each image a different ancestor."
 		"court":      return "Every swing calls the COURT: %d shades of the people you brought home appear at your side, each carrying a different ancestor blade, and all of them sweep at once." % int(ex.get("count", 4))
 		"edict":      return "The law REACHES: a jointed arm of light unfolds the length of the hall, cutting everything along it and blooming where it touches -- and stone does not stop a sentence."
+		"heavenstring": return "Every shaft trails a THREAD, and when it lands the thread goes taut: what you hit comes to you, whether it meant to or not."
+		"choirstring": return "Each shaft that lands plants a NOTE, humming where it stuck. Fill a room with notes and the room sings -- and singing hurts."
+		"heavenpoint": return "One lance, and everything standing in the line takes the SAME wound. It does not weaken for the second body, or the third."
+		"asphodel":    return "Plants a pale marker in the ground. It stands there on its own and keeps sending wisps out after whatever is nearest, long after you have moved on."
 		"riftburst":   return "The bolt does not burst, it OPENS: a tear hangs in the air hauling everything toward its middle -- and then it shuts, and the shutting is what kills."
 		"shardregent": return "The shards do not leave together. They CROWN you first, orbiting a moment, and then go one after another at whatever is nearest."
 		"bentheaven":  return "The ray refuses to go straight. It climbs over whatever stands between and comes down on the far side, which makes cover an opinion rather than a fact."

@@ -62,6 +62,11 @@ const HITS_PER_USE := {
 	"riftburst":  1.0, # the haul is control; the SHUTTING is the one hit
 	"shardregent":2.2, # five shards, but they pick their own marks and spread
 	"bentheaven": 1.5, # one arcing ray, piercing what it comes down on
+	# T7 batch 6 -- the tier's last four
+	"heavenstring":1.2, # one shaft, one pull; the value is the reposition
+	"choirstring": 3.2, # 3 notes, each humming ~4x over 2.4s
+	"heavenpoint": 1.0, # even-pierce: same wound to each, one pass
+	"asphodel":    4.0, # the post sends ~8 wisps over its 9s life
 	# --- pre-existing multi-hit verbs, for a fair comparison ---
 	"volley":     2.0,
 	"jab_volley": 3.0,
