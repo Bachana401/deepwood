@@ -31,6 +31,41 @@ var split_gen := 0
 
 const SELF_SCENE = preload("res://arrow.tscn")
 
+# Target selection is what separates the two Seekers. Nearest-first is the
+# ordinary rule and neither of them uses it: one hunts the WEAKEST thing in the
+# room, the other the BIGGEST, and that single difference does more to tell
+# them apart than any amount of recolouring.
+func _pick_prey(rule: String) -> Node2D:
+	var best: Node2D = null
+	var best_score := -1.0
+	var best_d := 1e9
+	for group_name in HOMING_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not is_instance_valid(e) or not (e is Node2D):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			var d: float = global_position.distance_to((e as Node2D).global_position)
+			if d > (460.0 if rule == "wounded" else 420.0):
+				continue
+			var score := 0.0
+			if rule == "wounded":
+				# lowest health FRACTION, so it finishes what is already hurt
+				if "health" in e and "max_health" in e and float(e.max_health) > 0.0:
+					score = 1.0 - (float(e.health) / float(e.max_health))
+				else:
+					score = 0.0
+			else:
+				# biggest: a boss outranks everything, then raw max_health
+				score = 10000.0 if ("boss_id" in e) else float(e.get("max_health") \
+					if "max_health" in e else 1)
+			# ties broken by distance, so it never dithers between equals
+			if score > best_score or (is_equal_approx(score, best_score) and d < best_d):
+				best_score = score
+				best_d = d
+				best = e
+	return best
+
 func _split_seekers() -> void:
 	var host := get_parent()
 	if host == null or not is_instance_valid(host):
@@ -45,6 +80,7 @@ func _split_seekers() -> void:
 	for side in [-0.7, 0.7]:
 		var s = SELF_SCENE.instantiate()
 		s.homing = true
+		s.hunt_rule = "wounded"      # the children hunt by the same rule
 		s.split_gen = 1
 		s.damage = maxi(1, int(round(float(damage) * 0.5)))
 		s.element = element
@@ -131,7 +167,41 @@ func _physics_process(_delta: float) -> void:
 	if not pierces_terrain and get_slide_collision_count() > 0:
 		break_arrow()
 
+# TWO SEEKERS, TWO DIFFERENT HUNTERS (2026-07-30).
+# They were one weapon with two names: same shaft, same nearest-target rule,
+# and I made it worse by giving BOTH the split. The split now belongs to the
+# Pale Seeker alone, and removing it from the Hale is what makes the pair read
+# as two weapons.
+#   "" (default) -- nearest, the ordinary homing flag other bows use
+#   "wounded"    -- Pale Seeker: ignores the healthy, bends toward the WEAKEST
+#   "biggest"    -- Hale Seeker: one hard turn onto the LARGEST, then locked
+var hunt_rule := ""
+var _hale_turned := false
+
 func steer_toward_prey(delta: float) -> void:
+	# HALE SEEKER commits. It flies dead straight, takes exactly ONE decision at
+	# 40% of its range, and never turns again -- a committed hunter that guessed
+	# wrong is part of the fantasy, so if nothing qualifies it simply flies on.
+	if hunt_rule == "biggest":
+		if _hale_turned:
+			return
+		if global_position.distance_to(start_position) < max_range * 0.4:
+			return
+		_hale_turned = true
+		var big: Node2D = _pick_prey("biggest")
+		if big != null:
+			direction = (big.global_position - global_position).normalized()
+			rotation = direction.angle()
+		return
+	if hunt_rule == "wounded":
+		var hurt: Node2D = _pick_prey("wounded")
+		if hurt != null:
+			# soft and sweeping, visibly gentler than the default steer
+			var want: float = (hurt.global_position - global_position).angle()
+			direction = Vector2.RIGHT.rotated(
+				rotate_toward(direction.angle(), want, 4.0 * delta))
+			rotation = direction.angle()
+		return
 	var prey: Node2D = null
 	var prey_dist = HOMING_RANGE
 	for group_name in HOMING_GROUPS:
@@ -207,7 +277,10 @@ func _on_hit_area_body_entered(body: Node2D) -> void:
 	# because it found something: on impact it breaks into two lesser shafts
 	# that go looking for whatever is left. They do NOT split again (split_gen),
 	# or one shot would clear a floor.
-	if homing and split_gen == 0 and not body.is_in_group("player") \
+	# THE SPLIT BELONGS TO THE PALE SEEKER ALONE. It used to fire on any homing
+	# arrow, which meant both Seekers did the same trick and the pair still read
+	# as one weapon under two names -- my own fix making the problem worse.
+	if hunt_rule == "wounded" and split_gen == 0 and not body.is_in_group("player") \
 			and is_in_group("player_projectile"):
 		_split_seekers()
 	# KILLSHOT (Archer keystone): arrows execute a low-HP non-boss, same as apply_melee_skills

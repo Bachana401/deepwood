@@ -175,7 +175,7 @@ const ROWS = [
 	["wpn_larkbow",      "Lark's Reply",         "bow",   3, "rapid",     7,  0.2,  {"plain": true}],
 	["wpn_twinnock",     "Twinnock Bow",         "bow",   3, "volley",    10, 0.6,  {"count": 2, "plain": true}],
 	["wpn_emberarc",     "Emberarc Bow",         "bow",   3, "lob_a",     18, 0.95, {"aoe": 85, "plain": true}],
-	["wpn_paleseeker",   "Pale Seeker",          "bow",   3, "seeker",    12, 0.7,  {}],
+	["wpn_paleseeker",   "Pale Seeker",          "bow",   3, "paleseek",    12, 0.7,  {}],
 	["wpn_saltwand",     "Saltbinder",           "wand",  3, "saltring",  16, 0.55, {"rung": true}],
 	["wpn_marshlight",   "Marshlight Lantern",   "wand",  3, "cluster",   15, 0.8,  {"shards": 4}],
 	["wpn_leadrod",      "Leaden Judgement",     "wand",  3, "lob",       21, 1.05, {"aoe": 95, "plain": true}],
@@ -328,7 +328,7 @@ const ROWS = [
 	["wpn_reedvolley",   "Reedsong Volley",      "spear", 3, "jab_volley", 10, 0.85, {"count": 4, "plain": true}],
 	["wpn_shrikebow",    "Shrikebow",            "bow",   3, "shot",      15, 0.55, {"plain": true}],
 	["wpn_finchvolley",  "Finchstorm",           "bow",   3, "volley",    9,  0.6,  {"count": 3, "plain": true}],
-	["wpn_haleseeker",   "Hale Seeker",          "bow",   3, "seeker",    11, 0.68, {}],
+	["wpn_haleseeker",   "Hale Seeker",          "bow",   3, "haleseek",    11, 0.68, {}],
 	["wpn_bogmortar",    "Bog Belcher",          "bow",   3, "lob_a",     17, 1.0,  {"aoe": 80, "plain": true}],
 	["wpn_lightstep",    "Lightstep",            "bow",   3, "rapid",     6,  0.19, {"plain": true}],
 	["wpn_hollowbolt",   "Hollowbolt",           "wand",  3, "hollowring", 15, 0.5, {"rung": true}],
@@ -765,6 +765,16 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			s = {"type": "javelin_volley", "count": int(ex.get("count", 3)), "spread_deg": 10.0, "damage": dmg, "speed": spd + 150.0, "range": rng}
 		"volley":
 			s = {"type": "multi_shot", "count": int(ex.get("count", 2)), "spread_deg": 12.0}
+		"paleseek":
+			# PALE SEEKER ignores the healthy and bends, unhurried, toward
+			# whatever is already WOUNDED -- then comes apart on landing.
+			s = {"type": "homing", "hunt": "wounded"}
+		"haleseek":
+			# HALE SEEKER flies dead straight and takes exactly ONE hard turn
+			# onto the BIGGEST thing in the room, then never turns again. No
+			# split: that belongs to the Pale one, and removing it here is
+			# what makes the pair read as two weapons.
+			s = {"type": "homing", "hunt": "biggest", "pierce": true}
 		"seeker":
 			s = {"type": "homing"}
 		"lob_a", "lob":
@@ -1422,6 +1432,16 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"crescent":   return "Every swing also hurls a flying crescent down the lane."
 		"jab_volley": return "Conjures a fan of %d spectral javelins and lets fly." % int(ex.get("count", 3))
 		"volley":     return "Looses a fan of %d arrows with every draw." % int(ex.get("count", 2))
+		"paleseek":
+			# PALE SEEKER ignores the healthy and bends, unhurried, toward
+			# whatever is already WOUNDED -- then comes apart on landing.
+			s = {"type": "homing", "hunt": "wounded"}
+		"haleseek":
+			# HALE SEEKER flies dead straight and takes exactly ONE hard turn
+			# onto the BIGGEST thing in the room, then never turns again. No
+			# split: that belongs to the Pale one, and removing it here is
+			# what makes the pair read as two weapons.
+			s = {"type": "homing", "hunt": "biggest", "pierce": true}
 		"seeker":     return "Its shots bend mid-flight, hunting the nearest enemy."
 		"lob_a", "lob": return "Sails a mortar arc and BLOSSOMS where it lands."
 		"bolt":       return "A hard, fast bolt of force."

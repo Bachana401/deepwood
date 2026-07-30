@@ -7228,6 +7228,10 @@ func spawn_arrow(stats: Dictionary, aim_dir: Vector2) -> void:
 		arrow.setup(dir, cr[0], stats.knockback_min, stats.knockback_max, 4)
 		arrow.is_crit = cr[1]
 		arrow.homing = homing
+	# the two Seekers hunt by DIFFERENT rules -- wounded-first and biggest-first
+	# -- and that single difference is most of what tells them apart. Without
+	# passing it through they both fall back to nearest and are one weapon again.
+	arrow.hunt_rule = str(special.get("hunt", ""))
 		arrow.enemy_statuses = arrow_statuses
 		arrow.execute_threshold = GameState.get_bonus_total("execute_threshold")   # Killshot
 		arrow.execute_heal = GameState.get_bonus_total("execute_heal")             # Headhunter

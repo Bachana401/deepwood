@@ -238,6 +238,8 @@ const HITS_PER_USE := {
 	"sentry":     4.1,   # fire_gap 0.85 -> 0.62
 	# a homing shaft SPLITS on impact into two lesser seekers (arrow.split_gen)
 	"seeker":     1.6,
+	"paleseek":   2.2, # the shaft, plus a child that returns to a lone body
+	"haleseek":   1.8, # even-pierce through 2; NO split -- that is the Pale one
 	"souls":      3.9,   # SEVEN homing souls at 0.55x (the verb it never had)
 	# MEASURED, not estimated (test_realhits_node, 2026-07-30): 8 hits at 90px,
 	# 5 at 170px, 0 at 280px. 6.0 is the honest middle of its useful band. The
