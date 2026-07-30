@@ -327,6 +327,64 @@ func _test_in_engine() -> void:
 	ug._try_place_own_torch()
 	check("a torch cannot be planted inside solid rock", ug._own_torches.size() == n_before)
 
+	# ── MINECART LINES ──
+	check("mine railways were laid", ug._track_runs.size() >= 6 and ug._track_cells.size() > 500)
+	var derailed := 0
+	var steep := 0
+	for run in ug._track_runs:
+		var a: int = int(run[0])
+		var b: int = int(run[1])
+		if a >= b:
+			derailed += 1
+		for i in range(a, b):
+			var c1: Vector2i = ug._path[i]
+			var c2: Vector2i = ug._path[i + 1]
+			if absi(c2.x - c1.x) > 1 or absi(c2.y - c1.y) > 1:
+				derailed += 1                      # the line must be continuous
+			if absi(c2.y - c1.y) > 1:
+				steep += 1
+	check("every rail joins the next (%d breaks)" % derailed, derailed == 0)
+	check("no rail is steeper than one tile a step", steep == 0)
+	# ride one
+	var run0: Array = ug._track_runs[0]
+	var head: Vector2i = ug._path[int(run0[0]) + 4]
+	var cart: Node = ug._spawn_cart(head, 0)
+	p.global_position = ug._map.to_global(ug._map.map_to_local(head))
+	check("boarding takes the cart", ug._try_board_cart() and ug._riding != null)
+	var i0: float = ug._cart_i
+	for i in range(30):
+		ug._cart_tick(0.016)
+	check("it builds speed and travels (%.0f px/s)" % ug._cart_v, ug._cart_v > 100.0 and ug._cart_i != i0)
+	# and the rider stays ON the line, never inside rock
+	var rider: Vector2i = ug._cell_at(p.global_position)
+	check("the rider never ends up inside rock", ug._cell_kind(rider) == UG.AIR)
+	ug._leave_cart()
+	check("jumping off gives you back to gravity", ug._riding == null)
+	if is_instance_valid(cart):
+		cart.queue_free()
+
+	# ── FALLING SAND ──
+	# Build a deliberate overhang: a sand block with a hole under it. Nothing
+	# should move until the support goes, and then it should come down and settle.
+	var sand_cell := Vector2i(ug._doors[5].x + 120, ug._doors[5].y + 60)
+	while ug._cell_kind(sand_cell) == UG.AIR and sand_cell.y < UG.DEPTH - 60:
+		sand_cell.y += 1
+	ug._edits[sand_cell] = UG.SAND
+	ug._map.set_cell(sand_cell, 0, Vector2i(UG.SAND, 1))
+	for d in range(1, 5):                          # hollow out beneath it
+		ug._edits[sand_cell + Vector2i(0, d)] = UG.AIR
+		ug._map.erase_cell(sand_cell + Vector2i(0, d))
+	check("sand sits still until something disturbs it",
+		ug._cell_kind(sand_cell) == UG.SAND and get_tree().get_nodes_in_group("ug_fallsand").is_empty())
+	ug._topple_sand(sand_cell + Vector2i(0, 1))
+	check("cutting under it wakes the grain",
+		ug._cell_kind(sand_cell) == UG.AIR and get_tree().get_nodes_in_group("ug_fallsand").size() == 1)
+	for i in range(90):
+		await get_tree().process_frame
+	check("...and it lands and becomes solid ground again",
+		get_tree().get_nodes_in_group("ug_fallsand").is_empty()
+		and ug._cell_kind(sand_cell + Vector2i(0, 4)) == UG.SAND)
+
 	# ── ROPES AND PLATFORMS ──
 	ug._ropes = {}
 	ug._platforms = {}

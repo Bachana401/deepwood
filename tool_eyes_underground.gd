@@ -130,6 +130,32 @@ func _ready() -> void:
 			await _settle(0.5)
 			await _shot("ug_platform_%d" % lvl)
 			break
+	# ── a mine railway, and a pocket of sand coming down ──
+	if not ug._track_runs.is_empty():
+		var mid: Vector2i = ug._path[int(ug._track_runs[0][0]) + 20]
+		await _tp(p, ug, mid - Vector2i(0, 2))
+		await _settle(0.6)
+		await _shot("ug_track")
+	for lvl in [8, 22, 44]:
+		var d3: Vector2i = ug._door_stand(ug._doors[lvl - 1])
+		var found_sand := Vector2i(-9999, -9999)
+		for r in range(-40, 40):
+			for dy in range(-14, 14):
+				if ug._cell_kind(d3 + Vector2i(r, dy)) == ug.SAND:
+					found_sand = d3 + Vector2i(r, dy)
+					break
+			if found_sand.x > -9000:
+				break
+		if found_sand.x > -9000:
+			await _tp(p, ug, found_sand - Vector2i(6, 4))
+			await _settle(0.5)
+			await _shot("ug_sand")
+			# cut it loose and watch
+			for dx in range(-2, 3):
+				ug._topple_sand(found_sand + Vector2i(dx, 1))
+			await _settle(0.25)
+			await _shot("ug_sand_falling")
+			break
 	say("EYES-UG: done -> %s" % shot_dir)
 	get_tree().quit(0)
 

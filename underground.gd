@@ -43,6 +43,10 @@ const ORE_GEM := [
 	Color(0.86, 0.55, 0.24), Color(0.80, 0.83, 0.92), Color(0.35, 0.95, 0.66),
 	Color(1.00, 0.72, 0.20), Color(0.80, 0.46, 1.00)]
 const ORE_DROP := ["iron_shard", "iron_shard", "ember_crystal", "ember_crystal", "relic_mountain"]
+# SAND sits in the atlas column after the ores. It is a normal solid block in
+# every respect except one: it does not hold itself up. Cut the support out and
+# it comes down (see _topple_sand).
+const SAND := 10
 
 # ── content (streamed per chunk, like the terrain) ────────────────────────────
 const ENEMY_SCENE := preload("res://enemy.tscn")
@@ -67,6 +71,7 @@ var _region: FastNoiseLite              # slow field: tight warrens <-> grand ca
 var _chasm: FastNoiseLite               # vertical chasms / drops
 var _ore: FastNoiseLite                 # mineral vein pockets
 var _roadw: FastNoiseLite               # how the road corridor swells and pinches
+var _sand: FastNoiseLite                # pockets of loose sand (see SAND)
 var _seed := 0                          # GameState.world_seed, salted into every field above
 var _loaded := {}                      # Vector2i(chunk) -> true
 var _edits := {}                       # Vector2i(cell) -> kind (AIR = dug)
@@ -176,6 +181,7 @@ func _init_noise() -> void:
 	_chasm.noise_type = FastNoiseLite.TYPE_SIMPLEX
 	_chasm.frequency = 0.02
 	_ore = FastNoiseLite.new(); _ore.seed = 0xACE1 ^ _seed; _ore.frequency = 0.10
+	_sand = FastNoiseLite.new(); _sand.seed = 0x5A4D ^ _seed; _sand.frequency = 0.07
 	# how the Delver's Road swells and pinches along its length
 	_roadw = FastNoiseLite.new()
 	_roadw.seed = 0x7A11 ^ _seed
@@ -336,6 +342,7 @@ func _build_route() -> void:
 	_merge_rows(_road_rock)
 	_merge_rows(_road_mass)
 	_repair_road()
+	_build_tracks()         # mine railways laid along the finished road
 	# LIGHT THE ROAD. The dev's complaint was that there was no clear way down;
 	# geometry alone fixes that only if you can SEE it. A lantern every ~14 tiles
 	# turns the trail into a lit line running through dark caves -- you always
@@ -788,6 +795,9 @@ func _gen_kind(x: int, y: int) -> int:
 	# solid rock -- salt in clustered ORE VEINS for a reward when you dig
 	if _ore.get_noise_2d(float(x) * 1.3, float(y) * 1.3) > 0.42:
 		return ORE_COL + b
+	# ...and pockets of SAND, which will not stay up once you cut under it
+	if _sand.get_noise_2d(float(x) * 0.7, float(y) * 0.7) > 0.46:
+		return SAND
 	return b
 
 func _raw_open(x: int, y: int) -> bool:
@@ -905,7 +915,7 @@ func _load_chunk(c: Vector2i) -> void:
 				var left: int = kinds[ly + 1][lx]
 				var right: int = kinds[ly + 1][lx + 2]
 				_map.set_cell(cell, 0, Vector2i(kind, _face_for(above, left, right)))
-				if kind >= ORE_COL:
+				if kind >= ORE_COL and kind < SAND:
 					_sparkmap.set_cell(cell, 0, Vector2i(kind - ORE_COL, 0))   # + its glint
 	_populate_chunk(c)
 
@@ -1005,6 +1015,7 @@ func _populate_chunk(c: Vector2i) -> void:
 	_place_crystals(c, nodes)
 	_seed_traversal(c, rng)
 	_place_traversal(c, nodes, rng)
+	_place_tracks(c, nodes)
 	_place_own_torches(c, nodes)
 	_place_decor(c, nodes, biome, rng)
 	_place_floor_doors(c, nodes)
@@ -1124,6 +1135,8 @@ func _explode(centre: Vector2i, radius: int) -> void:
 	for dx in range(-radius - 1, radius + 2):   # re-light the new crater's rim
 		for dy in range(-radius - 1, radius + 2):
 			_reface(centre + Vector2i(dx, dy))
+	for dx in range(-radius, radius + 1):       # ...and the sand above it pours in
+		_topple_sand(centre + Vector2i(dx, -radius))
 	# everything caught in it
 	if _player != null and is_instance_valid(_player) and _player.has_method("take_damage"):
 		var d: float = _player.global_position.distance_to(at)
@@ -1466,6 +1479,226 @@ func _decor_rubble(cell: Vector2i, base: Color, rng: RandomNumberGenerator) -> N
 		stone.position = Vector2(rng.randf_range(-5.0, 5.0), float(TILE) * 0.5 - r * 0.7)
 		n.add_child(stone)
 	return n
+
+# ══ MINECART LINES ═══════════════════════════════════════════════════════════
+# Rails are laid ALONG THE DELVER'S ROAD, and that is the whole trick. A cart
+# needs a long, continuous, gently-graded run to be any fun, and finding one in
+# noise terrain means following a surface that may not exist. The road is
+# already exactly that -- an ordered list of cells, guaranteed walkable, never
+# steeper than one tile a step -- so a track is just a SPAN OF _path, and riding
+# it is advancing an index. No terrain following, and it cannot derail into
+# rock.
+#
+# Thematically it is the same thing: someone built a road down here, and where
+# the grade was kind they put a mine railway on it.
+const TRACK_RUNS := 12
+const TRACK_MIN := 70                  # path cells
+const TRACK_MAX := 170
+const CART_TOP := 430.0                # px/s -- twice a run, so it feels like a ride
+const CART_ACCEL := 320.0
+
+var _track_cells := {}                 # Vector2i(cell) -> run index
+var _track_runs: Array = []            # [from_index, to_index] into _path
+var _riding: Node = null
+var _cart_i := 0.0                     # position along _path while riding
+var _cart_v := 0.0
+var _cart_dir := 1
+
+func _build_tracks() -> void:
+	_track_cells = {}
+	_track_runs = []
+	if _path.size() < TRACK_MIN * 2:
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0x7A11CE ^ _seed
+	var span := int(float(_path.size()) / float(TRACK_RUNS))
+	for r in range(TRACK_RUNS):
+		var length := rng.randi_range(TRACK_MIN, TRACK_MAX)
+		var from := r * span + rng.randi_range(0, maxi(1, span - length - 2))
+		var to := mini(from + length, _path.size() - 1)
+		if to - from < TRACK_MIN:
+			continue
+		_track_runs.append([from, to])
+		for i in range(from, to + 1):
+			_track_cells[_path[i]] = _track_runs.size() - 1
+
+func _place_tracks(c: Vector2i, nodes: Array) -> void:
+	for cell in _track_cells.keys():
+		if _chunk_of_cell(cell) == c:
+			nodes.append(_spawn_rail(cell))
+	# one cart parked at the head of each run
+	for ri in range(_track_runs.size()):
+		var head: Vector2i = _path[int(_track_runs[ri][0])]
+		if _chunk_of_cell(head) == c:
+			nodes.append(_spawn_cart(head, ri))
+
+func _spawn_rail(cell: Vector2i) -> Node:
+	var n := _decor_at(cell, 3)
+	var tie := Polygon2D.new()
+	tie.polygon = PackedVector2Array([
+		Vector2(-TILE / 2.0, -3), Vector2(TILE / 2.0, -3), Vector2(TILE / 2.0, -1), Vector2(-TILE / 2.0, -1)])
+	tie.color = Color(0.33, 0.24, 0.15)
+	tie.position = Vector2(0, -float(TILE) * 0.5)
+	n.add_child(tie)
+	for rx in [-3.5, 3.5]:
+		var rail := Polygon2D.new()
+		rail.polygon = PackedVector2Array([
+			Vector2(rx - 0.9, -6), Vector2(rx + 0.9, -6), Vector2(rx + 0.9, -2), Vector2(rx - 0.9, -2)])
+		rail.color = Color(0.55, 0.56, 0.60)
+		rail.position = Vector2(0, -float(TILE) * 0.5)
+		n.add_child(rail)
+	return n
+
+func _spawn_cart(cell: Vector2i, run: int) -> Node:
+	var n := _decor_at(cell, 8)
+	n.add_to_group("ug_cart")
+	n.set_meta("run", run)
+	var tub := Polygon2D.new()
+	tub.polygon = PackedVector2Array([
+		Vector2(-11, -12), Vector2(11, -12), Vector2(9, 0), Vector2(-9, 0)])
+	tub.color = Color(0.40, 0.29, 0.18)
+	tub.position = Vector2(0, -float(TILE) * 0.5 - 1)
+	n.add_child(tub)
+	var rim := Polygon2D.new()
+	rim.polygon = PackedVector2Array([
+		Vector2(-11, -13), Vector2(11, -13), Vector2(11, -11), Vector2(-11, -11)])
+	rim.color = Color(0.56, 0.44, 0.26)
+	rim.position = Vector2(0, -float(TILE) * 0.5 - 1)
+	n.add_child(rim)
+	for wx in [-6.0, 6.0]:
+		var wheel := Polygon2D.new()
+		wheel.polygon = _disc(3.2)
+		wheel.color = Color(0.24, 0.24, 0.27)
+		wheel.position = Vector2(wx, -float(TILE) * 0.5 - 1)
+		n.add_child(wheel)
+	return n
+
+func _try_board_cart() -> bool:
+	for cart in get_tree().get_nodes_in_group("ug_cart"):
+		if not is_instance_valid(cart):
+			continue
+		if _player.global_position.distance_to(cart.global_position) > 48.0:
+			continue
+		var run: int = int(cart.get_meta("run"))
+		if run < 0 or run >= _track_runs.size():
+			continue
+		# start from whichever end of the run you actually are
+		var from: int = int(_track_runs[run][0])
+		var to: int = int(_track_runs[run][1])
+		var best := from
+		var best_d := 1.0e9
+		for i in range(from, to + 1):
+			var d: float = _map.to_global(_map.map_to_local(_path[i])).distance_to(_player.global_position)
+			if d < best_d:
+				best_d = d
+				best = i
+		_riding = cart
+		_cart_i = float(best)
+		_cart_v = 0.0
+		_cart_dir = 1 if best < to else -1
+		cart.visible = false                       # you are the cart now
+		_notify("🛒 Aboard. A/D to drive, Space to jump off.")
+		return true
+	return false
+
+func _cart_tick(delta: float) -> bool:
+	if _riding == null or not is_instance_valid(_riding):
+		_riding = null
+		return false
+	var run: int = int(_riding.get_meta("run"))
+	var from: int = int(_track_runs[run][0])
+	var to: int = int(_track_runs[run][1])
+	if Input.is_action_just_pressed("jump"):
+		_leave_cart()
+		return false
+	if Input.is_action_pressed("move_right"):
+		_cart_dir = 1
+	elif Input.is_action_pressed("move_left"):
+		_cart_dir = -1
+	_cart_v = minf(_cart_v + CART_ACCEL * delta, CART_TOP)
+	_cart_i += float(_cart_dir) * (_cart_v * delta) / float(TILE)
+	if _cart_i <= float(from) or _cart_i >= float(to):
+		_cart_i = clampf(_cart_i, float(from), float(to))
+		_leave_cart()
+		return false
+	var cell: Vector2i = _path[int(_cart_i)]
+	_player.global_position = _map.to_global(_map.map_to_local(cell)) + Vector2(0, -18.0)
+	_player.velocity = Vector2.ZERO
+	if _riding != null:
+		_riding.global_position = _map.to_global(_map.map_to_local(cell))
+	return true
+
+func _leave_cart() -> void:
+	if _riding != null and is_instance_valid(_riding):
+		_riding.visible = true
+		if _player != null:
+			_player.velocity = Vector2(float(_cart_dir) * _cart_v * 0.5, -180.0)
+	_riding = null
+	_cart_v = 0.0
+
+# ══ FALLING SAND ═════════════════════════════════════════════════════════════
+# Sand is a normal block until the moment you cut the support out from under it,
+# and then it is a hazard. Terraria's version is the reason you think twice
+# before tunnelling straight up, and it turns a pocket of sand over your head
+# into a trap you set for yourself.
+#
+# It is EVENT-DRIVEN, not simulated: worldgen sand is settled by definition, so
+# nothing needs ticking until something makes a hole. _break and _explode call
+# _topple_sand on the cell they emptied, which walks up the column waking every
+# grain resting on it.
+const SAND_FALL_SPEED := 240.0
+const SAND_HURT := 14                  # a column of it landing on your head
+
+func _topple_sand(emptied: Vector2i) -> void:
+	var c := emptied + Vector2i(0, -1)
+	var guard := 0
+	while guard < 48 and _cell_kind(c) == SAND:
+		_start_sand_fall(c)
+		c += Vector2i(0, -1)
+		guard += 1
+
+func _start_sand_fall(cell: Vector2i) -> void:
+	_edits[cell] = AIR
+	_hp.erase(cell)
+	_map.erase_cell(cell)
+	_reface(cell + Vector2i(0, 1))
+	var g := Node2D.new()
+	g.z_index = 9
+	add_child(g)
+	g.global_position = _map.to_global(_map.map_to_local(cell))
+	var body := Polygon2D.new()
+	body.polygon = PackedVector2Array([
+		Vector2(-TILE / 2.0, -TILE / 2.0), Vector2(TILE / 2.0, -TILE / 2.0),
+		Vector2(TILE / 2.0, TILE / 2.0), Vector2(-TILE / 2.0, TILE / 2.0)])
+	body.color = Color(0.72, 0.61, 0.38)
+	g.add_child(body)
+	g.set_meta("vel", 0.0)
+	g.add_to_group("ug_fallsand")
+
+func _sand_tick(delta: float) -> void:
+	for g in get_tree().get_nodes_in_group("ug_fallsand"):
+		if not is_instance_valid(g):
+			continue
+		var v: float = float(g.get_meta("vel", 0.0)) + 900.0 * delta
+		v = minf(v, SAND_FALL_SPEED)
+		g.set_meta("vel", v)
+		g.global_position.y += v * delta
+		var here := _cell_at(g.global_position)
+		var below := here + Vector2i(0, 1)
+		# it lands the moment the cell under it is something it can rest on
+		if _solid_kind(below) or below.y >= DEPTH - 1:
+			_edits[here] = SAND
+			_map.set_cell(here, 0, Vector2i(SAND, TILE_EXPOSED))
+			_reface(here + Vector2i(0, 1))
+			_chips(g.global_position, Color(0.72, 0.61, 0.38), false)
+			g.queue_free()
+			continue
+		# ...and it hurts on the way past
+		if _player != null and is_instance_valid(_player) \
+				and _player.global_position.distance_to(g.global_position) < 20.0 \
+				and _player.has_method("take_damage") and not bool(g.get_meta("hit", false)):
+			g.set_meta("hit", true)
+			_player.take_damage(SAND_HURT)
 
 # ══ ROPES AND PLATFORMS ══════════════════════════════════════════════════════
 # The two traversal verbs Terraria has and this did not. Until now the ONLY way
@@ -2549,9 +2782,12 @@ func _water_tick(delta: float) -> void:
 	# the player box is 32x48: sample the head and the feet separately, so wading
 	# through the shallows is not the same as being under
 	# a rope takes over vertical movement entirely, so it goes first
+	if _cart_tick(delta):
+		return
 	if _rope_tick(delta):
 		return
 	_drop_through(delta)
+	_sand_tick(delta)
 	var head := _cell_kind(_cell_at(_player.global_position + Vector2(0, -17))) == WATER
 	var feet := _cell_kind(_cell_at(_player.global_position + Vector2(0, 19))) == WATER
 	var wet := head or feet
@@ -2674,18 +2910,21 @@ func mine_at(cursor: Vector2, from: Vector2, reach_px: float, smart: bool, pick_
 
 func _break(cell: Vector2i, pick_tier: int, player: Node) -> bool:
 	var kind := _map.get_cell_atlas_coords(cell).x
-	var is_ore := kind >= ORE_COL
-	var bi := (kind - ORE_COL) if is_ore else kind
+	# SAND lives past the ore columns, so the ore arithmetic below would read it
+	# as a sixth biome's ore. It is loose stuff: always tier 0, soft, drops stone.
+	var is_sand := kind == SAND
+	var is_ore := kind >= ORE_COL and not is_sand
+	var bi := (kind - ORE_COL) if is_ore else (0 if is_sand else kind)
 	var biome: Dictionary = BIOMES[clampi(bi, 0, BIOMES.size() - 1)]
 	var center := _map.to_global(_map.map_to_local(cell))
-	if pick_tier < int(biome.tier):
+	if pick_tier < int(biome.tier) and not is_sand:
 		_notify("%s is too hard for your pickaxe — you'll need a stronger one." % biome.name)
 		_chips(center, biome.accent, true)
 		return false
-	var hard := int(biome.hard) + (2 if is_ore else 0)   # ore is a bit tougher
+	var hard := 2 if is_sand else int(biome.hard) + (2 if is_ore else 0)   # ore tougher, sand loose
 	var left := int(_hp.get(cell, hard))
 	left -= 1
-	_chips(center, (ORE_GEM[bi] if is_ore else biome.base), false)
+	_chips(center, (Color(0.72, 0.61, 0.38) if is_sand else (ORE_GEM[bi] if is_ore else biome.base)), false)
 	if left <= 0:
 		_hp.erase(cell)
 		_edits[cell] = AIR
@@ -2696,6 +2935,7 @@ func _break(cell: Vector2i, pick_tier: int, player: Node) -> bool:
 		# neighbours, or a tunnel you dig stays walled in flat interior rock
 		for d in [Vector2i(0, 1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(1, 0)]:
 			_reface(cell + d)
+		_topple_sand(cell)              # anything loose resting on this now falls
 		if player != null and "inventory" in player and player.inventory != null:
 			var drop_id: String = ORE_DROP[bi] if is_ore else "stone"
 			var leftover: int = player.inventory.add_item(drop_id, 1)
@@ -2826,7 +3066,24 @@ const TILE_ROWS := 3
 
 func _build_tileset() -> void:
 	var n := BIOMES.size()
-	var img := Image.create(n * 2 * TILE, TILE_ROWS * TILE, false, Image.FORMAT_RGBA8)
+	var img := Image.create((n * 2 + 1) * TILE, TILE_ROWS * TILE, false, Image.FORMAT_RGBA8)
+	# SAND gets the column after the ores (see SAND / _topple_sand): loose, pale,
+	# grainy, and obviously not the rock around it -- you should be able to tell
+	# at a glance which ceiling is about to come down on you.
+	for row in range(TILE_ROWS):
+		for x in range(TILE):
+			for y in range(TILE):
+				var sc := Color(0.72, 0.61, 0.38)
+				if row == TILE_EXPOSED and y <= 1:
+					sc = Color(0.82, 0.71, 0.47)
+				elif row == TILE_INTERIOR:
+					sc = sc.darkened(0.10)
+				var sh := ((x * 26699) ^ (y * 8191)) & 0x7fffffff
+				if sh % 5 == 0:
+					sc = sc.darkened(0.10)
+				elif sh % 7 == 0:
+					sc = sc.lightened(0.08)
+				img.set_pixel(SAND * TILE + x, row * TILE + y, sc)
 	for c in range(n):
 		var base: Color = BIOMES[c].base
 		var gem: Color = ORE_GEM[c]
@@ -3109,6 +3366,8 @@ func _unhandled_input(e: InputEvent) -> void:
 		return
 	if e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_E:
 		if _player != null:
+			if _riding == null and _try_board_cart():
+				return
 			for cr in get_tree().get_nodes_in_group("ug_crystal"):
 				if is_instance_valid(cr) and _player.global_position.distance_to(cr.global_position) < 44.0:
 					_take_crystal(cr)
