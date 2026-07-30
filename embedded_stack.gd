@@ -35,6 +35,10 @@ var transfer_on_death := false
 # Build-and-release rather than overflow, debt, or inheritance.
 var burst_at_max := false
 var burst_damage := 0
+# KING'S RANSOM (T5) is the fifth economy: the mark is a PRICE. It does no
+# damage at all -- it only pays out, in gold, if the marked one dies while it
+# still stands.
+var ransom_gold := 0
 var tint := Color(0.95, 0.85, 0.45)
 var owner_player: Node = null
 
@@ -60,6 +64,7 @@ static func drive(victim: Node2D, k: String, cfg: Dictionary) -> Node:
 	s.transfer_on_death = bool(cfg.get("transfer_on_death", false))
 	s.burst_at_max = bool(cfg.get("burst_at_max", false))
 	s.burst_damage = int(cfg.get("burst", 0))
+	s.ransom_gold = int(cfg.get("ransom", 0))
 	if cfg.has("tint"):
 		s.tint = cfg["tint"]
 	s.add_to_group(GROUP)
@@ -90,6 +95,8 @@ func _process(delta: float) -> void:
 			or ("is_dead" in victim and victim.is_dead):
 		if transfer_on_death and not _barbs.is_empty():
 			_inherit()
+		if ransom_gold > 0 and not _barbs.is_empty():
+			_collect_ransom()
 		queue_free()
 		return
 	# barbs whose time ran out leave the same way they would if pushed
@@ -100,9 +107,9 @@ func _process(delta: float) -> void:
 	for b in expired:
 		_barbs.erase(b)
 		_burst(b, pop_on_expire)   # a debt that came due, or just a barb falling out
-	# the bite -- but a SILENT stack is silent: it gathers and does nothing
-	# until the chord completes, which is the whole point of the weapon
-	if _barbs.is_empty() or burst_at_max:
+	# the bite -- but a SILENT stack is silent, and a RANSOM never bites at
+	# all: it is a price, and prices are collected, not paid in blood
+	if _barbs.is_empty() or burst_at_max or ransom_gold > 0:
 		_animate_barbs()
 		return
 	if fmod(_t, tick_gap) < delta:
@@ -156,6 +163,36 @@ func _inherit() -> void:
 	if host != null:
 		FloatingText.spawn_word(host, (best as Node2D).global_position + Vector2(0, -46),
 			"the debt passes", Color(0.98, 0.86, 0.42))
+
+# the price is paid: the marked one died still carrying it
+func _collect_ransom() -> void:
+	var at: Vector2 = global_position
+	var paid: int = ransom_gold * maxi(1, _barbs.size())
+	GameState.gold += paid
+	var host := _stage()
+	if host == null:
+		return
+	FloatingText.spawn_word(host, at + Vector2(0, -44), "+%dg ransom" % paid, tint)
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	for i in range(6):
+		var coin := Polygon2D.new()
+		var pts := PackedVector2Array()
+		for k in range(8):
+			var a := TAU * float(k) / 8.0
+			pts.append(Vector2(cos(a), sin(a)) * 4.5)
+		coin.polygon = pts
+		coin.color = Color(1.0, 0.87, 0.4, 0.95)
+		coin.material = m
+		coin.z_index = 46
+		host.add_child(coin)
+		coin.global_position = at
+		var away: Vector2 = at + Vector2(randf_range(-46.0, 46.0), randf_range(-52.0, -18.0))
+		var tw := coin.create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(coin, "global_position", away, 0.5).set_trans(Tween.TRANS_QUAD)
+		tw.tween_property(coin, "modulate:a", 0.0, 0.5)
+		tw.chain().tween_callback(coin.queue_free)
 
 # the chord: every voice gathered pays at once, and the stack is spent
 func _sing() -> void:

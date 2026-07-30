@@ -117,7 +117,7 @@ const ROWS = [
 	["wpn_starfallbow",  "Starfall Bow",         "bow",   5, "starfall",  30, 1.0,  {"aoe": 115, "fx": [{"kind": "chain", "n": 4, "pct": 0.7, "range": 320.0}]}],
 	["wpn_grandrains",   "Grand Tome of Rains",  "wand",  5, "tome",      14, 1.35, {"radius": 155, "tome_kind": "twin", "fx": [{"kind": "crowd", "pct_per": 0.18, "cap": 0.7}, {"kind": "sparkfly", "n": 1, "pct": 0.6}]}],
 	["wpn_twinburst",    "Twinburst Sceptre",    "wand",  5, "twinburst", 25, 0.8,  {"shards": 7, "fx": [{"kind": "frostbloom", "radius": 190.0, "dur": 3.5}]}],
-	["wpn_kingsransom",  "King's Ransom",        "wand",  5, "ricochet",  22, 0.6,  {"bounces": 5, "fx": [{"kind": "goldtouch", "chance": 0.5, "gold": 6}, {"kind": "splinter", "n": 3, "pct": 0.6, "range": 170.0}]}],
+	["wpn_kingsransom",  "King's Ransom",        "wand",  5, "kingsransom", 22, 0.6,  {"bounces": 5, "fx": [{"kind": "goldtouch", "chance": 0.5, "gold": 6}, {"kind": "splinter", "n": 3, "pct": 0.6, "range": 170.0}]}],
 	["wpn_longwatch",    "Warden's Long Watch",  "wand",  5, "sentry",    14, 1.2,  {"dur": 22, "fx": [{"kind": "bulwark", "dr": 0.23, "dur": 4.0}, {"kind": "echo", "pct": 0.6, "delay": 0.4}]}],
 	["wpn_summitstaff",  "Summit That Walks",    "staff", 5, "staff",     19, 0.42, {"plain": true}],
 	# ---------------- TIER 6 - MYTHIC (floors 58-88) ----------------
@@ -267,22 +267,22 @@ const ROWS = [
 	# ---------------- WAVE 3 - TIER 5 (26) ----------------
 	["wpn_lastlantern",  "The Last Lantern",     "melee", 5, "arc",       23, 0.4,  {"status": "burn_w", "plain": true}],
 	["wpn_hourmaul",     "The Eleventh Hour",    "melee", 5, "cleave",    34, 1.08, {"knockup": true, "plain": true}],
-	["wpn_gallowsflail", "Gallows Swing",        "melee", 5, "chain_maul", 26, 0.95, {"fx": [{"kind": "harvest", "hp": 6, "mana": 5.0}, {"kind": "quake", "radius": 150.0, "pct": 0.6}]}],
+	["wpn_gallowsflail", "Gallows Swing",        "melee", 5, "gallows",   26, 0.95, {"fx": [{"kind": "harvest", "hp": 6, "mana": 5.0}, {"kind": "quake", "radius": 150.0, "pct": 0.6}]}],
 	["wpn_midwinterwheel","Midwinter Wheel",     "melee", 5, "orbiter",   20, 0.78, {"dwell": 2.8, "status": "slow_w", "fx": [{"kind": "frostbloom", "radius": 170.0}, {"kind": "gravity", "radius": 220.0, "pull": 160.0}]}],
 	["wpn_asphodelknife","Asphodel Kiss",        "melee", 5, "arc",       15, 0.24, {"status": "poison_w", "plain": true}],
 	["wpn_seawallblade", "Seawall",              "melee", 5, "seawall",   21, 0.55, {"p_damage": 19, "fx": [{"kind": "bulwark", "dr": 0.16, "dur": 3.0}, {"kind": "chain", "n": 2, "pct": 0.6, "range": 250.0}]}],
-	["wpn_pilgrimlash",  "Pilgrim's Scourge",    "melee", 5, "lash",      21, 0.83, {"fx": [{"kind": "haste", "pct_per": 0.08, "max": 6, "dur": 4.5}, {"kind": "frostbloom", "radius": 155.0}]}],
+	["wpn_pilgrimlash",  "Pilgrim's Scourge",    "melee", 5, "pilgrimscourge", 21, 0.83, {"fx": [{"kind": "haste", "pct_per": 0.08, "max": 6, "dur": 4.5}, {"kind": "frostbloom", "radius": 155.0}]}],
 	["wpn_omenblade",    "Omen of Iron",         "melee", 5, "ricochet",  19, 0.58, {"bounces": 5, "fx": [{"kind": "brand", "amp": 0.39, "dur": 4.5}, {"kind": "echo", "pct": 0.7, "delay": 0.4}]}],
 	["wpn_borderpike",   "Border of the Realm",  "spear", 5, "thrust",    28, 0.78, {"plain": true}],
 	["wpn_stormherd",    "Stormherd",            "spear", 5, "jab_volley", 17, 0.88, {"count": 5, "fx": [{"kind": "stormcall", "every": 4, "pct": 1.54}, {"kind": "chain", "n": 2, "pct": 0.6, "range": 260.0}]}],
 	["wpn_moonreach",    "Moonreach",            "spear", 5, "thrust",    23, 0.58, {"status": "slow_w", "plain": true}],
 	["wpn_kestrelbow",   "Kestrel's Court",      "bow",   5, "volley",    14, 0.54, {"count": 3, "fx": [{"kind": "haste", "pct_per": 0.08, "max": 6, "dur": 4.0}, {"kind": "splinter", "n": 3, "pct": 0.84, "range": 170.0}]}],
-	["wpn_quillrain",    "Quillrain",            "bow",   5, "rapid",     10, 0.16, {"fx": [{"kind": "echo", "pct": 0.6, "delay": 0.3}, {"kind": "crowd", "pct_per": 0.12, "cap": 0.45}]}],
+	["wpn_quillrain",    "Quillrain",            "bow",   5, "quillrain", 10, 0.16, {"fx": [{"kind": "echo", "pct": 0.6, "delay": 0.3}, {"kind": "crowd", "pct_per": 0.12, "cap": 0.45}]}],
 	["wpn_wintermark",   "Wintermark",           "bow",   5, "shot",      26, 0.58, {"pierce": true, "status": "slow_w", "plain": true}],
-	["wpn_owlseeker",    "The Owl Remembers",    "bow",   5, "seeker",    19, 0.58, {"fx": [{"kind": "brand", "amp": 0.42, "dur": 4.5}, {"kind": "quake", "radius": 150.0, "pct": 0.5}]}],
+	["wpn_owlseeker",    "The Owl Remembers",    "bow",   5, "owlremembers", 19, 0.58, {"fx": [{"kind": "brand", "amp": 0.42, "dur": 4.5}, {"kind": "quake", "radius": 150.0, "pct": 0.5}]}],
 	["wpn_thunderhead",  "Thunderhead",          "bow",   5, "lob_a",     29, 1.0,  {"aoe": 110, "fx": [{"kind": "stormcall", "every": 4, "pct": 1.6}, {"kind": "crowd", "pct_per": 0.12, "cap": 0.5}]}],
 	["wpn_sirensbook",   "The Siren's Appendix", "wand",  5, "tome",      13, 1.35, {"radius": 150, "tome_kind": "lure", "fx": [{"kind": "gravity", "radius": 230.0, "pull": 165.0}, {"kind": "duelist", "pct_per": 0.12, "max": 6}]}],
-	["wpn_glacierwrit",  "Glacier Writ",         "wand",  5, "frost",     24, 0.55, {"status": "slow_w", "fx": [{"kind": "frostbloom", "radius": 170.0, "dur": 3.2}, {"kind": "harvest", "hp": 4}]}],
+	["wpn_glacierwrit",  "Glacier Writ",         "wand",  5, "glacierwrit", 24, 0.55, {"status": "slow_w", "fx": [{"kind": "frostbloom", "radius": 170.0, "dur": 3.2}, {"kind": "harvest", "hp": 4}]}],
 	["wpn_starsplinter", "Starsplinter",         "wand",  5, "cluster",   24, 0.78, {"shards": 7, "fx": [{"kind": "splinter", "n": 5, "pct": 0.6, "range": 185.0}, {"kind": "moonlit", "pct": 0.6}]}],
 	["wpn_omenbolt",     "The Third Omen",       "wand",  5, "ricochet",  21, 0.58, {"bounces": 5, "fx": [{"kind": "echo", "pct": 0.7, "delay": 0.45}, {"kind": "quake", "radius": 150.0, "pct": 0.6}]}],
 	["wpn_beaconpost",   "Beacon of the Deep",   "wand",  5, "deepbeacon", 13, 1.18, {"dur": 22, "fx": [{"kind": "moonlit", "pct": 0.6}, {"kind": "chain", "n": 2, "pct": 0.5, "range": 250.0}]}],
@@ -874,6 +874,24 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 		"worldtoll":
 			s = {"type": "under_toll", "damage": maxi(1, int(round(float(dmg) * 0.85))),
 				"speed": spd - 260.0, "range": rng * 0.55}
+		# ---- T5 batch 2 ----
+		"glacierwrit":
+			s = {"type": "ice_floe", "damage": maxi(1, int(round(float(dmg) * 0.6))),
+				"speed": spd - 330.0, "range": rng * 0.62}
+		"owlremembers":
+			s = {"type": "owl_pass", "damage": maxi(1, int(round(float(dmg) * 0.6))),
+				"speed": spd - 120.0, "range": rng}
+		"quillrain":
+			s = {"type": "rain_quill", "damage": dmg, "count": 2,
+				"speed": spd - 240.0, "range": rng, "lift": 210.0}
+		"kingsransom":
+			s = {"type": "ransom_seal", "damage": maxi(1, int(round(float(dmg) * 0.7))),
+				"speed": spd, "range": rng}
+		"gallows":
+			s = {"type": "gallows_head", "damage": dmg, "range": rng * 0.5}
+		"pilgrimscourge":
+			s = {"type": "pilgrim_lash", "damage": maxi(1, int(round(float(dmg) * 0.85))),
+				"speed": spd - 150.0, "range": rng * 0.4}
 		"debtmark":
 			s = {"type": "debt_mark", "damage": dmg, "speed": spd + 60.0, "range": rng}
 		"cinderdrag":
@@ -954,6 +972,12 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"hushfall":    return "The blow lands in SILENCE. The sound of it arrives a moment later, from where you struck, and the sound is the heavier half."
 		"eclipse":     return "The wheel rolls out and goes DARK, and the shadow it throws is the weapon -- a long band of night that cuts everything standing in it."
 		"cometfall":   return "Lobs high and comes down as a COMET, cratering where it lands and leaving the ground burning for whatever walks in next."
+		"glacierwrit": return "A slab of ice that ACCRETES as it drifts -- a shard when it leaves your hand, a wall by the end of the room, and then it breaks up."
+		"owlremembers": return "It swoops, wheels around, and comes back -- three passes, and IT REMEMBERS: every visit hurts more than the last."
+		"quillrain":   return "Not a volley. A DRIZZLE -- quills falling faster than you can count them, all over the ground in front of you."
+		"kingsransom": return "Stamps a PRICE on them. The seal barely stings; what it is for is the gold it pays out if they die still wearing it."
+		"gallows":     return "It does not knock them back. It takes them UP, holds them there swinging, and then the floor comes back."
+		"pilgrimscourge": return "Every place the knots land becomes a WAYMARK. Walk your own road back and the stones give something to whoever laid them."
 		"seawall":     return "The swing does not travel -- it STOPS and stands there, a wall of water on the wrong side of them, shoving anything that tries to cross."
 		"serpentsermon": return "The lash finds one body and COILS around it, and then it stays and preaches, biting on every breath until it is done."
 		"twinburst":   return "Two bolts winding around one another, and everywhere their paths CROSS the air goes off."

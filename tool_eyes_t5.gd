@@ -64,7 +64,13 @@ func _ready() -> void:
 			["wpn_twinburst",    "c1_twin_cross",  0.50, 1],
 			["wpn_beaconpost",   "d1_beacon_pulse", 1.30, 1],
 			["wpn_starfallbow",  "e1_starfall",    0.85, 1],
-			["wpn_worldtoll",    "f1_under_toll",  0.62, 1]]: # it caught someone
+			["wpn_worldtoll",    "f1_under_toll",  0.62, 1],
+			["wpn_glacierwrit",  "g1_ice_floe",    0.80, 1],
+			["wpn_owlseeker",    "h1_owl_pass",    0.95, 1],
+			["wpn_quillrain",    "i1_quill_rain",  0.55, 4],
+			["wpn_kingsransom",  "j1_ransom_seal", 0.45, 1],
+			["wpn_gallowsflail", "k1_gallows_hang", 0.75, 1],
+			["wpn_pilgrimlash",  "l1_waymarks",    0.50, 1]]: # it caught someone
 		p.global_position = _home
 		if "velocity" in p: p.velocity = Vector2.ZERO
 		p.inventory.add_item(spec[0], 1)

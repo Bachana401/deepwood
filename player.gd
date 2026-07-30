@@ -3130,6 +3130,7 @@ func _unmake_ring(ring: Node2D) -> void:
 
 func _physics_process(delta: float) -> void:
 	update_orbs()   # keep the HP/mana globes tracking live pools (incl. passive regen)
+	_tick_waymarks(delta)
 	if player_light:
 		# carry a light through the dark places: the dungeon, and the Underdark
 		# (deep below the surface, where main.tscn's own CanvasModulate dims it)
@@ -3702,7 +3703,8 @@ func perform_attack() -> void:
 			ice.global_position = global_position + get_aim_direction() * 104.0 + Vector2(0, 20.0)
 		# THE DELUGE / SHATTERHYMN / NOVABURST (T6): all leave the hand as one body
 		elif special_type == "flood_wave" or special_type == "glass_note" \
-				or special_type == "nova_seed" or special_type == "courier_route":
+				or special_type == "nova_seed" or special_type == "courier_route" \
+				or special_type == "ice_floe" or special_type == "ransom_seal":
 			var wcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("wand"))))
 			launch_projectile(special, get_aim_direction(), wcr[0], wcr[1])
 		# WATCHFIRE (T6): planted where you aim, then it waits
@@ -3832,6 +3834,26 @@ func perform_attack() -> void:
 			return
 		# COMETFALL (T6): lofted on purpose -- the shot leaves the string ANGLED
 		# UP and gravity does the rest, so you lead the ground, not the target.
+		# QUILLRAIN (T5): a drizzle -- two quills a shot, on a fast cadence
+		if special_type == "rain_quill":
+			play_sfx(SFX_BOW)
+			animate_bow(stats)
+			var rqd := maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("bow"))))
+			var rqdir := get_aim_direction()
+			for rq_i in range(int(special.get("count", 2))):
+				var rq = WEAPON_PROJECTILE_SCRIPT.new()
+				rq.kind = "rain_quill"
+				rq.damage = rqd
+				rq.element = Inventory.element_of(active_weapon_id)
+				rq.on_hit_status = special.get("status", {})
+				rq.source = self
+				rq.girth = grade_projectile_girth()
+				rq.direction = rqdir.rotated(deg_to_rad(randf_range(-7.0, 7.0)))
+				rq.speed = float(special.get("speed", 300.0)) * randf_range(0.85, 1.15)
+				get_parent().add_child(rq)
+				rq.global_position = global_position + rqdir * 26.0 + Vector2(0, -10.0)
+				rq.set("_quill_vy", -float(special.get("lift", 210.0)) * randf_range(0.8, 1.2))
+			return
 		# STARFALL BOW (T5): the shot goes up out of sight; stars come down
 		if special_type == "star_fall":
 			play_sfx(SFX_BOW)
@@ -3908,7 +3930,8 @@ func perform_attack() -> void:
 			sn.global_position = global_position + sn.direction * 32.0 + Vector2(0, -12.0)
 			return
 		# LODESTAR / DIRE PORTENT (T6): both leave the string as one shaft
-		if special_type == "lodestar" or special_type == "portent":
+		if special_type == "lodestar" or special_type == "portent" \
+				or special_type == "owl_pass":
 			play_sfx(SFX_BOW)
 			animate_bow(stats)
 			var cr_l = roll_crit(int(round(float(special.get("damage", stats.damage)) * skill_damage_mult("bow"))))
@@ -4234,9 +4257,10 @@ func perform_attack() -> void:
 	elif special_type == "eclipse_disc":
 		var ecr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
 		launch_projectile(special, aim_dir, ecr[0], ecr[1])
-	# SEAWALL / SERPENT'S SERMON / WORLDTOLL MAUL (T5)
+	# SEAWALL / SERPENT'S SERMON / WORLDTOLL MAUL / GALLOWS / SCOURGE (T5)
 	elif special_type == "sea_wall" or special_type == "serpent_coil" \
-			or special_type == "under_toll":
+			or special_type == "under_toll" or special_type == "gallows_head" \
+			or special_type == "pilgrim_lash":
 		var t5cr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
 		launch_projectile(special, aim_dir, t5cr[0], t5cr[1])
 	# WHEEL OF THE HOLLOW (T6): a guard, not a throw
@@ -5300,6 +5324,36 @@ func apply_omnivamp(total_damage: int) -> void:
 # Skill-tree melee keystones fired on each landed melee/spear hit: Bloodthirst
 # (lifesteal), Warden/Elementalist on-hit status (unusual on melee but general),
 # and Executioner (instakill low-HP fodder).
+# ONE place to give HP back. Grief, Collected promised a heal on its return
+# and the Pilgrim's waymarks promise one when you walk your own road -- but
+# there was no heal() on the player at all, so the grief-urn's payout was a
+# SILENT no-op behind a has_method() guard that was never true.
+func heal(amount: int) -> void:
+	if amount <= 0 or health <= 0:
+		return
+	health = mini(get_max_health(), health + amount)
+	update_health_display()
+
+# PILGRIM'S SCOURGE: the stones you laid give something back when you walk
+# over them. Checked here rather than by an Area2D per cairn -- there can be
+# a dozen standing and they are cheap points, not bodies.
+var _waymark_t := 0.0
+func _tick_waymarks(delta: float) -> void:
+	_waymark_t -= delta
+	if _waymark_t > 0.0:
+		return
+	_waymark_t = 0.25
+	for w in get_tree().get_nodes_in_group("pilgrim_waymark"):
+		if not is_instance_valid(w) or not (w is Node2D):
+			continue
+		if global_position.distance_to((w as Node2D).global_position) > 34.0:
+			continue
+		heal(2)
+		FloatingText.spawn_word(get_parent(), global_position + Vector2(0, -50),
+			"+2", Color(0.95, 0.9, 0.65))
+		w.queue_free()
+		return    # one stone per step; the road is meant to be walked
+
 func apply_melee_skills(target: Node2D, dealt: int) -> void:
 	if not is_instance_valid(target):
 		return

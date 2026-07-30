@@ -207,6 +207,19 @@ func _ready() -> void:
 		"under_toll":
 			pierce = true
 			_build_under_toll()
+		# ---- T5 batch 2 ----
+		"ice_floe":
+			pierce = true
+			_build_ice_floe()
+		"owl_pass":
+			pierce = true
+			_build_owl_pass()
+		"rain_quill": _build_rain_quill()
+		"ransom_seal": _build_ransom_seal()
+		"gallows_head": _build_chainmaul()
+		"pilgrim_lash":
+			pierce = true
+			_build_pilgrim_lash()
 		"zenith_blade":
 			# THE LAST WORD: a ghost-image of an ancestor blade. Swoops out,
 			# whirls one tight loop at the far point, and comes home. Each
@@ -566,6 +579,15 @@ func _physics_process(delta: float) -> void:
 	if kind == "star_fall":
 		_tick_quill(delta)      # same fall, its own face (see _build_star_fall)
 		return
+	if kind == "ice_floe":
+		_tick_floe(delta)
+		return
+	if kind == "owl_pass":
+		_tick_owl(delta)
+		return
+	if kind == "rain_quill":
+		_tick_quill(delta)     # the same fall; its face and cadence differ
+		return
 	if kind == "under_toll":
 		# it runs along the floor and SURFACES at the end of its run
 		global_position += direction * speed * delta
@@ -885,6 +907,36 @@ func _on_body_entered(body: Node2D) -> void:
 					maxi(1, int(round(float(damage) * 0.35))), false)
 			_apply_status_to(body)
 			_portent_fix(body)
+		"ransom_seal":
+			# KING'S RANSOM: the seal itself is nearly harmless. The value is
+			# what it pays if they die still wearing it.
+			var landed_r2 = body.take_damage(damage)
+			if landed_r2 == null or landed_r2:
+				FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+			_apply_status_to(body)
+			var seal = load("res://embedded_stack.gd").drive(body, "ransom", {
+				"max": 3, "gap": 1.0, "life": 8.0, "tick": 0, "pop": 0,
+				"player": source, "ransom": 6,
+				"tint": Color(1.0, 0.87, 0.42)})
+			if seal != null:
+				seal.add_one(damage)
+			done = true
+			queue_free()
+			return
+		"pilgrim_lash":
+			# PILGRIM'S SCOURGE: every place it lands becomes a waymark
+			var landed_pl = body.take_damage(damage)
+			if landed_pl == null or landed_pl:
+				FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+			_apply_status_to(body)
+			_plant_waymark(body.global_position)
+		"gallows_head":
+			# GALLOWS SWING: it does not knock them back, it takes them UP
+			var landed_g = body.take_damage(damage)
+			if landed_g == null or landed_g:
+				FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+			_apply_status_to(body)
+			_hang_them(body)
 		"serpent_coil":
 			# SERPENT'S SERMON: it stops being a whip and becomes a grip
 			var landed_sc = body.take_damage(damage)
@@ -4996,6 +5048,261 @@ func _build_under_toll() -> void:
 		grit.color = Color(0.5, 0.42, 0.34, 0.7)
 		grit.position = Vector2(randf_range(-18.0, 18.0), randf_range(-14.0, -4.0))
 		visual.add_child(grit)
+
+# ==========================================================================
+# TIER 5, BATCH 2.
+# ==========================================================================
+
+# --- GLACIER WRIT: a floe that GROWS the further it goes ----------------
+var _floe_t := 0.0
+
+func _tick_floe(delta: float) -> void:
+	_floe_t += delta
+	global_position += direction * speed * delta
+	traveled += speed * delta
+	var frac: float = clampf(traveled / maxf(1.0, max_distance), 0.0, 1.0)
+	if visual:
+		# it accretes as it drifts, so late in its run it is a wall of ice
+		visual.scale = Vector2.ONE * _draw_girth * (0.55 + 1.5 * frac)
+		visual.rotation = sin(_floe_t * 1.6) * 0.12
+	_rehit_t += delta
+	if _rehit_t >= 0.28:
+		_rehit_t = 0.0
+		hit_bodies.clear()
+	if traveled >= max_distance:
+		# and then it breaks up
+		_shatter_note(global_position)
+		done = true
+		queue_free()
+
+func _build_ice_floe() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var slab := Polygon2D.new()
+	slab.polygon = PackedVector2Array([
+		Vector2(-16, 13.0), Vector2(-20, -6.0), Vector2(-5, -17.0),
+		Vector2(13, -13.0), Vector2(19, 3.0), Vector2(8, 16.0)])
+	slab.color = Color(0.6, 0.84, 1.0, 0.62)
+	slab.material = m
+	visual.add_child(slab)
+	for k in range(3):
+		var spike := Polygon2D.new()
+		var h: float = randf_range(10.0, 18.0)
+		spike.polygon = PackedVector2Array([
+			Vector2(-4.0, 0), Vector2(0, -h), Vector2(4.0, 0)])
+		spike.color = Color(0.86, 0.95, 1.0, 0.85)
+		spike.material = m
+		spike.position = Vector2(-9.0 + 9.0 * float(k), -4.0)
+		visual.add_child(spike)
+
+# --- THE OWL REMEMBERS: it circles and comes back, harder each pass -----
+var _owl_t := 0.0
+var _owl_pass := 0
+var _owl_prey: Node2D = null
+var _owl_from := Vector2.ZERO
+const OWL_PASSES := 3
+const OWL_ARC := 0.44        # seconds per swoop
+
+func _tick_owl(delta: float) -> void:
+	if _owl_prey == null or not is_instance_valid(_owl_prey) \
+			or ("is_dead" in _owl_prey and _owl_prey.is_dead):
+		_owl_prey = _nearest_hostile_node(520.0)
+		if _owl_prey == null:
+			global_position += direction * speed * delta
+			traveled += speed * delta
+			if traveled >= max_distance:
+				done = true
+				queue_free()
+			return
+		_owl_from = global_position
+		_owl_t = 0.0
+	_owl_t += delta
+	var t: float = clampf(_owl_t / OWL_ARC, 0.0, 1.0)
+	var target: Vector2 = (_owl_prey as Node2D).global_position
+	# a swoop, not a straight line: it rises off the line and drops on them
+	var flat: Vector2 = _owl_from.lerp(target, t)
+	var lift: float = -sin(t * PI) * 62.0 * (1.0 if _owl_pass % 2 == 0 else -1.0)
+	var prev := global_position
+	global_position = flat + Vector2(0, lift)
+	if global_position != prev:
+		rotation = (global_position - prev).angle()
+	if t < 1.0:
+		return
+	# it lands the pass, then wheels around for the next one
+	_owl_strike()
+	_owl_pass += 1
+	if _owl_pass >= OWL_PASSES:
+		done = true
+		queue_free()
+		return
+	_owl_t = 0.0
+	_owl_from = global_position + Vector2(
+		-92.0 if randf() < 0.5 else 92.0, -46.0)
+	global_position = _owl_from
+
+func _owl_strike() -> void:
+	if _owl_prey == null or not is_instance_valid(_owl_prey):
+		return
+	if not _owl_prey.has_method("take_damage"):
+		return
+	# IT REMEMBERS: the second visit hurts more than the first
+	var pay: int = maxi(1, int(round(float(damage) * (1.0 + 0.45 * float(_owl_pass)))))
+	var landed = _owl_prey.take_damage(pay)
+	if landed == null or landed:
+		FloatingText.spawn(get_parent(), (_owl_prey as Node2D).global_position
+			+ Vector2(randf_range(-16.0, 16.0), -26.0), pay, _owl_pass >= 2)
+	_apply_status_to(_owl_prey)
+
+func _build_owl_pass() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	for s in [-1.0, 1.0]:
+		var wing := Polygon2D.new()
+		wing.polygon = PackedVector2Array([
+			Vector2(1, 0), Vector2(-9, 11.0 * s), Vector2(-14, 3.0 * s), Vector2(-5, 1.0 * s)])
+		wing.color = Color(0.82, 0.76, 0.62, 0.85)
+		wing.material = m
+		visual.add_child(wing)
+	var body_o := Polygon2D.new()
+	body_o.polygon = PackedVector2Array([
+		Vector2(13, 0), Vector2(3, -5.0), Vector2(-10, 0), Vector2(3, 5.0)])
+	body_o.color = Color(0.9, 0.86, 0.72, 0.95)
+	visual.add_child(body_o)
+	# two eyes: an owl reads as an owl only if it is LOOKING at you
+	for ex in [-1.0, 1.0]:
+		var eye := Polygon2D.new()
+		eye.polygon = _circle(2.2, 6)
+		eye.color = Color(1.0, 0.88, 0.3, 0.98)
+		eye.material = m
+		eye.position = Vector2(6.0, 2.4 * ex)
+		visual.add_child(eye)
+
+# --- GALLOWS SWING: it does not knock them back, it LIFTS them ----------
+func _hang_them(who: Node2D) -> void:
+	var host := get_parent()
+	if host == null or not is_instance_valid(who):
+		return
+	if who.has_method("apply_status"):
+		who.apply_status("freeze", 1.1, 1.0)     # they stop, because they are up
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var rope := Polygon2D.new()
+	rope.polygon = PackedVector2Array([
+		Vector2(-1.6, -78.0), Vector2(1.6, -78.0), Vector2(1.6, -14.0), Vector2(-1.6, -14.0)])
+	rope.color = Color(0.66, 0.58, 0.4, 0.9)
+	host.add_child(rope)
+	rope.global_position = (who as Node2D).global_position
+	var noose := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(10):
+		var a := TAU * float(i) / 10.0
+		pts.append(Vector2(cos(a) * 9.0, sin(a) * 5.0))
+	noose.polygon = pts
+	noose.color = Color(0.8, 0.72, 0.5, 0.9)
+	noose.material = m
+	noose.position = Vector2(0, -14.0)
+	rope.add_child(noose)
+	var tw := rope.create_tween()
+	tw.tween_property(rope, "rotation", 0.13, 0.28)
+	tw.tween_property(rope, "rotation", -0.13, 0.34)
+	tw.tween_property(rope, "rotation", 0.0, 0.26)
+	tw.tween_property(rope, "modulate:a", 0.0, 0.2)
+	tw.tween_callback(rope.queue_free)
+	# and then the floor comes back: the drop is the second half of the blow
+	var drop = (load("res://weapon_projectile.gd") as GDScript).new()
+	drop.kind = "late_thunder"
+	drop.damage = maxi(1, int(round(float(damage) * 0.8)))
+	drop.element = element
+	drop.on_hit_status = on_hit_status
+	drop.source = source
+	host.add_child(drop)
+	drop.global_position = (who as Node2D).global_position
+
+# --- PILGRIM'S SCOURGE: every strike plants a WAYMARK you can walk back to
+func _plant_waymark(at: Vector2) -> void:
+	var host := get_parent()
+	if host == null:
+		return
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var cairn := Node2D.new()
+	cairn.z_index = 8
+	cairn.add_to_group("pilgrim_waymark")
+	# a small stack of stones, so the road you walked is readable at a glance
+	for k in range(3):
+		var stone := Polygon2D.new()
+		stone.polygon = _circle(6.5 - 1.6 * float(k), 7)
+		stone.color = Color(0.86, 0.8, 0.66, 0.96)
+		stone.position = Vector2(randf_range(-1.5, 1.5), -3.0 - 7.0 * float(k))
+		cairn.add_child(stone)
+	var halo := Polygon2D.new()
+	halo.polygon = _circle(15.0, 10)
+	halo.color = Color(1.0, 0.92, 0.62, 0.42)
+	halo.material = m
+	halo.position = Vector2(0, -10.0)
+	cairn.add_child(halo)
+	host.add_child(cairn)
+	cairn.global_position = Vector2(at.x, at.y + 12.0)
+	var tw := cairn.create_tween()
+	tw.tween_interval(7.0)
+	tw.tween_property(cairn, "modulate:a", 0.0, 0.8)
+	tw.tween_callback(cairn.queue_free)
+
+func _build_pilgrim_lash() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	for i in range(3):
+		var cord := Polygon2D.new()
+		var off: float = -6.0 + 6.0 * float(i)
+		cord.polygon = PackedVector2Array([
+			Vector2(-24, off * 0.4), Vector2(4, off), Vector2(26, off * 0.7),
+			Vector2(26, off * 0.7 + 2.2), Vector2(4, off + 2.6), Vector2(-24, off * 0.4 + 2.0)])
+		cord.color = Color(0.78, 0.7, 0.5, 0.88 - 0.16 * float(i))
+		visual.add_child(cord)
+		# the knots: a scourge is knotted, and the knots are what land
+		var knot := Polygon2D.new()
+		knot.polygon = _circle(3.6, 6)
+		knot.color = Color(0.92, 0.86, 0.62, 0.95)
+		knot.material = m
+		knot.position = Vector2(24.0, off * 0.7 + 1.0)
+		visual.add_child(knot)
+
+# --- QUILLRAIN: a drizzle, not a volley ---------------------------------
+func _build_rain_quill() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var streak := Polygon2D.new()
+	streak.polygon = PackedVector2Array([
+		Vector2(-3, -1.6), Vector2(-19, 0), Vector2(-3, 1.6)])
+	streak.color = Color(0.72, 0.88, 0.82, 0.42)
+	streak.material = m
+	visual.add_child(streak)
+	var q := Polygon2D.new()
+	q.polygon = PackedVector2Array([
+		Vector2(9, 0), Vector2(-2, -2.0), Vector2(-6, 0), Vector2(-2, 2.0)])
+	q.color = Color(0.88, 0.96, 0.9, 0.92)
+	visual.add_child(q)
+
+# --- KING'S RANSOM: a price on their head -------------------------------
+func _build_ransom_seal() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var halo := Polygon2D.new()
+	halo.polygon = _circle(13.0, 10)
+	halo.color = Color(1.0, 0.86, 0.36, 0.3)
+	halo.material = m
+	visual.add_child(halo)
+	# a crown stamped on a coin
+	var coin := Polygon2D.new()
+	coin.polygon = _circle(8.0, 10)
+	coin.color = Color(1.0, 0.88, 0.42, 0.96)
+	visual.add_child(coin)
+	var crown := Polygon2D.new()
+	crown.polygon = PackedVector2Array([
+		Vector2(-5, 2.0), Vector2(-5, -2.0), Vector2(-2.5, 0.5), Vector2(0, -3.0),
+		Vector2(2.5, 0.5), Vector2(5, -2.0), Vector2(5, 2.0)])
+	crown.color = Color(0.56, 0.4, 0.1, 0.95)
+	visual.add_child(crown)
 
 func _circle(radius: float, sides: int) -> PackedVector2Array:
 	var pts = PackedVector2Array()

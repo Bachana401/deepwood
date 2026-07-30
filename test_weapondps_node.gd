@@ -108,6 +108,13 @@ const HITS_PER_USE := {
 	"deepbeacon":  4.0, # ONE beacon (recast moves it): ~5 pulses over 6.5s
 	"starfall":    2.0, # 3 stars, but they SPREAD where they land
 	"worldtoll":   1.5, # a 0.35x rumble in passing, then the 0.8x eruption
+	# ---- T5 batch 2 ----
+	"glacierwrit": 2.8, # a drifting slab re-hitting every 0.28s as it grows
+	"owlremembers": 2.7, # three passes at 1.0 / 1.45 / 1.9 on ONE body
+	"quillrain":   1.8, # 2 quills a shot on a 0.16s cadence; they SPREAD
+	"kingsransom": 1.0, # the seal barely stings -- it pays in GOLD, not damage
+	"gallows":     1.8, # the swing, then the 0.8x drop when the floor returns
+	"pilgrimscourge": 1.6, # pierces the row; the waymarks heal, they do not hurt
 	# --- pre-existing multi-hit verbs, for a fair comparison ---
 	"volley":     2.0,
 	"jab_volley": 3.0,
