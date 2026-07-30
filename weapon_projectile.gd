@@ -152,6 +152,19 @@ func _ready() -> void:
 		"cinder_drag": _build_chainmaul()
 		"watch_fire": _build_watch_fire()
 		"debt_mark": _build_debt_mark()
+		# ---- T6 batch 2 ----
+		"stage_pike": _build_stage_pike()
+		"flood_wave":
+			pierce = true
+			_build_flood_wave()
+		"lodestar": _build_lodestar()
+		"moon_orbit":
+			pierce = true
+			_build_moon_orbit()
+		"glass_note": _build_glass_note()
+		"long_tongue":
+			pierce = true
+			_build_long_tongue()
 		"zenith_blade":
 			# THE LAST WORD: a ghost-image of an ancestor blade. Swoops out,
 			# whirls one tight loop at the far point, and comes home. Each
@@ -450,6 +463,18 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind == "watch_fire":
 		_tick_watch_fire(delta)
+		return
+	if kind == "stage_pike":
+		_tick_stage_pike(delta)
+		return
+	if kind == "flood_wave":
+		_tick_flood(delta)
+		return
+	if kind == "lodestar":
+		_tick_lodestar(delta)
+		return
+	if kind == "moon_orbit":
+		_tick_moon(delta)
 		return
 	if kind == "regent_shard":
 		_tick_regent_shard(delta)
@@ -752,6 +777,33 @@ func _on_body_entered(body: Node2D) -> void:
 	if is_instance_valid(source) and source.has_method("on_projectile_hit"):
 		source.on_projectile_hit(body, damage)
 	match kind:
+		"glass_note":
+			# SHATTERHYMN: the note does not land, it BREAKS
+			var landed_n = body.take_damage(damage)
+			if landed_n == null or landed_n:
+				FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+			_apply_status_to(body)
+			_shatter_note(body.global_position)
+			done = true
+			queue_free()
+			return
+		"lodestar":
+			# LODESTAR: the first thing it touches becomes true north
+			var landed_l = body.take_damage(damage)
+			if landed_l == null or landed_l:
+				FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+			_apply_status_to(body)
+			_lode_plant(body.global_position, body)
+		"long_tongue":
+			# DAWN'S LONG TONGUE: every body it tastes makes it LONGER, and
+			# the reach you earn is visible in the strands
+			var landed_t = body.take_damage(damage)
+			if landed_t == null or landed_t:
+				FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+			_apply_status_to(body)
+			max_distance += 46.0
+			if visual:
+				visual.scale = visual.scale * Vector2(1.14, 1.04)
 		"eclipse_disc":
 			# a graze on the way out: the real damage is the shadow it throws
 			var landed_e = body.take_damage(maxi(1, int(round(float(damage) * 0.4))))
@@ -3339,6 +3391,343 @@ func _build_debt_mark() -> void:
 	var tw := coin.create_tween().set_loops()
 	tw.tween_property(coin, "scale", Vector2(0.25, 1.0), 0.34)
 	tw.tween_property(coin, "scale", Vector2(1.0, 1.0), 0.34)
+
+# ==========================================================================
+# TIER 6, BATCH 2.
+# ==========================================================================
+
+# --- HORIZON PIKE: it does not thrust once, it TELESCOPES ----------------
+var _pike_t := 0.0
+var _pike_stage := 0
+var _pike_segs: Array = []
+const PIKE_STAGES := 3
+const PIKE_GAP := 0.11
+const PIKE_SEG := 62.0
+
+func _tick_stage_pike(delta: float) -> void:
+	_pike_t += delta
+	if _pike_stage < PIKE_STAGES and _pike_t >= float(_pike_stage) * PIKE_GAP:
+		_punch_segment(_pike_stage)
+		_pike_stage += 1
+		return
+	if _pike_t >= float(PIKE_STAGES) * PIKE_GAP + 0.24:
+		# it draws back the way it went out
+		for s in _pike_segs:
+			if is_instance_valid(s):
+				var tw := (s as Node2D).create_tween()
+				tw.tween_property(s, "scale", Vector2(0.05, 1.0), 0.14)
+		done = true
+		var ft := create_tween()
+		ft.tween_interval(0.16)
+		ft.tween_callback(queue_free)
+
+# each stage is a NEW length of pike shoved out past the last, and each one
+# bites on its own -- three separate hits down one line
+func _punch_segment(idx: int) -> void:
+	var near: float = float(idx) * PIKE_SEG
+	var far: float = near + PIKE_SEG
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var seg := Polygon2D.new()
+	var taper: float = 5.2 - 1.1 * float(idx)
+	seg.polygon = PackedVector2Array([
+		Vector2(near, -taper), Vector2(far - 9.0, -taper * 0.8),
+		Vector2(far, 0), Vector2(far - 9.0, taper * 0.8), Vector2(near, taper)])
+	seg.color = Color(0.94, 0.9, 0.72, 0.92 - 0.12 * float(idx))
+	seg.material = m
+	seg.rotation = direction.angle()
+	add_child(seg)
+	_pike_segs.append(seg)
+	seg.scale = Vector2(0.05, 1.0)
+	var tw := seg.create_tween()
+	tw.tween_property(seg, "scale", Vector2.ONE, 0.07)
+	var host := get_parent()
+	var pay: int = maxi(1, int(round(float(damage) * (1.0 - 0.16 * float(idx)))))
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			var rel: Vector2 = (e as Node2D).global_position - global_position
+			var along: float = rel.dot(direction)
+			if along < near or along > far:
+				continue
+			if absf(rel.dot(Vector2(-direction.y, direction.x))) > 30.0:
+				continue
+			var landed = e.take_damage(pay)
+			if landed == null or landed:
+				FloatingText.spawn(host, (e as Node2D).global_position
+					+ Vector2(randf_range(-16.0, 16.0), -26.0), pay, idx == PIKE_STAGES - 1)
+			_apply_status_to(e)
+
+func _build_stage_pike() -> void:
+	var grip := Polygon2D.new()
+	grip.polygon = PackedVector2Array([
+		Vector2(-16, -2.6), Vector2(4, -2.6), Vector2(4, 2.6), Vector2(-16, 2.6)])
+	grip.color = Color(0.4, 0.36, 0.3, 0.95)
+	grip.rotation = direction.angle()
+	visual.add_child(grip)
+
+# --- THE DELUGE: a wall of water that GROWS as it runs --------------------
+var _flood_t := 0.0
+var _flood_body: Polygon2D = null
+const FLOOD_LIFE := 1.5
+
+func _tick_flood(delta: float) -> void:
+	_flood_t += delta
+	global_position += direction * speed * delta
+	var grow: float = 1.0 + 1.5 * (_flood_t / FLOOD_LIFE)
+	if _flood_body != null and is_instance_valid(_flood_body):
+		_flood_body.scale = Vector2(1.0, grow)
+		_flood_body.modulate.a = 1.0 - 0.5 * (_flood_t / FLOOD_LIFE)
+	_rehit_t += delta
+	if _rehit_t >= 0.2:
+		_rehit_t = 0.0
+		hit_bodies.clear()   # the water keeps arriving
+	# it SHOVES more than it wounds: everything it reaches goes with it
+	var host := get_parent()
+	var pay: int = maxi(1, damage)
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if e in hit_bodies:
+				continue
+			var rel: Vector2 = (e as Node2D).global_position - global_position
+			if absf(rel.dot(direction)) > 30.0 or absf(rel.y) > 46.0 * grow:
+				continue
+			hit_bodies.append(e)
+			var landed = e.take_damage(pay)
+			if landed == null or landed:
+				FloatingText.spawn(host, (e as Node2D).global_position
+					+ Vector2(randf_range(-16.0, 16.0), -26.0), pay, false)
+			_apply_status_to(e)
+			if e.has_method("apply_knockback"):
+				e.apply_knockback(1 if direction.x >= 0.0 else -1, 190.0)
+	if _flood_t >= FLOOD_LIFE:
+		done = true
+		queue_free()
+
+func _build_flood_wave() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	_flood_body = Polygon2D.new()
+	# a curling front, not a rectangle: the crest leans the way it travels
+	_flood_body.polygon = PackedVector2Array([
+		Vector2(-18, 30.0), Vector2(-14, -8.0), Vector2(-4, -34.0),
+		Vector2(10, -42.0), Vector2(20, -30.0), Vector2(6, -22.0),
+		Vector2(12, -4.0), Vector2(16, 30.0)])
+	_flood_body.color = Color(0.42, 0.72, 0.95, 0.62)
+	_flood_body.material = m
+	visual.add_child(_flood_body)
+	var foam := Polygon2D.new()
+	foam.polygon = PackedVector2Array([
+		Vector2(-6, -30.0), Vector2(12, -40.0), Vector2(18, -28.0), Vector2(2, -20.0)])
+	foam.color = Color(0.9, 0.97, 1.0, 0.8)
+	foam.material = m
+	visual.add_child(foam)
+
+# --- LODESTAR: it becomes TRUE NORTH and the room leans toward it --------
+var _lode_t := 0.0
+var _lode_anchor: Node2D = null
+const LODE_LIFE := 3.0
+const LODE_PULL_R := 300.0
+
+func _tick_lodestar(delta: float) -> void:
+	if _lode_anchor == null:
+		# still flying: the first thing it touches becomes the star
+		global_position += direction * speed * delta
+		traveled += speed * delta
+		if traveled >= max_distance:
+			_lode_plant(global_position)
+		return
+	if is_instance_valid(_lode_anchor) and not ("is_dead" in _lode_anchor and _lode_anchor.is_dead):
+		global_position = _lode_anchor.global_position
+	_lode_t += delta
+	if visual:
+		visual.rotation += 2.2 * delta
+		visual.scale = Vector2.ONE * _draw_girth * (1.0 + 0.16 * sin(_lode_t * 7.0))
+	# everything else in the room leans in
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or e == _lode_anchor:
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			var to_star: Vector2 = global_position - (e as Node2D).global_position
+			var d: float = to_star.length()
+			if d < 24.0 or d > LODE_PULL_R:
+				continue
+			(e as Node2D).global_position += to_star.normalized() * 92.0 * delta
+	if _lode_t >= LODE_LIFE:
+		# and then the star goes out, all at once, on the crowd it gathered
+		_nova_burst_tinted(global_position, Color(0.72, 0.86, 1.0))
+		done = true
+		queue_free()
+
+func _lode_plant(at: Vector2, victim: Node2D = null) -> void:
+	_lode_anchor = victim
+	global_position = at
+	if victim == null:
+		# nothing hit: it still hangs there and gathers
+		_lode_anchor = self
+	speed = 0.0
+
+func _build_lodestar() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var star := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(10):
+		var a := TAU * float(i) / 10.0 - PI * 0.5
+		pts.append(Vector2(cos(a), sin(a)) * (17.0 if i % 2 == 0 else 6.0))
+	star.polygon = pts
+	star.color = Color(0.86, 0.93, 1.0, 0.95)
+	star.material = m
+	visual.add_child(star)
+	var core := Polygon2D.new()
+	core.polygon = _circle(5.0, 8)
+	core.color = Color(1.0, 1.0, 1.0, 0.98)
+	core.material = m
+	visual.add_child(core)
+
+# --- SECOND MOON: it never comes back. It ORBITS, and it has PHASES ------
+var _moon_t := 0.0
+var _moon_dark: Polygon2D = null
+# ONE MOON. The dps gate caught this at 233 vs a tier median of 72: the moon
+# outlived its own 0.85s cooldown by ten times, so you could stack a sky full
+# of them. It is capped to a single instance (see MOON_GROUP), and a recast
+# renews the one you have rather than adding another.
+const MOON_GROUP := "second_moon_instance"
+const MOON_LIFE := 6.0
+const MOON_BITE := 0.5
+const MOON_PERIOD := 2.6      # one full wax-and-wane
+
+func _tick_moon(delta: float) -> void:
+	_moon_t += delta
+	if _moon_t >= MOON_LIFE or not is_instance_valid(source):
+		done = true
+		queue_free()
+		return
+	# lifted off the floor: at a flat orbit the moon spent half its life buried
+	# in the terrain, which is not where a moon goes
+	var centre: Vector2 = (source as Node2D).global_position + Vector2(0, -46.0)
+	var ang: float = _moon_t * 2.5
+	global_position = centre + Vector2(cos(ang), sin(ang) * 0.42) * 96.0
+	# the phase: full moon bites hard, new moon barely at all -- the weapon
+	# has a RHYTHM you can read off the sky instead of a cooldown bar
+	var phase: float = 0.5 + 0.5 * sin(_moon_t * TAU / MOON_PERIOD)
+	# the shadow slides OFF as the moon waxes. This ran backwards at first --
+	# the disc went black at phase 1, so it looked deadest exactly when it hit
+	# hardest, and the whole read-it-off-the-sky idea was inverted.
+	# It must also FADE as it goes, or the shadow slides clear of the disc and
+	# reads as a second, separate black object floating beside the moon.
+	if _moon_dark != null and is_instance_valid(_moon_dark):
+		_moon_dark.position = Vector2(lerpf(0.0, -26.0, phase), 0.0)
+		_moon_dark.modulate.a = 1.0 - phase * 0.95
+	_rehit_t += delta
+	if _rehit_t < MOON_BITE:
+		return
+	_rehit_t = 0.0
+	var host := get_parent()
+	var pay: int = maxi(1, int(round(float(damage) * (0.25 + 0.75 * phase))))
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if global_position.distance_to((e as Node2D).global_position) > 40.0:
+				continue
+			var landed = e.take_damage(pay)
+			if landed == null or landed:
+				FloatingText.spawn(host, (e as Node2D).global_position
+					+ Vector2(randf_range(-16.0, 16.0), -26.0), pay, phase > 0.85)
+			_apply_status_to(e)
+
+func _build_moon_orbit() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var disc := Polygon2D.new()
+	disc.polygon = _circle(15.0, 16)
+	disc.color = Color(0.9, 0.92, 0.82, 0.96)
+	visual.add_child(disc)
+	var halo := Polygon2D.new()
+	halo.polygon = _circle(21.0, 16)
+	halo.color = Color(0.8, 0.86, 1.0, 0.3)
+	halo.material = m
+	visual.add_child(halo)
+	# the shadow that slides across it: the phase made literal
+	_moon_dark = Polygon2D.new()
+	_moon_dark.polygon = _circle(15.0, 16)
+	_moon_dark.color = Color(0.07, 0.07, 0.12, 0.94)
+	visual.add_child(_moon_dark)
+
+# --- SHATTERHYMN: a glass note that BREAKS into ringing splinters ---------
+func _shatter_note(at: Vector2) -> void:
+	var host := get_parent()
+	if host == null:
+		return
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	for i in range(7):
+		var sh := Polygon2D.new()
+		var w: float = randf_range(2.4, 4.4)
+		sh.polygon = PackedVector2Array([
+			Vector2(0, -randf_range(9.0, 16.0)), Vector2(w, 0), Vector2(0, w * 1.6), Vector2(-w, 0)])
+		sh.color = Color(0.78, 0.92, 1.0, 0.9)
+		sh.material = m
+		sh.z_index = 43
+		host.add_child(sh)
+		sh.global_position = at
+		var a := TAU * float(i) / 7.0 + randf_range(-0.2, 0.2)
+		var fly: Vector2 = at + Vector2(cos(a), sin(a)) * randf_range(52.0, 92.0) + Vector2(0, 26.0)
+		sh.rotation = a
+		var tw := sh.create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(sh, "global_position", fly, 0.62).set_trans(Tween.TRANS_QUAD)
+		tw.tween_property(sh, "rotation", a + randf_range(-2.4, 2.4), 0.62)
+		tw.tween_property(sh, "modulate:a", 0.0, 0.62)
+		tw.chain().tween_callback(sh.queue_free)
+
+func _build_glass_note() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var bell := Polygon2D.new()
+	bell.polygon = PackedVector2Array([
+		Vector2(0, -14.0), Vector2(9, -2.0), Vector2(11, 10.0),
+		Vector2(-11, 10.0), Vector2(-9, -2.0)])
+	bell.color = Color(0.7, 0.88, 1.0, 0.72)
+	bell.material = m
+	visual.add_child(bell)
+	var shine := Polygon2D.new()
+	shine.polygon = PackedVector2Array([
+		Vector2(-4, -10.0), Vector2(-1, -10.0), Vector2(-2, 6.0), Vector2(-6, 6.0)])
+	shine.color = Color(1.0, 1.0, 1.0, 0.85)
+	shine.material = m
+	visual.add_child(shine)
+
+# --- DAWN'S LONG TONGUE: a whip that LENGTHENS while it keeps landing ----
+func _build_long_tongue() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	for i in range(3):
+		var strand := Polygon2D.new()
+		var sway: float = -5.0 + 5.0 * float(i)
+		strand.polygon = PackedVector2Array([
+			Vector2(-30, sway * 0.2), Vector2(2, sway), Vector2(30, sway * 0.5),
+			Vector2(30, sway * 0.5 + 2.2), Vector2(2, sway + 2.6), Vector2(-30, sway * 0.2 + 2.0)])
+		strand.color = Color(1.0, 0.84 - 0.1 * float(i), 0.46, 0.85 - 0.18 * float(i))
+		strand.material = m
+		visual.add_child(strand)
+	var tip := Polygon2D.new()
+	tip.polygon = PackedVector2Array([Vector2(38, 0), Vector2(26, -5.0), Vector2(26, 5.0)])
+	tip.color = Color(1.0, 0.95, 0.7, 0.95)
+	tip.material = m
+	visual.add_child(tip)
 
 func _circle(radius: float, sides: int) -> PackedVector2Array:
 	var pts = PackedVector2Array()

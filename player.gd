@@ -3633,6 +3633,10 @@ func perform_attack() -> void:
 		elif special_type == "debt_mark":
 			var dcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("wand"))))
 			launch_projectile(special, get_aim_direction(), dcr[0], dcr[1])
+		# THE DELUGE / SHATTERHYMN (T6): both leave the hand as one body
+		elif special_type == "flood_wave" or special_type == "glass_note":
+			var wcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("wand"))))
+			launch_projectile(special, get_aim_direction(), wcr[0], wcr[1])
 		# WATCHFIRE (T6): planted where you aim, then it waits
 		elif special_type == "watch_fire":
 			var wf = WEAPON_PROJECTILE_SCRIPT.new()
@@ -3760,6 +3764,13 @@ func perform_attack() -> void:
 			return
 		# COMETFALL (T6): lofted on purpose -- the shot leaves the string ANGLED
 		# UP and gravity does the rest, so you lead the ground, not the target.
+		# LODESTAR (T6): the shaft that becomes true north
+		if special_type == "lodestar":
+			play_sfx(SFX_BOW)
+			animate_bow(stats)
+			var cr_l = roll_crit(int(round(float(special.get("damage", stats.damage)) * skill_damage_mult("bow"))))
+			launch_projectile(special, get_aim_direction(), cr_l[0], cr_l[1])
+			return
 		if special_type == "comet":
 			play_sfx(SFX_BOW)
 			animate_bow(stats)
@@ -3784,6 +3795,19 @@ func perform_attack() -> void:
 	if active_weapon_type == "spear":
 		if special_type == "javelin_volley":
 			throw_javelin_volley(special)
+		elif special_type == "stage_pike":
+			# THE KINDLY END (T6): three lengths of pike, one after the other
+			play_sfx(SFX_SPEAR)
+			animate_spear(stats)
+			var sp = WEAPON_PROJECTILE_SCRIPT.new()
+			sp.kind = "stage_pike"
+			sp.damage = maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("spear"))))
+			sp.element = Inventory.element_of(active_weapon_id)
+			sp.on_hit_status = special.get("status", {})
+			sp.source = self
+			sp.direction = get_aim_direction()
+			get_parent().add_child(sp)
+			sp.global_position = global_position + sp.direction * 26.0
 		elif special_type == "piercing_point":
 			# THE HEAVEN-PIERCING POINT (T7): one lance, even pierce
 			play_sfx(SFX_SPEAR)
@@ -4035,6 +4059,28 @@ func perform_attack() -> void:
 	elif special_type == "eclipse_disc":
 		var ecr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
 		launch_projectile(special, aim_dir, ecr[0], ecr[1])
+	# DAWN'S LONG TONGUE (T6): a whip that grows on what it tastes
+	elif special_type == "long_tongue":
+		var ltr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+		launch_projectile(special, aim_dir, ltr[0], ltr[1])
+	# SECOND MOON (T6): it does not return -- it rises and stays up
+	elif special_type == "moon_orbit":
+		# ONE moon: a recast renews the sky, it does not fill it. Without this
+		# the 6s moon outlives its own 0.85s cooldown seven times over and the
+		# dps gate rightly called it (233 vs a tier median of 72).
+		for old in get_tree().get_nodes_in_group("second_moon_instance"):
+			if is_instance_valid(old):
+				old.queue_free()
+		var mn = WEAPON_PROJECTILE_SCRIPT.new()
+		mn.add_to_group("second_moon_instance")
+		mn.kind = "moon_orbit"
+		mn.damage = maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+		mn.element = Inventory.element_of(active_weapon_id)
+		mn.on_hit_status = special.get("status", {})
+		mn.source = self
+		mn.girth = grade_projectile_girth()
+		get_parent().add_child(mn)
+		mn.global_position = global_position + Vector2(96.0, 0)
 	# CINDERCHAIN (T6): the chain-maul flight, but the floor keeps the arc
 	elif special_type == "cinder_drag":
 		var ccr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))

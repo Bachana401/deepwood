@@ -73,6 +73,14 @@ const HITS_PER_USE := {
 	"debtmark":    2.4, # the hit, then 4 barbs biting and each paying out
 	"cinderdrag":  1.5, # the maul's own hits; the embers are theatre, not dps
 	"watchfire":   3.0, # ~3 flares across 11s if something stays in the light
+	# ---- T6 batch 2 ----
+	"horizonpike": 2.6, # three staged lengths, 1.0 / 0.84 / 0.68 down one line
+	"deluge":      2.0, # re-hits every 0.2s across a 1.5s run, but pays in shove
+	"lodestar":    2.3, # the strike, then the gathered crowd eats one 0.8x nova
+	"secondmoon":  1.5, # ONE moon only, so a recast renews rather than stacks:
+	                    # the sky adds ~half the swing's dps, it does not multiply
+	"shatterhymn": 1.0, # one note; the splinters are theatre, not damage
+	"longtongue":  1.6, # pierces the row and grows, so ~2 bodies a swing
 	"asphodel":    4.0, # the post sends ~8 wisps over its 9s life
 	# --- pre-existing multi-hit verbs, for a fair comparison ---
 	"volley":     2.0,

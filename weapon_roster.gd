@@ -125,19 +125,19 @@ const ROWS = [
 	["wpn_hushfall",     "Hushfall",             "melee", 6, "hushfall",  44, 1.1,  {"knockup": true, "status": "slow_w", "fx": [{"kind": "quake", "radius": 165.0, "pct": 0.72}, {"kind": "frostbloom", "radius": 150.0}]}],
 	["wpn_eclipsewheel", "Eclipse Wheel",        "melee", 6, "eclipse",   27, 0.8,  {"dwell": 3.2,
 		"fx": [{"kind": "gravity", "radius": 220.0, "pull": 160.0}, {"kind": "moonlit", "pct": 0.65}]}],
-	["wpn_dawntongue",   "Dawn's Long Tongue",   "melee", 6, "lash",      28, 0.82, {"status": "burn_w",
+	["wpn_dawntongue",   "Dawn's Long Tongue",   "melee", 6, "longtongue", 28, 0.82, {"status": "burn_w",
 		"fx": [{"kind": "echo", "pct": 0.8, "delay": 0.4}, {"kind": "goldtouch", "chance": 0.22, "gold": 4}]}],
 	["wpn_horizonpike",  "Horizon Pike",         "spear", 6, "thrust",    36, 0.78, {"plain": true}],
 	["wpn_meteorquill",  "Meteor Quills",        "spear", 6, "jab_volley", 23, 0.88, {"count": 5, "status": "burn_w", "fx": [{"kind": "splinter", "n": 4, "pct": 0.65, "range": 180.0}, {"kind": "stormcall", "every": 4, "pct": 1.45}]}],
 	["wpn_middaybow",    "Midday Massacre",      "bow",   6, "volley",    19, 0.52, {"count": 4, "fx": [{"kind": "crowd", "pct_per": 0.14, "cap": 0.5}, {"kind": "splinter", "n": 3, "pct": 0.65, "range": 160.0}]}],
 	["wpn_ghostrepeater","Ghost Repeater",       "bow",   6, "rapid",     14, 0.15, {"plain": true}],
-	["wpn_lodestar",     "Lodestar",             "bow",   6, "seeker",    25, 0.58, {
+	["wpn_lodestar",     "Lodestar",             "bow",   6, "lodestar",  25, 0.58, {
 		"fx": [{"kind": "brand", "amp": 0.39, "dur": 4.5}, {"kind": "chain", "n": 2, "pct": 0.65, "range": 240.0}]}],
 	["wpn_cometfall",    "Cometfall",            "bow",   6, "cometfall", 38, 1.0,  {"aoe": 130, "status": "burn_w",
 		"fx": [{"kind": "quake", "radius": 160.0, "pct": 0.65}, {"kind": "gravity", "radius": 190.0, "pull": 150.0}]}],
-	["wpn_deluge",       "The Deluge",           "wand",  6, "tome",      18, 1.3,  {"radius": 170, "tome_kind": "column",
+	["wpn_deluge",       "The Deluge",           "wand",  6, "deluge",    18, 1.3,  {"radius": 170, "tome_kind": "column",
 		"fx": [{"kind": "crowd", "pct_per": 0.12, "cap": 0.5}, {"kind": "quake", "radius": 150.0, "pct": 0.65}]}],
-	["wpn_shatterhymn",  "Shatterhymn",          "wand",  6, "cluster",   31, 0.78, {"shards": 8, "companion": "wisp", "c_damage": 11, "c_gap": 2.1,
+	["wpn_shatterhymn",  "Shatterhymn",          "wand",  6, "shatterhymn", 31, 0.78, {"shards": 8, "companion": "wisp", "c_damage": 11, "c_gap": 2.1,
 		"fx": [{"kind": "splinter", "n": 5, "pct": 0.65, "range": 175.0}, {"kind": "frostbloom", "radius": 150.0}]}],
 	["wpn_debtcollector","The Debt Collector",   "wand",  6, "debtmark",  27, 0.58, {"bounces": 6,
 		"fx": [{"kind": "goldtouch", "chance": 0.35, "gold": 5}, {"kind": "chain", "n": 2, "pct": 0.65, "range": 250.0}]}],
@@ -418,9 +418,9 @@ const ROWS = [
 		"fx": [{"kind": "soulwisp", "dmg": 11, "pct": 0.8}, {"kind": "echo", "pct": 0.8, "delay": 0.45}]}],
 	["wpn_summerscoffin","Summer's Coffin",      "wand", 7, "frost", 32, 0.5,  {"status": "slow_w", "rider": "coffin",
 		"fx": [{"kind": "frostbloom", "radius": 160.0, "dur": 3.0}, {"kind": "sparkfly", "n": 1, "pct": 0.5}]}],
-	["wpn_kindlyend",    "The Kindly End",       "spear", 6, "thrust",    40, 0.7,  {"status": "poison_w", "rider": "kindly",
+	["wpn_kindlyend",    "The Kindly End",       "spear", 6, "horizonpike", 40, 0.7,  {"status": "poison_w", "rider": "kindly",
 		"fx": [{"kind": "harvest", "hp": 5}, {"kind": "chain", "n": 2, "pct": 0.5, "range": 250.0}]}],
-	["wpn_secondmoon",   "Second Moon",          "melee", 6, "chain_maul", 36, 0.85, {"status": "slow_w", "rider": "moon",
+	["wpn_secondmoon",   "Second Moon",          "melee", 6, "secondmoon", 36, 0.85, {"status": "slow_w", "rider": "moon",
 		"fx": [{"kind": "moonlit", "pct": 0.72}, {"kind": "frostbloom", "radius": 155.0, "dur": 3.0}]}],
 	["wpn_heavenpoint",  "The Heaven-Piercing Point", "spear", 7, "heavenpoint", 38, 0.8, { "status": "slow_w",
 		"fx": [{"kind": "chain", "n": 2, "pct": 0.8, "range": 260.0}, {"kind": "frostbloom", "radius": 155.0}]}],
@@ -796,6 +796,22 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 				"range": rng + 20.0, "lift": 330.0}
 		"watchfire":
 			s = {"type": "watch_fire", "damage": maxi(1, int(round(float(dmg) * 0.85)))}
+		# ---- T6 batch 2 ----
+		"horizonpike":
+			s = {"type": "stage_pike", "damage": dmg}
+		"deluge":
+			s = {"type": "flood_wave", "damage": maxi(1, int(round(float(dmg) * 0.8))),
+				"speed": spd - 210.0, "range": rng}
+		"lodestar":
+			s = {"type": "lodestar", "damage": maxi(1, int(round(float(dmg) * 0.7))),
+				"speed": spd + 40.0, "range": rng * 0.6}
+		"secondmoon":
+			s = {"type": "moon_orbit", "damage": maxi(1, int(round(float(dmg) * 0.42)))}
+		"shatterhymn":
+			s = {"type": "glass_note", "damage": dmg, "speed": spd - 40.0, "range": rng}
+		"longtongue":
+			s = {"type": "long_tongue", "damage": maxi(1, int(round(float(dmg) * 0.8))),
+				"speed": spd - 130.0, "range": rng * 0.42}
 		"debtmark":
 			s = {"type": "debt_mark", "damage": dmg, "speed": spd + 60.0, "range": rng}
 		"cinderdrag":
@@ -876,6 +892,12 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"hushfall":    return "The blow lands in SILENCE. The sound of it arrives a moment later, from where you struck, and the sound is the heavier half."
 		"eclipse":     return "The wheel rolls out and goes DARK, and the shadow it throws is the weapon -- a long band of night that cuts everything standing in it."
 		"cometfall":   return "Lobs high and comes down as a COMET, cratering where it lands and leaving the ground burning for whatever walks in next."
+		"horizonpike": return "It does not thrust, it TELESCOPES -- three lengths of pike shoved out one past the other down a single line, each one biting on its own."
+		"deluge":      return "A wall of water that GROWS as it runs. It shoves harder than it wounds, and everything it reaches goes with it."
+		"lodestar":    return "The first thing it strikes becomes TRUE NORTH: the rest of the room leans toward them for three seconds -- and then the star goes out, all at once, on the crowd it gathered."
+		"secondmoon":  return "It never comes back. A second moon rises and ORBITS you, and it has PHASES -- full moon bites hard, new moon barely at all. A rhythm you read off the sky instead of a cooldown."
+		"shatterhymn": return "The note does not land, it BREAKS -- a glass bell shattering into ringing splinters that scatter across the floor."
+		"longtongue":  return "A whip of dawn that LENGTHENS every time it tastes something. Keep landing it and the reach you have earned is there in the strands."
 		"watchfire":   return "Plants a low fire that WAITS. It burns quiet and does nothing at all until something walks into its light -- and then it answers all at once."
 		"debtmark":    return "Marks a debtor. The debt bites while they live -- and if they die still owing, the book does not close: it passes to whoever is standing nearest."
 		"cinderdrag":  return "The head drags as it goes, and everything the chain crosses catches. The floor keeps the shape of your swing in embers."
