@@ -76,6 +76,12 @@ const NO_NODE_EXPECTED := {
 	"cleave": "a plain heavy swing; the hit is the melee area, not a node",
 	"commandment": "a METRONOME -- the ruling lands on the ninth press, not the first",
 	"whipcrack": "its product is the bond-MARK, which lives on the foe, not on the stage",
+	# The audit is RIGHT that one press of this looks like a plain bow, and that
+	# is the honest description of the weapon: the company only arrives on the
+	# fourth shot. It is a RAMP, the one bow in the roster that rewards holding
+	# fire rather than timing it, and a single-press yardstick cannot see a ramp
+	# any more than it can see the Ninth Commandment's metronome above.
+	"ghost_bows": "a RAMP -- the spectral bows arrive on the fourth shot, never the first",
 }
 
 # Verbs whose declared "count" is a CYCLE rather than a single press.

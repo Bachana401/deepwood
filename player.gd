@@ -1625,6 +1625,9 @@ func _process(_delta: float) -> void:
 	# a time_scaled create_timer did. Cheap: one compare per frame.
 	if Engine.time_scale < 1.0 and (Time.get_ticks_msec() / 1000.0) >= _hitstop_end:
 		Engine.time_scale = 1.0
+	# the Ghost Repeater's company disperses when you stop shooting. In _process
+	# rather than _physics_process on purpose: it is a fade, not a hitbox.
+	_tick_ghost_bows(_delta)
 
 func _exit_tree() -> void:
 	# leaving the scene mid-freeze must never carry the slow-mo into the next one
@@ -4416,6 +4419,10 @@ func perform_attack() -> void:
 			var cr_b = roll_crit(int(round(special.get("damage", stats.damage) * skill_damage_mult("bow"))))
 			launch_projectile(special, get_aim_direction(), cr_b[0], cr_b[1])
 			return
+		# GHOST REPEATER: the longer you hold fire, the more of you there are
+		if special_type == "ghost_bows":
+			fire_with_ghosts(special, stats)
+			return
 		# THE HOLLOW KING'S RAIN: nothing leaves the bow
 		if special_type == "king_rain":
 			call_the_kings_rain(special)
@@ -5796,6 +5803,120 @@ func call_the_daybreak(special: Dictionary, aim_dir: Vector2) -> void:
 		# AFTER add_child: set_star_target places it up in the sky, and doing
 		# that before the node is in the tree loses the position.
 		st.set_star_target(mark + Vector2(randf_range(-38.0, 38.0), 0.0))
+
+# ==========================================================================
+# THE GHOST REPEATER. Terraria's Phantasm is the reference for the SHAPE of
+# this -- sustained fire summons spectral bows that loose alongside you -- but
+# the terms are ours: they arrive one at a time, they are worth a third of a
+# real shot each, and they are gone barely a beat after you stop.
+#
+# It is the only bow in the roster that asks the player to HOLD the trigger
+# rather than time it, which is the point of giving it to this weapon: the
+# name said ghost and the behavior said "plain rapid bow".
+# ==========================================================================
+var _ghost_shots := 0
+var _ghost_idle := 0.0
+var _ghost_bows: Array = []
+
+func fire_with_ghosts(special: Dictionary, stats: Dictionary) -> void:
+	animate_bow(stats)                 # the real shot, unchanged
+	_ghost_idle = 0.0
+	_ghost_shots += 1
+	var step: int = maxi(1, int(special.get("step", 4)))
+	var want: int = mini(int(special.get("max", 3)), _ghost_shots / step)
+	_sync_ghost_bows(want)
+	if want <= 0:
+		return
+	var gs := stats.duplicate()
+	gs["damage"] = maxi(1, int(round(float(stats.get("damage", 1))
+		* float(special.get("ghost_pct", 0.35)))))
+	for i in range(want):
+		# each ghost's shaft leaves at a slightly different angle, so a volley
+		# reads as several archers rather than one arrow drawn several times
+		spawn_arrow(gs, get_aim_direction().rotated(deg_to_rad(randf_range(-4.5, 4.5))))
+
+func _tick_ghost_bows(delta: float) -> void:
+	if _ghost_shots <= 0 and _ghost_bows.is_empty():
+		return
+	_ghost_idle += delta
+	if _ghost_idle >= 1.1:
+		_ghost_idle = 0.0
+		_ghost_shots = 0
+		_sync_ghost_bows(0)
+
+func _sync_ghost_bows(n: int) -> void:
+	# shrink first: freeing before adding keeps the offsets stable
+	while _ghost_bows.size() > n:
+		# TYPED on purpose: pop_back() hands back a Variant, and `var x :=` on a
+		# Variant is a BUILD ERROR in GDScript, not a warning.
+		var old: Node2D = _ghost_bows.pop_back()
+		if is_instance_valid(old):
+			var otw: Tween = old.create_tween()
+			otw.set_parallel(true)
+			otw.tween_property(old, "modulate:a", 0.0, 0.22)
+			otw.tween_property(old, "scale", Vector2(0.4, 0.4), 0.22)
+			otw.chain().tween_callback(old.queue_free)
+	const SPOTS := [Vector2(-34, -26), Vector2(34, -34), Vector2(-8, -52)]
+	while _ghost_bows.size() < n:
+		var idx: int = _ghost_bows.size()
+		var g := _make_ghost_bow()
+		add_child(g)                   # parented to the player: they follow
+		g.position = SPOTS[idx % SPOTS.size()]
+		_ghost_bows.append(g)
+		# they FADE IN rather than popping: nothing in this game should appear
+		g.modulate.a = 0.0
+		g.scale = Vector2(0.5, 0.5)
+		var tw := g.create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(g, "modulate:a", 1.0, 0.18)
+		tw.tween_property(g, "scale", Vector2.ONE, 0.18)
+		_ghost_arrival_sparks(g.position)
+
+func _make_ghost_bow() -> Node2D:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var root := Node2D.new()
+	root.z_index = 7
+	var limb := Line2D.new()
+	var pts := PackedVector2Array()
+	for i in range(9):
+		var a: float = lerpf(-1.15, 1.15, float(i) / 8.0)
+		pts.append(Vector2(cos(a), sin(a)) * 15.0)
+	limb.points = pts
+	limb.width = 2.6
+	limb.default_color = Color(0.68, 0.92, 1.0, 0.72)
+	limb.joint_mode = Line2D.LINE_JOINT_ROUND
+	limb.material = m
+	root.add_child(limb)
+	var string := Line2D.new()
+	string.points = PackedVector2Array([pts[0], pts[pts.size() - 1]])
+	string.width = 1.2
+	string.default_color = Color(0.90, 0.98, 1.0, 0.55)
+	string.material = m
+	root.add_child(string)
+	return root
+
+func _ghost_arrival_sparks(at: Vector2) -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	for i in range(6):
+		var s := Polygon2D.new()
+		var r: float = randf_range(2.5, 5.0)
+		var sp := PackedVector2Array()
+		for k in range(8):
+			var ka: float = TAU * float(k) / 8.0
+			sp.append(Vector2(cos(ka), sin(ka)) * (r if k % 2 == 0 else r * 0.17))
+		s.polygon = sp
+		s.color = Color(0.80, 0.96, 1.0, 0.9)
+		s.material = m
+		s.z_index = 8
+		s.position = at + Vector2(randf_range(-14, 14), randf_range(-12, 12))
+		add_child(s)
+		var tw := s.create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(s, "scale", Vector2(0.15, 0.15), 0.35)
+		tw.tween_property(s, "modulate:a", 0.0, 0.35)
+		tw.chain().tween_callback(s.queue_free)
 
 func call_the_kings_rain(special: Dictionary) -> void:
 	play_sfx(SFX_BOW)

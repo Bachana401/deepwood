@@ -49,6 +49,9 @@ const HITS_PER_USE := {
 	"lob_a":      2.0,
 	"lob":        2.0,
 	"cleave":     1.9,   # the arc, plus the CARVE the swing now throws
+	"ghostbows":  1.6, # 1 real shaft, plus up to 3 ghosts at 0.35x once fire is
+	                   # sustained -- 1.6 is the AVERAGE across a burst, since
+	                   # the first few shots have no company at all
 	"daybreak":   3.0, # three stars fall, each bursting for the full 0.55x hit
 	"anvil":      1.8, # the mass lands, then the floor CRACKS outward (0.7x ring)
 	"worldthorn": 2.6, # three spikes, ~4 bites over 1.3s

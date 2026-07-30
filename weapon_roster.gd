@@ -227,7 +227,7 @@ const ROWS = [
 	["wpn_horizonpike",  "Horizon Pike",         "spear", 6, "thrust",    36, 0.78, {"plain": true}],
 	["wpn_meteorquill",  "Meteor Quills",        "spear", 6, "meteorquill", 23, 0.88, {"count": 5, "status": "burn_w"}],
 	["wpn_middaybow",    "Midday Massacre",      "bow",   6, "middaysun", 19, 0.52, {"count": 4}],
-	["wpn_ghostrepeater","Ghost Repeater",       "bow",   6, "rapid",     14, 0.15, {"plain": true}],
+	["wpn_ghostrepeater","Ghost Repeater",       "bow",   6, "ghostbows", 11, 0.15, {"step": 4, "max": 3}],
 	["wpn_lodestar",     "Lodestar",             "bow",   6, "lodestar",  25, 0.58, {}],
 	["wpn_cometfall",    "Cometfall",            "bow",   6, "cometfall", 38, 1.0,  {"aoe": 130, "status": "burn_w"}],
 	["wpn_deluge",       "The Deluge",           "wand",  6, "deluge",    18, 1.3,  {"radius": 170, "tome_kind": "column"}],
@@ -1008,6 +1008,15 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 		# the attack happened and keeps working.
 		"afterlight":
 			s = {"type": "lingering_arc", "damage": maxi(1, int(round(float(dmg) * 0.42)))}
+		"ghostbows":
+			# GHOST REPEATER (T6): the name was doing nothing. Now KEEPING FIRE
+			# UP is the weapon -- every few shots another spectral bow fades in
+			# beside you and looses with you, and they all fade the moment you
+			# stop. A verb that rewards holding the trigger, which no other bow
+			# in the roster asks for.
+			s = {"type": "ghost_bows", "damage": dmg,
+				"step": int(ex.get("step", 4)), "max": int(ex.get("max", 3)),
+				"ghost_pct": 0.35}
 		"daybreak":
 			# DAYBREAK EDGE (T5): the swing does not reach the mark -- the
 			# LIGHT does. Star-Wrath-kin, at a Legendary's intensity: three
@@ -1574,6 +1583,7 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"stormflock":  return "Every jab looses a bird. They turn in the air, pick their own targets, and come down on them -- a flock answering one thrust."
 		"dawnline":    return "Lays a bar of first light along the floor, and then the dawn RISES: the line climbs through everything standing in it."
 		"afterlight":  return "The swing does not END. Its shape hangs in the air behind it -- a blade of light standing where you cut, still cutting whatever walks into it."
+		"ghostbows":   return "You are not alone while you keep firing. Every few shots another spectral bow fades in beside you and looses with you -- up to %d of them -- and they are gone the moment you stop." % int(ex.get("max", 3))
 		"daybreak":    return "The blade never reaches them. Swing, and %d stars fall out of the sky onto the mark instead -- each one bursting where it lands. A roof is the only argument against it." % int(ex.get("count", 3))
 		"anvil":       return "The ending arrives a beat LATE: the cleave lands, and then a mass comes down out of the dark onto the same spot. The shadow tells you where."
 		"worldthorn":  return "The thrust wakes the GROUND. Where the point goes in, thorns come up -- a row of them, standing until they are done."
