@@ -189,6 +189,20 @@ func _ready() -> void:
 		await _shot("ug_flow_running")
 		await _settle(2.5)
 		await _shot("ug_flow_settled")
+	# ── THE FULL MAP: fitted view, then zoomed to the player's neighbourhood ──
+	ug._toggle_map()
+	while ug._map_built < ug._map_h():
+		ug._map_build_step()
+		await get_tree().process_frame
+	await _settle(0.4)
+	await _shot("ug_map_full")
+	ug._map_zoom = 4.0
+	ug._map_root.scale = Vector2(4.0, 4.0)
+	var pc2: Vector2 = Vector2(p.global_position.x, p.global_position.y) / ug.TILE / ug.MAP_SCALE
+	ug._map_root.position = get_viewport().get_visible_rect().size * 0.5 - pc2 * 4.0
+	await _settle(0.3)
+	await _shot("ug_map_zoom")
+	ug._toggle_map()
 	say("EYES-UG: done -> %s" % shot_dir)
 	get_tree().quit(0)
 

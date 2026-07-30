@@ -2190,6 +2190,203 @@ func _drop_through(delta: float) -> void:
 				pf.collision_layer = 1)
 		return
 
+# ══ THE FULL MAP (M) ═════════════════════════════════════════════════════════
+# Terraria's fullscreen map, admin edition: the WHOLE world at a pixel per two
+# tiles, no fog -- pan by dragging, zoom on the wheel, and hover anything to be
+# told what it is (rock and its pickaxe tier, liquids, ore, the road, every
+# floor door by number, crystals, minecart lines, the way out).
+#
+# The world is 4200x1800 tiles; painting all of it through _cell_kind in one go
+# would freeze the game for seconds, so the picture is painted a few rows per
+# frame while the map is open -- a surveyor's sweep filling in live -- and kept
+# for the rest of the session once finished.
+const MAP_SCALE := 2                   # world tiles per map pixel
+const MAP_ROWS_PER_FRAME := 14
+var _mapview: CanvasLayer = null
+var _map_root: Node2D = null           # pan/zoom transform lives here
+var _map_img: Image = null
+var _map_tex: ImageTexture = null
+var _map_sprite: Sprite2D = null
+var _map_built := 0                    # map rows painted so far
+var _map_zoom := 1.0
+var _map_tip: Label = null
+var _map_markers: Array = []           # {px: Vector2, label: String}
+var _map_player: Polygon2D = null
+var _map_drag := false
+
+func _map_w() -> int: return int(WIDTH / MAP_SCALE)
+func _map_h() -> int: return int(DEPTH / MAP_SCALE)
+
+func _toggle_map() -> void:
+	if _mapview != null and _mapview.visible:
+		_mapview.visible = false
+		return
+	if _mapview == null:
+		_build_mapview()
+	_mapview.visible = true
+	# open FITTED, the whole world in view, centred -- then wheel in
+	var vp := get_viewport().get_visible_rect().size
+	_map_zoom = minf(vp.x / float(_map_w()), vp.y / float(_map_h())) * 0.96
+	_map_root.scale = Vector2(_map_zoom, _map_zoom)
+	_map_root.position = (vp - Vector2(_map_w(), _map_h()) * _map_zoom) * 0.5
+
+func _build_mapview() -> void:
+	_mapview = CanvasLayer.new()
+	_mapview.layer = 70
+	add_child(_mapview)
+	var dim := ColorRect.new()                     # the world dims behind the chart
+	dim.color = Color(0.02, 0.02, 0.03, 0.93)
+	dim.anchor_right = 1.0
+	dim.anchor_bottom = 1.0
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_mapview.add_child(dim)
+	_map_root = Node2D.new()
+	_mapview.add_child(_map_root)
+	_map_img = Image.create(_map_w(), _map_h(), false, Image.FORMAT_RGBA8)
+	_map_img.fill(Color(0.05, 0.05, 0.06))
+	_map_tex = ImageTexture.create_from_image(_map_img)
+	_map_sprite = Sprite2D.new()
+	_map_sprite.texture = _map_tex
+	_map_sprite.centered = false
+	_map_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_map_root.add_child(_map_sprite)
+	_build_map_markers()
+	# the player: a white arrowhead, always visible whatever the zoom
+	_map_player = Polygon2D.new()
+	_map_player.polygon = PackedVector2Array([Vector2(0, -4), Vector2(3.5, 3), Vector2(-3.5, 3)])
+	_map_player.color = Color(1, 1, 1)
+	_map_player.z_index = 5
+	_map_root.add_child(_map_player)
+	var tw := create_tween().set_loops()
+	tw.tween_property(_map_player, "modulate:a", 0.45, 0.5)
+	tw.tween_property(_map_player, "modulate:a", 1.0, 0.5)
+	# the hover tooltip, following the mouse
+	_map_tip = Label.new()
+	_map_tip.add_theme_color_override("font_color", Color(0.95, 0.92, 0.80))
+	_map_tip.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	_map_tip.add_theme_constant_override("outline_size", 6)
+	_mapview.add_child(_map_tip)
+	var hint := Label.new()
+	hint.text = "M / ESC close · drag to pan · wheel to zoom · hover for what things are"
+	hint.add_theme_color_override("font_color", Color(0.7, 0.68, 0.6))
+	hint.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	hint.add_theme_constant_override("outline_size", 5)
+	hint.position = Vector2(16, 8)
+	_mapview.add_child(hint)
+
+# every place worth naming, at map-pixel coordinates
+func _build_map_markers() -> void:
+	_map_markers = []
+	var mat := CanvasItemMaterial.new()
+	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	for L in range(1, _doors.size() + 1):
+		var d: Vector2i = _doors[L - 1]
+		var open_yet: bool = L <= GameState.highest_unlocked_level
+		_map_dot(Vector2(d.x, d.y) / MAP_SCALE, Color(1.0, 0.85, 0.3) if open_yet else Color(0.55, 0.45, 0.3),
+			"Floor %d door — %s" % [L, "open" if open_yet else "sealed (clear floor %d first)" % (L - 1)], mat)
+	for i in range(_crystals.size()):
+		var cc: Vector2i = _crystals[i]
+		if cc.x < -9000 or GameState.chest_contents.has("ug_lifecrystal_%d_%d" % [_seed, i]):
+			continue
+		_map_dot(Vector2(cc.x, cc.y) / MAP_SCALE, Color(1.0, 0.25, 0.35), "Life Crystal — +%d max health, for good" % GameState.LIFE_CRYSTAL_HP, mat)
+	for run in _track_runs:
+		var head: Vector2i = _path[int(run[0])]
+		_map_dot(Vector2(head.x, head.y) / MAP_SCALE, Color(0.75, 0.55, 0.3), "Minecart line — ride it along the road", mat)
+	_map_dot(Vector2(_route_start.x, _route_start.y) / MAP_SCALE, Color(0.4, 0.9, 1.0), "The way out — back to Deepwood", mat)
+
+func _map_dot(px: Vector2, col: Color, label: String, mat: CanvasItemMaterial) -> void:
+	var dot := Polygon2D.new()
+	dot.polygon = PackedVector2Array([Vector2(-1.6, -1.6), Vector2(1.6, -1.6), Vector2(1.6, 1.6), Vector2(-1.6, 1.6)])
+	dot.color = col
+	dot.material = mat
+	dot.position = px
+	dot.z_index = 4
+	_map_root.add_child(dot)
+	_map_markers.append({"px": px, "label": label})
+
+# a few rows per frame, painted from the same _cell_kind the terrain uses --
+# the chart never lies about the world, dug tunnels and craters included
+func _map_build_step() -> void:
+	var w := _map_w()
+	var rows := 0
+	while rows < MAP_ROWS_PER_FRAME and _map_built < _map_h():
+		var my := _map_built
+		for mx in range(w):
+			_map_img.set_pixel(mx, my, _map_pixel(Vector2i(mx * MAP_SCALE, my * MAP_SCALE)))
+		_map_built += 1
+		rows += 1
+	_map_tex.update(_map_img)
+
+func _map_pixel(cell: Vector2i) -> Color:
+	var k := _cell_kind(cell)
+	match k:
+		WATER: return Color(0.16, 0.38, 0.80)
+		LAVA: return Color(0.95, 0.42, 0.10)
+		SAND: return Color(0.66, 0.56, 0.34)
+		OBSIDIAN: return Color(0.28, 0.20, 0.42)
+		AIR:
+			if _in_span(_road_air, cell.y, cell.x):
+				return Color(0.30, 0.24, 0.16)     # the road, faintly warm: the way down READS
+			return Color(0.07, 0.065, 0.08)        # open cave
+	if k >= ORE_COL and k < SAND:
+		return ORE_GEM[clampi(k - ORE_COL, 0, ORE_GEM.size() - 1)]
+	return (BIOMES[clampi(k, 0, BIOMES.size() - 1)].base as Color).darkened(0.25)
+
+# what the cursor is over, in words
+func _map_name_at(cell: Vector2i, px: Vector2) -> String:
+	for m in _map_markers:                        # a named place wins over terrain
+		if px.distance_to(m.px) < 5.0 / maxf(_map_zoom, 0.001):
+			return String(m.label)
+	var k := _cell_kind(cell)
+	var b := _biome_of(cell.y)
+	var where := "%s · %d ft" % [String(BIOMES[b].name), maxi(0, cell.y * 2)]
+	match k:
+		WATER: return "Water — swimmable, mind your breath\n" + where
+		LAVA: return "LAVA — it burns; water quenches it to obsidian\n" + where
+		SAND: return "Loose sand — it falls when undercut\n" + where
+		OBSIDIAN: return "Obsidian — quenched rock, tier-2 pickaxe\n" + where
+		AIR:
+			if _in_span(_road_air, cell.y, cell.x):
+				return "The Delver's Road — the safe way down\n" + where
+			return "Open cave\n" + where
+	if k >= ORE_COL and k < SAND:
+		return "%s ore vein — mine it for materials\n%s" % [String(BIOMES[clampi(k - ORE_COL, 0, BIOMES.size() - 1)].name), where]
+	var tier := int(BIOMES[b].tier)
+	return "%s rock%s\n%s" % [String(BIOMES[b].name),
+		" — needs a tier-%d pickaxe" % tier if tier > 0 else "", where]
+
+func _map_input(e: InputEvent) -> bool:
+	if _mapview == null or not _mapview.visible:
+		return false
+	if e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_ESCAPE:
+		_mapview.visible = false
+		return true
+	if e is InputEventMouseButton:
+		if e.button_index == MOUSE_BUTTON_WHEEL_UP or e.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			if e.pressed:
+				# zoom about the cursor, so the spot under the mouse stays put
+				var factor := 1.25 if e.button_index == MOUSE_BUTTON_WHEEL_UP else 0.8
+				var nz: float = clampf(_map_zoom * factor, 0.3, 10.0)
+				_map_root.position = e.position - (e.position - _map_root.position) * (nz / _map_zoom)
+				_map_zoom = nz
+				_map_root.scale = Vector2(_map_zoom, _map_zoom)
+			return true
+		if e.button_index == MOUSE_BUTTON_LEFT or e.button_index == MOUSE_BUTTON_MIDDLE:
+			_map_drag = e.pressed
+			return true
+	if e is InputEventMouseMotion:
+		if _map_drag:
+			_map_root.position += e.relative
+		var px: Vector2 = (e.position - _map_root.position) / _map_zoom
+		var cell := Vector2i(int(px.x) * MAP_SCALE, int(px.y) * MAP_SCALE)
+		if cell.x >= 0 and cell.x < WIDTH and cell.y >= 0 and cell.y < DEPTH:
+			_map_tip.text = _map_name_at(cell, px)
+			_map_tip.position = e.position + Vector2(16, 10)
+		else:
+			_map_tip.text = ""
+		return true
+	return false
+
 # ══ THE YELLOW BOX ═══════════════════════════════════════════════════════════
 # Terraria outlines the tile your tool will affect, and the dev asked for the
 # same. One rectangle, four thin edges, snapped to the cell under the cursor:
@@ -3050,6 +3247,11 @@ func _process(delta: float) -> void:
 				e.velocity = ev
 	_update_depth_hud()
 	_update_cursor_box()
+	if _mapview != null and _mapview.visible:
+		if _map_built < _map_h():
+			_map_build_step()
+		if _map_player != null and is_instance_valid(_player):
+			_map_player.position = Vector2(_player.global_position.x, _player.global_position.y) / TILE / MAP_SCALE
 
 # ── NOTHING STAYS BURIED ──────────────────────────────────────────────────────
 # _spot_ok stops mobs being BORN in rock, but a mob can still end up inside a
@@ -3905,6 +4107,11 @@ func _spawn_exit() -> void:
 var _exit_area: Area2D = null
 
 func _unhandled_input(e: InputEvent) -> void:
+	if _map_input(e):
+		return
+	if e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_M:
+		_toggle_map()
+		return
 	if e.is_action_pressed("place_torch"):
 		if Input.is_key_pressed(KEY_SHIFT):
 			_try_place_rope()

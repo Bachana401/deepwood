@@ -32,7 +32,7 @@ func check(label: String, ok: bool) -> void:
 # another session) stopped it booting, the run reported "ALL PASS (27 passed)"
 # and exited 0 -- a green light over a third of a suite. Never again: the count
 # itself is now an assertion.
-const EXPECTED_CHECKS := 87
+const EXPECTED_CHECKS := 96
 
 func _ready() -> void:
 	_test_generator()
@@ -718,6 +718,41 @@ func _test_in_engine() -> void:
 	# ── THE YELLOW BOX ──
 	check("the cursor box exists with its four edges",
 		ug._cursor_box != null and ug._cursor_box.get_child_count() == 4)
+
+	# ── THE FULL MAP (M) ──
+	ug._toggle_map()
+	check("M opens the map view", ug._mapview != null and ug._mapview.visible)
+	check("the map fits the whole world on screen at open", ug._map_zoom > 0.0 and ug._map_zoom < 1.0)
+	check("every door, crystal, cart line and the exit are marked",
+		ug._map_markers.size() >= 100 + 1)
+	while ug._map_built < ug._map_h():
+		ug._map_build_step()
+	check("the surveyor's sweep paints the whole world (%d rows)" % ug._map_built,
+		ug._map_built == ug._map_h())
+	# the chart must not lie: a lake pixel is blue, a lava lake orange, rock is rock
+	var wlk: Dictionary = {}
+	var llk2: Dictionary = {}
+	for lk in ug._lakes:
+		if bool(lk.get("lava", false)) and llk2.is_empty() and int(lk.d) >= 8:
+			llk2 = lk
+		elif not bool(lk.get("lava", false)) and wlk.is_empty() and int(lk.d) >= 8:
+			wlk = lk
+	if not wlk.is_empty():
+		var wp: Color = ug._map_img.get_pixel(int(wlk.c.x) / UG.MAP_SCALE, (int(wlk.c.y) + 3) / UG.MAP_SCALE)
+		check("a water lake reads BLUE on the chart", wp.b > wp.r)
+	if not llk2.is_empty():
+		var lp: Color = ug._map_img.get_pixel(int(llk2.c.x) / UG.MAP_SCALE, (int(llk2.c.y) + 3) / UG.MAP_SCALE)
+		check("a lava lake reads ORANGE on the chart", lp.r > lp.b)
+	# hover names things: a door marker, and plain rock with its tier
+	var d0: Vector2i = ug._doors[0]
+	var name0: String = ug._map_name_at(d0, Vector2(d0.x, d0.y) / UG.MAP_SCALE)
+	check("hovering a door tells you its floor ('%s')" % name0, name0.begins_with("Floor 1 door"))
+	var deep_rock := Vector2i(2100, UG.DEPTH - 60)
+	if ug._solid_kind(deep_rock):
+		var namer: String = ug._map_name_at(deep_rock, Vector2.ZERO)
+		check("hovering deep rock names it and its pickaxe tier", "tier" in namer or "rock" in namer)
+	ug._toggle_map()
+	check("M again closes the map", not ug._mapview.visible)
 
 	# ── a mob sealed in rock is freed, not left frozen ──
 	var e = preload("res://enemy.tscn").instantiate()
