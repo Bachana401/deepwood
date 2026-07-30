@@ -224,6 +224,23 @@ func _ready() -> void:
 		"zenith_storm":
 			pierce = true
 			_build_zenith_storm()
+		# ---- the monarch eleven ----
+		"patient_storm":
+			pierce = true
+			_build_patient_storm()
+		"kingdom_ring":
+			pierce = true
+			_build_kingdom_ring()
+		"rumor_bolt": _build_rumor_bolt()
+		"sky_measure": _build_sky_measure()
+		"colonnade": _build_colonnade()
+		"harmonic": _build_harmonic()
+		"harp_string": _build_harp()
+		"grief_tear": _build_grief_tear()
+		"sky_charge": _build_sky_charge()
+		"world_cut":
+			pierce = true
+			_build_world_cut()
 		"quiet_wheel":
 			pierce = true
 			_build_quiet_wheel()
@@ -600,6 +617,33 @@ func _physics_process(delta: float) -> void:
 	if kind == "zenith_storm":
 		_tick_zenith_storm(delta)
 		return
+	if kind == "patient_storm" or kind == "kingdom_ring":
+		_tick_zenith_storm(delta)     # same swarm engine, different crowd
+		return
+	if kind == "rumor_bolt":
+		_tick_rumor(delta)
+		return
+	if kind == "sky_measure":
+		_tick_measure(delta)
+		return
+	if kind == "colonnade":
+		_tick_colonnade(delta)
+		return
+	if kind == "harmonic":
+		_tick_harmonic(delta)
+		return
+	if kind == "harp_string":
+		_tick_harp(delta)
+		return
+	if kind == "grief_tear":
+		_tick_tear(delta)
+		return
+	if kind == "sky_charge":
+		_tick_skycharge(delta)
+		return
+	if kind == "world_cut":
+		_tick_worldcut(delta)
+		return
 	if kind == "quiet_wheel":
 		_tick_quiet(delta)
 		return
@@ -946,6 +990,24 @@ func _on_body_entered(body: Node2D) -> void:
 					maxi(1, int(round(float(damage) * 0.35))), false)
 			_apply_status_to(body)
 			_portent_fix(body)
+		"rumor_bolt":
+			# THE RUMOR: every body it reaches tells two more
+			var landed_ru = body.take_damage(damage)
+			if landed_ru == null or landed_ru:
+				FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+			_apply_status_to(body)
+			_rumor_spread(body.global_position)
+			done = true
+			queue_free()
+			return
+		"grief_tear":
+			var landed_gt = body.take_damage(damage)
+			if landed_gt == null or landed_gt:
+				FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+			_apply_status_to(body)
+			done = true
+			queue_free()
+			return
 		"ransom_seal":
 			# KING'S RANSOM: the seal itself is nearly harmless. The value is
 			# what it pays if they die still wearing it.
@@ -5821,6 +5883,515 @@ func _build_zenith_storm() -> void:
 			Vector2(width * 1.7, length * 0.42), Vector2(-width * 1.7, length * 0.42)])
 		guard.color = Color(tint.r * 0.6, tint.g * 0.55, tint.b * 0.5, 0.95)
 		part.add_child(guard)
+		visual.add_child(part)
+		_zs_parts.append(part)
+
+# ==========================================================================
+# THE MONARCH ELEVEN (2026-07-29). The dev opened the monarch chest and found
+# half the best tier swinging like a tier-1 cudgel. These eleven were still on
+# generic shared verbs; they are now built to the same scale as the Zenith.
+#
+# THE RULE FOR THIS TIER, per the dev: power lives in the VERB, not in stat
+# riders. More blades, more beams, more summons, more of everything at once.
+# ==========================================================================
+
+# --- THE RUMOR: it does not bounce. It SPREADS. -------------------------
+# 1 -> 2 -> 4: every body it touches tells two more. A room full of rumour.
+var _rum_gen := 0
+const RUM_MAX_GEN := 3
+
+func _tick_rumor(delta: float) -> void:
+	global_position += direction * speed * delta
+	traveled += speed * delta
+	if visual:
+		visual.rotation += 6.0 * delta
+	if traveled >= max_distance:
+		done = true
+		queue_free()
+
+func set_rumor_gen(g: int) -> void:
+	_rum_gen = g
+
+func _rumor_spread(at: Vector2) -> void:
+	if _rum_gen >= RUM_MAX_GEN:
+		return
+	var host := get_parent()
+	if host == null:
+		return
+	for k in range(2):
+		var child = (load("res://weapon_projectile.gd") as GDScript).new()
+		child.kind = "rumor_bolt"
+		# it does NOT decay -- a rumour grows in the telling
+		child.damage = maxi(1, int(round(float(damage) * 1.06)))
+		child.element = element
+		child.on_hit_status = on_hit_status
+		child.source = source
+		child.girth = girth * 0.92
+		child.speed = speed * 0.94
+		child.max_distance = max_distance * 0.7
+		child.direction = Vector2.RIGHT.rotated(randf_range(0.0, TAU))
+		host.add_child(child)
+		child.global_position = at
+		child.set_rumor_gen(_rum_gen + 1)
+
+func _build_rumor_bolt() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var halo := Polygon2D.new()
+	halo.polygon = _circle(13.0, 10)
+	halo.color = Color(0.86, 0.72, 0.96, 0.32)
+	halo.material = m
+	visual.add_child(halo)
+	# a whispering mouth-shape, turning
+	for k in range(3):
+		var lip := Polygon2D.new()
+		lip.polygon = PackedVector2Array([
+			Vector2(-8, 0), Vector2(0, -4.6), Vector2(8, 0), Vector2(0, 3.0)])
+		lip.color = Color(0.94, 0.86, 1.0, 0.85 - 0.2 * float(k))
+		lip.material = m
+		lip.rotation = deg_to_rad(60.0 * float(k))
+		visual.add_child(lip)
+
+# --- STAFF THAT MEASURES THE SKY: it draws a grid and the grid FALLS -----
+var _meas_t := 0.0
+var _meas_fired := false
+const MEAS_LINES := 6
+const MEAS_SPAN := 300.0
+const MEAS_WARN := 0.42
+
+func _tick_measure(delta: float) -> void:
+	_meas_t += delta
+	if not _meas_fired and _meas_t >= MEAS_WARN:
+		_meas_fired = true
+		_measure_fall()
+	if _meas_t >= MEAS_WARN + 0.5:
+		done = true
+		queue_free()
+
+func _measure_fall() -> void:
+	var host := get_parent()
+	if host == null:
+		return
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var pay: int = maxi(1, damage)
+	for i in range(MEAS_LINES):
+		var x: float = -MEAS_SPAN + 2.0 * MEAS_SPAN * float(i) / float(MEAS_LINES - 1)
+		var beam := Polygon2D.new()
+		beam.polygon = PackedVector2Array([
+			Vector2(-7.0, -300.0), Vector2(7.0, -300.0), Vector2(4.0, 90.0), Vector2(-4.0, 90.0)])
+		beam.color = Color(0.84, 0.9, 1.0, 0.9)
+		beam.material = m
+		beam.z_index = 44
+		host.add_child(beam)
+		beam.global_position = global_position + Vector2(x, 0)
+		var tw := beam.create_tween()
+		tw.tween_interval(0.04 * float(i))
+		tw.tween_property(beam, "modulate:a", 0.0, 0.3)
+		tw.tween_callback(beam.queue_free)
+		for group_name in HOSTILE_GROUPS:
+			for e in get_tree().get_nodes_in_group(group_name):
+				if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+					continue
+				if "is_dead" in e and e.is_dead:
+					continue
+				var rel: Vector2 = (e as Node2D).global_position - (global_position + Vector2(x, 0))
+				if absf(rel.x) > 26.0 or rel.y < -290.0 or rel.y > 96.0:
+					continue
+				var landed = e.take_damage(pay)
+				if landed == null or landed:
+					FloatingText.spawn(host, (e as Node2D).global_position
+						+ Vector2(randf_range(-18.0, 18.0), -26.0), pay, true)
+				_apply_status_to(e)
+
+func _build_sky_measure() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	# the survey marks: a row of faint verticals that promise where it lands
+	for i in range(MEAS_LINES):
+		var x: float = -MEAS_SPAN + 2.0 * MEAS_SPAN * float(i) / float(MEAS_LINES - 1)
+		var mark := Polygon2D.new()
+		mark.polygon = PackedVector2Array([
+			Vector2(x - 1.4, -250.0), Vector2(x + 1.4, -250.0),
+			Vector2(x + 1.4, 80.0), Vector2(x - 1.4, 80.0)])
+		mark.color = Color(0.7, 0.82, 1.0, 0.3)
+		mark.material = m
+		visual.add_child(mark)
+		var tw := mark.create_tween().set_loops()
+		tw.tween_property(mark, "modulate:a", 0.7, 0.16)
+		tw.tween_property(mark, "modulate:a", 0.25, 0.16)
+
+# --- THE UNBENT COLUMN: a whole COLONNADE comes up at once --------------
+var _col_t := 0.0
+var _col_fired := false
+const COL_COUNT := 5
+const COL_GAP := 88.0
+
+func _tick_colonnade(delta: float) -> void:
+	_col_t += delta
+	if not _col_fired and _col_t >= 0.14:
+		_col_fired = true
+		_raise_colonnade()
+	if _col_t >= 1.1:
+		done = true
+		queue_free()
+
+func _raise_colonnade() -> void:
+	var host := get_parent()
+	if host == null:
+		return
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var pay: int = maxi(1, damage)
+	for i in range(COL_COUNT):
+		var at: Vector2 = global_position + direction * (COL_GAP * float(i))
+		var pillar := Polygon2D.new()
+		pillar.polygon = PackedVector2Array([
+			Vector2(-19.0, 26.0), Vector2(-13.0, -150.0),
+			Vector2(13.0, -150.0), Vector2(19.0, 26.0)])
+		pillar.color = Color(0.92, 0.88, 0.72, 0.82)
+		pillar.material = m
+		pillar.z_index = 43
+		host.add_child(pillar)
+		pillar.global_position = at
+		pillar.scale = Vector2(1.0, 0.05)
+		var tw := pillar.create_tween()
+		tw.tween_interval(0.05 * float(i))
+		tw.tween_property(pillar, "scale", Vector2.ONE, 0.13).set_trans(Tween.TRANS_BACK)
+		tw.tween_interval(0.34)
+		tw.tween_property(pillar, "modulate:a", 0.0, 0.24)
+		tw.tween_callback(pillar.queue_free)
+		for group_name in HOSTILE_GROUPS:
+			for e in get_tree().get_nodes_in_group(group_name):
+				if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+					continue
+				if "is_dead" in e and e.is_dead:
+					continue
+				var rel: Vector2 = (e as Node2D).global_position - at
+				if absf(rel.x) > 30.0 or rel.y < -150.0 or rel.y > 34.0:
+					continue
+				var landed = e.take_damage(pay)
+				if landed == null or landed:
+					FloatingText.spawn(host, (e as Node2D).global_position
+						+ Vector2(randf_range(-18.0, 18.0), -26.0), pay, true)
+				_apply_status_to(e)
+				if e.has_method("apply_knockback"):
+					e.apply_knockback(1 if rel.x >= 0.0 else -1, 120.0)
+
+func _build_colonnade() -> void:
+	pass    # the pillars draw themselves the instant they come up
+
+# --- A CHOIR OF ONE: one shaft that becomes FIVE in flight --------------
+var _harm_t := 0.0
+var _harm_split := false
+
+func _tick_harmonic(delta: float) -> void:
+	_harm_t += delta
+	global_position += direction * speed * delta
+	traveled += speed * delta
+	if not _harm_split and _harm_t >= 0.1:
+		_harm_split = true
+		_split_harmonics()
+	if traveled >= max_distance:
+		done = true
+		queue_free()
+
+func _split_harmonics() -> void:
+	var host := get_parent()
+	if host == null:
+		return
+	# the one voice becomes a chord: four more shafts fanning off this one
+	for k in range(4):
+		var h = (load("res://weapon_projectile.gd") as GDScript).new()
+		h.kind = "shot"
+		h.damage = maxi(1, int(round(float(damage) * 0.8)))
+		h.element = element
+		h.on_hit_status = on_hit_status
+		h.source = source
+		h.girth = girth
+		h.speed = speed * randf_range(0.9, 1.12)
+		h.max_distance = max_distance * 0.85
+		h.direction = direction.rotated(deg_to_rad(-11.0 + 7.3 * float(k)))
+		h.beam_tint = Color(0.82, 0.9, 1.0)
+		host.add_child(h)
+		h.global_position = global_position
+
+func _build_harmonic() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var glow := Polygon2D.new()
+	glow.polygon = PackedVector2Array([
+		Vector2(-4, -4.0), Vector2(-26, 0), Vector2(-4, 4.0)])
+	glow.color = Color(0.8, 0.9, 1.0, 0.45)
+	glow.material = m
+	visual.add_child(glow)
+	var shaft := Polygon2D.new()
+	shaft.polygon = PackedVector2Array([
+		Vector2(12, -1.4), Vector2(-12, -1.4), Vector2(-12, 1.4), Vector2(12, 1.4)])
+	shaft.color = Color(0.94, 0.98, 1.0, 0.96)
+	shaft.material = m
+	visual.add_child(shaft)
+
+# --- THRONE OF STRINGS: seven strings across the room, and they RING ----
+var _harp_t := 0.0
+var _harp_fired := false
+const HARP_STRINGS := 7
+const HARP_LEN := 420.0
+
+func _tick_harp(delta: float) -> void:
+	_harp_t += delta
+	if not _harp_fired and _harp_t >= 0.1:
+		_harp_fired = true
+		_pluck()
+	if _harp_t >= 0.9:
+		done = true
+		queue_free()
+
+func _pluck() -> void:
+	var host := get_parent()
+	if host == null:
+		return
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var pay: int = maxi(1, damage)
+	var perp := Vector2(-direction.y, direction.x)
+	for i in range(HARP_STRINGS):
+		var off: float = (float(i) - float(HARP_STRINGS - 1) * 0.5) * 26.0
+		var base: Vector2 = global_position + perp * off
+		var line := Polygon2D.new()
+		line.polygon = PackedVector2Array([
+			Vector2(0, -1.6), Vector2(HARP_LEN, -1.6), Vector2(HARP_LEN, 1.6), Vector2(0, 1.6)])
+		line.color = Color(0.96, 0.88, 0.6, 0.9)
+		line.material = m
+		line.z_index = 42
+		line.rotation = direction.angle()
+		host.add_child(line)
+		line.global_position = base
+		var tw := line.create_tween()
+		tw.tween_interval(0.03 * float(i))
+		tw.tween_property(line, "scale", Vector2(1.0, 3.4), 0.1)
+		tw.tween_property(line, "scale", Vector2(1.0, 1.0), 0.12)
+		tw.tween_property(line, "modulate:a", 0.0, 0.3)
+		tw.tween_callback(line.queue_free)
+		for group_name in HOSTILE_GROUPS:
+			for e in get_tree().get_nodes_in_group(group_name):
+				if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+					continue
+				if "is_dead" in e and e.is_dead:
+					continue
+				var rel: Vector2 = (e as Node2D).global_position - base
+				var along: float = rel.dot(direction)
+				if along < 0.0 or along > HARP_LEN:
+					continue
+				if absf(rel.dot(perp)) > 15.0:
+					continue
+				var landed = e.take_damage(pay)
+				if landed == null or landed:
+					FloatingText.spawn(host, (e as Node2D).global_position
+						+ Vector2(randf_range(-18.0, 18.0), -26.0), pay, false)
+				_apply_status_to(e)
+
+func _build_harp() -> void:
+	pass    # the strings appear on the pluck
+
+# --- THE WORLD'S GRIEF: twelve tears, and each one finds someone --------
+var _tear_prey: Node2D = null
+var _tear_t := 0.0
+
+func _tick_tear(delta: float) -> void:
+	_tear_t += delta
+	if _tear_prey == null or not is_instance_valid(_tear_prey) \
+			or ("is_dead" in _tear_prey and _tear_prey.is_dead):
+		_tear_prey = _nearest_hostile_node(460.0)
+	if _tear_prey != null:
+		var want: Vector2 = ((_tear_prey as Node2D).global_position - global_position).normalized()
+		direction = direction.lerp(want, 5.0 * delta).normalized()
+	_vel_y += 340.0 * delta
+	global_position += direction * speed * delta + Vector2(0, _vel_y * delta)
+	rotation = (direction * speed + Vector2(0, _vel_y)).angle()
+	traveled += speed * delta
+	if traveled >= max_distance or _tear_t > 2.4:
+		done = true
+		queue_free()
+
+func _build_grief_tear() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var tear := Polygon2D.new()
+	tear.polygon = PackedVector2Array([
+		Vector2(11, 0), Vector2(-2, -5.4), Vector2(-9, 0), Vector2(-2, 5.4)])
+	tear.color = Color(0.66, 0.8, 0.98, 0.94)
+	tear.material = m
+	visual.add_child(tear)
+	var wet := Polygon2D.new()
+	wet.polygon = _circle(9.0, 8)
+	wet.color = Color(0.5, 0.68, 0.96, 0.3)
+	wet.material = m
+	visual.add_child(wet)
+
+# --- WHAT THE SKY CHARGES: the sky sends the BILL, in lightning ---------
+var _sc_t := 0.0
+var _sc_struck := 0
+const SC_BOLTS := 8
+const SC_GAP := 0.19
+const SC_SPAN := 300.0
+
+func _tick_skycharge(delta: float) -> void:
+	_sc_t += delta
+	if _sc_struck < SC_BOLTS and _sc_t >= float(_sc_struck) * SC_GAP:
+		_strike_bolt(_sc_struck)
+		_sc_struck += 1
+		return
+	if _sc_t >= float(SC_BOLTS) * SC_GAP + 0.4:
+		done = true
+		queue_free()
+
+func _strike_bolt(idx: int) -> void:
+	var host := get_parent()
+	if host == null:
+		return
+	# prefer a living target; otherwise walk the span so the storm still reads
+	var at: Vector2 = global_position + Vector2(
+		randf_range(-SC_SPAN, SC_SPAN), 0)
+	var prey := _nearest_hostile_node(SC_SPAN * 1.2)
+	if prey != null and idx % 2 == 0:
+		at = Vector2((prey as Node2D).global_position.x, global_position.y)
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	# a jagged bolt, drawn as a zigzag ribbon from the ceiling down
+	var pts := PackedVector2Array()
+	var back := PackedVector2Array()
+	var y := -300.0
+	var x := 0.0
+	while y < 40.0:
+		pts.append(Vector2(x, y))
+		back.insert(0, Vector2(x + 5.0, y))
+		y += 34.0
+		x = randf_range(-16.0, 16.0)
+	for p in back:
+		pts.append(p)
+	var bolt := Polygon2D.new()
+	bolt.polygon = pts
+	bolt.color = Color(0.86, 0.92, 1.0, 0.95)
+	bolt.material = m
+	bolt.z_index = 45
+	host.add_child(bolt)
+	bolt.global_position = at
+	var tw := bolt.create_tween()
+	tw.tween_property(bolt, "modulate:a", 0.0, 0.24)
+	tw.tween_callback(bolt.queue_free)
+	_nova_burst_tinted(at + Vector2(0, 30.0), Color(0.8, 0.9, 1.0))
+
+func _build_sky_charge() -> void:
+	pass    # the storm is the bolts; the caster node is invisible
+
+# --- A CUT ACROSS THE WORLD: one slash, the whole lane ------------------
+# Straight off the study's aura ladder: at the crown the swing aura is TRADED
+# AWAY for an every-swing screen-crossing beam (~22 player-heights).
+var _wc_t := 0.0
+const WC_LEN := 1050.0
+
+func _tick_worldcut(delta: float) -> void:
+	_wc_t += delta
+	if _wc_t < 0.02:
+		_world_cut()
+	if visual:
+		visual.scale = Vector2(1.0, maxf(0.05, 1.0 - _wc_t * 3.2))
+		visual.modulate.a = 1.0 - _wc_t * 2.6
+	if _wc_t >= 0.4:
+		done = true
+		queue_free()
+
+func _world_cut() -> void:
+	var host := get_parent()
+	var pay: int = maxi(1, damage)
+	var perp := Vector2(-direction.y, direction.x)
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			var rel: Vector2 = (e as Node2D).global_position - global_position
+			var along: float = rel.dot(direction)
+			if along < -40.0 or along > WC_LEN:
+				continue
+			if absf(rel.dot(perp)) > 46.0:
+				continue
+			var landed = e.take_damage(pay)
+			if landed == null or landed:
+				FloatingText.spawn(host, (e as Node2D).global_position
+					+ Vector2(randf_range(-22.0, 22.0), -26.0), pay, true)
+			_apply_status_to(e)
+
+func _build_world_cut() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var core := Polygon2D.new()
+	core.polygon = PackedVector2Array([
+		Vector2(-40, -7.0), Vector2(WC_LEN, -22.0),
+		Vector2(WC_LEN, 22.0), Vector2(-40, 7.0)])
+	core.color = Color(1.0, 0.98, 0.9, 0.92)
+	core.material = m
+	core.rotation = direction.angle()
+	visual.add_child(core)
+	var wide := Polygon2D.new()
+	wide.polygon = PackedVector2Array([
+		Vector2(-40, -20.0), Vector2(WC_LEN, -50.0),
+		Vector2(WC_LEN, 50.0), Vector2(-40, 20.0)])
+	wide.color = Color(0.7, 0.86, 1.0, 0.34)
+	wide.material = m
+	wide.rotation = direction.angle()
+	visual.add_child(wide)
+
+# --- THE PATIENT KNIFE / A KINGDOM, TURNING: swarms on the storm engine --
+func _build_patient_storm() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	# twelve small knives, all one colour: patience is not a pageant
+	for i in range(12):
+		var part := Node2D.new()
+		var knife := Polygon2D.new()
+		knife.polygon = PackedVector2Array([
+			Vector2(0, -17.0), Vector2(3.4, -7.0), Vector2(2.2, 6.0),
+			Vector2(-2.2, 6.0), Vector2(-3.4, -7.0)])
+		knife.color = Color(0.86, 0.9, 0.94, 0.95)
+		part.add_child(knife)
+		var glint := Polygon2D.new()
+		glint.polygon = PackedVector2Array([
+			Vector2(0, -20.0), Vector2(1.6, -9.0), Vector2(-1.6, -9.0)])
+		glint.color = Color(1.0, 1.0, 1.0, 0.85)
+		glint.material = m
+		part.add_child(glint)
+		visual.add_child(part)
+		_zs_parts.append(part)
+
+func _build_kingdom_ring() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	# six crowned shades, each holding a spear: a kingdom, turning
+	for i in range(6):
+		var tint: Color = WeaponFx.LEGACY_TINTS[i % WeaponFx.LEGACY_TINTS.size()]
+		var part := Node2D.new()
+		var body_k := Polygon2D.new()
+		body_k.polygon = PackedVector2Array([
+			Vector2(-6.0, 14.0), Vector2(-4.0, -10.0), Vector2(0, -16.0),
+			Vector2(4.0, -10.0), Vector2(6.0, 14.0)])
+		body_k.color = Color(tint.r * 0.7, tint.g * 0.66, tint.b * 0.78, 0.88)
+		part.add_child(body_k)
+		var crown := Polygon2D.new()
+		crown.polygon = PackedVector2Array([
+			Vector2(-5, -16.0), Vector2(-3, -22.0), Vector2(0, -18.0),
+			Vector2(3, -22.0), Vector2(5, -16.0)])
+		crown.color = Color(1.0, 0.88, 0.5, 0.95)
+		crown.material = m
+		part.add_child(crown)
+		var spear := Polygon2D.new()
+		spear.polygon = PackedVector2Array([
+			Vector2(7.0, -26.0), Vector2(9.4, -26.0), Vector2(9.4, 14.0), Vector2(7.0, 14.0)])
+		spear.color = Color(tint.r, tint.g, tint.b, 0.9)
+		spear.material = m
+		part.add_child(spear)
 		visual.add_child(part)
 		_zs_parts.append(part)
 

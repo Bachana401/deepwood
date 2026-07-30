@@ -171,7 +171,7 @@ const ROWS = [
 	# big one -- the per-hit number is supposed to look modest.
 	["wpn_crownsorrow",  "The Crown's Sorrow",   "melee", 8, "sorrow", 11, 0.15, {"status": "slow_w",
 		"fx": [{"kind": "brand", "amp": 0.49, "dur": 5.0}]}],
-	["wpn_kingdomwheel", "A Kingdom, Turning",   "melee", 8, "orbiter", 37, 0.75, {"dwell": 4.0,
+	["wpn_kingdomwheel", "A Kingdom, Turning",   "melee", 8, "kingdomturning", 37, 0.75, {"dwell": 4.0,
 		"fx": [{"kind": "gravity", "radius": 240.0, "pull": 180.0}, {"kind": "crowd", "pct_per": 0.15, "cap": 0.6}]}],
 	["wpn_lastword",     "The Last Word",        "melee", 8, "zenith", 34, 0.55, {"status": "burn_w",
 		"fx": [{"kind": "legacy", "n": 2, "pct": 1, "range": 300.0}, {"kind": "echo", "pct": 1, "delay": 0.5}]}],
@@ -180,11 +180,11 @@ const ROWS = [
 	# in. Damage 50 -> 21: the kill is the stack, not the throw.
 	["wpn_regicide",     "Regicide",             "spear", 8, "regicide", 21, 0.62, {
 		"fx": [{"kind": "duelist", "pct_per": 0.18, "max": 8}]}],
-	["wpn_thronestrings","Throne of Strings",    "bow", 8, "volley", 27, 0.48, {"count": 5, "pierce": true,
+	["wpn_thronestrings","Throne of Strings",    "bow", 8, "thronestrings", 27, 0.48, {"count": 5, "pierce": true,
 		"fx": [{"kind": "skyrain", "n": 3, "pct": 1, "spread": 140.0}, {"kind": "frostbloom", "radius": 160.0}]}],
 	["wpn_soulflood",    "Flood of Souls",       "wand", 8, "souls", 26, 1.1,  {
 		"fx": [{"kind": "soulwisp", "dmg": 14, "pct": 1}, {"kind": "harvest", "hp": 3, "mana": 6.0}]}],
-	["wpn_skymeasure",   "Staff That Measures the Sky", "staff", 8, "staff", 34, 0.36, {
+	["wpn_skymeasure",   "Staff That Measures the Sky", "staff", 8, "skymeasure", 34, 0.36, {
 		"fx": [{"kind": "quake", "radius": 170.0, "pct": 1}, {"kind": "bulwark", "dr": 0.2, "dur": 3.0}]}],
 	# ---------------- WAVE 3 - TIER 1 (8) ----------------
 	["wpn_hearthpoker",  "Hearth Poker",         "melee", 1, "arc",       6,  0.4,  {"plain": true}],
@@ -367,7 +367,7 @@ const ROWS = [
 	# becomes the weapon its name describes -- put the throne DOWN and it burns.
 	["wpn_emberthrone",  "Throne of Embers",     "melee", 8, "brazier", 30, 0.95, {"status": "burn_w",
 		"fx": [{"kind": "stormcall", "every": 3, "pct": 1.6}]}],
-	["wpn_worldslash",   "A Cut Across the World","melee", 8, "crescent", 38, 0.52, {"p_damage": 40,
+	["wpn_worldslash",   "A Cut Across the World","melee", 8, "worldcut", 38, 0.52, {"p_damage": 40,
 		"fx": [{"kind": "splinter", "n": 5, "pct": 1, "range": 200.0}, {"kind": "echo", "pct": 1, "delay": 0.45}, {"kind": "rend", "pct_per": 0.12, "max": 6}]}],
 	# THE CROWN TEN (overhaul wave, 2026-07-29): apex weapon #1. Three stacked
 	# fx riders on a shared orbiter became ONE verb you can say in a sentence.
@@ -385,18 +385,18 @@ const ROWS = [
 	# the edge of the world -- the crowd is ambushed by YOUR weapon.
 	["wpn_nightparade",  "Night Parade",         "bow", 8, "parade", 14, 0.5,  {
 		"fx": [{"kind": "moonlit", "pct": 1}]}],
-	["wpn_worldsgrief",  "The World's Grief",    "wand", 8, "cluster", 40, 0.72, {"shards": 10,
+	["wpn_worldsgrief",  "The World's Grief",    "wand", 8, "worldsgrief", 40, 0.72, {"shards": 10,
 		"fx": [{"kind": "splinter", "n": 6, "pct": 1, "range": 190.0}, {"kind": "crowd", "pct_per": 0.14, "cap": 0.55}, {"kind": "harvest", "hp": 4, "mana": 4.0}]}],
-	["wpn_deepcrown",    "Crown of the Deep Court","wand", 8, "sentry", 24, 1.1,  {"dur": 30,
+	["wpn_deepcrown",    "Crown of the Deep Court","wand", 8, "deepcourt", 24, 1.1,  {"dur": 30,
 		"fx": [{"kind": "soulwisp", "dmg": 12, "pct": 1}, {"kind": "gravity", "radius": 220.0, "pull": 160.0}, {"kind": "bulwark", "dr": 0.18, "dur": 3.0}]}],
 	# CROWN TEN #10: a `staff` shared with 20 becomes a rolling stone whose
 	# bite is its own gathered pace -- a hill is a damage multiplier.
 	["wpn_mountainking", "The Mountain That Kneels","staff", 8, "boulder", 30, 1.3, {
 		"fx": [{"kind": "bulwark", "dr": 0.21, "dur": 3.5}]}],
 	# ---------------- WAVE 3 - FLAGSHIPS (11) ----------------
-	["wpn_therumor",     "The Rumor",            "wand", 8, "ricochet", 34, 0.5,  {"bounces": 9, "rider": "grows",
+	["wpn_therumor",     "The Rumor",            "wand", 8, "rumor", 34, 0.5,  {"bounces": 9, "rider": "grows",
 		"fx": [{"kind": "echo", "pct": 1, "delay": 0.4}, {"kind": "chain", "n": 2, "pct": 1, "range": 260.0}, {"kind": "goldtouch", "chance": 0.25, "gold": 4}]}],
-	["wpn_choirofone",   "A Choir of One",       "bow", 8, "rapid", 17, 0.13, {"status": "burn_w", "rider": "choir",
+	["wpn_choirofone",   "A Choir of One",       "bow", 8, "choirofone", 17, 0.13, {"status": "burn_w", "rider": "choir",
 		"fx": [{"kind": "echo", "pct": 1, "delay": 0.3}, {"kind": "haste", "pct_per": 0.08, "max": 6, "dur": 4.0}, {"kind": "brand", "amp": 0.31, "dur": 3.5}]}],
 	# CROWN TEN #3: apex weapon. A one-shot fire blast (three fx riders, 47 dmg)
 	# became THE CHANNEL -- hold it and six beams narrow into a single column.
@@ -406,9 +406,9 @@ const ROWS = [
 	# longer you pour, and a kill that feeds the next second of burning.
 	["wpn_smallsun",     "A Small Personal Sun", "wand", 8, "prism", 14, 0.5,  {"status": "burn_w",
 		"fx": [{"kind": "rend", "pct_per": 0.13, "max": 8}, {"kind": "harvest", "hp": 3, "mana": 7.0}]}],
-	["wpn_patientknife", "The Patient Knife",    "melee", 8, "arc", 22, 0.2,  {"status": "poison_w", "rider": "patient",
+	["wpn_patientknife", "The Patient Knife",    "melee", 8, "patientknife", 22, 0.2,  {"status": "poison_w", "rider": "patient",
 		"fx": [{"kind": "rend", "pct_per": 0.14, "max": 8}, {"kind": "duelist", "pct_per": 0.12, "max": 8}, {"kind": "splinter", "n": 3, "pct": 1, "range": 170.0}]}],
-	["wpn_skysfare",     "What the Sky Charges", "wand", 8, "tome", 30, 1.15, {"radius": 220, "rider": "walker",
+	["wpn_skysfare",     "What the Sky Charges", "wand", 8, "skycharges", 30, 1.15, {"radius": 220, "rider": "walker",
 		"fx": [{"kind": "stormcall", "every": 3, "pct": 1.6}, {"kind": "bloodprice", "pct": 1, "cost": 1}, {"kind": "crowd", "pct_per": 0.12, "cap": 0.5}]}],
 	["wpn_longgoodbye",  "The Long Goodbye",     "melee", 7, "lash", 36, 0.76, {"status": "poison_w", "rider": "goodbye",
 		"fx": [{"kind": "duelist", "pct_per": 0.15, "max": 7}, {"kind": "splinter", "n": 3, "pct": 0.5, "range": 170.0}]}],
@@ -424,7 +424,7 @@ const ROWS = [
 		"fx": [{"kind": "moonlit", "pct": 0.72}, {"kind": "frostbloom", "radius": 155.0, "dur": 3.0}]}],
 	["wpn_heavenpoint",  "The Heaven-Piercing Point", "spear", 7, "heavenpoint", 38, 0.8, { "status": "slow_w",
 		"fx": [{"kind": "chain", "n": 2, "pct": 0.8, "range": 260.0}, {"kind": "frostbloom", "radius": 155.0}]}],
-	["wpn_unbentcolumn", "The Unbent Column",    "staff", 8, "staff", 36, 0.35, {
+	["wpn_unbentcolumn", "The Unbent Column",    "staff", 8, "unbentcolumn", 36, 0.35, {
 		"fx": [{"kind": "bulwark", "dr": 0.2, "dur": 3.5}, {"kind": "haste", "pct_per": 0.08, "max": 6, "dur": 5.0}, {"kind": "chain", "n": 2, "pct": 1, "range": 250.0}]}]
 ]
 
@@ -909,6 +909,32 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			s = {"type": "rain_cloud", "damage": maxi(1, int(round(float(dmg) * 0.8)))}
 		"wardenwatch":
 			s = {"type": "warden_post", "damage": maxi(1, int(round(float(dmg) * 1.35)))}
+		# ---- THE MONARCH ELEVEN: power in the VERB, not in stat riders ----
+		"patientknife":
+			s = {"type": "patient_storm", "damage": maxi(1, int(round(float(dmg) * 0.8)))}
+		"kingdomturning":
+			s = {"type": "kingdom_ring", "damage": maxi(1, int(round(float(dmg) * 0.55)))}
+		"rumor":
+			s = {"type": "rumor_bolt", "damage": maxi(1, int(round(float(dmg) * 0.62))),
+				"speed": spd, "range": rng}
+		"skymeasure":
+			s = {"type": "sky_measure", "damage": maxi(1, int(round(float(dmg) * 0.7)))}
+		"unbentcolumn":
+			s = {"type": "colonnade", "damage": maxi(1, int(round(float(dmg) * 0.72)))}
+		"choirofone":
+			s = {"type": "harmonic", "damage": dmg, "speed": spd + 180.0, "range": rng}
+		"thronestrings":
+			s = {"type": "harp_string", "damage": maxi(1, int(round(float(dmg) * 0.62)))}
+		"worldsgrief":
+			s = {"type": "grief_tear", "damage": maxi(1, int(round(float(dmg) * 0.4))),
+				"count": 12, "speed": spd - 140.0, "range": rng}
+		"skycharges":
+			s = {"type": "sky_charge", "damage": maxi(1, int(round(float(dmg) * 0.85)))}
+		"worldcut":
+			s = {"type": "world_cut", "damage": dmg}
+		"deepcourt":
+			s = {"type": "companion", "kind": "wisp", "count": 3,
+				"damage": maxi(1, int(round(float(dmg) * 0.9)))}
 		"debtmark":
 			s = {"type": "debt_mark", "damage": dmg, "speed": spd + 60.0, "range": rng}
 		"cinderdrag":
@@ -989,6 +1015,17 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"hushfall":    return "The blow lands in SILENCE. The sound of it arrives a moment later, from where you struck, and the sound is the heavier half."
 		"eclipse":     return "The wheel rolls out and goes DARK, and the shadow it throws is the weapon -- a long band of night that cuts everything standing in it."
 		"cometfall":   return "Lobs high and comes down as a COMET, cratering where it lands and leaving the ground burning for whatever walks in next."
+		"patientknife": return "It does not swing once. TWELVE knives come out of the dark around you at the same moment, and they are all patient, and they are all yours."
+		"kingdomturning": return "A KINGDOM turns about you -- six crowned shades with spears, wheeling out and back, and every one of them is striking."
+		"rumor":       return "It does not bounce, it SPREADS. Everyone it reaches tells two more, and it grows a little in every telling, until the whole room has heard."
+		"skymeasure":  return "It surveys the sky, and then the sky comes DOWN along the marks -- six columns of starlight the whole height of the room."
+		"unbentcolumn": return "A COLONNADE comes up out of the floor -- five pillars, one after another down the hall, and nothing that was standing there is standing now."
+		"choirofone":  return "One voice that is a choir: every shaft splits into FIVE a moment after it leaves, and the cadence never stops."
+		"thronestrings": return "Seven STRINGS stretch across the room, and plucking them makes the whole span ring -- everything standing on a string pays for the note."
+		"worldsgrief": return "It breaks into TWELVE tears, and every one of them finds someone. Grief does not miss."
+		"skycharges":  return "The sky sends the bill: EIGHT bolts down the field, one after another, and each one lands like a full stop."
+		"worldcut":    return "One cut, and it does not stop at the edge of the screen. Everything in that line, however far, is already cut."
+		"deepcourt":   return "Three drowned courtiers rise and STAY, drifting at your shoulder and striking on their own for as long as you hold the crown."
 		"quietwheel":  return "It shows you NOTHING while it works -- no numbers, no noise, just a grey wheel turning in the middle of them. When it stops it bills you all at once."
 		"midwinterwheel": return "Runs a wide circle around you laying a RING of rime on the floor, and anything caught in the track goes slow and cold."
 		"skyquills":   return "The quills go up and HANG there quivering. A moment later the whole sky comes down at once."

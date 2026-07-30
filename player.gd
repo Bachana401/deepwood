@@ -3674,6 +3674,36 @@ func perform_attack() -> void:
 			bp.source = self
 			get_parent().add_child(bp)
 			bp.global_position = global_position + get_aim_direction() * 158.0 + Vector2(0, 16.0)
+		# THE MONARCH WANDS/STAVES (T8): each PLACES a spectacle, none of them
+		# a bolt. Measure/colonnade/harp/storm all cast from a marker node.
+		elif special_type == "sky_charge":
+			var mk = WEAPON_PROJECTILE_SCRIPT.new()
+			mk.kind = special_type
+			mk.damage = maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("wand"))))
+			mk.element = Inventory.element_of(active_weapon_id)
+			mk.on_hit_status = special.get("status", {})
+			mk.source = self
+			mk.direction = get_aim_direction()
+			get_parent().add_child(mk)
+			mk.global_position = global_position + get_aim_direction() * 120.0
+		# THE WORLD'S GRIEF (T8): twelve tears, and each finds someone
+		elif special_type == "grief_tear":
+			var gtd := maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("wand"))))
+			var gdir := get_aim_direction()
+			for t_i in range(int(special.get("count", 12))):
+				var gt = WEAPON_PROJECTILE_SCRIPT.new()
+				gt.kind = "grief_tear"
+				gt.damage = gtd
+				gt.element = Inventory.element_of(active_weapon_id)
+				gt.on_hit_status = special.get("status", {})
+				gt.source = self
+				gt.girth = grade_projectile_girth()
+				gt.direction = gdir.rotated(deg_to_rad(randf_range(-62.0, 62.0)))
+				gt.speed = float(special.get("speed", 400.0)) * randf_range(0.8, 1.2)
+				gt.max_distance = float(special.get("range", 500.0))
+				gt.set("_vel_y", -randf_range(60.0, 210.0))
+				get_parent().add_child(gt)
+				gt.global_position = global_position + gdir * 24.0 + Vector2(0, -12.0)
 		# GRAND TOME OF RAINS / WARDEN'S LONG WATCH (T5): both are PLACED
 		elif special_type == "rain_cloud" or special_type == "warden_post":
 			var grp: String = special_type + "_instance"
@@ -3722,7 +3752,8 @@ func perform_attack() -> void:
 		# THE DELUGE / SHATTERHYMN / NOVABURST (T6): all leave the hand as one body
 		elif special_type == "flood_wave" or special_type == "glass_note" \
 				or special_type == "nova_seed" or special_type == "courier_route" \
-				or special_type == "ice_floe" or special_type == "ransom_seal":
+				or special_type == "ice_floe" or special_type == "ransom_seal" \
+				or special_type == "rumor_bolt":
 			var wcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("wand"))))
 			launch_projectile(special, get_aim_direction(), wcr[0], wcr[1])
 		# WATCHFIRE (T6): planted where you aim, then it waits
@@ -3852,6 +3883,20 @@ func perform_attack() -> void:
 			return
 		# COMETFALL (T6): lofted on purpose -- the shot leaves the string ANGLED
 		# UP and gravity does the rest, so you lead the ground, not the target.
+		# THRONE OF STRINGS (T8): a BOW, so it plucks from the bow path
+		if special_type == "harp_string":
+			play_sfx(SFX_BOW)
+			animate_bow(stats)
+			var hp = WEAPON_PROJECTILE_SCRIPT.new()
+			hp.kind = "harp_string"
+			hp.damage = maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("bow"))))
+			hp.element = Inventory.element_of(active_weapon_id)
+			hp.on_hit_status = special.get("status", {})
+			hp.source = self
+			hp.direction = get_aim_direction()
+			get_parent().add_child(hp)
+			hp.global_position = global_position + hp.direction * 40.0
+			return
 		# QUILLRAIN (T5): a drizzle -- two quills a shot, on a fast cadence
 		if special_type == "rain_quill":
 			play_sfx(SFX_BOW)
@@ -3950,7 +3995,7 @@ func perform_attack() -> void:
 			return
 		# LODESTAR / DIRE PORTENT (T6): both leave the string as one shaft
 		if special_type == "lodestar" or special_type == "portent" \
-				or special_type == "owl_pass":
+				or special_type == "owl_pass" or special_type == "harmonic":
 			play_sfx(SFX_BOW)
 			animate_bow(stats)
 			var cr_l = roll_crit(int(round(float(special.get("damage", stats.damage)) * skill_damage_mult("bow"))))
@@ -4301,13 +4346,15 @@ func perform_attack() -> void:
 		launch_projectile(special, aim_dir, t5cr[0], t5cr[1])
 	# THE LAST WORD (T8): the storm. One at a time -- a recast RENEWS the
 	# armoury rather than stacking nine more blades on top of nine.
-	elif special_type == "zenith_storm":
+	elif special_type == "zenith_storm" or special_type == "patient_storm" \
+			or special_type == "kingdom_ring":
+		# one swarm at a time, whichever crown weapon summoned it
 		for old_zs in get_tree().get_nodes_in_group("zenith_storm_instance"):
 			if is_instance_valid(old_zs):
 				old_zs.queue_free()
 		var zs = WEAPON_PROJECTILE_SCRIPT.new()
 		zs.add_to_group("zenith_storm_instance")
-		zs.kind = "zenith_storm"
+		zs.kind = special_type
 		zs.damage = maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
 		zs.element = Inventory.element_of(active_weapon_id)
 		zs.on_hit_status = special.get("status", {})
@@ -4315,6 +4362,29 @@ func perform_attack() -> void:
 		zs.girth = grade_projectile_girth()
 		get_parent().add_child(zs)
 		zs.global_position = global_position
+	# THE MONARCH STAVES (T8): staff weapons resolve to weapon_type "melee",
+	# so these must live here -- on the wand chain they never fired at all.
+	elif special_type == "sky_measure" or special_type == "colonnade":
+		var mk2 = WEAPON_PROJECTILE_SCRIPT.new()
+		mk2.kind = special_type
+		mk2.damage = maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+		mk2.element = Inventory.element_of(active_weapon_id)
+		mk2.on_hit_status = special.get("status", {})
+		mk2.source = self
+		mk2.direction = aim_dir
+		get_parent().add_child(mk2)
+		mk2.global_position = global_position + aim_dir * (70.0 if special_type == "colonnade" else 120.0)
+	# A CUT ACROSS THE WORLD (T8): one slash the whole length of the lane
+	elif special_type == "world_cut":
+		var wc = WEAPON_PROJECTILE_SCRIPT.new()
+		wc.kind = "world_cut"
+		wc.damage = maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+		wc.element = Inventory.element_of(active_weapon_id)
+		wc.on_hit_status = special.get("status", {})
+		wc.source = self
+		wc.direction = aim_dir
+		get_parent().add_child(wc)
+		wc.global_position = global_position + aim_dir * 26.0
 	# MIDWINTER WHEEL (T5): a wide cold circuit around you, one at a time
 	elif special_type == "winter_wheel":
 		for old_mw in get_tree().get_nodes_in_group("winter_wheel_instance"):

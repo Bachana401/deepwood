@@ -122,6 +122,18 @@ const HITS_PER_USE := {
 	"eventide":    2.0, # 3 shafts out and back -- two tolls on a single body
 	"tomeofrains": 5.0, # ~28 drops over 4.6s, one body each, wide area denial
 	"wardenwatch": 4.5, # ONE post: ~6 lane shots over 9s at 1.35x, all piercing
+	# ---- THE MONARCH ELEVEN: apex weapons, deliberately near the ceiling ----
+	"patientknife": 3.6, # 12 knives on the storm engine, ~5 bites over 1.05s
+	"kingdomturning": 3.2, # 6 crowned shades wheeling, biting every 0.2s
+	"rumor":       3.0, # 1 -> 2 -> 4 across three generations, no decay
+	"skymeasure":  2.2, # 6 columns, but they SPREAD across a 600px span
+	"unbentcolumn": 2.4, # 5 pillars down the hall; a body catches ~2
+	"choirofone":  2.6, # the shaft plus 4 harmonics at 0.8x, fanning
+	"thronestrings": 3.0, # 7 strings; a body standing in the span crosses ~3
+	"worldsgrief": 4.0, # 12 tears, and they SEEK -- several find one body
+	"skycharges":  3.4, # 8 bolts over 1.5s, half aimed at whoever is nearest
+	"worldcut":    1.0, # ONE cut -- but it is the whole lane, every body once
+	"deepcourt":   3.0, # 3 drowned courtiers striking on their own
 	# --- pre-existing multi-hit verbs, for a fair comparison ---
 	"volley":     2.0,
 	"jab_volley": 3.0,
@@ -185,17 +197,26 @@ func _ready() -> void:
 
 	# --- 2. no weapon may run away from its own tier ---
 	# A wide net on purpose: verbs SHOULD differ, and a spectacle weapon is
-	# allowed to be the best in its tier. 3.2x the tier median is the point
-	# where one weapon stops being a choice and becomes the only answer.
+	# allowed to be the best in its tier. Past the ceiling, one weapon stops
+	# being a choice and becomes the only answer.
+	#
+	# MONARCH IS DELIBERATELY WIDER. The dev's direction for tier 8 is that it
+	# should feel overwhelming -- "crazy op", Zenith-scale -- with the power in
+	# the VERB rather than in stat riders. A 3.2x ceiling was written before
+	# that call and was pulling the apex tier back toward the middle. What this
+	# check is really for is catching ACCIDENTS (it caught Second Moon and
+	# Cindershelf stacking themselves to 3-4x their tier through a lifetime
+	# longer than their cooldown), and an accident still shows up against 4.6x.
 	var runaways := []
 	for id in rows:
 		var r: Dictionary = rows[id]
 		var med: float = float(medians[r["tier"]])
-		if med > 0.0 and r["eff"] > med * 3.2:
-			runaways.append("%s T%d %s: %.0f dps vs T%d median %.0f"
-				% [r["name"], r["tier"], r["behavior"], r["eff"], r["tier"], med])
-	check("no weapon exceeds 3.2x its tier median", runaways.is_empty(),
-		"; ".join(runaways))
+		var ceiling: float = 4.6 if int(r["tier"]) == 8 else 3.2
+		if med > 0.0 and r["eff"] > med * ceiling:
+			runaways.append("%s T%d %s: %.0f dps vs T%d median %.0f (ceiling %.1fx)"
+				% [r["name"], r["tier"], r["behavior"], r["eff"], r["tier"], med, ceiling])
+	check("no weapon runs away from its tier (3.2x, monarch 4.6x)",
+		runaways.is_empty(), "; ".join(runaways))
 
 	# --- 3. nor may it be so weak it is a trap pick ---
 	var duds := []
