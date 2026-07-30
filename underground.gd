@@ -967,7 +967,7 @@ func _populate_chunk(c: Vector2i) -> void:
 		if rng.randf() < KEG_CHANCE + float(biome) * 0.05:
 			var kc = _find_floor_cell(c, rng)
 			if kc != null:
-				nodes.append(_spawn_keg(kc, rng))
+				nodes.append(_spawn_keg(kc, "ug_keg_%d_%d_%d" % [c.x, c.y, _ki]))
 	var mob_count := 3 + biome                     # MORE mobs, and more with depth
 	for i in range(mob_count):
 		if rng.randf() < 0.7:
@@ -1040,8 +1040,13 @@ const KEG_RADIUS := 8                  # tiles of world removed
 const KEG_DAMAGE := 55                 # at the centre, falling off with distance
 const KEG_CHANCE := 0.13               # per chunk
 
-func _spawn_keg(cell: Vector2i, rng: RandomNumberGenerator) -> Node:
-	var id := "ug_keg_%d_%d" % [cell.x, cell.y]
+# `id` is CHUNK + ROLL ORDINAL, never the cell (review finding 5): _find_floor_cell
+# is terrain-dependent AND consumes a variable number of rng draws, so one dig
+# anywhere in the chunk moved every downstream keg to a new cell -- minting fresh
+# ids, which respawned smashed pots with loot and RE-ARMED spent kegs beside the
+# player's own tunnel. The ordinal survives the cell moving; a spent keg stays
+# spent wherever it stands when the chunk streams back.
+func _spawn_keg(cell: Vector2i, id: String) -> Node:
 	var n := _decor_at(cell, 6)
 	if GameState.chest_contents.has(id):
 		return n                                   # this one already went off
@@ -1121,6 +1126,12 @@ func _blow_keg(keg: Node) -> void:
 # the pickaxe gate does not apply, a blast does not care how hard the rock is.
 func _explode(centre: Vector2i, radius: int) -> void:
 	var at := _map.to_global(_map.map_to_local(centre))
+	# the topmost cell this blast emptied in each column -- the crater is a DISC,
+	# so its rim is a curve, and both the sand-toppling and the water-waking below
+	# have to follow that curve, not a flat line at -radius (review finding: sand
+	# on the crater's shoulders floated, and a keg under a wide lake left the
+	# water hanging over the void "like glass")
+	var col_top := {}
 	for dy in range(-radius, radius + 1):
 		for dx in range(-radius, radius + 1):
 			if dx * dx + dy * dy > radius * radius:
@@ -1131,18 +1142,23 @@ func _explode(centre: Vector2i, radius: int) -> void:
 			if _cell_kind(cell) == AIR:
 				continue
 			_edits[cell] = AIR
+			_lv.erase(cell)                    # vaporised water is GONE -- a stale
+			                                   # level here meant invisible swimmable
+			                                   # water in the crater
 			_hp.erase(cell)
 			_map.erase_cell(cell)
 			_sparkmap.erase_cell(cell)
 			_watermap.erase_cell(cell)
+			if not col_top.has(dx) or cell.y < int(col_top[dx]):
+				col_top[dx] = cell.y
 	for dx in range(-radius - 1, radius + 2):   # re-light the new crater's rim
 		for dy in range(-radius - 1, radius + 2):
 			_reface(centre + Vector2i(dx, dy))
-	for dx in range(-radius, radius + 1):       # ...and the sand above it pours in
-		_topple_sand(centre + Vector2i(dx, -radius))
-	for dy in range(-radius - 1, radius + 2):   # ...and any lake it opened drains
-		_disturb(centre + Vector2i(-radius - 1, dy))
-		_disturb(centre + Vector2i(radius + 1, dy))
+	for dx in col_top.keys():                   # per column: sand pours, water falls
+		var top := Vector2i(centre.x + dx, int(col_top[dx]))
+		_topple_sand(top)
+		_disturb(top)                           # wakes the cell + the water above it
+		_disturb(Vector2i(top.x, centre.y))     # ...and the crater floor's neighbours
 	# everything caught in it
 	if _player != null and is_instance_valid(_player) and _player.has_method("take_damage"):
 		var d: float = _player.global_position.distance_to(at)
@@ -1334,7 +1350,7 @@ func _place_decor(c: Vector2i, nodes: Array, biome: int, rng: RandomNumberGenera
 			if roll < 0.5:
 				nodes.append(_decor_spike(cell, base, rng, false))
 			elif roll < 0.66:
-				nodes.append(_spawn_pot(cell, biome, rng))
+				nodes.append(_spawn_pot(cell, biome, rng, "ug_pot_%d_%d_%d" % [c.x, c.y, i]))
 			else:
 				nodes.append(_decor_rubble(cell, base, rng))
 
@@ -1344,8 +1360,10 @@ func _place_decor(c: Vector2i, nodes: Array, biome: int, rng: RandomNumberGenera
 # Broken state persists through the same chest ledger as everything else, keyed
 # by CELL (not chunk -- a chunk holds several), so a cleared corridor stays
 # cleared and cannot be farmed by walking away and back.
-func _spawn_pot(cell: Vector2i, biome: int, rng: RandomNumberGenerator) -> Node:
-	var id := "ug_pot_%d_%d" % [cell.x, cell.y]
+# id = chunk + sample ordinal, for the same reason as the kegs (finding 5)
+func _spawn_pot(cell: Vector2i, biome: int, rng: RandomNumberGenerator, id := "") -> Node:
+	if id == "":
+		id = "ug_pot_%d_%d" % [cell.x, cell.y]   # test fixtures place pots directly
 	var n := _decor_at(cell, 5)
 	if GameState.chest_contents.has(id):
 		# already smashed: leave the shards on the floor
@@ -1545,7 +1563,26 @@ func _disturb(cell: Vector2i) -> void:
 	for d in [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]:
 		_wake(cell + d)
 
+# A drain frontier is mostly cells the flow has never touched, and every solidity
+# test on one is a full _gen_kind -- span scans plus the 3x3 cellular vote, up to
+# 27 noise samples. One settling frame re-asks the same neighbours dozens of
+# times, which put the worst frame in the same order as the chunk-streaming hitch
+# this file already documents (~190k noise calls). Solidity cannot change during
+# a tick -- the flow only moves LEVELS -- so cache it for the tick and throw the
+# cache away.
+var _fk := {}
+
+func _flow_solid(cell: Vector2i) -> bool:
+	var v = _fk.get(cell)
+	if v == null:
+		v = _solid_kind(cell)
+		_fk[cell] = v
+	return v
+
 func _flow_tick() -> void:
+	if _wq_list.is_empty():
+		return
+	_fk.clear()
 	var budget := FLOW_BUDGET
 	while budget > 0 and not _wq_list.is_empty():
 		budget -= 1
@@ -1554,7 +1591,7 @@ func _flow_tick() -> void:
 		_flow_cell(c)
 
 func _flow_cell(c: Vector2i) -> void:
-	if _solid_kind(c):
+	if _flow_solid(c):
 		if _wlevel(c) > 0:
 			_set_level(c, 0)          # rock filled in on top of it
 		return
@@ -1563,7 +1600,7 @@ func _flow_cell(c: Vector2i) -> void:
 		return
 	# DOWN first, and completely -- water falls before it spreads
 	var b := c + Vector2i(0, 1)
-	if not _solid_kind(b) and b.y < DEPTH - 1:
+	if not _flow_solid(b) and b.y < DEPTH - 1:
 		var space := WLEVELS - _wlevel(b)
 		if space > 0:
 			var mv := mini(L, space)
@@ -1575,7 +1612,7 @@ func _flow_cell(c: Vector2i) -> void:
 	# ...then SIDEWAYS, halving the difference so a surface settles flat
 	for d in [-1, 1]:
 		var s := c + Vector2i(d, 0)
-		if _solid_kind(s) or s.x < 2 or s.x >= WIDTH - 2:
+		if _flow_solid(s) or s.x < 2 or s.x >= WIDTH - 2:
 			continue
 		var ls := _wlevel(s)
 		if ls >= L:
@@ -1796,9 +1833,26 @@ func _sand_tick(delta: float) -> void:
 		var below := here + Vector2i(0, 1)
 		# it lands the moment the cell under it is something it can rest on
 		if _solid_kind(below) or below.y >= DEPTH - 1:
+			# ...but never INTO the space someone is standing in. A grain used to
+			# solidify wherever it was, player included, leaving them embedded in
+			# a block. It waits on their head instead, and settles when they move.
+			if _player != null and is_instance_valid(_player) \
+					and (_cell_at(_player.global_position) == here
+						or _cell_at(_player.global_position + Vector2(0, 19)) == here):
+				g.global_position = _map.to_global(_map.map_to_local(here))
+				g.set_meta("vel", 0.0)
+				continue
 			_edits[here] = SAND
+			# landing IN WATER displaces it (review finding 3: the level entry
+			# survived under the new solid, where the queue can never clean it --
+			# a phantom water cell in the save, forever). The volume is destroyed,
+			# not pushed aside -- deliberate, and the Terraria-ish reading: sand
+			# swallows the water it buries.
+			_lv.erase(here)
+			_watermap.erase_cell(here)
 			_map.set_cell(here, 0, Vector2i(SAND, TILE_EXPOSED))
 			_reface(here + Vector2i(0, 1))
+			_disturb(here)                     # neighbouring water reacts to the new block
 			_chips(g.global_position, Color(0.72, 0.61, 0.38), false)
 			g.queue_free()
 			continue
@@ -2905,20 +2959,26 @@ func _cell_at(p: Vector2) -> Vector2i:
 func _water_tick(delta: float) -> void:
 	if _player == null or not is_instance_valid(_player) or _map == null:
 		return
+	# THE WORLD TICKS NO MATTER HOW YOU TRAVEL (review finding 2: these used to sit
+	# behind the cart/rope early-returns, so boarding a cart froze every draining
+	# lake and every falling grain IN THE WORLD, mid-air). Sand before water, so a
+	# grain that lands this frame is solid before the flow reads the cell.
+	_sand_tick(delta)
+	_flow_tick()
+	# a cart or a rope takes over MOVEMENT -- but only movement. Breath, below,
+	# still runs: a rope hung into a lake or a cart run through a flooded wade is
+	# not a diving bell.
+	var driven := _cart_tick(delta)
+	if not driven:
+		driven = _rope_tick(delta)
+	if not driven:
+		_drop_through(delta)
 	# the player box is 32x48: sample the head and the feet separately, so wading
 	# through the shallows is not the same as being under
-	# a rope takes over vertical movement entirely, so it goes first
-	if _cart_tick(delta):
-		return
-	if _rope_tick(delta):
-		return
-	_drop_through(delta)
-	_flow_tick()
-	_sand_tick(delta)
 	var head := _wlevel(_cell_at(_player.global_position + Vector2(0, -17))) >= 4
 	var feet := _wlevel(_cell_at(_player.global_position + Vector2(0, 19))) >= 4
 	var wet := head or feet
-	if wet:
+	if wet and not driven:
 		var v: Vector2 = _player.velocity
 		v.y = clampf(v.y, SWIM_RISE, SWIM_SINK)
 		v.x = clampf(v.x, -SWIM_X, SWIM_X)
@@ -3140,7 +3200,15 @@ func _load_save() -> void:
 		for k in wsave.keys():
 			var wp: PackedStringArray = String(k).split(",")
 			if wp.size() == 2:
-				_lv[Vector2i(int(wp[0]), int(wp[1]))] = int(wsave[k])
+				var wcell := Vector2i(int(wp[0]), int(wp[1]))
+				_lv[wcell] = int(wsave[k])
+				# WAKE what we load (review finding 7): leaving the cave mid-drain
+				# saved the water in whatever half-poured shape it held, and on
+				# return it hung there inert -- the queue starts empty and nothing
+				# else would ever disturb it. Settled cells cost one no-op visit;
+				# unsettled ones resume the pour. The frame budget bounds the rest.
+				if int(wsave[k]) > 0:
+					_wake(wcell)
 	for k in data.get("ropes", []):
 		var rp: PackedStringArray = String(k).split(",")
 		if rp.size() == 2:

@@ -32,7 +32,7 @@ func check(label: String, ok: bool) -> void:
 # another session) stopped it booting, the run reported "ALL PASS (27 passed)"
 # and exited 0 -- a green light over a third of a suite. Never again: the count
 # itself is now an assertion.
-const EXPECTED_CHECKS := 68
+const EXPECTED_CHECKS := 71
 
 func _ready() -> void:
 	_test_generator()
@@ -494,6 +494,35 @@ func _test_in_engine() -> void:
 		check("the lake is not bottomless -- it gave up water to do it (%d at centre)"
 			% ug._wlevel(deep), ug._wlevel(deep) <= inside_before)
 
+	# THE SEAM THE REVIEW CAUGHT: a keg going off UNDER a lake. The blast used to
+	# wake only the crater's side columns, so a wide lake's water hung over the
+	# void "like glass" -- the exact bug the flow system was written to kill.
+	ug._lv = {}
+	ug._wq = {}
+	ug._wq_list = []
+	var blake := {}
+	for lk in ug._lakes:
+		if bool(lk.big) and int(lk.hw) >= 30:
+			blake = lk
+			break
+	if not blake.is_empty():
+		var bc: Vector2i = blake.c
+		var bed: Vector2i = Vector2i(bc.x, bc.y + int(blake.d) + 3)   # in the shell under it
+		var lv_probe := Vector2i(bc.x, bc.y + int(blake.d) - 1)      # deep water, inside blast
+		ug._lv[lv_probe] = 8                       # a flow entry, to prove it gets vaporised
+		ug._explode(bed, 8)
+		check("an explosion under a lake erases the water it vaporised",
+			not ug._lv.has(lv_probe))
+		var woke: int = ug._wq_list.size()
+		check("...and WAKES the lake above the crater (%d cells queued)" % woke, woke > 0)
+		for i in range(2000):
+			ug._flow_tick()
+		var fell := 0
+		for dy in range(0, 6):
+			fell += ug._wlevel(Vector2i(bed.x, bed.y - dy))
+		check("...so water pours INTO the crater instead of hanging over it (%d units)" % fell,
+			fell > 0)
+
 	# levels ride the save like everything else down here
 	ug._save()
 	var lv_n: int = ug._lv.size()
@@ -569,7 +598,7 @@ func _test_in_engine() -> void:
 		kc.y += 1                                  # find rock to blow up
 	var rng2 := RandomNumberGenerator.new()
 	rng2.seed = 7
-	var keg: Node = ug._spawn_keg(kc - Vector2i(0, 2), rng2)
+	var keg: Node = ug._spawn_keg(kc - Vector2i(0, 2), "ug_test_keg_a")
 	check("a keg spawns armed but unlit", keg.is_in_group("ug_keg") and not bool(keg.get_meta("lit")))
 	# _cell_kind, NOT _gen_kind: the blast records itself in _edits, and _gen_kind
 	# only describes the world as GENERATED. Reading the wrong one showed a crater
@@ -580,7 +609,7 @@ func _test_in_engine() -> void:
 			if ug._cell_kind(kc + Vector2i(dx, dy)) != UG.AIR:
 				rock_before += 1
 	# a second keg in range must go up with the first
-	var keg2: Node = ug._spawn_keg(kc - Vector2i(6, 2), rng2)
+	var keg2: Node = ug._spawn_keg(kc - Vector2i(6, 2), "ug_test_keg_b")
 	var keg_id: String = String(keg.get_meta("keg_id"))
 	p.global_position = ug._map.to_global(ug._map.map_to_local(kc - Vector2i(40, 20)))
 	ug._light_keg(keg)
