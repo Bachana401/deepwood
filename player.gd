@@ -3649,11 +3649,39 @@ func perform_attack() -> void:
 		if special_type == "king_rain":
 			call_the_kings_rain(special)
 			return
+		# THE QUIET RECKONING: the shaft that stays in and comes due later.
+		# (Without this branch it fell through to animate_bow and fired an
+		# ORDINARY arrow -- the verb never happened at all.)
+		if special_type == "debt_arrow":
+			play_sfx(SFX_BOW)
+			animate_bow(stats)
+			var cr_d = roll_crit(int(round(float(special.get("damage", stats.damage)) * skill_damage_mult("bow"))))
+			launch_projectile(special, get_aim_direction(), cr_d[0], cr_d[1])
+			return
 		animate_bow(stats)
 		return
 	if active_weapon_type == "spear":
 		if special_type == "javelin_volley":
 			throw_javelin_volley(special)
+		elif special_type == "storm_flock":
+			# FLOCK OF STORMS (T7): the jab looses birds that pick their own
+			# marks. They spawn at the thrust APEX, per the spear guardrail.
+			play_sfx(SFX_SPEAR)
+			animate_spear(stats)
+			# explicit type: stats is an untyped Dictionary, so := would infer
+			# Variant here and this project treats that warning as an error
+			var apex: Vector2 = global_position + get_aim_direction() * (float(stats.range_offset) + 40.0)
+			for bi in range(int(special.get("count", 3))):
+				var bird = WEAPON_PROJECTILE_SCRIPT.new()
+				bird.kind = "storm_bird"
+				var bcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("spear"))))
+				bird.damage = bcr[0]
+				bird.is_crit = bcr[1]
+				bird.element = Inventory.element_of(active_weapon_id)
+				bird.on_hit_status = special.get("status", {})
+				bird.source = self
+				bird.position = apex + Vector2(randf_range(-26.0, 26.0), -34.0 - 20.0 * float(bi))
+				get_parent().add_child(bird)
 		elif special_type == "ground_thorn":
 			# THORN OF THE WORLD (T7): the thrust wakes the ground at its APEX
 			# (spear riders spawn at the apex, never at the player -- DESIGN_LAWS 8)
@@ -3813,6 +3841,18 @@ func perform_attack() -> void:
 	# several shades at once, each carrying a different ancestor blade
 	elif special_type == "court_barrage":
 		unleash_court(special, aim_dir)
+	# DAWN CHORUS (T7): a bar of first light laid down, which then rises
+	elif special_type == "dawn_line":
+		var dl = WEAPON_PROJECTILE_SCRIPT.new()
+		dl.kind = "dawn_line"
+		var dcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+		dl.damage = dcr[0]
+		dl.is_crit = dcr[1]
+		dl.element = Inventory.element_of(active_weapon_id)
+		dl.on_hit_status = special.get("status", {})
+		dl.source = self
+		dl.position = global_position + aim_dir * 78.0 + Vector2(0, 30.0)
+		get_parent().add_child(dl)
 	# AFTERLIGHT (T7): the swing's shape is left hanging where it passed
 	elif special_type == "lingering_arc":
 		var la = WEAPON_PROJECTILE_SCRIPT.new()

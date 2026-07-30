@@ -327,21 +327,21 @@ const ROWS = [
 	["wpn_skyladder",    "Ladder to Nowhere",    "staff", 6, "staff",     23, 0.42, {"plain": true}],
 	["wpn_stillmountain","The Still Mountain",   "staff", 6, "staff",     26, 0.48, {"plain": true}],
 	# ---------------- WAVE 3 - TIER 7 (14) ----------------
-	["wpn_dawnchorus",   "Dawn Chorus",          "melee", 7, "arc", 32, 0.36, {"status": "burn_w",
+	["wpn_dawnchorus",   "Dawn Chorus",          "melee", 7, "dawnline", 27, 0.42, {"status": "burn_w",
 		"fx": [{"kind": "echo", "pct": 0.9, "delay": 0.35}, {"kind": "haste", "pct_per": 0.08, "max": 4, "dur": 4.0}]}],
 	["wpn_finalanvil",   "Anvil of Endings",     "melee", 7, "anvil", 38, 1.15, {"knockup": true,
 		"fx": [{"kind": "quake", "radius": 160.0, "pct": 0.8}, {"kind": "rend", "pct_per": 0.14, "max": 6}]}],
-	["wpn_cometchain",   "Chained Comet",        "melee", 7, "chain_maul", 36, 0.9, {"status": "burn_w",
+	["wpn_cometchain",   "Chained Comet",        "melee", 7, "cometchain", 30, 0.95, {"status": "burn_w",
 		"fx": [{"kind": "gravity", "radius": 200.0, "pull": 160.0}, {"kind": "echo", "pct": 0.82, "delay": 0.5}]}],
 	["wpn_silencelash",  "The Shape of Silence", "melee", 7, "lash", 31, 0.78, {"status": "slow_w",
 		"fx": [{"kind": "brand", "amp": 0.39, "dur": 4.5}, {"kind": "frostbloom", "radius": 150.0}]}],
 	["wpn_worldthorn",   "Thorn of the World",   "spear", 7, "worldthorn", 30, 0.8, {
 		"fx": [{"kind": "rend", "pct_per": 0.16, "max": 6}, {"kind": "chain", "n": 2, "pct": 0.8, "range": 250.0}]}],
-	["wpn_stormflock",   "Flock of Storms",      "spear", 7, "jab_volley", 24, 0.84, {"count": 6,
+	["wpn_stormflock",   "Flock of Storms",      "spear", 7, "stormflock", 18, 0.9, {"count": 6,
 		"fx": [{"kind": "chain", "n": 2, "pct": 0.8, "range": 240.0}, {"kind": "splinter", "n": 3, "pct": 0.8, "range": 160.0}]}],
 	["wpn_choirstring",  "Choirstring",          "bow", 7, "volley", 21, 0.48, {"count": 4, "pierce": true,
 		"fx": [{"kind": "echo", "pct": 0.8, "delay": 0.4}, {"kind": "chain", "n": 2, "pct": 0.8, "range": 250.0}]}],
-	["wpn_reckoningbow", "The Quiet Reckoning",  "bow", 7, "seeker", 27, 0.54, {
+	["wpn_reckoningbow", "The Quiet Reckoning",  "bow", 7, "reckoning", 26, 0.6, {
 		"fx": [{"kind": "brand", "amp": 0.42, "dur": 4.0}, {"kind": "soulwisp", "dmg": 10, "pct": 0.5}]}],
 	["wpn_sunspill",     "Sunspill",             "bow", 7, "sunspill", 30, 1.02, {"aoe": 130, "status": "burn_w",
 		"fx": [{"kind": "splinter", "n": 4, "pct": 0.8, "range": 180.0}, {"kind": "legacy", "n": 2, "pct": 0.6, "range": 280.0}]}],
@@ -720,6 +720,21 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			# keeps the mortar arc it always had; the SPILL is what is new
 			s = {"type": "lob", "damage": dmg, "speed": spd, "range": rng,
 				"aoe": float(ex.get("aoe", 90.0)), "rider": "spill"}
+		# ---- T7 VERBS (batch 2) ----
+		"reckoning":
+			# small now, the bill 1.5s later (Nail-Gun-kin)
+			s = {"type": "debt_arrow", "damage": maxi(1, int(round(float(dmg) * 0.3))),
+				"speed": spd + 260.0, "range": rng}
+		"cometchain":
+			# the maul it always was, but the head is a comet and leaves a crater
+			s = {"type": "chain_maul", "damage": dmg, "speed": spd + 40.0,
+				"range": 260.0 + float(tier) * 18.0, "rider": "comet"}
+		"stormflock":
+			# every jab looses a bird that turns and dives
+			s = {"type": "storm_flock", "damage": dmg, "count": int(ex.get("count", 3)), "range": rng}
+		"dawnline":
+			# a bar of first light laid down, then rising through them
+			s = {"type": "dawn_line", "damage": maxi(1, int(round(float(dmg) * 0.85)))}
 		"staff":
 			s = {"type": "staff_extend"}
 	if not st.is_empty():
@@ -789,6 +804,10 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"zenith":     return "Every swing frees the GHOST of a blade it culminates: out, one whirl at the far point, and home -- cutting the whole way, each image a different ancestor."
 		"court":      return "Every swing calls the COURT: %d shades of the people you brought home appear at your side, each carrying a different ancestor blade, and all of them sweep at once." % int(ex.get("count", 4))
 		"edict":      return "The law REACHES: a jointed arm of light unfolds the length of the hall, cutting everything along it and blooming where it touches -- and stone does not stop a sentence."
+		"reckoning":   return "The arrow barely stings, and then it STAYS IN YOU. A second and a half later the reckoning arrives, and it is not quiet at all."
+		"cometchain":  return "The head is a comet on a chain: it goes out burning, and where the throw ends it leaves a CRATER still alight when the chain comes home."
+		"stormflock":  return "Every jab looses a bird. They turn in the air, pick their own targets, and come down on them -- a flock answering one thrust."
+		"dawnline":    return "Lays a bar of first light along the floor, and then the dawn RISES: the line climbs through everything standing in it."
 		"afterlight":  return "The swing does not END. Its shape hangs in the air behind it -- a blade of light standing where you cut, still cutting whatever walks into it."
 		"anvil":       return "The ending arrives a beat LATE: the cleave lands, and then a mass comes down out of the dark onto the same spot. The shadow tells you where."
 		"worldthorn":  return "The thrust wakes the GROUND. Where the point goes in, thorns come up -- a row of them, standing until they are done."

@@ -150,6 +150,20 @@ func _ready() -> void:
 			_behave_state = 0
 			_orbit_t = 0.0
 			_build_zenithblade()
+		"debt_arrow":
+			# THE QUIET RECKONING (T7): the arrow barely stings. It stays in
+			# you, and a second and a half later the reckoning arrives
+			# (Nail-Gun-kin: small now, ~7x later, and the WAITING is legible).
+			_build_debt_arrow()
+		"storm_bird":
+			# FLOCK OF STORMS (T7): each jab looses a bird that turns and dives
+			_build_storm_bird()
+		"dawn_line":
+			# DAWN CHORUS (T7): a bar of first light laid on the floor that
+			# RISES through whatever is standing in it.
+			monitoring = false
+			pierce = true
+			_build_dawn_line()
 		"lingering_arc":
 			# AFTERLIGHT (T7): the swing does not end. A blade-shaped light
 			# hangs where it passed and keeps cutting whatever walks into it.
@@ -324,8 +338,11 @@ func _physics_process(delta: float) -> void:
 	if kind == "kneeling_stone":
 		_tick_boulder(delta)
 		return
-	if kind == "marcher":
+	if kind == "marcher" or kind == "storm_bird":
 		_tick_marcher(delta)
+		return
+	if kind == "dawn_line":
+		_tick_dawn_line(delta)
 		return
 	if kind == "ink_jet":
 		# THE INKWELL OF STORMS: a piercing stream riding a gentle arc --
@@ -477,6 +494,17 @@ func _tick_chainmaul(delta: float) -> void:
 			if traveled >= max_distance:
 				_behave_state = 2
 				hit_bodies.clear()   # one clean cut on the haul home
+				# CHAINED COMET (T7): the head is a comet, and a comet leaves a
+				# CRATER -- a burning pool at the far end of the throw
+				if rider == "comet":
+					var crater = get_script().new()
+					crater.kind = "sun_pool"
+					crater.damage = maxi(1, int(round(float(damage) * 0.26)))
+					crater.element = element
+					crater.on_hit_status = on_hit_status
+					crater.source = source
+					crater.position = global_position
+					get_parent().call_deferred("add_child", crater)
 		_:   # hauled home on the chain
 			if not is_instance_valid(source):
 				queue_free()
@@ -644,6 +672,16 @@ func _on_body_entered(body: Node2D) -> void:
 			if kind == "kneeling_stone":
 				dealt = boulder_damage()
 				_rock_smoke(body.global_position)   # the source bursts white smoke
+			# THE QUIET RECKONING: the arrow stays in, and the bill comes due
+			# a second and a half later. Small now, large then.
+			if kind == "debt_arrow":
+				var dt = EMBEDDED_STACK.drive(body, "reckoning", {
+					"max": 4, "gap": 1.0, "life": 1.5,
+					"tick": 0, "pop": maxi(1, int(round(float(damage) * 7.0))),
+					"pop_on_expire": true,
+					"tint": Color(0.72, 0.84, 1.0), "player": source})
+				if dt != null:
+					dt.add_one(damage)
 			# REGICIDE: the spear does NOT merely hit -- it stays in them, and
 			# the stack it joins is the weapon (see embedded_stack.gd)
 			if kind == "crown_spear":
@@ -1355,6 +1393,103 @@ func _recolor_brazier() -> void:
 			p.color = Color(1.0, 0.9, 0.58, 0.95)       # the live coal
 		else:
 			p.color = Color(0.93, 0.44, 0.13, 1.0)      # ember-lit spikes
+
+# --- DAWN CHORUS: the bar of first light that rises ----------------------
+var _dawn_t := 0.0
+const DAWN_RISE := 0.7
+func _tick_dawn_line(delta: float) -> void:
+	_dawn_t += delta
+	var f: float = clampf(_dawn_t / DAWN_RISE, 0.0, 1.0)
+	global_position.y -= 132.0 * delta
+	if visual:
+		visual.modulate.a = 1.0 - f * f
+		visual.scale.x = 1.0 + f * 0.35
+	# it cuts everything it climbs past, once each
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead or hit_bodies.has(e):
+				continue
+			if absf(e.global_position.x - global_position.x) > 74.0:
+				continue
+			if absf(e.global_position.y - global_position.y) > 22.0:
+				continue
+			hit_bodies.append(e)
+			var landed = e.take_damage(damage)
+			if landed == null or landed:
+				FloatingText.spawn(get_parent(), e.global_position
+					+ Vector2(randf_range(-14.0, 14.0), -22.0), damage, is_crit)
+			_apply_status_to(e)
+	if f >= 1.0:
+		done = true
+		queue_free()
+
+func _build_dawn_line() -> void:
+	# TAPERED, not rectangular. The first cut drew a flat bar with square ends
+	# and read as a UI progress bar sitting in the world; light has soft ends.
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var glow := Polygon2D.new()
+	glow.polygon = PackedVector2Array([
+		Vector2(-78, 0), Vector2(-52, -11), Vector2(52, -11),
+		Vector2(78, 0), Vector2(52, 11), Vector2(-52, 11)])
+	glow.color = Color(1.0, 0.7, 0.26, 0.34)
+	glow.material = m
+	visual.add_child(glow)
+	var bar := Polygon2D.new()
+	bar.polygon = PackedVector2Array([
+		Vector2(-72, 0), Vector2(-46, -4.2), Vector2(46, -4.2),
+		Vector2(72, 0), Vector2(46, 4.2), Vector2(-46, 4.2)])
+	bar.color = Color(1.0, 0.9, 0.55, 0.85)
+	bar.material = m
+	visual.add_child(bar)
+	# a few motes lifting off it, so the rise reads as dawn and not a slab
+	for i in range(5):
+		var mote := Polygon2D.new()
+		mote.polygon = _circle(2.6, 6)
+		mote.color = Color(1.0, 0.95, 0.72, 0.9)
+		mote.material = m
+		mote.position = Vector2(randf_range(-62.0, 62.0), randf_range(-4.0, 4.0))
+		visual.add_child(mote)
+		var tw := mote.create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(mote, "position", mote.position + Vector2(randf_range(-8, 8), -26.0), 0.6)
+		tw.tween_property(mote, "modulate:a", 0.0, 0.6)
+
+# THE QUIET RECKONING's arrow: pale, quiet, and carrying a bill
+func _build_debt_arrow() -> void:
+	var shaft := Polygon2D.new()
+	shaft.polygon = PackedVector2Array([
+		Vector2(12, -1.4), Vector2(-18, -1.4), Vector2(-18, 1.4), Vector2(12, 1.4)])
+	shaft.color = Color(0.62, 0.66, 0.78, 0.95)
+	visual.add_child(shaft)
+	var head := Polygon2D.new()
+	head.polygon = PackedVector2Array([
+		Vector2(21, 0), Vector2(9, -4.0), Vector2(9, 4.0)])
+	head.color = Color(0.86, 0.92, 1.0, 0.98)
+	visual.add_child(head)
+
+# FLOCK OF STORMS' bird: a dark wedge with a lit edge
+func _build_storm_bird() -> void:
+	var body := Polygon2D.new()
+	body.polygon = PackedVector2Array([
+		Vector2(16, 0), Vector2(-4, -6), Vector2(-14, 0), Vector2(-4, 6)])
+	body.color = Color(0.16, 0.18, 0.26, 0.95)
+	visual.add_child(body)
+	var wing := Polygon2D.new()
+	wing.polygon = PackedVector2Array([
+		Vector2(-2, -4), Vector2(-16, -16), Vector2(-8, -2)])
+	wing.color = Color(0.34, 0.42, 0.6, 0.9)
+	visual.add_child(wing)
+	var spark := Polygon2D.new()
+	spark.polygon = PackedVector2Array([
+		Vector2(18, 0), Vector2(10, -3), Vector2(12, 0), Vector2(10, 3)])
+	spark.color = Color(0.8, 0.92, 1.0, 0.95)
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	spark.material = m
+	visual.add_child(spark)
 
 # --- T7 STANDING ZONES ---------------------------------------------------
 # One tick serves three weapons, because the study's aftermath family is one

@@ -278,6 +278,58 @@ func _ready() -> void:
 	await _settle(1.1)
 	await _shot("t7_sunspill_burning")
 
+	await _settle(0.6)
+
+	# ================= T7 BATCH 2 =================
+	# ---- THE QUIET RECKONING: small now, the bill later ----
+	p.global_position = home
+	p.inventory.add_item("wpn_reckoningbow", 1)
+	p.wield_weapon("wpn_reckoningbow")
+	await _aim_right(p)
+	for i in range(3):
+		p.attack_cooldown_remaining = 0.0
+		p.perform_attack()
+		await _settle(0.2)
+	await _shot("u1_reckoning_stuck")     # arrows in, small numbers
+	await _settle(1.5)
+	await _shot("u2_reckoning_due")       # the bill arrives
+	await _settle(0.6)
+
+	# ---- CHAINED COMET: the crater at the far end ----
+	p.global_position = home
+	p.inventory.add_item("wpn_cometchain", 1)
+	p.wield_weapon("wpn_cometchain")
+	var cc: Dictionary = p.active_def.get("special", {})
+	p.launch_projectile(cc, Vector2.RIGHT, int(cc.get("damage", 30)))
+	await _settle(0.9)
+	await _shot("u3_comet_crater")
+	await _settle(0.8)
+
+	# ---- FLOCK OF STORMS: birds off one jab ----
+	p.global_position = home
+	p.inventory.add_item("wpn_stormflock", 1)
+	p.wield_weapon("wpn_stormflock")
+	await _aim_right(p)
+	p.attack_cooldown_remaining = 0.0
+	p.perform_attack()
+	await _settle(0.25)
+	await _shot("u4_flock_loosed")
+	await _settle(0.5)
+	await _shot("u5_flock_diving")
+	await _settle(0.6)
+
+	# ---- DAWN CHORUS: the bar of light rising ----
+	p.global_position = home
+	p.inventory.add_item("wpn_dawnchorus", 1)
+	p.wield_weapon("wpn_dawnchorus")
+	await _aim_right(p)
+	p.attack_cooldown_remaining = 0.0
+	p.perform_attack()
+	await _settle(0.16)
+	await _shot("u6_dawn_laid")
+	await _settle(0.28)
+	await _shot("u7_dawn_rising")
+
 	say("EYES-CROWN: done")
 	get_tree().quit(0)
 

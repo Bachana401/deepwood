@@ -20,6 +20,11 @@ var tick_gap := 0.5          # seconds between bites
 var life := 6.0              # how long one barb lasts if never overflowed
 var tick_damage := 4
 var pop_damage := 30         # what the OLDEST barb does when pushed out
+# THE QUIET RECKONING (T7) wants the opposite economy from Regicide: its
+# barbs are not a stack you overflow, they are a DEBT that comes due. With
+# this set, a barb pays its pop when its own time runs out, not only when a
+# newer one shoves it off.
+var pop_on_expire := false
 var tint := Color(0.95, 0.85, 0.45)
 var owner_player: Node = null
 
@@ -41,6 +46,7 @@ static func drive(victim: Node2D, k: String, cfg: Dictionary) -> Node:
 	s.tick_damage = int(cfg.get("tick", 4))
 	s.pop_damage = int(cfg.get("pop", 30))
 	s.owner_player = cfg.get("player", null)
+	s.pop_on_expire = bool(cfg.get("pop_on_expire", false))
 	if cfg.has("tint"):
 		s.tint = cfg["tint"]
 	s.add_to_group(GROUP)
@@ -73,7 +79,7 @@ func _process(delta: float) -> void:
 			expired.append(b)
 	for b in expired:
 		_barbs.erase(b)
-		_burst(b, false)
+		_burst(b, pop_on_expire)   # a debt that came due, or just a barb falling out
 	# the bite
 	if _barbs.is_empty():
 		return

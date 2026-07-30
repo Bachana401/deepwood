@@ -44,6 +44,11 @@ const HITS_PER_USE := {
 	"anvil":      1.0, # one mass, one landing
 	"worldthorn": 2.6, # three spikes, ~4 bites over 1.3s
 	"sunspill":   2.8, # the shell, then the pool ticking ~10x over 4.2s at 30%
+	# T7 batch 2
+	"reckoning":  2.4, # the small hit, then the 7x bill 1.5s later
+	"cometchain": 2.5, # the maul's contacts plus the crater it leaves
+	"stormflock": 2.0, # several birds, but they SPREAD across the row
+	"dawnline":   1.0, # the bar climbs past each body exactly once
 	# --- pre-existing multi-hit verbs, for a fair comparison ---
 	"volley":     2.0,
 	"jab_volley": 3.0,
