@@ -81,6 +81,13 @@ const HITS_PER_USE := {
 	                    # the sky adds ~half the swing's dps, it does not multiply
 	"shatterhymn": 1.0, # one note; the splinters are theatre, not damage
 	"longtongue":  1.6, # pierces the row and grows, so ~2 bodies a swing
+	# ---- T6 batch 3 ----
+	"anviltoll":   1.3, # three tolls at 0.55x, each fainter: 0.55+0.40+0.28
+	"horizonrend": 1.7, # two halves on one cast, but they overlap on the row
+	"silentchoir": 1.3, # 5 near-silent shafts at 0.2x, then one 1.15x*5 chord
+	"sunpiece":    3.4, # ~12 sweeps at 0.5x over 3.6s, then a 0.8x nova
+	"permafrost":  3.6, # 11 bites over 5s escalating 0.5x -> 1.4x, one cast
+	"novaburst":   2.2, # the hit plus two delayed 0.6x novas in a radius
 	"asphodel":    4.0, # the post sends ~8 wisps over its 9s life
 	# --- pre-existing multi-hit verbs, for a fair comparison ---
 	"volley":     2.0,

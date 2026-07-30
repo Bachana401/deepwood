@@ -30,6 +30,11 @@ var pop_on_expire := false
 # the book does not close -- it moves to whoever is standing nearest, one
 # stack heavier for the trouble.
 var transfer_on_death := false
+# THE SILENT CHOIR (T6) is the fourth economy: its marks do NOTHING while
+# they gather -- no tick, no pop -- and then the full stack sings at once.
+# Build-and-release rather than overflow, debt, or inheritance.
+var burst_at_max := false
+var burst_damage := 0
 var tint := Color(0.95, 0.85, 0.45)
 var owner_player: Node = null
 
@@ -53,6 +58,8 @@ static func drive(victim: Node2D, k: String, cfg: Dictionary) -> Node:
 	s.owner_player = cfg.get("player", null)
 	s.pop_on_expire = bool(cfg.get("pop_on_expire", false))
 	s.transfer_on_death = bool(cfg.get("transfer_on_death", false))
+	s.burst_at_max = bool(cfg.get("burst_at_max", false))
+	s.burst_damage = int(cfg.get("burst", 0))
 	if cfg.has("tint"):
 		s.tint = cfg["tint"]
 	s.add_to_group(GROUP)
@@ -61,6 +68,11 @@ static func drive(victim: Node2D, k: String, cfg: Dictionary) -> Node:
 	return s
 
 func add_one(_dmg: int = 0) -> void:
+	# BUILD-AND-RELEASE: the last voice completes the chord and the whole
+	# stack goes off together, instead of the oldest being shoved out
+	if burst_at_max and _barbs.size() + 1 >= max_stacks:
+		_sing()
+		return
 	# the newest barb pushes the oldest OUT, and going out is the payoff
 	if _barbs.size() >= max_stacks:
 		_pop_oldest()
@@ -88,8 +100,10 @@ func _process(delta: float) -> void:
 	for b in expired:
 		_barbs.erase(b)
 		_burst(b, pop_on_expire)   # a debt that came due, or just a barb falling out
-	# the bite
-	if _barbs.is_empty():
+	# the bite -- but a SILENT stack is silent: it gathers and does nothing
+	# until the chord completes, which is the whole point of the weapon
+	if _barbs.is_empty() or burst_at_max:
+		_animate_barbs()
 		return
 	if fmod(_t, tick_gap) < delta:
 		var total: int = tick_damage * _barbs.size()
@@ -142,6 +156,49 @@ func _inherit() -> void:
 	if host != null:
 		FloatingText.spawn_word(host, (best as Node2D).global_position + Vector2(0, -46),
 			"the debt passes", Color(0.98, 0.86, 0.42))
+
+# the chord: every voice gathered pays at once, and the stack is spent
+func _sing() -> void:
+	var victim := get_parent()
+	var at: Vector2 = global_position
+	var voices: int = _barbs.size() + 1
+	for b in _barbs:
+		var n = b.get("node")
+		if n != null and is_instance_valid(n):
+			n.queue_free()
+	_barbs.clear()
+	var host := _stage()
+	if victim != null and is_instance_valid(victim) and victim.has_method("take_damage"):
+		var total: int = burst_damage * voices
+		var landed = victim.take_damage(total)
+		if landed == null or landed:
+			FloatingText.spawn(host, at + Vector2(0, -40.0), total, true)
+	if host != null:
+		FloatingText.spawn_word(host, at + Vector2(0, -58.0), "the choir sings", tint)
+		var m := CanvasItemMaterial.new()
+		m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		for v in range(voices):
+			var ring := Polygon2D.new()
+			var pts := PackedVector2Array()
+			for i in range(16):
+				var a := TAU * float(i) / 16.0
+				pts.append(Vector2(cos(a), sin(a)) * 14.0)
+			for i in range(16):
+				var a2 := TAU * float(15 - i) / 16.0
+				pts.append(Vector2(cos(a2), sin(a2)) * 11.0)
+			ring.polygon = pts
+			ring.color = Color(tint.r, tint.g, tint.b, 0.75)
+			ring.material = m
+			ring.z_index = 45
+			host.add_child(ring)
+			ring.global_position = at
+			var tw := ring.create_tween()
+			tw.tween_interval(0.05 * float(v))
+			tw.set_parallel(true)
+			tw.tween_property(ring, "scale", Vector2.ONE * (2.0 + 0.7 * float(v)), 0.34)
+			tw.tween_property(ring, "modulate:a", 0.0, 0.34)
+			tw.chain().tween_callback(ring.queue_free)
+	queue_free()
 
 func _pop_oldest() -> void:
 	if _barbs.is_empty():

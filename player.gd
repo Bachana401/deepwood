@@ -3633,8 +3633,19 @@ func perform_attack() -> void:
 		elif special_type == "debt_mark":
 			var dcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("wand"))))
 			launch_projectile(special, get_aim_direction(), dcr[0], dcr[1])
-		# THE DELUGE / SHATTERHYMN (T6): both leave the hand as one body
-		elif special_type == "flood_wave" or special_type == "glass_note":
+		# PERMAFROST DECREE (T6): the sheet is laid on the ground, not thrown
+		elif special_type == "ice_sheet":
+			var ice = WEAPON_PROJECTILE_SCRIPT.new()
+			ice.kind = "ice_sheet"
+			ice.damage = maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("wand"))))
+			ice.element = Inventory.element_of(active_weapon_id)
+			ice.on_hit_status = special.get("status", {})
+			ice.source = self
+			get_parent().add_child(ice)
+			ice.global_position = global_position + get_aim_direction() * 104.0 + Vector2(0, 20.0)
+		# THE DELUGE / SHATTERHYMN / NOVABURST (T6): all leave the hand as one body
+		elif special_type == "flood_wave" or special_type == "glass_note" \
+				or special_type == "nova_seed":
 			var wcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("wand"))))
 			launch_projectile(special, get_aim_direction(), wcr[0], wcr[1])
 		# WATCHFIRE (T6): planted where you aim, then it waits
@@ -3764,6 +3775,30 @@ func perform_attack() -> void:
 			return
 		# COMETFALL (T6): lofted on purpose -- the shot leaves the string ANGLED
 		# UP and gravity does the rest, so you lead the ground, not the target.
+		# THE SILENT CHOIR / A PIECE OF THE SUN (T6)
+		if special_type == "silent_note" or special_type == "sun_piece":
+			play_sfx(SFX_BOW)
+			animate_bow(stats)
+			var cr_s = roll_crit(int(round(float(special.get("damage", stats.damage)) * skill_damage_mult("bow"))))
+			if special_type == "silent_note":
+				launch_projectile(special, get_aim_direction(), cr_s[0], cr_s[1])
+				return
+			# the sun fragment is LOBBED: it leaves the string angled up
+			var sn = WEAPON_PROJECTILE_SCRIPT.new()
+			sn.kind = "sun_piece"
+			sn.damage = cr_s[0]
+			sn.is_crit = cr_s[1]
+			sn.element = Inventory.element_of(active_weapon_id)
+			sn.on_hit_status = special.get("status", {})
+			sn.source = self
+			sn.girth = grade_projectile_girth()
+			sn.direction = get_aim_direction()
+			sn.speed = float(special.get("speed", 350.0))
+			sn.max_distance = float(special.get("range", 300.0))
+			sn.set("_sun_vy", -float(special.get("lift", 250.0)))
+			get_parent().add_child(sn)
+			sn.global_position = global_position + sn.direction * 32.0 + Vector2(0, -12.0)
+			return
 		# LODESTAR (T6): the shaft that becomes true north
 		if special_type == "lodestar":
 			play_sfx(SFX_BOW)
@@ -4059,6 +4094,34 @@ func perform_attack() -> void:
 	elif special_type == "eclipse_disc":
 		var ecr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
 		launch_projectile(special, aim_dir, ecr[0], ecr[1])
+	# THE WORLD-ANVIL (T6): one blow, three tolls
+	elif special_type == "anvil_toll":
+		var at_n = WEAPON_PROJECTILE_SCRIPT.new()
+		at_n.kind = "anvil_toll"
+		at_n.damage = int(round(float(special.get("damage", 10)) * skill_damage_mult("melee")))
+		at_n.element = Inventory.element_of(active_weapon_id)
+		at_n.on_hit_status = special.get("status", {})
+		at_n.source = self
+		get_parent().add_child(at_n)
+		at_n.global_position = global_position + aim_dir * float(special.get("reach", 82.0))
+	# HORIZONRENDER (T6): the crescent leaves as TWO, bowing apart
+	elif special_type == "rend_half":
+		var rcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+		for side in [1.0, -1.0]:
+			var rh = WEAPON_PROJECTILE_SCRIPT.new()
+			rh.kind = "rend_half"
+			rh.damage = rcr[0]
+			rh.is_crit = rcr[1]
+			rh.element = Inventory.element_of(active_weapon_id)
+			rh.on_hit_status = special.get("status", {})
+			rh.source = self
+			rh.girth = grade_projectile_girth()
+			rh.direction = aim_dir
+			rh.speed = float(special.get("speed", 500.0))
+			rh.max_distance = float(special.get("range", 400.0))
+			get_parent().add_child(rh)
+			rh.global_position = global_position + aim_dir * 30.0
+			rh.set_rend_side(side)
 	# DAWN'S LONG TONGUE (T6): a whip that grows on what it tastes
 	elif special_type == "long_tongue":
 		var ltr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))

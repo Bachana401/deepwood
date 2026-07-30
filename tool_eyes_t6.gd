@@ -77,7 +77,14 @@ func _ready() -> void:
 			["wpn_deluge",       "j1_flood_run",   0.75, 1],
 			["wpn_shatterhymn",  "k1_note_shatter", 0.55, 1],
 			["wpn_secondmoon",   "l1_moon_full",   0.70, 1],
-			["wpn_secondmoon",   "l2_moon_waning", 2.10, 1]]:  # it caught someone
+			["wpn_secondmoon",   "l2_moon_waning", 2.10, 1],
+			["wpn_worldanvil",   "m1_toll_first",  0.12, 1],
+			["wpn_worldanvil",   "m2_toll_third",  0.70, 1],
+			["wpn_horizonrender", "n1_rend_apart", 0.30, 1],
+			["wpn_silentchoir",  "o1_choir_sings", 0.30, 5],
+			["wpn_sunmortar",    "p1_sun_hung",    1.30, 1],
+			["wpn_permafrost",   "q1_ice_spread",  2.60, 1],
+			["wpn_novaburst",    "r1_nova_beats",  0.60, 1]]:  # it caught someone
 		p.global_position = _home
 		if "velocity" in p: p.velocity = Vector2.ZERO
 		p.inventory.add_item(spec[0], 1)

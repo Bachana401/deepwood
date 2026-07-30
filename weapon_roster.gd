@@ -293,13 +293,13 @@ const ROWS = [
 	["wpn_saintwheel",   "Saint's Reward",       "melee", 5, "orbiter",   22, 0.8,  {"dwell": 3.0, "fx": [{"kind": "harvest", "hp": 4, "mana": 3.0}, {"kind": "splinter", "n": 3, "pct": 0.6, "range": 170.0}]}],
 	# ---------------- WAVE 3 - TIER 6 (22) ----------------
 	["wpn_requiemedge",  "Requiem Edge",         "melee", 6, "arc",       29, 0.38, {"plain": true}],
-	["wpn_worldanvil",   "The World-Anvil",      "melee", 6, "cleave",    42, 1.08, {"knockup": true, "fx": [{"kind": "quake", "radius": 175.0, "pct": 0.8}, {"kind": "duelist", "pct_per": 0.14, "max": 6}]}],
+	["wpn_worldanvil",   "The World-Anvil",      "melee", 6, "anviltoll", 42, 1.08, {"knockup": true, "fx": [{"kind": "quake", "radius": 175.0, "pct": 0.8}, {"kind": "duelist", "pct_per": 0.14, "max": 6}]}],
 	["wpn_cinderchain",  "Cinderchain",          "melee", 6, "cinderdrag", 32, 0.92, {"status": "burn_w",
 		"fx": [{"kind": "chain", "n": 2, "pct": 0.65, "range": 250.0}, {"kind": "quake", "radius": 145.0, "pct": 0.65}]}],
 	["wpn_voidwheel",    "Wheel of the Hollow",  "melee", 6, "orbiter",   26, 0.78, {"dwell": 3.2,
 		"fx": [{"kind": "gravity", "radius": 230.0, "pull": 170.0}, {"kind": "bloodprice", "pct": 0.65, "cost": 1}]}],
 	["wpn_sorrowfang",   "Sorrowfang",           "melee", 6, "arc",       19, 0.24, {"status": "poison_w", "plain": true}],
-	["wpn_horizonrender","Horizonrender",        "melee", 6, "crescent",  27, 0.54, {"p_damage": 25,
+	["wpn_horizonrender","Horizonrender",        "melee", 6, "horizonrend", 27, 0.54, {"p_damage": 25,
 		"fx": [{"kind": "splinter", "n": 4, "pct": 0.65, "range": 185.0}, {"kind": "echo", "pct": 0.55, "delay": 0.4}]}],
 	["wpn_nightlash",    "A Long Night's Tongue","melee", 6, "lash",      27, 0.8,  {"status": "slow_w", "companion": "blade", "c_damage": 13, "c_gap": 1.7,
 		"fx": [{"kind": "moonlit", "pct": 0.65}, {"kind": "soulwisp", "dmg": 10, "pct": 0.5}]}],
@@ -308,15 +308,15 @@ const ROWS = [
 	["wpn_worldspike",   "Worldspike",           "spear", 6, "thrust",    35, 0.76, {"plain": true}],
 	["wpn_ashherd",      "Herd of Ashes",        "spear", 6, "jab_volley", 22, 0.86, {"count": 5, "status": "burn_w", "fx": [{"kind": "splinter", "n": 4, "pct": 0.65, "range": 175.0}, {"kind": "soulwisp", "dmg": 9, "pct": 0.65}]}],
 	["wpn_griffvolley",  "Griffin Volley",       "bow",   6, "volley",    18, 0.5,  {"count": 4, "fx": [{"kind": "chain", "n": 2, "pct": 0.65, "range": 250.0}, {"kind": "haste", "pct_per": 0.08, "max": 6, "dur": 4.0}]}],
-	["wpn_silentchoir",  "The Silent Choir",     "bow",   6, "rapid",     13, 0.15, {"fx": [{"kind": "echo", "pct": 0.65, "delay": 0.25}, {"kind": "skyrain", "n": 3, "pct": 0.72, "spread": 130.0}]}],
+	["wpn_silentchoir",  "The Silent Choir",     "bow",   6, "silentchoir", 13, 0.15, {"fx": [{"kind": "echo", "pct": 0.65, "delay": 0.25}, {"kind": "skyrain", "n": 3, "pct": 0.72, "spread": 130.0}]}],
 	["wpn_direseeker",   "Dire Portent",         "bow",   6, "seeker",    24, 0.56, {"companion": "beast", "c_damage": 14, "c_gap": 1.9,
 		"fx": [{"kind": "brand", "amp": 0.42, "dur": 4.0}, {"kind": "gravity", "radius": 200.0, "pull": 150.0}]}],
-	["wpn_sunmortar",    "A Piece of the Sun",   "bow",   6, "lob_a",     36, 1.0,  {"aoe": 125, "status": "burn_w",
+	["wpn_sunmortar",    "A Piece of the Sun",   "bow",   6, "sunpiece",  36, 1.0,  {"aoe": 125, "status": "burn_w",
 		"fx": [{"kind": "quake", "radius": 165.0, "pct": 0.65}, {"kind": "goldtouch", "chance": 0.28, "gold": 4}]}],
 	["wpn_wakebook",     "The Book of Wakes",    "wand",  6, "wake",      17, 0.85, {
 		"fx": [{"kind": "soulwisp", "dmg": 11, "pct": 0.72}, {"kind": "bulwark", "dr": 0.14, "dur": 3.0}]}],
-	["wpn_permafrost",   "Permafrost Decree",    "wand",  6, "frost",     29, 0.54, {"status": "slow_w", "fx": [{"kind": "frostbloom", "radius": 165.0, "dur": 3.0}, {"kind": "crowd", "pct_per": 0.12, "cap": 0.5}]}],
-	["wpn_novaburst",    "Novaburst Rod",        "wand",  6, "cluster",   30, 0.76, {"shards": 8,
+	["wpn_permafrost",   "Permafrost Decree",    "wand",  6, "permafrost", 29, 0.54, {"status": "slow_w", "fx": [{"kind": "frostbloom", "radius": 165.0, "dur": 3.0}, {"kind": "crowd", "pct_per": 0.12, "cap": 0.5}]}],
+	["wpn_novaburst",    "Novaburst Rod",        "wand",  6, "novaburst", 30, 0.76, {"shards": 8,
 		"fx": [{"kind": "splinter", "n": 5, "pct": 0.65, "range": 180.0}, {"kind": "bloodprice", "pct": 0.65, "cost": 1}]}],
 	["wpn_lastcourier",  "The Last Courier",     "wand",  6, "ricochet",  26, 0.56, {"bounces": 6,
 		"fx": [{"kind": "echo", "pct": 0.72, "delay": 0.5}, {"kind": "stormcall", "every": 4, "pct": 0.9}]}],
@@ -812,6 +812,22 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 		"longtongue":
 			s = {"type": "long_tongue", "damage": maxi(1, int(round(float(dmg) * 0.8))),
 				"speed": spd - 130.0, "range": rng * 0.42}
+		# ---- T6 batch 3 ----
+		"anviltoll":
+			s = {"type": "anvil_toll", "damage": dmg, "reach": 82.0}
+		"horizonrend":
+			s = {"type": "rend_half", "damage": maxi(1, int(round(float(dmg) * 0.72))),
+				"speed": spd - 40.0, "range": rng * 0.75}
+		"silentchoir":
+			s = {"type": "silent_note", "damage": dmg, "speed": spd + 220.0, "range": rng}
+		"sunpiece":
+			s = {"type": "sun_piece", "damage": dmg, "speed": spd - 190.0,
+				"range": rng * 0.5, "lift": 250.0}
+		"permafrost":
+			s = {"type": "ice_sheet", "damage": maxi(1, int(round(float(dmg) * 0.45)))}
+		"novaburst":
+			s = {"type": "nova_seed", "damage": maxi(1, int(round(float(dmg) * 0.72))),
+				"speed": spd, "range": rng}
 		"debtmark":
 			s = {"type": "debt_mark", "damage": dmg, "speed": spd + 60.0, "range": rng}
 		"cinderdrag":
@@ -892,6 +908,12 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"hushfall":    return "The blow lands in SILENCE. The sound of it arrives a moment later, from where you struck, and the sound is the heavier half."
 		"eclipse":     return "The wheel rolls out and goes DARK, and the shadow it throws is the weapon -- a long band of night that cuts everything standing in it."
 		"cometfall":   return "Lobs high and comes down as a COMET, cratering where it lands and leaving the ground burning for whatever walks in next."
+		"anviltoll":   return "Struck once, it RINGS DOWN -- three shockwaves out of the same blow, each tighter and quieter than the last, like a bell dying."
+		"horizonrend": return "The crescent SPLITS. Two halves bow apart around whatever stands between, and close again on the far side."
+		"silentchoir": return "The shafts barely wound. Each one leaves a VOICE in the body, and the fifth completes the chord -- then all of it sings at once."
+		"sunpiece":    return "A fragment that HANGS where it stops and turns a beam around itself like a lighthouse. Standing still is not an option."
+		"permafrost":  return "A sheet of ice that KEEPS SPREADING, and the longer it grows the deeper the cold bites and the slower they move."
+		"novaburst":   return "One bolt, three bursts. The seed plants two more beats after itself, so the room keeps going off behind you."
 		"horizonpike": return "It does not thrust, it TELESCOPES -- three lengths of pike shoved out one past the other down a single line, each one biting on its own."
 		"deluge":      return "A wall of water that GROWS as it runs. It shoves harder than it wounds, and everything it reaches goes with it."
 		"lodestar":    return "The first thing it strikes becomes TRUE NORTH: the rest of the room leans toward them for three seconds -- and then the star goes out, all at once, on the crowd it gathered."

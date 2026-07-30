@@ -165,6 +165,15 @@ func _ready() -> void:
 		"long_tongue":
 			pierce = true
 			_build_long_tongue()
+		# ---- T6 batch 3 ----
+		"anvil_toll": _build_anvil_toll()
+		"rend_half":
+			pierce = true
+			_build_rend_half()
+		"sun_piece": _build_sun_piece()
+		"ice_sheet": _build_ice_sheet()
+		"silent_note": _build_silent_note()
+		"nova_seed": _build_nova_seed()
 		"zenith_blade":
 			# THE LAST WORD: a ghost-image of an ancestor blade. Swoops out,
 			# whirls one tight loop at the far point, and comes home. Each
@@ -476,6 +485,18 @@ func _physics_process(delta: float) -> void:
 	if kind == "moon_orbit":
 		_tick_moon(delta)
 		return
+	if kind == "anvil_toll":
+		_tick_toll(delta)
+		return
+	if kind == "rend_half":
+		_tick_rend(delta)
+		return
+	if kind == "sun_piece":
+		_tick_sunpiece(delta)
+		return
+	if kind == "ice_sheet":
+		_tick_ice_sheet(delta)
+		return
 	if kind == "regent_shard":
 		_tick_regent_shard(delta)
 		return
@@ -777,6 +798,46 @@ func _on_body_entered(body: Node2D) -> void:
 	if is_instance_valid(source) and source.has_method("on_projectile_hit"):
 		source.on_projectile_hit(body, damage)
 	match kind:
+		"silent_note":
+			# THE SILENT CHOIR: the shaft does almost nothing. It leaves a
+			# VOICE. Five voices and the chord goes off all at once.
+			var quiet: int = maxi(1, int(round(float(damage) * 0.2)))
+			var landed_s = body.take_damage(quiet)
+			if landed_s == null or landed_s:
+				FloatingText.spawn(get_parent(), body.global_position, quiet, false)
+			var choir = load("res://embedded_stack.gd").drive(body, "choir", {
+				"max": 5, "gap": 1.0, "life": 5.0, "tick": 0, "pop": 0,
+				"player": source, "burst_at_max": true,
+				"burst": maxi(1, int(round(float(damage) * 1.15))),
+				"tint": Color(0.84, 0.9, 1.0)})
+			if choir != null:
+				choir.add_one(damage)
+			done = true
+			queue_free()
+			return
+		"nova_seed":
+			# NOVABURST ROD: one bolt, three bursts -- the seed plants two more
+			# beats after itself so a room keeps going off behind you
+			var landed_v = body.take_damage(damage)
+			if landed_v == null or landed_v:
+				FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+			_apply_status_to(body)
+			var host_v := get_parent()
+			if host_v != null:
+				for beat in range(2):
+					var lt = (load("res://weapon_projectile.gd") as GDScript).new()
+					lt.kind = "late_thunder"
+					lt.damage = maxi(1, int(round(float(damage) * 0.6)))
+					lt.element = element
+					lt.on_hit_status = on_hit_status
+					lt.source = source
+					host_v.add_child(lt)
+					lt.global_position = global_position + Vector2(
+						randf_range(-74.0, 74.0), randf_range(-34.0, 18.0))
+					lt.set("_hush_t", -0.32 * float(beat))
+			done = true
+			queue_free()
+			return
 		"glass_note":
 			# SHATTERHYMN: the note does not land, it BREAKS
 			var landed_n = body.take_damage(damage)
@@ -3728,6 +3789,300 @@ func _build_long_tongue() -> void:
 	tip.color = Color(1.0, 0.95, 0.7, 0.95)
 	tip.material = m
 	visual.add_child(tip)
+
+# ==========================================================================
+# TIER 6, BATCH 3.
+# ==========================================================================
+
+# --- THE WORLD-ANVIL: struck once, it RINGS DOWN three times -------------
+var _toll_t := 0.0
+var _toll_n := 0
+const TOLL_GAP := 0.3
+
+func _tick_toll(delta: float) -> void:
+	_toll_t += delta
+	if _toll_n < 3 and _toll_t >= float(_toll_n) * TOLL_GAP:
+		# each toll is quieter and tighter than the last: a bell dying, not
+		# three copies of the same blow
+		var fall: float = 1.0 - 0.28 * float(_toll_n)
+		_toll_ring(fall)
+		_toll_n += 1
+		return
+	if _toll_t >= 3.0 * TOLL_GAP + 0.3:
+		done = true
+		queue_free()
+
+func _toll_ring(fall: float) -> void:
+	var host := get_parent()
+	var r: float = 128.0 * fall
+	var pay: int = maxi(1, int(round(float(damage) * fall * 0.55)))
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if global_position.distance_to((e as Node2D).global_position) > r:
+				continue
+			var landed = e.take_damage(pay)
+			if landed == null or landed:
+				FloatingText.spawn(host, (e as Node2D).global_position
+					+ Vector2(randf_range(-18.0, 18.0), -26.0), pay, fall > 0.9)
+			_apply_status_to(e)
+	if host == null:
+		return
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var ring := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(22):
+		var a := TAU * float(i) / 22.0
+		pts.append(Vector2(cos(a) * 26.0, sin(a) * 11.0))
+	for i in range(22):
+		var a2 := TAU * float(21 - i) / 22.0
+		pts.append(Vector2(cos(a2) * 21.0, sin(a2) * 8.0))
+	ring.polygon = pts
+	ring.color = Color(0.96, 0.88, 0.62, 0.5 + 0.4 * fall)
+	ring.material = m
+	ring.z_index = 43
+	host.add_child(ring)
+	ring.global_position = global_position
+	var tw := ring.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(ring, "scale", Vector2.ONE * (r / 24.0), 0.34)
+	tw.tween_property(ring, "modulate:a", 0.0, 0.34)
+	tw.chain().tween_callback(ring.queue_free)
+
+func _build_anvil_toll() -> void:
+	pass   # the tolls draw themselves; the striker leaves nothing standing
+
+# --- HORIZONRENDER: the crescent SPLITS, parts, and closes again ---------
+var _rend_t := 0.0
+var _rend_side := 1.0
+var _rend_origin := Vector2.ZERO
+const REND_SPREAD := 62.0
+const REND_PERIOD := 0.85
+
+func _tick_rend(delta: float) -> void:
+	_rend_t += delta
+	if _rend_origin == Vector2.ZERO:
+		_rend_origin = global_position
+	# out along the aim, but bowing away from its twin and then back in --
+	# the two halves cross again right where they started apart
+	var lateral: float = sin(clampf(_rend_t / REND_PERIOD, 0.0, 1.0) * PI) * REND_SPREAD * _rend_side
+	var perp := Vector2(-direction.y, direction.x)
+	traveled += speed * delta
+	global_position = _rend_origin + direction * traveled + perp * lateral
+	rotation = direction.angle() + lateral * 0.006
+	_rehit_t += delta
+	if _rehit_t >= 0.3:
+		_rehit_t = 0.0
+		hit_bodies.clear()
+	if traveled >= max_distance:
+		done = true
+		queue_free()
+
+func set_rend_side(s: float) -> void:
+	_rend_side = s
+
+func _build_rend_half() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var blade := Polygon2D.new()
+	blade.polygon = PackedVector2Array([
+		Vector2(26, 0), Vector2(4, -17.0), Vector2(-16, -13.0),
+		Vector2(-8, 0), Vector2(-16, 13.0), Vector2(4, 17.0)])
+	blade.color = Color(0.82, 0.9, 1.0, 0.85)
+	blade.material = m
+	visual.add_child(blade)
+	var edge := Polygon2D.new()
+	edge.polygon = PackedVector2Array([
+		Vector2(28, 0), Vector2(8, -9.0), Vector2(-6, 0), Vector2(8, 9.0)])
+	edge.color = Color(1.0, 1.0, 1.0, 0.9)
+	edge.material = m
+	visual.add_child(edge)
+
+# --- A PIECE OF THE SUN: it hangs, and SWEEPS a beam ---------------------
+var _sun_t := 0.0
+var _sun_hung := false
+var _sun_vy := 0.0
+var _sun_beam: Polygon2D = null
+const SUNP_HANG := 3.6
+const SUNP_BEAM := 210.0
+
+func _tick_sunpiece(delta: float) -> void:
+	if not _sun_hung:
+		_sun_vy += 620.0 * delta
+		global_position += direction * speed * delta + Vector2(0, _sun_vy * delta)
+		traveled += speed * delta
+		if traveled >= max_distance or _sun_vy > 340.0:
+			_sun_hung = true
+			speed = 0.0
+			_hang_sun()
+		return
+	_sun_t += delta
+	if _sun_t >= SUNP_HANG:
+		_nova_burst_tinted(global_position, Color(1.0, 0.82, 0.4))
+		done = true
+		queue_free()
+		return
+	# the beam turns like a lighthouse; standing still is not an option
+	var ang: float = _sun_t * 2.3
+	if _sun_beam != null and is_instance_valid(_sun_beam):
+		_sun_beam.rotation = ang
+	if visual:
+		visual.scale = Vector2.ONE * _draw_girth * (1.0 + 0.1 * sin(_sun_t * 9.0))
+	_rehit_t += delta
+	if _rehit_t < 0.3:
+		return
+	_rehit_t = 0.0
+	var sweep := Vector2(cos(ang), sin(ang))
+	var host := get_parent()
+	var pay: int = maxi(1, int(round(float(damage) * 0.5)))
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			var rel: Vector2 = (e as Node2D).global_position - global_position
+			var along: float = rel.dot(sweep)
+			if along < 0.0 or along > SUNP_BEAM:
+				continue
+			if absf(rel.dot(Vector2(-sweep.y, sweep.x))) > 30.0:
+				continue
+			var landed = e.take_damage(pay)
+			if landed == null or landed:
+				FloatingText.spawn(host, (e as Node2D).global_position
+					+ Vector2(randf_range(-16.0, 16.0), -26.0), pay, false)
+			_apply_status_to(e)
+
+func _hang_sun() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	_sun_beam = Polygon2D.new()
+	_sun_beam.polygon = PackedVector2Array([
+		Vector2(0, -9.0), Vector2(SUNP_BEAM, -26.0),
+		Vector2(SUNP_BEAM, 26.0), Vector2(0, 9.0)])
+	_sun_beam.color = Color(1.0, 0.86, 0.44, 0.3)
+	_sun_beam.material = m
+	_sun_beam.z_index = -1
+	add_child(_sun_beam)
+
+func _build_sun_piece() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var corona := Polygon2D.new()
+	corona.polygon = _circle(20.0, 14)
+	corona.color = Color(1.0, 0.7, 0.26, 0.4)
+	corona.material = m
+	visual.add_child(corona)
+	var core := Polygon2D.new()
+	core.polygon = _circle(11.0, 12)
+	core.color = Color(1.0, 0.95, 0.72, 0.98)
+	core.material = m
+	visual.add_child(core)
+
+# --- PERMAFROST DECREE: a sheet of ice that KEEPS SPREADING ---------------
+var _ice_t := 0.0
+const ICE_LIFE := 5.0
+const ICE_R0 := 40.0
+const ICE_R1 := 128.0
+
+func _tick_ice_sheet(delta: float) -> void:
+	_ice_t += delta
+	var frac: float = clampf(_ice_t / ICE_LIFE, 0.0, 1.0)
+	var r: float = lerpf(ICE_R0, ICE_R1, frac)
+	if visual:
+		visual.scale = Vector2.ONE * _draw_girth * (r / ICE_R0)
+		visual.modulate.a = 1.0 - frac * frac * 0.7
+	if _ice_t >= ICE_LIFE:
+		done = true
+		queue_free()
+		return
+	_zone_t += delta
+	if _zone_t < 0.45:
+		return
+	_zone_t = 0.0
+	var host := get_parent()
+	# the longer the sheet has been growing the DEEPER the cold bites
+	var pay: int = maxi(1, int(round(float(damage) * (0.5 + 0.9 * frac))))
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if global_position.distance_to((e as Node2D).global_position) > r:
+				continue
+			var landed = e.take_damage(pay)
+			if landed == null or landed:
+				FloatingText.spawn(host, (e as Node2D).global_position
+					+ Vector2(randf_range(-18.0, 18.0), -26.0), pay, false)
+			if e.has_method("apply_status"):
+				e.apply_status("slow", 1.4, 0.3 + 0.35 * frac)
+			_apply_status_to(e)
+
+func _build_ice_sheet() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var sheet := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(15):
+		var a := TAU * float(i) / 15.0
+		var wob: float = 1.0 + 0.16 * sin(float(i) * 2.7)
+		pts.append(Vector2(cos(a) * ICE_R0 * wob, sin(a) * ICE_R0 * 0.3 * wob))
+	sheet.polygon = pts
+	sheet.color = Color(0.62, 0.86, 1.0, 0.4)
+	sheet.material = m
+	visual.add_child(sheet)
+	# shards standing up out of the sheet so it is not just a flat decal
+	for k in range(6):
+		var sp := Polygon2D.new()
+		var h: float = randf_range(9.0, 19.0)
+		sp.polygon = PackedVector2Array([
+			Vector2(-3.4, 0), Vector2(0, -h), Vector2(3.4, 0)])
+		sp.color = Color(0.82, 0.94, 1.0, 0.8)
+		sp.material = m
+		sp.position = Vector2(-30.0 + 12.0 * float(k), randf_range(-3.0, 4.0))
+		visual.add_child(sp)
+
+func _build_silent_note() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	# barely there: a shaft you can hardly see is the promise of the weapon
+	var shaft := Polygon2D.new()
+	shaft.polygon = PackedVector2Array([
+		Vector2(10, -1.0), Vector2(-16, -1.0), Vector2(-16, 1.0), Vector2(10, 1.0)])
+	shaft.color = Color(0.76, 0.84, 0.96, 0.5)
+	shaft.material = m
+	visual.add_child(shaft)
+	var head := Polygon2D.new()
+	head.polygon = PackedVector2Array([Vector2(17, 0), Vector2(7, -3.0), Vector2(7, 3.0)])
+	head.color = Color(0.9, 0.95, 1.0, 0.72)
+	head.material = m
+	visual.add_child(head)
+
+func _build_nova_seed() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var halo := Polygon2D.new()
+	halo.polygon = _circle(15.0, 12)
+	halo.color = Color(0.86, 0.72, 1.0, 0.34)
+	halo.material = m
+	visual.add_child(halo)
+	var seed_core := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(8):
+		var a := TAU * float(i) / 8.0
+		pts.append(Vector2(cos(a), sin(a)) * (9.5 if i % 2 == 0 else 4.5))
+	seed_core.polygon = pts
+	seed_core.color = Color(1.0, 0.94, 1.0, 0.95)
+	seed_core.material = m
+	visual.add_child(seed_core)
+	var tw := seed_core.create_tween().set_loops()
+	tw.tween_property(seed_core, "rotation", PI, 0.5)
+	tw.tween_property(seed_core, "rotation", TAU, 0.5)
 
 func _circle(radius: float, sides: int) -> PackedVector2Array:
 	var pts = PackedVector2Array()
