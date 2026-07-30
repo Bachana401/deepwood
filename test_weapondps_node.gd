@@ -37,7 +37,8 @@ const HITS_PER_USE := {
 	                   # the cooldown, not here -- do not double-count it)
 	"sunder":   2.8,   # THREE passes now: out, back harder, back again (GRIEF_PASSES)
 	"skyfall_rain": 3.6,  # 7 arrows fall now; ~3-4 land on any one body
-	"parade":   3.6,   # the arrow, plus the THREE marchers it calls in
+	"parade":   4.0,   # the lantern GRINDS through (~2), plus marchers called
+	                   # on a 0.35s clock rather than only on a landed hit
 	"boulder":  3.2,   # rolls THROUGH several, then SHATTERS into 6 scree shards
 	# T7 batch 1 -- the aftermath family (a zone that keeps working)
 	"afterlight": 3.4, # the hanging arc bites ~5x over 1.7s if they stand in it

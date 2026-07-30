@@ -978,7 +978,16 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 		"parade":
 			# NIGHT PARADE alone: every landed arrow calls one of the procession
 			# in from off the edge of the world (Horseman's-Blade-kin)
-			s = {"type": "homing", "damage": dmg, "parade": true}
+			# You do not fire an arrow -- you hang a MOON-LANTERN in the air and
+			# it drifts forward calling the procession in, whether or not it has
+			# touched anything.
+			# Two things were wrong and both were serious: the most expensive bow
+			# in the game fired the SAME ordinary shaft as two Tier-3 Seekers,
+			# and call_a_marcher only ran from on_projectile_hit -- so the crown
+			# weapon's entire signature could not happen unless you connected,
+			# straight against the rule that a soul fires on the CLICK.
+			s = {"type": "moon_lantern", "damage": dmg, "speed": 420.0,
+				"range": 620.0, "parade": true}
 		"boulder":
 			# THE MOUNTAIN THAT KNEELS alone: a rolling stone whose bite is its
 			# own gathered pace (Staff-of-Earth-kin)

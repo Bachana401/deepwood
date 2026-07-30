@@ -254,6 +254,9 @@ func _ready() -> void:
 			pierce = true          # a reaping line takes the whole row
 			_build_reap_line()
 		"grave_hand": _build_grave_hand()
+		"moon_lantern":
+			pierce = true          # it grinds through what it passes
+			_build_moon_lantern()
 		"open_grave":
 			_zone_max = 4.5
 			_zone_gap = 0.9
@@ -625,7 +628,16 @@ const NO_ENRICH := {
 
 var _trail: Line2D = null
 var _trail_pts: Array[Vector2] = []
-const TRAIL_LEN := 9
+# MEASURED OFF THE MEOWMERE CLIP (2026-07-30). The reference weapon's cat-head
+# projectile is ~0.3 PLAYER HEIGHTS -- tiny -- while its rainbow trail runs
+# ~25 PLAYER HEIGHTS across the whole screen and holds full thickness and
+# colour long after the head has passed. The trail IS the weapon; the body is
+# almost incidental.
+# Deepwood's trail was 9 points fading in 0.16s: a smear, and the single
+# biggest gap between "cheap" and the reference. 34 points at 60fps is roughly
+# half a second of history, which at typical projectile speeds draws a ribbon
+# most of the way across the screen.
+const TRAIL_LEN := 34
 
 func _enrich_visual() -> void:
 	if visual == null or NO_ENRICH.has(kind):
@@ -657,17 +669,27 @@ func _enrich_visual() -> void:
 		var host := get_parent()
 		if host != null and is_instance_valid(host):
 			_trail = Line2D.new()
-			_trail.width = maxf(3.0, _halo_radius() * 0.72)
-			_trail.default_color = Color(tint.r, tint.g, tint.b, 0.5)
+			_trail.width = maxf(5.0, _halo_radius() * 0.95)
+			_trail.default_color = Color(tint.r, tint.g, tint.b, 0.72)
 			_trail.material = hm
 			_trail.z_index = 39          # under the projectile itself (z 40)
 			_trail.begin_cap_mode = Line2D.LINE_CAP_ROUND
 			_trail.end_cap_mode = Line2D.LINE_CAP_ROUND
-			# it tapers to nothing at the tail, like something actually moving
+			# It holds most of its width for most of its length and only gives
+			# up near the very tail. The old curve tapered from 0.15 immediately,
+			# which is what made a "trail" read as a smudge behind the head --
+			# the reference ribbon is near full thickness the whole way.
 			var curve := Curve.new()
-			curve.add_point(Vector2(0.0, 0.15))
+			curve.add_point(Vector2(0.0, 0.10))
+			curve.add_point(Vector2(0.35, 0.80))
 			curve.add_point(Vector2(1.0, 1.0))
 			_trail.width_curve = curve
+			# and it carries the weapon's own colour ALONG it rather than one
+			# flat tone -- the cheapest place a weapon can express identity
+			var grad := Gradient.new()
+			grad.set_color(0, Color(tint.r * 0.55, tint.g * 0.55, tint.b * 0.75, 0.0))
+			grad.set_color(1, Color(tint.r, tint.g, tint.b, 0.85))
+			_trail.gradient = grad
 			host.add_child(_trail)
 
 # How big this projectile reads, from what the verb actually drew. Measuring
@@ -719,8 +741,11 @@ func _exit_tree() -> void:
 	# the trail outlives us by a breath, then fades -- cutting it dead on the
 	# same frame as the impact is what made hits feel like a light switch
 	if _trail != null and is_instance_valid(_trail):
+		# 0.16s was a blink. In the reference the ribbon is still hanging in the
+		# air well after the projectile is gone -- that lingering is most of
+		# what makes the screen feel busy and powerful.
 		var t: Tween = _trail.create_tween()
-		t.tween_property(_trail, "modulate:a", 0.0, 0.16)
+		t.tween_property(_trail, "modulate:a", 0.0, 0.55)
 		t.tween_callback(_trail.queue_free)
 
 func _physics_process(delta: float) -> void:
@@ -1046,6 +1071,9 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind == "open_grave":
 		_tick_standing_zone(delta)
+		return
+	if kind == "moon_lantern":
+		_tick_lantern(delta)
 		return
 	if kind == "reap_line":
 		_tick_reap(delta)
@@ -3579,6 +3607,82 @@ func _tick_chalk_line(delta: float) -> void:
 				FloatingText.spawn(get_parent(),
 					(e as Node2D).global_position + Vector2(0, -24.0), damage, is_crit)
 			_apply_status_to(e)
+
+# --- NIGHT PARADE: a moon-lantern, not an arrow ---------------------------
+# The most expensive bow in the game fired the same ordinary shaft as two
+# Tier-3 Seekers. It now hangs a lantern in the air that drifts forward and
+# calls the procession in ON A CLOCK -- whether or not it has touched anything.
+# Crown rule: one slow object, one slow rotation, one sway. Nothing else.
+const LANT_CALL := 0.35
+const LANT_SETTLE := 1.2
+var _lant_t := 0.0
+var _lant_call := 0.0
+var _lant_settled := false
+var _lant_shafts: Node2D = null
+
+func _build_moon_lantern() -> void:
+	# a hexagonal paper shade, 46px tall -- the six light shafts take the
+	# silhouette out to ~76px, which is 1.6 player-heights (the measured band)
+	_lant_shafts = Node2D.new()
+	visual.add_child(_lant_shafts)
+	for i in range(6):
+		var a: float = TAU * float(i) / 6.0
+		var beam := Polygon2D.new()
+		beam.polygon = PackedVector2Array([
+			Vector2(0, -3.0), Vector2(34.0, -6.0), Vector2(34.0, 6.0), Vector2(0, 3.0)])
+		beam.color = Color(0.80, 0.88, 1.0, 0.10)
+		beam.material = _add_mat()
+		beam.rotation = a
+		_lant_shafts.add_child(beam)
+	var hexp := PackedVector2Array()
+	for i in range(6):
+		var a2: float = TAU * float(i) / 6.0 - PI * 0.5
+		hexp.append(Vector2(cos(a2) * 19.0, sin(a2) * 23.0))
+	var shade := Polygon2D.new()
+	shade.polygon = hexp
+	shade.color = Color(0.86, 0.90, 1.00, 0.85)
+	visual.add_child(shade)
+	_art_rim(hexp, Color(0.60, 0.72, 1.0), 2.5)
+	var core := Polygon2D.new()
+	core.polygon = _circle(9.0, 10)
+	core.color = Color(1.00, 0.94, 0.72, 0.95)
+	core.material = _add_mat()
+	visual.add_child(core)
+	var hanger := Line2D.new()
+	hanger.points = PackedVector2Array([Vector2(0, -23.0), Vector2(0, -35.0)])
+	hanger.width = 2.0
+	hanger.default_color = Color(0.70, 0.74, 0.82, 0.9)
+	visual.add_child(hanger)
+
+func _tick_lantern(delta: float) -> void:
+	_lant_t += delta
+	if not _lant_settled:
+		global_position += direction * speed * delta
+		# a pendulum sway: slow and inevitable, never busy
+		global_position.y += sin(_lant_t * 12.6) * 10.0 * delta
+		traveled += speed * delta
+		if visual:
+			visual.rotation = sin(_lant_t * 12.6) * 0.12
+		if traveled >= max_distance:
+			_lant_settled = true
+			_lant_t = 0.0
+	elif _lant_t >= LANT_SETTLE:
+		done = true
+		queue_free()
+		return
+	if _lant_shafts != null and is_instance_valid(_lant_shafts):
+		_lant_shafts.rotation += 0.5 * delta
+	# IT CALLS ON A CLOCK, NOT ON A HIT. This is the whole fix.
+	_lant_call += delta
+	if _lant_call >= LANT_CALL:
+		_lant_call = 0.0
+		if is_instance_valid(source) and source.has_method("call_a_marcher"):
+			source.call_a_marcher(global_position, maxi(1, damage))
+	# and it grinds through anything it is passing (re-cut, 0.30s)
+	_ink_rehit += delta
+	if _ink_rehit >= 0.30:
+		_ink_rehit = 0.0
+		_rake_overlapping()
 
 # --- FURROW SCYTHE: the cut keeps running along the floor ------------------
 # Shares the Brookwand's floor-follower mover with a completely different skin:

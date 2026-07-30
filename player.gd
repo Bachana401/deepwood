@@ -6547,7 +6547,10 @@ func on_projectile_hit(target: Node2D, damage_dealt: int) -> void:
 	apply_excellent_effect(target, damage_dealt)
 	apply_melee_skills(target, damage_dealt)
 	apply_soulthread(damage_dealt)   # Runeweave set-soul: wand damage -> life
-	call_a_marcher(target, damage_dealt)   # Night Parade
+	# a LANDED hit still names the body it wants walked to; the lantern's own
+	# clock calls the rest without needing to connect at all
+	if is_instance_valid(target):
+		call_a_marcher(target.global_position, damage_dealt, target)   # Night Parade
 	_in_projectile_unique = false
 
 # NIGHT PARADE (crown bow, Horseman's-Blade-kin never 1:1): every arrow that
@@ -6610,11 +6613,20 @@ func _toll_mark(victim: Node, dmg: int, delay: float, freeze: bool) -> void:
 
 const MARCHER_CAP := 9
 const MARCHERS_PER_ARROW := 3
-func call_a_marcher(victim: Node2D, dealt: int) -> void:
+# TAKES A POSITION, NOT A VICTIM (2026-07-30). This used to require a body it
+# had just hit, which meant the crown bow's procession could not happen unless
+# you connected -- the signature of the most expensive bow in the game was
+# gated on landing an ordinary arrow. The lantern now calls on a CLOCK and
+# passes its own position; `mark` stays optional so a landed hit can still
+# name the body it wants walked to.
+func call_a_marcher(at: Vector2, dealt: int, mark: Node2D = null) -> void:
 	if not has_weapon() or not bool(active_def.get("special", {}).get("parade", false)):
 		return
-	if not is_instance_valid(victim) or dealt <= 0:
+	if dealt <= 0:
 		return
+	var victim: Node2D = mark
+	if victim == null or not is_instance_valid(victim):
+		victim = null
 	var alive := 0
 	for c in get_parent().get_children():
 		if c.get("kind") == "marcher":
@@ -6627,11 +6639,15 @@ func call_a_marcher(victim: Node2D, dealt: int) -> void:
 		m.damage = maxi(1, int(round(float(dealt) * 0.6)))
 		m.element = Inventory.element_of(active_weapon_id)
 		m.source = self
+		# a marcher with no mark walks to the PLACE and strikes whoever is
+		# standing there when it arrives
 		m._mark = victim
+		if victim == null:
+			m.set("_march_to", at)
 		# in from the edge of the world, alternating sides so a procession forms
 		var side := 1.0 if (alive % 2 == 0) else -1.0
 		# stagger them down the road so they arrive as a column, not a rank
-		m.position = victim.global_position \
+		m.position = at \
 			+ Vector2((700.0 + 150.0 * float(n)) * side, -20.0 - 14.0 * float(n))
 		get_parent().add_child(m)
 		alive += 1
@@ -7142,6 +7158,16 @@ func spawn_arrow(stats: Dictionary, aim_dir: Vector2) -> void:
 	# the single straight arrow.
 	var special = active_def.get("special", {})
 	var special_type = str(special.get("type", ""))
+	# A BOW THAT DOES NOT FIRE AN ARROW. Night Parade hangs a moon-lantern
+	# instead, so it leaves the arrow path entirely -- previously it used the
+	# `homing` type, which is only a FLAG on an ordinary shaft, which is exactly
+	# how the most expensive bow in the game came to have the cheapest body.
+	if special_type == "moon_lantern":
+		play_sfx(SFX_BOW)
+		var lcr = roll_crit(int(round(float(special.get("damage", 14))
+			* skill_damage_mult("bow"))))
+		launch_projectile(special, aim_dir, lcr[0], lcr[1])
+		return
 	var count = int(special.get("count", 1)) if special.has("count") else 1
 	# Ranger multishot keystones (Twin Shot / Arrow Storm / Tempest) add arrows
 	count += int(GameState.get_bonus_total("multishot"))
