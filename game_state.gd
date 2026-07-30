@@ -6082,6 +6082,10 @@ func reset_for_new_game() -> void:
 	waystone_home_pos = Vector2.ZERO   # a rewound world's shrines forget the old anchor
 	_family_cycle_accum = 0.0
 	_doctor_decay_accum = 0.0    # was missing here -> a stale value carried into a New Game
+	# the Summoner's pack is PER-RUN: a fresh world starts with nobody at heel
+	# and no post standing, or the last run's court walks into the prologue
+	active_summons = []
+	active_posts = []
 	village_log = []
 	log_unread = 0
 	wage_accum_hours = 0.0

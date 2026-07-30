@@ -2403,7 +2403,8 @@ const GEAR_RELIC_IDS = ["relic_vigor", "relic_swiftness", "relic_greed", "relic_
 	"relic_godheart", "relic_warlord", "relic_fortune", "relic_celerity",
 	"relic_phoenix", "relic_thorns", "relic_aegis", "relic_vampire", "relic_juggernaut",
 	"relic_blink", "relic_reaper", "relic_ward", "relic_steward", "relic_gorgon",
-	"rune_sanctuary", "rune_stoneguise", "rune_riddlestaff"]
+	"rune_sanctuary", "rune_stoneguise", "rune_riddlestaff",
+	"relic_kennelbrand"]   # the Summoner's slot relic (batch 4)
 # The common/uncommon weapon rack. Without this tier every one of these existed,
 # was balanced, appeared in the catalogue -- and could never be found by anyone,
 # because the class-weapon pool below starts at rare. These are what the first
@@ -2417,6 +2418,8 @@ const GEAR_EARLY_WEAPON_IDS = ["wpn_club", "wpn_shortbow", "wpn_apprentice_wand"
 const GEAR_ARMOR_IDS = ["helm_bulwark", "armor_bulwark", "pants_bulwark",
 	"helm_windstalker", "armor_windstalker", "pants_windstalker",
 	"helm_runeweave", "armor_runeweave", "pants_runeweave",
+	# the fourth class earns its own parity set (Summoner batch 4)
+	"helm_bondwarden", "armor_bondwarden", "pants_bondwarden",
 	# batch: mid-tier Ranger set + the Dragonscale endgame set
 	"helm_ranger", "armor_ranger", "pants_ranger",
 	"helm_dragon", "armor_dragon", "pants_dragon",

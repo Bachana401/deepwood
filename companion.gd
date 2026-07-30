@@ -246,6 +246,15 @@ func strike_damage(on: Node) -> Array:
 		d *= 1.0 + GameState.get_bonus_total("bond_damage") * float(_form_broken)
 	var crit := false
 	var mk = BOND_MARK.mark_on(on)
+	# PACKLAW (the Bondwarden set-soul): the pack carries the tag bonus even on
+	# an UNMARKED foe. It frees the summoner from having to tag first, which is
+	# why the set is worth three slots -- and why it must NOT also be the
+	# flagship whip's trick.
+	if mk == null and _has_packlaw():
+		d += GameState.get_bonus_total("tag_damage")
+		if randf() < GameState.get_bonus_total("tag_crit"):
+			crit = true
+			d *= 1.7
 	if mk != null:
 		# the tree's donation plus THIS WHIP'S -- the mark carries its own terms
 		d += GameState.get_bonus_total("tag_damage") + float(mk.get("bonus_damage"))
@@ -262,7 +271,21 @@ func strike_damage(on: Node) -> Array:
 		if str(mk.get("rider")) == "mend" and is_instance_valid(player) \
 				and player.has_method("heal"):
 			player.heal(1)
+		# PACKMEND (The Kennel Brand): the same shape from the relic instead of
+		# the whip, so a Summoner can buy sustain from either slot
+		if is_instance_valid(player) and player.has_method("has_relic_power") \
+				and player.has_relic_power("packmend") and player.has_method("heal"):
+			player.heal(1)
 	return [maxi(1, int(round(d))), crit]
+
+# The set-soul is read once per strike, so a three-piece check does not run
+# per-frame. Cheap either way, but the intent is explicit.
+func _has_packlaw() -> bool:
+	if not summoned or not is_instance_valid(player):
+		return false
+	if not player.has_method("set_soul_active"):
+		return false
+	return player.set_soul_active("bondwarden")
 
 func _land() -> void:
 	if is_instance_valid(_mark) and not _is_dead(_mark) and _mark.has_method("take_damage"):
@@ -271,9 +294,12 @@ func _land() -> void:
 		# FANG OF THE BOND: it finishes tagged prey rather than whittling them.
 		# Bosses are exempt -- the boss rule allows DoT and focus, never an
 		# execute, and a minion deleting a boss would be exactly that.
+		# The exemption is `"boss_id" in node`, the same test the wand's
+		# hold-still uses; there is no "boss" GROUP in this project, so the
+		# group check this line used to make never once fired.
 		var ex_pct: float = GameState.get_bonus_total("bond_execute")
 		if is_bond and ex_pct > 0.0 and BOND_MARK.is_marked(_mark) \
-				and not _mark.is_in_group("boss") \
+				and not ("boss_id" in _mark) \
 				and "health" in _mark and "max_health" in _mark \
 				and float(_mark.max_health) > 0.0 \
 				and float(_mark.health) / float(_mark.max_health) <= ex_pct:

@@ -44,6 +44,24 @@ func _ready() -> void:
 	# groups can also be joined in a .tscn via the groups=[...] property
 	for scene_groups in _scene_groups():
 		joined[scene_groups] = true
+	# ...and a script may name its group ONCE as a const and use it through that
+	# name (summon_post.gd's `const GROUP := "summon_post"`). The literal never
+	# appears inside the call, so a literals-only scan reported a live group as
+	# "nothing ever joins it". BOTH directions need this: fixing only the join
+	# side moved bond_mark and embedded_stack onto the opposite list instead.
+	for f2 in files.keys():
+		var body: String = _strip_comments(files[f2])
+		var consts := _collect(body, "const\\s+([A-Z_0-9]+)\\s*:?=\\s*\"[a-z_0-9]+\"")
+		for cname in consts.keys():
+			var lit := _first_group(body,
+				"const\\s+%s\\s*:?=\\s*\"([a-z_0-9]+)\"" % cname)
+			if lit == "":
+				continue
+			if _calls_with(body, "add_to_group", cname):
+				joined[lit] = true
+			for q in ["get_first_node_in_group", "get_nodes_in_group", "is_in_group"]:
+				if _calls_with(body, q, cname):
+					queried[lit] = true
 
 	printerr("\n== groups looked for but never joined ==")
 	for g in queried.keys():
@@ -285,6 +303,20 @@ func _is_engine_method(m: String) -> bool:
 func _merge(into: Dictionary, from: Dictionary) -> void:
 	for k in from.keys():
 		into[k] = true
+
+# Does `body` call fn() with this bare identifier as its only argument?
+func _calls_with(body: String, fn: String, ident: String) -> bool:
+	var re := RegEx.new()
+	re.compile("%s\\(\\s*%s\\s*\\)" % [fn, ident])
+	return re.search(body) != null
+
+# The first capture of the first match, or "" -- for resolving a named const
+# back to the literal it stands for.
+func _first_group(src: String, pattern: String) -> String:
+	var re := RegEx.new()
+	re.compile(pattern)
+	var m := re.search(src)
+	return "" if m == null else m.get_string(1)
 
 func _collect(src: String, pattern: String) -> Dictionary:
 	var out := {}

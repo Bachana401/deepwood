@@ -43,6 +43,12 @@ const ITEM_DEFS = {
 	# Plunder, Runeweave = Mage's Spellcraft/Vitality + the mana pool). Wearing
 	# all 3 pieces grants the set bonus; ALSO wielding the set's weapon stacks
 	# the greater full_bonus on top (see SET_DEFS + GameState set logic). ---
+	# THE BONDWARDEN'S VESTMENTS (Summoner set, batch 4). Hearth-amber, worn
+	# leather and bone -- the village's own colours, because the wearer carries
+	# the village with them.
+	"helm_bondwarden": {"name": "Bondwarden's Hood", "category": "armor", "slot": "helmet", "set": "bondwarden", "max_stack": 1, "color": Color(0.82, 0.62, 0.3, 1.0), "equip_effect": {"max_health": 20.0, "summon_damage": 0.04}},
+	"armor_bondwarden": {"name": "Bondwarden's Vestment", "category": "armor", "slot": "chest", "set": "bondwarden", "max_stack": 1, "color": Color(0.82, 0.62, 0.3, 1.0), "equip_effect": {"max_health": 30.0, "summon_damage": 0.05}},
+	"pants_bondwarden": {"name": "Bondwarden's Wraps", "category": "armor", "slot": "legs", "set": "bondwarden", "max_stack": 1, "color": Color(0.82, 0.62, 0.3, 1.0), "equip_effect": {"max_health": 20.0, "whip_damage": 0.05}},
 	"helm_bulwark": {"name": "Bulwark Warhelm", "category": "armor", "slot": "helmet", "set": "bulwark", "max_stack": 1, "color": Color(0.66, 0.3, 0.2, 1.0), "equip_effect": {"max_health": 25.0, "melee_damage": 0.05}},
 	"armor_bulwark": {"name": "Bulwark Breastplate", "category": "armor", "slot": "chest", "set": "bulwark", "max_stack": 1, "color": Color(0.58, 0.26, 0.17, 1.0), "equip_effect": {"max_health": 40.0}},
 	"pants_bulwark": {"name": "Bulwark Greaves", "category": "armor", "slot": "pants", "set": "bulwark", "max_stack": 1, "color": Color(0.5, 0.23, 0.15, 1.0), "equip_effect": {"max_health": 20.0, "melee_cooldown": 0.05}},
@@ -87,6 +93,11 @@ const ITEM_DEFS = {
 	"relic_celerity": {"name": "Idol of Celerity", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.4, 0.9, 0.9, 1.0), "equip_effect": {"move_speed": 0.25, "melee_cooldown": 0.15, "bow_cooldown": 0.15, "wand_cooldown": 0.15}},
 	"relic_phoenix": {"name": "Phoenix Heart", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(1.0, 0.5, 0.15, 1.0), "equip_effect": {"max_health": 40.0}, "relic_power": "phoenix", "relic_desc": "Cheat death: revive at 50% HP once every 45s."},
 	"relic_thorns": {"name": "Thornmail", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.72, 0.35, 0.3, 1.0), "equip_effect": {"max_health": 50.0}, "relic_power": "thorns", "relic_value": 0.4, "relic_desc": "Reflect 40% of damage taken to all nearby enemies."},
+	# THE SUMMONER'S RELIC (batch 4, 2026-07-30). The Standing Star's big
+	# sibling: it grants a SLOT, which for this class is the power curve
+	# itself, and its power is tag-gated so it can never idle -- the pack has
+	# to be working on your mark for it to pay.
+	"relic_kennelbrand": {"name": "The Kennel Brand", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.86, 0.64, 0.32, 1.0), "equip_effect": {"max_health": 30.0, "summon_cap": 1.0}, "relic_power": "packmend", "relic_desc": "+1 minion slot. When one of your summons strikes your MARKED foe, you heal 1."},
 	"relic_aegis": {"name": "Aegis Ward", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.6, 0.8, 1.0, 1.0), "equip_effect": {"max_health": 60.0}, "relic_power": "aegis", "relic_desc": "A shield fully blocks one hit every 6s."},
 	"relic_vampire": {"name": "Vampire Lord's Signet", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.72, 0.1, 0.22, 1.0), "equip_effect": {"max_health": 30.0}, "relic_power": "omnivamp", "relic_value": 0.25, "relic_desc": "Heal for 25% of the melee damage you deal."},
 	"relic_juggernaut": {"name": "Juggernaut Idol", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(0.6, 0.15, 0.15, 1.0), "equip_effect": {"max_health": 40.0}, "relic_power": "berserk", "relic_value": 0.5, "relic_desc": "The lower your HP, the more damage -- up to +50% near death."},
@@ -854,6 +865,8 @@ const ITEM_GRADES = {
 	"helm_bulwark": "epic", "armor_bulwark": "epic", "pants_bulwark": "epic",
 	"helm_windstalker": "epic", "armor_windstalker": "epic", "pants_windstalker": "epic",
 	"helm_runeweave": "epic", "armor_runeweave": "epic", "pants_runeweave": "epic",
+	# the Summoner's parity set sits at the same rung as the other three class sets
+	"helm_bondwarden": "epic", "armor_bondwarden": "epic", "pants_bondwarden": "epic",
 	# relics
 	"relic_vigor": "uncommon", "relic_swiftness": "uncommon", "relic_greed": "uncommon", "relic_wisdom": "uncommon",
 	"relic_berserker": "rare", "relic_hawk": "rare", "relic_archon": "rare", "relic_wellspring": "rare",
@@ -862,7 +875,7 @@ const ITEM_GRADES = {
 	"relic_phoenix": "mythic", "relic_thorns": "epic", "relic_aegis": "epic", "relic_vampire": "legendary", "relic_juggernaut": "legendary",
 	"relic_blink": "rare", "relic_reaper": "legendary", "relic_ward": "rare", "relic_steward": "rare",
 	"relic_unbroken": "mythic", "relic_wayfarer": "mythic", "relic_guardian": "legendary",
-	"relic_gorgon": "epic",
+	"relic_gorgon": "epic", "relic_kennelbrand": "epic",
 	"rune_sanctuary": "epic", "rune_stoneguise": "legendary", "rune_riddlestaff": "mythic",
 	# fishing (pillar 3)
 	"fish_silverfin": "common", "fish_mudwhisker": "common", "fish_lanterneel": "uncommon",
@@ -1123,6 +1136,22 @@ const SET_DEFS = {
 		"bonus_2pc_desc": "+10 Max HP",
 		"bonus": {"max_health": 20.0, "move_speed": 0.05},
 		"bonus_desc": "+20 Max HP, +5% Move Speed",
+	},
+	"bondwarden": {
+		"name": "The Bondwarden's Vestments",
+		"pieces": ["helm_bondwarden", "armor_bondwarden", "pants_bondwarden"],
+		"bonus_2pc": {"summon_damage": 0.10},
+		"bonus_2pc_desc": "+10% Summon DMG",
+		"bonus": {"summon_damage": 0.15, "max_health": 30.0},
+		# PACKLAW is the set's SOUL, and it is deliberately not the flagship
+		# whip's trick. The Ten-Tongued Court makes the pack strike the instant
+		# you tag; PACKLAW frees the pack from needing the tag at all -- they
+		# know the law without being told. One rewards tagging, the other
+		# rewards having taught them.
+		"bonus_desc": "+15% Summon DMG, +30 Max HP + PACKLAW: your summons carry the tag bonus even on UNMARKED foes -- the pack knows the law without being told",
+		"weapon": "whp_candlewick",
+		"full_bonus": {"summon_cap": 1.0, "tag_damage": 4.0},
+		"full_bonus_desc": "+1 minion slot, +4 tag damage",
 	},
 	"bulwark": {
 		"name": "Bulwark of the Warlord",
