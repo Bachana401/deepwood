@@ -86,17 +86,27 @@ func _ready() -> void:
 		var at_range := 0.0
 		var per_range := []
 		for dist in PROBE_RANGES:
-			var dummy := Counter.new()
-			dummy.add_to_group("course_enemy")
-			stage.add_child(dummy)
-			dummy.global_position = (p as Node2D).global_position + Vector2(dist, 10.0)
 			p.inventory.add_item(id, 1)
 			p.wield_weapon(id)
 			p.mana = p.get_max_mana()
 			p.health = p.get_max_health()
-			# aim at it, or a swing-driven verb fires the other way and reads zero
-			Input.warp_mouse(get_viewport().get_canvas_transform()
-				* (dummy.global_position + Vector2(0, -8.0)))
+			# PUT THE DUMMY WHERE THE WEAPON WILL ACTUALLY FIRE.
+			# The obvious approach -- warp the mouse onto the target -- is a
+			# NO-OP under --headless, because there is no window for the pointer
+			# to move in. get_aim_direction() then returns a default that has
+			# nothing to do with the dummy: measured (-0.40, -0.92), i.e. up and
+			# to the left, while the dummy sat directly right. Every
+			# aim-dependent weapon fired into empty space and read as DEAD, and
+			# I reported three healthy wands as broken on the strength of it.
+			# Reading the aim and placing the target along it measures the
+			# weapon instead of the harness.
+			var aim: Vector2 = p.get_aim_direction()
+			if aim.length() < 0.01:
+				aim = Vector2.RIGHT
+			var dummy := Counter.new()
+			dummy.add_to_group("course_enemy")
+			stage.add_child(dummy)
+			dummy.global_position = (p as Node2D).global_position + aim.normalized() * dist
 			await get_tree().process_frame
 			await get_tree().process_frame
 			p.attack_cooldown_remaining = 0.0

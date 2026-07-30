@@ -980,7 +980,7 @@ func _physics_process(delta: float) -> void:
 		_ink_rehit += delta
 		if _ink_rehit >= 0.22:
 			_ink_rehit = 0.0
-			hit_bodies.clear()
+			_rake_overlapping()
 	if kind == "chalk_line":
 		_tick_chalk_line(delta)
 		return
@@ -999,9 +999,21 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind == "ink_jet":
 		# THE INKWELL OF STORMS: a piercing stream riding a gentle arc --
-		# gravity pulls the jet down as it flies, staining as it goes
+		# gravity pulls the jet down as it flies, staining as it goes.
+		# IT THICKENS AS IT FALLS (2026-07-30). Measured at exactly 1 hit: the
+		# jet was "piercing" but travelled so fast that its 0.22s re-cut clock
+		# never came round twice inside the same body, so an Epic wand landed a
+		# single tap and sat at 19 dps under a Rare median. Ink is a fluid, not
+		# a bullet -- it loses speed and spreads. Slowing it lets the stream
+		# actually rake what it is passing through, which is what the card has
+		# always claimed it does.
+		speed = maxf(140.0, speed * (1.0 - 1.35 * delta))
 		_vel_y += 620.0 * delta
 		global_position += direction * speed * delta + Vector2(0, _vel_y * delta)
+		# and it widens as it thins out, so the stain reads as spreading
+		if visual:
+			visual.scale = Vector2.ONE * _draw_girth * (1.0 + 0.5 * clampf(
+				1.0 - speed / 600.0, 0.0, 1.0))
 		rotation = (direction * speed + Vector2(0, _vel_y)).angle()
 		traveled += speed * delta
 		if traveled >= max_distance or _vel_y > 700.0:
@@ -3341,6 +3353,27 @@ func _tick_boulder(delta: float) -> void:
 
 var _wake_returned := false
 var _ink_rehit := 0.0
+
+# CLEARING hit_bodies DOES NOTHING ON ITS OWN (found by measurement, 2026-07-30).
+# The re-cut pattern used everywhere in this file empties the ledger on a clock
+# and waits for the hit to fire again -- but Area2D's body_entered only fires on
+# ENTRY. A body already inside the projectile never re-enters, so the ledger
+# refills from nothing and the "piercing, re-cutting" weapon lands exactly one
+# hit. The Inkwell measured 1 before and after a fix that looked right on paper.
+# A re-cut has to go and LOOK for what it is inside of.
+func _rake_overlapping() -> void:
+	hit_bodies.clear()
+	for b in get_overlapping_bodies():
+		if not (b is Node2D) or not is_instance_valid(b) or not b.has_method("take_damage"):
+			continue
+		if b.is_in_group("player") or ("is_dead" in b and b.is_dead):
+			continue
+		var landed = b.take_damage(damage)
+		if landed == null or landed:
+			FloatingText.spawn(get_parent(),
+				(b as Node2D).global_position + Vector2(0, -22.0), damage, is_crit)
+		_apply_status_to(b)
+		hit_bodies.append(b)
 
 # --- THE CHALK WAND: it draws, it does not throw -------------------------
 # The first of the eleven wands freed from the shared ice dart (2026-07-30).

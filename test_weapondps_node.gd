@@ -177,11 +177,18 @@ const HITS_PER_USE := {
 	"patientknife": 3.6, # 12 knives on the storm engine, ~5 bites over 1.05s
 	"kingdomturning": 3.2, # 6 crowned shades wheeling, biting every 0.2s
 	"rumor":       3.0, # 1 -> 2 -> 4 across three generations, no decay
-	"skymeasure":  2.2, # 6 columns, but they SPREAD across a 600px span
-	"unbentcolumn": 2.4, # 5 pillars down the hall; a body catches ~2
+	"skymeasure":  1.4, # MEASURED 1: six columns SPREAD, a body is under one
+	# MEASURED 1 at every range (test_realhits_node): the five pillars march
+	# AWAY down the hall, so one body stands in exactly one of them. The old 2.4
+	# was a guess that assumed a body catches two, and nothing checked.
+	"unbentcolumn": 1.2, # 5 pillars down the hall; a body stands in ONE
 	"choirofone":  2.6, # the shaft plus 4 harmonics at 0.8x, fanning
 	"thronestrings": 3.0, # 7 strings; a body standing in the span crosses ~3
-	"worldsgrief": 4.0, # 12 tears, and they SEEK -- several find one body
+	# MEASURED 10-11 at EVERY range: the tears seek, so nearly the whole flight
+	# converges on a lone body. Declared 4.0 -- this weapon was carrying more
+	# than twice the output the ladder was crediting it with, which is one half
+	# of the dev's "huge dps difference between weapons".
+	"worldsgrief": 8.0, # 12 tears that SEEK; most of them find one body
 	"skycharges":  3.4, # 8 bolts over 1.5s, half aimed at whoever is nearest
 	"worldcut":    1.0, # ONE cut -- but it is the whole lane, every body once
 	"deepcourt":   5.0, # 5 drowned courtiers striking on their own
@@ -204,7 +211,7 @@ const HITS_PER_USE := {
 	# old 4.0 was a guess made when the blades rode one thin ring and actually
 	# landed one or two -- the number flattered a weapon the dev called weak.
 	"zenith":     6.0, # THE STORM: 12 blades on staggered radii over 1.15s,
-	"ink":        2.4,   # a piercing stream that rakes the row as it falls
+	"ink":        2.2,   # the stream SLOWS as it falls, so its 0.22s re-cut lands
 	"wake":       2.8,   # the scythe wakes, cuts, and RETURNS through the row
 }
 
