@@ -99,9 +99,9 @@ const ROWS = [
 	["wpn_falconoath",   "Falcon's Oath",        "bow",   4, "falconoath", 16, 0.65, {}],
 	["wpn_sapperanswer", "Sapper's Answer",      "bow",   4, "lob_a",     24, 1.0,  {"aoe": 100, "plain": true}],
 	["wpn_prismbreak",   "Prismbreak",           "wand",  4, "prismbreak", 20, 0.8,  {"shards": 6}],
-	["wpn_stormdebt",    "Stormcaller's Debt",   "wand",  4, "tome",      11, 1.4,  {"radius": 140}],
-	["wpn_wispwarden",   "Wisp Warden",          "wand",  4, "sentry",    10, 1.2,  {"dur": 18}],
-	["wpn_nightbolt",    "Nightbolt",            "wand",  4, "ricochet",  17, 0.6,  {"bounces": 4}],
+	["wpn_stormdebt",    "Stormcaller's Debt",   "wand",  4, "stormdebt", 11, 1.4,  {"radius": 140}],
+	["wpn_wispwarden",   "Wisp Warden",          "wand",  4, "wispwarden", 10, 1.2,  {"dur": 18}],
+	["wpn_nightbolt",    "Nightbolt",            "wand",  4, "nightbolt", 17, 0.6,  {"bounces": 4}],
 	["wpn_magmawrit",    "Magma Writ",           "wand",  4, "fire",      26, 0.85, {"aoe": 120, "status": "burn_w", "plain": true}],
 	["wpn_pilgrimstaff", "Pilgrim's Milestone",  "staff", 4, "staff",     15, 0.45, {"plain": true}],
 	# ---------------- TIER 5 - LEGENDARY (floors 42-72) ----------------
@@ -236,7 +236,7 @@ const ROWS = [
 	["wpn_palefang",     "Palefang",             "melee", 4, "arc",       12, 0.25, {"status": "slow_w", "plain": true}],
 	["wpn_riverrender",  "Riverrender",          "melee", 4, "riverrender", 16, 0.55, {"p_damage": 14}],
 	["wpn_smokelash",    "Smoke and Ash",        "melee", 4, "smokelash", 16, 0.82, {"status": "burn_w"}],
-	["wpn_debtblade",    "Debt of the Deep",     "melee", 4, "ricochet",  15, 0.6,  {"bounces": 4}],
+	["wpn_debtblade",    "Debt of the Deep",     "melee", 4, "deepdebt",  15, 0.6,  {"bounces": 4}],
 	["wpn_vigilpike",    "Vigil Unbroken",       "spear", 4, "thrust",    22, 0.82, {"plain": true}],
 	["wpn_winterreach",  "Winter's Reach",       "spear", 4, "thrust",    18, 0.6,  {"status": "slow_w", "plain": true}],
 	["wpn_hawkvolley",   "Hawks in Formation",   "spear", 4, "jab_volley", 14, 0.88, {"count": 4, "plain": true}],
@@ -244,14 +244,14 @@ const ROWS = [
 	["wpn_gravebow",     "The Polite Reminder",  "bow",   4, "shot",      20, 0.58, {"pierce": true, "plain": true}],
 	["wpn_larkstorm",    "A Storm of Larks",     "bow",   4, "volley",    11, 0.58, {"count": 3, "plain": true}],
 	["wpn_needlerain",   "Needlerain",           "bow",   4, "rapid",     8,  0.17, {"plain": true}],
-	["wpn_huntmaster",   "Huntmaster's Word",    "bow",   4, "seeker",    15, 0.62, {}],
+	["wpn_huntmaster",   "Huntmaster's Word",    "bow",   4, "huntword",  15, 0.62, {}],
 	["wpn_sapperkiss",   "Sapper's Kiss",        "bow",   4, "lob_a",     23, 1.0,  {"aoe": 95, "status": "burn_w", "plain": true}],
 	["wpn_glasstring",   "Glasstring",           "bow",   4, "shot",      17, 0.5,  {"status": "slow_w", "plain": true}],
-	["wpn_covenbook",    "The Coven's Ledger",   "wand",  4, "tome",      10, 1.4,  {"radius": 135, "tome_kind": "coven"}],
+	["wpn_covenbook",    "The Coven's Ledger",   "wand",  4, "covenledger", 10, 1.4,  {"radius": 135, "tome_kind": "coven"}],
 	["wpn_frostwrit",    "Frost Writ",           "wand",  4, "frost",     19, 0.55, {"status": "slow_w", "plain": true}],
-	["wpn_gloamburst",   "Gloamburst",           "wand",  4, "cluster",   19, 0.8,  {"shards": 6}],
-	["wpn_howlbolt",     "Howling Bolt",         "wand",  4, "ricochet",  16, 0.58, {"bounces": 4}],
-	["wpn_candlepost",   "Candlekeeper",         "wand",  4, "sentry",    9,  1.2,  {"dur": 18}],
+	["wpn_gloamburst",   "Gloamburst",           "wand",  4, "gloamburst", 19, 0.8,  {"shards": 6}],
+	["wpn_howlbolt",     "Howling Bolt",         "wand",  4, "howlbolt",  16, 0.58, {"bounces": 4}],
+	["wpn_candlepost",   "Candlekeeper",         "wand",  4, "candlekeeper", 9,  1.2,  {"dur": 18}],
 	["wpn_stormsliver",  "Stormsliver",          "wand",  4, "bolt",      21, 0.5,  {"plain": true}],
 	["wpn_paleobelisk",  "Pale Obelisk",         "staff", 4, "staff",     16, 0.46, {"plain": true}],
 	["wpn_fordstaff",    "Fordmaster",           "staff", 4, "staff",     14, 0.4,  {"plain": true}],
@@ -926,6 +926,30 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 		"driftwheel":
 			s = {"type": "drift_wheel", "damage": maxi(1, int(round(float(dmg) * 0.7))),
 				"speed": spd - 300.0}
+		# ---- T4 batch 3: the last ten ----
+		"nightbolt":
+			s = {"type": "night_bolt", "damage": maxi(1, int(round(float(dmg) * 1.2))),
+				"speed": spd + 160.0, "range": rng}
+		"wispwarden":
+			s = {"type": "wisp_post", "damage": maxi(1, int(round(float(dmg) * 0.9)))}
+		"candlekeeper":
+			s = {"type": "candle_row", "damage": maxi(1, int(round(float(dmg) * 0.9)))}
+		"covenledger":
+			s = {"type": "coven_ring", "damage": maxi(1, int(round(float(dmg) * 0.75)))}
+		"gloamburst":
+			s = {"type": "gloam_burst", "damage": dmg, "speed": spd, "range": rng}
+		"howlbolt":
+			s = {"type": "howl_bolt", "damage": maxi(1, int(round(float(dmg) * 0.75))),
+				"bounces": 4, "speed": spd + 40.0, "range": rng}
+		"deepdebt":
+			s = {"type": "debt_deep", "damage": maxi(1, int(round(float(dmg) * 0.7))),
+				"bounces": 4, "speed": spd - 40.0, "range": rng}
+		"huntword":
+			s = {"type": "hunt_word", "damage": maxi(1, int(round(float(dmg) * 0.85))),
+				"count": 2, "speed": spd - 40.0, "range": rng + 140.0}
+		"stormdebt":
+			s = {"type": "storm_debt", "damage": maxi(1, int(round(float(dmg) * 0.8))),
+				"speed": spd, "range": rng}
 		# ---- T5 batch 4: the last eleven (incl. the OMEN TRIO) ----
 		"omenseek":
 			s = {"type": "omen_eye", "damage": maxi(1, int(round(float(dmg) * 0.5))),
@@ -1064,6 +1088,15 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"hushfall":    return "The blow lands in SILENCE. The sound of it arrives a moment later, from where you struck, and the sound is the heavier half."
 		"eclipse":     return "The wheel rolls out and goes DARK, and the shadow it throws is the weapon -- a long band of night that cuts everything standing in it."
 		"cometfall":   return "Lobs high and comes down as a COMET, cratering where it lands and leaving the ground burning for whatever walks in next."
+		"nightbolt":   return "It goes DARK halfway across. You see it leave and you see it arrive, and nothing in between can read where it will be."
+		"wispwarden":  return "A warden post that keeps three slow wisps about it, sending them out one at a time at whatever comes near."
+		"candlekeeper": return "Three candles stood in a row. They burn quietly and send their light out after anything that walks past."
+		"covenledger": return "Draws a RING of candles on the floor and holds the circle. Everything standing inside the ring is on the ledger."
+		"gloamburst":  return "It breaks into six dusk motes that hang a moment and then come DOWN, each one finding somebody."
+		"howlbolt":    return "It HOWLS at every bounce, and the howl is wider than the bolt."
+		"deepdebt":    return "Every body it touches is BOOKED -- a little of what is owed, ticking, and coming due whether the bolt is still there or not."
+		"huntword":    return "The word goes out and TWO of them answer, each stooping on a different body."
+		"stormdebt":   return "One bolt, and the storm settles the account behind it -- two more beats going off where you already were."
 		"gloamlash":   return "The whip FORKS at the tip -- two tines bowing apart, so one crack covers two lanes at once."
 		"owlwheel":    return "It does not orbit. It WATCHES -- hanging over the fight, drifting to whatever is nearest, and blinking once every time it strikes."
 		"riverrender": return "The cut RUNS along the floor like water and SWELLS the further it goes."

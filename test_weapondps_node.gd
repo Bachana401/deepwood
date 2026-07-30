@@ -135,6 +135,16 @@ const HITS_PER_USE := {
 	"riverrender": 2.2, # it swells as it runs, re-hitting every 0.26s
 	"smokelash":   2.4, # ~6 ticks in the pall at 0.55x if they stand in it
 	"driftwheel":  2.5, # 3s of wandering, re-hitting every 0.34s
+	# ---- T4 batch 3: the last ten ----
+	"nightbolt":   1.2, # one bolt at 1.2x -- the value is being unreadable
+	"wispwarden":  3.4, # ~7 wisps sent over the post's life
+	"candlekeeper": 3.4, # same sender, three candles' worth
+	"covenledger": 3.6, # ~8 ticks over 4s on anything inside the ring
+	"gloamburst":  2.4, # the hit plus six 0.4x motes that seek
+	"howlbolt":    2.6, # 4 bounces, each with a 0.45x howl ring
+	"deepdebt":    2.8, # 4 bookings, each ticking and coming due
+	"huntword":    2.0, # two stoops, and they pick DIFFERENT bodies
+	"stormdebt":   2.2, # the bolt plus two delayed beats
 	# ---- T5 batch 4: the last eleven ----
 	"omenseek":    2.6, # a slow read, then every marked body eats a 1.3x nova
 	"ironomen":    2.2, # 4 bounces, each planting a spike that ticks its zone

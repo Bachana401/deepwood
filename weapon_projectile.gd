@@ -268,6 +268,16 @@ func _ready() -> void:
 		"drift_wheel":
 			pierce = true
 			_build_drift_wheel()
+		# ---- T4 batch 3: the last ten ----
+		"night_bolt": _build_night_bolt()
+		"wisp_post": _build_wisp_post()
+		"candle_row": _build_candle_row()
+		"coven_ring": _build_coven_ring()
+		"gloam_burst": _build_prism_bolt()
+		"howl_bolt": _build_night_bolt()
+		"debt_deep": _build_omen_sigil()
+		"hunt_word": _build_stoop_arrow()
+		"storm_debt": _build_nova_seed()
 		# ---- T5 batch 4: the last eleven ----
 		"omen_eye":
 			pierce = true
@@ -644,7 +654,7 @@ func _physics_process(delta: float) -> void:
 	if kind == "courier_route":
 		_tick_courier(delta)
 		return
-	if kind == "stoop_arrow":
+	if kind == "stoop_arrow" or kind == "hunt_word":
 		_tick_stoop(delta)
 		return
 	if kind == "quill_fall":
@@ -697,6 +707,15 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind == "world_cut":
 		_tick_worldcut(delta)
+		return
+	if kind == "night_bolt":
+		_tick_nightbolt(delta)
+		return
+	if kind == "wisp_post" or kind == "candle_row":
+		_tick_asphodel(delta)      # the same patient sender, two faces
+		return
+	if kind == "coven_ring":
+		_tick_standing_zone(delta)
 		return
 	if kind == "gloam_fork":
 		_tick_gloam(delta)
@@ -1095,6 +1114,65 @@ func _on_body_entered(body: Node2D) -> void:
 					maxi(1, int(round(float(damage) * 0.35))), false)
 			_apply_status_to(body)
 			_portent_fix(body)
+		"gloam_burst":
+			# GLOAMBURST: it breaks into dusk motes that hang, then drop
+			var landed_gb = body.take_damage(damage)
+			if landed_gb == null or landed_gb:
+				FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+			_apply_status_to(body)
+			_gloam_motes(body.global_position)
+			done = true
+			queue_free()
+			return
+		"howl_bolt":
+			# HOWLING BOLT: every bounce lets out a howl
+			var landed_hb = body.take_damage(damage)
+			if landed_hb == null or landed_hb:
+				FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+			_apply_status_to(body)
+			_howl_ring_at(body.global_position, maxi(1, int(round(float(damage) * 0.45))))
+			bounces -= 1
+			if bounces <= 0:
+				done = true
+				queue_free()
+				return
+			var next_h := _nearest_hostile_node(360.0)
+			if next_h != null:
+				direction = ((next_h as Node2D).global_position - global_position).normalized()
+				rotation = direction.angle()
+				hit_bodies.clear()
+			else:
+				done = true
+				queue_free()
+				return
+		"debt_deep":
+			# DEBT OF THE DEEP: each bounce BOOKS a little of what is owed
+			var landed_dd = body.take_damage(damage)
+			if landed_dd == null or landed_dd:
+				FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+			_apply_status_to(body)
+			var bk = load("res://embedded_stack.gd").drive(body, "deepdebt", {
+				"max": 3, "gap": 0.7, "life": 4.0,
+				"tick": maxi(1, int(round(float(damage) * 0.12))),
+				"pop": maxi(1, int(round(float(damage) * 0.4))),
+				"player": source, "pop_on_expire": true,
+				"tint": Color(0.5, 0.78, 0.86)})
+			if bk != null:
+				bk.add_one(damage)
+			bounces -= 1
+			if bounces <= 0:
+				done = true
+				queue_free()
+				return
+			var next_d := _nearest_hostile_node(340.0)
+			if next_d != null:
+				direction = ((next_d as Node2D).global_position - global_position).normalized()
+				rotation = direction.angle()
+				hit_bodies.clear()
+			else:
+				done = true
+				queue_free()
+				return
 		"prism_bolt":
 			# PRISMBREAK: the bolt goes in white and comes out in three colours
 			var landed_pb = body.take_damage(damage)
@@ -7491,6 +7569,180 @@ func _build_drift_wheel() -> void:
 		vane.color = Color(0.82, 0.9, 0.84, 0.85)
 		vane.rotation = deg_to_rad(90.0 * float(k))
 		visual.add_child(vane)
+
+# ==========================================================================
+# TIER 4, BATCH 3 -- the last ten. Closes the tier.
+# ==========================================================================
+
+# --- NIGHTBOLT: it goes OUT halfway there and comes back at the far end --
+var _nb_t := 0.0
+
+func _tick_nightbolt(delta: float) -> void:
+	_nb_t += delta
+	global_position += direction * speed * delta
+	traveled += speed * delta
+	var frac: float = traveled / maxf(1.0, max_distance)
+	# invisible through the middle of its flight: you see it leave and you
+	# see it arrive, and nothing in between can read where it will be
+	if visual:
+		var gone: bool = frac > 0.28 and frac < 0.74
+		visual.modulate.a = 0.06 if gone else 1.0
+	if traveled >= max_distance:
+		done = true
+		queue_free()
+
+func _build_night_bolt() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var core := Polygon2D.new()
+	core.polygon = PackedVector2Array([
+		Vector2(13, 0), Vector2(-2, -5.0), Vector2(-11, 0), Vector2(-2, 5.0)])
+	core.color = Color(0.3, 0.24, 0.46, 0.98)
+	visual.add_child(core)
+	var edge := Polygon2D.new()
+	edge.polygon = PackedVector2Array([
+		Vector2(15, 0), Vector2(2, -2.4), Vector2(2, 2.4)])
+	edge.color = Color(0.74, 0.66, 1.0, 0.9)
+	edge.material = m
+	visual.add_child(edge)
+
+# --- WISP WARDEN / CANDLEKEEPER: patient posts, two different faces ------
+func _build_wisp_post() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var stem := Polygon2D.new()
+	stem.polygon = PackedVector2Array([
+		Vector2(-2.4, 18.0), Vector2(-1.6, -8.0), Vector2(1.6, -8.0), Vector2(2.4, 18.0)])
+	stem.color = Color(0.3, 0.34, 0.32, 0.95)
+	visual.add_child(stem)
+	for k in range(3):
+		var wisp := Polygon2D.new()
+		wisp.polygon = _circle(5.0 - float(k), 8)
+		wisp.color = Color(0.6, 0.94, 0.8, 0.85 - 0.2 * float(k))
+		wisp.material = m
+		wisp.position = Vector2(-9.0 + 9.0 * float(k), -16.0 - 4.0 * float(k))
+		visual.add_child(wisp)
+		var tw := wisp.create_tween().set_loops()
+		tw.tween_property(wisp, "position:y", wisp.position.y - 6.0, randf_range(0.8, 1.3))
+		tw.tween_property(wisp, "position:y", wisp.position.y, randf_range(0.8, 1.3))
+
+func _build_candle_row() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	# three candles standing in a row, each with its own small flame
+	for k in range(3):
+		var wax := Polygon2D.new()
+		var h: float = 16.0 - 3.0 * float(k)
+		wax.polygon = PackedVector2Array([
+			Vector2(-3.4, 12.0), Vector2(-2.6, -h), Vector2(2.6, -h), Vector2(3.4, 12.0)])
+		wax.color = Color(0.9, 0.86, 0.72, 0.96)
+		wax.position = Vector2(-20.0 + 20.0 * float(k), 0)
+		visual.add_child(wax)
+		var flame := Polygon2D.new()
+		flame.polygon = PackedVector2Array([
+			Vector2(-3.0, 0), Vector2(0, -8.0), Vector2(3.0, 0)])
+		flame.color = Color(1.0, 0.84, 0.4, 0.9)
+		flame.material = m
+		flame.position = Vector2(-20.0 + 20.0 * float(k), -h)
+		visual.add_child(flame)
+		var tw := flame.create_tween().set_loops()
+		tw.tween_property(flame, "scale", Vector2(0.7, 1.3), randf_range(0.2, 0.34))
+		tw.tween_property(flame, "scale", Vector2(1.1, 0.85), randf_range(0.2, 0.3))
+
+# --- THE COVEN'S LEDGER: a ring of candles drawn on the floor -----------
+func _build_coven_ring() -> void:
+	_zone_max = 4.0
+	_zone_r = 74.0
+	_zone_gap = 0.46
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var circle := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(18):
+		var a := TAU * float(i) / 18.0
+		pts.append(Vector2(cos(a) * 68.0, sin(a) * 24.0))
+	for i in range(18):
+		var a2 := TAU * float(17 - i) / 18.0
+		pts.append(Vector2(cos(a2) * 62.0, sin(a2) * 21.0))
+	circle.polygon = pts
+	circle.color = Color(0.7, 0.5, 0.86, 0.55)
+	circle.material = m
+	visual.add_child(circle)
+	for k in range(5):
+		var a3 := TAU * float(k) / 5.0
+		var cand := Polygon2D.new()
+		cand.polygon = PackedVector2Array([
+			Vector2(-2.4, 5.0), Vector2(-1.8, -9.0), Vector2(1.8, -9.0), Vector2(2.4, 5.0)])
+		cand.color = Color(0.88, 0.84, 0.7, 0.95)
+		cand.position = Vector2(cos(a3) * 65.0, sin(a3) * 22.0)
+		visual.add_child(cand)
+		var fl := Polygon2D.new()
+		fl.polygon = PackedVector2Array([
+			Vector2(-2.4, 0), Vector2(0, -6.0), Vector2(2.4, 0)])
+		fl.color = Color(0.86, 0.6, 1.0, 0.9)
+		fl.material = m
+		fl.position = cand.position + Vector2(0, -9.0)
+		visual.add_child(fl)
+
+# --- GLOAMBURST: the bolt breaks into motes that HANG, then drop ---------
+func _gloam_motes(at: Vector2) -> void:
+	var host := get_parent()
+	if host == null:
+		return
+	for i in range(6):
+		var mote = (load("res://weapon_projectile.gd") as GDScript).new()
+		mote.kind = "grief_tear"       # the seeking-drop engine, dusk-tinted
+		mote.damage = maxi(1, int(round(float(damage) * 0.4)))
+		mote.element = element
+		mote.on_hit_status = on_hit_status
+		mote.source = source
+		mote.girth = girth * 0.8
+		mote.direction = Vector2.RIGHT.rotated(TAU * float(i) / 6.0)
+		mote.speed = 150.0
+		mote.max_distance = 260.0
+		host.add_child(mote)
+		mote.global_position = at
+		mote.set("_vel_y", -randf_range(90.0, 190.0))
+
+# --- HOWLING BOLT: it howls at every bounce -----------------------------
+func _howl_ring_at(at: Vector2, pay: int) -> void:
+	var host := get_parent()
+	if host == null:
+		return
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var ring := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(16):
+		var a := TAU * float(i) / 16.0
+		pts.append(Vector2(cos(a), sin(a)) * 16.0)
+	for i in range(16):
+		var a2 := TAU * float(15 - i) / 16.0
+		pts.append(Vector2(cos(a2), sin(a2)) * 12.0)
+	ring.polygon = pts
+	ring.color = Color(0.66, 0.8, 0.96, 0.8)
+	ring.material = m
+	ring.z_index = 42
+	host.add_child(ring)
+	ring.global_position = at
+	var tw := ring.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(ring, "scale", Vector2(4.4, 4.4), 0.32)
+	tw.tween_property(ring, "modulate:a", 0.0, 0.32)
+	tw.chain().tween_callback(ring.queue_free)
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if at.distance_to((e as Node2D).global_position) > 70.0:
+				continue
+			var landed = e.take_damage(pay)
+			if landed == null or landed:
+				FloatingText.spawn(host, (e as Node2D).global_position
+					+ Vector2(randf_range(-14.0, 14.0), -26.0), pay, false)
+			_apply_status_to(e)
 
 func _circle(radius: float, sides: int) -> PackedVector2Array:
 	var pts = PackedVector2Array()

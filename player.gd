@@ -3685,7 +3685,9 @@ func perform_attack() -> void:
 			bp.global_position = global_position + get_aim_direction() * 158.0 + Vector2(0, 16.0)
 		# THE MONARCH WANDS/STAVES (T8): each PLACES a spectacle, none of them
 		# a bolt. Measure/colonnade/harp/storm all cast from a marker node.
-		elif special_type == "sky_charge" or special_type == "siren_song":
+		elif special_type == "sky_charge" or special_type == "siren_song" \
+				or special_type == "wisp_post" or special_type == "candle_row" \
+				or special_type == "coven_ring":
 			var mk = WEAPON_PROJECTILE_SCRIPT.new()
 			mk.kind = special_type
 			mk.damage = maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("wand"))))
@@ -3802,7 +3804,9 @@ func perform_attack() -> void:
 		elif special_type == "flood_wave" or special_type == "glass_note" \
 				or special_type == "nova_seed" or special_type == "courier_route" \
 				or special_type == "ice_floe" or special_type == "ransom_seal" \
-				or special_type == "rumor_bolt" or special_type == "prism_bolt":
+				or special_type == "rumor_bolt" or special_type == "prism_bolt" \
+				or special_type == "night_bolt" or special_type == "gloam_burst" \
+				or special_type == "howl_bolt" or special_type == "storm_debt":
 			var wcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("wand"))))
 			launch_projectile(special, get_aim_direction(), wcr[0], wcr[1])
 		# WATCHFIRE (T6): planted where you aim, then it waits
@@ -4046,6 +4050,7 @@ func perform_attack() -> void:
 		# MIDDAY MASSACRE / GRIFFIN VOLLEY (T6): two very different volleys --
 		# one wall arriving together, one flight that picks its own targets
 		if special_type == "noon_shaft" or special_type == "stoop_arrow" \
+				or special_type == "hunt_word" \
 				or special_type == "eventide":
 			play_sfx(SFX_BOW)
 			animate_bow(stats)
@@ -4064,7 +4069,7 @@ func perform_attack() -> void:
 				av.girth = grade_projectile_girth()
 				av.speed = float(special.get("speed", 600.0))
 				av.max_distance = float(special.get("range", 500.0))
-				if special_type != "stoop_arrow":
+				if special_type != "stoop_arrow" and special_type != "hunt_word":
 					# abreast, no gaps: a wall, not a spread
 					av.direction = vdir
 					get_parent().add_child(av)
@@ -4493,6 +4498,7 @@ func perform_attack() -> void:
 	# and NONE of them had a branch on the melee chain -- so all seven simply
 	# swung and threw nothing. They had been dead this whole time.
 	elif special_type == "ricochet" or special_type == "kneeling_stone" \
+			or special_type == "debt_deep" \
 			or special_type == "howl_crescent" or special_type == "frost_roller" \
 			or special_type == "reaper_return" or special_type == "comet_chain" \
 			or special_type == "river_cut" or special_type == "drift_wheel":
