@@ -3642,6 +3642,10 @@ func perform_attack() -> void:
 			var cr_b = roll_crit(int(round(special.get("damage", stats.damage) * skill_damage_mult("bow"))))
 			launch_projectile(special, get_aim_direction(), cr_b[0], cr_b[1])
 			return
+		# THE HOLLOW KING'S RAIN: nothing leaves the bow
+		if special_type == "king_rain":
+			call_the_kings_rain(special)
+			return
 		animate_bow(stats)
 		return
 	if active_weapon_type == "spear":
@@ -3793,6 +3797,10 @@ func perform_attack() -> void:
 	# several shades at once, each carrying a different ancestor blade
 	elif special_type == "court_barrage":
 		unleash_court(special, aim_dir)
+	# Grief Wears a Crown: the ground carries the blow outward from the impact
+	elif special_type == "sunder_wave":
+		var scr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+		launch_projectile(special, aim_dir, scr[0], scr[1])
 	# The Crown's Sorrow: every beat of the pour is one narrow piercing lance
 	elif special_type == "grief_beam":
 		var gcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
@@ -4161,6 +4169,57 @@ func unleash_court(special: Dictionary, aim_dir: Vector2) -> void:
 		get_parent().add_child(c)
 	_court_cycle = (_court_cycle + n) % WeaponFx.LEGACY_TINTS.size()
 	SfxSynth.play_at(self, global_position, "chime", -10.0, 0.8)
+
+# THE HOLLOW KING'S RAIN (crown bow, Daedalus-kin never 1:1). Nothing leaves
+# the bow: the arrows fall from above the aim point, spawning off-camera with
+# a little scatter and a slight tilt (the measured signature of the weapon it
+# descends from). THE ROOF RULE is the balance dial and it is deliberately
+# LOUD -- a ceiling halves the volley and says so, rather than silently
+# eating the shot and leaving the player thinking the weapon is broken.
+func call_the_kings_rain(special: Dictionary) -> void:
+	play_sfx(SFX_BOW)
+	animate_bow(active_stats)
+	var aim_pt: Vector2 = aim_world_point()
+	var n: int = int(special.get("count", 3))
+	# is there sky above the mark?
+	var space := get_world_2d().direct_space_state
+	var q := PhysicsRayQueryParameters2D.create(aim_pt, aim_pt + Vector2(0, -560.0))
+	q.collision_mask = 1
+	q.exclude = [self]
+	var roofed := space.intersect_ray(q)
+	if roofed:
+		n = maxi(1, n / 2)
+		_roof_holds_puff(roofed.position)
+	var base := int(round(float(special.get("damage", 10)) * skill_damage_mult("bow")))
+	for i in range(n):
+		var cr = roll_crit(base)
+		var spawn: Vector2 = aim_pt + Vector2(randf_range(-72.0, 72.0), -560.0)
+		var dir: Vector2 = (aim_pt - spawn).normalized().rotated(deg_to_rad(randf_range(-7.0, 7.0)))
+		launch_projectile({
+			"type": "javelin_volley", "speed": 1150.0, "range": 900.0,
+			"status": special.get("status", {}),
+		}, dir, cr[0], cr[1])
+		# place it up in the sky rather than at the player's hands
+		var kids := get_parent().get_children()
+		if not kids.is_empty():
+			var last = kids[kids.size() - 1]
+			if last is Node2D:
+				(last as Node2D).global_position = spawn
+
+# the ceiling answers: a small dust knock so the player SEES why the volley
+# was thin, instead of wondering whether the weapon is broken
+func _roof_holds_puff(at: Vector2) -> void:
+	var d := ColorRect.new()
+	d.color = Color(0.8, 0.78, 0.7, 0.7)
+	d.size = Vector2(14, 6)
+	d.position = at - Vector2(7, 3)
+	d.z_index = 40
+	get_parent().add_child(d)
+	var tw := d.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(d, "scale", Vector2(2.2, 0.6), 0.3)
+	tw.tween_property(d, "modulate:a", 0.0, 0.3)
+	tw.chain().tween_callback(d.queue_free)
 
 func launch_swing_slash(cfg: Dictionary, dir: Vector2, stats: Dictionary) -> void:
 	var mult := float(cfg.get("damage_mult", 0.5))
@@ -4832,7 +4891,34 @@ func on_projectile_hit(target: Node2D, damage_dealt: int) -> void:
 	apply_excellent_effect(target, damage_dealt)
 	apply_melee_skills(target, damage_dealt)
 	apply_soulthread(damage_dealt)   # Runeweave set-soul: wand damage -> life
+	call_a_marcher(target, damage_dealt)   # Night Parade
 	_in_projectile_unique = false
+
+# NIGHT PARADE (crown bow, Horseman's-Blade-kin never 1:1): every arrow that
+# LANDS calls one of the procession in from beyond the camera. Capped, because
+# a fast bow would otherwise summon a wall of them.
+const MARCHER_CAP := 6
+func call_a_marcher(victim: Node2D, dealt: int) -> void:
+	if not has_weapon() or not bool(active_def.get("special", {}).get("parade", false)):
+		return
+	if not is_instance_valid(victim) or dealt <= 0:
+		return
+	var alive := 0
+	for c in get_parent().get_children():
+		if c.get("kind") == "marcher":
+			alive += 1
+	if alive >= MARCHER_CAP:
+		return
+	var m = WEAPON_PROJECTILE_SCRIPT.new()
+	m.kind = "marcher"
+	m.damage = maxi(1, int(round(float(dealt) * 0.6)))
+	m.element = Inventory.element_of(active_weapon_id)
+	m.source = self
+	m._mark = victim
+	# in from the edge of the world, alternating sides so a procession forms
+	var side := 1.0 if (alive % 2 == 0) else -1.0
+	m.position = victim.global_position + Vector2(700.0 * side, -20.0)
+	get_parent().add_child(m)
 
 # Charge-style uniques wind up on every SWING, hit or miss. Whiffing still
 # counts: what matters is how many times you have swung, so a charged payload

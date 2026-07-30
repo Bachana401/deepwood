@@ -59,6 +59,7 @@ func _apply_status_to(node) -> void:
 					e.apply_status("burn", 3.0, mag)
 
 var beam_tint := Color(0, 0, 0, 0)   # slash: a weapon may colour its crescent
+var _mark: Node2D = null             # marcher: the one it was called for
 var _lash_len := 0.0                 # edict_lash: how far the law currently reaches
 var _lash_t := 0.0
 var _lash_line: Line2D = null
@@ -149,6 +150,26 @@ func _ready() -> void:
 			_behave_state = 0
 			_orbit_t = 0.0
 			_build_zenithblade()
+		"kneeling_stone":
+			# THE MOUNTAIN THAT KNEELS: a boulder that rolls, follows the slope,
+			# and hits for whatever pace it has gathered (Staff-of-Earth-kin)
+			pierce = true
+			_build_boulder()
+		"marcher":
+			# NIGHT PARADE: one of the procession, walked in from off-camera
+			pierce = false
+			_build_marcher()
+			modulate.a = 0.0
+			var mt := create_tween()
+			mt.tween_property(self, "modulate:a", 1.0, 0.25)
+		"sunder_wave":
+			# GRIEF WEARS A CROWN: the blow lands and the GROUND carries it --
+			# a front that runs outward through rock, taking each body once as
+			# it passes (Golem-Fist-kin, never 1:1). No collision body: a wave
+			# is not a projectile and must not stop at the first thing it meets.
+			monitoring = false
+			pierce = true
+			_build_sunder()
 		"grief_beam":
 			# THE CROWN'S SORROW: not a swing -- a POUR. Narrow lances of grief
 			# leave the blade many times a second, each piercing whatever it
@@ -267,6 +288,15 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind == "edict_lash":
 		_tick_edict(delta)
+		return
+	if kind == "sunder_wave":
+		_tick_sunder(delta)
+		return
+	if kind == "kneeling_stone":
+		_tick_boulder(delta)
+		return
+	if kind == "marcher":
+		_tick_marcher(delta)
 		return
 	if kind == "ink_jet":
 		# THE INKWELL OF STORMS: a piercing stream riding a gentle arc --
@@ -581,6 +611,9 @@ func _on_body_entered(body: Node2D) -> void:
 			# The Long Goodbye: the RETURN pass cuts double -- it hurts most
 			# on the way out of your life
 			var dealt := damage * (2 if kind == "lash" and returning and rider == "goodbye" else 1)
+			# THE MOUNTAIN THAT KNEELS pays for its PACE, not its size
+			if kind == "kneeling_stone":
+				dealt = boulder_damage()
 			# REGICIDE: the spear does NOT merely hit -- it stays in them, and
 			# the stack it joins is the weapon (see embedded_stack.gd)
 			if kind == "crown_spear":
@@ -1223,6 +1256,181 @@ func _recolor_brazier() -> void:
 			p.color = Color(1.0, 0.9, 0.58, 0.95)       # the live coal
 		else:
 			p.color = Color(0.93, 0.44, 0.13, 1.0)      # ember-lit spikes
+
+# --- GRIEF WEARS A CROWN: the ground carries the blow ------------------
+const SUNDER_SPEED := 1400.0
+const SUNDER_BAND := 42.0        # how thick the front is
+var _wave_r := 0.0
+var _wave_left: Polygon2D = null
+var _wave_right: Polygon2D = null
+
+func _tick_sunder(delta: float) -> void:
+	_wave_r += SUNDER_SPEED * delta
+	if _wave_r >= max_distance:
+		done = true
+		queue_free()
+		return
+	var fade: float = 1.0 - (_wave_r / max_distance)
+	for w in [_wave_left, _wave_right]:
+		if w != null and is_instance_valid(w):
+			w.position.x = _wave_r * (-1.0 if w == _wave_left else 1.0)
+			w.scale = Vector2(1.0, lerpf(0.5, 1.5, 1.0 - fade))
+			w.modulate.a = fade
+	# each body is taken ONCE, as the front reaches it -- a wave passes
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead or hit_bodies.has(e):
+				continue
+			var dx: float = absf(e.global_position.x - global_position.x)
+			var dy: float = absf(e.global_position.y - global_position.y)
+			if dy > 90.0 or absf(dx - _wave_r) > SUNDER_BAND:
+				continue
+			hit_bodies.append(e)
+			var landed = e.take_damage(damage)
+			if landed == null or landed:
+				FloatingText.spawn(get_parent(), e.global_position
+					+ Vector2(randf_range(-18.0, 18.0), -24.0), damage, is_crit)
+			_apply_status_to(e)
+			if e.has_method("apply_knockback"):
+				e.apply_knockback(1 if e.global_position.x >= global_position.x else -1, knockback * 1.6)
+			if is_instance_valid(source) and source.has_method("on_projectile_hit"):
+				source.on_projectile_hit(e, damage)
+
+# two crescents of displaced force running away from the blow
+func _build_sunder() -> void:
+	for side in [-1.0, 1.0]:
+		var c := Polygon2D.new()
+		var pts := PackedVector2Array()
+		for i in range(9):
+			var a := lerpf(-1.15, 1.15, float(i) / 8.0)
+			pts.append(Vector2(cos(a) * 16.0 * float(side), sin(a) * 30.0))
+		for i in range(9):
+			var a2 := lerpf(1.15, -1.15, float(i) / 8.0)
+			pts.append(Vector2(cos(a2) * 3.0 * float(side), sin(a2) * 26.0))
+		c.polygon = pts
+		c.color = Color(1.0, 0.74, 0.36, 0.85)
+		var m := CanvasItemMaterial.new()
+		m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		c.material = m
+		visual.add_child(c)
+		if side < 0.0: _wave_left = c
+		else: _wave_right = c
+
+# --- THE MOUNTAIN THAT KNEELS: damage is the boulder's own speed --------
+var _roll_life := 0.0
+
+func _tick_boulder(delta: float) -> void:
+	_roll_life += delta
+	_vel_y += 1500.0 * delta
+	global_position += direction * speed * delta + Vector2(0, _vel_y * delta)
+	traveled += speed * delta
+	# sit on the ground and follow the slope, so a hill becomes a multiplier
+	var space := get_world_2d().direct_space_state
+	var q := PhysicsRayQueryParameters2D.create(global_position + Vector2(0, -18.0),
+		global_position + Vector2(0, 26.0))
+	q.collision_mask = 1
+	q.exclude = [self]
+	var hit := space.intersect_ray(q)
+	if hit:
+		global_position.y = hit.position.y - 16.0
+		if _vel_y > 0.0:
+			# rolling downhill FEEDS it; a flat floor just carries it
+			speed = minf(1250.0, speed + _vel_y * 0.25)
+			_vel_y = 0.0
+	if visual:
+		visual.rotation += (speed / 34.0) * delta * (1.0 if direction.x >= 0.0 else -1.0)
+	if traveled >= max_distance or _roll_life > 6.0:
+		done = true
+		queue_free()
+
+# the boulder's bite is its pace: slow rock barely stings, a boulder at
+# full roll flattens (the climbing numbers ARE the weapon -- DESIGN_LAWS 7)
+func boulder_damage() -> int:
+	return maxi(1, int(round(float(damage) * clampf(speed / 720.0, 0.35, 1.6))))
+
+func _build_boulder() -> void:
+	var rock := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(11):
+		var a := TAU * float(i) / 11.0
+		var r := 21.0 + sin(float(i) * 2.3) * 4.0
+		pts.append(Vector2(cos(a), sin(a)) * r)
+	rock.polygon = pts
+	rock.color = Color(0.36, 0.33, 0.31, 1.0)
+	visual.add_child(rock)
+	for i in range(4):
+		var chip := Polygon2D.new()
+		var a2 := TAU * float(i) / 4.0 + 0.4
+		chip.polygon = PackedVector2Array([
+			Vector2(cos(a2), sin(a2)) * 8.0,
+			Vector2(cos(a2 + 0.5), sin(a2 + 0.5)) * 15.0,
+			Vector2(cos(a2 + 0.9), sin(a2 + 0.9)) * 7.0])
+		chip.color = Color(0.47, 0.44, 0.41, 1.0)
+		visual.add_child(chip)
+
+# --- NIGHT PARADE: they come in from off the edge of the world ----------
+func _tick_marcher(delta: float) -> void:
+	_orbit_t += delta
+	var prey: Node2D = null
+	if _mark != null and is_instance_valid(_mark) and not _is_dead_node(_mark):
+		prey = _mark
+	else:
+		prey = _nearest_hostile_node(900.0)
+		_mark = prey
+	if prey == null or _orbit_t > 4.0:
+		modulate.a = maxf(0.0, modulate.a - delta * 3.0)
+		if modulate.a <= 0.05:
+			done = true
+			queue_free()
+		return
+	# a marcher WALKS: it closes horizontally and ignores the terrain
+	var to_prey: Vector2 = prey.global_position - global_position
+	global_position += Vector2(signf(to_prey.x), 0).normalized() * 420.0 * delta
+	global_position.y = lerpf(global_position.y, prey.global_position.y, 2.2 * delta)
+	if visual:
+		visual.scale.x = absf(visual.scale.x) * (-1.0 if to_prey.x < 0.0 else 1.0)
+		visual.position.y = sin(_orbit_t * 7.0) * 3.0   # the walking bob
+	if absf(to_prey.x) < 30.0 and absf(to_prey.y) < 60.0:
+		if prey.has_method("take_damage"):
+			var landed = prey.take_damage(damage)
+			if landed == null or landed:
+				FloatingText.spawn(get_parent(), prey.global_position
+					+ Vector2(randf_range(-20.0, 20.0), -30.0), damage, is_crit)
+			_apply_status_to(prey)
+		done = true
+		queue_free()
+
+func _is_dead_node(n: Node) -> bool:
+	return "is_dead" in n and n.is_dead
+
+# a marcher: a hooded shade carrying a small lantern -- the parade reads as
+# PEOPLE, which is what ties it to the rescue story
+func _build_marcher() -> void:
+	var cloak := Polygon2D.new()
+	cloak.polygon = PackedVector2Array([
+		Vector2(0, -26), Vector2(9, -12), Vector2(7, 14), Vector2(-7, 14), Vector2(-9, -12)])
+	cloak.color = Color(0.13, 0.12, 0.2, 0.88)
+	visual.add_child(cloak)
+	var hood := Polygon2D.new()
+	hood.polygon = PackedVector2Array([
+		Vector2(0, -30), Vector2(7, -22), Vector2(4, -14), Vector2(-4, -14), Vector2(-7, -22)])
+	hood.color = Color(0.07, 0.07, 0.12, 0.95)
+	visual.add_child(hood)
+	var lantern := Polygon2D.new()
+	lantern.polygon = PackedVector2Array([
+		Vector2(11, -4), Vector2(16, -4), Vector2(16, 3), Vector2(11, 3)])
+	lantern.color = Color(1.0, 0.82, 0.42, 0.95)
+	visual.add_child(lantern)
+	var glow := Polygon2D.new()
+	glow.polygon = _circle(15.0, 10)
+	glow.color = Color(1.0, 0.78, 0.36, 0.3)
+	glow.position = Vector2(13.5, 0)
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	glow.material = m
+	visual.add_child(glow)
 
 # THE CROWN'S SORROW's lance: a narrow spindle of pale light with a white
 # core -- small, fast, and there are always several in the air

@@ -356,8 +356,9 @@ const ROWS = [
 	["wpn_bentheaven",   "Heaven, Bent",         "staff", 7, "staff", 26, 0.4,  {
 		"fx": [{"kind": "gravity", "radius": 210.0, "pull": 170.0}, {"kind": "stormcall", "every": 4, "pct": 1.5}]}],
 	# ---------------- WAVE 3 - TIER 8 (10) ----------------
-	["wpn_griefcrown",   "Grief Wears a Crown",  "melee", 8, "cleave", 56, 1.02, {"knockup": true, "status": "slow_w",
-		"fx": [{"kind": "quake", "radius": 180.0, "pct": 1}, {"kind": "rend", "pct_per": 0.15, "max": 7}, {"kind": "harvest", "hp": 5}]}],
+	# CROWN TEN #7: a cleave shared with 14 becomes a blow the GROUND carries.
+	["wpn_griefcrown",   "Grief Wears a Crown",  "melee", 8, "sunder", 34, 1.1,  {"knockup": true, "status": "slow_w",
+		"fx": [{"kind": "quake", "radius": 180.0, "pct": 1}, {"kind": "shove", "force": 320.0}]}],
 	# CROWN TEN #5: a chain_maul shared with 8 weapons, wearing three fx riders,
 	# becomes the weapon its name describes -- put the throne DOWN and it burns.
 	["wpn_emberthrone",  "Throne of Embers",     "melee", 8, "brazier", 30, 0.95, {"status": "burn_w",
@@ -371,17 +372,23 @@ const ROWS = [
 	# CROWN TEN #2: apex weapon. Six jabs + three fx riders became one arm of
 	# law that reaches through rock -- the "walls do not apply to me" weapon.
 	["wpn_edictpike",    "The Final Edict",      "spear", 8, "edict", 26, 1.05, {"status": "burn_w",
-		"fx": [{"kind": "brand", "amp": 0.42, "dur": 5.0}]}],
-	["wpn_hollowking",   "The Hollow King's Rain","bow", 8, "lob_a", 47, 0.95, {"aoe": 155, "status": "burn_w",
+		"fx": [{"kind": "brand", "amp": 0.42, "dur": 5.0}, {"kind": "farsight", "pct_per": 0.1, "max": 5}]}],
+	# CROWN TEN #8: nothing leaves the bow -- the arrows fall from the sky, and
+	# a roof genuinely stops them (the balance dial is built into the fiction).
+	["wpn_hollowking",   "The Hollow King's Rain","bow", 8, "skyfall_rain", 16, 0.62, {"count": 3, "status": "burn_w",
 		"fx": [{"kind": "soulwisp", "dmg": 14, "pct": 1}, {"kind": "quake", "radius": 170.0, "pct": 1}, {"kind": "moonlit", "pct": 1}]}],
-	["wpn_nightparade",  "Night Parade",         "bow", 8, "seeker", 33, 0.5,  {
-		"fx": [{"kind": "brand", "amp": 0.45, "dur": 5.0}, {"kind": "moonlit", "pct": 1}, {"kind": "soulwisp", "dmg": 12, "pct": 1}]}],
+	# CROWN TEN #9: every landed arrow calls one of the procession in from off
+	# the edge of the world -- the crowd is ambushed by YOUR weapon.
+	["wpn_nightparade",  "Night Parade",         "bow", 8, "parade", 14, 0.5,  {
+		"fx": [{"kind": "moonlit", "pct": 1}]}],
 	["wpn_worldsgrief",  "The World's Grief",    "wand", 8, "cluster", 40, 0.72, {"shards": 10,
 		"fx": [{"kind": "splinter", "n": 6, "pct": 1, "range": 190.0}, {"kind": "crowd", "pct_per": 0.14, "cap": 0.55}, {"kind": "harvest", "hp": 4, "mana": 4.0}]}],
 	["wpn_deepcrown",    "Crown of the Deep Court","wand", 8, "sentry", 24, 1.1,  {"dur": 30,
 		"fx": [{"kind": "soulwisp", "dmg": 12, "pct": 1}, {"kind": "gravity", "radius": 220.0, "pull": 160.0}, {"kind": "bulwark", "dr": 0.18, "dur": 3.0}]}],
-	["wpn_mountainking", "The Mountain That Kneels","staff", 8, "staff", 32, 0.34, {
-		"fx": [{"kind": "quake", "radius": 190.0, "pct": 1}, {"kind": "bulwark", "dr": 0.21, "dur": 3.5}, {"kind": "goldtouch", "chance": 0.25, "gold": 5}]}],
+	# CROWN TEN #10: a `staff` shared with 20 becomes a rolling stone whose
+	# bite is its own gathered pace -- a hill is a damage multiplier.
+	["wpn_mountainking", "The Mountain That Kneels","staff", 8, "boulder", 30, 1.3, {
+		"fx": [{"kind": "bulwark", "dr": 0.21, "dur": 3.5}]}],
 	# ---------------- WAVE 3 - FLAGSHIPS (11) ----------------
 	["wpn_therumor",     "The Rumor",            "wand", 8, "ricochet", 34, 0.5,  {"bounces": 9, "rider": "grows",
 		"fx": [{"kind": "echo", "pct": 1, "delay": 0.4}, {"kind": "chain", "n": 2, "pct": 1, "range": 260.0}, {"kind": "goldtouch", "chance": 0.25, "gold": 4}]}],
@@ -685,6 +692,22 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			# THE CROWN'S SORROW alone: a POUR of narrow piercing lances rather
 			# than a swing (Starlight-kin: the identity is hit RATE)
 			s = {"type": "grief_beam", "damage": dmg, "speed": spd + 420.0, "range": 300.0}
+		"sunder":
+			# GRIEF WEARS A CROWN alone: the blow runs out THROUGH the ground
+			# and takes each body once as it passes (Golem-Fist-kin)
+			s = {"type": "sunder_wave", "damage": dmg, "range": 520.0}
+		"skyfall_rain":
+			# THE HOLLOW KING'S RAIN alone: nothing leaves the bow -- the arrows
+			# fall from above the aim, and a roof genuinely stops them
+			s = {"type": "king_rain", "damage": dmg, "count": int(ex.get("count", 3)), "range": rng}
+		"parade":
+			# NIGHT PARADE alone: every landed arrow calls one of the procession
+			# in from off the edge of the world (Horseman's-Blade-kin)
+			s = {"type": "homing", "damage": dmg, "parade": true}
+		"boulder":
+			# THE MOUNTAIN THAT KNEELS alone: a rolling stone whose bite is its
+			# own gathered pace (Staff-of-Earth-kin)
+			s = {"type": "kneeling_stone", "damage": dmg, "speed": spd - 120.0, "range": 900.0}
 		"staff":
 			s = {"type": "staff_extend"}
 	if not st.is_empty():
@@ -754,6 +777,10 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"zenith":     return "Every swing frees the GHOST of a blade it culminates: out, one whirl at the far point, and home -- cutting the whole way, each image a different ancestor."
 		"court":      return "Every swing calls the COURT: %d shades of the people you brought home appear at your side, each carrying a different ancestor blade, and all of them sweep at once." % int(ex.get("count", 4))
 		"edict":      return "The law REACHES: a jointed arm of light unfolds the length of the hall, cutting everything along it and blooming where it touches -- and stone does not stop a sentence."
+		"sunder":     return "The blow does not stop at the body. It runs out THROUGH the ground -- a front of broken force crossing the room, taking everything it passes once, and stone is no argument."
+		"skyfall_rain": return "Nothing leaves the bow. The king's arrows fall from ABOVE wherever you aim -- %d of them -- so open sky is a slaughter and a low ceiling is an apology." % int(ex.get("count", 3))
+		"parade":     return "Every arrow that lands calls one of the PROCESSION: a lantern-carrying shade walks in from beyond the edge of the world, through whatever stands between, and strikes the one you marked."
+		"boulder":    return "Summons a boulder and lets the world do the rest. It rolls, it follows the slope, and it hits for whatever pace it has gathered -- a hill is worth more than an arm."
 		"sorrow":     return "It does not swing so much as WEEP: narrow lances of grief leave the blade many times a second, each one passing clean through whatever stands in it. No single tear is much. There are a great many tears."
 		"brazier":    return "Whirl it, hurl it -- and where the head comes to REST it stops being a weapon and becomes a THRONE, a brazier sitting in the dirt spitting embers at whatever comes near, until you take it up again."
 		"regicide":   return "You do not stab a king once. Every throw leaves a crown-spear STANDING in them, biting while it stays -- five at a time, and the sixth shoves the first out in a burst."

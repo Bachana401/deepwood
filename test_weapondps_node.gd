@@ -35,6 +35,10 @@ const HITS_PER_USE := {
 	"brazier":  2.2,   # whirl/hurl contacts plus ~7 embers at 45% over the sit
 	"sorrow":   1.4,   # one narrow lance per beat, piercing (the RATE is in
 	                   # the cooldown, not here -- do not double-count it)
+	"sunder":   1.0,   # one front, one pass, each body taken exactly once
+	"skyfall_rain": 2.0,  # 3 arrows fall; ~2 land on any one body
+	"parade":   1.8,   # the arrow, plus the marcher it calls
+	"boulder":  1.6,   # it rolls THROUGH several, and its bite scales with pace
 	# --- pre-existing multi-hit verbs, for a fair comparison ---
 	"volley":     2.0,
 	"jab_volley": 3.0,
