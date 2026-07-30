@@ -4868,7 +4868,8 @@ func perform_attack() -> void:
 			or special_type == "debt_deep" \
 			or special_type == "howl_crescent" or special_type == "frost_roller" \
 			or special_type == "reaper_return" or special_type == "comet_chain" \
-			or special_type == "river_cut" or special_type == "drift_wheel":
+			or special_type == "river_cut" or special_type == "drift_wheel" \
+			or special_type == "sickle_glide":
 		var thr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
 		launch_projectile(special, aim_dir, thr[0], thr[1])
 	# THE MONARCH STAVES (T8): staff weapons resolve to weapon_type "melee",

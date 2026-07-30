@@ -127,6 +127,7 @@ const HITS_PER_USE := {
 	                    # the slot budget is the real limiter, not this number
 	"whipcrack":   1.0, # a modest lash -- the value is the TAG it paints
 	"post":        3.0, # a permanent post firing on its own gap
+	"rowsickle":   2.2, # a long slow blade re-cutting every 0.4s down the row
 	# ---- T4 batch 1 ----
 	"howlpiece":   2.4, # the blade plus ~5 howl rings at 0.45x down its lane
 	"winterwheel": 2.0, # it rolls THROUGH, re-hitting every 0.3s, and chills

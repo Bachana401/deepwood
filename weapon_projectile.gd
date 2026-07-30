@@ -242,6 +242,9 @@ func _ready() -> void:
 			pierce = true
 			_build_world_cut()
 		# ---- T4 batch 1 ----
+		"sickle_glide":
+			pierce = true
+			_build_sickle_glide()
 		"howl_crescent":
 			pierce = true
 			_build_howl_crescent()
@@ -731,6 +734,9 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind == "drift_wheel":
 		_tick_drift(delta)
+		return
+	if kind == "sickle_glide":
+		_tick_sickle(delta)
 		return
 	if kind == "howl_crescent":
 		_tick_howl(delta)
@@ -7743,6 +7749,59 @@ func _howl_ring_at(at: Vector2, pay: int) -> void:
 				FloatingText.spawn(host, (e as Node2D).global_position
 					+ Vector2(randf_range(-14.0, 14.0), -26.0), pay, false)
 			_apply_status_to(e)
+
+# --- WARDEN OF THE ROW: the glide sickle ---------------------------------
+# Cousin of the source's flat scythe glide (dev reference clip, 2026-07-30):
+# a LONG pale blade that travels the whole lane low to the ground, passes
+# through every body without slowing, and is thrown fast enough that three or
+# four are in the air at once. The study's own speed law puts glide crescents
+# at 0.3-0.4 PH/frame and calls the read "inevitability" -- it is slower than
+# a bolt on purpose, because you are meant to watch it arrive.
+var _sk_t := 0.0
+
+func _tick_sickle(delta: float) -> void:
+	_sk_t += delta
+	global_position += direction * speed * delta
+	traveled += speed * delta
+	# it SETTLES toward the floor as it runs, so a row of them reads as a
+	# tide coming in rather than as darts
+	if visual:
+		visual.rotation = sin(_sk_t * 2.2) * 0.09
+		visual.modulate.a = 1.0 - pow(clampf(traveled / maxf(1.0, max_distance), 0.0, 1.0), 4.0)
+	_rehit_t += delta
+	if _rehit_t >= 0.4:
+		_rehit_t = 0.0
+		hit_bodies.clear()      # a long blade may cut the same body twice
+	if traveled >= max_distance:
+		done = true
+		queue_free()
+
+func _build_sickle_glide() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	# a long shallow scythe: nearly flat, with the hook at the leading edge
+	var blade := Polygon2D.new()
+	blade.polygon = PackedVector2Array([
+		Vector2(52, -4.0), Vector2(30, -13.0), Vector2(2, -15.0),
+		Vector2(-26, -9.0), Vector2(-40, 0), Vector2(-22, -2.0),
+		Vector2(4, -6.0), Vector2(30, -4.0), Vector2(46, 2.0)])
+	blade.color = Color(0.72, 0.95, 0.78, 0.75)
+	blade.material = m
+	visual.add_child(blade)
+	var edge := Polygon2D.new()
+	edge.polygon = PackedVector2Array([
+		Vector2(54, -3.0), Vector2(28, -10.0), Vector2(0, -11.5),
+		Vector2(0, -8.5), Vector2(28, -7.0)])
+	edge.color = Color(0.94, 1.0, 0.96, 0.92)
+	edge.material = m
+	visual.add_child(edge)
+	# the haft-glint at the trailing end, so it reads as a THROWN scythe
+	var glint := Polygon2D.new()
+	glint.polygon = PackedVector2Array([
+		Vector2(-40, 0), Vector2(-30, -4.0), Vector2(-28, 2.0)])
+	glint.color = Color(0.86, 0.98, 0.9, 0.85)
+	glint.material = m
+	visual.add_child(glint)
 
 func _circle(radius: float, sides: int) -> PackedVector2Array:
 	var pts = PackedVector2Array()

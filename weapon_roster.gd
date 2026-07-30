@@ -303,7 +303,7 @@ const ROWS = [
 	["wpn_chimefall",    "Chimefall",            "melee", 3, "chain_maul", 15, 0.95, {}],
 	["wpn_lanternwheel", "Lantern Wheel",        "melee", 3, "orbiter",   11, 0.8,  {"dwell": 2.0, "status": "burn_w"}],
 	["wpn_curseknife",   "Cursewright's Knife",  "melee", 3, "arc",       10, 0.28, {"status": "poison_w", "plain": true}],
-	["wpn_wardenblade",  "Warden of the Row",    "melee", 3, "crescent",  12, 0.55, {"p_damage": 10}],
+	["wpn_wardenblade",  "Warden of the Row",    "melee", 3, "rowsickle", 12, 0.30, {"p_damage": 10}],
 	["wpn_marshlash",    "Marsh Tongue",         "melee", 3, "lash",      11, 0.85, {"status": "poison_w"}],
 	["wpn_tithegather",  "Tithe Gatherer",       "melee", 3, "ricochet",  11, 0.65, {"bounces": 3, "plain": true}],
 	["wpn_harrowpike",   "Harrower",             "spear", 3, "thrust",    16, 0.8,  {"plain": true}],
@@ -1034,6 +1034,10 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 				"p_gap": float(ex.get("p_gap", 1.1)),
 				"mana": 14.0 + 3.0 * float(tier)}
 		# ---- T4 batch 1 ----
+		"rowsickle":
+			# thrown FAST and travelling SLOW, so several are always in the air
+			s = {"type": "sickle_glide", "damage": maxi(1, int(round(float(dmg) * 0.85))),
+				"speed": spd - 330.0, "range": rng * 1.5}
 		"howlpiece":
 			s = {"type": "howl_crescent", "damage": maxi(1, int(round(float(dmg) * 0.85))),
 				"speed": spd - 120.0, "range": rng * 0.8}
@@ -1243,6 +1247,7 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"minion":      return "Calls a bond into the world and it STAYS -- through weapon swaps, through floors, for as long as the scepter is in your bag."
 		"whipcrack":   return "A fast thin lash that barely stings. What it does is TAG: the one it marks is the one your whole pack turns to look at."
 		"post":        return "Plants a guardian where you stand and LEAVES it there -- not for a while, but until you plant another."
+		"rowsickle":   return "A long pale scythe thrown FLAT down the row. It travels slowly and passes through everyone without slowing, and you throw them faster than they land -- three or four are always in the air."
 		"howlpiece":   return "The crescent HOWLS as it flies -- every beat it throws a ring out across its own path, so the lane it cuts is far wider than the blade."
 		"winterwheel": return "It ROLLS, and the floor freezes behind it. The lane it took stays cold long after the wheel is gone."
 		"reaperrebuke": return "The scythe takes a round of the room and comes back HEAVIER for every visit, then returns to your hand."
