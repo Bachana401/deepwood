@@ -3184,6 +3184,57 @@ const TILE_EXPOSED := 1
 const TILE_FACE := 2
 const TILE_ROWS := 3
 
+# ── EACH ROCK ITS OWN MATERIAL ────────────────────────────────────────────────
+# Every biome used to run the SAME hash through the same two thresholds, so all
+# five were one texture in five colours -- change the palette and you could not
+# tell Stonewarren from Blightcore. These are five different materials with
+# different structure: earth is soft and pebbled, stone is coursed masonry,
+# fungus is porous, ember is a cracked crust over heat, blight is faceted
+# crystal. Pure functions of (x, y) so every tile still tiles seamlessly.
+func _biome_pixel(c: int, x: int, y: int, col: Color) -> Color:
+	var accent: Color = BIOMES[c].accent
+	match c:
+		0:  # ROOTEARTH -- packed soil: soft clumps, small stones, a root fibre
+			var m := ((x * 7 + y * 13) ^ (x * y * 3)) & 0x7fffffff
+			if m % 17 == 0:
+				col = col.lightened(0.16)                  # a pebble catching light
+			elif m % 23 == 0:
+				col = col.darkened(0.18)                   # its shadow
+			if absi((y * 3 + int(sin(float(x) * 0.9) * 3.0)) % 11) == 0:
+				col = col.lerp(accent.darkened(0.4), 0.35)  # a root threading through
+		1:  # STONEWARREN -- coursed masonry: big blocks, mortar joints
+			var course := int(y / 4)
+			var off := (course % 2) * 3
+			if y % 4 == 0 or (x + off) % 6 == 0:
+				col = col.darkened(0.30)                   # the joint
+			elif y % 4 == 1:
+				col = col.lightened(0.10)                  # the lit top of each course
+		2:  # FUNGAL HOLLOW -- porous rock: holes bored through it, spores in them
+			var d := ((x * x + y * y * 2) % 29)
+			if d < 3:
+				col = col.darkened(0.34)                   # a pore
+			elif d == 3:
+				col = col.lerp(accent, 0.5)                # something growing in it
+			if ((x * 31 + y * 17) % 41) == 0:
+				col = col.lerp(accent, 0.75)               # a spore, bright
+		3:  # EMBERDEEP -- cracked crust with heat showing through the seams
+			var crack := absf(sin(float(x) * 0.8 + float(y) * 0.35) + cos(float(y) * 0.9))
+			if crack < 0.22:
+				col = col.lerp(accent, 0.55)               # the seam glows
+			elif crack < 0.4:
+				col = col.darkened(0.22)                   # charred edge
+			if ((x * 19 + y * 7) % 37) == 0:
+				col = col.lightened(0.12)                  # an ash fleck
+		_:  # BLIGHTCORE -- faceted crystal, veined
+			var facet := (x + y) % 6
+			if facet == 0:
+				col = col.lightened(0.20)                  # a facet edge catching light
+			elif facet == 3:
+				col = col.darkened(0.24)                   # the shadowed side
+			if absi((x * 2 - y) % 13) == 0:
+				col = col.lerp(accent, 0.42)               # a vein of the stuff
+	return col
+
 func _build_tileset() -> void:
 	var n := BIOMES.size()
 	var img := Image.create((n * 2 + 1) * TILE, TILE_ROWS * TILE, false, Image.FORMAT_RGBA8)
@@ -3223,11 +3274,7 @@ func _build_tileset() -> void:
 						col = base.lightened(0.05)
 					else:
 						col = base.darkened(0.10)              # buried: flat and a touch darker
-					var h := ((x * 73856093) ^ (y * 19349663) ^ (c * 83492791)) & 0x7fffffff
-					if h % 34 == 0:
-						col = col.darkened(0.24)               # a sparse crack
-					elif h % 57 == 0:
-						col = col.lightened(0.07)
+					col = _biome_pixel(c, x, y, col)           # each rock its own material
 					img.set_pixel(c * TILE + x, row * TILE + y, col)
 					# ORE variant: the same block, salted with bright gem clusters
 					var oc := col
