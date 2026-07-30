@@ -1569,6 +1569,32 @@ func _pull_to_source(body: Node2D) -> void:
 const SFX_EXPLOSION = preload("res://audio/explosion.wav")
 
 # Fireball: blast everyone standing near the detonation point.
+const SHRAPNEL_N := 5
+
+# the pieces a burst shell throws. Reuses the scree engine (a heavy fragment on
+# a hard arc) but carries the shell's own element, so a frost bomb throws frost.
+func _shrapnel() -> void:
+	var host := get_parent()
+	if host == null or not is_instance_valid(host):
+		return
+	var pay: int = maxi(1, int(round(float(damage) * 0.4)))
+	for i in range(SHRAPNEL_N):
+		var frac: float = float(i) / float(SHRAPNEL_N - 1)
+		var ang: float = lerpf(-2.55, -0.6, frac) + randf_range(-0.14, 0.14)
+		var fr = (load("res://weapon_projectile.gd") as GDScript).new()
+		fr.kind = "scree"
+		fr.direction = Vector2(cos(ang), sin(ang)).normalized()
+		fr.speed = randf_range(380.0, 620.0)
+		fr.damage = pay
+		fr.max_distance = randf_range(150.0, 260.0)
+		fr.knockback = knockback * 0.4
+		fr.element = element
+		fr.on_hit_status = on_hit_status
+		fr.source = source
+		fr.girth = girth * 0.45
+		host.add_child(fr)
+		fr.global_position = global_position + Vector2(0, -8.0)
+
 func explode() -> void:
 	if done:
 		return
@@ -1585,6 +1611,11 @@ func explode() -> void:
 		pool.source = source
 		pool.position = global_position
 		get_parent().call_deferred("add_child", pool)
+	# SHRAPNEL (2026-07-30). A thrown shell used to make one circle and stop,
+	# which is why the lob family sagged under its own tier at T3, T4 AND T7 at
+	# once. A burst throws PIECES: five fragments on hard arcs that keep hurting
+	# after the flash, so a bomb clears a space instead of poking a hole in one.
+	_shrapnel()
 	for group_name in HOSTILE_GROUPS:
 		for e in get_tree().get_nodes_in_group(group_name):
 			if not is_instance_valid(e) or not e.has_method("take_damage"):
@@ -2263,7 +2294,10 @@ func _build_piercing_point() -> void:
 var _post_t := 0.0
 var _post_send := 0.0
 const POST_LIFE := 9.0
-const POST_GAP := 1.15
+# A post that sends a wisp only every 1.15s spent nine seconds standing there
+# being a 51 dps Ascended. It keeps a real cadence now -- roughly a dozen souls
+# over its life instead of eight, and they travel like they mean it.
+const POST_GAP := 0.78
 
 func _tick_asphodel(delta: float) -> void:
 	_post_t += delta
@@ -2276,7 +2310,7 @@ func _tick_asphodel(delta: float) -> void:
 		var w = get_script().new()
 		w.kind = "soul_stream"          # the homing wisp already exists
 		w.damage = damage
-		w.speed = 250.0
+		w.speed = 340.0
 		w.max_distance = 700.0
 		w.direction = Vector2.RIGHT if prey == null \
 			else (prey.global_position - global_position).normalized()
@@ -2317,6 +2351,8 @@ func _build_asphodel_post() -> void:
 # --- RIFTBURST ROD: the tear that hauls, then shuts ----------------------
 var _rift_t := 0.0
 var _bent_t := 0.0
+var _rift_grind := 0.0
+const RIFT_GRIND_GAP := 0.24
 const RIFT_HOLD := 0.85
 const RIFT_R := 132.0
 
@@ -2340,6 +2376,26 @@ func _tick_rift(delta: float) -> void:
 			if e.has_method("apply_knockback"):
 				# toward the tear, not away from it
 				e.apply_knockback(1 if global_position.x > e.global_position.x else -1, 34.0 * delta * 60.0 / 60.0)
+	# THE HAUL GRINDS (2026-07-30). The tear used to drag for the whole hold and
+	# deal nothing until it snapped -- a 34 dps Ascended whose entire middle was
+	# free for the enemy. Being inside a rift should HURT the whole time it is
+	# open, not only when it closes.
+	_rift_grind += delta
+	if _rift_grind >= RIFT_GRIND_GAP and f < 1.0:
+		_rift_grind = 0.0
+		var chew: int = maxi(1, int(round(float(damage) * 0.35)))
+		for gname3 in HOSTILE_GROUPS:
+			for e3 in get_tree().get_nodes_in_group(gname3):
+				if not (e3 is Node2D) or not is_instance_valid(e3) or not e3.has_method("take_damage"):
+					continue
+				if "is_dead" in e3 and e3.is_dead:
+					continue
+				if global_position.distance_to(e3.global_position) > RIFT_R:
+					continue
+				var lg = e3.take_damage(chew)
+				if lg == null or lg:
+					FloatingText.spawn(get_parent(),
+						(e3 as Node2D).global_position + Vector2(0, -20.0), chew, false)
 	if f < 1.0:
 		return
 	# THE SHUTTING is the damage
@@ -2882,10 +2938,61 @@ func _tick_anvil(delta: float) -> void:
 	done = true
 	if _anvil_shadow != null and is_instance_valid(_anvil_shadow):
 		_anvil_shadow.visible = false
+	# THE GROUND ANSWERS. A mass that size does not simply land -- the impact
+	# runs outward through the floor a beat later and takes everything the
+	# anvil itself was too small to reach. (This is why Anvil of Endings was a
+	# 37 dps Ascended: one landing, one 92px circle, nothing else.) The tween
+	# is bound to SELF, so a freed anvil kills it rather than firing stale.
 	var tw := create_tween()
 	tw.tween_interval(0.16)
+	tw.tween_callback(_anvil_aftershock)
 	tw.tween_property(self, "modulate:a", 0.0, 0.18)
 	tw.tween_callback(queue_free)
+
+const ANVIL_SHOCK_R := 270.0
+
+func _anvil_aftershock() -> void:
+	var host := get_parent()
+	if host == null or not is_instance_valid(host):
+		return
+	var pay: int = maxi(1, int(round(float(damage) * 0.7)))
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			var d: float = global_position.distance_to(e.global_position)
+			# the RING, not the middle -- the anvil already took the middle
+			if d > ANVIL_SHOCK_R or d < 70.0:
+				continue
+			var landed2 = e.take_damage(pay)
+			if landed2 == null or landed2:
+				FloatingText.spawn(host, e.global_position + Vector2(0, -34.0), pay, false)
+			_apply_status_to(e)
+			if e.has_method("apply_knockback"):
+				e.apply_knockback(1 if e.global_position.x >= global_position.x else -1, knockback)
+	# a low crack of dust racing outward along the floor
+	var ring := Line2D.new()
+	var pts := PackedVector2Array()
+	for i in range(19):
+		var a: float = TAU * float(i) / 18.0
+		pts.append(Vector2(cos(a), sin(a) * 0.32) * ANVIL_SHOCK_R)
+	ring.points = pts
+	ring.width = 5.0
+	ring.default_color = Color(0.92, 0.82, 0.6, 0.85)
+	var rm := CanvasItemMaterial.new()
+	rm.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	ring.material = rm
+	ring.z_index = 8
+	host.add_child(ring)
+	ring.global_position = global_position + Vector2(0, 12.0)
+	ring.scale = Vector2(0.18, 0.18)
+	var rt: Tween = ring.create_tween()
+	rt.set_parallel(true)
+	rt.tween_property(ring, "scale", Vector2.ONE, 0.26)
+	rt.tween_property(ring, "modulate:a", 0.0, 0.3)
+	rt.chain().tween_callback(ring.queue_free)
 
 func set_anvil_target(at: Vector2) -> void:
 	_anvil_target = at

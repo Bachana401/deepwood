@@ -41,7 +41,14 @@ const HITS_PER_USE := {
 	"boulder":  3.2,   # rolls THROUGH several, then SHATTERS into 6 scree shards
 	# T7 batch 1 -- the aftermath family (a zone that keeps working)
 	"afterlight": 3.4, # the hanging arc bites ~5x over 1.7s if they stand in it
-	"anvil":      1.0, # one mass, one landing
+	# a spear strikes on the lunge AND rakes on the withdraw (0.6x) -- the
+	# two-stroke animation always existed; only the hit ledger blocked it
+	"thrust":     1.6,
+	# a burst shell throws five fragments (SHRAPNEL_N) that keep hurting
+	"lob_a":      2.0,
+	"lob":        2.0,
+	"cleave":     1.9,   # the arc, plus the CARVE the swing now throws
+	"anvil":      1.8, # the mass lands, then the floor CRACKS outward (0.7x ring)
 	"worldthorn": 2.6, # three spikes, ~4 bites over 1.3s
 	"sunspill":   2.8, # the shell, then the pool ticking ~10x over 4.2s at 30%
 	# T7 batch 2
@@ -59,7 +66,7 @@ const HITS_PER_USE := {
 	"skypillar":  3.0, # ~5 bites over 1.5s on anything inside the column
 	"finaldebt":  2.6, # the chain, plus each booked mark coming due
 	# T7 batch 5 -- the wands and the bent staff
-	"riftburst":  1.0, # the haul is control; the SHUTTING is the one hit
+	"riftburst":  2.0, # the haul GRINDS (3 ticks x 0.35) and then the shutting
 	"shardregent":2.2, # five shards, but they pick their own marks and spread
 	"bentheaven": 1.5, # one arcing ray, piercing what it comes down on
 	# T7 batch 6 -- the tier's last four
@@ -99,7 +106,7 @@ const HITS_PER_USE := {
 	"griefcollect": 3.4, # 4 stops, each heavier: 1.0 + 1.3 + 1.6 + 1.9
 	"nightlash":   2.4, # the crack, then a 0.65x echo out of the dark
 	"middaysun":   3.2, # seven abreast; a body catches maybe three of them
-	"asphodel":    4.0, # the post sends ~8 wisps over its 9s life
+	"asphodel":    5.8, # the post sends ~12 wisps over its 9s life (POST_GAP 0.78)
 	# ---- T5 batch 1 ----
 	"seawall":     2.4, # a 3.2s barrier re-hitting every 0.3s at 0.6x, but it
 	                    # only pays when they keep pushing into it
@@ -184,7 +191,7 @@ const HITS_PER_USE := {
 	"orbiter":    2.5,
 	"chain_maul": 2.0,
 	"crescent":   1.6,   # the swing AND the thrown crescent
-	"tome":       3.0,   # a zone that ticks
+	"tome":       4.2,   # a zone that ticks -- strike_gap 0.4 -> 0.28, a downpour
 	"sentry":     3.0,
 	"souls":      3.0,
 	"zenith":     4.0, # THE STORM: 9 blades, ~5 bites over its 1.05s life,

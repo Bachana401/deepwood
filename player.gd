@@ -2716,13 +2716,17 @@ func knockback_sign_toward(body: Node2D) -> int:
 		s = facing_direction
 	return s
 
+var _spear_returning := false
+const SPEAR_RAKE_MULT := 0.6   # the pull-back is a rake, not a second stab
+
 func _on_spear_tip_hit(body: Node2D) -> void:
 	if body in spear_hit_bodies:
 		return
 	spear_hit_bodies.append(body)
 	var stats = active_stats
 	if body.has_method("take_damage"):
-		var r = roll_crit(int(round(stats.damage * skill_damage_mult("spear"))))
+		var stroke: float = SPEAR_RAKE_MULT if _spear_returning else 1.0
+		var r = roll_crit(int(round(stats.damage * skill_damage_mult("spear") * stroke)))
 		body.take_damage(r[0])
 		show_hit(body, r[0], r[1])
 		apply_omnivamp(r[0])
@@ -4757,6 +4761,18 @@ func perform_attack() -> void:
 				target.apply_knockback(knockback_sign_toward(target), knockback_distance)
 			if is_excellent:
 				apply_excellent_effect(target, dealt)
+	# THE CARVE (2026-07-30). `cleave` was one of three verbs that produced
+	# nothing whatsoever when you swung at empty air -- ten weapons whose whole
+	# identity is "it cuts through everything" and which, on a miss, were
+	# indistinguishable from a stick. The cleave now throws the cut itself: a
+	# short, wide crescent that leaves the blade on EVERY swing, connects or
+	# not, and keeps carving for a moment after the arc has passed.
+	if special_type == "cleave":
+		launch_projectile({
+			"type": "flying_slash",
+			"speed": 430.0,
+			"range": 150.0,
+		}, aim_dir, int(round(stats.damage * 0.55 * skill_damage_mult("melee"))))
 	# the Windcutter's signature: the swing releases a slash that flies onward
 	if special_type == "flying_slash":
 		launch_projectile(special, aim_dir, int(round(special.get("damage", 10) * skill_damage_mult("melee"))))
@@ -5587,7 +5603,10 @@ func cast_storm_tome(special: Dictionary) -> void:
 	cloud.damage = cr[0]
 	cloud.radius = float(special.get("radius", 130.0))
 	cloud.duration = float(special.get("dur", 4.5))
-	cloud.strike_gap = float(special.get("gap", 0.4))
+	# A STORM SHOULD SOUND LIKE ONE. At a bolt every 0.4s the tome zones were
+	# the quietest thing on the field and sat under their own tier at T3 and T7
+	# alike; 0.28 is a downpour, not a drizzle. (2026-07-30)
+	cloud.strike_gap = float(special.get("gap", 0.28))
 	cloud.tint = active_def.get("color", Color(0.55, 0.75, 1.0))
 	cloud.source = self
 	# TOME VERBS (attack-verb overhaul): no two tomes cast the same shape --
@@ -6866,6 +6885,18 @@ func animate_spear(stats: Dictionary) -> void:
 	$SpearTipArea.monitoring = true
 	weapon_anim_tween = create_tween()
 	weapon_anim_tween.tween_method(update_weapon_visual, base_offset, lunge_offset, 0.1)
+	# THE SPEAR RAKES ON THE WAY BACK (2026-07-30). The withdraw was already
+	# animated and already swept the tip area -- it just could never deal a
+	# thing, because spear_hit_bodies still held everyone the lunge had touched.
+	# So every one of the 21 thrust weapons was paying for a two-stroke
+	# animation and being scored for one, which is how a T7 weapon literally
+	# named Zenith ended up losing to the Mythic median. Clearing the ledger at
+	# the turn lets the pull-back bite. It bites SOFTER than the stab -- a rake
+	# is not a thrust -- so this is reach and rhythm, not a damage doubling.
+	_spear_returning = false
+	weapon_anim_tween.tween_callback(func():
+		spear_hit_bodies.clear()
+		_spear_returning = true)
 	weapon_anim_tween.tween_method(update_weapon_visual, lunge_offset, base_offset, 0.15)
 	weapon_anim_tween.tween_callback(func(): $SpearTipArea.monitoring = false)
 	weapon_anim_tween.tween_callback(func(): is_attacking = false)
