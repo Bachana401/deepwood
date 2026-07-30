@@ -2210,6 +2210,7 @@ func _reconcile_companions() -> void:
 			sc.kind = str(ent.get("kind", "mudling"))
 			sc.damage = int(ent.get("damage", 6))
 			sc.gap = float(ent.get("gap", 1.8))
+			sc.style = str(ent.get("style", ""))
 			sc.source_id = str(ent.get("scepter_id", ""))
 			sc.summoned = true          # <- the whole difference: it takes orders
 			sc.player = self
@@ -2295,12 +2296,30 @@ func cast_summon(special: Dictionary) -> bool:
 		FloatingText.spawn_word(get_parent(), global_position + Vector2(0, -56),
 			"not enough", Color(0.7, 0.75, 0.9))
 		return false
+	# SOLO scepters do not fill a second slot -- a recast makes the one you
+	# already have bigger. Keeper of One empowers, the Growing Hunt evolves,
+	# the Long Procession grows a coil: three different answers to "again".
+	if bool(special.get("m_solo", false)):
+		for key in _companions:
+			var c = _companions[key]
+			if not is_instance_valid(c) or c.get("summoned") != true:
+				continue
+			if c.get("source_id") != active_weapon_id:
+				continue
+			mana -= cost
+			if c.has_method("add_coil") and str(special.get("m_kind", "")) == "serpent":
+				c.add_coil()
+			elif c.has_method("empower"):
+				c.empower()
+			SfxSynth.play_at(self, global_position, "chime", -12.0, 1.3)
+			return true
 	mana -= cost
 	var entry := {
 		"scepter_id": active_weapon_id,
 		"kind": str(special.get("m_kind", "mudling")),
 		"damage": int(special.get("damage", 6)),
 		"gap": float(special.get("m_gap", 1.8)),
+		"style": str(special.get("m_style", "")),
 	}
 	if GameState.active_summons.size() >= summon_slot_budget():
 		GameState.active_summons.pop_front()

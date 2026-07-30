@@ -5,6 +5,18 @@
 # damage always through take_damage. The uniqueness AUTHORING lands per
 # tier; this proves the machine those tiers stand on.
 
+# What actually distinguishes one weapon's verb from another's. For most rows
+# that is just the behavior; for the Summoner the behavior is a FAMILY name
+# ("minion", "post") and the distinguishing part is the body it calls.
+func _verb_identity(row: Array) -> String:
+	var vb := str(row[4])
+	var ex: Dictionary = row[7]
+	if ex.has("m_kind"):
+		return "%s:%s" % [vb, str(ex["m_kind"])]
+	if ex.has("s_kind"):
+		return "%s:%s" % [vb, str(ex["s_kind"])]
+	return vb
+
 var fails := 0
 func check(name: String, ok: bool, detail := "") -> void:
 	if ok: printerr("PASS  ", name)
@@ -204,17 +216,18 @@ func _ready() -> void:
 	# uniqueness burden moves to where it belongs: the verb. Tier 8 is the
 	# tier the player opens the crown chest to see, and the dev found half of
 	# it swinging a verb shared with 25 other weapons. Never again.
-	var t8_verbs := {}
+	# The Summoner's variety axis is not the behavior name. Every scepter says
+	# "minion" and every totem says "post" -- what makes The Long Procession
+	# different from The Unerring is its BODY and its STYLE. So identity here
+	# is behavior + m_kind/s_kind, which is the key the player actually sees.
 	var t8_shared := []
 	var verb_users := {}
 	for row3 in WeaponRoster.ROWS:
-		var vb := str(row3[4])
-		verb_users[vb] = int(verb_users.get(vb, 0)) + 1
+		verb_users[_verb_identity(row3)] = int(verb_users.get(_verb_identity(row3), 0)) + 1
 	for row4 in WeaponRoster.ROWS:
 		if int(row4[3]) != 8:
 			continue
-		var vb4 := str(row4[4])
-		t8_verbs[vb4] = true
+		var vb4 := _verb_identity(row4)
 		if int(verb_users.get(vb4, 0)) > 1:
 			t8_shared.append("%s -> %s (used by %d)" % [str(row4[0]), vb4, int(verb_users[vb4])])
 	check("every monarch weapon has a verb of its very own",

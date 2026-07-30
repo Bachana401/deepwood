@@ -206,34 +206,61 @@ func _ready() -> void:
 		var behavior := str(row[4])
 		var dmg := float(row[5])
 		var cd := maxf(0.05, float(row[6]))
-		var eff: float = (dmg / cd) * hits_for(behavior)
+		# A PERSISTENT SUMMON IS NOT A SWING. For every other weapon the
+		# cooldown is how fast you attack, so dmg/cd is its rate. For a scepter
+		# or a totem the cooldown is only how fast you can CAST -- the thing
+		# you bought then attacks forever on its own cadence. Running them
+		# through the swing model read The Clinging Choir as a dud and dragged
+		# the whole T8 median down far enough to trip The Patient Knife.
+		var ex_row: Dictionary = row[7]
+		var eff: float = 0.0
+		if behavior == "minion":
+			eff = dmg / maxf(0.3, float(ex_row.get("m_gap", 1.8)))
+		elif behavior == "post":
+			eff = dmg / maxf(0.3, float(ex_row.get("p_gap", 1.1)))
+		else:
+			eff = (dmg / cd) * hits_for(behavior)
+		# SUMMONS ARE THEIR OWN ECONOMY and must not share a band with swings.
+		# One minion sustains ~16 dps while a crown sword bursts ~250; mixing
+		# them dragged the T8 median down until The Patient Knife looked like a
+		# runaway, and made every T1 minion look like a dud. A summoner's real
+		# output is minions x slots + whip, which no per-weapon audit can see --
+		# so the two families are measured against themselves.
+		var fam: String = "summon" if behavior in ["minion", "post"] else "swing"
 		rows[id] = {"name": str(row[1]), "tier": tier, "behavior": behavior,
-			"dmg": dmg, "cd": cd, "eff": eff}
-		if not by_tier.has(tier):
-			by_tier[tier] = []
-		by_tier[tier].append(eff)
+			"dmg": dmg, "cd": cd, "eff": eff, "fam": fam}
+		var bucket: String = "%s%d" % [fam, tier]
+		if not by_tier.has(bucket):
+			by_tier[bucket] = []
+		by_tier[bucket].append(eff)
 
 	# --- report the bands so a human can eyeball the curve ---
-	var tiers := by_tier.keys()
-	tiers.sort()
+	var buckets := by_tier.keys()
+	buckets.sort()
 	var medians := {}
-	for t in tiers:
+	for t in buckets:
 		var arr: Array = by_tier[t]
 		arr.sort()
 		var med: float = arr[arr.size() / 2]
 		medians[t] = med
-		say("  T%d  n=%2d   min %6.1f   median %6.1f   max %6.1f"
+		say("  %-9s n=%2d   min %6.1f   median %6.1f   max %6.1f"
 			% [t, arr.size(), arr[0], med, arr[arr.size() - 1]])
 
-	# --- 1. the ladder must ASCEND: a tier's median beats the one below ---
+	# --- 1. each family's ladder must ASCEND on its own ---
 	var ascending := true
 	var broke := ""
-	for i in range(1, tiers.size()):
-		if float(medians[tiers[i]]) <= float(medians[tiers[i - 1]]):
-			ascending = false
-			broke = "T%d (%.1f) <= T%d (%.1f)" % [tiers[i], medians[tiers[i]],
-				tiers[i - 1], medians[tiers[i - 1]]]
-	check("effective dps ascends tier by tier", ascending, broke)
+	for fam2 in ["swing", "summon"]:
+		var last := -1.0
+		for t2 in range(1, 9):
+			var key2: String = "%s%d" % [fam2, t2]
+			if not medians.has(key2):
+				continue
+			var m2: float = float(medians[key2])
+			if last >= 0.0 and m2 <= last:
+				ascending = false
+				broke = "%s (%.1f) <= the tier below (%.1f)" % [key2, m2, last]
+			last = m2
+	check("effective dps ascends tier by tier, within each family", ascending, broke)
 
 	# --- 2. no weapon may run away from its own tier ---
 	# A wide net on purpose: verbs SHOULD differ, and a spectacle weapon is
@@ -250,7 +277,7 @@ func _ready() -> void:
 	var runaways := []
 	for id in rows:
 		var r: Dictionary = rows[id]
-		var med: float = float(medians[r["tier"]])
+		var med: float = float(medians.get("%s%d" % [r["fam"], r["tier"]], 0.0))
 		var ceiling: float = 4.6 if int(r["tier"]) == 8 else 3.2
 		if med > 0.0 and r["eff"] > med * ceiling:
 			runaways.append("%s T%d %s: %.0f dps vs T%d median %.0f (ceiling %.1fx)"
@@ -262,7 +289,7 @@ func _ready() -> void:
 	var duds := []
 	for id in rows:
 		var r: Dictionary = rows[id]
-		var med: float = float(medians[r["tier"]])
+		var med: float = float(medians.get("%s%d" % [r["fam"], r["tier"]], 0.0))
 		if med > 0.0 and r["eff"] < med * 0.3:
 			duds.append("%s T%d %s: %.0f dps vs T%d median %.0f"
 				% [r["name"], r["tier"], r["behavior"], r["eff"], r["tier"], med])
