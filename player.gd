@@ -3629,6 +3629,40 @@ func perform_attack() -> void:
 					"damage": stats.damage, "speed": 560.0, "range": 460.0})
 		elif special_type == "nuke":
 			cast_wand_nuke(special)   # Runeweave Scepter -- big FINITE screen AoE
+		elif special_type == "rift_bloom":
+			# RIFTBURST ROD (T7): the tear opens at the aim and hauls inward
+			play_sfx(SFX_BOW)
+			var rf = WEAPON_PROJECTILE_SCRIPT.new()
+			rf.kind = "rift_bloom"
+			var rcr2 = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("wand"))))
+			rf.damage = rcr2[0]
+			rf.is_crit = rcr2[1]
+			rf.girth = grade_projectile_girth()
+			rf.element = Inventory.element_of(active_weapon_id)
+			rf.on_hit_status = special.get("status", {})
+			rf.source = self
+			rf.position = global_position + get_aim_direction() * 190.0
+			get_parent().add_child(rf)
+		elif special_type == "regent_shard":
+			# THE SHARD REGENT (T7): the crown forms, then goes one by one
+			play_sfx(SFX_BOW)
+			for si in range(int(special.get("count", 5))):
+				var sh = WEAPON_PROJECTILE_SCRIPT.new()
+				sh.kind = "regent_shard"
+				var scr2 = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("wand"))))
+				sh.damage = scr2[0]
+				sh.is_crit = scr2[1]
+				sh.court_index = si
+				sh._shard_delay = 0.35 + 0.12 * float(si)
+				sh.speed = float(special.get("speed", 520.0))
+				sh.max_distance = float(special.get("range", 620.0))
+				sh.direction = get_aim_direction()
+				sh.girth = grade_projectile_girth()
+				sh.element = Inventory.element_of(active_weapon_id)
+				sh.on_hit_status = special.get("status", {})
+				sh.source = self
+				sh.position = global_position
+				get_parent().add_child(sh)
 		elif special_type == "tome_storm":
 			cast_storm_tome(special)  # area denial: a stormlet works the aimed ground
 		elif special_type == "sentry":
@@ -3856,9 +3890,10 @@ func perform_attack() -> void:
 	# several shades at once, each carrying a different ancestor blade
 	elif special_type == "court_barrage":
 		unleash_court(special, aim_dir)
-	# EDGE OF THE WORLD / WHEEL OF ASCENSION (T7): both are thrown by the
-	# swing and own their own flight from there
-	elif special_type == "world_edge" or special_type == "rising_wheel":
+	# EDGE OF THE WORLD / WHEEL OF ASCENSION / HEAVEN, BENT (T7): all thrown
+	# by the swing, each owning its own flight from there
+	elif special_type == "world_edge" or special_type == "rising_wheel" \
+			or special_type == "bent_ray":
 		var wcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
 		launch_projectile(special, aim_dir, wcr[0], wcr[1])
 	# PILLAR OF THE SKY (T7): a column of daylight stood where you pointed

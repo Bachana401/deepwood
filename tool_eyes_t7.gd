@@ -75,7 +75,10 @@ func _ready() -> void:
 			["wpn_reckoningbow", "t12_reckoning",  1.70, 3],
 			["wpn_finaldebt",    "t13_finaldebt",  1.90, 1],
 			["wpn_ninthcommand", "t14_commandment", 0.30, 9],
-			["wpn_sunspill",     "t15_sunspill",   1.00, 1]]:
+			["wpn_sunspill",     "t15_sunspill",   1.00, 1],
+			["wpn_riftburst",    "t16_riftburst",  0.70, 1],
+			["wpn_shardregent",  "t17_shardregent", 0.85, 1],
+			["wpn_bentheaven",   "t18_bentheaven", 0.42, 1]]:
 		p.global_position = _home
 		if "velocity" in p: p.velocity = Vector2.ZERO
 		p.inventory.add_item(spec[0], 1)

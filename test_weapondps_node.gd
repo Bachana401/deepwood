@@ -58,6 +58,10 @@ const HITS_PER_USE := {
 	"commandment":1.6, # eight plain shafts, then one 4.2x ruling that pierces
 	"skypillar":  3.0, # ~5 bites over 1.5s on anything inside the column
 	"finaldebt":  2.6, # the chain, plus each booked mark coming due
+	# T7 batch 5 -- the wands and the bent staff
+	"riftburst":  1.0, # the haul is control; the SHUTTING is the one hit
+	"shardregent":2.2, # five shards, but they pick their own marks and spread
+	"bentheaven": 1.5, # one arcing ray, piercing what it comes down on
 	# --- pre-existing multi-hit verbs, for a fair comparison ---
 	"volley":     2.0,
 	"jab_volley": 3.0,

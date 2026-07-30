@@ -150,6 +150,23 @@ func _ready() -> void:
 			_behave_state = 0
 			_orbit_t = 0.0
 			_build_zenithblade()
+		"rift_bloom":
+			# RIFTBURST ROD (T7): the bolt does not explode, it OPENS. A tear
+			# hangs there hauling everything toward its middle, and then it
+			# shuts -- and shutting is the damage.
+			monitoring = false
+			pierce = true
+			_build_rift()
+		"regent_shard":
+			# THE SHARD REGENT (T7): the shards do not leave at once. They
+			# crown the caster first, then go one after another.
+			pierce = true
+			_build_regent_shard()
+		"bent_ray":
+			# HEAVEN, BENT (T7): the beam does not go straight. It climbs over
+			# whatever is between and comes down on the far side.
+			pierce = true
+			_build_bent_ray()
 		"sky_pillar":
 			# PILLAR OF THE SKY (T7): a column of daylight standing where you
 			# pointed. It does not travel; it simply IS there, and briefly.
@@ -365,6 +382,23 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind == "dawn_line":
 		_tick_dawn_line(delta)
+		return
+	if kind == "rift_bloom":
+		_tick_rift(delta)
+		return
+	if kind == "regent_shard":
+		_tick_regent_shard(delta)
+		return
+	if kind == "bent_ray":
+		# it climbs over what is between, then comes down on the far side
+		_bent_t += delta
+		var arc: float = -560.0 * cos(clampf(_bent_t / 0.9, 0.0, 1.0) * PI)
+		global_position += direction * speed * delta + Vector2(0, arc * delta)
+		rotation = (direction * speed + Vector2(0, arc)).angle()
+		traveled += speed * delta
+		if traveled >= max_distance:
+			done = true
+			queue_free()
 		return
 	if kind == "world_edge":
 		# it grows the whole way: a sliver at the hilt, a horizon at the end
@@ -1449,6 +1483,151 @@ func _recolor_brazier() -> void:
 			p.color = Color(1.0, 0.9, 0.58, 0.95)       # the live coal
 		else:
 			p.color = Color(0.93, 0.44, 0.13, 1.0)      # ember-lit spikes
+
+# --- RIFTBURST ROD: the tear that hauls, then shuts ----------------------
+var _rift_t := 0.0
+var _bent_t := 0.0
+const RIFT_HOLD := 0.85
+const RIFT_R := 132.0
+
+func _tick_rift(delta: float) -> void:
+	_rift_t += delta
+	var f: float = clampf(_rift_t / RIFT_HOLD, 0.0, 1.0)
+	if visual:
+		# it opens fast, hangs, then snaps shut
+		visual.scale = Vector2.ONE * girth * (0.4 + 1.1 * sin(f * PI))
+		visual.rotation += 3.4 * delta
+	# the HAUL: everything in reach is dragged toward the middle
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			var d: float = global_position.distance_to(e.global_position)
+			if d > RIFT_R or d < 8.0:
+				continue
+			if e.has_method("apply_knockback"):
+				# toward the tear, not away from it
+				e.apply_knockback(1 if global_position.x > e.global_position.x else -1, 34.0 * delta * 60.0 / 60.0)
+	if f < 1.0:
+		return
+	# THE SHUTTING is the damage
+	for group_name2 in HOSTILE_GROUPS:
+		for e2 in get_tree().get_nodes_in_group(group_name2):
+			if not (e2 is Node2D) or not is_instance_valid(e2) or not e2.has_method("take_damage"):
+				continue
+			if "is_dead" in e2 and e2.is_dead:
+				continue
+			if global_position.distance_to(e2.global_position) > RIFT_R * 0.8:
+				continue
+			var landed = e2.take_damage(damage)
+			if landed == null or landed:
+				FloatingText.spawn(get_parent(), e2.global_position
+					+ Vector2(randf_range(-18.0, 18.0), -24.0), damage, true)
+			_apply_status_to(e2)
+	_nova_burst_tinted(global_position, Color(0.72, 0.45, 1.0))
+	done = true
+	queue_free()
+
+# the nova flash, in an arbitrary colour (the rift shuts violet, not gold)
+func _nova_burst_tinted(at: Vector2, col: Color) -> void:
+	var host := get_parent()
+	if host == null:
+		return
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var ring := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(12):
+		var a := TAU * float(i) / 12.0
+		pts.append(Vector2(cos(a), sin(a)) * (30.0 if i % 2 == 0 else 12.0))
+	ring.polygon = pts
+	ring.color = col
+	ring.material = m
+	ring.z_index = 45
+	host.add_child(ring)
+	ring.global_position = at
+	var tw := ring.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(ring, "scale", Vector2(0.2, 0.2), 0.22)   # it SHUTS
+	tw.tween_property(ring, "modulate:a", 0.0, 0.22)
+	tw.chain().tween_callback(ring.queue_free)
+
+func _build_rift() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var halo := Polygon2D.new()
+	halo.polygon = _circle(46.0, 16)
+	halo.color = Color(0.55, 0.3, 0.95, 0.22)
+	halo.material = m
+	visual.add_child(halo)
+	# the tear itself: a narrow vertical slit, not a ball
+	var slit := Polygon2D.new()
+	slit.polygon = PackedVector2Array([
+		Vector2(0, -44), Vector2(11, -14), Vector2(7, 0), Vector2(11, 14),
+		Vector2(0, 44), Vector2(-11, 14), Vector2(-7, 0), Vector2(-11, -14)])
+	slit.color = Color(0.78, 0.5, 1.0, 0.75)
+	slit.material = m
+	visual.add_child(slit)
+	var core := Polygon2D.new()
+	core.polygon = PackedVector2Array([
+		Vector2(0, -38), Vector2(3.4, 0), Vector2(0, 38), Vector2(-3.4, 0)])
+	core.color = Color(0.05, 0.02, 0.1, 0.95)   # the dark INSIDE the tear
+	visual.add_child(core)
+
+# --- THE SHARD REGENT: the crown that goes one at a time -----------------
+var _shard_delay := 0.0
+func _tick_regent_shard(delta: float) -> void:
+	_orbit_t += delta
+	if _orbit_t < _shard_delay:
+		# still crowning the caster: orbit the source
+		if is_instance_valid(source):
+			var a := _orbit_t * 5.2 + float(court_index) * 1.05
+			global_position = source.global_position + Vector2(cos(a), sin(a) * 0.55) * 54.0
+			visual.rotation = a
+		return
+	if _mark == null or not is_instance_valid(_mark) or _is_dead_node(_mark):
+		_mark = _nearest_hostile_node(620.0)
+		if _mark != null:
+			direction = (_mark.global_position - global_position).normalized()
+	global_position += direction * speed * delta
+	rotation = direction.angle()
+	traveled += speed * delta
+	if traveled >= max_distance:
+		done = true
+		queue_free()
+
+func _build_regent_shard() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var glow := Polygon2D.new()
+	glow.polygon = PackedVector2Array([
+		Vector2(16, 0), Vector2(0, -9), Vector2(-12, 0), Vector2(0, 9)])
+	glow.color = Color(0.7, 0.9, 1.0, 0.34)
+	glow.material = m
+	visual.add_child(glow)
+	var shard := Polygon2D.new()
+	shard.polygon = PackedVector2Array([
+		Vector2(13, 0), Vector2(0, -5), Vector2(-9, 0), Vector2(0, 5)])
+	shard.color = Color(0.86, 0.95, 1.0, 0.95)
+	visual.add_child(shard)
+
+# HEAVEN, BENT: a ray with a spine, drawn so the arc reads
+func _build_bent_ray() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var glow := Polygon2D.new()
+	glow.polygon = PackedVector2Array([
+		Vector2(26, 0), Vector2(2, -8), Vector2(-24, 0), Vector2(2, 8)])
+	glow.color = Color(0.62, 0.78, 1.0, 0.36)
+	glow.material = m
+	visual.add_child(glow)
+	var ray := Polygon2D.new()
+	ray.polygon = PackedVector2Array([
+		Vector2(22, 0), Vector2(1, -3.2), Vector2(-18, 0), Vector2(1, 3.2)])
+	ray.color = Color(0.9, 0.95, 1.0, 0.95)
+	visual.add_child(ray)
 
 # PILLAR OF THE SKY: a standing column of daylight. Reuses the standing-zone
 # tick wholesale -- only the shape and the numbers differ.

@@ -159,7 +159,7 @@ const ROWS = [
 		"fx": [{"kind": "brand", "amp": 0.42, "dur": 4.0}, {"kind": "sparkfly", "n": 1, "pct": 0.5}]}],
 	["wpn_highflood",    "The High Flood",       "wand", 7, "tome", 21, 1.25, {"radius": 185,
 		"fx": [{"kind": "crowd", "pct_per": 0.14, "cap": 0.55}, {"kind": "chain", "n": 2, "pct": 0.5, "range": 250.0}]}],
-	["wpn_riftburst",    "Riftburst Rod",        "wand", 7, "cluster", 34, 0.75, {"shards": 9,
+	["wpn_riftburst",    "Riftburst Rod",        "wand", 7, "riftburst", 30, 1.0, {
 		"fx": [{"kind": "splinter", "n": 5, "pct": 0.8, "range": 170.0}, {"kind": "gravity", "radius": 180.0, "pull": 150.0}]}],
 	["wpn_asphodelpost", "Asphodel Post",        "wand", 7, "sentry", 20, 1.15, {"dur": 26,
 		"fx": [{"kind": "soulwisp", "dmg": 10, "pct": 0.8}, {"kind": "bloodprice", "pct": 0.8, "cost": 1}]}],
@@ -323,7 +323,7 @@ const ROWS = [
 	["wpn_watchfire",    "Watchfire",            "wand",  6, "sentry",    17, 1.15, {"dur": 24,
 		"fx": [{"kind": "moonlit", "pct": 0.65}, {"kind": "quake", "radius": 150.0, "pct": 0.65}]}],
 	["wpn_cindershelf",  "Cindershelf",          "wand",  6, "fire",      36, 0.8,  {"aoe": 140, "status": "burn_w",
-		"fx": [{"kind": "quake", "radius": 160.0, "pct": 0.65}, {"kind": "legacy", "n": 2, "pct": 0.6, "range": 280.0}]}],
+		"fx": [{"kind": "quake", "radius": 160.0, "pct": 0.65}, {"kind": "farsight", "pct_per": 0.1, "max": 5}]}],
 	["wpn_skyladder",    "Ladder to Nowhere",    "staff", 6, "staff",     23, 0.42, {"plain": true}],
 	["wpn_stillmountain","The Still Mountain",   "staff", 6, "staff",     26, 0.48, {"plain": true}],
 	# ---------------- WAVE 3 - TIER 7 (14) ----------------
@@ -344,16 +344,20 @@ const ROWS = [
 	["wpn_reckoningbow", "The Quiet Reckoning",  "bow", 7, "reckoning", 26, 0.6, {
 		"fx": [{"kind": "brand", "amp": 0.42, "dur": 4.0}, {"kind": "soulwisp", "dmg": 10, "pct": 0.5}]}],
 	["wpn_sunspill",     "Sunspill",             "bow", 7, "sunspill", 30, 1.02, {"aoe": 130, "status": "burn_w",
-		"fx": [{"kind": "splinter", "n": 4, "pct": 0.8, "range": 180.0}, {"kind": "legacy", "n": 2, "pct": 0.6, "range": 280.0}]}],
+		"fx": [{"kind": "splinter", "n": 4, "pct": 0.8, "range": 180.0}, {"kind": "brand", "amp": 0.3, "dur": 4.0}]}],
 	["wpn_tidebook",     "The Tidal Codex",      "wand", 7, "tome", 20, 1.25, {"radius": 180,
 		"fx": [{"kind": "gravity", "radius": 220.0, "pull": 150.0}, {"kind": "harvest", "hp": 3, "mana": 5.0}]}],
-	["wpn_shardregent",  "The Shard Regent",     "wand", 7, "cluster", 33, 0.74, {"shards": 9,
-		"fx": [{"kind": "splinter", "n": 5, "pct": 0.8, "range": 170.0}, {"kind": "skyrain", "n": 3, "pct": 0.5, "spread": 130.0}]}],
+	["wpn_shardregent",  "The Shard Regent",     "wand", 7, "shardregent", 26, 0.85, {"shards": 5,
+		# fx must SUPPORT the verb, never overwrite it. skyrain drops sky-comets
+		# -- that is the starfall weapons' signature, and on film it completely
+		# buried this weapon's own crown-of-shards. splinter suits shards; haste
+		# suits a regent whose court answers faster the better it goes.
+		"fx": [{"kind": "splinter", "n": 5, "pct": 0.8, "range": 170.0}, {"kind": "bulwark", "dr": 0.14, "dur": 2.5}]}],
 	["wpn_finaldebt",    "The Final Debt",       "wand", 7, "finaldebt", 22, 0.6, {"bounces": 7,
 		"fx": [{"kind": "goldtouch", "chance": 0.3, "gold": 5}, {"kind": "stormcall", "every": 4, "pct": 0.8}]}],
 	["wpn_highlantern",  "Lantern of the High Road", "wand", 7, "sentry", 19, 1.12, {"dur": 26,
-		"fx": [{"kind": "moonlit", "pct": 0.8}, {"kind": "legacy", "n": 2, "pct": 0.6, "range": 280.0}]}],
-	["wpn_bentheaven",   "Heaven, Bent",         "staff", 7, "staff", 26, 0.4,  {
+		"fx": [{"kind": "moonlit", "pct": 0.8}, {"kind": "bulwark", "dr": 0.15, "dur": 3.0}]}],
+	["wpn_bentheaven",   "Heaven, Bent",         "staff", 7, "bentheaven", 24, 0.52, {
 		"fx": [{"kind": "gravity", "radius": 210.0, "pull": 170.0}, {"kind": "stormcall", "every": 4, "pct": 1.5}]}],
 	# ---------------- WAVE 3 - TIER 8 (10) ----------------
 	# CROWN TEN #7: a cleave shared with 14 becomes a blow the GROUND carries.
@@ -761,6 +765,14 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			# the ricochet it was; now every body it touches is BOOKED
 			s = {"type": "ricochet", "damage": dmg, "speed": spd + 120.0,
 				"range": rng, "bounces": int(ex.get("bounces", 5)), "rider": "debt"}
+		# ---- T7 VERBS (batch 5): the wands and the bent staff ----
+		"riftburst":
+			s = {"type": "rift_bloom", "damage": dmg, "range": rng}
+		"shardregent":
+			s = {"type": "regent_shard", "damage": maxi(1, int(round(float(dmg) * 0.42))),
+				"count": int(ex.get("shards", 5)), "speed": spd + 160.0, "range": rng}
+		"bentheaven":
+			s = {"type": "bent_ray", "damage": dmg, "speed": spd + 60.0, "range": rng + 120.0}
 		"staff":
 			s = {"type": "staff_extend"}
 	if not st.is_empty():
@@ -830,6 +842,9 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"zenith":     return "Every swing frees the GHOST of a blade it culminates: out, one whirl at the far point, and home -- cutting the whole way, each image a different ancestor."
 		"court":      return "Every swing calls the COURT: %d shades of the people you brought home appear at your side, each carrying a different ancestor blade, and all of them sweep at once." % int(ex.get("count", 4))
 		"edict":      return "The law REACHES: a jointed arm of light unfolds the length of the hall, cutting everything along it and blooming where it touches -- and stone does not stop a sentence."
+		"riftburst":   return "The bolt does not burst, it OPENS: a tear hangs in the air hauling everything toward its middle -- and then it shuts, and the shutting is what kills."
+		"shardregent": return "The shards do not leave together. They CROWN you first, orbiting a moment, and then go one after another at whatever is nearest."
+		"bentheaven":  return "The ray refuses to go straight. It climbs over whatever stands between and comes down on the far side, which makes cover an opinion rather than a fact."
 		"commandment": return "Eight ordinary shafts, and the NINTH is a ruling: one heavy bolt that goes through everything standing in its way and does not slow down for any of it."
 		"skypillar":   return "Stands a COLUMN of daylight where you pointed. It does not travel and it does not chase -- it is simply there, and briefly, and nothing inside it is comfortable."
 		"finaldebt":   return "Every body it bounces off is BOOKED. The mark sits quietly and comes due on its own, so a long chain leaves a room full of accounts closing one after another."
