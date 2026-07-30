@@ -107,18 +107,18 @@ const ROWS = [
 	# ---------------- TIER 5 - LEGENDARY (floors 42-72) ----------------
 	["wpn_daybreakedge", "Daybreak Edge",        "melee", 5, "arc",       24, 0.42, {"status": "burn_w", "plain": true}],
 	["wpn_worldtoll",    "Worldtoll Maul",       "melee", 5, "worldtoll", 36, 1.1,  {"knockup": true, "fx": [{"kind": "quake", "radius": 200.0, "pct": 0.91}]}],
-	["wpn_quietwheel",   "Wheel of Quiet",       "melee", 5, "orbiter",   21, 0.8,  {"dwell": 2.8, "fx": [{"kind": "gravity", "radius": 260.0, "pull": 200.0}]}],
+	["wpn_quietwheel",   "Wheel of Quiet",       "melee", 5, "quietwheel", 21, 0.8,  {"dwell": 2.8, "fx": [{"kind": "gravity", "radius": 260.0, "pull": 200.0}]}],
 	["wpn_serpentsermon","Serpent's Sermon",     "melee", 5, "serpentsermon", 22, 0.85, {"status": "poison_w", "fx": [{"kind": "rend", "pct_per": 0.18, "max": 8}, {"kind": "frostbloom", "radius": 155.0}]}],
 	["wpn_finalverdict", "Final Verdict",        "spear", 5, "thrust",    29, 0.8,  {"plain": true}],
-	["wpn_skyquill",     "Sky of Quills",        "spear", 5, "jab_volley", 18, 0.9, {"count": 5, "fx": [{"kind": "splinter", "n": 6, "pct": 0.6, "range": 200.0}]}],
-	["wpn_eventide",     "Eventide",             "bow",   5, "volley",    15, 0.55, {"count": 3, "fx": [{"kind": "moonlit", "pct": 0.84}, {"kind": "stormcall", "every": 4, "pct": 1.26}]}],
+	["wpn_skyquill",     "Sky of Quills",        "spear", 5, "skyquills", 18, 0.9, {"count": 5, "fx": [{"kind": "splinter", "n": 6, "pct": 0.6, "range": 200.0}]}],
+	["wpn_eventide",     "Eventide",             "bow",   5, "eventide",  15, 0.55, {"count": 3, "fx": [{"kind": "moonlit", "pct": 0.84}, {"kind": "stormcall", "every": 4, "pct": 1.26}]}],
 	["wpn_lastlark",     "The Last Lark",        "bow",   5, "rapid",     11, 0.16, {"plain": true}],
 	["wpn_omenseeker",   "Omen Seeker",          "bow",   5, "seeker",    20, 0.6,  {"fx": [{"kind": "brand", "amp": 0.56, "dur": 5.0}, {"kind": "stormcall", "every": 4, "pct": 0.6}]}],
 	["wpn_starfallbow",  "Starfall Bow",         "bow",   5, "starfall",  30, 1.0,  {"aoe": 115, "fx": [{"kind": "chain", "n": 4, "pct": 0.7, "range": 320.0}]}],
-	["wpn_grandrains",   "Grand Tome of Rains",  "wand",  5, "tome",      14, 1.35, {"radius": 155, "tome_kind": "twin", "fx": [{"kind": "crowd", "pct_per": 0.18, "cap": 0.7}, {"kind": "sparkfly", "n": 1, "pct": 0.6}]}],
+	["wpn_grandrains",   "Grand Tome of Rains",  "wand",  5, "tomeofrains", 14, 1.35, {"radius": 155, "tome_kind": "twin", "fx": [{"kind": "crowd", "pct_per": 0.18, "cap": 0.7}, {"kind": "sparkfly", "n": 1, "pct": 0.6}]}],
 	["wpn_twinburst",    "Twinburst Sceptre",    "wand",  5, "twinburst", 25, 0.8,  {"shards": 7, "fx": [{"kind": "frostbloom", "radius": 190.0, "dur": 3.5}]}],
 	["wpn_kingsransom",  "King's Ransom",        "wand",  5, "kingsransom", 22, 0.6,  {"bounces": 5, "fx": [{"kind": "goldtouch", "chance": 0.5, "gold": 6}, {"kind": "splinter", "n": 3, "pct": 0.6, "range": 170.0}]}],
-	["wpn_longwatch",    "Warden's Long Watch",  "wand",  5, "sentry",    14, 1.2,  {"dur": 22, "fx": [{"kind": "bulwark", "dr": 0.23, "dur": 4.0}, {"kind": "echo", "pct": 0.6, "delay": 0.4}]}],
+	["wpn_longwatch",    "Warden's Long Watch",  "wand",  5, "wardenwatch", 14, 1.2,  {"dur": 22, "fx": [{"kind": "bulwark", "dr": 0.23, "dur": 4.0}, {"kind": "echo", "pct": 0.6, "delay": 0.4}]}],
 	["wpn_summitstaff",  "Summit That Walks",    "staff", 5, "staff",     19, 0.42, {"plain": true}],
 	# ---------------- TIER 6 - MYTHIC (floors 58-88) ----------------
 	["wpn_griefedge",    "Grief Made Sharp",     "melee", 6, "arc",       30, 0.4,  {"plain": true}],
@@ -173,7 +173,7 @@ const ROWS = [
 		"fx": [{"kind": "brand", "amp": 0.49, "dur": 5.0}]}],
 	["wpn_kingdomwheel", "A Kingdom, Turning",   "melee", 8, "orbiter", 37, 0.75, {"dwell": 4.0,
 		"fx": [{"kind": "gravity", "radius": 240.0, "pull": 180.0}, {"kind": "crowd", "pct_per": 0.15, "cap": 0.6}]}],
-	["wpn_lastword",     "The Last Word",        "melee", 8, "zenith", 40, 0.78, {"status": "burn_w",
+	["wpn_lastword",     "The Last Word",        "melee", 8, "zenith", 34, 0.55, {"status": "burn_w",
 		"fx": [{"kind": "legacy", "n": 2, "pct": 1, "range": 300.0}, {"kind": "echo", "pct": 1, "delay": 0.5}]}],
 	# CROWN TEN #4: a plain thrust shared with 23 weapons becomes the weapon its
 	# NAME always promised -- you do not stab a king once, you leave the blades
@@ -268,7 +268,7 @@ const ROWS = [
 	["wpn_lastlantern",  "The Last Lantern",     "melee", 5, "arc",       23, 0.4,  {"status": "burn_w", "plain": true}],
 	["wpn_hourmaul",     "The Eleventh Hour",    "melee", 5, "cleave",    34, 1.08, {"knockup": true, "plain": true}],
 	["wpn_gallowsflail", "Gallows Swing",        "melee", 5, "gallows",   26, 0.95, {"fx": [{"kind": "harvest", "hp": 6, "mana": 5.0}, {"kind": "quake", "radius": 150.0, "pct": 0.6}]}],
-	["wpn_midwinterwheel","Midwinter Wheel",     "melee", 5, "orbiter",   20, 0.78, {"dwell": 2.8, "status": "slow_w", "fx": [{"kind": "frostbloom", "radius": 170.0}, {"kind": "gravity", "radius": 220.0, "pull": 160.0}]}],
+	["wpn_midwinterwheel","Midwinter Wheel",     "melee", 5, "midwinterwheel", 20, 0.78, {"dwell": 2.8, "status": "slow_w", "fx": [{"kind": "frostbloom", "radius": 170.0}, {"kind": "gravity", "radius": 220.0, "pull": 160.0}]}],
 	["wpn_asphodelknife","Asphodel Kiss",        "melee", 5, "arc",       15, 0.24, {"status": "poison_w", "plain": true}],
 	["wpn_seawallblade", "Seawall",              "melee", 5, "seawall",   21, 0.55, {"p_damage": 19, "fx": [{"kind": "bulwark", "dr": 0.16, "dur": 3.0}, {"kind": "chain", "n": 2, "pct": 0.6, "range": 250.0}]}],
 	["wpn_pilgrimlash",  "Pilgrim's Scourge",    "melee", 5, "pilgrimscourge", 21, 0.83, {"fx": [{"kind": "haste", "pct_per": 0.08, "max": 6, "dur": 4.5}, {"kind": "frostbloom", "radius": 155.0}]}],
@@ -669,9 +669,11 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 		"lash":
 			s = {"type": "lash", "damage": dmg, "speed": spd + 60.0, "range": 300.0 + float(tier) * 20.0}
 		"zenith":
-			# THE LAST WORD alone: every swing looses a ghost-image of an
-			# ancestor blade -- out, whirl, home (Zenith-kin, never 1:1)
-			s = {"type": "zenith_blade", "damage": dmg, "speed": spd, "range": rng + 140.0}
+			# THE LAST WORD: the whole armoury in the air AT ONCE. Rebuilt
+			# from a single ghost blade (a boomerang with a good name) into
+			# a STORM of nine ancestor blades, swirling out and back in,
+			# cutting continuously. Zenith-kin, never 1:1.
+			s = {"type": "zenith_storm", "damage": dmg}
 		"court":
 			# THE WHOLE COURT, SPINNING alone: a RANK of ancestor-blade shades
 			# arrives at once (First-Fractal-kin) -- the apex spectacle weapon
@@ -892,6 +894,21 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 		"pilgrimscourge":
 			s = {"type": "pilgrim_lash", "damage": maxi(1, int(round(float(dmg) * 0.85))),
 				"speed": spd - 150.0, "range": rng * 0.4}
+		# ---- T5 batch 3 ----
+		"quietwheel":
+			s = {"type": "quiet_wheel", "damage": dmg, "speed": spd - 280.0}
+		"midwinterwheel":
+			s = {"type": "winter_wheel", "damage": maxi(1, int(round(float(dmg) * 0.8)))}
+		"skyquills":
+			s = {"type": "sky_quill", "damage": maxi(1, int(round(float(dmg) * 0.9))),
+				"count": 5}
+		"eventide":
+			s = {"type": "eventide", "damage": maxi(1, int(round(float(dmg) * 0.85))),
+				"count": 3, "speed": spd - 90.0, "range": rng}
+		"tomeofrains":
+			s = {"type": "rain_cloud", "damage": maxi(1, int(round(float(dmg) * 0.8)))}
+		"wardenwatch":
+			s = {"type": "warden_post", "damage": maxi(1, int(round(float(dmg) * 1.35)))}
 		"debtmark":
 			s = {"type": "debt_mark", "damage": dmg, "speed": spd + 60.0, "range": rng}
 		"cinderdrag":
@@ -962,7 +979,7 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"orbiter":    return "Flies out, SPINS a cutting wheel at the far point, then threads home."
 		"chain_maul": return "WHIRLS about you gathering speed, hurls itself as a comet, then hauls back on its chain."
 		"lash":       return "A weaving ribbon that rakes its lane on BOTH passes."
-		"zenith":     return "Every swing frees the GHOST of a blade it culminates: out, one whirl at the far point, and home -- cutting the whole way, each image a different ancestor."
+		"zenith":     return "Every sword you have ever carried is in the air AT ONCE -- nine ancestor blades swirling out around you and back in, cutting everything the whole time. It does not throw a weapon. It becomes a storm."
 		"court":      return "Every swing calls the COURT: %d shades of the people you brought home appear at your side, each carrying a different ancestor blade, and all of them sweep at once." % int(ex.get("count", 4))
 		"edict":      return "The law REACHES: a jointed arm of light unfolds the length of the hall, cutting everything along it and blooming where it touches -- and stone does not stop a sentence."
 		"heavenstring": return "Every shaft trails a THREAD, and when it lands the thread goes taut: what you hit comes to you, whether it meant to or not."
@@ -972,6 +989,12 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"hushfall":    return "The blow lands in SILENCE. The sound of it arrives a moment later, from where you struck, and the sound is the heavier half."
 		"eclipse":     return "The wheel rolls out and goes DARK, and the shadow it throws is the weapon -- a long band of night that cuts everything standing in it."
 		"cometfall":   return "Lobs high and comes down as a COMET, cratering where it lands and leaving the ground burning for whatever walks in next."
+		"quietwheel":  return "It shows you NOTHING while it works -- no numbers, no noise, just a grey wheel turning in the middle of them. When it stops it bills you all at once."
+		"midwinterwheel": return "Runs a wide circle around you laying a RING of rime on the floor, and anything caught in the track goes slow and cold."
+		"skyquills":   return "The quills go up and HANG there quivering. A moment later the whole sky comes down at once."
+		"eventide":    return "The volley goes out like a tide, turns, and comes back -- and it takes a second toll on the way home."
+		"tomeofrains": return "Opens a cloud over the field and lets it RAIN. Nothing under it stays dry for four seconds."
+		"wardenwatch": return "A hooded post that keeps watch down one lane and fires a single long shot every count -- and the shot goes through everything standing in that line."
 		"glacierwrit": return "A slab of ice that ACCRETES as it drifts -- a shard when it leaves your hand, a wall by the end of the room, and then it breaks up."
 		"owlremembers": return "It swoops, wheels around, and comes back -- three passes, and IT REMEMBERS: every visit hurts more than the last."
 		"quillrain":   return "Not a volley. A DRIZZLE -- quills falling faster than you can count them, all over the ground in front of you."

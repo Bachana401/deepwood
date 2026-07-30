@@ -3674,6 +3674,24 @@ func perform_attack() -> void:
 			bp.source = self
 			get_parent().add_child(bp)
 			bp.global_position = global_position + get_aim_direction() * 158.0 + Vector2(0, 16.0)
+		# GRAND TOME OF RAINS / WARDEN'S LONG WATCH (T5): both are PLACED
+		elif special_type == "rain_cloud" or special_type == "warden_post":
+			var grp: String = special_type + "_instance"
+			for old_p in get_tree().get_nodes_in_group(grp):
+				if is_instance_valid(old_p):
+					old_p.queue_free()
+			var pn = WEAPON_PROJECTILE_SCRIPT.new()
+			pn.add_to_group(grp)
+			pn.kind = special_type
+			pn.damage = maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("wand"))))
+			pn.element = Inventory.element_of(active_weapon_id)
+			pn.on_hit_status = special.get("status", {})
+			pn.source = self
+			get_parent().add_child(pn)
+			if special_type == "rain_cloud":
+				pn.global_position = global_position + get_aim_direction() * 120.0 + Vector2(0, -96.0)
+			else:
+				pn.global_position = global_position + get_aim_direction() * 150.0 + Vector2(0, 14.0)
 		# CINDERSHELF (T6): the ledge is HUNG, at chest height, out in front
 		elif special_type == "cinder_shelf":
 			# ONE ledge. Same trap Second Moon fell into: a 4s zone on a 0.8s
@@ -3876,7 +3894,8 @@ func perform_attack() -> void:
 			return
 		# MIDDAY MASSACRE / GRIFFIN VOLLEY (T6): two very different volleys --
 		# one wall arriving together, one flight that picks its own targets
-		if special_type == "noon_shaft" or special_type == "stoop_arrow":
+		if special_type == "noon_shaft" or special_type == "stoop_arrow" \
+				or special_type == "eventide":
 			play_sfx(SFX_BOW)
 			animate_bow(stats)
 			var vdir := get_aim_direction()
@@ -3894,7 +3913,7 @@ func perform_attack() -> void:
 				av.girth = grade_projectile_girth()
 				av.speed = float(special.get("speed", 600.0))
 				av.max_distance = float(special.get("range", 500.0))
-				if special_type == "noon_shaft":
+				if special_type != "stoop_arrow":
 					# abreast, no gaps: a wall, not a spread
 					av.direction = vdir
 					get_parent().add_child(av)
@@ -3961,6 +3980,23 @@ func perform_attack() -> void:
 	if active_weapon_type == "spear":
 		if special_type == "javelin_volley":
 			throw_javelin_volley(special)
+		elif special_type == "sky_quill":
+			# SKY OF QUILLS (T5): they go up and WAIT, then all fall together
+			play_sfx(SFX_SPEAR)
+			animate_spear(stats)
+			var sqd := maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("spear"))))
+			var sqdir := get_aim_direction()
+			for sq_i in range(int(special.get("count", 5))):
+				var sq = WEAPON_PROJECTILE_SCRIPT.new()
+				sq.kind = "sky_quill"
+				sq.damage = sqd
+				sq.element = Inventory.element_of(active_weapon_id)
+				sq.on_hit_status = special.get("status", {})
+				sq.source = self
+				sq.girth = grade_projectile_girth()
+				get_parent().add_child(sq)
+				sq.global_position = global_position \
+					+ sqdir * (60.0 + 46.0 * float(sq_i)) + Vector2(0, -54.0)
 		elif special_type == "quill_fall" or special_type == "ash_cloud":
 			play_sfx(SFX_SPEAR)
 			animate_spear(stats)
@@ -4260,9 +4296,40 @@ func perform_attack() -> void:
 	# SEAWALL / SERPENT'S SERMON / WORLDTOLL MAUL / GALLOWS / SCOURGE (T5)
 	elif special_type == "sea_wall" or special_type == "serpent_coil" \
 			or special_type == "under_toll" or special_type == "gallows_head" \
-			or special_type == "pilgrim_lash":
+			or special_type == "pilgrim_lash" or special_type == "quiet_wheel":
 		var t5cr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
 		launch_projectile(special, aim_dir, t5cr[0], t5cr[1])
+	# THE LAST WORD (T8): the storm. One at a time -- a recast RENEWS the
+	# armoury rather than stacking nine more blades on top of nine.
+	elif special_type == "zenith_storm":
+		for old_zs in get_tree().get_nodes_in_group("zenith_storm_instance"):
+			if is_instance_valid(old_zs):
+				old_zs.queue_free()
+		var zs = WEAPON_PROJECTILE_SCRIPT.new()
+		zs.add_to_group("zenith_storm_instance")
+		zs.kind = "zenith_storm"
+		zs.damage = maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+		zs.element = Inventory.element_of(active_weapon_id)
+		zs.on_hit_status = special.get("status", {})
+		zs.source = self
+		zs.girth = grade_projectile_girth()
+		get_parent().add_child(zs)
+		zs.global_position = global_position
+	# MIDWINTER WHEEL (T5): a wide cold circuit around you, one at a time
+	elif special_type == "winter_wheel":
+		for old_mw in get_tree().get_nodes_in_group("winter_wheel_instance"):
+			if is_instance_valid(old_mw):
+				old_mw.queue_free()
+		var mw = WEAPON_PROJECTILE_SCRIPT.new()
+		mw.add_to_group("winter_wheel_instance")
+		mw.kind = "winter_wheel"
+		mw.damage = maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+		mw.element = Inventory.element_of(active_weapon_id)
+		mw.on_hit_status = special.get("status", {})
+		mw.source = self
+		mw.girth = grade_projectile_girth()
+		get_parent().add_child(mw)
+		mw.global_position = global_position + Vector2(84.0, 0)
 	# WHEEL OF THE HOLLOW (T6): a guard, not a throw
 	elif special_type == "hollow_wheel":
 		for old_hw in get_tree().get_nodes_in_group("hollow_wheel_instance"):

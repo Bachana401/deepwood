@@ -1,5 +1,5 @@
 extends Node
-# EYES: TIER 5 (weapon overhaul, 2026-07-29).
+# EYES: ZENITH (weapon overhaul, 2026-07-29).
 # One walker per tier -- see the note at the top of tool_eyes_t7.gd for why.
 #   MONARCH_TEST="res://tool_eyes_t6.gd" Godot.exe --path .   (no --headless!)
 
@@ -38,7 +38,7 @@ func _ready() -> void:
 		if p != null:
 			break
 	if p == null:
-		say("EYES-T5: no player"); get_tree().quit(1); return
+		say("EYES-ZEN: no player"); get_tree().quit(1); return
 	await _clear_dialog()
 	GameState.opening_done = true
 	GameState.seen_arrival_battle = true
@@ -59,26 +59,9 @@ func _ready() -> void:
 
 	# id, shot name, settle before the shot, swings
 	for spec in [
-			["wpn_seawallblade", "a1_seawall",     0.42, 1],
-			["wpn_serpentsermon", "b1_serpent_coil", 0.70, 1],
-			["wpn_twinburst",    "c1_twin_cross",  0.50, 1],
-			["wpn_beaconpost",   "d1_beacon_pulse", 1.30, 1],
-			["wpn_starfallbow",  "e1_starfall",    0.85, 1],
-			["wpn_worldtoll",    "f1_under_toll",  0.62, 1],
-			["wpn_glacierwrit",  "g1_ice_floe",    0.80, 1],
-			["wpn_owlseeker",    "h1_owl_pass",    0.95, 1],
-			["wpn_quillrain",    "i1_quill_rain",  0.55, 4],
-			["wpn_kingsransom",  "j1_ransom_seal", 0.45, 1],
-			["wpn_gallowsflail", "k1_gallows_hang", 0.75, 1],
-			["wpn_pilgrimlash",  "l1_waymarks",    0.50, 1],
-			["wpn_quietwheel",   "m1_quiet_work",  1.20, 1],
-			["wpn_quietwheel",   "m2_quiet_bill",  3.00, 1],
-			["wpn_midwinterwheel", "n1_winter_ring", 1.40, 1],
-			["wpn_skyquill",     "o1_sky_hanging", 0.60, 1],
-			["wpn_skyquill",     "o2_sky_falling", 1.05, 1],
-			["wpn_eventide",     "p1_tide_return", 0.60, 1],
-			["wpn_grandrains",   "q1_raining",     1.60, 1],
-			["wpn_longwatch",    "r1_warden_shot", 0.85, 1]]: # it caught someone
+			["wpn_lastword", "zen1_bloom",  0.26, 1],
+			["wpn_lastword", "zen2_full",   0.52, 1],
+			["wpn_lastword", "zen3_return", 0.86, 1]]:# it caught someone
 		p.global_position = _home
 		if "velocity" in p: p.velocity = Vector2.ZERO
 		p.inventory.add_item(spec[0], 1)
@@ -94,7 +77,7 @@ func _ready() -> void:
 		await _shot(str(spec[1]))
 		await _settle(0.35)
 
-	say("EYES-T5: done")
+	say("EYES-ZEN: done")
 	get_tree().quit(0)
 
 # perform_attack aims at the CURSOR; a walker has none, so every swing-driven
@@ -108,7 +91,7 @@ func _aim_right(p: Node) -> void:
 func _shot(name: String) -> void:
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png(shot_dir.path_join(name + ".png"))
-	say("EYES-T5: shot %s" % name)
+	say("EYES-ZEN: shot %s" % name)
 
 func _settle(sec: float) -> void:
 	await get_tree().create_timer(sec, true).timeout

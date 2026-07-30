@@ -220,6 +220,24 @@ func _ready() -> void:
 		"pilgrim_lash":
 			pierce = true
 			_build_pilgrim_lash()
+		# ---- T5 batch 3 ----
+		"zenith_storm":
+			pierce = true
+			_build_zenith_storm()
+		"quiet_wheel":
+			pierce = true
+			_build_quiet_wheel()
+		"winter_wheel":
+			pierce = true
+			_build_winter_wheel()
+		"sky_quill": _build_sky_quill()
+		"eventide":
+			pierce = true
+			_build_eventide()
+		"rain_cloud":
+			pierce = true
+			_build_rain_cloud()
+		"warden_post": _build_warden_post()
 		"zenith_blade":
 			# THE LAST WORD: a ghost-image of an ancestor blade. Swoops out,
 			# whirls one tight loop at the far point, and comes home. Each
@@ -578,6 +596,27 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind == "star_fall":
 		_tick_quill(delta)      # same fall, its own face (see _build_star_fall)
+		return
+	if kind == "zenith_storm":
+		_tick_zenith_storm(delta)
+		return
+	if kind == "quiet_wheel":
+		_tick_quiet(delta)
+		return
+	if kind == "winter_wheel":
+		_tick_winter(delta)
+		return
+	if kind == "sky_quill":
+		_tick_skyquill(delta)
+		return
+	if kind == "eventide":
+		_tick_eventide(delta)
+		return
+	if kind == "rain_cloud":
+		_tick_raincloud(delta)
+		return
+	if kind == "warden_post":
+		_tick_warden(delta)
 		return
 	if kind == "ice_floe":
 		_tick_floe(delta)
@@ -5303,6 +5342,487 @@ func _build_ransom_seal() -> void:
 		Vector2(2.5, 0.5), Vector2(5, -2.0), Vector2(5, 2.0)])
 	crown.color = Color(0.56, 0.4, 0.1, 0.95)
 	visual.add_child(crown)
+
+# ==========================================================================
+# TIER 5, BATCH 3.
+# ==========================================================================
+
+# --- WHEEL OF QUIET: it works in SILENCE and bills you once -------------
+# Every other weapon in the game shouts a number per hit. This one shows
+# nothing at all while it grinds, then one total when it stops -- the
+# presentation IS the weapon.
+var _qw_t := 0.0
+var _qw_owed := 0
+const QW_LIFE := 2.8
+const QW_R := 58.0
+
+func _tick_quiet(delta: float) -> void:
+	_qw_t += delta
+	if _qw_t < 0.22:
+		global_position += direction * speed * delta
+	if visual:
+		visual.rotation += 7.0 * delta
+		visual.modulate.a = 1.0 - pow(_qw_t / QW_LIFE, 4.0)
+	if _qw_t >= QW_LIFE:
+		_qw_settle()
+		return
+	_rehit_t += delta
+	if _rehit_t < 0.3:
+		return
+	_rehit_t = 0.0
+	var pay: int = maxi(1, int(round(float(damage) * 0.34)))
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if global_position.distance_to((e as Node2D).global_position) > QW_R:
+				continue
+			e.take_damage(pay)      # deliberately NO FloatingText -- it is quiet
+			_qw_owed += pay
+			_apply_status_to(e)
+
+func _qw_settle() -> void:
+	if _qw_owed > 0:
+		FloatingText.spawn(get_parent(), global_position + Vector2(0, -40.0), _qw_owed, true)
+		FloatingText.spawn_word(get_parent(), global_position + Vector2(0, -58.0),
+			"quietly", Color(0.78, 0.82, 0.88))
+	done = true
+	queue_free()
+
+func _build_quiet_wheel() -> void:
+	var rim := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(16):
+		var a := TAU * float(i) / 16.0
+		pts.append(Vector2(cos(a), sin(a)) * 21.0)
+	for i in range(16):
+		var a2 := TAU * float(15 - i) / 16.0
+		pts.append(Vector2(cos(a2), sin(a2)) * 15.0)
+	rim.polygon = pts
+	# muted on purpose: no additive glow anywhere on this weapon
+	rim.color = Color(0.52, 0.54, 0.58, 0.8)
+	visual.add_child(rim)
+	for k in range(6):
+		var spoke := Polygon2D.new()
+		spoke.polygon = PackedVector2Array([
+			Vector2(-1.4, -16.0), Vector2(1.4, -16.0), Vector2(1.4, 0), Vector2(-1.4, 0)])
+		spoke.color = Color(0.62, 0.64, 0.68, 0.6)
+		spoke.rotation = deg_to_rad(60.0 * float(k))
+		visual.add_child(spoke)
+
+# --- MIDWINTER WHEEL: it lays a RING of frost as it goes round ----------
+var _mw_t := 0.0
+var _mw_drop := 0.0
+const MW_LIFE := 3.2
+
+func _tick_winter(delta: float) -> void:
+	_mw_t += delta
+	if _mw_t >= MW_LIFE or not is_instance_valid(source):
+		done = true
+		queue_free()
+		return
+	var centre: Vector2 = (source as Node2D).global_position
+	var ang: float = _mw_t * 5.2
+	global_position = centre + Vector2(cos(ang), sin(ang) * 0.45) * 84.0
+	if visual:
+		visual.rotation += 9.0 * delta
+	# the track it leaves: a circle of rime drawn on the floor around you
+	_mw_drop -= delta
+	if _mw_drop <= 0.0:
+		_mw_drop = 0.1
+		var host := get_parent()
+		if host != null:
+			var m := CanvasItemMaterial.new()
+			m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+			var rime := Polygon2D.new()
+			rime.polygon = _circle(randf_range(4.0, 7.0), 6)
+			rime.color = Color(0.72, 0.9, 1.0, 0.6)
+			rime.material = m
+			rime.z_index = 8
+			host.add_child(rime)
+			rime.global_position = global_position
+			var tw := rime.create_tween()
+			tw.tween_interval(0.8)
+			tw.tween_property(rime, "modulate:a", 0.0, 0.7)
+			tw.tween_callback(rime.queue_free)
+	_rehit_t += delta
+	if _rehit_t < 0.26:
+		return
+	_rehit_t = 0.0
+	var host2 := get_parent()
+	var pay: int = maxi(1, int(round(float(damage) * 0.55)))
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if global_position.distance_to((e as Node2D).global_position) > 38.0:
+				continue
+			var landed = e.take_damage(pay)
+			if landed == null or landed:
+				FloatingText.spawn(host2, (e as Node2D).global_position
+					+ Vector2(randf_range(-16.0, 16.0), -26.0), pay, false)
+			if e.has_method("apply_status"):
+				e.apply_status("slow", 1.6, 0.4)
+			_apply_status_to(e)
+
+func _build_winter_wheel() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var rim := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(12):
+		var a := TAU * float(i) / 12.0
+		pts.append(Vector2(cos(a), sin(a)) * 18.0)
+	for i in range(12):
+		var a2 := TAU * float(11 - i) / 12.0
+		pts.append(Vector2(cos(a2), sin(a2)) * 12.0)
+	rim.polygon = pts
+	rim.color = Color(0.68, 0.88, 1.0, 0.9)
+	rim.material = m
+	visual.add_child(rim)
+	for k in range(6):
+		var tooth := Polygon2D.new()
+		tooth.polygon = PackedVector2Array([
+			Vector2(-3.0, -17.0), Vector2(0, -25.0), Vector2(3.0, -17.0)])
+		tooth.color = Color(0.88, 0.96, 1.0, 0.9)
+		tooth.material = m
+		tooth.rotation = deg_to_rad(60.0 * float(k))
+		visual.add_child(tooth)
+
+# --- SKY OF QUILLS: they HANG up there, and then they all come down -----
+var _sq_t := 0.0
+var _sq_fired := false
+const SQ_HANG := 0.85
+
+func _tick_skyquill(delta: float) -> void:
+	_sq_t += delta
+	if not _sq_fired:
+		# drift up into place and wait, quivering
+		global_position += Vector2(0, -34.0) * delta
+		if visual:
+			visual.rotation = PI * 0.5 + sin(_sq_t * 16.0) * 0.09
+		if _sq_t >= SQ_HANG:
+			_sq_fired = true
+			speed = 620.0
+			direction = Vector2.DOWN
+			if visual:
+				visual.rotation = 0.0
+			rotation = PI * 0.5
+		return
+	global_position += Vector2.DOWN * speed * delta
+	traveled += speed * delta
+	if traveled >= 460.0 or _on_floor_now():
+		_rock_smoke(global_position)
+		done = true
+		queue_free()
+
+func _build_sky_quill() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var q := Polygon2D.new()
+	q.polygon = PackedVector2Array([
+		Vector2(15, 0), Vector2(-1, -3.2), Vector2(-13, 0), Vector2(-1, 3.2)])
+	q.color = Color(0.86, 0.9, 0.98, 0.95)
+	visual.add_child(q)
+	var glint := Polygon2D.new()
+	glint.polygon = PackedVector2Array([Vector2(17, 0), Vector2(6, -2.0), Vector2(6, 2.0)])
+	glint.color = Color(1.0, 1.0, 1.0, 0.9)
+	glint.material = m
+	visual.add_child(glint)
+
+# --- EVENTIDE: the volley goes out, and then the tide comes back --------
+var _ev_t := 0.0
+var _ev_out := true
+const EV_TURN := 0.42
+
+func _tick_eventide(delta: float) -> void:
+	_ev_t += delta
+	if _ev_out and _ev_t >= EV_TURN:
+		_ev_out = false
+		hit_bodies.clear()        # it may take the same body on the way home
+		direction = -direction
+		rotation = direction.angle()
+	global_position += direction * speed * delta
+	if not _ev_out and is_instance_valid(source):
+		if global_position.distance_to((source as Node2D).global_position) < 26.0:
+			done = true
+			queue_free()
+			return
+	if _ev_t > EV_TURN * 3.0:
+		done = true
+		queue_free()
+
+func _build_eventide() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var wake := Polygon2D.new()
+	wake.polygon = PackedVector2Array([
+		Vector2(-3, -4.0), Vector2(-24, 0), Vector2(-3, 4.0)])
+	wake.color = Color(0.86, 0.6, 0.4, 0.42)
+	wake.material = m
+	visual.add_child(wake)
+	var shaft := Polygon2D.new()
+	shaft.polygon = PackedVector2Array([
+		Vector2(10, -1.2), Vector2(-12, -1.2), Vector2(-12, 1.2), Vector2(10, 1.2)])
+	shaft.color = Color(0.95, 0.72, 0.5, 0.95)
+	visual.add_child(shaft)
+	var head := Polygon2D.new()
+	head.polygon = PackedVector2Array([Vector2(17, 0), Vector2(7, -3.4), Vector2(7, 3.4)])
+	head.color = Color(1.0, 0.88, 0.66, 0.98)
+	head.material = m
+	visual.add_child(head)
+
+# --- GRAND TOME OF RAINS: a cloud opens and it RAINS ---------------------
+var _rc_t := 0.0
+var _rc_drop := 0.0
+const RC_LIFE := 4.6
+const RC_HALF := 108.0
+
+func _tick_raincloud(delta: float) -> void:
+	_rc_t += delta
+	if _rc_t >= RC_LIFE:
+		done = true
+		queue_free()
+		return
+	if visual:
+		visual.position.x = sin(_rc_t * 0.8) * 6.0
+	_rc_drop -= delta
+	if _rc_drop > 0.0:
+		return
+	_rc_drop = 0.16
+	var host := get_parent()
+	if host == null:
+		return
+	# one drop, somewhere under the cloud
+	var dx: float = randf_range(-RC_HALF, RC_HALF)
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var drop := Polygon2D.new()
+	drop.polygon = PackedVector2Array([
+		Vector2(-1.4, -9.0), Vector2(1.4, -9.0), Vector2(0.8, 5.0), Vector2(-0.8, 5.0)])
+	drop.color = Color(0.62, 0.82, 1.0, 0.8)
+	drop.material = m
+	drop.z_index = 39
+	host.add_child(drop)
+	drop.global_position = global_position + Vector2(dx, 18.0)
+	var land: Vector2 = drop.global_position + Vector2(0, 104.0)
+	var tw := drop.create_tween()
+	tw.tween_property(drop, "global_position", land, 0.26)
+	tw.tween_callback(drop.queue_free)
+	# and the drop bites whatever is under it
+	var pay: int = maxi(1, damage)
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			var rel: Vector2 = (e as Node2D).global_position - (global_position + Vector2(dx, 0))
+			if absf(rel.x) > 30.0 or rel.y < -20.0 or rel.y > 150.0:
+				continue
+			var landed = e.take_damage(pay)
+			if landed == null or landed:
+				FloatingText.spawn(host, (e as Node2D).global_position
+					+ Vector2(randf_range(-14.0, 14.0), -26.0), pay, false)
+			_apply_status_to(e)
+			break     # one drop, one body
+
+func _build_rain_cloud() -> void:
+	for k in range(5):
+		var puff := Polygon2D.new()
+		puff.polygon = _circle(randf_range(20.0, 31.0), 10)
+		puff.color = Color(0.3, 0.36, 0.48, 0.82)
+		puff.position = Vector2(-84.0 + 42.0 * float(k), randf_range(-6.0, 6.0))
+		visual.add_child(puff)
+		var tw := puff.create_tween().set_loops()
+		tw.tween_property(puff, "position:y", puff.position.y - 4.0, randf_range(1.2, 1.9))
+		tw.tween_property(puff, "position:y", puff.position.y, randf_range(1.2, 1.9))
+
+# --- WARDEN'S LONG WATCH: a post that snipes the lane -------------------
+var _wp_t := 0.0
+var _wp_next := 0.7
+const WP_LIFE := 9.0
+const WP_GAP := 1.5
+
+func _tick_warden(delta: float) -> void:
+	_wp_t += delta
+	if _wp_t >= WP_LIFE:
+		done = true
+		queue_free()
+		return
+	if _wp_t < _wp_next:
+		return
+	_wp_next += WP_GAP
+	var prey := _nearest_hostile_node(640.0)
+	if prey == null:
+		return
+	var host := get_parent()
+	if host == null:
+		return
+	var aim: Vector2 = ((prey as Node2D).global_position - global_position).normalized()
+	# ONE long shot, and it goes through everything standing in the line
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var beam := Polygon2D.new()
+	beam.polygon = PackedVector2Array([
+		Vector2(0, -3.0), Vector2(600.0, -1.2), Vector2(600.0, 1.2), Vector2(0, 3.0)])
+	beam.color = Color(0.86, 0.92, 0.7, 0.85)
+	beam.material = m
+	beam.z_index = 41
+	beam.rotation = aim.angle()
+	host.add_child(beam)
+	beam.global_position = global_position
+	var tw := beam.create_tween()
+	tw.tween_property(beam, "modulate:a", 0.0, 0.24)
+	tw.tween_callback(beam.queue_free)
+	var pay: int = maxi(1, damage)
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			var rel: Vector2 = (e as Node2D).global_position - global_position
+			var along: float = rel.dot(aim)
+			if along < 0.0 or along > 600.0:
+				continue
+			if absf(rel.dot(Vector2(-aim.y, aim.x))) > 26.0:
+				continue
+			var landed = e.take_damage(pay)
+			if landed == null or landed:
+				FloatingText.spawn(host, (e as Node2D).global_position
+					+ Vector2(randf_range(-14.0, 14.0), -26.0), pay, true)
+			_apply_status_to(e)
+
+func _build_warden_post() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var leg := Polygon2D.new()
+	leg.polygon = PackedVector2Array([
+		Vector2(-4.0, 20.0), Vector2(-2.4, -12.0), Vector2(2.4, -12.0), Vector2(4.0, 20.0)])
+	leg.color = Color(0.34, 0.3, 0.24, 0.96)
+	visual.add_child(leg)
+	# a slitted lantern head: it is WATCHING one direction at a time
+	var hood := Polygon2D.new()
+	hood.polygon = PackedVector2Array([
+		Vector2(-11, -12.0), Vector2(11, -12.0), Vector2(8, -26.0), Vector2(-8, -26.0)])
+	hood.color = Color(0.4, 0.42, 0.34, 0.96)
+	visual.add_child(hood)
+	var slit := Polygon2D.new()
+	slit.polygon = PackedVector2Array([
+		Vector2(-7, -16.0), Vector2(7, -16.0), Vector2(7, -21.0), Vector2(-7, -21.0)])
+	slit.color = Color(0.94, 0.98, 0.7, 0.95)
+	slit.material = m
+	visual.add_child(slit)
+
+# ==========================================================================
+# THE LAST WORD, REBUILT (2026-07-29). Dev: "no zenith similar like weapon in
+# game" -- and they were right. The old verb loosed ONE ghost blade per swing,
+# which is a boomerang with a good name. The source's identity is the whole
+# armoury at once: a swirling storm of many blades, continuous, screen-filling.
+# So: one node, NINE blades, one damage loop, one instance cap.
+# ==========================================================================
+const ZS_BLADES := 9
+const ZS_LIFE := 1.05
+const ZS_R0 := 34.0
+const ZS_R1 := 215.0
+const ZS_BITE := 0.2
+const ZS_REACH := 40.0
+
+var _zs_t := 0.0
+var _zs_parts: Array = []
+
+func _tick_zenith_storm(delta: float) -> void:
+	_zs_t += delta
+	if _zs_t >= ZS_LIFE or not is_instance_valid(source):
+		done = true
+		queue_free()
+		return
+	global_position = (source as Node2D).global_position
+	var frac: float = _zs_t / ZS_LIFE
+	# they bloom OUT and draw back in, so the storm breathes rather than
+	# just expanding off the screen
+	var swell: float = sin(frac * PI)
+	var r: float = lerpf(ZS_R0, ZS_R1, swell)
+	var spin: float = _zs_t * 7.4
+	for i in range(_zs_parts.size()):
+		var part: Node2D = _zs_parts[i]
+		if not is_instance_valid(part):
+			continue
+		var a: float = spin + TAU * float(i) / float(ZS_BLADES)
+		# each blade rides its own slightly different radius, so nine of them
+		# read as a CROWD of swords and not one spinning ring
+		var rr: float = r * (0.72 + 0.28 * sin(_zs_t * 5.0 + float(i) * 1.7))
+		part.position = Vector2(cos(a), sin(a) * 0.78) * rr
+		part.rotation = a + PI * 0.5
+		part.modulate.a = 0.35 + 0.65 * swell
+	if visual:
+		visual.modulate.a = 1.0
+	_rehit_t += delta
+	if _rehit_t < ZS_BITE:
+		return
+	_rehit_t = 0.0
+	var host := get_parent()
+	var pay: int = maxi(1, damage)
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			# hit if ANY blade is on them -- the storm is the hitbox
+			var struck := false
+			for part2 in _zs_parts:
+				if not is_instance_valid(part2):
+					continue
+				if (part2 as Node2D).global_position.distance_to(
+						(e as Node2D).global_position) <= ZS_REACH:
+					struck = true
+					break
+			if not struck:
+				continue
+			var landed = e.take_damage(pay)
+			if landed == null or landed:
+				FloatingText.spawn(host, (e as Node2D).global_position
+					+ Vector2(randf_range(-22.0, 22.0), -26.0), pay, randf() < 0.3)
+			_apply_status_to(e)
+
+func _build_zenith_storm() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	for i in range(ZS_BLADES):
+		var tint: Color = WeaponFx.LEGACY_TINTS[i % WeaponFx.LEGACY_TINTS.size()]
+		var part := Node2D.new()
+		# each one a DIFFERENT blade silhouette, because the fantasy is that
+		# every sword you ever carried is in the air at once
+		var length: float = 26.0 + 7.0 * float(i % 4)
+		var width: float = 5.0 + 1.6 * float(i % 3)
+		var blade := Polygon2D.new()
+		blade.polygon = PackedVector2Array([
+			Vector2(0, -length), Vector2(width, -length * 0.55),
+			Vector2(width * 0.7, length * 0.28), Vector2(-width * 0.7, length * 0.28),
+			Vector2(-width, -length * 0.55)])
+		blade.color = Color(tint.r, tint.g, tint.b, 0.95)
+		part.add_child(blade)
+		var edge := Polygon2D.new()
+		edge.polygon = PackedVector2Array([
+			Vector2(0, -length - 4.0), Vector2(width * 0.45, -length * 0.5),
+			Vector2(-width * 0.45, -length * 0.5)])
+		edge.color = Color(1.0, 1.0, 1.0, 0.75)
+		edge.material = m
+		part.add_child(edge)
+		var guard := Polygon2D.new()
+		guard.polygon = PackedVector2Array([
+			Vector2(-width * 1.7, length * 0.26), Vector2(width * 1.7, length * 0.26),
+			Vector2(width * 1.7, length * 0.42), Vector2(-width * 1.7, length * 0.42)])
+		guard.color = Color(tint.r * 0.6, tint.g * 0.55, tint.b * 0.5, 0.95)
+		part.add_child(guard)
+		visual.add_child(part)
+		_zs_parts.append(part)
 
 func _circle(radius: float, sides: int) -> PackedVector2Array:
 	var pts = PackedVector2Array()

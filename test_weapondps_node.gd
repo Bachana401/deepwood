@@ -115,6 +115,13 @@ const HITS_PER_USE := {
 	"kingsransom": 1.0, # the seal barely stings -- it pays in GOLD, not damage
 	"gallows":     1.8, # the swing, then the 0.8x drop when the floor returns
 	"pilgrimscourge": 1.6, # pierces the row; the waymarks heal, they do not hurt
+	# ---- T5 batch 3 ----
+	"quietwheel":  3.0, # ~9 silent 0.34x bites over 2.8s, billed as one total
+	"midwinterwheel": 2.4, # ONE wheel (recast renews): 0.26s bites on its circuit
+	"skyquills":   2.2, # 5 quills hang and drop, but they SPREAD down the lane
+	"eventide":    2.0, # 3 shafts out and back -- two tolls on a single body
+	"tomeofrains": 5.0, # ~28 drops over 4.6s, one body each, wide area denial
+	"wardenwatch": 4.5, # ONE post: ~6 lane shots over 9s at 1.35x, all piercing
 	# --- pre-existing multi-hit verbs, for a fair comparison ---
 	"volley":     2.0,
 	"jab_volley": 3.0,
@@ -127,7 +134,7 @@ const HITS_PER_USE := {
 	"tome":       3.0,   # a zone that ticks
 	"sentry":     3.0,
 	"souls":      3.0,
-	"zenith":     1.8,
+	"zenith":     4.0, # THE STORM: 9 blades, ~5 bites over its 1.05s life,
 	"ink":        1.4,
 	"wake":       1.4,
 }
