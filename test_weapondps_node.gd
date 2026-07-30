@@ -39,6 +39,11 @@ const HITS_PER_USE := {
 	"skyfall_rain": 2.0,  # 3 arrows fall; ~2 land on any one body
 	"parade":   1.8,   # the arrow, plus the marcher it calls
 	"boulder":  1.6,   # it rolls THROUGH several, and its bite scales with pace
+	# T7 batch 1 -- the aftermath family (a zone that keeps working)
+	"afterlight": 3.4, # the hanging arc bites ~5x over 1.7s if they stand in it
+	"anvil":      1.0, # one mass, one landing
+	"worldthorn": 2.6, # three spikes, ~4 bites over 1.3s
+	"sunspill":   2.8, # the shell, then the pool ticking ~10x over 4.2s at 30%
 	# --- pre-existing multi-hit verbs, for a fair comparison ---
 	"volley":     2.0,
 	"jab_volley": 3.0,

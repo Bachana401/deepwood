@@ -3654,6 +3654,19 @@ func perform_attack() -> void:
 	if active_weapon_type == "spear":
 		if special_type == "javelin_volley":
 			throw_javelin_volley(special)
+		elif special_type == "ground_thorn":
+			# THORN OF THE WORLD (T7): the thrust wakes the ground at its APEX
+			# (spear riders spawn at the apex, never at the player -- DESIGN_LAWS 8)
+			play_sfx(SFX_SPEAR)
+			animate_spear(stats)
+			var gt = WEAPON_PROJECTILE_SCRIPT.new()
+			gt.kind = "ground_thorn"
+			gt.damage = maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("spear"))))
+			gt.element = Inventory.element_of(active_weapon_id)
+			gt.on_hit_status = special.get("status", {})
+			gt.source = self
+			gt.position = global_position + get_aim_direction() * (stats.range_offset + 46.0)
+			get_parent().add_child(gt)
 		elif special_type == "crown_spear":
 			# REGICIDE: the thrust throws the spear instead of keeping it
 			play_sfx(SFX_SPEAR)
@@ -3800,6 +3813,27 @@ func perform_attack() -> void:
 	# several shades at once, each carrying a different ancestor blade
 	elif special_type == "court_barrage":
 		unleash_court(special, aim_dir)
+	# AFTERLIGHT (T7): the swing's shape is left hanging where it passed
+	elif special_type == "lingering_arc":
+		var la = WEAPON_PROJECTILE_SCRIPT.new()
+		la.kind = "lingering_arc"
+		la.damage = maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+		la.element = Inventory.element_of(active_weapon_id)
+		la.on_hit_status = special.get("status", {})
+		la.source = self
+		la.rotation = aim_dir.angle()
+		la.position = global_position + aim_dir * 52.0
+		get_parent().add_child(la)
+	# ANVIL OF ENDINGS (T7): the mass falls on the spot a beat later
+	elif special_type == "anvil_drop":
+		var av = WEAPON_PROJECTILE_SCRIPT.new()
+		av.kind = "anvil_drop"
+		av.damage = int(round(float(special.get("damage", 10)) * skill_damage_mult("melee")))
+		av.element = Inventory.element_of(active_weapon_id)
+		av.on_hit_status = special.get("status", {})
+		av.source = self
+		get_parent().add_child(av)
+		av.set_anvil_target(global_position + aim_dir * 96.0 + Vector2(0, 6.0))
 	# Grief Wears a Crown: the ground carries the blow outward from the impact
 	elif special_type == "sunder_wave":
 		var scr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))

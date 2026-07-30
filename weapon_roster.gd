@@ -143,7 +143,7 @@ const ROWS = [
 		"fx": [{"kind": "goldtouch", "chance": 0.35, "gold": 5}, {"kind": "chain", "n": 2, "pct": 0.65, "range": 250.0}]}],
 	["wpn_twelfthpillar","Twelfth Pillar",       "staff", 6, "staff",     24, 0.4,  {"plain": true}],
 	# ---------------- TIER 7 - ASCENDED (floors 70-97) ----------------
-	["wpn_afterlight",   "Afterlight",           "melee", 7, "arc", 33, 0.38, {"status": "burn_w",
+	["wpn_afterlight",   "Afterlight",           "melee", 7, "afterlight", 26, 0.42, {"status": "burn_w",
 		"fx": [{"kind": "echo", "pct": 0.98, "delay": 0.4}, {"kind": "moonlit", "pct": 0.8}]}],
 	["wpn_worldsedge",   "Edge of the World",    "melee", 7, "crescent", 30, 0.55, {"p_damage": 30, "tint": [0.35, 0.95, 0.5],
 		"fx": [{"kind": "splinter", "n": 4, "pct": 0.8, "range": 190.0}, {"kind": "rend", "pct_per": 0.15, "max": 6}]}],
@@ -329,13 +329,13 @@ const ROWS = [
 	# ---------------- WAVE 3 - TIER 7 (14) ----------------
 	["wpn_dawnchorus",   "Dawn Chorus",          "melee", 7, "arc", 32, 0.36, {"status": "burn_w",
 		"fx": [{"kind": "echo", "pct": 0.9, "delay": 0.35}, {"kind": "haste", "pct_per": 0.08, "max": 4, "dur": 4.0}]}],
-	["wpn_finalanvil",   "Anvil of Endings",     "melee", 7, "cleave", 47, 1.05, {"knockup": true,
+	["wpn_finalanvil",   "Anvil of Endings",     "melee", 7, "anvil", 38, 1.15, {"knockup": true,
 		"fx": [{"kind": "quake", "radius": 160.0, "pct": 0.8}, {"kind": "rend", "pct_per": 0.14, "max": 6}]}],
 	["wpn_cometchain",   "Chained Comet",        "melee", 7, "chain_maul", 36, 0.9, {"status": "burn_w",
 		"fx": [{"kind": "gravity", "radius": 200.0, "pull": 160.0}, {"kind": "echo", "pct": 0.82, "delay": 0.5}]}],
 	["wpn_silencelash",  "The Shape of Silence", "melee", 7, "lash", 31, 0.78, {"status": "slow_w",
 		"fx": [{"kind": "brand", "amp": 0.39, "dur": 4.5}, {"kind": "frostbloom", "radius": 150.0}]}],
-	["wpn_worldthorn",   "Thorn of the World",   "spear", 7, "thrust", 39, 0.74, {
+	["wpn_worldthorn",   "Thorn of the World",   "spear", 7, "worldthorn", 30, 0.8, {
 		"fx": [{"kind": "rend", "pct_per": 0.16, "max": 6}, {"kind": "chain", "n": 2, "pct": 0.8, "range": 250.0}]}],
 	["wpn_stormflock",   "Flock of Storms",      "spear", 7, "jab_volley", 24, 0.84, {"count": 6,
 		"fx": [{"kind": "chain", "n": 2, "pct": 0.8, "range": 240.0}, {"kind": "splinter", "n": 3, "pct": 0.8, "range": 160.0}]}],
@@ -343,7 +343,7 @@ const ROWS = [
 		"fx": [{"kind": "echo", "pct": 0.8, "delay": 0.4}, {"kind": "chain", "n": 2, "pct": 0.8, "range": 250.0}]}],
 	["wpn_reckoningbow", "The Quiet Reckoning",  "bow", 7, "seeker", 27, 0.54, {
 		"fx": [{"kind": "brand", "amp": 0.42, "dur": 4.0}, {"kind": "soulwisp", "dmg": 10, "pct": 0.5}]}],
-	["wpn_sunspill",     "Sunspill",             "bow", 7, "lob_a", 40, 0.98, {"aoe": 140, "status": "burn_w",
+	["wpn_sunspill",     "Sunspill",             "bow", 7, "sunspill", 30, 1.02, {"aoe": 130, "status": "burn_w",
 		"fx": [{"kind": "splinter", "n": 4, "pct": 0.8, "range": 180.0}, {"kind": "legacy", "n": 2, "pct": 0.6, "range": 280.0}]}],
 	["wpn_tidebook",     "The Tidal Codex",      "wand", 7, "tome", 20, 1.25, {"radius": 180,
 		"fx": [{"kind": "gravity", "radius": 220.0, "pull": 150.0}, {"kind": "harvest", "hp": 3, "mana": 5.0}]}],
@@ -708,6 +708,18 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			# THE MOUNTAIN THAT KNEELS alone: a rolling stone whose bite is its
 			# own gathered pace (Staff-of-Earth-kin)
 			s = {"type": "kneeling_stone", "damage": dmg, "speed": spd - 120.0, "range": 900.0}
+		# ---- T7 VERBS (batch 1). The aftermath family: something STAYS where
+		# the attack happened and keeps working.
+		"afterlight":
+			s = {"type": "lingering_arc", "damage": maxi(1, int(round(float(dmg) * 0.42)))}
+		"anvil":
+			s = {"type": "anvil_drop", "damage": dmg}
+		"worldthorn":
+			s = {"type": "ground_thorn", "damage": maxi(1, int(round(float(dmg) * 0.5)))}
+		"sunspill":
+			# keeps the mortar arc it always had; the SPILL is what is new
+			s = {"type": "lob", "damage": dmg, "speed": spd, "range": rng,
+				"aoe": float(ex.get("aoe", 90.0)), "rider": "spill"}
 		"staff":
 			s = {"type": "staff_extend"}
 	if not st.is_empty():
@@ -777,6 +789,10 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"zenith":     return "Every swing frees the GHOST of a blade it culminates: out, one whirl at the far point, and home -- cutting the whole way, each image a different ancestor."
 		"court":      return "Every swing calls the COURT: %d shades of the people you brought home appear at your side, each carrying a different ancestor blade, and all of them sweep at once." % int(ex.get("count", 4))
 		"edict":      return "The law REACHES: a jointed arm of light unfolds the length of the hall, cutting everything along it and blooming where it touches -- and stone does not stop a sentence."
+		"afterlight":  return "The swing does not END. Its shape hangs in the air behind it -- a blade of light standing where you cut, still cutting whatever walks into it."
+		"anvil":       return "The ending arrives a beat LATE: the cleave lands, and then a mass comes down out of the dark onto the same spot. The shadow tells you where."
+		"worldthorn":  return "The thrust wakes the GROUND. Where the point goes in, thorns come up -- a row of them, standing until they are done."
+		"sunspill":    return "What it throws does not burst so much as SPILL: the shell arcs over and leaves a pool of burning daylight on the floor, and standing in it is a decision."
 		"sunder":     return "The blow does not stop at the body. It runs out THROUGH the ground -- a front of broken force crossing the room, taking everything it passes once, and stone is no argument."
 		"skyfall_rain": return "Nothing leaves the bow. The king's arrows fall from ABOVE wherever you aim -- %d of them -- so open sky is a slaughter and a low ceiling is an apology." % int(ex.get("count", 3))
 		"parade":     return "Every arrow that lands calls one of the PROCESSION: a lantern-carrying shade walks in from beyond the edge of the world, through whatever stands between, and strikes the one you marked."

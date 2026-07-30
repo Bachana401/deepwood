@@ -150,6 +150,29 @@ func _ready() -> void:
 			_behave_state = 0
 			_orbit_t = 0.0
 			_build_zenithblade()
+		"lingering_arc":
+			# AFTERLIGHT (T7): the swing does not end. A blade-shaped light
+			# hangs where it passed and keeps cutting whatever walks into it.
+			monitoring = false
+			pierce = true
+			_build_lingering_arc()
+		"anvil_drop":
+			# ANVIL OF ENDINGS (T7): the ending arrives a beat LATE -- a mass
+			# falls out of the dark onto the place you struck.
+			monitoring = false
+			_build_anvil()
+		"ground_thorn":
+			# THORN OF THE WORLD (T7): the thrust wakes the ground; thorns come
+			# up where the point went in (Blood-Thorn-kin, never 1:1).
+			monitoring = false
+			pierce = true
+			_build_ground_thorn()
+		"sun_pool":
+			# SUNSPILL (T7): what it throws does not explode, it SPILLS -- a
+			# burning pool that stays and punishes standing still.
+			monitoring = false
+			pierce = true
+			_build_sun_pool()
 		"kneeling_stone":
 			# THE MOUNTAIN THAT KNEELS: a boulder that rolls, follows the slope,
 			# and hits for whatever pace it has gathered (Staff-of-Earth-kin)
@@ -291,6 +314,12 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind == "sunder_wave":
 		_tick_sunder(delta)
+		return
+	if kind in ["lingering_arc", "ground_thorn", "sun_pool"]:
+		_tick_standing_zone(delta)
+		return
+	if kind == "anvil_drop":
+		_tick_anvil(delta)
 		return
 	if kind == "kneeling_stone":
 		_tick_boulder(delta)
@@ -710,6 +739,17 @@ func explode() -> void:
 		return
 	done = true
 	SfxSynth.play_stream_at(self, global_position, SFX_EXPLOSION, -9.0)
+	# SUNSPILL (T7): the shell does not just burst, it SPILLS -- a pool of
+	# burning daylight is left where it landed
+	if rider == "spill":
+		var pool = get_script().new()
+		pool.kind = "sun_pool"
+		pool.damage = maxi(1, int(round(float(damage) * 0.3)))
+		pool.element = element
+		pool.on_hit_status = on_hit_status
+		pool.source = source
+		pool.position = global_position
+		get_parent().call_deferred("add_child", pool)
 	for group_name in HOSTILE_GROUPS:
 		for e in get_tree().get_nodes_in_group(group_name):
 			if not is_instance_valid(e) or not e.has_method("take_damage"):
@@ -1315,6 +1355,195 @@ func _recolor_brazier() -> void:
 			p.color = Color(1.0, 0.9, 0.58, 0.95)       # the live coal
 		else:
 			p.color = Color(0.93, 0.44, 0.13, 1.0)      # ember-lit spikes
+
+# --- T7 STANDING ZONES ---------------------------------------------------
+# One tick serves three weapons, because the study's aftermath family is one
+# idea wearing three coats: something STAYS where the attack happened and
+# keeps working. Afterlight's hanging blade-light, Thorn of the World's
+# risen spikes, Sunspill's burning pool. Duration, radius and bite differ;
+# the machinery does not.
+var _zone_life := 0.0
+var _zone_max := 1.6
+var _zone_r := 60.0
+var _zone_gap := 0.35
+var _zone_t := 0.0
+
+func _tick_standing_zone(delta: float) -> void:
+	_zone_life += delta
+	_zone_t += delta
+	var frac: float = clampf(_zone_life / _zone_max, 0.0, 1.0)
+	if visual:
+		visual.modulate.a = 1.0 - frac * frac      # holds, then goes quickly
+	if _zone_t >= _zone_gap:
+		_zone_t = 0.0
+		for group_name in HOSTILE_GROUPS:
+			for e in get_tree().get_nodes_in_group(group_name):
+				if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+					continue
+				if "is_dead" in e and e.is_dead:
+					continue
+				if global_position.distance_to(e.global_position) > _zone_r:
+					continue
+				var landed = e.take_damage(damage)
+				if landed == null or landed:
+					FloatingText.spawn(get_parent(), e.global_position
+						+ Vector2(randf_range(-16.0, 16.0), -20.0), damage, false)
+				_apply_status_to(e)
+	if _zone_life >= _zone_max:
+		done = true
+		queue_free()
+
+# AFTERLIGHT: the shape of the swing, left behind in the air
+func _build_lingering_arc() -> void:
+	_zone_max = 1.7
+	_zone_r = 66.0
+	_zone_gap = 0.34
+	for pass_i in range(2):
+		var arc := Polygon2D.new()
+		var pts := PackedVector2Array()
+		var outer := 52.0 if pass_i == 0 else 44.0
+		var inner := 34.0 if pass_i == 0 else 30.0
+		for i in range(11):
+			var a := lerpf(-1.05, 1.05, float(i) / 10.0)
+			pts.append(Vector2(cos(a), sin(a)) * outer)
+		for i in range(11):
+			var a2 := lerpf(1.05, -1.05, float(i) / 10.0)
+			pts.append(Vector2(cos(a2), sin(a2)) * inner)
+		arc.polygon = pts
+		arc.color = Color(1.0, 0.94, 0.72, 0.3) if pass_i == 0 else Color(1.0, 1.0, 0.9, 0.6)
+		var m := CanvasItemMaterial.new()
+		m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		arc.material = m
+		visual.add_child(arc)
+
+# THORN OF THE WORLD: three spikes come up out of the floor
+func _build_ground_thorn() -> void:
+	_zone_max = 1.3
+	_zone_r = 74.0
+	_zone_gap = 0.3
+	for i in range(3):
+		var th := Polygon2D.new()
+		var h := 46.0 - absf(float(i) - 1.0) * 12.0
+		th.polygon = PackedVector2Array([
+			Vector2(-7.0, 8.0), Vector2(-2.5, -h), Vector2(2.5, -h), Vector2(7.0, 8.0)])
+		th.color = Color(0.5, 0.14, 0.2, 0.95)
+		th.position = Vector2(-42.0 + 42.0 * float(i), 8.0)
+		visual.add_child(th)
+		var lip := Polygon2D.new()
+		lip.polygon = PackedVector2Array([
+			Vector2(-2.0, -h * 0.55), Vector2(0.0, -h), Vector2(2.0, -h * 0.55)])
+		lip.color = Color(0.95, 0.4, 0.45, 0.9)
+		lip.position = th.position
+		visual.add_child(lip)
+		# they ERUPT rather than appear
+		th.scale.y = 0.1
+		var tw := th.create_tween()
+		tw.tween_property(th, "scale:y", 1.0, 0.14).set_delay(0.05 * float(i))
+
+# SUNSPILL: a pool of daylight burning on the floor
+func _build_sun_pool() -> void:
+	_zone_max = 4.2
+	_zone_r = 82.0
+	_zone_gap = 0.4
+	var pool := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(16):
+		var a := TAU * float(i) / 16.0
+		pts.append(Vector2(cos(a) * 80.0, sin(a) * 20.0))
+	pool.polygon = pts
+	pool.color = Color(1.0, 0.62, 0.16, 0.42)
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	pool.material = m
+	visual.add_child(pool)
+	var core := Polygon2D.new()
+	var cpts := PackedVector2Array()
+	for i in range(14):
+		var a2 := TAU * float(i) / 14.0
+		cpts.append(Vector2(cos(a2) * 52.0, sin(a2) * 12.0))
+	core.polygon = cpts
+	core.color = Color(1.0, 0.86, 0.4, 0.5)
+	core.material = m
+	visual.add_child(core)
+	var tw := pool.create_tween()
+	tw.set_loops()
+	tw.tween_property(pool, "scale", Vector2(1.06, 1.15), 0.6)
+	tw.tween_property(pool, "scale", Vector2(0.96, 0.9), 0.6)
+
+# --- ANVIL OF ENDINGS: the mass that arrives late ------------------------
+var _anvil_t := 0.0
+var _anvil_target := Vector2.ZERO
+const ANVIL_FALL := 0.45
+
+func _tick_anvil(delta: float) -> void:
+	if done:
+		return   # landed: it is sitting there fading, not falling
+	_anvil_t += delta
+	var f: float = clampf(_anvil_t / ANVIL_FALL, 0.0, 1.0)
+	# it comes down out of the dark, accelerating
+	global_position = Vector2(_anvil_target.x,
+		lerpf(_anvil_target.y - 420.0, _anvil_target.y, f * f))
+	if f < 1.0:
+		return
+	# landing
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if global_position.distance_to(e.global_position) > 92.0:
+				continue
+			var landed = e.take_damage(damage)
+			if landed == null or landed:
+				FloatingText.spawn(get_parent(), e.global_position + Vector2(0, -28.0), damage, true)
+			_apply_status_to(e)
+			if e.has_method("apply_knockback"):
+				e.apply_knockback(1 if e.global_position.x >= global_position.x else -1, knockback * 1.4)
+	_rock_smoke(global_position + Vector2(0, 12.0))
+	SfxSynth.play_at(self, global_position, "thud", -4.0, 0.55)
+	# LET IT BE SEEN. Freeing on the landing frame meant the mass arrived and
+	# vanished in the same instant -- on film there was smoke and a number but
+	# no anvil. It sits for a beat, then sinks away.
+	done = true
+	if _anvil_shadow != null and is_instance_valid(_anvil_shadow):
+		_anvil_shadow.visible = false
+	var tw := create_tween()
+	tw.tween_interval(0.16)
+	tw.tween_property(self, "modulate:a", 0.0, 0.18)
+	tw.tween_callback(queue_free)
+
+func set_anvil_target(at: Vector2) -> void:
+	_anvil_target = at
+	global_position = Vector2(at.x, at.y - 420.0)
+	# the tell sits on the GROUND, not on the falling mass -- it is top_level
+	# so it would otherwise have stayed pinned at the world origin
+	if _anvil_shadow != null and is_instance_valid(_anvil_shadow):
+		_anvil_shadow.global_position = at + Vector2(0, 12.0)
+
+var _anvil_shadow: Polygon2D = null
+func _build_anvil() -> void:
+	# THE TELL: a shadow on the ground the whole time it is falling, so the
+	# player (and anything with sense) knows exactly where the mass lands
+	_anvil_shadow = Polygon2D.new()
+	_anvil_shadow.polygon = PackedVector2Array([
+		Vector2(-34, 0), Vector2(-20, -7), Vector2(20, -7), Vector2(34, 0),
+		Vector2(20, 7), Vector2(-20, 7)])
+	_anvil_shadow.color = Color(0.05, 0.04, 0.07, 0.45)
+	_anvil_shadow.top_level = true
+	_anvil_shadow.z_index = 3
+	add_child(_anvil_shadow)
+	var body := Polygon2D.new()
+	body.polygon = PackedVector2Array([
+		Vector2(-30, -6), Vector2(-16, -26), Vector2(20, -26), Vector2(30, -8),
+		Vector2(24, 14), Vector2(-24, 14)])
+	body.color = Color(0.19, 0.18, 0.22, 1.0)
+	visual.add_child(body)
+	var face := Polygon2D.new()
+	face.polygon = PackedVector2Array([
+		Vector2(-16, -26), Vector2(20, -26), Vector2(18, -18), Vector2(-14, -18)])
+	face.color = Color(0.42, 0.4, 0.46, 1.0)
+	visual.add_child(face)
 
 # --- GRIEF WEARS A CROWN: the ground carries the blow ------------------
 const SUNDER_SPEED := 1400.0

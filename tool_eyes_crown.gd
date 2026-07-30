@@ -152,8 +152,143 @@ func _ready() -> void:
 	await _settle(1.4)
 	await _shot("b4_throne_burning")    # embers going out to the row
 
+	await _settle(0.6)
+
+	# ================= #6-#10: never filmed until now =================
+	# helper: put the row back and stand where the shot reads
+	var home := Vector2(6000.0, -80.0)
+
+	# ---- #6 THE CROWN'S SORROW: the pour ----
+	p.global_position = home
+	if "velocity" in p: p.velocity = Vector2.ZERO
+	p.inventory.add_item("wpn_crownsorrow", 1)
+	p.wield_weapon("wpn_crownsorrow")
+	var qs: Dictionary = p.active_def.get("special", {})
+	for i in range(7):
+		p.launch_projectile(qs, Vector2.RIGHT, int(qs.get("damage", 11)))
+		await _settle(0.07)
+	await _shot("q1_sorrow_pour")
+	await _settle(0.5)
+
+	# ---- #7 GRIEF WEARS A CROWN: the ground carries it ----
+	p.global_position = home
+	p.inventory.add_item("wpn_griefcrown", 1)
+	p.wield_weapon("wpn_griefcrown")
+	var gs: Dictionary = p.active_def.get("special", {})
+	p.launch_projectile(gs, Vector2.RIGHT, int(gs.get("damage", 34)))
+	await _settle(0.12)
+	await _shot("g1_sunder_front")
+	await _settle(0.18)
+	await _shot("g2_sunder_passed")
+	await _settle(0.6)
+
+	# ---- #8 THE HOLLOW KING'S RAIN: from above, and the roof rule ----
+	p.global_position = home
+	p.inventory.add_item("wpn_hollowking", 1)
+	p.wield_weapon("wpn_hollowking")
+	var aim2: Vector2 = p.global_position + Vector2(240.0, 10.0)
+	Input.warp_mouse(get_viewport().get_canvas_transform() * aim2)
+	await get_tree().process_frame
+	p.call_the_kings_rain(p.active_def.get("special", {}))
+	await _settle(0.22)
+	await _shot("k1_rain_falling")
+	await _settle(0.35)
+	await _shot("k2_rain_landed")
+	await _settle(0.5)
+
+	# ---- #9 NIGHT PARADE: marchers in from off-camera ----
+	p.global_position = home
+	p.inventory.add_item("wpn_nightparade", 1)
+	p.wield_weapon("wpn_nightparade")
+	# the parade is called by LANDED arrows, so land some. Aim at the row and
+	# drive the REAL attack path (perform_attack), since the marcher hook hangs
+	# off on_projectile_hit -- a hand-rolled shot would bypass the very thing
+	# under test.
+	var aim3: Vector2 = p.global_position + Vector2(240.0, 12.0)
+	Input.warp_mouse(get_viewport().get_canvas_transform() * aim3)
+	await get_tree().process_frame
+	for i in range(5):
+		p.attack_cooldown_remaining = 0.0
+		p.perform_attack()
+		await _settle(0.16)
+	await _shot("n1_parade_called")
+	await _settle(0.7)
+	await _shot("n2_parade_arriving")
+	await _settle(0.6)
+
+	# ---- #10 THE MOUNTAIN THAT KNEELS: the rolling stone ----
+	p.global_position = home
+	p.inventory.add_item("wpn_mountainking", 1)
+	p.wield_weapon("wpn_mountainking")
+	var ms: Dictionary = p.active_def.get("special", {})
+	p.launch_projectile(ms, Vector2.RIGHT, int(ms.get("damage", 30)))
+	await _settle(0.30)
+	await _shot("m1_boulder_rolling")
+	await _settle(0.45)
+	await _shot("m2_boulder_plowing")
+
+	await _settle(0.6)
+
+	# ================= T7 BATCH 1: the aftermath family =================
+	# ---- AFTERLIGHT: the swing's shape stays in the air ----
+	p.global_position = home
+	p.inventory.add_item("wpn_afterlight", 1)
+	p.wield_weapon("wpn_afterlight")
+	await _aim_right(p)
+	p.attack_cooldown_remaining = 0.0
+	p.perform_attack()
+	await _settle(0.25)
+	await _shot("t1_afterlight_hanging")
+	await _settle(0.8)
+	await _shot("t2_afterlight_fading")
+	await _settle(0.6)
+
+	# ---- ANVIL OF ENDINGS: the mass that comes late ----
+	p.global_position = home
+	p.inventory.add_item("wpn_finalanvil", 1)
+	p.wield_weapon("wpn_finalanvil")
+	await _aim_right(p)
+	p.attack_cooldown_remaining = 0.0
+	p.perform_attack()
+	await _settle(0.22)
+	await _shot("t3_anvil_falling")    # the shadow should be on the ground
+	await _settle(0.30)
+	await _shot("t4_anvil_landed")
+	await _settle(0.6)
+
+	# ---- THORN OF THE WORLD: the ground answers the thrust ----
+	p.global_position = home
+	p.inventory.add_item("wpn_worldthorn", 1)
+	p.wield_weapon("wpn_worldthorn")
+	await _aim_right(p)
+	p.attack_cooldown_remaining = 0.0
+	p.perform_attack()
+	await _settle(0.28)
+	await _shot("t5_worldthorn_risen")
+	await _settle(0.6)
+
+	# ---- SUNSPILL: the shell arcs, the pool stays ----
+	p.global_position = home
+	p.inventory.add_item("wpn_sunspill", 1)
+	p.wield_weapon("wpn_sunspill")
+	var ss: Dictionary = p.active_def.get("special", {})
+	p.launch_projectile(ss, Vector2(0.86, -0.5).normalized(), int(ss.get("damage", 30)))
+	await _settle(0.55)
+	await _shot("t6_sunspill_pool")
+	await _settle(1.1)
+	await _shot("t7_sunspill_burning")
+
 	say("EYES-CROWN: done")
 	get_tree().quit(0)
+
+# perform_attack() aims at the CURSOR, and a walker has none -- without this
+# every swing-driven weapon fires to the LEFT (the default facing) and the
+# shot lands off-frame. Park the pointer on the dummy row first.
+func _aim_right(p: Node) -> void:
+	var at: Vector2 = (p as Node2D).global_position + Vector2(240.0, 10.0)
+	Input.warp_mouse(get_viewport().get_canvas_transform() * at)
+	await get_tree().process_frame
+	await get_tree().process_frame
 
 func _shot(name: String) -> void:
 	await RenderingServer.frame_post_draw
