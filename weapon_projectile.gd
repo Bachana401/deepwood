@@ -243,6 +243,15 @@ func _ready() -> void:
 			pierce = true          # a drawn line cuts everyone who crosses it
 			_build_chalk_line()
 		"stub_spark": _build_stub_spark()
+		"brook_band":
+			pierce = true          # water does not stop at the first body
+			_build_brook_band()
+		"spore_light": _build_spore_light()
+		"moss_patch":
+			_zone_max = 5.0
+			_zone_gap = 0.6
+			_zone_r = 44.0
+			_build_moss_patch()
 		"tallow_pool":
 			_zone_max = 3.2
 			_zone_gap = 0.7
@@ -989,6 +998,18 @@ func _physics_process(delta: float) -> void:
 			_rake_overlapping()
 	if kind == "chalk_line":
 		_tick_chalk_line(delta)
+		return
+	if kind == "brook_band":
+		_tick_brook(delta)
+		return
+	if kind == "spore_light":
+		_tick_spore(delta)
+		return
+	if kind == "moss_patch":
+		_chalk_t += delta
+		if visual:      # the fronds breathe on every tick, so a decal feels alive
+			visual.scale = Vector2.ONE * (1.0 + 0.12 * sin(_chalk_t * 5.2))
+		_tick_standing_zone(delta)
 		return
 	if kind == "tallow_pool":
 		# the flame leans and breathes -- a smooth 0.2s cycle, never a strobe
@@ -3475,6 +3496,150 @@ func _tick_chalk_line(delta: float) -> void:
 				FloatingText.spawn(get_parent(),
 					(e as Node2D).global_position + Vector2(0, -24.0), damage, is_crit)
 			_apply_status_to(e)
+
+# --- THE BROOKWAND: water that runs along the floor and falls down holes ----
+# The only terrain-following projectile in the roster. In a Terraria-shaped
+# world -- ledges, pits, tunnels -- a thing that follows the ground instead of
+# ignoring it reads instantly, and doubles as a way to see where the floor ends.
+const BROOK_LIFE := 1.2
+const BROOK_REHIT := 0.4
+var _brook_t := 0.0
+var _brook_body: Polygon2D = null
+var _brook_crest: Line2D = null
+
+func _build_brook_band() -> void:
+	_brook_body = Polygon2D.new()
+	_brook_body.color = Color(0.45, 0.72, 0.90, 0.75)
+	visual.add_child(_brook_body)
+	_brook_crest = Line2D.new()
+	_brook_crest.width = 2.0
+	_brook_crest.default_color = Color(0.72, 0.90, 1.00, 0.9)
+	_brook_crest.material = _add_mat()
+	visual.add_child(_brook_crest)
+
+func _tick_brook(delta: float) -> void:
+	_brook_t += delta
+	if _brook_t >= BROOK_LIFE:
+		done = true
+		queue_free()
+		return
+	# the head hugs the floor: walk forward, then find the ground under it
+	var step: float = speed * delta
+	global_position.x += direction.x * step
+	traveled += step
+	var space := get_world_2d().direct_space_state
+	var q := PhysicsRayQueryParameters2D.create(
+		global_position + Vector2(0, -30.0), global_position + Vector2(0, 120.0))
+	q.collision_mask = 1
+	q.exclude = [self]
+	var hit := space.intersect_ray(q)
+	if hit:
+		global_position.y = lerpf(global_position.y, hit.position.y - 5.0, 0.45)
+		_vel_y = 0.0
+	else:
+		# no floor: it FALLS, which is the whole point of the weapon
+		_vel_y += 1400.0 * delta
+		global_position.y += _vel_y * delta
+	# a travelling wave along the top edge -- this is what reads as "flow"
+	var pts := PackedVector2Array()
+	var crest := PackedVector2Array()
+	var back: float = -170.0
+	for i in range(13):
+		var f: float = float(i) / 12.0
+		var x: float = lerpf(back, 0.0, f) * (1.0 if direction.x >= 0.0 else -1.0)
+		var wave: float = sin(_brook_t * 12.6 + f * 12.0) * 3.0
+		crest.append(Vector2(x, -10.0 + wave))
+		pts.append(Vector2(x, -10.0 + wave))
+	for i in range(13):
+		var f2: float = 1.0 - float(i) / 12.0
+		var x2: float = lerpf(back, 0.0, f2) * (1.0 if direction.x >= 0.0 else -1.0)
+		pts.append(Vector2(x2, 2.0))
+	if _brook_body != null and is_instance_valid(_brook_body):
+		_brook_body.polygon = pts
+		_brook_crest.points = crest
+	# soak what the band is running across
+	_ink_rehit += delta
+	if _ink_rehit >= BROOK_REHIT:
+		_ink_rehit = 0.0
+		for gname in HOSTILE_GROUPS:
+			for e in get_tree().get_nodes_in_group(gname):
+				if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+					continue
+				if "is_dead" in e and e.is_dead:
+					continue
+				var rel: Vector2 = (e as Node2D).global_position - global_position
+				if absf(rel.y) > 46.0 or rel.x * signf(direction.x) > 20.0 \
+						or rel.x * signf(direction.x) < -180.0:
+					continue
+				var pay: int = maxi(1, int(round(float(damage) * 0.6)))
+				var landed = e.take_damage(pay)
+				if landed == null or landed:
+					FloatingText.spawn(get_parent(),
+						(e as Node2D).global_position + Vector2(0, -22.0), pay, false)
+				_apply_status_to(e)
+
+# --- MOSSLIGHT: a spore that sticks where it lands and unfurls -------------
+var _spore_t := 0.0
+
+func _build_spore_light() -> void:
+	var halo := Polygon2D.new()
+	halo.polygon = _circle(13.0, 12)
+	halo.color = Color(0.55, 0.85, 0.50, 0.25)
+	halo.material = _add_mat()
+	visual.add_child(halo)
+	var disc := Polygon2D.new()
+	disc.polygon = _circle(8.0, 12)
+	disc.color = Color(0.55, 0.85, 0.50, 0.9)
+	visual.add_child(disc)
+	var core := Polygon2D.new()
+	core.polygon = _circle(3.4, 8)
+	core.color = Color(0.85, 1.0, 0.80, 0.95)
+	core.material = _add_mat()
+	visual.add_child(core)
+
+func _tick_spore(delta: float) -> void:
+	_spore_t += delta
+	# drifts slowly, bobbing -- slow enough that a player can shepherd it
+	global_position += direction * speed * delta
+	global_position.y += sin(_spore_t * 12.6) * 22.0 * delta
+	traveled += speed * delta
+	if traveled >= max_distance or _spore_t > 2.4:
+		_plant_moss()
+		done = true
+		queue_free()
+
+func _plant_moss() -> void:
+	var host := get_parent()
+	if host == null or not is_instance_valid(host):
+		return
+	var patch = (load("res://weapon_projectile.gd") as GDScript).new()
+	patch.kind = "moss_patch"
+	patch.damage = maxi(1, int(round(float(damage) * 0.25)))
+	patch.element = element
+	patch.on_hit_status = on_hit_status
+	patch.source = source
+	patch.global_position = global_position
+	host.call_deferred("add_child", patch)
+
+func _build_moss_patch() -> void:
+	var blob := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(11):
+		var a: float = TAU * float(i) / 11.0
+		var rr: float = 26.0 + sin(float(i) * 2.7) * 6.0
+		pts.append(Vector2(cos(a) * rr, sin(a) * rr * 0.42 + 6.0))
+	blob.polygon = pts
+	blob.color = Color(0.30, 0.62, 0.34, 0.85)
+	visual.add_child(blob)
+	# five fronds, so the patch reads as GROWN rather than stamped
+	for i in range(5):
+		var frond := Polygon2D.new()
+		var a2: float = lerpf(-2.5, -0.65, float(i) / 4.0)
+		var tipv: Vector2 = Vector2(cos(a2), sin(a2)) * 22.0
+		frond.polygon = PackedVector2Array([
+			Vector2(0, 4.0), tipv, tipv + Vector2(5.0, 4.0)])
+		frond.color = Color(0.60, 0.90, 0.55, 0.9)
+		visual.add_child(frond)
 
 # --- THE STUBWAND's sparks: ragged, short-lived, and DELIBERATELY unglamorous
 # The fat one recolours itself so the jackpot is visible in the air rather than

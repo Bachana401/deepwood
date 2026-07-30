@@ -78,6 +78,8 @@ const HITS_PER_USE := {
 	"chalkline":   1.2, # a static stroke; a body crosses it about once
 	"tallowdrip":  2.2, # the splat, then ~4 burn ticks at 0.3x from the puddle
 	"stubmisfire": 1.4, # 2-4 sparks at 0.5x that SPREAD; one or two land
+	"brookflow":   1.8, # the band re-soaks every 0.4s at 0.6x while it passes
+	"sporepatch":  3.0, # the stick, then ~8 ticks at 0.25x if they hold ground
 	# ---- T6 batch 1 ----
 	"hushfall":    1.8, # the swing, then the late nova at 0.8x in a radius
 	"eclipse":     1.7, # the disc out and back, plus one shadow band at 0.85x

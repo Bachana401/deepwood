@@ -156,9 +156,9 @@ const ROWS = [
 	["wpn_ashbow",       "Ashwood Bow",          "bow",   2, "shot",      10, 0.5,  {"plain": true}],
 	["wpn_ferrybow",     "Ferryman's Bow",       "bow",   2, "volley",    7,  0.65, {"count": 2, "plain": true}],
 	["wpn_stingerbow",   "Stinger",              "bow",   2, "rapid",     5,  0.22, {"plain": true}],
-	["wpn_mosswand",     "Mosslight Wand",       "wand",  2, "bolt",      12, 0.55, {"plain": true}],
+	["wpn_mosswand",     "Mosslight Wand",       "wand",  2, "sporepatch", 12, 0.55, {"rung": true}],
 	["wpn_cinderrod",    "Cinder Rod",           "wand",  2, "fire",      14, 0.8,  {"aoe": 70, "plain": true}],
-	["wpn_brookwand",    "Brookwand",            "wand",  2, "frost",     10, 0.5,  {"status": "slow_w", "plain": true}],
+	["wpn_brookwand",    "Brookwand",            "wand",  2, "brookflow", 10, 0.5,  {"status": "slow_w", "rung": true}],
 	# ---------------- TIER 3 - RARE (floors 12-32) ----------------
 	["wpn_watchmansword","Watchman's Justice",   "melee", 3, "arc",       15, 0.5,  {"plain": true}],
 	["wpn_furrowscythe", "Furrow Scythe",        "melee", 3, "cleave",    19, 0.9,  {"plain": true}],
@@ -778,6 +778,18 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			s = {"type": "ink_jet", "damage": dmg, "speed": spd, "range": rng}
 		"wake":
 			s = {"type": "wake_scythe", "damage": dmg, "speed": spd, "range": rng}
+		"brookflow":
+			# THE BROOKWAND pours. A band of water runs along the FLOOR, over
+			# ledges and down holes, soaking what it crosses. Keeps the cold
+			# identity but as WATER, which is what a brook actually is. The only
+			# terrain-following fluid in the roster, and the only projectile
+			# that deliberately goes down a hole.
+			s = {"type": "brook_band", "damage": dmg, "speed": 340.0, "range": rng}
+		"sporepatch":
+			# MOSSLIGHT seeds. A drifting spore sticks to the first thing it
+			# touches and unfurls into a patch that pulses; patches near each
+			# other link up. The only stick-and-grow denial of the eleven.
+			s = {"type": "spore_light", "damage": dmg, "speed": 260.0, "range": rng * 0.7}
 		"stubmisfire":
 			# THE STUBWAND is BROKEN. Two to four ragged sparks in a wide fan,
 			# and about one cast in six coughs a single fat one instead that
