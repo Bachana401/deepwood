@@ -111,6 +111,46 @@ seven-shaft wall) as if it all landed on one target, which pushed T6's
 median ABOVE T7's. Crowd damage is a feature; do not bill it as single-target
 throughput.
 
+---
+
+# FINAL STATE (2026-07-29, overnight pass)
+
+Measured across all 275 weapons. **146 distinct behaviors**, up from 58.
+
+| tier | weapons | crowded | % | |
+|---|---|---|---|---|
+| **T8 monarch** | 23 | **0** | **0%** | every crown weapon has a verb of its own |
+| T7 | 30 | 3 | 10% | |
+| T6 | 38 | 9 | 24% | |
+| T5 | 41 | 12 | 29% | |
+| T4 | 49 | 26 | 53% | all 21 convertible done; the rest are pinned plain |
+| T3 | 45 | 31 | 69% | plain ladder by design |
+| T2 | 29 | 23 | 79% | plain ladder by design |
+| T1 | 20 | 19 | 95% | plain ladder by design |
+
+That descending curve IS the ladder law working. The crown is entirely
+singular; the low tiers stay shared on purpose, because a copper sword and an
+iron sword should swing the same and differ by numbers. What remains
+"crowded" at T1-T4 is overwhelmingly the pinned plain rungs.
+
+## Verified
+
+- **Clean clone**: 108/108 of the full suite, plus all five weapon audits.
+  A green working tree has lied in this repo before; this is the committed
+  tree.
+- **The dispatch audit** (new) proves every one of the 179 weapons that
+  declares a verb actually fires it, and that a verb promising a count
+  delivers it.
+
+## Still open
+
+1. **The Summoner class** — `SUMMONER_CLASS_DESIGN.md`, still entirely
+   unbuilt. The largest single remaining piece.
+2. **T1-T3 taste pass** — the ladder law says leave them shared, but the dev
+   has since said they want effects over stats at EVERY level. Worth asking
+   rather than assuming.
+3. **Item space** — relics/armour/materials adaptations from the scans.
+
 ## Order
 
 1. **T6** (38 weapons, 37 crowded) — the tier directly under the finished ones,
