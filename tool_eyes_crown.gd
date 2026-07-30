@@ -1,4 +1,4 @@
-extends Node
+﻿extends Node
 # EYES: THE CROWN TEN (weapon overhaul wave, 2026-07-29). Each approved crown
 # weapon gets shots here as it is built, so the apex tier is judged on film
 # rather than on description.
@@ -228,125 +228,10 @@ func _ready() -> void:
 	await _shot("m2_boulder_plowing")
 
 	await _settle(0.6)
-
-	# ================= T7 BATCH 1: the aftermath family =================
-	# ---- AFTERLIGHT: the swing's shape stays in the air ----
-	p.global_position = home
-	p.inventory.add_item("wpn_afterlight", 1)
-	p.wield_weapon("wpn_afterlight")
-	await _aim_right(p)
-	p.attack_cooldown_remaining = 0.0
-	p.perform_attack()
-	await _settle(0.25)
-	await _shot("t1_afterlight_hanging")
-	await _settle(0.8)
-	await _shot("t2_afterlight_fading")
-	await _settle(0.6)
-
-	# ---- ANVIL OF ENDINGS: the mass that comes late ----
-	p.global_position = home
-	p.inventory.add_item("wpn_finalanvil", 1)
-	p.wield_weapon("wpn_finalanvil")
-	await _aim_right(p)
-	p.attack_cooldown_remaining = 0.0
-	p.perform_attack()
-	await _settle(0.22)
-	await _shot("t3_anvil_falling")    # the shadow should be on the ground
-	await _settle(0.30)
-	await _shot("t4_anvil_landed")
-	await _settle(0.6)
-
-	# ---- THORN OF THE WORLD: the ground answers the thrust ----
-	p.global_position = home
-	p.inventory.add_item("wpn_worldthorn", 1)
-	p.wield_weapon("wpn_worldthorn")
-	await _aim_right(p)
-	p.attack_cooldown_remaining = 0.0
-	p.perform_attack()
-	await _settle(0.28)
-	await _shot("t5_worldthorn_risen")
-	await _settle(0.6)
-
-	# ---- SUNSPILL: the shell arcs, the pool stays ----
-	p.global_position = home
-	p.inventory.add_item("wpn_sunspill", 1)
-	p.wield_weapon("wpn_sunspill")
-	var ss: Dictionary = p.active_def.get("special", {})
-	p.launch_projectile(ss, Vector2(0.86, -0.5).normalized(), int(ss.get("damage", 30)))
-	await _settle(0.55)
-	await _shot("t6_sunspill_pool")
-	await _settle(1.1)
-	await _shot("t7_sunspill_burning")
-
-	await _settle(0.6)
-
-	# ================= T7 BATCH 2 =================
-	# ---- THE QUIET RECKONING: small now, the bill later ----
-	p.global_position = home
-	p.inventory.add_item("wpn_reckoningbow", 1)
-	p.wield_weapon("wpn_reckoningbow")
-	await _aim_right(p)
-	for i in range(3):
-		p.attack_cooldown_remaining = 0.0
-		p.perform_attack()
-		await _settle(0.2)
-	await _shot("u1_reckoning_stuck")     # arrows in, small numbers
-	await _settle(1.5)
-	await _shot("u2_reckoning_due")       # the bill arrives
-	await _settle(0.6)
-
-	# ---- CHAINED COMET: the crater at the far end ----
-	p.global_position = home
-	p.inventory.add_item("wpn_cometchain", 1)
-	p.wield_weapon("wpn_cometchain")
-	var cc: Dictionary = p.active_def.get("special", {})
-	p.launch_projectile(cc, Vector2.RIGHT, int(cc.get("damage", 30)))
-	await _settle(0.9)
-	await _shot("u3_comet_crater")
-	await _settle(0.8)
-
-	# ---- FLOCK OF STORMS: birds off one jab ----
-	p.global_position = home
-	p.inventory.add_item("wpn_stormflock", 1)
-	p.wield_weapon("wpn_stormflock")
-	await _aim_right(p)
-	p.attack_cooldown_remaining = 0.0
-	p.perform_attack()
-	await _settle(0.25)
-	await _shot("u4_flock_loosed")
-	await _settle(0.5)
-	await _shot("u5_flock_diving")
-	await _settle(0.6)
-
-	# ---- DAWN CHORUS: the bar of light rising ----
-	p.global_position = home
-	p.inventory.add_item("wpn_dawnchorus", 1)
-	p.wield_weapon("wpn_dawnchorus")
-	await _aim_right(p)
-	p.attack_cooldown_remaining = 0.0
-	p.perform_attack()
-	await _settle(0.16)
-	await _shot("u6_dawn_laid")
-	await _settle(0.28)
-	await _shot("u7_dawn_rising")
-
-	await _settle(0.6)
-
-	# ================= T7 BATCH 3: the remaining melee =================
-	for spec in [["wpn_worldsedge", "v1_worldedge", 0.45],
-			["wpn_ascendwheel", "v2_risingwheel", 0.7],
-			["wpn_novatongue", "v3_nova", 0.55],
-			["wpn_silencelash", "v4_hush", 0.75]]:
-		p.global_position = home
-		if "velocity" in p: p.velocity = Vector2.ZERO
-		p.inventory.add_item(spec[0], 1)
-		p.wield_weapon(spec[0])
-		await _aim_right(p)
-		p.attack_cooldown_remaining = 0.0
-		p.perform_attack()
-		await _settle(spec[2])
-		await _shot(spec[1])
-		await _settle(0.5)
+	# NOTE: T7 lives in tool_eyes_t7.gd now. This walker had grown to ~40
+	# shots and stopped finishing inside a sane timeout -- one walker per
+	# tier from here on, so a tier can be re-filmed without re-running the
+	# whole history.
 
 	say("EYES-CROWN: done")
 	get_tree().quit(0)

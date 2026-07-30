@@ -153,7 +153,7 @@ const ROWS = [
 		"fx": [{"kind": "quake", "radius": 140.0, "pct": 0.8}, {"kind": "stormcall", "every": 4, "pct": 1.6}]}],
 	["wpn_zenithpike",   "Zenith",               "spear", 7, "thrust", 40, 0.75, {
 		"fx": [{"kind": "duelist", "pct_per": 0.15, "max": 6}, {"kind": "frostbloom", "radius": 155.0}]}],
-	["wpn_ninthcommand", "Ninth Commandment",    "bow", 7, "volley", 22, 0.5,  {"count": 4, "pierce": true,
+	["wpn_ninthcommand", "Ninth Commandment",    "bow", 7, "commandment", 20, 0.52, {"pierce": true,
 		"fx": [{"kind": "chain", "n": 2, "pct": 0.8, "range": 260.0}, {"kind": "sparkfly", "n": 1, "pct": 0.5}]}],
 	["wpn_heavenstring", "Heavenstring",         "bow", 7, "seeker", 28, 0.55, {
 		"fx": [{"kind": "brand", "amp": 0.42, "dur": 4.0}, {"kind": "sparkfly", "n": 1, "pct": 0.5}]}],
@@ -163,7 +163,7 @@ const ROWS = [
 		"fx": [{"kind": "splinter", "n": 5, "pct": 0.8, "range": 170.0}, {"kind": "gravity", "radius": 180.0, "pull": 150.0}]}],
 	["wpn_asphodelpost", "Asphodel Post",        "wand", 7, "sentry", 20, 1.15, {"dur": 26,
 		"fx": [{"kind": "soulwisp", "dmg": 10, "pct": 0.8}, {"kind": "bloodprice", "pct": 0.8, "cost": 1}]}],
-	["wpn_skypillar",    "Pillar of the Sky",    "staff", 7, "staff", 27, 0.38, {
+	["wpn_skypillar",    "Pillar of the Sky",    "staff", 7, "skypillar", 30, 0.6, {
 		"fx": [{"kind": "quake", "radius": 150.0, "pct": 0.8}, {"kind": "haste", "pct_per": 0.08, "max": 5, "dur": 5.0}]}],
 	# ---------------- TIER 8 - MONARCH (floors 88-100) ----------------
 	# CROWN TEN #6: a plain `arc` shared with 27 weapons becomes a POUR. Damage
@@ -349,7 +349,7 @@ const ROWS = [
 		"fx": [{"kind": "gravity", "radius": 220.0, "pull": 150.0}, {"kind": "harvest", "hp": 3, "mana": 5.0}]}],
 	["wpn_shardregent",  "The Shard Regent",     "wand", 7, "cluster", 33, 0.74, {"shards": 9,
 		"fx": [{"kind": "splinter", "n": 5, "pct": 0.8, "range": 170.0}, {"kind": "skyrain", "n": 3, "pct": 0.5, "spread": 130.0}]}],
-	["wpn_finaldebt",    "The Final Debt",       "wand", 7, "ricochet", 29, 0.54, {"bounces": 7,
+	["wpn_finaldebt",    "The Final Debt",       "wand", 7, "finaldebt", 22, 0.6, {"bounces": 7,
 		"fx": [{"kind": "goldtouch", "chance": 0.3, "gold": 5}, {"kind": "stormcall", "every": 4, "pct": 0.8}]}],
 	["wpn_highlantern",  "Lantern of the High Road", "wand", 7, "sentry", 19, 1.12, {"dur": 26,
 		"fx": [{"kind": "moonlit", "pct": 0.8}, {"kind": "legacy", "n": 2, "pct": 0.6, "range": 280.0}]}],
@@ -750,6 +750,17 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			# the lash it was, and where it turns it leaves a still place
 			s = {"type": "lash", "damage": dmg, "speed": spd + 40.0,
 				"range": 290.0 + float(tier) * 18.0, "rider": "hush"}
+		# ---- T7 VERBS (batch 4) ----
+		"commandment":
+			# metronome: ordinary shots, and every ninth is a RULING
+			s = {"type": "commandment", "damage": dmg, "speed": spd + 300.0,
+				"range": rng + 200.0, "every": 9}
+		"skypillar":
+			s = {"type": "sky_pillar", "damage": maxi(1, int(round(float(dmg) * 0.55)))}
+		"finaldebt":
+			# the ricochet it was; now every body it touches is BOOKED
+			s = {"type": "ricochet", "damage": dmg, "speed": spd + 120.0,
+				"range": rng, "bounces": int(ex.get("bounces", 5)), "rider": "debt"}
 		"staff":
 			s = {"type": "staff_extend"}
 	if not st.is_empty():
@@ -819,6 +830,9 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"zenith":     return "Every swing frees the GHOST of a blade it culminates: out, one whirl at the far point, and home -- cutting the whole way, each image a different ancestor."
 		"court":      return "Every swing calls the COURT: %d shades of the people you brought home appear at your side, each carrying a different ancestor blade, and all of them sweep at once." % int(ex.get("count", 4))
 		"edict":      return "The law REACHES: a jointed arm of light unfolds the length of the hall, cutting everything along it and blooming where it touches -- and stone does not stop a sentence."
+		"commandment": return "Eight ordinary shafts, and the NINTH is a ruling: one heavy bolt that goes through everything standing in its way and does not slow down for any of it."
+		"skypillar":   return "Stands a COLUMN of daylight where you pointed. It does not travel and it does not chase -- it is simply there, and briefly, and nothing inside it is comfortable."
+		"finaldebt":   return "Every body it bounces off is BOOKED. The mark sits quietly and comes due on its own, so a long chain leaves a room full of accounts closing one after another."
 		"worldedge":   return "It leaves the blade as a sliver and arrives as a HORIZON: the thrown edge widens the whole way out, so the far end of the room is where it is largest."
 		"risingwheel": return "The wheel does not go out, it CLIMBS -- spinning upward in a widening turn, biting each pass, and carrying whatever it catches off the floor with it."
 		"nova":        return "The tongue reaches its full length and the tip goes NOVA: the turn of the lash IS the detonation, and everything near the end of it is in the star."

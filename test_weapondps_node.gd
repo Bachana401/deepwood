@@ -54,6 +54,10 @@ const HITS_PER_USE := {
 	"risingwheel":3.0, # ~7 bites over its 2.1s climb if they stay under it
 	"nova":       2.6, # both lash passes plus the detonation at the turn
 	"hush":       2.4, # both passes plus the still place it leaves
+	# T7 batch 4
+	"commandment":1.6, # eight plain shafts, then one 4.2x ruling that pierces
+	"skypillar":  3.0, # ~5 bites over 1.5s on anything inside the column
+	"finaldebt":  2.6, # the chain, plus each booked mark coming due
 	# --- pre-existing multi-hit verbs, for a fair comparison ---
 	"volley":     2.0,
 	"jab_volley": 3.0,

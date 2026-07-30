@@ -150,6 +150,17 @@ func _ready() -> void:
 			_behave_state = 0
 			_orbit_t = 0.0
 			_build_zenithblade()
+		"sky_pillar":
+			# PILLAR OF THE SKY (T7): a column of daylight standing where you
+			# pointed. It does not travel; it simply IS there, and briefly.
+			monitoring = false
+			pierce = true
+			_build_sky_pillar()
+		"commandment":
+			# THE NINTH COMMANDMENT (T7): the ninth shot is not an arrow, it is
+			# a RULING -- one heavy bolt that goes through everything.
+			pierce = true
+			_build_commandment()
 		"world_edge":
 			# EDGE OF THE WORLD (T7): the cut WIDENS as it goes. It leaves the
 			# blade as a sliver and arrives as a horizon.
@@ -340,7 +351,7 @@ func _physics_process(delta: float) -> void:
 	if kind == "sunder_wave":
 		_tick_sunder(delta)
 		return
-	if kind in ["lingering_arc", "ground_thorn", "sun_pool"]:
+	if kind in ["lingering_arc", "ground_thorn", "sun_pool", "sky_pillar"]:
 		_tick_standing_zone(delta)
 		return
 	if kind == "anvil_drop":
@@ -664,6 +675,17 @@ func _on_body_entered(body: Node2D) -> void:
 			# FEARED -- rooted deep in a slow, watching it leave
 			if rider == "courier" and randf() < 0.25 and body.has_method("apply_status"):
 				body.apply_status("slow", 1.5, 0.45)
+			# THE FINAL DEBT (T7): every body it touches is BOOKED, and the
+			# mark comes due on its own. A long chain leaves a room full of
+			# accounts closing one after another.
+			if rider == "debt":
+				var bk = EMBEDDED_STACK.drive(body, "finaldebt", {
+					"max": 3, "gap": 1.0, "life": 1.9,
+					"tick": 0, "pop": maxi(1, int(round(float(damage) * 1.4))),
+					"pop_on_expire": true,
+					"tint": Color(1.0, 0.84, 0.34), "player": source})
+				if bk != null:
+					bk.add_one(damage)
 			var next: Node2D = null
 			var best := 340.0
 			if bounces >= 0:
@@ -1427,6 +1449,64 @@ func _recolor_brazier() -> void:
 			p.color = Color(1.0, 0.9, 0.58, 0.95)       # the live coal
 		else:
 			p.color = Color(0.93, 0.44, 0.13, 1.0)      # ember-lit spikes
+
+# PILLAR OF THE SKY: a standing column of daylight. Reuses the standing-zone
+# tick wholesale -- only the shape and the numbers differ.
+func _build_sky_pillar() -> void:
+	_zone_max = 1.5
+	_zone_r = 58.0
+	_zone_gap = 0.3
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var halo := Polygon2D.new()
+	halo.polygon = PackedVector2Array([
+		Vector2(-40, 34), Vector2(-24, -300), Vector2(24, -300), Vector2(40, 34)])
+	halo.color = Color(1.0, 0.9, 0.55, 0.16)
+	halo.material = m
+	visual.add_child(halo)
+	var col := Polygon2D.new()
+	col.polygon = PackedVector2Array([
+		Vector2(-21, 32), Vector2(-13, -300), Vector2(13, -300), Vector2(21, 32)])
+	col.color = Color(1.0, 0.95, 0.72, 0.4)
+	col.material = m
+	visual.add_child(col)
+	var core := Polygon2D.new()
+	core.polygon = PackedVector2Array([
+		Vector2(-7, 30), Vector2(-4, -300), Vector2(4, -300), Vector2(7, 30)])
+	core.color = Color(1.0, 1.0, 0.92, 0.75)
+	core.material = m
+	visual.add_child(core)
+	var pool := Polygon2D.new()   # where it meets the floor
+	var pts := PackedVector2Array()
+	for i in range(14):
+		var a := TAU * float(i) / 14.0
+		pts.append(Vector2(cos(a) * 44.0, sin(a) * 11.0))
+	pool.polygon = pts
+	pool.position = Vector2(0, 30)
+	pool.color = Color(1.0, 0.86, 0.46, 0.4)
+	pool.material = m
+	visual.add_child(pool)
+
+# THE NINTH COMMANDMENT's ruling: one heavy bolt, wider than any arrow
+func _build_commandment() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var glow := Polygon2D.new()
+	glow.polygon = PackedVector2Array([
+		Vector2(44, 0), Vector2(10, -13), Vector2(-30, -7), Vector2(-30, 7), Vector2(10, 13)])
+	glow.color = Color(1.0, 0.88, 0.5, 0.34)
+	glow.material = m
+	visual.add_child(glow)
+	var body := Polygon2D.new()
+	body.polygon = PackedVector2Array([
+		Vector2(38, 0), Vector2(8, -6), Vector2(-26, -3.2), Vector2(-26, 3.2), Vector2(8, 6)])
+	body.color = Color(1.0, 0.94, 0.72, 0.95)
+	visual.add_child(body)
+	var core := Polygon2D.new()
+	core.polygon = PackedVector2Array([
+		Vector2(32, 0), Vector2(6, -2.4), Vector2(-22, -1.2), Vector2(-22, 1.2), Vector2(6, 2.4)])
+	core.color = Color(1.0, 1.0, 1.0, 0.95)
+	visual.add_child(core)
 
 # --- WHEEL OF ASCENSION: the wheel that climbs ---------------------------
 # It goes UP rather than out, dragging what it catches with it. The lift is

@@ -3649,6 +3649,21 @@ func perform_attack() -> void:
 		if special_type == "king_rain":
 			call_the_kings_rain(special)
 			return
+		# THE NINTH COMMANDMENT: eight ordinary shafts, and the NINTH is a
+		# ruling -- one heavy bolt through everything. A metronome the player
+		# can count, which is the whole appeal (Phantom-Phoenix-kin).
+		if special_type == "commandment":
+			play_sfx(SFX_BOW)
+			animate_bow(stats)
+			_commandment_count += 1
+			var every: int = maxi(2, int(special.get("every", 9)))
+			if _commandment_count % every != 0:
+				return   # animate_bow already loosed the ordinary shaft
+			var cr_c = roll_crit(int(round(float(special.get("damage", stats.damage))
+				* skill_damage_mult("bow") * 4.2)))
+			launch_projectile(special, get_aim_direction(), cr_c[0], cr_c[1])
+			SfxSynth.play_at(self, global_position, "chime", -6.0, 0.5)
+			return
 		# THE QUIET RECKONING: the shaft that stays in and comes due later.
 		# (Without this branch it fell through to animate_bow and fired an
 		# ORDINARY arrow -- the verb never happened at all.)
@@ -3846,6 +3861,18 @@ func perform_attack() -> void:
 	elif special_type == "world_edge" or special_type == "rising_wheel":
 		var wcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
 		launch_projectile(special, aim_dir, wcr[0], wcr[1])
+	# PILLAR OF THE SKY (T7): a column of daylight stood where you pointed
+	elif special_type == "sky_pillar":
+		var sp2 = WEAPON_PROJECTILE_SCRIPT.new()
+		sp2.kind = "sky_pillar"
+		var pcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+		sp2.damage = pcr[0]
+		sp2.is_crit = pcr[1]
+		sp2.element = Inventory.element_of(active_weapon_id)
+		sp2.on_hit_status = special.get("status", {})
+		sp2.source = self
+		sp2.position = global_position + aim_dir * 120.0 + Vector2(0, 18.0)
+		get_parent().add_child(sp2)
 	# DAWN CHORUS (T7): a bar of first light laid down, which then rises
 	elif special_type == "dawn_line":
 		var dl = WEAPON_PROJECTILE_SCRIPT.new()
@@ -5022,6 +5049,7 @@ func on_projectile_hit(target: Node2D, damage_dealt: int) -> void:
 # NIGHT PARADE (crown bow, Horseman's-Blade-kin never 1:1): every arrow that
 # LANDS calls one of the procession in from beyond the camera. Capped, because
 # a fast bow would otherwise summon a wall of them.
+var _commandment_count := 0   # Ninth Commandment: the metronome
 const MARCHER_CAP := 6
 func call_a_marcher(victim: Node2D, dealt: int) -> void:
 	if not has_weapon() or not bool(active_def.get("special", {}).get("parade", false)):
