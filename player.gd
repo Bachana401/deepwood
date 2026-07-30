@@ -4206,7 +4206,9 @@ func perform_attack() -> void:
 				or special_type == "ice_floe" or special_type == "ransom_seal" \
 				or special_type == "rumor_bolt" or special_type == "prism_bolt" \
 				or special_type == "night_bolt" or special_type == "gloam_burst" \
-				or special_type == "howl_bolt" or special_type == "storm_debt":
+				or special_type == "howl_bolt" or special_type == "storm_debt" \
+				or special_type == "ink_jet" or special_type == "wake_scythe" \
+				or special_type == "chalk_line":
 			var wcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("wand"))))
 			launch_projectile(special, get_aim_direction(), wcr[0], wcr[1])
 		# WATCHFIRE (T6): planted where you aim, then it waits

@@ -48,7 +48,11 @@ class Counter extends StaticBody2D:
 # that happens to fall between its teeth, and I would have "fixed" a weapon
 # that was working.
 const PROBE_IDS := ["wpn_lastword", "wpn_griefcrown", "wpn_unbentcolumn",
-	"wpn_worldsgrief", "wpn_rumor", "wpn_skymeasure"]
+	"wpn_worldsgrief", "wpn_rumor", "wpn_skymeasure",
+	# the two wands that shipped dealing literally zero -- kept here permanently
+	# as the regression guard, since "it has a case label now" is not the same
+	# claim as "it damages a body"
+	"wpn_inkbook", "wpn_wakebook", "wpn_chalkwand"]
 const PROBE_RANGES := [90.0, 170.0, 280.0]
 
 func _ready() -> void:

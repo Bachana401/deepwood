@@ -762,6 +762,22 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			s = {"type": "homing"}
 		"lob_a", "lob":
 			s = {"type": "lob", "damage": dmg, "speed": spd, "range": rng, "aoe": float(ex.get("aoe", 90.0))}
+		# TWO WANDS THAT DEALT LITERALLY NOTHING (found 2026-07-30).
+		# Both of these declared a behavior with NO CASE LABEL here, so they fell
+		# through with an empty special -- and `_expand` hardcodes wand swing
+		# damage to 0, so a Mythic wand costing 18 mana did no damage at all.
+		# The cruel part: ink_jet and wake_scythe are FULLY BUILT in
+		# weapon_projectile.gd -- art, motion, pierce, spin, the lot. The
+		# projectiles existed the whole time; the roster just never named them.
+		# I even "improved" both earlier today (the ink re-cut, the scythe's
+		# return pass) -- edits to code that could never run.
+		# This is the third instance of this exact failure in this file; see the
+		# notes on `souls` and `storm_debt`. A behavior with no case is now
+		# caught by tool_deadverb_audit.gd rather than by a player noticing.
+		"ink":
+			s = {"type": "ink_jet", "damage": dmg, "speed": spd, "range": rng}
+		"wake":
+			s = {"type": "wake_scythe", "damage": dmg, "speed": spd, "range": rng}
 		"chalkline":
 			# THE CHALK WAND draws instead of throwing: a stroke that hangs in
 			# the air and cuts whatever crosses it. The only zero-velocity wand
