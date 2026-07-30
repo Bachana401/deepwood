@@ -203,6 +203,32 @@ func _ready() -> void:
 	await _settle(0.3)
 	await _shot("ug_map_zoom")
 	ug._toggle_map()
+	# ── SINKHOLES: an open shaft, and a sand-capped one mid-collapse ──
+	var open_hole := {}
+	var capped_hole := {}
+	for h in ug._holes:
+		var is_capped: bool = ug._hole_caps.has(Vector2i(int(h.top.x), int(h.top.y))) \
+			or ug._hole_caps.has(Vector2i(int(h.top.x) - 1, int(h.top.y)))
+		if is_capped and capped_hole.is_empty():
+			capped_hole = h
+		elif not is_capped and open_hole.is_empty():
+			open_hole = h
+		if not open_hole.is_empty() and not capped_hole.is_empty():
+			break
+	if not open_hole.is_empty():
+		await _tp(p, ug, Vector2i(int(open_hole.top.x) + 4, int(open_hole.top.y) - 2))
+		await _settle(0.6)
+		await _shot("ug_sinkhole_open")
+	if not capped_hole.is_empty():
+		var ct := Vector2i(int(capped_hole.top.x), int(capped_hole.top.y))
+		await _tp(p, ug, ct + Vector2i(4, -2))
+		await _settle(0.5)
+		await _shot("ug_sinkhole_capped")
+		p.global_position = ug._map.to_global(ug._map.map_to_local(ct + Vector2i(0, -2)))
+		await _settle(0.6)                        # stand on the cap: it should give way
+		await _shot("ug_sinkhole_falling")
+		await _settle(1.6)
+		await _shot("ug_sinkhole_landed")         # ...in the pocket at the bottom
 	say("EYES-UG: done -> %s" % shot_dir)
 	get_tree().quit(0)
 

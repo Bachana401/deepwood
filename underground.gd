@@ -603,6 +603,12 @@ func _build_sinkholes() -> void:
 				break
 		if near_door or _in_span(_road_flood, top.y - 1, top.x):
 			continue
+		# not under a MINECART LINE either: rails floating across a pit read as a
+		# broken trestle, and a capped hole under a rail collapses pointlessly
+		# beneath a rider who never touches it
+		if _track_cells.has(top) or _track_cells.has(top + Vector2i(-1, 0)) \
+				or _track_cells.has(top + Vector2i(1, 0)):
+			continue
 		var depth := rng.randi_range(HOLE_DROP_MIN, HOLE_DROP_MAX)
 		if top.y + depth + 8 >= DEPTH - 6:
 			continue
@@ -2486,6 +2492,12 @@ func _build_map_markers() -> void:
 	for run in _track_runs:
 		var head: Vector2i = _path[int(run[0])]
 		_map_dot(Vector2(head.x, head.y) / MAP_SCALE, Color(0.75, 0.55, 0.3), "Minecart line — ride it along the road", mat)
+	for h in _holes:
+		var ht: Vector2i = h.top
+		var what := "flooded below" if bool(h.wet) else ("a chest below" if bool(h.get("chest", false)) else "a drop")
+		var hidden := "hidden under sand, " if _hole_caps.has(Vector2i(ht.x, ht.y)) or _hole_caps.has(Vector2i(ht.x - 1, ht.y)) else ""
+		_map_dot(Vector2(ht.x, ht.y) / MAP_SCALE, Color(0.95, 0.35, 0.75),
+			"Sinkhole — %s%d tiles down, %s" % [hidden, int(h.depth), what], mat)
 	_map_dot(Vector2(_route_start.x, _route_start.y) / MAP_SCALE, Color(0.4, 0.9, 1.0), "The way out — back to Deepwood", mat)
 
 func _map_dot(px: Vector2, col: Color, label: String, mat: CanvasItemMaterial) -> void:
@@ -2703,6 +2715,9 @@ func _place_road_lamps(c: Vector2i, nodes: Array) -> void:
 	for cell in here:
 		if _cell_kind(cell) == WATER or _cell_kind(cell + Vector2i(0, -1)) == WATER:
 			continue                    # no lantern in the middle of a wade
+		if _in_span(_hole_air, cell.y, cell.x) or _in_span(_hole_air, cell.y + 1, cell.x) \
+				or _hole_caps.has(cell) or _hole_caps.has(cell + Vector2i(-1, 0)):
+			continue                    # ...nor floating over a sinkhole, nor FLAGGING a hidden cap
 		nodes.append(_spawn_torch(cell + Vector2i(0, -1)))
 
 # ── what lives at a lake ──────────────────────────────────────────────────────
