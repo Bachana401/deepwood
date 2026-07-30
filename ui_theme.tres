@@ -1,15 +1,28 @@
+[gd_resource type="Theme" load_steps=3 format=3 uid="uid://b18f4vdqwon7n"]
+
 ; THE GAME HAD NO THEME (visual sweep 2026-07-21).
 ; Godot's built-in Panel box is Color(0.1, 0.1, 0.1, 0.6) -- SIXTY percent
 ; opaque -- so every window in Deepwood was see-through: the inventory grid
 ; showed mountains through it, the skill tree showed the sky, the pause menu
-; showed the fight you paused. Every panel in every .tscn and every
-; Panel.new() in code inherited it.
+; showed the fight you paused. One default theme fixes all of them at once,
+; and per-node add_theme_stylebox_override calls (tooltips, NPC hover cards)
+; still win.
 ;
-; One default theme fixes all of them at once, and per-node
-; add_theme_stylebox_override calls (tooltips, NPC hover cards) still win.
-; Palette follows the locked environment style: gloomy slate with a
-; weathered-brass edge.
-[gd_resource type="Theme" load_steps=2 format=3]
+; TEXT READABILITY (2026-07-30, dev: "text is hard to read when it's in pixels
+; -- keep the pixels but somehow upgrade", reference screenshot: Noita).
+; Three things make Noita's pixel text legible and Deepwood's not:
+;   1. a BLOCKY face. Pixelify Sans is proportional, rounded and light -- it is
+;      a display face. Silkscreen is a blocky fixed-rhythm pixel face, the same
+;      family as the reference, and was already sitting unused in art/fonts.
+;      (Its import was set to antialiasing + subpixel positioning, which blurs
+;      a pixel font into mush; fixed alongside this.)
+;   2. an OUTLINE. The code already knew this -- 57 separate places set
+;      font_outline_color and outline_size by hand. Anywhere that forgot had
+;      raw text on busy world art. Putting it here means every one of those 57
+;      keeps working (per-node overrides win) and everything that forgot gets
+;      it for free.
+;   3. ROOM. Pixel glyphs need line spacing or the rows visually merge.
+[ext_resource type="FontFile" uid="uid://do6bv8lcfyh2o" path="res://art/fonts/Silkscreen-Regular.ttf" id="1_pixelfont"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_window"]
 content_margin_left = 6.0
@@ -28,4 +41,17 @@ corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
 [resource]
+default_font = ExtResource("1_pixelfont")
+default_font_size = 15
 Panel/styles/panel = SubResource("StyleBoxFlat_window")
+Label/colors/font_color = Color(0.95, 0.94, 0.9, 1)
+Label/colors/font_outline_color = Color(0, 0, 0, 0.85)
+Label/constants/outline_size = 4
+Label/constants/line_spacing = 4
+RichTextLabel/colors/default_color = Color(0.95, 0.94, 0.9, 1)
+RichTextLabel/colors/font_outline_color = Color(0, 0, 0, 0.85)
+RichTextLabel/constants/outline_size = 4
+RichTextLabel/constants/line_separation = 4
+Button/colors/font_color = Color(0.95, 0.94, 0.9, 1)
+Button/colors/font_outline_color = Color(0, 0, 0, 0.85)
+Button/constants/outline_size = 4

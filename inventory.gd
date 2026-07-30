@@ -827,6 +827,17 @@ const GRADE_DEFS = {
 	"monarch":   {"name": "Monarch",   "rank": 8, "color": Color(1.0, 0.9, 0.5)},
 }
 
+# The final rung. Named rather than spelled "monarch" in six places, because
+# the top rarity gets special treatment (the animated name) and a typo in any
+# one of those checks would silently demote an item back to a flat colour.
+const MONARCH_GRADE := "monarch"
+
+# The RGB cycle a Monarch name runs through when a UI has to animate it by hand
+# (plain Labels cannot use BBCode's [rainbow]). One definition, so the card and
+# the world label never drift into two different rainbows.
+static func monarch_cycle_color(t: float) -> Color:
+	return Color.from_hsv(fposmod(t * 0.45, 1.0), 0.55, 1.0)
+
 # RETIRED, 2026-07-30, on the dev's call: "unnecessary stats -- all weapons
 # have this + bow + wand + melee, they don't need it. Delete all of it and
 # compensate with the effect being stronger on every weapon."
@@ -1432,7 +1443,17 @@ static func build_tooltip_bbcode(item_id: String) -> String:
 	var lines: Array = []
 	# --- name, in its rarity colour, a shade bigger ---
 	var name_col: Color = get_grade_color(item_id) if get_grade(item_id) != "" else def.get("color", Color(0.95, 0.93, 0.85))
-	lines.append("[font_size=16][color=#%s]%s[/color][/font_size]" % [_hex(name_col.lightened(0.12)), get_display_name(item_id)])
+	# THE TOP RARITY CYCLES (dev, 2026-07-30: "top rarity items name in rainbow
+	# colour, changing like my RGB"). Terraria gives its final tier an animated
+	# name rather than one more flat colour, and that is the point: a Monarch
+	# item should be identifiable across the room without reading the word.
+	# [rainbow] is a native BBCode animation -- it cycles on its own, no
+	# per-frame code and nothing to keep in sync.
+	if get_grade(item_id) == MONARCH_GRADE:
+		lines.append("[font_size=16][rainbow freq=0.45 sat=0.55 val=1.0]%s[/rainbow][/font_size]"
+			% get_display_name(item_id))
+	else:
+		lines.append("[font_size=16][color=#%s]%s[/color][/font_size]" % [_hex(name_col.lightened(0.12)), get_display_name(item_id)])
 	# --- subtitle: grade . category . type ---
 	var sub := ""
 	var grade_name = get_grade_name(item_id)
