@@ -22,7 +22,13 @@
 ;      keeps working (per-node overrides win) and everything that forgot gets
 ;      it for free.
 ;   3. ROOM. Pixel glyphs need line spacing or the rows visually merge.
-[ext_resource type="FontFile" uid="uid://do6bv8lcfyh2o" path="res://art/fonts/Silkscreen-Regular.ttf" id="1_pixelfont"]
+; BY PATH, NOT BY UID (2026-07-30). With a uid= attribute Godot resolves the
+; reference against a UID map it has not built yet on a FRESH clone, so the
+; whole theme fails to parse on the first import pass and every window in the
+; game renders unstyled. It is clean on the second pass, which is exactly why
+; it would never have been noticed here -- only a clean-clone check sees it.
+; A path reference needs no map and works on pass one.
+[ext_resource type="FontFile" path="res://art/fonts/Silkscreen-Regular.ttf" id="1_pixelfont"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_window"]
 content_margin_left = 6.0
