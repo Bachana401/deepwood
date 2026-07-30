@@ -150,6 +150,17 @@ func _ready() -> void:
 			_behave_state = 0
 			_orbit_t = 0.0
 			_build_zenithblade()
+		"world_edge":
+			# EDGE OF THE WORLD (T7): the cut WIDENS as it goes. It leaves the
+			# blade as a sliver and arrives as a horizon.
+			pierce = true
+			_build_slash()
+		"rising_wheel":
+			# WHEEL OF ASCENSION (T7): the wheel does not orbit, it CLIMBS --
+			# spinning upward and taking whatever it catches with it.
+			pierce = true
+			spin_speed = 13.0
+			_build_rising_wheel()
 		"debt_arrow":
 			# THE QUIET RECKONING (T7): the arrow barely stings. It stays in
 			# you, and a second and a half later the reckoning arrives
@@ -344,6 +355,14 @@ func _physics_process(delta: float) -> void:
 	if kind == "dawn_line":
 		_tick_dawn_line(delta)
 		return
+	if kind == "world_edge":
+		# it grows the whole way: a sliver at the hilt, a horizon at the end
+		var grow: float = 1.0 + 1.7 * clampf(traveled / maxf(1.0, max_distance), 0.0, 1.0)
+		if visual:
+			visual.scale = Vector2.ONE * girth * grow
+	if kind == "rising_wheel":
+		_tick_rising_wheel(delta)
+		return
 	if kind == "ink_jet":
 		# THE INKWELL OF STORMS: a piercing stream riding a gentle arc --
 		# gravity pulls the jet down as it flies, staining as it goes
@@ -409,6 +428,21 @@ func _physics_process(delta: float) -> void:
 		if kind == "boomerang" or kind == "lash":
 			returning = true
 			hit_bodies.clear()   # the return pass hits everyone again
+			# NOVA TONGUE (T7): the tongue reaches its full length and the tip
+			# goes NOVA -- the turn is the detonation
+			if rider == "nova":
+				_nova_burst(global_position)
+			# THE SHAPE OF SILENCE (T7): where the lash turns, it leaves a
+			# hush -- a still place that holds whatever stands in it
+			elif rider == "hush":
+				var hush = get_script().new()
+				hush.kind = "lingering_arc"
+				hush.damage = maxi(1, int(round(float(damage) * 0.3)))
+				hush.element = element
+				hush.on_hit_status = {"kind": "slow", "dur": 2.2, "mag": 0.45}
+				hush.source = source
+				hush.position = global_position
+				get_parent().call_deferred("add_child", hush)
 		elif kind == "fireball":
 			explode()
 		elif kind == "cluster":
@@ -1393,6 +1427,122 @@ func _recolor_brazier() -> void:
 			p.color = Color(1.0, 0.9, 0.58, 0.95)       # the live coal
 		else:
 			p.color = Color(0.93, 0.44, 0.13, 1.0)      # ember-lit spikes
+
+# --- WHEEL OF ASCENSION: the wheel that climbs ---------------------------
+# It goes UP rather than out, dragging what it catches with it. The lift is
+# the weapon: a crowd held off the floor is a crowd not hitting you.
+var _wheel_t := 0.0
+func _tick_rising_wheel(delta: float) -> void:
+	_wheel_t += delta
+	# a widening upward spiral centred on where it was thrown
+	var climb := 200.0 * delta
+	global_position.y -= climb
+	global_position.x += sin(_wheel_t * 6.5) * 74.0 * delta
+	if visual:
+		visual.rotation += spin_speed * delta
+		visual.modulate.a = clampf(1.6 - _wheel_t * 0.55, 0.0, 1.0)
+	_rehit_t += delta
+	if _rehit_t >= 0.28:
+		_rehit_t = 0.0
+		hit_bodies.clear()      # each turn of the wheel bites again
+	# anything it passes gets carried UP with it
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if global_position.distance_to(e.global_position) > 78.0:
+				continue
+			if e.has_method("apply_knockback"):
+				e.apply_knockback(0, 26.0)   # the lift, not a shove
+	if _wheel_t >= 2.1:
+		done = true
+		queue_free()
+
+func _build_rising_wheel() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var rim := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(14):
+		var a := TAU * float(i) / 14.0
+		pts.append(Vector2(cos(a), sin(a)) * 21.0)
+	for i in range(14):
+		var a2 := TAU * float(13 - i) / 14.0
+		pts.append(Vector2(cos(a2), sin(a2)) * 15.0)
+	rim.polygon = pts
+	rim.color = Color(0.86, 0.92, 1.0, 0.85)
+	rim.material = m
+	visual.add_child(rim)
+	for i in range(6):
+		var spoke := Polygon2D.new()
+		var a3 := TAU * float(i) / 6.0
+		spoke.polygon = PackedVector2Array([
+			Vector2(cos(a3 - 0.07), sin(a3 - 0.07)) * 18.0,
+			Vector2(cos(a3), sin(a3)) * 3.0,
+			Vector2(cos(a3 + 0.07), sin(a3 + 0.07)) * 18.0])
+		spoke.color = Color(0.7, 0.84, 1.0, 0.75)
+		spoke.material = m
+		visual.add_child(spoke)
+
+# NOVA TONGUE: the tip detonates at full extension -- damage plus a real
+# star-burst, so the turn of the lash IS the payoff rather than dead time
+const NOVA_R := 108.0
+func _nova_burst(at: Vector2) -> void:
+	var host := get_parent()
+	if host == null:
+		return
+	var pay: int = maxi(1, int(round(float(damage) * 0.8)))
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if at.distance_to(e.global_position) > NOVA_R:
+				continue
+			var landed = e.take_damage(pay)
+			if landed == null or landed:
+				FloatingText.spawn(host, e.global_position
+					+ Vector2(randf_range(-20.0, 20.0), -26.0), pay, true)
+			_apply_status_to(e)
+			if e.has_method("apply_knockback"):
+				e.apply_knockback(1 if e.global_position.x >= at.x else -1, 90.0)
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	# the flash: a star, not a circle
+	var star := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(12):
+		var a := TAU * float(i) / 12.0
+		pts.append(Vector2(cos(a), sin(a)) * (34.0 if i % 2 == 0 else 13.0))
+	star.polygon = pts
+	star.color = Color(1.0, 0.86, 0.5, 0.95)
+	star.material = m
+	star.z_index = 45
+	host.add_child(star)
+	star.global_position = at
+	var tw := star.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(star, "scale", Vector2(2.6, 2.6), 0.3)
+	tw.tween_property(star, "rotation", 1.2, 0.3)
+	tw.tween_property(star, "modulate:a", 0.0, 0.3)
+	tw.chain().tween_callback(star.queue_free)
+	for i in range(9):
+		var sp := ColorRect.new()
+		sp.color = Color(1.0, 0.94, 0.68, 0.9)
+		sp.size = Vector2(4, 4)
+		sp.z_index = 45
+		host.add_child(sp)
+		sp.global_position = at
+		var v := Vector2(randf_range(-1, 1), randf_range(-1, 1)).normalized() * randf_range(50.0, 108.0)
+		var st := sp.create_tween()
+		st.set_parallel(true)
+		st.tween_property(sp, "global_position", at + v, 0.34)
+		st.tween_property(sp, "modulate:a", 0.0, 0.34)
+		st.chain().tween_callback(sp.queue_free)
+	SfxSynth.play_at(self, at, "chime", -8.0, 0.6)
 
 # --- DAWN CHORUS: the bar of first light that rises ----------------------
 var _dawn_t := 0.0

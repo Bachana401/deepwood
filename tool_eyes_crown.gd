@@ -330,6 +330,24 @@ func _ready() -> void:
 	await _settle(0.28)
 	await _shot("u7_dawn_rising")
 
+	await _settle(0.6)
+
+	# ================= T7 BATCH 3: the remaining melee =================
+	for spec in [["wpn_worldsedge", "v1_worldedge", 0.45],
+			["wpn_ascendwheel", "v2_risingwheel", 0.7],
+			["wpn_novatongue", "v3_nova", 0.55],
+			["wpn_silencelash", "v4_hush", 0.75]]:
+		p.global_position = home
+		if "velocity" in p: p.velocity = Vector2.ZERO
+		p.inventory.add_item(spec[0], 1)
+		p.wield_weapon(spec[0])
+		await _aim_right(p)
+		p.attack_cooldown_remaining = 0.0
+		p.perform_attack()
+		await _settle(spec[2])
+		await _shot(spec[1])
+		await _settle(0.5)
+
 	say("EYES-CROWN: done")
 	get_tree().quit(0)
 

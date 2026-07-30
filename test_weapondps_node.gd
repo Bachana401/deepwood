@@ -49,6 +49,11 @@ const HITS_PER_USE := {
 	"cometchain": 2.5, # the maul's contacts plus the crater it leaves
 	"stormflock": 2.0, # several birds, but they SPREAD across the row
 	"dawnline":   1.0, # the bar climbs past each body exactly once
+	# T7 batch 3 -- the remaining melee
+	"worldedge":  1.8, # the swing AND a widening crescent that pierces
+	"risingwheel":3.0, # ~7 bites over its 2.1s climb if they stay under it
+	"nova":       2.6, # both lash passes plus the detonation at the turn
+	"hush":       2.4, # both passes plus the still place it leaves
 	# --- pre-existing multi-hit verbs, for a fair comparison ---
 	"volley":     2.0,
 	"jab_volley": 3.0,

@@ -145,11 +145,11 @@ const ROWS = [
 	# ---------------- TIER 7 - ASCENDED (floors 70-97) ----------------
 	["wpn_afterlight",   "Afterlight",           "melee", 7, "afterlight", 26, 0.42, {"status": "burn_w",
 		"fx": [{"kind": "echo", "pct": 0.98, "delay": 0.4}, {"kind": "moonlit", "pct": 0.8}]}],
-	["wpn_worldsedge",   "Edge of the World",    "melee", 7, "crescent", 30, 0.55, {"p_damage": 30, "tint": [0.35, 0.95, 0.5],
+	["wpn_worldsedge",   "Edge of the World",    "melee", 7, "worldedge", 26, 0.6, {"p_damage": 26, "tint": [0.35, 0.95, 0.5],
 		"fx": [{"kind": "splinter", "n": 4, "pct": 0.8, "range": 190.0}, {"kind": "rend", "pct_per": 0.15, "max": 6}]}],
-	["wpn_ascendwheel",  "Wheel of Ascension",   "melee", 7, "orbiter", 30, 0.78, {"dwell": 3.6, "status": "slow_w",
+	["wpn_ascendwheel",  "Wheel of Ascension",   "melee", 7, "risingwheel", 24, 0.85, {"status": "slow_w",
 		"fx": [{"kind": "frostbloom", "radius": 170.0, "dur": 3.0}, {"kind": "bulwark", "dr": 0.16, "dur": 2.5}]}],
-	["wpn_novatongue",   "Nova Tongue",          "melee", 7, "lash", 32, 0.8,  {"status": "burn_w",
+	["wpn_novatongue",   "Nova Tongue",          "melee", 7, "nova", 26, 0.88, {"status": "burn_w",
 		"fx": [{"kind": "quake", "radius": 140.0, "pct": 0.8}, {"kind": "stormcall", "every": 4, "pct": 1.6}]}],
 	["wpn_zenithpike",   "Zenith",               "spear", 7, "thrust", 40, 0.75, {
 		"fx": [{"kind": "duelist", "pct_per": 0.15, "max": 6}, {"kind": "frostbloom", "radius": 155.0}]}],
@@ -333,7 +333,7 @@ const ROWS = [
 		"fx": [{"kind": "quake", "radius": 160.0, "pct": 0.8}, {"kind": "rend", "pct_per": 0.14, "max": 6}]}],
 	["wpn_cometchain",   "Chained Comet",        "melee", 7, "cometchain", 30, 0.95, {"status": "burn_w",
 		"fx": [{"kind": "gravity", "radius": 200.0, "pull": 160.0}, {"kind": "echo", "pct": 0.82, "delay": 0.5}]}],
-	["wpn_silencelash",  "The Shape of Silence", "melee", 7, "lash", 31, 0.78, {"status": "slow_w",
+	["wpn_silencelash",  "The Shape of Silence", "melee", 7, "hush", 25, 0.84, {"status": "slow_w",
 		"fx": [{"kind": "brand", "amp": 0.39, "dur": 4.5}, {"kind": "frostbloom", "radius": 150.0}]}],
 	["wpn_worldthorn",   "Thorn of the World",   "spear", 7, "worldthorn", 30, 0.8, {
 		"fx": [{"kind": "rend", "pct_per": 0.16, "max": 6}, {"kind": "chain", "n": 2, "pct": 0.8, "range": 250.0}]}],
@@ -735,6 +735,21 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 		"dawnline":
 			# a bar of first light laid down, then rising through them
 			s = {"type": "dawn_line", "damage": maxi(1, int(round(float(dmg) * 0.85)))}
+		# ---- T7 VERBS (batch 3): the remaining melee ----
+		"worldedge":
+			# a sliver at the hilt, a horizon by the time it arrives
+			s = {"type": "world_edge", "damage": int(ex.get("p_damage", dmg)),
+				"speed": spd - 60.0, "range": rng, "tint": ex.get("tint", [0.35, 0.95, 0.5])}
+		"risingwheel":
+			s = {"type": "rising_wheel", "damage": dmg, "speed": spd, "range": 150.0}
+		"nova":
+			# the lash it was, but the TURN is a detonation
+			s = {"type": "lash", "damage": dmg, "speed": spd + 60.0,
+				"range": 280.0 + float(tier) * 18.0, "rider": "nova"}
+		"hush":
+			# the lash it was, and where it turns it leaves a still place
+			s = {"type": "lash", "damage": dmg, "speed": spd + 40.0,
+				"range": 290.0 + float(tier) * 18.0, "rider": "hush"}
 		"staff":
 			s = {"type": "staff_extend"}
 	if not st.is_empty():
@@ -804,6 +819,10 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"zenith":     return "Every swing frees the GHOST of a blade it culminates: out, one whirl at the far point, and home -- cutting the whole way, each image a different ancestor."
 		"court":      return "Every swing calls the COURT: %d shades of the people you brought home appear at your side, each carrying a different ancestor blade, and all of them sweep at once." % int(ex.get("count", 4))
 		"edict":      return "The law REACHES: a jointed arm of light unfolds the length of the hall, cutting everything along it and blooming where it touches -- and stone does not stop a sentence."
+		"worldedge":   return "It leaves the blade as a sliver and arrives as a HORIZON: the thrown edge widens the whole way out, so the far end of the room is where it is largest."
+		"risingwheel": return "The wheel does not go out, it CLIMBS -- spinning upward in a widening turn, biting each pass, and carrying whatever it catches off the floor with it."
+		"nova":        return "The tongue reaches its full length and the tip goes NOVA: the turn of the lash IS the detonation, and everything near the end of it is in the star."
+		"hush":        return "Where the lash turns it leaves a HUSH -- a still, colourless place that holds whatever stands in it, long after the tongue has come home."
 		"reckoning":   return "The arrow barely stings, and then it STAYS IN YOU. A second and a half later the reckoning arrives, and it is not quiet at all."
 		"cometchain":  return "The head is a comet on a chain: it goes out burning, and where the throw ends it leaves a CRATER still alight when the chain comes home."
 		"stormflock":  return "Every jab looses a bird. They turn in the air, pick their own targets, and come down on them -- a flock answering one thrust."

@@ -3841,6 +3841,11 @@ func perform_attack() -> void:
 	# several shades at once, each carrying a different ancestor blade
 	elif special_type == "court_barrage":
 		unleash_court(special, aim_dir)
+	# EDGE OF THE WORLD / WHEEL OF ASCENSION (T7): both are thrown by the
+	# swing and own their own flight from there
+	elif special_type == "world_edge" or special_type == "rising_wheel":
+		var wcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+		launch_projectile(special, aim_dir, wcr[0], wcr[1])
 	# DAWN CHORUS (T7): a bar of first light laid down, which then rises
 	elif special_type == "dawn_line":
 		var dl = WEAPON_PROJECTILE_SCRIPT.new()
