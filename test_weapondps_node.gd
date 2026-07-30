@@ -122,6 +122,13 @@ const HITS_PER_USE := {
 	"eventide":    2.0, # 3 shafts out and back -- two tolls on a single body
 	"tomeofrains": 5.0, # ~28 drops over 4.6s, one body each, wide area denial
 	"wardenwatch": 4.5, # ONE post: ~6 lane shots over 9s at 1.35x, all piercing
+	# ---- T4 batch 1 ----
+	"howlpiece":   2.4, # the blade plus ~5 howl rings at 0.45x down its lane
+	"winterwheel": 2.0, # it rolls THROUGH, re-hitting every 0.3s, and chills
+	"reaperrebuke": 2.8, # 4 stops, each heavier, then home
+	"prismbreak":  1.9, # the bolt plus three 0.55x colours, which fan apart
+	"cometflail":  1.8, # the maul's contacts plus the fire it sheds
+	"falconoath":  1.2, # one shaft at 1.15x -- the value is the REPOSITION
 	# ---- T5 batch 4: the last eleven ----
 	"omenseek":    2.6, # a slow read, then every marked body eats a 1.3x nova
 	"ironomen":    2.2, # 4 bounces, each planting a spike that ticks its zone

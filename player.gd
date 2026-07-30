@@ -3802,7 +3802,7 @@ func perform_attack() -> void:
 		elif special_type == "flood_wave" or special_type == "glass_note" \
 				or special_type == "nova_seed" or special_type == "courier_route" \
 				or special_type == "ice_floe" or special_type == "ransom_seal" \
-				or special_type == "rumor_bolt":
+				or special_type == "rumor_bolt" or special_type == "prism_bolt":
 			var wcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("wand"))))
 			launch_projectile(special, get_aim_direction(), wcr[0], wcr[1])
 		# WATCHFIRE (T6): planted where you aim, then it waits
@@ -4101,7 +4101,8 @@ func perform_attack() -> void:
 			return
 		# LODESTAR / DIRE PORTENT (T6): both leave the string as one shaft
 		if special_type == "lodestar" or special_type == "portent" \
-				or special_type == "owl_pass" or special_type == "harmonic":
+				or special_type == "owl_pass" or special_type == "harmonic" \
+				or special_type == "oath_arrow":
 			play_sfx(SFX_BOW)
 			animate_bow(stats)
 			var cr_l = roll_crit(int(round(float(special.get("damage", stats.damage)) * skill_damage_mult("bow"))))
@@ -4491,7 +4492,9 @@ func perform_attack() -> void:
 	# melee weapons declare "ricochet" and one staff declares "kneeling_stone",
 	# and NONE of them had a branch on the melee chain -- so all seven simply
 	# swung and threw nothing. They had been dead this whole time.
-	elif special_type == "ricochet" or special_type == "kneeling_stone":
+	elif special_type == "ricochet" or special_type == "kneeling_stone" \
+			or special_type == "howl_crescent" or special_type == "frost_roller" \
+			or special_type == "reaper_return" or special_type == "comet_chain":
 		var thr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
 		launch_projectile(special, aim_dir, thr[0], thr[1])
 	# THE MONARCH STAVES (T8): staff weapons resolve to weapon_type "melee",
@@ -5612,6 +5615,36 @@ func apply_omnivamp(total_damage: int) -> void:
 # and the Pilgrim's waymarks promise one when you walk your own road -- but
 # there was no heal() on the player at all, so the grief-urn's payout was a
 # SILENT no-op behind a has_method() guard that was never true.
+# FALCON'S OATH (T4): the shaft keeps the promise. Where it lands, you are.
+# The dev asked for dashes among the verbs and the roster had none -- this is
+# the only weapon that moves the WIELDER. Lands you just short of the body so
+# you arrive next to them rather than inside them.
+func oath_dash_to(at: Vector2) -> void:
+	var here: Vector2 = global_position
+	var span: Vector2 = at - here
+	if span.length() < 24.0:
+		return
+	var land: Vector2 = at - span.normalized() * 40.0
+	global_position = land
+	velocity = Vector2.ZERO
+	# a streak of where you were, so the jump reads as travel and not a blink
+	var host := get_parent()
+	if host == null:
+		return
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var trail := Polygon2D.new()
+	var perp := Vector2(-span.normalized().y, span.normalized().x)
+	trail.polygon = PackedVector2Array([
+		here + perp * 9.0, land + perp * 3.0, land - perp * 3.0, here - perp * 9.0])
+	trail.color = Color(0.96, 0.9, 0.66, 0.6)
+	trail.material = m
+	trail.z_index = 44
+	host.add_child(trail)
+	var tw := trail.create_tween()
+	tw.tween_property(trail, "modulate:a", 0.0, 0.26)
+	tw.tween_callback(trail.queue_free)
+
 func heal(amount: int) -> void:
 	if amount <= 0 or health <= 0:
 		return

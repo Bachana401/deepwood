@@ -86,19 +86,19 @@ const ROWS = [
 	["wpn_duskrender",   "Duskrender",           "melee", 4, "arc",       19, 0.45, {"plain": true}],
 	["wpn_tolloftheend", "Toll of the End",      "melee", 4, "cleave",    28, 1.05, {"knockup": true, "plain": true}],
 	["wpn_vespersting",  "Vesper Sting",         "melee", 4, "arc",       13, 0.26, {"status": "poison_w", "plain": true}],
-	["wpn_howlpiece",    "Howlpiece",            "melee", 4, "crescent",  17, 0.55, {"p_damage": 15}],
-	["wpn_winterwheel",  "Winterwheel",          "melee", 4, "orbiter",   16, 0.8,  {"dwell": 2.4, "status": "slow_w"}],
+	["wpn_howlpiece",    "Howlpiece",            "melee", 4, "howlpiece", 17, 0.55, {"p_damage": 15}],
+	["wpn_winterwheel",  "Winterwheel",          "melee", 4, "winterwheel", 16, 0.8,  {"dwell": 2.4, "status": "slow_w"}],
 	["wpn_gloamlash",    "Gloaming Lash",        "melee", 4, "lash",      17, 0.85, {"status": "burn_w"}],
-	["wpn_reaperrebuke", "Reaper's Rebuke",      "melee", 4, "ricochet",  16, 0.6,  {"bounces": 4}],
+	["wpn_reaperrebuke", "Reaper's Rebuke",      "melee", 4, "reaperrebuke", 16, 0.6,  {"bounces": 4}],
 	["wpn_sunderpike",   "Sunder Pike",          "spear", 4, "thrust",    23, 0.85, {"plain": true}],
 	["wpn_galeprong",    "Galeprong",            "spear", 4, "jab_volley", 15, 0.9, {"count": 4, "plain": true}],
 	["wpn_midnightlance","Midnight Lance",       "spear", 4, "thrust",    19, 0.6,  {"status": "slow_w", "plain": true}],
 	["wpn_curfewbow",    "Curfew Bow",           "bow",   4, "shot",      21, 0.6,  {"pierce": true, "plain": true}],
 	["wpn_choirbow",     "Choir of Points",      "bow",   4, "volley",    12, 0.6,  {"count": 3, "plain": true}],
 	["wpn_hummingbow",   "Hummingbird",          "bow",   4, "rapid",     9,  0.18, {"plain": true}],
-	["wpn_falconoath",   "Falcon's Oath",        "bow",   4, "seeker",    16, 0.65, {}],
+	["wpn_falconoath",   "Falcon's Oath",        "bow",   4, "falconoath", 16, 0.65, {}],
 	["wpn_sapperanswer", "Sapper's Answer",      "bow",   4, "lob_a",     24, 1.0,  {"aoe": 100, "plain": true}],
-	["wpn_prismbreak",   "Prismbreak",           "wand",  4, "cluster",   20, 0.8,  {"shards": 6}],
+	["wpn_prismbreak",   "Prismbreak",           "wand",  4, "prismbreak", 20, 0.8,  {"shards": 6}],
 	["wpn_stormdebt",    "Stormcaller's Debt",   "wand",  4, "tome",      11, 1.4,  {"radius": 140}],
 	["wpn_wispwarden",   "Wisp Warden",          "wand",  4, "sentry",    10, 1.2,  {"dur": 18}],
 	["wpn_nightbolt",    "Nightbolt",            "wand",  4, "ricochet",  17, 0.6,  {"bounces": 4}],
@@ -231,7 +231,7 @@ const ROWS = [
 	# ---------------- WAVE 3 - TIER 4 (28) ----------------
 	["wpn_eveningblade", "Evening's Empire",     "melee", 4, "arc",       18, 0.42, {"plain": true}],
 	["wpn_barrowmaul",   "Barrow King's Maul",   "melee", 4, "cleave",    26, 1.0,  {"knockup": true, "plain": true}],
-	["wpn_cometflail",   "Comet on a Chain",     "melee", 4, "chain_maul", 20, 0.95, {"status": "burn_w"}],
+	["wpn_cometflail",   "Comet on a Chain",     "melee", 4, "cometflail", 20, 0.95, {"status": "burn_w"}],
 	["wpn_owlwheel",     "Owl-Eye Wheel",        "melee", 4, "orbiter",   15, 0.78, {"dwell": 2.2}],
 	["wpn_palefang",     "Palefang",             "melee", 4, "arc",       12, 0.25, {"status": "slow_w", "plain": true}],
 	["wpn_riverrender",  "Riverrender",          "melee", 4, "crescent",  16, 0.55, {"p_damage": 14}],
@@ -895,6 +895,23 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			s = {"type": "rain_cloud", "damage": maxi(1, int(round(float(dmg) * 0.8)))}
 		"wardenwatch":
 			s = {"type": "warden_post", "damage": maxi(1, int(round(float(dmg) * 1.35)))}
+		# ---- T4 batch 1 ----
+		"howlpiece":
+			s = {"type": "howl_crescent", "damage": maxi(1, int(round(float(dmg) * 0.85))),
+				"speed": spd - 120.0, "range": rng * 0.8}
+		"winterwheel":
+			s = {"type": "frost_roller", "damage": dmg,
+				"speed": spd - 260.0, "range": rng * 0.7, "status": "slow_w"}
+		"reaperrebuke":
+			s = {"type": "reaper_return", "damage": maxi(1, int(round(float(dmg) * 0.7))),
+				"speed": spd - 90.0, "range": rng}
+		"prismbreak":
+			s = {"type": "prism_bolt", "damage": dmg, "speed": spd, "range": rng}
+		"cometflail":
+			s = {"type": "comet_chain", "damage": dmg, "range": rng * 0.55}
+		"falconoath":
+			s = {"type": "oath_arrow", "damage": maxi(1, int(round(float(dmg) * 1.15))),
+				"speed": spd + 200.0, "range": rng}
 		# ---- T5 batch 4: the last eleven (incl. the OMEN TRIO) ----
 		"omenseek":
 			s = {"type": "omen_eye", "damage": maxi(1, int(round(float(dmg) * 0.5))),
@@ -1033,6 +1050,12 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"hushfall":    return "The blow lands in SILENCE. The sound of it arrives a moment later, from where you struck, and the sound is the heavier half."
 		"eclipse":     return "The wheel rolls out and goes DARK, and the shadow it throws is the weapon -- a long band of night that cuts everything standing in it."
 		"cometfall":   return "Lobs high and comes down as a COMET, cratering where it lands and leaving the ground burning for whatever walks in next."
+		"howlpiece":   return "The crescent HOWLS as it flies -- every beat it throws a ring out across its own path, so the lane it cuts is far wider than the blade."
+		"winterwheel": return "It ROLLS, and the floor freezes behind it. The lane it took stays cold long after the wheel is gone."
+		"reaperrebuke": return "The scythe takes a round of the room and comes back HEAVIER for every visit, then returns to your hand."
+		"prismbreak":  return "It goes in white and comes out in THREE COLOURS, each one going its own way."
+		"cometflail":  return "The head is a comet on a chain, and the fire it sheds on the way out stays burning on the floor."
+		"falconoath":  return "The shaft keeps the promise: where it lands, YOU ARE. You arrive at their shoulder before they hear it strike."
 		"omenseek":    return "It drifts through the room and SEES them, one after another, and the seeing is the whole cost -- when the eye closes, everything it looked at pays at once."
 		"ironomen":    return "The sigil bounces from body to body, and every place it touches down it leaves IRON standing in the ground behind it."
 		"thirdomen":   return "Omens come in threes. The first two are warnings. The THIRD is not."

@@ -241,6 +241,19 @@ func _ready() -> void:
 		"world_cut":
 			pierce = true
 			_build_world_cut()
+		# ---- T4 batch 1 ----
+		"howl_crescent":
+			pierce = true
+			_build_howl_crescent()
+		"frost_roller":
+			pierce = true
+			_build_frost_roller()
+		"reaper_return":
+			pierce = true
+			_build_reaper_return()
+		"prism_bolt": _build_prism_bolt()
+		"comet_chain": _build_chainmaul()
+		"oath_arrow": _build_stoop_arrow()
 		# ---- T5 batch 4: the last eleven ----
 		"omen_eye":
 			pierce = true
@@ -572,6 +585,9 @@ func _physics_process(delta: float) -> void:
 	if kind == "cinder_drag":
 		_tick_cinder_drag(delta)
 		return
+	if kind == "comet_chain":
+		_tick_comet_chain(delta)
+		return
 	if kind == "cinder_patch":
 		_tick_standing_zone(delta)
 		return
@@ -667,6 +683,15 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind == "world_cut":
 		_tick_worldcut(delta)
+		return
+	if kind == "howl_crescent":
+		_tick_howl(delta)
+		return
+	if kind == "frost_roller":
+		_tick_roller(delta)
+		return
+	if kind == "reaper_return":
+		_tick_grief(delta)          # same route-and-come-home, its own face
 		return
 	if kind == "omen_eye":
 		_tick_omeneye(delta)
@@ -1041,6 +1066,28 @@ func _on_body_entered(body: Node2D) -> void:
 					maxi(1, int(round(float(damage) * 0.35))), false)
 			_apply_status_to(body)
 			_portent_fix(body)
+		"prism_bolt":
+			# PRISMBREAK: the bolt goes in white and comes out in three colours
+			var landed_pb = body.take_damage(damage)
+			if landed_pb == null or landed_pb:
+				FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+			_apply_status_to(body)
+			_prism_split(body.global_position)
+			done = true
+			queue_free()
+			return
+		"oath_arrow":
+			# FALCON'S OATH: the shaft keeps the promise -- where it lands, you
+			# ARE. The one weapon in the roster that moves the wielder.
+			var landed_oa = body.take_damage(damage)
+			if landed_oa == null or landed_oa:
+				FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+			_apply_status_to(body)
+			if is_instance_valid(source) and source.has_method("oath_dash_to"):
+				source.oath_dash_to(body.global_position)
+			done = true
+			queue_free()
+			return
 		"rumor_bolt":
 			# THE RUMOR: every body it reaches tells two more
 			var landed_ru = body.take_damage(damage)
@@ -6986,6 +7033,222 @@ func _build_omen_sigil() -> void:
 	rune.color = Color(0.9, 0.82, 0.5, 0.9)
 	rune.material = m
 	visual.add_child(rune)
+
+# ==========================================================================
+# TIER 4, BATCH 1. Epic tier: the power still lives in the VERB, just at a
+# smaller scale than the crown -- fewer blades, shorter reach, same idea.
+# ==========================================================================
+
+# --- HOWLPIECE: the crescent HOWLS as it goes ---------------------------
+var _hw2_t := 0.0
+var _hw2_next := 0.14
+
+func _tick_howl(delta: float) -> void:
+	_hw2_t += delta
+	global_position += direction * speed * delta
+	traveled += speed * delta
+	if visual:
+		visual.rotation += 9.0 * delta
+	_rehit_t += delta
+	if _rehit_t >= 0.3:
+		_rehit_t = 0.0
+		hit_bodies.clear()
+	# every beat it lets out a ring ACROSS its own path, so the lane it flies
+	# is wider than the blade and you can see exactly how wide
+	if _hw2_t >= _hw2_next:
+		_hw2_next += 0.17
+		var host := get_parent()
+		if host != null:
+			var m := CanvasItemMaterial.new()
+			m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+			var ring := Polygon2D.new()
+			ring.polygon = PackedVector2Array([
+				Vector2(-3.0, -10.0), Vector2(3.0, -10.0),
+				Vector2(3.0, 10.0), Vector2(-3.0, 10.0)])
+			ring.color = Color(0.72, 0.86, 0.96, 0.7)
+			ring.material = m
+			ring.z_index = 41
+			ring.rotation = direction.angle()
+			host.add_child(ring)
+			ring.global_position = global_position
+			var tw := ring.create_tween()
+			tw.set_parallel(true)
+			tw.tween_property(ring, "scale", Vector2(1.0, 5.5), 0.26)
+			tw.tween_property(ring, "modulate:a", 0.0, 0.26)
+			tw.chain().tween_callback(ring.queue_free)
+			var pay: int = maxi(1, int(round(float(damage) * 0.45)))
+			var perp := Vector2(-direction.y, direction.x)
+			for group_name in HOSTILE_GROUPS:
+				for e in get_tree().get_nodes_in_group(group_name):
+					if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+						continue
+					if "is_dead" in e and e.is_dead:
+						continue
+					var rel: Vector2 = (e as Node2D).global_position - global_position
+					if absf(rel.dot(direction)) > 18.0 or absf(rel.dot(perp)) > 56.0:
+						continue
+					var landed = e.take_damage(pay)
+					if landed == null or landed:
+						FloatingText.spawn(host, (e as Node2D).global_position
+							+ Vector2(randf_range(-14.0, 14.0), -26.0), pay, false)
+					_apply_status_to(e)
+	if traveled >= max_distance:
+		done = true
+		queue_free()
+
+func _build_howl_crescent() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var arc := Polygon2D.new()
+	arc.polygon = PackedVector2Array([
+		Vector2(18, 0), Vector2(2, -15.0), Vector2(-12, -10.0),
+		Vector2(-4, 0), Vector2(-12, 10.0), Vector2(2, 15.0)])
+	arc.color = Color(0.7, 0.84, 0.98, 0.88)
+	arc.material = m
+	visual.add_child(arc)
+
+# --- WINTERWHEEL: it ROLLS, and the floor freezes behind it -------------
+var _fr_t := 0.0
+var _fr_drop := 0.0
+
+func _tick_roller(delta: float) -> void:
+	_fr_t += delta
+	global_position += direction * speed * delta
+	traveled += speed * delta
+	if visual:
+		visual.rotation += (speed / 24.0) * delta * (1.0 if direction.x >= 0.0 else -1.0)
+	_rehit_t += delta
+	if _rehit_t >= 0.3:
+		_rehit_t = 0.0
+		hit_bodies.clear()
+	# the track: rime laid on the floor the whole way, so the lane stays cold
+	_fr_drop -= delta
+	if _fr_drop <= 0.0:
+		_fr_drop = 0.07
+		var host := get_parent()
+		if host != null:
+			var m := CanvasItemMaterial.new()
+			m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+			var rime := Polygon2D.new()
+			rime.polygon = PackedVector2Array([
+				Vector2(-7.0, 3.0), Vector2(0, -randf_range(5.0, 11.0)), Vector2(7.0, 3.0)])
+			rime.color = Color(0.7, 0.9, 1.0, 0.62)
+			rime.material = m
+			rime.z_index = 7
+			host.add_child(rime)
+			rime.global_position = global_position + Vector2(0, 16.0)
+			var tw := rime.create_tween()
+			tw.tween_interval(1.1)
+			tw.tween_property(rime, "modulate:a", 0.0, 0.6)
+			tw.tween_callback(rime.queue_free)
+	if traveled >= max_distance:
+		done = true
+		queue_free()
+
+func _build_frost_roller() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var rim := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(12):
+		var a := TAU * float(i) / 12.0
+		pts.append(Vector2(cos(a), sin(a)) * 15.0)
+	for i in range(12):
+		var a2 := TAU * float(11 - i) / 12.0
+		pts.append(Vector2(cos(a2), sin(a2)) * 9.0)
+	rim.polygon = pts
+	rim.color = Color(0.72, 0.9, 1.0, 0.9)
+	rim.material = m
+	visual.add_child(rim)
+	for k in range(5):
+		var stud := Polygon2D.new()
+		stud.polygon = PackedVector2Array([
+			Vector2(-2.6, -14.0), Vector2(0, -20.0), Vector2(2.6, -14.0)])
+		stud.color = Color(0.9, 0.97, 1.0, 0.92)
+		stud.material = m
+		stud.rotation = deg_to_rad(72.0 * float(k))
+		visual.add_child(stud)
+
+# --- REAPER'S REBUKE: the scythe GROWS on the way round -----------------
+func _build_reaper_return() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var haft := Polygon2D.new()
+	haft.polygon = PackedVector2Array([
+		Vector2(-13, -1.8), Vector2(9, -1.8), Vector2(9, 1.8), Vector2(-13, 1.8)])
+	haft.color = Color(0.36, 0.3, 0.26, 0.95)
+	visual.add_child(haft)
+	var blade := Polygon2D.new()
+	blade.polygon = PackedVector2Array([
+		Vector2(9, -2.0), Vector2(20, -13.0), Vector2(23, -4.0),
+		Vector2(14, 3.0), Vector2(9, 2.0)])
+	blade.color = Color(0.82, 0.9, 0.86, 0.95)
+	blade.material = m
+	visual.add_child(blade)
+
+# --- PRISMBREAK: one bolt in, three colours out -------------------------
+func _prism_split(at: Vector2) -> void:
+	var host := get_parent()
+	if host == null:
+		return
+	var tints := [Color(1.0, 0.5, 0.5), Color(0.5, 1.0, 0.6), Color(0.55, 0.7, 1.0)]
+	for k in range(3):
+		var b = (load("res://weapon_projectile.gd") as GDScript).new()
+		b.kind = "shot"
+		b.damage = maxi(1, int(round(float(damage) * 0.55)))
+		b.element = element
+		b.on_hit_status = on_hit_status
+		b.source = source
+		b.girth = girth * 0.85
+		b.speed = speed * 0.9
+		b.max_distance = max_distance * 0.6
+		b.direction = direction.rotated(deg_to_rad(-26.0 + 26.0 * float(k)))
+		b.beam_tint = tints[k]
+		host.add_child(b)
+		b.global_position = at
+
+func _build_prism_bolt() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var core := Polygon2D.new()
+	core.polygon = PackedVector2Array([
+		Vector2(0, -11.0), Vector2(9, 5.0), Vector2(-9, 5.0)])
+	core.color = Color(0.96, 0.96, 1.0, 0.95)
+	core.material = m
+	visual.add_child(core)
+	for k in range(3):
+		var facet := Polygon2D.new()
+		facet.polygon = PackedVector2Array([
+			Vector2(0, -7.0), Vector2(5, 3.0), Vector2(-5, 3.0)])
+		facet.color = [Color(1.0, 0.5, 0.5, 0.55), Color(0.5, 1.0, 0.6, 0.55),
+			Color(0.55, 0.7, 1.0, 0.55)][k]
+		facet.material = m
+		facet.position = Vector2(-3.0 + 3.0 * float(k), 0)
+		visual.add_child(facet)
+
+# --- COMET ON A CHAIN: the hurl drops fire behind it --------------------
+var _cc_drop := 0.0
+
+func _tick_comet_chain(delta: float) -> void:
+	_tick_chainmaul(delta)
+	if done:
+		return
+	_cc_drop -= delta
+	if _cc_drop > 0.0:
+		return
+	_cc_drop = 0.16
+	var host := get_parent()
+	if host == null:
+		return
+	var fb = (load("res://weapon_projectile.gd") as GDScript).new()
+	fb.kind = "cinder_patch"
+	fb.damage = maxi(1, int(round(float(damage) * 0.22)))
+	fb.element = element
+	fb.on_hit_status = on_hit_status
+	fb.source = source
+	fb.girth = girth * 0.55
+	host.add_child(fb)
+	fb.global_position = global_position + Vector2(randf_range(-8.0, 8.0), 10.0)
 
 func _circle(radius: float, sides: int) -> PackedVector2Array:
 	var pts = PackedVector2Array()
