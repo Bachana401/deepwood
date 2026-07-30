@@ -108,6 +108,11 @@ func mark_game_completed() -> void:
 # testing convenience below is restored. Enable by launching with `--dev` (set
 # in _ready), or flip this default to true. The four TEST_* flags all mirror it.
 var dev_mode := false
+# The admin GOD MODE toggle, held at session level because the Player node is
+# re-instanced on every scene change and a field on it dies at every door.
+# Deliberately NOT saved to disk: a testing switch should never ride along into
+# a real save file. (2026-07-30)
+var god_mode := false
 
 # All driven by dev_mode in _ready() -- kept as named vars so the many existing
 # GameState.TEST_* reads keep working unchanged.

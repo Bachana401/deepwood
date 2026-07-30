@@ -97,5 +97,25 @@ func _ready() -> void:
 	check("_warp_go actually sets the level it advertises",
 		go_body.contains("active_dungeon_level = _warp_level"))
 
+	# --- 5. GOD MODE SURVIVES THE DOOR ------------------------------------
+	# Reported in play: "while I transport player to dungeon or out from
+	# dungeon ... godmode turns off and I need to turn it on manually." The flag
+	# was a plain field on the Player, and every scene change re-instances it.
+	var keep_god: bool = GameState.god_mode
+	GameState.god_mode = false
+	var psrc := FileAccess.get_file_as_string("res://player.gd")
+	check("the player pushes god_mode up to GameState",
+		psrc.contains("GameState.god_mode = v"))
+	check("...and reads it back when it is re-instanced",
+		psrc.contains("god_mode = GameState.god_mode"))
+	check("god_mode is NOT written into the save file",
+		not FileAccess.get_file_as_string("res://game_state.gd").contains('"god_mode":'),
+		"a testing switch must never ride into a real save")
+	# and the mana rule, which was an illusion before: _toggle_god fills the
+	# pool once, and nothing after that exempted it
+	check("mana cannot fall while god mode is on",
+		psrc.contains("if god_mode and v < mana"))
+	GameState.god_mode = keep_god
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

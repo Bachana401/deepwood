@@ -2281,8 +2281,19 @@ func from_save_data(data: Array) -> void:
 			# that survived every later save cycle and cost one of the 55.
 			var iid := str(entry.get("item_id", ""))
 			var cnt := int(entry.get("count", 0))
-			if iid == "" or cnt <= 0 or not ITEM_DEFS.has(iid):
-				if iid != "" and not ITEM_DEFS.has(iid):
+			# THE ITEM MUST BE CHECKED AGAINST BOTH SOURCES (2026-07-30).
+			# This asked ITEM_DEFS alone. The generated ladder -- 350 of the
+			# roughly 520 weapons in the game -- lives in WeaponRoster and is
+			# NOT in ITEM_DEFS, so every single roster weapon was silently
+			# dropped by this loop on any inventory restore: leaving a dungeon,
+			# entering one, loading a save. The dev found it by carrying items
+			# out of the Proving Grounds and watching "most of the weapons"
+			# vanish, but it was never an arena bug -- a roster weapon found on
+			# floor 40 could not survive the walk home either.
+			# get_item_def() has answered from both maps since the ladder was
+			# added; this one validator was never updated to match.
+			if iid == "" or cnt <= 0 or get_item_def(iid).is_empty():
+				if iid != "" and get_item_def(iid).is_empty():
 					push_warning("save held unknown item '%s' x%d -- slot dropped" % [iid, cnt])
 				continue
 			slots[i] = {"item_id": iid, "count": cnt}

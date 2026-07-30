@@ -80,7 +80,17 @@ var wing_flap_phase := 0.0
 const BASE_MAX_MANA = 90.0    # up from 50 -- enough to actually cast through a boss fight
 const BASE_MANA_REGEN = 4.0   # points per second
 const DEFAULT_WAND_MANA_COST = 30
-var mana: float = BASE_MAX_MANA
+# GOD MODE DOES NOT PAY (2026-07-30). The dev reported mana surviving under god
+# mode; it was an illusion -- _toggle_god fills the pool ONCE and nothing after
+# that exempts it, so a long weapon test ran dry like any other. Rather than
+# patch the six separate `mana -= cost` sites (and miss the seventh someone
+# adds next month), the rule lives on the property: while god mode is on, mana
+# may rise and may not fall. One invariant instead of six patches.
+var mana: float = BASE_MAX_MANA:
+	set(v):
+		if god_mode and v < mana:
+			return
+		mana = v
 var mana_bar_fill: ColorRect = null
 # MU Online / Diablo liquid globes (dev ask 2026-07-22) -- the HUD's HP + mana.
 const HUD_ORB = preload("res://hud_orb.gd")
@@ -176,7 +186,15 @@ var admin_invincible_until = 0.0
 # testing. Purely a test tool: it grants nothing the player can earn, and every
 # gate it opens is checked against god_mode ONLY here (see has_flight, the T
 # dash in _physics_process, and take_damage).
-var god_mode := false
+# GOD MODE SURVIVES THE DOOR (2026-07-30, dev: "while I transport player to
+# dungeon or out from dungeon ... godmode turns off and I need to turn it on
+# manually"). Every scene change re-instances the Player, and this was a plain
+# field on it, so the toggle died at every door. The session-level truth lives
+# on GameState; the player mirrors it in _ready.
+var god_mode := false:
+	set(v):
+		god_mode = v
+		GameState.god_mode = v
 var knockback_immune_until := 0.0   # no re-knockback until this time (post-hit window)
 var is_dead = false
 var undying_used := false   # Living Fortress: the once-per-life lethal-hit save has fired
@@ -335,6 +353,10 @@ var hurt_timer := 0.0
 var afterimage_cd := 0.0
 
 func _ready() -> void:
+	# carry the admin god-mode toggle through the door (see the setter above).
+	# This does run the setter, which writes the same value straight back to
+	# GameState -- a harmless no-op, and cheaper than a second backing field.
+	god_mode = GameState.god_mode
 	original_color = $ColorRect.color
 	spawn_position = global_position
 	$AttackArea/CollisionShape2D.shape = $AttackArea/CollisionShape2D.shape.duplicate()
