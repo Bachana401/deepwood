@@ -469,6 +469,10 @@ func _ready() -> void:
 			monitoring = false
 			pierce = true
 			_build_lingering_arc()
+		"horizon_line":
+			# HORIZON PIKE (T6): a hairline drawn to the edge of sight.
+			pierce = true
+			_build_horizon_line()
 		"sky_star":
 			# DAYBREAK EDGE (T5): the swing does not reach the mark -- the
 			# LIGHT does. Stars fall from off the top of the frame. Not
@@ -2218,6 +2222,14 @@ func set_star_target(p: Vector2) -> void:
 	# spawn ABOVE the frame, not at the hand. The jitter is what stops a volley
 	# reading as one thick column.
 	global_position = p + Vector2(randf_range(-86.0, 86.0), -430.0)
+
+func _build_horizon_line() -> void:
+	# One tier BELOW Heaven, Bent, so four filaments and a shorter bundle. The
+	# ladder lives in the count and the length -- never in making it uglier.
+	_art_filament_beam(118.0, [
+		Color(1.00, 0.90, 0.62),        # low sun at the point
+		Color(1.00, 0.98, 0.86),        # to a pale bar of daylight
+		Color(0.86, 0.94, 1.00)], 4)
 
 func _build_sky_star() -> void:
 	var m := _add_mat()

@@ -224,7 +224,7 @@ const ROWS = [
 	["wpn_hushfall",     "Hushfall",             "melee", 6, "hushfall",  44, 1.1,  {"knockup": true, "status": "slow_w"}],
 	["wpn_eclipsewheel", "Eclipse Wheel",        "melee", 6, "eclipse",   27, 0.8,  {"dwell": 3.2}],
 	["wpn_dawntongue",   "Dawn's Long Tongue",   "melee", 6, "longtongue", 28, 0.82, {"status": "burn_w"}],
-	["wpn_horizonpike",  "Horizon Pike",         "spear", 6, "thrust",    36, 0.78, {"plain": true}],
+	["wpn_horizonpike",  "Horizon Pike",         "spear", 6, "horizonreach", 36, 0.78, {}],
 	["wpn_meteorquill",  "Meteor Quills",        "spear", 6, "meteorquill", 23, 0.88, {"count": 5, "status": "burn_w"}],
 	["wpn_middaybow",    "Midday Massacre",      "bow",   6, "middaysun", 19, 0.52, {"count": 4}],
 	["wpn_ghostrepeater","Ghost Repeater",       "bow",   6, "ghostbows", 11, 0.15, {"step": 4, "max": 3}],
@@ -429,7 +429,7 @@ const ROWS = [
 	["wpn_worldthorn",   "Thorn of the World",   "spear", 7, "worldthorn", 34, 0.8, {
 		"fx": [{"kind": "rend", "pct_per": 0.05, "max": 6}]}],
 	# NINE birds, not six -- a flock should darken the row (2026-07-30)
-	["wpn_stormflock",   "Flock of Storms",      "spear", 7, "stormflock", 20, 0.9, {"count": 9,
+	["wpn_stormflock",   "Flock of Storms",      "spear", 7, "stormflock", 20, 0.9, {"count": 12,
 		"fx": [{"kind": "chain", "n": 2, "pct": 0.28, "range": 240.0}]}],
 	["wpn_choirstring",  "Choirstring",          "bow", 7, "choirstring", 18, 0.62, {"count": 3, "pierce": true,
 		"fx": [{"kind": "echo", "pct": 0.28, "delay": 0.4}]}],
@@ -437,7 +437,7 @@ const ROWS = [
 		"fx": [{"kind": "brand", "amp": 0.15, "dur": 4.0}]}],
 	["wpn_sunspill",     "Sunspill",             "bow", 7, "sunspill", 34, 1.02, {"aoe": 130, "status": "burn_w",
 		"fx": [{"kind": "splinter", "n": 4, "pct": 0.28, "range": 180.0}]}],
-	["wpn_tidebook",     "The Tidal Codex",      "wand", 7, "tome", 20, 1.25, {"radius": 180,
+	["wpn_tidebook",     "The Tidal Codex",      "wand", 7, "tome", 20, 1.25, {"radius": 225,
 		"fx": [{"kind": "gravity", "radius": 220.0, "pull": 150.0}]}],
 	["wpn_shardregent",  "The Shard Regent",     "wand", 7, "shardregent", 29, 0.85, {"shards": 5,
 		# fx must SUPPORT the verb, never overwrite it. skyrain drops sky-comets
@@ -1088,6 +1088,17 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 		"choirstring":
 			s = {"type": "choir_note", "damage": maxi(1, int(round(float(dmg) * 0.5))),
 				"count": int(ex.get("count", 3)), "speed": spd + 120.0, "range": rng}
+		"horizonreach":
+			# HORIZON PIKE (T6): the thrust does not stop at arm's length. The
+			# POINT keeps going -- a hairline of light out to the edge of
+			# sight, taking everything standing in it.
+			# NOTE the behavior key: `horizonpike` is already taken, by THE
+			# KINDLY END. The weapon whose name matches that key is not the
+			# weapon that owns it, which is a trap this roster has sprung once
+			# already -- do not "fix" it by renaming either one.
+			s = {"type": "horizon_line",
+				"damage": maxi(1, int(round(float(dmg) * 0.55))),
+				"speed": spd + 520.0, "range": rng + 460.0}
 		"heavenpoint":
 			s = {"type": "piercing_point", "damage": dmg, "speed": spd + 340.0, "range": rng + 90.0}
 		"asphodel":
@@ -1474,6 +1485,7 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"edict":      return "The law REACHES: a jointed arm of light unfolds the length of the hall, cutting everything along it and blooming where it touches -- and stone does not stop a sentence."
 		"heavenstring": return "Every shaft trails a THREAD, and when it lands the thread goes taut: what you hit comes to you, whether it meant to or not."
 		"choirstring": return "Each shaft that lands plants a NOTE, humming where it stuck. Fill a room with notes and the room sings -- and singing hurts."
+		"horizonreach": return "The thrust does not stop at arm's length. The point keeps GOING -- a hairline of light drawn out to the edge of sight, and everything standing in it is standing in the line."
 		"heavenpoint": return "One lance, and everything standing in the line takes the SAME wound. It does not weaken for the second body, or the third."
 		"asphodel":    return "Plants a pale marker in the ground. It stands there on its own and keeps sending wisps out after whatever is nearest, long after you have moved on."
 		"hushfall":    return "The blow lands in SILENCE. The sound of it arrives a moment later, from where you struck, and the sound is the heavier half."

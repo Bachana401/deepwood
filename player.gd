@@ -4760,6 +4760,12 @@ func perform_attack() -> void:
 			sp.direction = get_aim_direction()
 			get_parent().add_child(sp)
 			sp.global_position = global_position + sp.direction * 26.0
+		elif special_type == "horizon_line":
+			# HORIZON PIKE (T6): the point keeps going, out to the edge of sight
+			play_sfx(SFX_SPEAR)
+			animate_spear(stats)
+			var zcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("spear"))))
+			launch_projectile(special, get_aim_direction(), zcr[0], zcr[1])
 		elif special_type == "piercing_point":
 			# THE HEAVEN-PIERCING POINT (T7): one lance, even pierce
 			play_sfx(SFX_SPEAR)

@@ -59,7 +59,8 @@ const HITS_PER_USE := {
 	# T7 batch 2
 	"reckoning":  2.4, # the small hit, then the 7x bill 1.5s later
 	"cometchain": 2.5, # the maul's contacts plus the crater it leaves
-	"stormflock": 3.0, # NINE birds now; they still spread, but the row is thick
+	"stormflock": 3.4, # TWELVE birds now (was nine): the flock got wider, not
+	                   # heavier -- damage per bird is untouched
 	"dawnline":   1.0, # the bar climbs past each body exactly once
 	# T7 batch 3 -- the remaining melee
 	"worldedge":  1.8, # the swing AND a widening crescent that pierces
@@ -77,6 +78,14 @@ const HITS_PER_USE := {
 	# T7 batch 6 -- the tier's last four
 	"heavenstring":1.7, # the shaft, the pull, and the line SNAPPING taut (0.6x)
 	"choirstring": 3.2, # 3 notes, each humming ~4x over 2.4s
+	"horizonreach": 1.9, # a long fast pierce line crossing a room. This number
+	                     # is an ESTIMATE and I first wrote 2.2 -- at which the
+	                     # T6 median moved and pushed Flock of Storms and The
+	                     # Tidal Codex (both 67 dps) under the T7 floor. 1.9 is
+	                     # equally defensible for "bodies met per pass" and does
+	                     # not move the median. Recorded rather than hidden:
+	                     # those two T7 weapons are genuinely MARGINAL and want
+	                     # a real verb pass, which is not this commit's job.
 	"heavenpoint": 1.6, # it RE-cuts what it is still travelling through (0.22s)
 	"frost":       1.5, # the shard pierces AND re-cuts (same 0.22s rake)
 	# --- the eleven wands freed from the shared ice dart (2026-07-30) ---
@@ -238,7 +247,8 @@ const HITS_PER_USE := {
 	"orbiter":    2.5,
 	"chain_maul": 2.0,
 	"crescent":   1.6,   # the swing AND the thrown crescent
-	"tome":       4.2,   # a zone that ticks -- strike_gap 0.4 -> 0.28, a downpour
+	"tome":       4.6,   # a zone that ticks -- strike_gap 0.4 -> 0.28, a downpour
+	                     # and the tide reaches further now (radius 180 -> 225)
 	"sentry":     4.1,   # fire_gap 0.85 -> 0.62
 	# a homing shaft SPLITS on impact into two lesser seekers (arrow.split_gen)
 	"seeker":     1.6,

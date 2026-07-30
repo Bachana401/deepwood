@@ -161,7 +161,8 @@ func _ready() -> void:
 	# a ledger of how much of that ladder is left, not a target to defend.
 	# 109 -> 108: DAYBREAK EDGE took the Star Wrath verb (2026-07-30).
 	# 108 -> 107: GHOST REPEATER took the Phantasm verb (same day).
-	var PLAIN_QUOTA := 107
+	# 107 -> 106: HORIZON PIKE finally does what its name says (same day).
+	var PLAIN_QUOTA := 106
 	var plain_n := 0
 	var overdressed := []
 	var unknown := []
@@ -284,8 +285,8 @@ func _ready() -> void:
 	# 106 -> 105 for the same reason: a rung that gains a verb leaves the chain.
 	# The `broken` list stayed EMPTY, which is the part that actually mattered --
 	# nothing downstream was forging FROM Daybreak Edge.
-	check("every chained rung forges from kin plus materials (104 links)",
-		chained == 104 and broken.is_empty(),
+	check("every chained rung forges from kin plus materials (103 links)",
+		chained == 103 and broken.is_empty(),
 		"chained=%d; broken: %s" % [chained, ", ".join(broken)])
 	# ---- THE CULMINATION (Zenith-kin): the melee crown forges from its three
 	# famous T7 ancestors -- the same blades whose tinted ghosts its zenith
