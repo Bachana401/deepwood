@@ -84,9 +84,17 @@ const HITS_PER_USE := {
 	# declare. The spec's 2.4 assumes a body that keeps pushing at the boundary;
 	# a real enemy walking at the player does exactly that, but nothing in the
 	# probe models intent, so the audit gets the floor rather than the hope.
-	"saltring":    2.4, # the scatter + ~3 edge-burns across its 3.5s life
+	# observed 1-3 across runs: a containment ring only bills a body standing AT
+	# the boundary, so its output is genuinely positional. 2.0 is honest against
+	# both ends rather than flattering to one.
+	"saltring":    2.0, # the scatter, plus 1-3 edge-burns depending on where
 	"hollowring":  1.3, # even-pierce: one body takes exactly one, on collapse
 	"forktree":    2.2, # 7 segments at 0.45x; deep in the tree eats 3-4
+	# MEASURED 9, which includes the POISON ticking after the thread breaks --
+	# damage-over-time is real output and the probe is right to count it.
+	"drinkthread": 4.0, # 4 pulls at 0.22x, then the poison keeps working
+	"writglyph":   1.6, # a body under ONE glyph takes one icicle at 0.7x
+	"icecoffin":   2.6, # the shut at full, then panel-splinters at 0.45x
 	# ---- T6 batch 1 ----
 	"hushfall":    1.8, # the swing, then the late nova at 0.8x in a radius
 	"eclipse":     1.7, # the disc out and back, plus one shadow band at 0.85x

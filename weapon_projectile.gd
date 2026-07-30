@@ -248,6 +248,9 @@ func _ready() -> void:
 			_build_brook_band()
 		"spore_light": _build_spore_light()
 		"salt_ring": _build_salt_ring()
+		"leech_thread": _build_leech_thread()
+		"writ_glyph": _build_writ_glyph()
+		"ice_coffin": _build_ice_coffin()
 		"hollow_ring":
 			pierce = true          # it phases; nothing stops it
 			_build_hollow_ring()
@@ -1018,6 +1021,15 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind == "salt_ring":
 		_tick_salt_ring(delta)
+		return
+	if kind == "leech_thread":
+		_tick_leech(delta)
+		return
+	if kind == "writ_glyph":
+		_tick_writ(delta)
+		return
+	if kind == "ice_coffin":
+		_tick_coffin(delta)
 		return
 	if kind == "hollow_ring":
 		_tick_hollow_ring(delta)
@@ -3537,7 +3549,274 @@ func _tick_chalk_line(delta: float) -> void:
 					(e as Node2D).global_position + Vector2(0, -24.0), damage, is_crit)
 			_apply_status_to(e)
 
-# --- SALTBINDER: a prison, not a wall -------------------------------------
+# --- LEECHLIGHT: it drinks -------------------------------------------------
+# The only TETHER of the eleven and the only self-heal. Nothing is thrown: the
+# thread snaps taut instantly -- that snap IS the impact -- and then pulls.
+# Structurally weak on purpose: it needs a target already in range, so unlike
+# every other wand here it cannot open a fight.
+const LEECH_LIFE := 0.8
+const LEECH_TICKS := 4
+var _leech_t := 0.0
+var _leech_n := 0
+var _leech_prey: Node2D = null
+var _leech_line: Line2D = null
+var _leech_glow: Polygon2D = null
+
+func _build_leech_thread() -> void:
+	_leech_line = Line2D.new()
+	_leech_line.width = 2.0
+	_leech_line.default_color = Color(0.55, 0.10, 0.16, 0.95)
+	visual.add_child(_leech_line)
+	# the pale glow at YOUR end -- the heal, made visible
+	_leech_glow = Polygon2D.new()
+	_leech_glow.polygon = _circle(7.0, 10)
+	_leech_glow.color = Color(1.0, 0.6, 0.6, 0.4)
+	_leech_glow.material = _add_mat()
+	visual.add_child(_leech_glow)
+
+func _tick_leech(delta: float) -> void:
+	_leech_t += delta
+	if not is_instance_valid(source):
+		done = true
+		queue_free()
+		return
+	global_position = (source as Node2D).global_position
+	if _leech_prey == null or not is_instance_valid(_leech_prey):
+		_leech_prey = _nearest_hostile_node(maxf(120.0, max_distance))
+	# THE HONEST WHIFF: it reaches out, finds nothing, and coils back. Visible,
+	# costed, harmless -- rather than silently doing nothing.
+	var reach: Vector2 = direction * 200.0
+	if _leech_prey != null and is_instance_valid(_leech_prey):
+		reach = (_leech_prey as Node2D).global_position - global_position
+	if _leech_line != null and is_instance_valid(_leech_line):
+		# a shallow catenary that breathes, not a taut wire
+		var sag: float = 10.0 * sin(clampf(_leech_t / LEECH_LIFE, 0.0, 1.0) * PI)
+		var pts := PackedVector2Array()
+		for i in range(5):
+			var f: float = float(i) / 4.0
+			pts.append(reach * f + Vector2(0, sin(f * PI) * sag))
+		_leech_line.points = pts
+		_leech_line.modulate.a = clampf((LEECH_LIFE - _leech_t) / 0.2, 0.0, 1.0)
+	if _leech_t >= LEECH_LIFE:
+		done = true
+		queue_free()
+		return
+	# four beads travel FROM the foe TO you; each arrival is a tick and a heal
+	var want: int = int((_leech_t / LEECH_LIFE) * float(LEECH_TICKS))
+	if want <= _leech_n or _leech_prey == null or not is_instance_valid(_leech_prey):
+		return
+	_leech_n = want
+	if not _leech_prey.has_method("take_damage"):
+		return
+	# 0.35 was too generous once the POISON is counted. The probe measured 9
+	# hits on a Tier-2 uncommon -- four pulls plus the poison ticking away
+	# afterwards -- which would have put it at 90 dps against a tier ceiling of
+	# 70. Damage-over-time is real weapon output and should be counted; the
+	# answer is for the pull to ask less, not for the audit to look away. This
+	# weapon is meant to be structurally weak anyway: it cannot open a fight.
+	var pay: int = maxi(1, int(round(float(damage) * 0.22)))
+	var landed = _leech_prey.take_damage(pay)
+	if landed == null or landed:
+		FloatingText.spawn(get_parent(),
+			_leech_prey.global_position + Vector2(0, -24.0), pay, false)
+	if _leech_n == 1:
+		_apply_status_to(_leech_prey)    # the poison lands ONCE, at the snap
+	if is_instance_valid(source) and source.has_method("heal"):
+		source.heal(1)
+	if _leech_glow != null and is_instance_valid(_leech_glow):
+		_leech_glow.scale = Vector2.ONE * 1.6
+		var gt: Tween = _leech_glow.create_tween()
+		gt.tween_property(_leech_glow, "scale", Vector2.ONE, 0.18)
+
+# --- FROST WRIT: written, and then carried out -----------------------------
+# A writ is a written ORDER, so it is written and then executed. The only wand
+# whose damage arrives vertically -- where the brook flows along the floor and
+# the coffin encloses, this one falls.
+const WRIT_WRITE := 0.30
+const WRIT_PAUSE := 0.60
+var _writ_t := 0.0
+var _writ_fired := false
+var _writ_glyphs: Array = []
+
+func _build_writ_glyph() -> void:
+	var n := 5
+	for i in range(n):
+		var g := Polygon2D.new()
+		var pts := PackedVector2Array()
+		for k in range(7):
+			var a: float = TAU * float(k) / 7.0
+			var rr: float = 9.0 if k % 2 == 0 else 5.0
+			pts.append(Vector2(cos(a) * rr, sin(a) * rr))
+		g.polygon = pts
+		g.color = Color(0.72, 0.90, 1.00, 0.90)
+		g.position = direction * (40.0 * float(i))
+		g.scale = Vector2.ZERO
+		visual.add_child(g)
+		_writ_glyphs.append(g)
+		# written LEFT TO RIGHT, each scaling in with a small overshoot
+		var t: Tween = g.create_tween()
+		t.tween_interval(WRIT_WRITE * float(i) / float(n))
+		t.tween_property(g, "scale", Vector2.ONE * 1.2, 0.04)
+		t.tween_property(g, "scale", Vector2.ONE, 0.02)
+
+func _tick_writ(delta: float) -> void:
+	_writ_t += delta
+	# the glyphs turn slowly while they WAIT -- the pause is a real tell
+	for g in _writ_glyphs:
+		if is_instance_valid(g):
+			g.rotation = sin(_writ_t * 3.0) * 0.09
+	if not _writ_fired and _writ_t >= WRIT_WRITE + WRIT_PAUSE:
+		_writ_fired = true
+		_execute_writ()
+	if _writ_t >= WRIT_WRITE + WRIT_PAUSE + 0.5:
+		done = true
+		queue_free()
+
+func _execute_writ() -> void:
+	var host := get_parent()
+	if host == null or not is_instance_valid(host):
+		return
+	var pay: int = maxi(1, int(round(float(damage) * 0.7)))
+	for i in range(_writ_glyphs.size()):
+		var g = _writ_glyphs[i]
+		if not is_instance_valid(g):
+			continue
+		var at: Vector2 = (g as Node2D).global_position
+		# they fall IN THE SAME ORDER THEY WERE WRITTEN, 0.05s apart
+		var t: Tween = host.create_tween()
+		t.tween_interval(0.05 * float(i))
+		t.tween_callback(func():
+			if not is_instance_valid(host):
+				return
+			var ice := Polygon2D.new()
+			ice.polygon = PackedVector2Array([
+				Vector2(0, 34.0), Vector2(-5.0, -6.0), Vector2(5.0, -6.0)])
+			ice.color = Color(0.80, 0.94, 1.00, 0.95)
+			host.add_child(ice)
+			ice.global_position = at
+			var it: Tween = ice.create_tween()
+			it.tween_property(ice, "global_position", at + Vector2(0, 200.0), 0.15)
+			it.tween_property(ice, "modulate:a", 0.0, 0.1)
+			it.tween_callback(ice.queue_free)
+			# anything in the column beneath the glyph is struck
+			for gname in HOSTILE_GROUPS:
+				for e in get_tree().get_nodes_in_group(gname):
+					if not (e is Node2D) or not is_instance_valid(e) \
+							or not e.has_method("take_damage"):
+						continue
+					if "is_dead" in e and e.is_dead:
+						continue
+					var rel: Vector2 = (e as Node2D).global_position - at
+					if absf(rel.x) > 26.0 or rel.y < -20.0 or rel.y > 200.0:
+						continue
+					var landed = e.take_damage(pay)
+					if landed == null or landed:
+						FloatingText.spawn(host, (e as Node2D).global_position
+							+ Vector2(0, -26.0), pay, false)
+					_apply_status_to(e))
+
+# --- SUMMER'S COFFIN: it buries the season ---------------------------------
+# The family's apex. It must feel overwhelming and still be ONE clean idea:
+# throw, shut, hold, crack, burst. The coffin reads as SOLID AND SHUT -- dark
+# inner faces, only the rime edges additive -- because a box made of glow is
+# not a box.
+const COF_HOLD := 0.60
+var _cof_t := 0.0
+var _cof_state := 0
+var _cof_prey: Node2D = null
+var _cof_panels: Array = []
+
+func _build_ice_coffin() -> void:
+	var slab := Polygon2D.new()
+	slab.polygon = PackedVector2Array([
+		Vector2(-20, -9), Vector2(16, -13), Vector2(20, 9), Vector2(-16, 13)])
+	slab.color = Color(0.12, 0.16, 0.28, 1.0)
+	visual.add_child(slab)
+	var rime := Line2D.new()
+	rime.points = PackedVector2Array([
+		Vector2(-20, -9), Vector2(16, -13), Vector2(20, 9), Vector2(-16, 13), Vector2(-20, -9)])
+	rime.width = 2.0
+	rime.default_color = Color(0.78, 0.90, 1.00, 0.9)
+	rime.material = _add_mat()
+	visual.add_child(rime)
+
+func _tick_coffin(delta: float) -> void:
+	_cof_t += delta
+	match _cof_state:
+		0:   # the throw: one full tumble, eased so it lands flat
+			global_position += direction * speed * delta
+			traveled += speed * delta
+			if visual:
+				visual.rotation += 9.0 * delta
+			var prey := _nearest_hostile_node(70.0)
+			if prey != null or traveled >= max_distance:
+				_cof_prey = prey
+				_cof_state = 1
+				_cof_t = 0.0
+				if visual:
+					visual.rotation = 0.0
+				_shut_coffin()
+		1:   # the hold: it stands, and the shape of the body shows through
+			if _cof_prey != null and is_instance_valid(_cof_prey):
+				global_position = (_cof_prey as Node2D).global_position
+				if _cof_prey.has_method("apply_status"):
+					_cof_prey.apply_status("slow", 0.2, 0.85)
+			if _cof_t >= COF_HOLD:
+				_cof_state = 2
+				_cof_t = 0.0
+				_crack_coffin()
+		2:
+			if _cof_t >= 0.5:
+				done = true
+				queue_free()
+
+func _shut_coffin() -> void:
+	# four panels slam in from four sides, eased IN so the box shuts rather
+	# than assembles. Dark inner faces: solid, not glowing.
+	for i in range(4):
+		var a: float = TAU * float(i) / 4.0
+		var panel := Polygon2D.new()
+		panel.polygon = PackedVector2Array([
+			Vector2(-22, -30), Vector2(22, -30), Vector2(18, 30), Vector2(-18, 30)])
+		panel.color = Color(0.10, 0.14, 0.24, 0.92)
+		panel.rotation = a
+		panel.position = Vector2(cos(a), sin(a)) * 70.0
+		visual.add_child(panel)
+		_cof_panels.append(panel)
+		var t: Tween = panel.create_tween()
+		t.tween_property(panel, "position", Vector2.ZERO, 0.12).set_ease(Tween.EASE_IN)
+	if _cof_prey != null and is_instance_valid(_cof_prey) and _cof_prey.has_method("take_damage"):
+		var pay: int = maxi(1, damage)
+		var landed = _cof_prey.take_damage(pay)
+		if landed == null or landed:
+			FloatingText.spawn(get_parent(),
+				_cof_prey.global_position + Vector2(0, -34.0), pay, true)
+		_apply_status_to(_cof_prey)
+
+func _crack_coffin() -> void:
+	var host := get_parent()
+	if host == null or not is_instance_valid(host):
+		return
+	for p in _cof_panels:
+		if is_instance_valid(p):
+			p.queue_free()
+	_cof_panels.clear()
+	# every panel of it flies outward as a splinter into the rest of the room
+	var pay: int = maxi(1, int(round(float(damage) * 0.45)))
+	for i in range(8):
+		var a: float = TAU * float(i) / 8.0
+		var sp = (load("res://weapon_projectile.gd") as GDScript).new()
+		sp.kind = "scree"
+		sp.direction = Vector2(cos(a), sin(a))
+		sp.speed = 500.0
+		sp.damage = pay
+		sp.max_distance = 190.0
+		sp.element = element
+		sp.on_hit_status = on_hit_status
+		sp.source = source
+		sp.girth = girth * 0.6
+		sp.global_position = global_position
+		host.call_deferred("add_child", sp)
 # The only containment verb in the roster. It does not keep enemies OUT; it
 # keeps what is already inside from leaving, and burns it each time it tries.
 # The geometry rule that makes or breaks this in a side-scroller: the ring lies

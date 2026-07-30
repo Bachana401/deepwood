@@ -60,7 +60,8 @@ const PROBE_IDS := ["wpn_lastword", "wpn_griefcrown", "wpn_unbentcolumn",
 	"wpn_brookwand", "wpn_mosswand",
 	"wpn_saltwand", "wpn_hollowbolt", "wpn_stormsliver",
 	# the two the ladder exposed when their tiers got stronger
-	"wpn_nightmortar", "wpn_wispwarden"]
+	"wpn_nightmortar", "wpn_wispwarden",
+	"wpn_leechwand", "wpn_frostwrit", "wpn_summerscoffin"]
 const PROBE_RANGES := [90.0, 170.0, 280.0]
 
 func _ready() -> void:

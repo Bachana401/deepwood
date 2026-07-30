@@ -307,7 +307,10 @@ const ROWS = [
 	["wpn_emberdart",    "Emberdart",            "bow",   2, "shot",      8,  0.45, {"status": "burn_w", "plain": true}],
 	["wpn_foxfirewand",  "Foxfire Wand",         "wand",  2, "fire",      12, 0.75, {"aoe": 60, "plain": true}],
 	["wpn_saltcaster",   "Saltcaster",           "wand",  2, "cluster",   10, 0.85, {"shards": 3}],
-	["wpn_leechwand",    "Leechlight",           "wand",  2, "bolt",      10, 0.5,  {"status": "poison_w", "plain": true}],
+	# cd 0.5 -> 0.9: measured 9 hits (four pulls plus the poison after) put a Tier-2
+	# uncommon at 80 dps against a tier ceiling of 74. A tether that DRINKS and
+	# heals you should not be spammable -- slow is the honest cost of sustain.
+	["wpn_leechwand",    "Leechlight",           "wand",  2, "drinkthread", 10, 0.9, {"status": "poison_w", "rung": true}],
 	["wpn_ferrypole",    "Ferryman's Pole",      "staff", 2, "staff",     9,  0.42, {"plain": true}],
 	["wpn_gooseherd",    "Gooseherd's Crook",    "staff", 2, "staff",     8,  0.36, {"plain": true}],
 	# ---------------- WAVE 3 - TIER 3 (24) ----------------
@@ -355,7 +358,7 @@ const ROWS = [
 	["wpn_sapperkiss",   "Sapper's Kiss",        "bow",   4, "lob_a",     23, 1.0,  {"aoe": 95, "status": "burn_w", "plain": true}],
 	["wpn_glasstring",   "Glasstring",           "bow",   4, "shot",      17, 0.5,  {"status": "slow_w", "plain": true}],
 	["wpn_covenbook",    "The Coven's Ledger",   "wand",  4, "covenledger", 10, 1.4,  {"radius": 135, "tome_kind": "coven"}],
-	["wpn_frostwrit",    "Frost Writ",           "wand",  4, "frost",     19, 0.55, {"status": "slow_w", "plain": true}],
+	["wpn_frostwrit",    "Frost Writ",           "wand",  4, "writglyph", 19, 0.55, {"status": "slow_w", "rung": true}],
 	["wpn_gloamburst",   "Gloamburst",           "wand",  4, "gloamburst", 19, 0.8,  {"shards": 6}],
 	["wpn_howlbolt",     "Howling Bolt",         "wand",  4, "howlbolt",  16, 0.58, {"bounces": 4}],
 	["wpn_candlepost",   "Candlekeeper",         "wand",  4, "candlekeeper", 9,  1.2,  {"dur": 18}],
@@ -513,7 +516,7 @@ const ROWS = [
 		"fx": [{"kind": "starfall", "pct": 0.29, "stars": 3}]}],
 	["wpn_gravecourier", "Grave Courier",        "melee", 7, "ricochet", 27, 0.52, {"bounces": 7, "rider": "courier",
 		"fx": [{"kind": "soulwisp", "dmg": 5, "pct": 0.28}]}],
-	["wpn_summerscoffin","Summer's Coffin",      "wand", 7, "frost", 32, 0.5,  {"status": "slow_w", "rider": "coffin",
+	["wpn_summerscoffin","Summer's Coffin",      "wand", 7, "icecoffin", 32, 0.5,  {"status": "slow_w", "rider": "coffin",
 		"fx": [{"kind": "frostbloom", "radius": 160.0, "dur": 3.0}]}],
 	["wpn_kindlyend",    "The Kindly End",       "spear", 6, "horizonpike", 40, 0.7,  {"status": "poison_w", "rider": "kindly"}],
 	["wpn_secondmoon",   "Second Moon",          "melee", 6, "secondmoon", 36, 0.85, {"status": "slow_w", "rider": "moon"}],
@@ -778,6 +781,28 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			s = {"type": "ink_jet", "damage": dmg, "speed": spd, "range": rng}
 		"wake":
 			s = {"type": "wake_scythe", "damage": dmg, "speed": spd, "range": rng}
+		"drinkthread":
+			# LEECHLIGHT drinks. Nothing is thrown: a thread snaps taut to the
+			# nearest foe and pulls, ticking damage and returning a little as
+			# health. The only TETHER and the only self-heal of the eleven, and
+			# structurally weak on purpose -- it needs a target already in range,
+			# so it cannot open a fight.
+			s = {"type": "leech_thread", "damage": dmg, "range": 320.0}
+		"writglyph":
+			# FROST WRIT writes a sentence in the air -- five ice-glyphs hanging
+			# where written -- and a beat later every glyph EXECUTES, dropping an
+			# icicle from itself. A writ is a written order, so it is written and
+			# then carried out. The only wand whose damage arrives VERTICALLY.
+			# no "count": the five glyphs are children of ONE projectile, so a
+			# declared count would promise the dispatch audit five NODES and it
+			# would be right to refuse. The sentence is one object.
+			s = {"type": "writ_glyph", "damage": dmg, "range": 200.0}
+		"icecoffin":
+			# SUMMER'S COFFIN buries the season. A slab opens into a standing
+			# coffin around the nearest foe, holds it in the cold, then cracks
+			# and throws every panel outward as a splinter. The family's apex:
+			# overwhelming, and still ONE clean idea.
+			s = {"type": "ice_coffin", "damage": dmg, "speed": 620.0, "range": rng}
 		"saltring":
 			# SALTBINDER binds. A ring of grains on the ground; what is inside
 			# cannot leave, and the salt burns it each time it tries. The only
@@ -830,12 +855,18 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			# the air and cuts whatever crosses it. The only zero-velocity wand
 			# in the game, which is what makes it readable at a glance.
 			s = {"type": "chalk_line", "damage": dmg, "range": 96.0}
-		"bolt":
-			s = {"type": "frost_shard", "damage": dmg, "speed": spd + 100.0, "range": rng}
+		# "bolt" and "frost" USED TO LIVE HERE, and both resolved to
+		# {"type": "frost_shard"}. Between them they gave eleven weapons named
+		# for chalk, tallow, moss, leeches, salt, hollowness, storm, water,
+		# writing and a coffin the SAME ice dart. All eleven now have their own
+		# verb, so both labels are unreachable and are gone -- the dead-verb
+		# audit flagged them the moment the last weapon left, which is exactly
+		# the reverse check it exists for.
+		# The frost_shard TYPE survives: six hand-authored ice weapons in
+		# inventory.gd legitimately earned it.
 		"fire":
 			s = {"type": "fireball", "damage": dmg, "aoe": float(ex.get("aoe", 90.0)), "speed": spd - 40.0, "range": rng}
-		"frost":
-			s = {"type": "frost_shard", "damage": dmg, "speed": spd + 120.0, "range": rng, "pierce": true}
+		# (the "frost" label lived here -- see the note above "chalkline")
 		"ricochet":
 			s = {"type": "ricochet", "damage": dmg, "speed": spd + 120.0, "range": rng, "bounces": int(ex.get("bounces", 3))}
 		"cluster":
