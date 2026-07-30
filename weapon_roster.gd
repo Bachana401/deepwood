@@ -137,48 +137,48 @@ const ROWS = [
 	["wpn_twelfthpillar","Twelfth Pillar",       "staff", 6, "staff",     24, 0.4,  {"plain": true}],
 	# ---------------- TIER 7 - ASCENDED (floors 70-97) ----------------
 	["wpn_afterlight",   "Afterlight",           "melee", 7, "afterlight", 29, 0.42, {"status": "burn_w",
-		"fx": [{"kind": "echo", "pct": 0.98, "delay": 0.4}]}],
+		"fx": [{"kind": "echo", "pct": 0.34, "delay": 0.4}]}],
 	["wpn_worldsedge",   "Edge of the World",    "melee", 7, "worldedge", 29, 0.6, {"p_damage": 26, "tint": [0.35, 0.95, 0.5],
-		"fx": [{"kind": "splinter", "n": 4, "pct": 0.8, "range": 190.0}]}],
+		"fx": [{"kind": "splinter", "n": 4, "pct": 0.28, "range": 190.0}]}],
 	["wpn_ascendwheel",  "Wheel of Ascension",   "melee", 7, "risingwheel", 27, 0.85, {"status": "slow_w",
 		"fx": [{"kind": "frostbloom", "radius": 170.0, "dur": 3.0}]}],
 	["wpn_novatongue",   "Nova Tongue",          "melee", 7, "nova", 29, 0.88, {"status": "burn_w",
-		"fx": [{"kind": "quake", "radius": 140.0, "pct": 0.8}]}],
+		"fx": [{"kind": "quake", "radius": 140.0, "pct": 0.28}]}],
 	["wpn_zenithpike",   "Zenith",               "spear", 7, "thrust", 40, 0.75, {
-		"fx": [{"kind": "duelist", "pct_per": 0.15, "max": 6}]}],
+		"fx": [{"kind": "duelist", "pct_per": 0.05, "max": 6}]}],
 	["wpn_ninthcommand", "Ninth Commandment",    "bow", 7, "commandment", 22, 0.52, {"pierce": true,
-		"fx": [{"kind": "chain", "n": 2, "pct": 0.8, "range": 260.0}]}],
+		"fx": [{"kind": "chain", "n": 2, "pct": 0.28, "range": 260.0}]}],
 	["wpn_heavenstring", "Heavenstring",         "bow", 7, "heavenstring", 29, 0.6, {
-		"fx": [{"kind": "brand", "amp": 0.42, "dur": 4.0}]}],
+		"fx": [{"kind": "brand", "amp": 0.15, "dur": 4.0}]}],
 	["wpn_highflood",    "The High Flood",       "wand", 7, "tome", 21, 1.25, {"radius": 185,
-		"fx": [{"kind": "crowd", "pct_per": 0.14, "cap": 0.55}]}],
+		"fx": [{"kind": "crowd", "pct_per": 0.05, "cap": 0.55}]}],
 	["wpn_riftburst",    "Riftburst Rod",        "wand", 7, "riftburst", 34, 1.0, {
-		"fx": [{"kind": "splinter", "n": 5, "pct": 0.8, "range": 170.0}]}],
+		"fx": [{"kind": "splinter", "n": 5, "pct": 0.28, "range": 170.0}]}],
 	["wpn_asphodelpost", "Asphodel Post",        "wand", 7, "asphodel", 19, 1.5, {
-		"fx": [{"kind": "soulwisp", "dmg": 10, "pct": 0.8}]}],
+		"fx": [{"kind": "soulwisp", "dmg": 4, "pct": 0.28}]}],
 	["wpn_skypillar",    "Pillar of the Sky",    "staff", 7, "skypillar", 34, 0.6, {
-		"fx": [{"kind": "quake", "radius": 150.0, "pct": 0.8}]}],
+		"fx": [{"kind": "quake", "radius": 150.0, "pct": 0.28}]}],
 	# ---------------- TIER 8 - MONARCH (floors 88-100) ----------------
 	# CROWN TEN #6: a plain `arc` shared with 27 weapons becomes a POUR. Damage
 	# 41 -> 11 with the cadence more than doubled: many small griefs, not one
 	# big one -- the per-hit number is supposed to look modest.
 	["wpn_crownsorrow",  "The Crown's Sorrow",   "melee", 8, "sorrow", 11, 0.15, {"status": "slow_w",
-		"fx": [{"kind": "brand", "amp": 0.49, "dur": 5.0}]}],
+		"fx": [{"kind": "brand", "amp": 0.17, "dur": 5.0}]}],
 	["wpn_kingdomwheel", "A Kingdom, Turning",   "melee", 8, "kingdomturning", 37, 0.75, {"dwell": 4.0,
 		"fx": [{"kind": "gravity", "radius": 240.0, "pull": 180.0}]}],
 	["wpn_lastword",     "The Last Word",        "melee", 8, "zenith", 34, 0.55, {"status": "burn_w",
-		"fx": [{"kind": "legacy", "n": 2, "pct": 1, "range": 300.0}]}],
+		"fx": [{"kind": "legacy", "n": 2, "pct": 0.35, "range": 300.0}]}],
 	# CROWN TEN #4: a plain thrust shared with 23 weapons becomes the weapon its
 	# NAME always promised -- you do not stab a king once, you leave the blades
 	# in. Damage 50 -> 21: the kill is the stack, not the throw.
 	["wpn_regicide",     "Regicide",             "spear", 8, "regicide", 21, 0.62, {
-		"fx": [{"kind": "duelist", "pct_per": 0.18, "max": 8}]}],
+		"fx": [{"kind": "duelist", "pct_per": 0.06, "max": 8}]}],
 	["wpn_thronestrings","Throne of Strings",    "bow", 8, "thronestrings", 27, 0.48, {"count": 5, "pierce": true,
-		"fx": [{"kind": "skyrain", "n": 3, "pct": 1, "spread": 140.0}]}],
+		"fx": [{"kind": "skyrain", "n": 3, "pct": 0.35, "spread": 140.0}]}],
 	["wpn_soulflood",    "Flood of Souls",       "wand", 8, "souls", 26, 1.1,  {
-		"fx": [{"kind": "soulwisp", "dmg": 14, "pct": 1}]}],
+		"fx": [{"kind": "soulwisp", "dmg": 6, "pct": 0.35}]}],
 	["wpn_skymeasure",   "Staff That Measures the Sky", "staff", 8, "skymeasure", 34, 0.36, {
-		"fx": [{"kind": "quake", "radius": 170.0, "pct": 1}]}],
+		"fx": [{"kind": "quake", "radius": 170.0, "pct": 0.35}]}],
 	# ---------------- WAVE 3 - TIER 1 (8) ----------------
 	["wpn_hearthpoker",  "Hearth Poker",         "melee", 1, "arc",       6,  0.4,  {"plain": true}],
 	["wpn_cellarmallet", "Cellar Mallet",        "melee", 1, "cleave",    10, 0.9,  {"plain": true}],
@@ -309,23 +309,23 @@ const ROWS = [
 	["wpn_stillmountain","The Still Mountain",   "staff", 6, "staff",     26, 0.48, {"plain": true}],
 	# ---------------- WAVE 3 - TIER 7 (14) ----------------
 	["wpn_dawnchorus",   "Dawn Chorus",          "melee", 7, "dawnline", 30, 0.42, {"status": "burn_w",
-		"fx": [{"kind": "echo", "pct": 0.9, "delay": 0.35}]}],
+		"fx": [{"kind": "echo", "pct": 0.32, "delay": 0.35}]}],
 	["wpn_finalanvil",   "Anvil of Endings",     "melee", 7, "anvil", 43, 1.15, {"knockup": true,
-		"fx": [{"kind": "quake", "radius": 160.0, "pct": 0.8}]}],
+		"fx": [{"kind": "quake", "radius": 160.0, "pct": 0.28}]}],
 	["wpn_cometchain",   "Chained Comet",        "melee", 7, "cometchain", 34, 0.95, {"status": "burn_w",
 		"fx": [{"kind": "gravity", "radius": 200.0, "pull": 160.0}]}],
 	["wpn_silencelash",  "The Shape of Silence", "melee", 7, "hush", 28, 0.84, {"status": "slow_w",
-		"fx": [{"kind": "brand", "amp": 0.39, "dur": 4.5}]}],
+		"fx": [{"kind": "brand", "amp": 0.14, "dur": 4.5}]}],
 	["wpn_worldthorn",   "Thorn of the World",   "spear", 7, "worldthorn", 34, 0.8, {
-		"fx": [{"kind": "rend", "pct_per": 0.16, "max": 6}]}],
+		"fx": [{"kind": "rend", "pct_per": 0.05, "max": 6}]}],
 	["wpn_stormflock",   "Flock of Storms",      "spear", 7, "stormflock", 20, 0.9, {"count": 6,
-		"fx": [{"kind": "chain", "n": 2, "pct": 0.8, "range": 240.0}]}],
+		"fx": [{"kind": "chain", "n": 2, "pct": 0.28, "range": 240.0}]}],
 	["wpn_choirstring",  "Choirstring",          "bow", 7, "choirstring", 18, 0.62, {"count": 3, "pierce": true,
-		"fx": [{"kind": "echo", "pct": 0.8, "delay": 0.4}]}],
+		"fx": [{"kind": "echo", "pct": 0.28, "delay": 0.4}]}],
 	["wpn_reckoningbow", "The Quiet Reckoning",  "bow", 7, "reckoning", 29, 0.6, {
-		"fx": [{"kind": "brand", "amp": 0.42, "dur": 4.0}]}],
+		"fx": [{"kind": "brand", "amp": 0.15, "dur": 4.0}]}],
 	["wpn_sunspill",     "Sunspill",             "bow", 7, "sunspill", 34, 1.02, {"aoe": 130, "status": "burn_w",
-		"fx": [{"kind": "splinter", "n": 4, "pct": 0.8, "range": 180.0}]}],
+		"fx": [{"kind": "splinter", "n": 4, "pct": 0.28, "range": 180.0}]}],
 	["wpn_tidebook",     "The Tidal Codex",      "wand", 7, "tome", 20, 1.25, {"radius": 180,
 		"fx": [{"kind": "gravity", "radius": 220.0, "pull": 150.0}]}],
 	["wpn_shardregent",  "The Shard Regent",     "wand", 7, "shardregent", 29, 0.85, {"shards": 5,
@@ -333,56 +333,56 @@ const ROWS = [
 		# -- that is the starfall weapons' signature, and on film it completely
 		# buried this weapon's own crown-of-shards. splinter suits shards; haste
 		# suits a regent whose court answers faster the better it goes.
-		"fx": [{"kind": "splinter", "n": 5, "pct": 0.8, "range": 170.0}]}],
+		"fx": [{"kind": "splinter", "n": 5, "pct": 0.28, "range": 170.0}]}],
 	["wpn_finaldebt",    "The Final Debt",       "wand", 7, "finaldebt", 25, 0.6, {"bounces": 7,
-		"fx": [{"kind": "goldtouch", "chance": 0.3, "gold": 5}]}],
+		"fx": [{"kind": "goldtouch", "chance": 0.12, "gold": 5}]}],
 	["wpn_highlantern",  "Lantern of the High Road", "wand", 7, "sentry", 19, 1.12, {"dur": 26,
-		"fx": [{"kind": "moonlit", "pct": 0.8}]}],
+		"fx": [{"kind": "moonlit", "pct": 0.28}]}],
 	["wpn_bentheaven",   "Heaven, Bent",         "staff", 7, "bentheaven", 27, 0.52, {
 		"fx": [{"kind": "gravity", "radius": 210.0, "pull": 170.0}]}],
 	# ---------------- WAVE 3 - TIER 8 (10) ----------------
 	# CROWN TEN #7: a cleave shared with 14 becomes a blow the GROUND carries.
 	["wpn_griefcrown",   "Grief Wears a Crown",  "melee", 8, "sunder", 34, 1.1,  {"knockup": true, "status": "slow_w",
-		"fx": [{"kind": "quake", "radius": 180.0, "pct": 1}]}],
+		"fx": [{"kind": "quake", "radius": 180.0, "pct": 0.35}]}],
 	# CROWN TEN #5: a chain_maul shared with 8 weapons, wearing three fx riders,
 	# becomes the weapon its name describes -- put the throne DOWN and it burns.
 	["wpn_emberthrone",  "Throne of Embers",     "melee", 8, "brazier", 30, 0.95, {"status": "burn_w",
-		"fx": [{"kind": "stormcall", "every": 3, "pct": 1.6}]}],
+		"fx": [{"kind": "stormcall", "every": 3, "pct": 0.56}]}],
 	["wpn_worldslash",   "A Cut Across the World","melee", 8, "worldcut", 38, 0.52, {"p_damage": 40,
-		"fx": [{"kind": "splinter", "n": 5, "pct": 1, "range": 200.0}]}],
+		"fx": [{"kind": "splinter", "n": 5, "pct": 0.35, "range": 200.0}]}],
 	# THE CROWN TEN (overhaul wave, 2026-07-29): apex weapon #1. Three stacked
 	# fx riders on a shared orbiter became ONE verb you can say in a sentence.
 	["wpn_courtwheel",   "The Whole Court, Spinning", "melee", 8, "court", 33, 0.8, {"count": 4,
-		"fx": [{"kind": "crowd", "pct_per": 0.15, "cap": 0.6}]}],
+		"fx": [{"kind": "crowd", "pct_per": 0.05, "cap": 0.6}]}],
 	# CROWN TEN #2: apex weapon. Six jabs + three fx riders became one arm of
 	# law that reaches through rock -- the "walls do not apply to me" weapon.
 	["wpn_edictpike",    "The Final Edict",      "spear", 8, "edict", 26, 1.05, {"status": "burn_w",
-		"fx": [{"kind": "brand", "amp": 0.42, "dur": 5.0}]}],
+		"fx": [{"kind": "brand", "amp": 0.15, "dur": 5.0}]}],
 	# CROWN TEN #8: nothing leaves the bow -- the arrows fall from the sky, and
 	# a roof genuinely stops them (the balance dial is built into the fiction).
 	["wpn_hollowking",   "The Hollow King's Rain","bow", 8, "skyfall_rain", 16, 0.62, {"count": 3, "status": "burn_w",
-		"fx": [{"kind": "soulwisp", "dmg": 14, "pct": 1}]}],
+		"fx": [{"kind": "soulwisp", "dmg": 6, "pct": 0.35}]}],
 	# CROWN TEN #9: every landed arrow calls one of the procession in from off
 	# the edge of the world -- the crowd is ambushed by YOUR weapon.
 	["wpn_nightparade",  "Night Parade",         "bow", 8, "parade", 14, 0.5,  {
-		"fx": [{"kind": "moonlit", "pct": 1}]}],
+		"fx": [{"kind": "moonlit", "pct": 0.35}]}],
 	["wpn_worldsgrief",  "The World's Grief",    "wand", 8, "worldsgrief", 40, 0.72, {"shards": 10,
-		"fx": [{"kind": "splinter", "n": 6, "pct": 1, "range": 190.0}]}],
+		"fx": [{"kind": "splinter", "n": 6, "pct": 0.35, "range": 190.0}]}],
 	["wpn_deepcrown",    "Crown of the Deep Court","wand", 8, "deepcourt", 24, 1.1,  {"dur": 30,
 		# THREE courtiers, as the card has always claimed. The companion system
 		# reads these TOP-LEVEL keys, not the special -- this row carried none
 		# of them, so the crown summoned nobody at all.
 		"companion": "wisp", "c_damage": 22, "c_gap": 1.3, "c_count": 3,
-		"fx": [{"kind": "soulwisp", "dmg": 12, "pct": 1}]}],
+		"fx": [{"kind": "soulwisp", "dmg": 5, "pct": 0.35}]}],
 	# CROWN TEN #10: a `staff` shared with 20 becomes a rolling stone whose
 	# bite is its own gathered pace -- a hill is a damage multiplier.
 	["wpn_mountainking", "The Mountain That Kneels","staff", 8, "boulder", 30, 1.3, {
-		"fx": [{"kind": "bulwark", "dr": 0.21, "dur": 3.5}]}],
+		"fx": [{"kind": "bulwark", "dr": 0.08, "dur": 3.5}]}],
 	# ---------------- WAVE 3 - FLAGSHIPS (11) ----------------
 	["wpn_therumor",     "The Rumor",            "wand", 8, "rumor", 34, 0.5,  {"bounces": 9, "rider": "grows",
-		"fx": [{"kind": "echo", "pct": 1, "delay": 0.4}]}],
+		"fx": [{"kind": "echo", "pct": 0.35, "delay": 0.4}]}],
 	["wpn_choirofone",   "A Choir of One",       "bow", 8, "choirofone", 17, 0.13, {"status": "burn_w", "rider": "choir",
-		"fx": [{"kind": "echo", "pct": 1, "delay": 0.3}]}],
+		"fx": [{"kind": "echo", "pct": 0.35, "delay": 0.3}]}],
 	# CROWN TEN #3: apex weapon. A one-shot fire blast (three fx riders, 47 dmg)
 	# became THE CHANNEL -- hold it and six beams narrow into a single column.
 	# Damage per beam is small on purpose: the climb comes from CONVERGENCE
@@ -390,25 +390,25 @@ const ROWS = [
 	# fx chosen for a CHANNEL: quake never suited a beam. Wounds that deepen the
 	# longer you pour, and a kill that feeds the next second of burning.
 	["wpn_smallsun",     "A Small Personal Sun", "wand", 8, "prism", 14, 0.5,  {"status": "burn_w",
-		"fx": [{"kind": "rend", "pct_per": 0.13, "max": 8}]}],
+		"fx": [{"kind": "rend", "pct_per": 0.04, "max": 8}]}],
 	["wpn_patientknife", "The Patient Knife",    "melee", 8, "patientknife", 22, 0.2,  {"status": "poison_w", "rider": "patient",
-		"fx": [{"kind": "rend", "pct_per": 0.14, "max": 8}]}],
+		"fx": [{"kind": "rend", "pct_per": 0.05, "max": 8}]}],
 	["wpn_skysfare",     "What the Sky Charges", "wand", 8, "skycharges", 30, 1.15, {"radius": 220, "rider": "walker",
-		"fx": [{"kind": "stormcall", "every": 3, "pct": 1.6}]}],
+		"fx": [{"kind": "stormcall", "every": 3, "pct": 0.56}]}],
 	["wpn_longgoodbye",  "The Long Goodbye",     "melee", 7, "lash", 36, 0.76, {"status": "poison_w", "rider": "goodbye",
-		"fx": [{"kind": "duelist", "pct_per": 0.15, "max": 7}]}],
+		"fx": [{"kind": "duelist", "pct_per": 0.05, "max": 7}]}],
 	["wpn_borrowedstar", "A Borrowed Star",      "bow", 7, "lob_a", 43, 0.95, {"aoe": 150, "status": "burn_w", "rider": "borrow",
-		"fx": [{"kind": "starfall", "pct": 0.82, "stars": 3}]}],
+		"fx": [{"kind": "starfall", "pct": 0.29, "stars": 3}]}],
 	["wpn_gravecourier", "Grave Courier",        "melee", 7, "ricochet", 27, 0.52, {"bounces": 7, "rider": "courier",
-		"fx": [{"kind": "soulwisp", "dmg": 11, "pct": 0.8}]}],
+		"fx": [{"kind": "soulwisp", "dmg": 5, "pct": 0.28}]}],
 	["wpn_summerscoffin","Summer's Coffin",      "wand", 7, "frost", 32, 0.5,  {"status": "slow_w", "rider": "coffin",
 		"fx": [{"kind": "frostbloom", "radius": 160.0, "dur": 3.0}]}],
 	["wpn_kindlyend",    "The Kindly End",       "spear", 6, "horizonpike", 40, 0.7,  {"status": "poison_w", "rider": "kindly"}],
 	["wpn_secondmoon",   "Second Moon",          "melee", 6, "secondmoon", 36, 0.85, {"status": "slow_w", "rider": "moon"}],
 	["wpn_heavenpoint",  "The Heaven-Piercing Point", "spear", 7, "heavenpoint", 38, 0.8, { "status": "slow_w",
-		"fx": [{"kind": "chain", "n": 2, "pct": 0.8, "range": 260.0}]}],
+		"fx": [{"kind": "chain", "n": 2, "pct": 0.28, "range": 260.0}]}],
 	["wpn_unbentcolumn", "The Unbent Column",    "staff", 8, "unbentcolumn", 36, 0.35, {
-		"fx": [{"kind": "bulwark", "dr": 0.2, "dur": 3.5}]}]
+		"fx": [{"kind": "bulwark", "dr": 0.08, "dur": 3.5}]}]
 ]
 
 # Palette per class -- tinted toward the tier's grade colour so a monarch bow
