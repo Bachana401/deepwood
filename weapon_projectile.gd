@@ -232,6 +232,7 @@ func _ready() -> void:
 			pierce = true
 			_build_kingdom_ring()
 		"rumor_bolt": _build_rumor_bolt()
+		"scree": _build_scree()
 		"sky_measure": _build_sky_measure()
 		"colonnade": _build_colonnade()
 		"harmonic": _build_harmonic()
@@ -832,6 +833,19 @@ func _physics_process(delta: float) -> void:
 			visual.scale = Vector2.ONE * _draw_girth * grow
 	if kind == "rising_wheel":
 		_tick_rising_wheel(delta)
+		return
+	if kind == "scree":
+		# THE MOUNTAIN THAT KNEELS, second half: the shards the boulder leaves
+		# when it breaks. Heavy little rocks -- they arc hard and die on the
+		# floor, so the burst reads as rubble scattering, not a firework.
+		_vel_y += 1150.0 * delta
+		global_position += direction * speed * delta + Vector2(0, _vel_y * delta)
+		if visual:
+			visual.rotation += 9.0 * delta
+		traveled += speed * delta
+		if traveled >= max_distance or _vel_y > 780.0:
+			done = true
+			queue_free()
 		return
 	if kind == "ink_jet":
 		# THE INKWELL OF STORMS: a piercing stream riding a gentle arc --
@@ -2913,8 +2927,19 @@ var _wave_left: Polygon2D = null
 var _wave_right: Polygon2D = null
 
 func _tick_sunder(delta: float) -> void:
-	_wave_r += SUNDER_SPEED * delta
+	_wave_r += SUNDER_SPEED * delta * (1.0 + 0.35 * float(_grief_pass))
 	if _wave_r >= max_distance:
+		# GRIEF COMES BACK. It used to be one front, one pass, gone -- the
+		# weakest Monarch in the game at 31 dps, beaten by a Tier-3 Rare. A
+		# crown-tier weapon called Grief Wears a Crown should not be a single
+		# polite sweep. It now mourns THREE times: the front runs out, returns
+		# harder and faster, and returns again, and everything it reaches is
+		# taken afresh on every pass. (dev 2026-07-30: upgrade the VERB.)
+		_grief_pass += 1
+		if _grief_pass < GRIEF_PASSES:
+			_wave_r = 0.0
+			hit_bodies.clear()
+			return
 		done = true
 		queue_free()
 		return
@@ -2936,15 +2961,24 @@ func _tick_sunder(delta: float) -> void:
 			if dy > 90.0 or absf(dx - _wave_r) > SUNDER_BAND:
 				continue
 			hit_bodies.append(e)
-			var landed = e.take_damage(damage)
+			# each return pass is heavier than the last -- grief compounds
+			var pay: int = int(round(float(damage) * (1.0 + 0.25 * float(_grief_pass))))
+			var landed = e.take_damage(pay)
 			if landed == null or landed:
 				FloatingText.spawn(get_parent(), e.global_position
-					+ Vector2(randf_range(-18.0, 18.0), -24.0), damage, is_crit)
+					+ Vector2(randf_range(-18.0, 18.0), -24.0), pay, is_crit)
 			_apply_status_to(e)
 			if e.has_method("apply_knockback"):
-				e.apply_knockback(1 if e.global_position.x >= global_position.x else -1, knockback * 1.6)
+				# the returning passes pull INWARD, toward the blow that made them
+				var dir_sign: int = 1 if e.global_position.x >= global_position.x else -1
+				if _grief_pass > 0:
+					dir_sign = -dir_sign
+				e.apply_knockback(dir_sign, knockback * 1.6)
 			if is_instance_valid(source) and source.has_method("on_projectile_hit"):
-				source.on_projectile_hit(e, damage)
+				source.on_projectile_hit(e, pay)
+
+const GRIEF_PASSES := 3
+var _grief_pass := 0
 
 # two crescents of displaced force running away from the blow
 func _build_sunder() -> void:
@@ -2994,8 +3028,62 @@ func _tick_boulder(delta: float) -> void:
 	if visual:
 		visual.rotation += (speed / 34.0) * delta * (1.0 if direction.x >= 0.0 else -1.0)
 	if traveled >= max_distance or _roll_life > 6.0:
+		# THE MOUNTAIN BREAKS. It used to simply stop and vanish, which made a
+		# Monarch staff worth 37 dps -- half the Ascended median. A mountain
+		# that kneels should leave the room full of mountain: the boulder now
+		# bursts into six scree shards that scatter along the ground, so the
+		# end of the roll is the second half of the weapon, not the end of it.
+		_shatter_scree()
 		done = true
 		queue_free()
+
+const SCREE_SHARDS := 6
+
+# a chip of the mountain: an angular grey rock with a lit edge, so six of them
+# read as rubble rather than six identical pellets
+func _build_scree() -> void:
+	var rock := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(6):
+		var a: float = TAU * float(i) / 6.0
+		var rr: float = randf_range(5.0, 9.5)
+		pts.append(Vector2(cos(a), sin(a)) * rr)
+	rock.polygon = pts
+	rock.color = Color(0.46, 0.43, 0.4, 1.0)
+	visual.add_child(rock)
+	var lip := Polygon2D.new()
+	lip.polygon = pts
+	lip.color = Color(0.86, 0.78, 0.62, 0.5)
+	lip.scale = Vector2(0.55, 0.55)
+	lip.position = Vector2(-1.5, -2.0)
+	visual.add_child(lip)
+
+func _shatter_scree() -> void:
+	var host := get_parent()
+	if host == null or not is_instance_valid(host):
+		return
+	_rock_smoke(global_position + Vector2(0, 10.0))
+	var shard_dmg: int = maxi(1, int(round(float(boulder_damage()) * 0.55)))
+	for i in range(SCREE_SHARDS):
+		var frac: float = float(i) / float(SCREE_SHARDS - 1)
+		# a fan that favours the way the boulder was already going
+		var ang: float = lerpf(-2.5, -0.65, frac) + randf_range(-0.12, 0.12)
+		var away := Vector2(cos(ang), sin(ang))
+		if direction.x < 0.0:
+			away.x = -away.x
+		var sh = (load("res://weapon_projectile.gd") as GDScript).new()
+		sh.kind = "scree"
+		sh.direction = away.normalized()
+		sh.speed = randf_range(430.0, 700.0)
+		sh.damage = shard_dmg
+		sh.max_distance = randf_range(180.0, 320.0)
+		sh.knockback = knockback * 0.5
+		sh.source = source
+		sh.element = element
+		sh.on_hit_status = on_hit_status
+		sh.girth = girth * 0.5
+		host.add_child(sh)
+		sh.global_position = global_position + Vector2(randf_range(-10.0, 10.0), -6.0)
 
 # the boulder's bite is its pace: slow rock barely stings, a boulder at
 # full roll flattens (the climbing numbers ARE the weapon -- DESIGN_LAWS 7)

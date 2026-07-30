@@ -308,5 +308,37 @@ func _ready() -> void:
 		not Inventory.element_fx("nonsense").is_empty()
 		and Inventory.element_fx("fire")["status"] == "burn")
 
+	# --- WEAPONS DO THINGS, ARMOUR GIVES STATS (dev, 2026-07-30) -------------
+	# A Monarch staff's card used to carry eight green stat lines -- +Max HP,
+	# +Max Mana, +Move Speed, +Melee/Bow/Wand damage, +Gold, +XP -- none of
+	# which had anything to do with the staff. They came from GRADE_PASSIVES,
+	# which every weapon inherited from its grade. The dev's call: delete all of
+	# it and pay for it with a stronger effect. This guards the line.
+	var passive_grades := []
+	for g in Inventory.GRADE_PASSIVES.keys():
+		if not (Inventory.GRADE_PASSIVES[g] as Dictionary).is_empty():
+			passive_grades.append(str(g))
+	check("no GRADE grants a weapon passive stats", passive_grades.is_empty(),
+		", ".join(passive_grades))
+	# and prove it on the card itself, for a weapon of every grade
+	var carded := []
+	for wid in ["wpn_sword", "wpn_windcutter", "exc_ragnarok"]:
+		var card := Inventory.build_tooltip_bbcode(wid) + Inventory.build_tooltip_text(wid)
+		if card.to_lower().contains("while wielded"):
+			carded.append(wid)
+	check("no weapon card prints a 'while wielded' stat block", carded.is_empty(),
+		", ".join(carded))
+	# armour and relics KEEP their stats -- that is their whole job, and if this
+	# ever goes quiet the stat budget has left the game entirely
+	var armour_pays := false
+	for k in (Inventory.ITEM_DEFS.get("armor_bulwark", {}).get("equip_effect", {}) as Dictionary):
+		armour_pays = true
+	check("armour still carries the stat budget the weapons gave up", armour_pays)
+	# the compensation must be real: a Monarch verb has to hit meaningfully
+	# harder than a Common one, or the trade was a straight nerf
+	check("verb force scales the effect with the tier",
+		WeaponRoster.verb_force(8) >= WeaponRoster.verb_force(1) * 1.5,
+		"t1=%.2f t8=%.2f" % [WeaponRoster.verb_force(1), WeaponRoster.verb_force(8)])
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

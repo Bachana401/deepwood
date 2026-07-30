@@ -47,8 +47,12 @@ func _ready() -> void:
 	summaries.append(run_marathon("Sword", true))
 	summaries.append(run_marathon("Archer", false))
 	summaries.append(run_marathon("Mage", false))
+	# the fourth class (2026-07-30). Its tree leans on slime early and void late,
+	# the two reagents that have already choked a class each -- this run is
+	# specifically here to say whether it does so a third time.
+	summaries.append(run_marathon("Summoner", false))
 
-	say("\n================= 4.5-HOUR MARATHON: THREE BUILDS =================")
+	say("\n================= 4.5-HOUR MARATHON: FOUR BUILDS =================")
 	say("class    | endLvl | floor | pts spent/earned | tree% | key mats gathered")
 	for s in summaries:
 		say("%-8s |   %3d  |  %3d  |     %2d / %2d       |  %2d%%  | slime %d iron %d ember %d void %d relic %d" % [

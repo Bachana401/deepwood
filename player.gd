@@ -5059,8 +5059,8 @@ func perform_attack() -> void:
 		launch_swing_slash(swing_slash, aim_dir, stats)
 	# the swing itself winds up any charge-style unique -- a whiff still counts
 	advance_swing_charge(_last_swing_target, _last_swing_damage)
-	# the extending staff reads this swing: a LANDED hit draws it longer, a
-	# whiff shrinks it back, and the fourth landed hit is the pillar slam
+	# the extending staff reads this swing: every swing draws it longer, and
+	# the fourth is the pillar slam. Only letting the rhythm lapse shrinks it.
 	staff_note_swing(_last_swing_target != null,
 		global_position + aim_dir * stats.range_offset * staff_reach_mult())
 	animate_sword()
@@ -5657,12 +5657,21 @@ func staff_reach_mult() -> float:
 	var cap := 4 if GameState.get_bonus_total("staff_mastery") > 0.0 else 3
 	return 1.0 + 0.45 * float(mini(_staff_combo, cap))
 
-func staff_note_swing(landed: bool, at: Vector2) -> void:
+# `_landed` is deliberately ignored now -- kept in the signature because what
+# the staff pointedly does NOT care about is worth stating at the call site.
+func staff_note_swing(_landed: bool, at: Vector2) -> void:
 	if str(active_def.get("special", {}).get("type", "")) != "staff_extend":
 		return
-	if not landed:
-		_staff_combo = 0
-		return
+	# THE RHYTHM IS YOURS, NOT THE ENEMY'S (dev, 2026-07-30: "their unique
+	# behavior doesn't get triggered unless I hit enemy -- I want it to trigger
+	# anyway as long as the player attacks").
+	#
+	# This used to wipe the combo on any swing that failed to connect, so the
+	# staff's entire signature -- the growing reach, the pillar slam -- could
+	# only ever be seen by a player who hit with every single swing. One whiff
+	# at the start of a fight and the weapon was a walking stick again. The
+	# staff now counts the SWING; the 1.6s window above is the real discipline,
+	# and breaking the rhythm is still what shrinks it back down.
 	_staff_last_hit_at = _now()
 	_staff_combo += 1
 	# with the Riddle Staff the rhythm holds one beat longer: four growing
@@ -6351,7 +6360,12 @@ func on_projectile_hit(target: Node2D, damage_dealt: int) -> void:
 # LANDS calls one of the procession in from beyond the camera. Capped, because
 # a fast bow would otherwise summon a wall of them.
 var _commandment_count := 0   # Ninth Commandment: the metronome
-const MARCHER_CAP := 6
+# A PARADE IS NOT ONE PERSON (2026-07-30). One marcher per landed arrow made
+# this a 50 dps Monarch, under the Ascended median -- and "Night Parade" is a
+# procession, not a single walker. Three come in per arrow now, and the cap
+# rises to hold a real crowd.
+const MARCHER_CAP := 9
+const MARCHERS_PER_ARROW := 3
 func call_a_marcher(victim: Node2D, dealt: int) -> void:
 	if not has_weapon() or not bool(active_def.get("special", {}).get("parade", false)):
 		return
@@ -6361,18 +6375,22 @@ func call_a_marcher(victim: Node2D, dealt: int) -> void:
 	for c in get_parent().get_children():
 		if c.get("kind") == "marcher":
 			alive += 1
-	if alive >= MARCHER_CAP:
-		return
-	var m = WEAPON_PROJECTILE_SCRIPT.new()
-	m.kind = "marcher"
-	m.damage = maxi(1, int(round(float(dealt) * 0.6)))
-	m.element = Inventory.element_of(active_weapon_id)
-	m.source = self
-	m._mark = victim
-	# in from the edge of the world, alternating sides so a procession forms
-	var side := 1.0 if (alive % 2 == 0) else -1.0
-	m.position = victim.global_position + Vector2(700.0 * side, -20.0)
-	get_parent().add_child(m)
+	for n in range(MARCHERS_PER_ARROW):
+		if alive >= MARCHER_CAP:
+			return
+		var m = WEAPON_PROJECTILE_SCRIPT.new()
+		m.kind = "marcher"
+		m.damage = maxi(1, int(round(float(dealt) * 0.6)))
+		m.element = Inventory.element_of(active_weapon_id)
+		m.source = self
+		m._mark = victim
+		# in from the edge of the world, alternating sides so a procession forms
+		var side := 1.0 if (alive % 2 == 0) else -1.0
+		# stagger them down the road so they arrive as a column, not a rank
+		m.position = victim.global_position \
+			+ Vector2((700.0 + 150.0 * float(n)) * side, -20.0 - 14.0 * float(n))
+		get_parent().add_child(m)
+		alive += 1
 
 # Charge-style uniques wind up on every SWING, hit or miss. Whiffing still
 # counts: what matters is how many times you have swung, so a charged payload

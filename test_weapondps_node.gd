@@ -35,10 +35,10 @@ const HITS_PER_USE := {
 	"brazier":  2.2,   # whirl/hurl contacts plus ~7 embers at 45% over the sit
 	"sorrow":   1.4,   # one narrow lance per beat, piercing (the RATE is in
 	                   # the cooldown, not here -- do not double-count it)
-	"sunder":   1.0,   # one front, one pass, each body taken exactly once
-	"skyfall_rain": 2.0,  # 3 arrows fall; ~2 land on any one body
-	"parade":   1.8,   # the arrow, plus the marcher it calls
-	"boulder":  1.6,   # it rolls THROUGH several, and its bite scales with pace
+	"sunder":   2.8,   # THREE passes now: out, back harder, back again (GRIEF_PASSES)
+	"skyfall_rain": 3.6,  # 7 arrows fall now; ~3-4 land on any one body
+	"parade":   3.6,   # the arrow, plus the THREE marchers it calls in
+	"boulder":  3.2,   # rolls THROUGH several, then SHATTERS into 6 scree shards
 	# T7 batch 1 -- the aftermath family (a zone that keeps working)
 	"afterlight": 3.4, # the hanging arc bites ~5x over 1.7s if they stand in it
 	"anvil":      1.0, # one mass, one landing
@@ -174,7 +174,7 @@ const HITS_PER_USE := {
 	"worldsgrief": 4.0, # 12 tears, and they SEEK -- several find one body
 	"skycharges":  3.4, # 8 bolts over 1.5s, half aimed at whoever is nearest
 	"worldcut":    1.0, # ONE cut -- but it is the whole lane, every body once
-	"deepcourt":   3.0, # 3 drowned courtiers striking on their own
+	"deepcourt":   5.0, # 5 drowned courtiers striking on their own
 	# --- pre-existing multi-hit verbs, for a fair comparison ---
 	"volley":     2.0,
 	"jab_volley": 3.0,
@@ -227,7 +227,16 @@ func _ready() -> void:
 		# runaway, and made every T1 minion look like a dud. A summoner's real
 		# output is minions x slots + whip, which no per-weapon audit can see --
 		# so the two families are measured against themselves.
-		var fam: String = "summon" if behavior in ["minion", "post"] else "swing"
+		# A WHIP IS A THIRD ECONOMY. Its own damage is deliberately small -- the
+		# power is the TAG it paints, which every minion then cashes in. Scored
+		# against swords, all nine whips read as the weakest weapons at their
+		# rung; scored against each other, the ladder is honest. Same reasoning
+		# as summons, one line below.
+		var fam: String = "swing"
+		if behavior in ["minion", "post"]:
+			fam = "summon"
+		elif behavior == "whipcrack":
+			fam = "whip"
 		rows[id] = {"name": str(row[1]), "tier": tier, "behavior": behavior,
 			"dmg": dmg, "cd": cd, "eff": eff, "fam": fam}
 		var bucket: String = "%s%d" % [fam, tier]
@@ -244,13 +253,42 @@ func _ready() -> void:
 		arr.sort()
 		var med: float = arr[arr.size() / 2]
 		medians[t] = med
-		say("  %-9s n=%2d   min %6.1f   median %6.1f   max %6.1f"
-			% [t, arr.size(), arr[0], med, arr[arr.size() - 1]])
+		say("  %-9s n=%2d   min %6.1f   median %6.1f   max %6.1f   SPREAD %.1fx"
+			% [t, arr.size(), arr[0], med, arr[arr.size() - 1],
+				arr[arr.size() - 1] / maxf(0.1, arr[0])])
+
+	# DPS_DETAIL=1 names every weapon in a tier, weakest first. The band summary
+	# above hides the thing that matters: which specific weapons are the dead
+	# ones. (dev, 2026-07-30: "some are pretty weak, some are really useless")
+	if OS.get_environment("DPS_DETAIL") == "1":
+		for want_t in range(8, 0, -1):
+			var rows_t := []
+			for r0 in rows.values():      # rows is keyed by id -- take the records
+				if int((r0 as Dictionary)["tier"]) == want_t:
+					rows_t.append(r0)
+			if rows_t.is_empty():
+				continue
+			rows_t.sort_custom(func(a, b): return float(a["eff"]) < float(b["eff"]))
+			say("\n--- TIER %d (%s), %d weapons, weakest first ---"
+				% [want_t, str(WeaponRoster.TIER_GRADE[want_t]), rows_t.size()])
+			for r1 in rows_t:
+				# COMPARE INSIDE THE FAMILY. Judging a summon against the swing
+				# median called the four Monarch summons the weakest weapons in
+				# the game when they sit dead-centre of their own band -- a
+				# scepter's number is sustained, a sword's is burst.
+				var fam_med: float = float(medians.get(
+					"%s%d" % [str(r1["fam"]), want_t], 0.0))
+				var ratio: float = (float(r1["eff"]) / fam_med) if fam_med > 0.0 else 1.0
+				var flag := ""
+				if ratio < 0.5:
+					flag = "<-- %.2fx its %s median" % [ratio, str(r1["fam"])]
+				say("   %7.1f dps  %-28s %-14s %s"
+					% [float(r1["eff"]), str(r1["name"]), str(r1["behavior"]), flag])
 
 	# --- 1. each family's ladder must ASCEND on its own ---
 	var ascending := true
 	var broke := ""
-	for fam2 in ["swing", "summon"]:
+	for fam2 in ["swing", "summon", "whip"]:
 		var last := -1.0
 		for t2 in range(1, 9):
 			var key2: String = "%s%d" % [fam2, t2]
@@ -285,6 +323,40 @@ func _ready() -> void:
 				% [r["name"], r["tier"], r["behavior"], r["eff"], r["tier"], med, ceiling])
 	check("no weapon runs away from its tier (3.2x, monarch 4.6x)",
 		runaways.is_empty(), "; ".join(runaways))
+
+	# --- THE LADDER LAW -----------------------------------------------------
+	# NO WEAPON MAY LOSE TO THE TIER BENEATH IT (dev, 2026-07-30, after playing
+	# the monarch chest: "some are pretty weak, some are really useless").
+	#
+	# The old floor -- 0.3x your OWN tier's median -- is what let this through.
+	# At Monarch it permits anything above 26.6 dps, so `Grief Wears a Crown`
+	# sat at 30.9 and passed, while being beaten by the TIER 3 RARE median
+	# (29.1) and losing to the Tier-5 Legendary median (57.1) by nearly half.
+	# A gold weapon that only drops on floor 88 was worse than a blue one from
+	# floor 12, and the audit called it fine.
+	#
+	# A floor measured against your own tier can never catch this: if a whole
+	# tier sags, its median sags with it and everything still "passes". The
+	# floor has to be anchored to the tier BELOW. Rarity is a promise that the
+	# next rung is better; this is that promise, written down.
+	var LADDER_FLOOR := 0.85     # you may be a weak Monarch, never a good Ascended
+	var regressions := []
+	for id3 in rows:
+		var r3: Dictionary = rows[id3]
+		var t3: int = int(r3["tier"])
+		if t3 <= 1:
+			continue
+		var below: float = float(medians.get("%s%d" % [r3["fam"], t3 - 1], 0.0))
+		if below <= 0.0:
+			continue
+		if float(r3["eff"]) < below * LADDER_FLOOR:
+			regressions.append("%s (T%d %s, %s) %.0f dps < T%d median %.0f"
+				% [r3["name"], t3, str(WeaponRoster.TIER_GRADE[t3]), r3["behavior"],
+					r3["eff"], t3 - 1, below])
+	regressions.sort()
+	check("no weapon is weaker than the tier below it (%d violations)"
+		% regressions.size(), regressions.is_empty(),
+		"\n        " + "\n        ".join(regressions))
 
 	# --- 3. nor may it be so weak it is a trap pick ---
 	var duds := []

@@ -454,7 +454,9 @@ const ROWS = [
 		"fx": [{"kind": "brand", "amp": 0.15, "dur": 5.0}]}],
 	# CROWN TEN #8: nothing leaves the bow -- the arrows fall from the sky, and
 	# a roof genuinely stops them (the balance dial is built into the fiction).
-	["wpn_hollowking",   "The Hollow King's Rain","bow", 8, "skyfall_rain", 16, 0.62, {"count": 3, "status": "burn_w",
+	# SEVEN, not three. At three falling arrows this was a 52 dps Monarch --
+	# beaten by the Ascended median. A king's rain should darken the sky.
+	["wpn_hollowking",   "The Hollow King's Rain","bow", 8, "skyfall_rain", 16, 0.62, {"count": 7, "status": "burn_w",
 		"fx": [{"kind": "soulwisp", "dmg": 6, "pct": 0.35}]}],
 	# CROWN TEN #9: every landed arrow calls one of the procession in from off
 	# the edge of the world -- the crowd is ambushed by YOUR weapon.
@@ -466,7 +468,9 @@ const ROWS = [
 		# THREE courtiers, as the card has always claimed. The companion system
 		# reads these TOP-LEVEL keys, not the special -- this row carried none
 		# of them, so the crown summoned nobody at all.
-		"companion": "wisp", "c_damage": 22, "c_gap": 1.3, "c_count": 3,
+		# FIVE courtiers (2026-07-30). Three made the deep crown a 65 dps Monarch,
+	# under the Ascended median -- a drowned COURT should crowd the screen.
+	"companion": "wisp", "c_damage": 22, "c_gap": 1.3, "c_count": 5,
 		"fx": [{"kind": "soulwisp", "dmg": 5, "pct": 0.35}]}],
 	# CROWN TEN #10: a `staff` shared with 20 becomes a rolling stone whose
 	# bite is its own gathered pace -- a hill is a damage multiplier.
@@ -1184,7 +1188,33 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 	# crown weapon, read by weapon_projectile / player / storm_cloud
 	if ex.has("rider"):
 		s["rider"] = str(ex["rider"])
+	# VERB FORCE (2026-07-30). GRADE_PASSIVES is gone -- a weapon no longer
+	# hands you +20% melee, +20% bow, +20% wand, +Max HP and +Gold for the
+	# crime of being high-grade. The dev's instruction was to "compensate with
+	# the effect being stronger on every weapon", so the power that used to
+	# leak sideways into your whole character now goes where it belongs: into
+	# this weapon's own verb. A Monarch weapon's effect lands 60% harder than a
+	# Common one's, and buffs nothing you are not currently swinging.
+	#
+	# Applied LAST so it catches every branch above, and only to the SPECIAL --
+	# the plain swing damage is the row's own number and stays untouched, or
+	# the tier ladder would be scaled twice.
+	var vf: float = verb_force(tier)
+	if vf != 1.0:
+		for k in s.keys():
+			var ks := str(k)
+			if ks == "damage" or ks.ends_with("_dmg") or ks.ends_with("_damage"):
+				var raw = s[k]
+				if raw is int:
+					s[k] = maxi(1, int(round(float(raw) * vf)))
+				elif raw is float:
+					s[k] = float(raw) * vf
 	return s
+
+# How much harder a weapon's EFFECT hits, by tier. This replaces the passive
+# stat bundle that every grade used to grant; see GRADE_PASSIVES in inventory.
+static func verb_force(tier: int) -> float:
+	return 1.0 + float(clampi(tier, 1, 8) - 1) * 0.085
 
 # The flagship promises: one line each, printed on the card in place of the
 # family description. The mechanic behind each lives where its name says.

@@ -101,12 +101,25 @@ func _ready() -> void:
 	GameState.opening_done = true
 	get_tree().paused = false
 
+	# THE WHIFF PASS (dev, 2026-07-30: "their unique behavior doesn't get
+	# triggered unless I hit enemy -- I want it to trigger anyway as long as
+	# the player attacks"). The normal pass fires into a room with three
+	# dummies, so it cannot tell a verb that fires on the CLICK from one that
+	# only fires once something is struck. Run with DISPATCH_WHIFF=1 and the
+	# room is empty: whatever still appears is the weapon's own soul.
+	var whiff := OS.get_environment("DISPATCH_WHIFF") == "1"
 	var stage: Node = p.get_parent()
-	for dx in [140.0, 230.0, 320.0]:
-		var foe := Dummy.new()
-		foe.add_to_group("course_enemy")
-		stage.add_child(foe)
-		foe.global_position = (p as Node2D).global_position + Vector2(dx, 20.0)
+	if not whiff:
+		for dx in [140.0, 230.0, 320.0]:
+			var foe := Dummy.new()
+			foe.add_to_group("course_enemy")
+			stage.add_child(foe)
+			foe.global_position = (p as Node2D).global_position + Vector2(dx, 20.0)
+	else:
+		printerr("== WHIFF PASS: swinging at EMPTY AIR ==")
+		for n in stage.get_children():
+			if n.is_in_group("course_enemy") or n.is_in_group("dungeon_combatant"):
+				n.queue_free()
 	await _settle(0.3)
 
 	var silent := []
@@ -117,7 +130,11 @@ func _ready() -> void:
 		var def: Dictionary = WeaponRoster.get_def(id)
 		var sp: Dictionary = def.get("special", {})
 		var stype := str(sp.get("type", ""))
-		if stype == "" or NO_NODE_EXPECTED.has(stype):
+		if stype == "":
+			continue
+		# in the whiff pass the "no node expected" verbs are the whole point --
+		# they are exactly the weapons that look like nothing happened
+		if NO_NODE_EXPECTED.has(stype) and not whiff:
 			continue
 		checked += 1
 		p.inventory.add_item(id, 1)
@@ -133,6 +150,12 @@ func _ready() -> void:
 		# dummy 140px away is gone long before then, and reads as silent.
 		var seen := pre
 		var made := {}
+		# THE WHIFF PASS ASKS A DIFFERENT QUESTION. The normal pass wants the
+		# verb's own handle (kind/script/group). "Did the player SEE anything"
+		# is broader: a lash is a bare Polygon2D with no handle at all, and
+		# counting only handles reported every whip as dead when all 13 draw a
+		# ribbon on every crack. Count raw new nodes too.
+		var n_new := 0
 		p.attack_cooldown_remaining = 0.0
 		p.perform_attack()
 		for _step in range(14):
@@ -141,6 +164,7 @@ func _ready() -> void:
 				if seen.has(n.get_instance_id()):
 					continue
 				seen[n.get_instance_id()] = true
+				n_new += 1
 				# Record EVERY handle a spawned node offers -- its kind, its
 				# script, and its groups. Matching on `kind` alone produced a
 				# dozen false alarms: storm tomes spawn a storm_cloud script,
@@ -181,6 +205,13 @@ func _ready() -> void:
 		var want_n: int = maxi(1, int(sp.get("count", 1)))
 		if COUNT_IS_A_CYCLE.has(stype):
 			want_n = 1
+		if whiff:
+			# the only question here is whether the swing produced anything the
+			# player can see. Nothing at all = the weapon looks broken at air.
+			if n_new == 0:
+				silent.append("%s (%s/%s) -> NOTHING at all appeared"
+					% [id, str(row[2]), stype])
+			continue
 		if best == 0:
 			silent.append("%s (%s/%s) -> NOTHING fired; expected %s, got [%s]"
 				% [id, str(row[2]), stype, ",".join(want),
@@ -189,6 +220,27 @@ func _ready() -> void:
 			undercount.append("%s (%s/%s) -> fired %d of the %d it promises"
 				% [id, str(row[2]), stype, best, want_n])
 
+	if whiff:
+		# a REPORT, not a verdict: this pass is here to tell me which weapons
+		# look dead when you swing at air, grouped by verb so the fix is per
+		# verb rather than per weapon.
+		var by_verb := {}
+		for s in silent:
+			var v := str(s).split("/")[1].split(")")[0]
+			# (verb, not weapon: the fix belongs one level down)
+			by_verb[v] = int(by_verb.get(v, 0)) + 1
+		printerr("\n===== SILENT AT EMPTY AIR: %d of %d weapons =====" % [silent.size(), checked])
+		var verbs: Array = by_verb.keys()
+		verbs.sort_custom(func(a, b): return int(by_verb[a]) > int(by_verb[b]))
+		for v2 in verbs:
+			printerr("  %-18s %3d weapons" % [str(v2), int(by_verb[v2])])
+		printerr("\n----- the roll -----")
+		for s2 in silent:
+			printerr("  " + str(s2))
+		printerr("\nRESULT: WHIFF REPORT (%d silent verbs over %d weapons)"
+			% [by_verb.size(), silent.size()])
+		get_tree().quit(0)
+		return
 	check("every weapon's verb actually fires when the weapon is used (%d checked)"
 		% checked, silent.is_empty(), "\n        ".join(silent))
 	check("every verb that promises a COUNT delivers it",

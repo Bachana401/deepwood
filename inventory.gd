@@ -802,13 +802,11 @@ const ITEM_DEFS = {
 }
 
 # ---------------------------------------------------------------------------
-# GRADES / RARITY. Every weapon, armour piece, and relic has a grade -- a
-# 6-rank ladder from Common to Mythic. Grade drives two things:
-#   1. the rarity COLOUR shown on the item (name/border), and
-#   2. a passive "upgrade-everything" bundle a WEAPON grants while wielded
-#      (GRADE_PASSIVES) -- so higher-grade weapons make you universally
-#      stronger, not just via their attack. Folded into GameState via
-#      get_weapon_passive_total(). Materials/currency are ungraded.
+# GRADES / RARITY. Every weapon, armour piece, and relic has a grade -- an
+# 8-rank ladder from Common to Monarch. Grade drives the rarity COLOUR shown on
+# the item (name/border) and how deep it may drop. It no longer grants a weapon
+# any passive stats -- see GRADE_PASSIVES below for why that was retired.
+# Materials/currency are ungraded.
 # ---------------------------------------------------------------------------
 const GRADE_DEFS = {
 	# EIGHT TIERS (dev 2026-07-28, Terraria-ladder example, "make 8 tiers of
@@ -829,18 +827,28 @@ const GRADE_DEFS = {
 	"monarch":   {"name": "Monarch",   "rank": 8, "color": Color(1.0, 0.9, 0.5)},
 }
 
-# The passive stat bundle a weapon of each grade grants while wielded. Common
-# barely nudges one stat; Mythic significantly lifts almost everything. A
-# weapon may override with its own "passive" dict, else it inherits its grade's.
+# RETIRED, 2026-07-30, on the dev's call: "unnecessary stats -- all weapons
+# have this + bow + wand + melee, they don't need it. Delete all of it and
+# compensate with the effect being stronger on every weapon."
+#
+# Every weapon used to inherit a passive stat bundle from its grade, so a
+# Monarch staff's card read as eight green lines of +Max HP / +Max Mana /
+# +Move Speed / +Melee, Bow and Wand damage / +Gold / +XP -- none of which had
+# anything to do with the staff. It made every high-grade weapon feel like the
+# same weapon wearing a different name, and it buried the one line that
+# actually mattered (what the thing DOES).
+#
+# The line this draws: WEAPONS DO THINGS, ARMOUR GIVES STATS. Armour sets,
+# relics and the skill tree still grant max_health, max_mana, move_speed and
+# the damage multipliers -- that is their whole job, and they keep it. A weapon
+# now earns its grade entirely through its verb.
+#
+# Kept as an empty map rather than deleted: get_weapon_passive() and the
+# promise audit both read it, and an empty bundle is the honest expression of
+# "a weapon grants no passive stats" -- not a special case to guard everywhere.
 const GRADE_PASSIVES = {
-	"common":    {"max_health": 5.0},
-	"uncommon":  {"max_health": 10.0, "move_speed": 0.02},
-	"rare":      {"max_health": 18.0, "move_speed": 0.03, "melee_damage": 0.03, "bow_damage": 0.03, "wand_damage": 0.03},
-	"epic":      {"max_health": 30.0, "max_mana": 15.0, "move_speed": 0.05, "melee_damage": 0.05, "bow_damage": 0.05, "wand_damage": 0.05, "gold_gain": 0.05},
-	"legendary": {"max_health": 45.0, "max_mana": 25.0, "move_speed": 0.07, "melee_damage": 0.08, "bow_damage": 0.08, "wand_damage": 0.08, "gold_gain": 0.08, "xp_gain": 0.08},
-	"mythic":    {"max_health": 70.0, "max_mana": 40.0, "move_speed": 0.10, "melee_damage": 0.12, "bow_damage": 0.12, "wand_damage": 0.12, "gold_gain": 0.10, "xp_gain": 0.10},
-	"ascended":  {"max_health": 100.0, "max_mana": 55.0, "move_speed": 0.12, "melee_damage": 0.16, "bow_damage": 0.16, "wand_damage": 0.16, "gold_gain": 0.12, "xp_gain": 0.12},
-	"monarch":   {"max_health": 140.0, "max_mana": 75.0, "move_speed": 0.15, "melee_damage": 0.20, "bow_damage": 0.20, "wand_damage": 0.20, "gold_gain": 0.15, "xp_gain": 0.15},
+	"common": {}, "uncommon": {}, "rare": {}, "epic": {},
+	"legendary": {}, "mythic": {}, "ascended": {}, "monarch": {},
 }
 
 # Central grade assignment -- one place instead of a field on every def.
