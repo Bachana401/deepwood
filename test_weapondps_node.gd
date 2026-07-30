@@ -95,12 +95,23 @@ const HITS_PER_USE := {
 	"drinkthread": 4.0, # 4 pulls at 0.22x, then the poison keeps working
 	"writglyph":   1.6, # a body under ONE glyph takes one icicle at 0.7x
 	"icecoffin":   2.6, # the shut at full, then panel-splinters at 0.45x
+	# --- the cleave ten: the ARC stays shared, the FOLLOW-THROUGH is the weapon
+	"spadespray":  2.0, # the arc, plus 7 clods at 0.3x that spread (2 airborne)
+	"hoopshunt":   1.2, # the arc and one shunt; the wall slam is the bonus
+	"opengrave":   2.2, # the arc, the thrown sod, and the hole it leaves behind
+	"fellblow":    2.0, # the arc, then it TIPS a beat later at 0.6x
+	"reaprow":     2.4, # the arc, then the line reaps the row it runs through
+	"belltoll":    2.0, # the arc plus three rings at 0.35x
+	"scoresplit":  2.0, # score, then SPLIT at 1.1x on the second swing
+	"endtoll":     2.1, # the arc, then the bill lands at 1.1x
+	"gravehands":  2.6, # the arc, plus 5 hands at 0.4x marching away
+	"stophour":    2.4, # the arc, then the stored hour pays at 1.4x
 	# ---- T6 batch 1 ----
 	"hushfall":    1.8, # the swing, then the late nova at 0.8x in a radius
 	"eclipse":     1.7, # the disc out and back, plus one shadow band at 0.85x
 	"cometfall":   2.2, # crater nova at 0.8x + the burning patch ticking 0.3x
 	"debtmark":    2.4, # the hit, then 4 barbs biting and each paying out
-	"cinderdrag":  1.5, # the maul's own hits; the embers are theatre, not dps
+	"cinderdrag":  2.4, # the maul's hits, and the embers BURN now (0.22x each)
 	"watchfire":   4.0, # WATCH_RECOVER 1.1 -> 0.78: it flares oftener
 	# ---- T6 batch 2 ----
 	"horizonpike": 2.6, # three staged lengths, 1.0 / 0.84 / 0.68 down one line

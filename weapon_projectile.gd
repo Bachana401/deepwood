@@ -249,6 +249,16 @@ func _ready() -> void:
 		"spore_light": _build_spore_light()
 		"salt_ring": _build_salt_ring()
 		"leech_thread": _build_leech_thread()
+		"clod": _build_clod()
+		"reap_line":
+			pierce = true          # a reaping line takes the whole row
+			_build_reap_line()
+		"grave_hand": _build_grave_hand()
+		"open_grave":
+			_zone_max = 4.5
+			_zone_gap = 0.9
+			_zone_r = 40.0
+			_build_open_grave()
 		"writ_glyph": _build_writ_glyph()
 		"ice_coffin": _build_ice_coffin()
 		"hollow_ring":
@@ -1021,6 +1031,27 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind == "salt_ring":
 		_tick_salt_ring(delta)
+		return
+	if kind == "clod":
+		# thrown earth: heavy, tumbling, dead on the floor. Same ballistic
+		# feel as scree, but its own body -- dirt is not stone.
+		_vel_y += 1250.0 * delta
+		global_position += direction * speed * delta + Vector2(0, _vel_y * delta)
+		if visual:
+			visual.rotation += 7.0 * delta
+		traveled += speed * delta
+		if traveled >= max_distance or _vel_y > 760.0:
+			done = true
+			queue_free()
+		return
+	if kind == "open_grave":
+		_tick_standing_zone(delta)
+		return
+	if kind == "reap_line":
+		_tick_reap(delta)
+		return
+	if kind == "grave_hand":
+		_tick_grave_hand(delta)
 		return
 	if kind == "leech_thread":
 		_tick_leech(delta)
@@ -3549,6 +3580,143 @@ func _tick_chalk_line(delta: float) -> void:
 					(e as Node2D).global_position + Vector2(0, -24.0), damage, is_crit)
 			_apply_status_to(e)
 
+# --- FURROW SCYTHE: the cut keeps running along the floor ------------------
+# Shares the Brookwand's floor-follower mover with a completely different skin:
+# a 3px gold crescent rather than a 10px animated water ribbon. The design doc
+# calls this the correct kind of sharing -- change the TRAIL, not the body --
+# and the two do not read as the same weapon for a moment.
+# Its honest price: ONE LEDGE DEFEATS IT. A strike that costs nothing to aim
+# should be beatable by the terrain.
+func _build_reap_line() -> void:
+	var blade := Polygon2D.new()
+	blade.polygon = PackedVector2Array([
+		Vector2(-16, 2.0), Vector2(0, -13.0), Vector2(16, 2.0), Vector2(0, -3.0)])
+	blade.color = Color(0.92, 0.80, 0.42, 0.9)
+	blade.material = _add_mat()
+	visual.add_child(blade)
+
+func _tick_reap(delta: float) -> void:
+	global_position.x += direction.x * speed * delta
+	traveled += speed * delta
+	var space := get_world_2d().direct_space_state
+	var q := PhysicsRayQueryParameters2D.create(
+		global_position + Vector2(0, -26.0), global_position + Vector2(0, 40.0))
+	q.collision_mask = 1
+	q.exclude = [self]
+	var hit := space.intersect_ray(q)
+	if hit:
+		global_position.y = hit.position.y - 6.0
+	else:
+		# no floor under it: the cut runs off the edge and dies. One ledge
+		# defeats it, which is the price of a strike that needs no aiming.
+		done = true
+		queue_free()
+		return
+	if traveled >= max_distance:
+		done = true
+		queue_free()
+		return
+	_ink_rehit += delta
+	if _ink_rehit < 0.18:
+		return
+	_ink_rehit = 0.0
+	for gname in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(gname):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead or hit_bodies.has(e):
+				continue
+			if global_position.distance_to((e as Node2D).global_position) > 40.0:
+				continue
+			hit_bodies.append(e)
+			var landed = e.take_damage(damage)
+			if landed == null or landed:
+				FloatingText.spawn(get_parent(),
+					(e as Node2D).global_position + Vector2(0, -22.0), damage, is_crit)
+			_apply_status_to(e)
+
+# --- BARROW KING'S MAUL: dead hands come up through the floor --------------
+# A staggered row: five hands 0.06s apart marching away from the blow. That
+# stagger is the shared soul of every "N things appear along a line" verb in
+# this family -- it is what makes them read as handmade rather than instanced.
+var _hand_delay := 0.0
+var _hand_t := 0.0
+var _hand_risen := false
+var _hand_arm: Polygon2D = null
+
+func _build_grave_hand() -> void:
+	_hand_arm = Polygon2D.new()
+	_hand_arm.polygon = PackedVector2Array([
+		Vector2(-4, 0), Vector2(-6, -22.0), Vector2(-2, -30.0), Vector2(2, -30.0),
+		Vector2(6, -22.0), Vector2(4, 0)])
+	_hand_arm.color = Color(0.62, 0.58, 0.48, 0.95)
+	_hand_arm.scale = Vector2(1.0, 0.0)      # rises out of the ground
+	visual.add_child(_hand_arm)
+
+func _tick_grave_hand(delta: float) -> void:
+	_hand_t += delta
+	if _hand_t < _hand_delay:
+		return
+	var since: float = _hand_t - _hand_delay
+	if _hand_arm != null and is_instance_valid(_hand_arm):
+		# up over 0.12s, hold, then back down -- it does not pop, it CLIMBS
+		var up: float = clampf(since / 0.12, 0.0, 1.0)
+		var down: float = clampf((since - 0.55) / 0.15, 0.0, 1.0)
+		_hand_arm.scale.y = up * (1.0 - down)
+	if not _hand_risen and since >= 0.12:
+		_hand_risen = true
+		for gname in HOSTILE_GROUPS:
+			for e in get_tree().get_nodes_in_group(gname):
+				if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+					continue
+				if "is_dead" in e and e.is_dead:
+					continue
+				var rel: Vector2 = (e as Node2D).global_position - global_position
+				if absf(rel.x) > 30.0 or absf(rel.y) > 44.0:
+					continue
+				var landed = e.take_damage(damage)
+				if landed == null or landed:
+					FloatingText.spawn(get_parent(),
+						(e as Node2D).global_position + Vector2(0, -26.0), damage, false)
+				_apply_status_to(e)
+	if since >= 0.75:
+		done = true
+		queue_free()
+
+# --- THE PIT SHOVEL's clods, and the GRAVEKEEPER's hole -------------------
+# Deliberately NOT reused from `scree`. Both are thrown debris on a hard arc,
+# but stone and earth are different things and the roster's whole problem was
+# weapons that share a body. A clod is lumpy, matte and carries a tuft of grass.
+func _build_clod() -> void:
+	var lump := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(6):
+		var a: float = TAU * float(i) / 6.0
+		pts.append(Vector2(cos(a), sin(a)) * randf_range(3.0, 5.5))
+	lump.polygon = pts
+	lump.color = Color(0.32, 0.24, 0.17, 1.0)
+	visual.add_child(lump)
+	# a tuft, so it reads as TURF rather than gravel
+	if randf() < 0.6:
+		var tuft := Polygon2D.new()
+		tuft.polygon = PackedVector2Array([
+			Vector2(-2.0, -3.0), Vector2(0, -8.0), Vector2(2.0, -3.0)])
+		tuft.color = Color(0.34, 0.52, 0.26, 0.95)
+		visual.add_child(tuft)
+
+func _build_open_grave() -> void:
+	# a real hole: dark trapezoid with a lip of thrown soil along the near edge
+	var hole := Polygon2D.new()
+	hole.polygon = PackedVector2Array([
+		Vector2(-28, -4.0), Vector2(28, -4.0), Vector2(22, 14.0), Vector2(-22, 14.0)])
+	hole.color = Color(0.10, 0.09, 0.08, 0.92)
+	visual.add_child(hole)
+	var lip := Line2D.new()
+	lip.points = PackedVector2Array([Vector2(-28, -4.0), Vector2(28, -4.0)])
+	lip.width = 3.0
+	lip.default_color = Color(0.34, 0.26, 0.18, 0.95)
+	visual.add_child(lip)
+
 # --- LEECHLIGHT: it drinks -------------------------------------------------
 # The only TETHER of the eleven and the only self-heal. Nothing is thrown: the
 # thread snaps taut instantly -- that snap IS the impact -- and then pulls.
@@ -5060,6 +5228,27 @@ func _tick_cinder_drag(delta: float) -> void:
 	var host := get_parent()
 	if host == null:
 		return
+	# THE EMBERS BURN (2026-07-30). This audit's own note read "the embers are
+	# theatre, not dps", and that was true: a Mythic maul dragged a glowing
+	# trail across the floor that nothing could feel. It surfaced when giving
+	# the ten cleaves real verbs raised the Tier-5 median and left Cinderchain
+	# 52 dps under a floor of 62 -- it was always this weak; a weaker tier hid
+	# it. Same lie as Shatterhymn's splinters, same fix: make the pretty thing
+	# real rather than inflate a number somewhere else.
+	var scorch: int = maxi(1, int(round(float(damage) * 0.22)))
+	for gname in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(gname):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if global_position.distance_to((e as Node2D).global_position) > 44.0:
+				continue
+			var landed = e.take_damage(scorch)
+			if landed == null or landed:
+				FloatingText.spawn(host, (e as Node2D).global_position
+					+ Vector2(randf_range(-10.0, 10.0), -18.0), scorch, false)
+			_apply_status_to(e)
 	var em := Polygon2D.new()
 	em.polygon = _circle(randf_range(4.0, 7.5), 7)
 	em.color = Color(1.0, randf_range(0.45, 0.7), 0.2, 0.75)

@@ -4827,11 +4827,124 @@ func perform_attack() -> void:
 	# short, wide crescent that leaves the blade on EVERY swing, connects or
 	# not, and keeps carving for a moment after the arc has passed.
 	if special_type == "cleave":
-		launch_projectile({
-			"type": "flying_slash",
-			"speed": 430.0,
-			"range": 150.0,
-		}, aim_dir, int(round(stats.damage * 0.55 * skill_damage_mult("melee"))))
+		# THE FOLLOW-THROUGH IS THE WEAPON (2026-07-30). Every cleave used to
+		# throw this same generic carve, which is how ten differently-named
+		# mauls came to look like one weapon. The arc stays shared -- a wide
+		# blade really does hit everything in front of it -- and what each one
+		# does AFTER the arc is now its own.
+		match str(special.get("spray", "")):
+			"clod":
+				# PIT SHOVEL: it scoops the FLOOR. Feet planted throws seven
+				# clods; airborne throws two, because you cannot dig air.
+				var n_clods: int = 7 if is_on_floor() else 2
+				for ci in range(n_clods):
+					var clod := {"type": "clod", "speed": randf_range(280.0, 460.0),
+						"range": randf_range(90.0, 170.0)}
+					var ang: float = deg_to_rad(randf_range(-26.0, -4.0))
+					launch_projectile(clod, aim_dir.rotated(ang),
+						maxi(1, int(round(stats.damage * 0.3 * skill_damage_mult("melee")))))
+			"hoop":
+				# CELLAR MALLET: one squat impact ring, and the arc is SHUNTED
+				# backwards as one body rather than scattered.
+				spawn_shock_ring(global_position + aim_dir * 40.0, 44.0,
+					Color(0.62, 0.50, 0.34))
+				for b in $AttackArea.get_overlapping_bodies():
+					if b.has_method("apply_knockback"):
+						b.apply_knockback(knockback_sign_toward(b), 210.0)
+			"grave":
+				# GRAVEKEEPER'S SPADE: it takes a spadeful out of the world. The
+				# hole is left in front; the sod it threw lands behind.
+				launch_projectile({"type": "clod", "speed": 520.0, "range": 210.0},
+					aim_dir.rotated(deg_to_rad(-38.0)),
+					maxi(1, int(round(stats.damage * 0.5 * skill_damage_mult("melee")))))
+				var grave := WEAPON_PROJECTILE_SCRIPT.new()
+				grave.kind = "open_grave"
+				grave.damage = maxi(1, int(round(stats.damage * 0.35 * skill_damage_mult("melee"))))
+				grave.source = self
+				grave.element = Inventory.element_of(active_weapon_id)
+				get_parent().add_child(grave)
+				grave.global_position = global_position + aim_dir * 56.0
+			"fell":
+				# ORCHARD FELLER: notch it now, and a beat later it TIPS -- into
+				# whatever is beside it, felled like a tree.
+				for b in $AttackArea.get_overlapping_bodies():
+					if not b.has_method("take_damage") or ("boss_id" in b):
+						continue
+					_fell_later(b, int(round(stats.damage * 0.6 * skill_damage_mult("melee"))))
+			"reap":
+				# FURROW SCYTHE: the cut leaves the blade and keeps running along
+				# the floor. One ledge defeats it -- that is the honest price of
+				# a strike that costs nothing to aim.
+				var reap := WEAPON_PROJECTILE_SCRIPT.new()
+				reap.kind = "reap_line"
+				reap.direction = Vector2(signf(aim_dir.x), 0.0)
+				reap.speed = 460.0
+				reap.damage = maxi(1, int(round(stats.damage * 0.7 * skill_damage_mult("melee"))))
+				reap.max_distance = 420.0
+				reap.source = self
+				reap.element = Inventory.element_of(active_weapon_id)
+				get_parent().add_child(reap)
+				reap.global_position = global_position + Vector2(aim_dir.x * 30.0, 22.0)
+			"bell":
+				# BELL HAMMER: it does not push, it RINGS. Three brass rings at
+				# three radii -- the same primitive three times, which is exactly
+				# the sharing the design doc calls correct.
+				var bell_at: Vector2 = global_position + aim_dir * 40.0
+				for ri in range(3):
+					var rr: float = 40.0 + 34.0 * float(ri)
+					spawn_shock_ring(bell_at, rr, Color(0.85, 0.68, 0.32))
+				for b2 in $AttackArea.get_overlapping_bodies():
+					if b2.has_method("take_damage"):
+						b2.take_damage(maxi(1, int(round(stats.damage * 0.35
+							* skill_damage_mult("melee")))))
+			"score":
+				# QUARRY MAUL: score the stone, then SPLIT it. The only cleave
+				# with a two-swing rhythm -- it asks you to set up.
+				for b3 in $AttackArea.get_overlapping_bodies():
+					if not b3.has_method("take_damage"):
+						continue
+					if b3.get_meta("quarry_scored", false):
+						b3.set_meta("quarry_scored", false)
+						b3.take_damage(maxi(1, int(round(stats.damage * 1.1
+							* skill_damage_mult("melee")))))
+						spawn_shock_ring(b3.global_position, 52.0, Color(0.92, 0.92, 0.88))
+					else:
+						b3.set_meta("quarry_scored", true)
+			"toll":
+				# TOLL OF THE END: a countdown hung on a body. Mark-and-pay,
+				# shared with The Eleventh Hour -- same machine, different rules.
+				for b4 in $AttackArea.get_overlapping_bodies():
+					if b4.has_method("take_damage"):
+						_toll_mark(b4, int(round(stats.damage * 1.1
+							* skill_damage_mult("melee"))), 2.5, false)
+			"hands":
+				# BARROW KING'S MAUL: dead hands come UP THROUGH THE FLOOR, in a
+				# row marching away from the blow, 0.06s apart.
+				for hi in range(5):
+					var hand := WEAPON_PROJECTILE_SCRIPT.new()
+					hand.kind = "grave_hand"
+					hand.damage = maxi(1, int(round(stats.damage * 0.4
+						* skill_damage_mult("melee"))))
+					hand.source = self
+					hand.set("_hand_delay", 0.06 * float(hi))
+					get_parent().add_child(hand)
+					hand.global_position = global_position \
+						+ Vector2(aim_dir.x * (46.0 + 42.0 * float(hi)), 16.0)
+			"hour":
+				# THE ELEVENTH HOUR stops the clock. The body freezes, what it
+				# should have taken is STORED, and it all lands when time starts
+				# again. Same mark-and-pay engine as the Toll, three parameters
+				# apart -- building it twice would have been the mistake.
+				for b5 in $AttackArea.get_overlapping_bodies():
+					if b5.has_method("take_damage"):
+						_toll_mark(b5, int(round(stats.damage * 1.4
+							* skill_damage_mult("melee"))), 0.8, true)
+			_:
+				launch_projectile({
+					"type": "flying_slash",
+					"speed": 430.0,
+					"range": 150.0,
+				}, aim_dir, int(round(stats.damage * 0.55 * skill_damage_mult("melee"))))
 	# the Windcutter's signature: the swing releases a slash that flies onward
 	if special_type == "flying_slash":
 		launch_projectile(special, aim_dir, int(round(special.get("damage", 10) * skill_damage_mult("melee"))))
@@ -6445,6 +6558,56 @@ var _commandment_count := 0   # Ninth Commandment: the metronome
 # this a 50 dps Monarch, under the Ascended median -- and "Night Parade" is a
 # procession, not a single walker. Three come in per arrow now, and the cap
 # rises to hold a real crowd.
+# ORCHARD FELLER: notched now, tips a beat later -- into whatever is beside it.
+# Re-resolved by instance id at the deadline, never by a held reference: a body
+# that dies in the meantime must not take a freed-node call (the meteor-class
+# bug this repo already learned the hard way).
+func _fell_later(victim: Node, dmg: int) -> void:
+	if not is_instance_valid(victim):
+		return
+	var vid: int = victim.get_instance_id()
+	var t: Tween = create_tween()
+	t.tween_interval(0.45)
+	t.tween_callback(func():
+		var v = instance_from_id(vid)
+		if v == null or not is_instance_valid(v) or not v.has_method("take_damage"):
+			return
+		if "is_dead" in v and v.is_dead:
+			return
+		v.take_damage(dmg)
+		# it TIPS: shoved hard sideways, so it falls into its neighbours
+		if v.has_method("apply_knockback"):
+			v.apply_knockback(knockback_sign_toward(v), 260.0)
+		FloatingText.spawn_word(get_parent(),
+			(v as Node2D).global_position + Vector2(0, -44.0), "timber",
+			Color(0.78, 0.62, 0.34)))
+
+# TOLL OF THE END and THE ELEVENTH HOUR are ONE machine three parameters apart:
+# mark a body, store a number on it, run a clock, pay out. The design doc is
+# explicit that building these twice would be the mistake, so `freeze` and the
+# delay are all that separate a tolling bell from a stopped clock.
+func _toll_mark(victim: Node, dmg: int, delay: float, freeze: bool) -> void:
+	if not is_instance_valid(victim):
+		return
+	var vid: int = victim.get_instance_id()
+	if freeze and victim.has_method("apply_status"):
+		victim.apply_status("slow", delay, 0.95)     # held, not killed
+	FloatingText.spawn_word(get_parent(),
+		(victim as Node2D).global_position + Vector2(0, -40.0),
+		"held" if freeze else "tolled",
+		Color(0.85, 0.78, 0.45) if not freeze else Color(0.72, 0.86, 1.0))
+	var t: Tween = create_tween()
+	t.tween_interval(delay)
+	t.tween_callback(func():
+		var v = instance_from_id(vid)
+		if v == null or not is_instance_valid(v) or not v.has_method("take_damage"):
+			return
+		if "is_dead" in v and v.is_dead:
+			return
+		v.take_damage(dmg)
+		FloatingText.spawn(get_parent(),
+			(v as Node2D).global_position + Vector2(0, -34.0), dmg, true))
+
 const MARCHER_CAP := 9
 const MARCHERS_PER_ARROW := 3
 func call_a_marcher(victim: Node2D, dealt: int) -> void:

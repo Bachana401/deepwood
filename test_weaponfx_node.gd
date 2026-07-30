@@ -159,7 +159,7 @@ func _ready() -> void:
 	# weapons") that the dev overruled on 2026-07-30: "70-80% of the weapons
 	# should be reworked ... they should be creative and unique". This number is
 	# a ledger of how much of that ladder is left, not a target to defend.
-	var PLAIN_QUOTA := 119
+	var PLAIN_QUOTA := 109
 	var plain_n := 0
 	var overdressed := []
 	var unknown := []

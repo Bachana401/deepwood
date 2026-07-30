@@ -128,7 +128,7 @@ const ROWS = [
 		"fx": [{"kind": "crowd", "pct_per": 0.04, "cap": 0.18}]}],
 	["wpn_oakcudgel",    "Oak Cudgel",           "melee", 1, "arc",       8,  0.55, {"plain": true}],
 	["wpn_mongrelknife", "Mongrel Knife",        "melee", 1, "arc",       5,  0.28, {"plain": true}],
-	["wpn_pitshovel",    "Pit Shovel",           "melee", 1, "cleave",    11, 0.85, {"plain": true}],
+	["wpn_pitshovel",    "Pit Shovel",           "melee", 1, "spadespray", 11, 0.85, {"rung": true}],
 	["wpn_barrelstave",  "Barrel Stave",         "melee", 1, "arc",       7,  0.45, {"plain": true}],
 	["wpn_rustfang",     "Rustfang",             "melee", 1, "arc",       6,  0.35, {"status": "poison_w", "plain": true}],
 	["wpn_fencepike",    "Fence Pike",           "spear", 1, "thrust",    9,  0.8,  {"plain": true}],
@@ -144,7 +144,7 @@ const ROWS = [
 	["wpn_chalkwand",    "Chalk Wand",           "wand",  1, "chalkline", 7,  0.45, {"rung": true}],
 	["wpn_willowswitch", "Willow Switch",        "staff", 1, "staff",     6,  0.4,  {"plain": true}],
 	# ---------------- TIER 2 - UNCOMMON (floors 5-18) ----------------
-	["wpn_gravespade",   "Gravekeeper's Spade",  "melee", 2, "cleave",    14, 0.8,  {"plain": true}],
+	["wpn_gravespade",   "Gravekeeper's Spade",  "melee", 2, "opengrave", 14, 0.8,  {"rung": true}],
 	["wpn_lanternblade", "Lanternblade",         "melee", 2, "arc",       10, 0.45, {"status": "burn_w", "plain": true}],
 	["wpn_millsickle",   "Mill Sickle",          "melee", 2, "arc",       9,  0.32, {"plain": true}],
 	["wpn_bonepick",     "Bonepick",             "melee", 2, "arc",       12, 0.6,  {"plain": true}],
@@ -161,9 +161,9 @@ const ROWS = [
 	["wpn_brookwand",    "Brookwand",            "wand",  2, "brookflow", 10, 0.5,  {"status": "slow_w", "rung": true}],
 	# ---------------- TIER 3 - RARE (floors 12-32) ----------------
 	["wpn_watchmansword","Watchman's Justice",   "melee", 3, "arc",       15, 0.5,  {"plain": true}],
-	["wpn_furrowscythe", "Furrow Scythe",        "melee", 3, "cleave",    19, 0.9,  {"plain": true}],
+	["wpn_furrowscythe", "Furrow Scythe",        "melee", 3, "reaprow",   19, 0.9,  {"rung": true}],
 	["wpn_adderfang",    "Adderfang",            "melee", 3, "arc",       11, 0.3,  {"status": "poison_w", "plain": true}],
-	["wpn_bellhammer",   "Bell Hammer",          "melee", 3, "cleave",    22, 1.0,  {"knockup": true, "plain": true}],
+	["wpn_bellhammer",   "Bell Hammer",          "melee", 3, "belltoll",  22, 1.0,  {"knockup": true, "rung": true}],
 	["wpn_squallblade",  "Squallblade",          "melee", 3, "crescent",  13, 0.55, {"p_damage": 11, "plain": true}],
 	["wpn_thornwheel",   "Thornwheel",           "melee", 3, "orbiter",   12, 0.8,  {"dwell": 1.8}],
 	["wpn_hookbill",     "Hookbill",             "melee", 3, "ricochet",  12, 0.65, {"bounces": 3, "plain": true}],
@@ -183,7 +183,7 @@ const ROWS = [
 	["wpn_droverstaff",  "Drover's Crook",       "staff", 3, "staff",     12, 0.45, {"plain": true}],
 	# ---------------- TIER 4 - EPIC (floors 24-52) ----------------
 	["wpn_duskrender",   "Duskrender",           "melee", 4, "arc",       19, 0.45, {"plain": true}],
-	["wpn_tolloftheend", "Toll of the End",      "melee", 4, "cleave",    28, 1.05, {"knockup": true, "plain": true}],
+	["wpn_tolloftheend", "Toll of the End",      "melee", 4, "endtoll",   28, 1.05, {"knockup": true, "rung": true}],
 	["wpn_vespersting",  "Vesper Sting",         "melee", 4, "arc",       13, 0.26, {"status": "poison_w", "plain": true}],
 	["wpn_howlpiece",    "Howlpiece",            "melee", 4, "howlpiece", 17, 0.55, {"p_damage": 15}],
 	["wpn_winterwheel",  "Winterwheel",          "melee", 4, "winterwheel", 16, 0.8,  {"dwell": 2.4, "status": "slow_w"}],
@@ -288,7 +288,7 @@ const ROWS = [
 		"fx": [{"kind": "quake", "radius": 170.0, "pct": 0.35}]}],
 	# ---------------- WAVE 3 - TIER 1 (8) ----------------
 	["wpn_hearthpoker",  "Hearth Poker",         "melee", 1, "arc",       6,  0.4,  {"plain": true}],
-	["wpn_cellarmallet", "Cellar Mallet",        "melee", 1, "cleave",    10, 0.9,  {"plain": true}],
+	["wpn_cellarmallet", "Cellar Mallet",        "melee", 1, "hoopshunt", 10, 0.9,  {"rung": true}],
 	["wpn_thistleflail", "Thistle Knot",         "melee", 1, "chain_maul", 8, 0.9,  {"plain": true}],
 	["wpn_haypike",      "Haymaker's Pike",      "spear", 1, "thrust",    8,  0.7,  {"plain": true}],
 	["wpn_crowbow",      "Crowchaser",           "bow",   1, "shot",      6,  0.5,  {"plain": true}],
@@ -297,7 +297,7 @@ const ROWS = [
 	["wpn_reedstaff",    "River Reed",           "staff", 1, "staff",     5,  0.38, {"plain": true}],
 	# ---------------- WAVE 3 - TIER 2 (14) ----------------
 	["wpn_tannerknife",  "Tanner's Long Knife",  "melee", 2, "arc",       9,  0.3,  {"plain": true}],
-	["wpn_orchardaxe",   "Orchard Feller",       "melee", 2, "cleave",    15, 0.95, {"plain": true}],
+	["wpn_orchardaxe",   "Orchard Feller",       "melee", 2, "fellblow",  15, 0.95, {"rung": true}],
 	["wpn_bellropeflail","Bellrope",             "melee", 2, "chain_maul", 11, 0.95, {}],
 	["wpn_grindwheel",   "Grindstone Wheel",     "melee", 2, "orbiter",   9,  0.85, {"dwell": 1.5}],
 	["wpn_ditchpike",    "Ditchwarden",          "spear", 2, "thrust",    13, 0.85, {"plain": true}],
@@ -315,7 +315,7 @@ const ROWS = [
 	["wpn_gooseherd",    "Gooseherd's Crook",    "staff", 2, "staff",     8,  0.36, {"plain": true}],
 	# ---------------- WAVE 3 - TIER 3 (24) ----------------
 	["wpn_sextonblade",  "Sexton's Edge",        "melee", 3, "arc",       14, 0.45, {"plain": true}],
-	["wpn_quarrymaul",   "Quarry Maul",          "melee", 3, "cleave",    21, 1.05, {"knockup": true, "plain": true}],
+	["wpn_quarrymaul",   "Quarry Maul",          "melee", 3, "scoresplit", 21, 1.05, {"knockup": true, "rung": true}],
 	["wpn_chimefall",    "Chimefall",            "melee", 3, "chain_maul", 15, 0.95, {}],
 	["wpn_lanternwheel", "Lantern Wheel",        "melee", 3, "orbiter",   11, 0.8,  {"dwell": 2.0, "status": "burn_w"}],
 	["wpn_curseknife",   "Cursewright's Knife",  "melee", 3, "arc",       10, 0.28, {"status": "poison_w", "plain": true}],
@@ -340,7 +340,7 @@ const ROWS = [
 	["wpn_wellstaff",    "Wellwalker",           "staff", 3, "staff",     13, 0.5,  {"plain": true}],
 	# ---------------- WAVE 3 - TIER 4 (28) ----------------
 	["wpn_eveningblade", "Evening's Empire",     "melee", 4, "arc",       18, 0.42, {"plain": true}],
-	["wpn_barrowmaul",   "Barrow King's Maul",   "melee", 4, "cleave",    26, 1.0,  {"knockup": true, "plain": true}],
+	["wpn_barrowmaul",   "Barrow King's Maul",   "melee", 4, "gravehands", 26, 1.0, {"knockup": true, "rung": true}],
 	["wpn_cometflail",   "Comet on a Chain",     "melee", 4, "cometflail", 20, 0.95, {"status": "burn_w"}],
 	["wpn_owlwheel",     "Owl-Eye Wheel",        "melee", 4, "owlwheel",  15, 0.78, {"dwell": 2.2}],
 	["wpn_palefang",     "Palefang",             "melee", 4, "arc",       12, 0.25, {"status": "slow_w", "plain": true}],
@@ -369,7 +369,7 @@ const ROWS = [
 	["wpn_driftwheel",   "Driftwheel",           "melee", 4, "driftwheel", 17, 0.85, {"dwell": 2.6}],
 	# ---------------- WAVE 3 - TIER 5 (26) ----------------
 	["wpn_lastlantern",  "The Last Lantern",     "melee", 5, "arc",       23, 0.4,  {"status": "burn_w", "plain": true}],
-	["wpn_hourmaul",     "The Eleventh Hour",    "melee", 5, "cleave",    34, 1.08, {"knockup": true, "plain": true}],
+	["wpn_hourmaul",     "The Eleventh Hour",    "melee", 5, "stophour",  34, 1.08, {"knockup": true, "rung": true}],
 	["wpn_gallowsflail", "Gallows Swing",        "melee", 5, "gallows",   26, 0.95, {}],
 	["wpn_midwinterwheel","Midwinter Wheel",     "melee", 5, "midwinterwheel", 20, 0.78, {"dwell": 2.8, "status": "slow_w"}],
 	["wpn_asphodelknife","Asphodel Kiss",        "melee", 5, "arc",       15, 0.24, {"status": "poison_w", "plain": true}],
@@ -753,8 +753,12 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			# arrow spawner both read special.status directly; an empty type
 			# falls through to the ordinary swing/shot, exactly as intended)
 			pass
-		"cleave":
-			s = {"type": "cleave"}
+		# the "cleave" BEHAVIOR label lived here. All ten weapons that used it
+		# now have their own follow-through, so it is unreachable and gone --
+		# flagged by the dead-verb audit the moment the last one left.
+		# The cleave TYPE survives: it is what the ten still share (a wide blade
+		# really does hit everything in front of it) plus wpn_greatsword in
+		# inventory.gd, which earned it honestly.
 		"crescent":
 			s = {"type": "flying_slash", "damage": int(ex.get("p_damage", dmg)), "speed": spd, "range": rng}
 		"jab_volley":
@@ -781,6 +785,54 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			s = {"type": "ink_jet", "damage": dmg, "speed": spd, "range": rng}
 		"wake":
 			s = {"type": "wake_scythe", "damage": dmg, "speed": spd, "range": rng}
+		# --- THE CLEAVE TEN ---------------------------------------------------
+		# Their shared swing ARC is honest and stays: a wide blade really does
+		# hit everything in front of it. What was dishonest is that all ten shed
+		# the IDENTICAL generic carve crescent, so ten differently-named mauls
+		# threw the same green arc. The arc stays shared; the FOLLOW-THROUGH is
+		# what makes each one itself.
+		"spadespray":
+			# PIT SHOVEL scoops the floor and flings it. A tier-1 common with a
+			# grounded/airborne dial: feet planted throws seven clods, airborne
+			# throws two, because you cannot dig air.
+			s = {"type": "cleave", "spray": "clod", "damage": dmg}
+		"hoopshunt":
+			# CELLAR MALLET is a cooper's flat blow: it SHUNTS the arc backwards
+			# as one, and anything it slams into a wall pays again.
+			s = {"type": "cleave", "spray": "hoop", "damage": dmg}
+		"fellblow":
+			# ORCHARD FELLER notches what it hits, and a beat later that body
+			# TIPS -- felled like a tree, into whatever is beside it.
+			s = {"type": "cleave", "spray": "fell", "damage": dmg}
+		"reaprow":
+			# FURROW SCYTHE: the cut leaves the blade and keeps RUNNING along
+			# the floor. One ledge defeats it, which is the honest price.
+			s = {"type": "cleave", "spray": "reap", "damage": dmg}
+		"belltoll":
+			# BELL HAMMER does not push, it RINGS: three brass rings leaving the
+			# head at three radii.
+			s = {"type": "cleave", "spray": "bell", "damage": dmg}
+		"scoresplit":
+			# QUARRY MAUL scores stone first and SPLITS it on the second blow --
+			# a two-swing rhythm, the only cleave that asks you to set up.
+			s = {"type": "cleave", "spray": "score", "damage": dmg}
+		"endtoll":
+			# TOLL OF THE END hangs a countdown on a body; when it runs out the
+			# bill lands, and a kill JUMPS it to the next one.
+			s = {"type": "cleave", "spray": "toll", "damage": dmg}
+		"gravehands":
+			# BARROW KING'S MAUL calls dead hands UP THROUGH THE FLOOR, in a row
+			# marching away from the blow.
+			s = {"type": "cleave", "spray": "hands", "damage": dmg}
+		"stophour":
+			# THE ELEVENTH HOUR stops the clock: the struck body freezes, the
+			# damage it should have taken is STORED, and it all lands at once
+			# when time restarts. The family's apex.
+			s = {"type": "cleave", "spray": "hour", "damage": dmg}
+		"opengrave":
+			# GRAVEKEEPER'S SPADE takes a spadeful out of the WORLD -- an open
+			# hole in front, and the sod it threw lands behind as cover.
+			s = {"type": "cleave", "spray": "grave", "damage": dmg}
 		"drinkthread":
 			# LEECHLIGHT drinks. Nothing is thrown: a thread snaps taut to the
 			# nearest foe and pulls, ticking damage and returning a little as
