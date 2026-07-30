@@ -63,6 +63,54 @@ three flavours of one new sweep rather than three unrelated engines).
 T4 and below: leave the shared motion, differentiate by fx rider, numbers, and
 card text. Revisit only if the tiers still feel flat in play.
 
+---
+
+# PROGRESS: T6 CLOSED (2026-07-29)
+
+Re-measured after four T6 batches. The roster now carries **86 distinct
+behaviors**, up from 58.
+
+| tier | weapons | crowded | % | |
+|---|---|---|---|---|
+| T1 | 20 | 20 | 100% | |
+| T2 | 29 | 28 | 97% | |
+| T3 | 45 | 44 | 98% | |
+| T4 | 49 | 47 | 96% | |
+| T5 | 41 | 40 | 98% | **next** |
+| **T6** | **38** | **9** | **24%** | **done** |
+| T7 | 30 | 7 | 23% | done |
+| T8 | 23 | 11 | 48% | |
+
+T6 went 97% -> 24%, matching T7. The 9 that remain crowded are exactly the
+9 pinned plain ladder rungs, which are *supposed* to share a motion.
+
+## The plain-row rule (learned the hard way, twice)
+
+`{"plain": true}` rows are pinned: the fx audit fixes the count at exactly
+129 and validates craft chains between them. **Converting one breaks two
+invariants.** Ghost Repeater and Horizon Pike were both caught mid-batch
+this way.
+
+Enumerate them with BALANCED BRACKET parsing, never a fixed line window --
+a 4-line window bleeds into neighbouring rows and wrongly flagged
+Cindershelf, Requiem Edge and Sorrowfang as plain when they are not.
+
+## The stacking trap (caught twice by the dps gate)
+
+A persistent zone or minion whose lifetime exceeds its cooldown can be
+stacked indefinitely. Second Moon (6s life / 0.85s cd) read 233 dps and
+Cindershelf (4s / 0.8s) read 360, against a tier median of ~80. Both needed
+a **design** fix, not a tuning one: cap to one instance via a group, and let
+a recast renew rather than add. Any future persistent verb needs this cap.
+
+## Declaring hits-per-use honestly
+
+The audit's factor means damage instances on ONE body, not on the room.
+Batch 4 initially declared whole-room damage (a courier's four deliveries, a
+seven-shaft wall) as if it all landed on one target, which pushed T6's
+median ABOVE T7's. Crowd damage is a feature; do not bill it as single-target
+throughput.
+
 ## Order
 
 1. **T6** (38 weapons, 37 crowded) — the tier directly under the finished ones,
