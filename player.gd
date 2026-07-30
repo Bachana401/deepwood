@@ -2284,8 +2284,101 @@ func whip_crack(stats, special: Dictionary) -> void:
 			if along < best_along:
 				best_along = along
 				struck = e
-	if struck != null:
-		BOND_MARK_SCRIPT.paint(struck, 4.0 + GameState.get_bonus_total("tag_duration"))
+	if struck == null:
+		_whip_streak = 0
+		return
+	# THE TAG. Each whip donates its own terms to the mark it paints, so the
+	# mark that already exists in the world keeps the deal it was made under
+	# even if you swap whips mid-fight.
+	var rider := str(special.get("tag_fx", ""))
+	var terms := {
+		"tag_dmg": float(special.get("tag_dmg", 0.0)),
+		"tag_crit": float(special.get("tag_crit", 0.0)),
+		"rider": rider,
+		"armed": rider == "detonate",
+	}
+	var mk = BOND_MARK_SCRIPT.paint(struck,
+		4.0 + float(special.get("tag_dur", 0.0)) + GameState.get_bonus_total("tag_duration"),
+		terms)
+	# --- the per-whip riders that act at TAG time ---
+	match rider:
+		"chill":
+			# THE COLD REIN: the mark goes cold the moment it is painted
+			if struck.has_method("apply_status"):
+				struck.apply_status("slow", 2.2, 0.4)
+		"knock":
+			# THE DROVER'S ANSWER: it HERDS -- the prey is shoved into place
+			if struck.has_method("apply_knockback"):
+				struck.apply_knockback(1 if aim.x >= 0.0 else -1, 260.0)
+		"storm":
+			# STORMLASH: three cracks on one mark and the lightning answers
+			if mk != null and int(mk.get("charge")) >= 3:
+				mk.set("charge", 0)
+				_storm_off_mark(struck, dmg)
+		"tenfold":
+			# THE TEN-TONGUED COURT (flagship): the crack IS a command word.
+			# Every summon you hold strikes the mark the instant it is painted,
+			# so tagging reads as an order the whole army obeys at once.
+			for key in _companions:
+				var c = _companions[key]
+				if not is_instance_valid(c) or c.get("summoned") != true:
+					continue
+				if not c.has_method("strike_damage"):
+					continue
+				var roll: Array = c.strike_damage(struck)
+				var landed3 = struck.take_damage(int(roll[0]))
+				if landed3 == null or landed3:
+					FloatingText.spawn(host, struck.global_position
+						+ Vector2(randf_range(-24.0, 24.0), -34.0), int(roll[0]), true)
+	# THE CRACKING RHYTHM: consecutive hits quicken the arm. Any whip may ramp;
+	# the tree road and Sundering Psalm just ramp it harder.
+	_whip_streak = mini(3, _whip_streak + 1)
+	_whip_streak_until = Time.get_ticks_msec() / 1000.0 + 2.0
+
+# STORMLASH's answer: a bolt from the mark to whoever is nearest it.
+func _storm_off_mark(from: Node2D, base: int) -> void:
+	var host := get_parent()
+	if host == null:
+		return
+	var best: Node2D = null
+	var bd := 300.0
+	for group_name in ["course_enemy", "dungeon_combatant", "siege_enemy"]:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or e == from:
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if not e.has_method("take_damage"):
+				continue
+			var d2: float = from.global_position.distance_to((e as Node2D).global_position)
+			if d2 < bd:
+				bd = d2
+				best = e
+	if best == null:
+		return
+	var m2 := CanvasItemMaterial.new()
+	m2.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var arc := Polygon2D.new()
+	var span: Vector2 = (best as Node2D).global_position - from.global_position
+	var perp2 := Vector2(-span.normalized().y, span.normalized().x)
+	arc.polygon = PackedVector2Array([
+		from.global_position + perp2 * 3.0,
+		from.global_position + span * 0.5 + perp2 * 11.0,
+		(best as Node2D).global_position + perp2 * 3.0,
+		(best as Node2D).global_position - perp2 * 3.0,
+		from.global_position + span * 0.5 - perp2 * 5.0,
+		from.global_position - perp2 * 3.0])
+	arc.color = Color(0.8, 0.9, 1.0, 0.9)
+	arc.material = m2
+	arc.z_index = 44
+	host.add_child(arc)
+	var tw2 := arc.create_tween()
+	tw2.tween_property(arc, "modulate:a", 0.0, 0.22)
+	tw2.tween_callback(arc.queue_free)
+	var pay: int = maxi(1, int(round(float(base) * 1.4)))
+	var landed2 = best.take_damage(pay)
+	if landed2 == null or landed2:
+		FloatingText.spawn(host, (best as Node2D).global_position + Vector2(0, -30), pay, true)
 
 # CAST a minion into the next free slot. The pack is the power curve, so a
 # full pack re-flavours its oldest member rather than silently doing nothing.
@@ -3822,7 +3915,12 @@ func perform_attack() -> void:
 	# The whip is the ACTIVE weapon: it swings fast, hits modestly, and paints
 	# the bond-mark that the whole army answers.
 	if active_weapon_type == "whip":
-		attack_cooldown_remaining = stats.cooldown * skill_cooldown_mult("whip")
+		if Time.get_ticks_msec() / 1000.0 > _whip_streak_until:
+			_whip_streak = 0
+		var ramp: float = float(special.get("frenzy", 0.0)) \
+			+ GameState.get_bonus_total("whip_frenzy")
+		attack_cooldown_remaining = stats.cooldown * skill_cooldown_mult("whip") \
+			/ (1.0 + ramp * float(_whip_streak))
 		whip_crack(stats, special)
 		return
 	# Scepters and totems CAST: they pay mana up front and buy something that
@@ -5920,6 +6018,10 @@ func heal(amount: int) -> void:
 # a dozen standing and they are cheap points, not bodies.
 var _waymark_t := 0.0
 # EMBERHYMN builds while you keep casting; THE THIRD OMEN counts to three
+# THE CRACKING RHYTHM: consecutive whip hits quicken the arm, decaying after
+# a short pause. The whip is a drum -- stop drumming and you lose the tempo.
+var _whip_streak := 0
+var _whip_streak_until := 0.0
 var _hymn_verse := 0
 var _hymn_last := 0.0
 var _omen_count := 0

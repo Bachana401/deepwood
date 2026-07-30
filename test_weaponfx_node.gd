@@ -1,4 +1,4 @@
-﻿extends Node
+extends Node
 
 # WEAPONFX ENGINE, Phase A (2026-07-28): every primitive the engine claims
 # to handle fires clean through a dummy foe -- no missing keys, no crashes,
@@ -15,6 +15,11 @@ func _verb_identity(row: Array) -> String:
 		return "%s:%s" % [vb, str(ex["m_kind"])]
 	if ex.has("s_kind"):
 		return "%s:%s" % [vb, str(ex["s_kind"])]
+	# and a whip's soul is its TAG RIDER -- thirteen whips all say "whipcrack",
+	# but Candlewick detonates, the Cold Rein chills and the Ten-Tongued Court
+	# makes the whole army strike at once
+	if ex.has("tag_fx") and str(ex["tag_fx"]) != "":
+		return "%s:%s" % [vb, str(ex["tag_fx"])]
 	return vb
 
 var fails := 0

@@ -233,11 +233,23 @@ func strike_damage(on: Node) -> Array:
 				alive += 1
 		d *= 1.0 + pack * float(alive)
 	var crit := false
-	if BOND_MARK.is_marked(on):
-		d += GameState.get_bonus_total("tag_damage")
-		if randf() < GameState.get_bonus_total("tag_crit"):
+	var mk = BOND_MARK.mark_on(on)
+	if mk != null:
+		# the tree's donation plus THIS WHIP'S -- the mark carries its own terms
+		d += GameState.get_bonus_total("tag_damage") + float(mk.get("bonus_damage"))
+		if randf() < GameState.get_bonus_total("tag_crit") + float(mk.get("bonus_crit")):
 			crit = true
 			d *= 1.7
+		# CANDLEWICK: the whip armed this mark, and the FIRST summon hit spends
+		# it. Read as one enormous number out of nowhere, then it is gone.
+		if bool(mk.get("armed")):
+			mk.set("armed", false)
+			d *= 2.4
+			crit = true
+		# MOTHER'S MERCY: summon hits on your mark mend the one who ordered it
+		if str(mk.get("rider")) == "mend" and is_instance_valid(player) \
+				and player.has_method("heal"):
+			player.heal(1)
 	return [maxi(1, int(round(d))), crit]
 
 func _land() -> void:

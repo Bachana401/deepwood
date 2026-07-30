@@ -15,13 +15,21 @@ extends Node2D
 const GROUP := "bond_mark"
 
 var life := 4.0
+# WHAT THIS PARTICULAR WHIP DONATED. The mark carries the donation rather than
+# the player, because the donation belongs to the whip that painted it -- swap
+# whips and the mark already in the world keeps the terms it was made under.
+var bonus_damage := 0.0
+var bonus_crit := 0.0
+var rider := ""          # the whip's signature (see whip_crack)
+var charge := 0          # Stormlash counts whip hits on this mark
+var armed := false       # Candlewick: the next summon hit DETONATES
 var _t := 0.0
 var _ring: Polygon2D = null
 var _spin: Node2D = null
 
 # Paint the mark on `victim`, moving it off whoever wore it before.
 # Returns the mark node (or null if the victim cannot wear one).
-static func paint(victim: Node2D, dur: float = 4.0) -> Node:
+static func paint(victim: Node2D, dur: float = 4.0, terms: Dictionary = {}) -> Node:
 	if victim == null or not is_instance_valid(victim):
 		return null
 	if "is_dead" in victim and victim.is_dead:
@@ -37,13 +45,32 @@ static func paint(victim: Node2D, dur: float = 4.0) -> Node:
 		if old.get_parent() == victim:
 			old.set("_t", 0.0)
 			old.set("life", dur)
+			# a re-tag re-arms the rider: hitting them again should feel like
+			# renewing the order, not like the whip going quiet
+			old.set("charge", int(old.get("charge")) + 1)
+			if bool(terms.get("armed", false)):
+				old.set("armed", true)
 			return old
 		old.queue_free()
 	var m = load("res://bond_mark.gd").new()
 	m.life = dur
+	m.bonus_damage = float(terms.get("tag_dmg", 0.0))
+	m.bonus_crit = float(terms.get("tag_crit", 0.0))
+	m.rider = str(terms.get("rider", ""))
+	m.armed = bool(terms.get("armed", false))
+	m.charge = 1
 	m.add_to_group(GROUP)
 	victim.add_child(m)
 	return m
+
+# the mark riding this foe, if any -- companions read its terms
+static func mark_on(who: Node) -> Node:
+	if who == null or not is_instance_valid(who):
+		return null
+	for c in who.get_children():
+		if c.is_in_group(GROUP):
+			return c
+	return null
 
 # Who currently wears the mark, if anyone.
 static func marked(tree: SceneTree) -> Node2D:
