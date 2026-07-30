@@ -111,7 +111,9 @@ func _burst(b: Dictionary, paid: bool) -> void:
 	var pts := PackedVector2Array()
 	for i in range(9):
 		var a := TAU * float(i) / 9.0
-		pts.append(Vector2(cos(a), sin(a)) * (16.0 if paid else 9.0))
+		# the overflow ring measured ~1.5 player-heights across in the source;
+		# ours was about a third of that (fidelity pass)
+		pts.append(Vector2(cos(a), sin(a)) * (22.0 if paid else 10.0))
 	ring.polygon = pts
 	ring.color = Color(tint.r, tint.g, tint.b, 0.8 if paid else 0.45)
 	var m := CanvasItemMaterial.new()
@@ -122,7 +124,7 @@ func _burst(b: Dictionary, paid: bool) -> void:
 	ring.global_position = at
 	var tw := ring.create_tween()
 	tw.set_parallel(true)
-	tw.tween_property(ring, "scale", Vector2(2.4, 2.4) if paid else Vector2(1.5, 1.5), 0.26)
+	tw.tween_property(ring, "scale", Vector2(2.4, 2.4) if paid else Vector2(1.5, 1.5), 0.28)
 	tw.tween_property(ring, "modulate:a", 0.0, 0.26)
 	tw.chain().tween_callback(ring.queue_free)
 
@@ -131,17 +133,17 @@ func _make_barb(idx: int) -> Node2D:
 	var holder := Node2D.new()
 	var shaft := Polygon2D.new()
 	shaft.polygon = PackedVector2Array([
-		Vector2(-2.0, 0), Vector2(-1.4, -22.0), Vector2(1.4, -22.0), Vector2(2.0, 0)])
+		Vector2(-1.7, 0), Vector2(-1.2, -17.0), Vector2(1.2, -17.0), Vector2(1.7, 0)])
 	shaft.color = Color(tint.r * 0.55, tint.g * 0.5, tint.b * 0.45, 0.95)
 	holder.add_child(shaft)
 	var head := Polygon2D.new()
 	head.polygon = PackedVector2Array([
-		Vector2(0, -32.0), Vector2(4.5, -20.0), Vector2(0, -16.0), Vector2(-4.5, -20.0)])
+		Vector2(0, -25.0), Vector2(3.6, -16.0), Vector2(0, -12.5), Vector2(-3.6, -16.0)])
 	head.color = Color(tint.r, tint.g, tint.b, 0.98)
 	holder.add_child(head)
 	var glow := Polygon2D.new()
 	glow.polygon = PackedVector2Array([
-		Vector2(0, -36.0), Vector2(7.0, -20.0), Vector2(0, -12.0), Vector2(-7.0, -20.0)])
+		Vector2(0, -28.0), Vector2(5.4, -16.0), Vector2(0, -9.5), Vector2(-5.4, -16.0)])
 	glow.color = Color(tint.r, tint.g, tint.b, 0.28)
 	var gm := CanvasItemMaterial.new()
 	gm.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD

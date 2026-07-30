@@ -43,13 +43,15 @@ static func _grade_rank(p: Node) -> int:
 	var g := Inventory.get_grade(str(p.active_weapon_id))
 	return int(Inventory.GRADE_DEFS.get(g, {}).get("rank", 0))
 
-static func _gscale(p: Node) -> float:      # visual size: up to ~2.1x at the crown
-	# (intensity pass 2026-07-29, dev: "make it more intense" -- the soul
-	# should be UNMISSABLE at the top of the ladder)
-	return 1.0 + 0.15 * float(_grade_rank(p))
+static func _gscale(p: Node) -> float:      # visual size: up to ~1.7x at the crown
+	# Intensity pass took this to 0.15/rank (2.1x at crown); seeing it in play
+	# the dev called the sizes too big, so it comes back to 0.09. Intensity
+	# should come from COUNT and CADENCE (more sparks, faster sheds), not from
+	# inflating every polygon -- and the crown rule says cleaner, not bigger.
+	return 1.0 + 0.09 * float(_grade_rank(p))
 
-static func _rscale(p: Node) -> float:      # effect REACH: up to ~1.5x at the crown
-	return 1.0 + 0.07 * float(_grade_rank(p))
+static func _rscale(p: Node) -> float:      # effect REACH: up to ~1.3x at the crown
+	return 1.0 + 0.045 * float(_grade_rank(p))
 
 static func _fx_list(def: Dictionary) -> Array:
 	var fx = def.get("special", {}).get("fx", null)

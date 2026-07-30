@@ -4554,6 +4554,10 @@ func stop_prism() -> void:
 	for l in prism_lines:
 		if is_instance_valid(l):
 			l.visible = false
+	if is_instance_valid(_prism_core):
+		_prism_core.visible = false
+	if is_instance_valid(_prism_fringe):
+		_prism_fringe.visible = false
 
 func channel_prism(delta: float) -> bool:
 	# planting your feet is the price of the sun, same as the Sage's beam
@@ -4603,6 +4607,8 @@ func channel_prism(delta: float) -> bool:
 			if c != null and c.has_method("take_damage") and "is_dead" in c and not c.is_dead:
 				target = c
 		_draw_prism_beam(i, end_point, focus)
+		if i == PRISM_BEAMS / 2:
+			_prism_core_end = end_point   # the middle ray carries the pillar
 		if ticked and target != null and per_beam > 0:
 			var cr = roll_crit(per_beam)
 			target.take_damage(cr[0])
@@ -4612,6 +4618,9 @@ func channel_prism(delta: float) -> bool:
 				+ Vector2(randf_range(-28.0, 28.0), randf_range(-24.0, 8.0)), cr[0], cr[1])
 			apply_omnivamp(cr[0])
 			apply_soulthread(cr[0])
+	# the pillar is drawn ONCE, AFTER the whole fan -- drawing it inside the
+	# loop used a stale endpoint and rendered a stub at the player's feet
+	_draw_prism_core(focus)
 	return true
 
 func _build_prism_lines() -> void:
@@ -4631,10 +4640,44 @@ func _draw_prism_beam(i: int, end_point: Vector2, focus: float) -> void:
 	var l: Line2D = prism_lines[i]
 	l.visible = true
 	# thin and pale while it searches; fat and white-gold once it commits
-	l.width = lerp(3.5, 13.0, focus)
+	l.width = lerp(3.0, 9.0, focus)
 	# stays GOLD as it focuses (a near-white endpoint read as grey on film)
 	l.default_color = Color(1.0, 0.62, 0.16, 0.8).lerp(Color(1.0, 0.88, 0.42, 1.0), focus)
 	l.points = PackedVector2Array([Vector2(0, PRISM_ORIGIN_Y), to_local(end_point)])
+
+# THE PILLAR (fidelity pass): the measured source converges into ONE beam
+# ~38px wide with a WHITE CORE and a coloured fringe. Six overlapping wires
+# did not read as that, so at high focus a real core is drawn over them.
+var _prism_core: Line2D = null
+var _prism_fringe: Line2D = null
+var _prism_core_end := Vector2.ZERO
+func _draw_prism_core(focus: float) -> void:
+	if _prism_core == null:
+		_prism_fringe = Line2D.new()
+		_prism_fringe.z_index = 6
+		var fm := CanvasItemMaterial.new()
+		fm.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		_prism_fringe.material = fm
+		add_child(_prism_fringe)
+		_prism_core = Line2D.new()
+		_prism_core.z_index = 7
+		var cm := CanvasItemMaterial.new()
+		cm.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		_prism_core.material = cm
+		add_child(_prism_core)
+	# only once the fan has genuinely closed does it become a single thing
+	var t := clampf((focus - 0.55) / 0.45, 0.0, 1.0)
+	_prism_core.visible = t > 0.02
+	_prism_fringe.visible = t > 0.02
+	if t <= 0.02:
+		return
+	var pts := PackedVector2Array([Vector2(0, PRISM_ORIGIN_Y), to_local(_prism_core_end)])
+	_prism_fringe.points = pts
+	_prism_fringe.width = lerpf(5.0, 26.0, t)   # measured 38px, trimmed for our zoom
+	_prism_fringe.default_color = Color(1.0, 0.66, 0.22, 0.5 * t)
+	_prism_core.points = pts
+	_prism_core.width = lerpf(2.5, 10.0, t)
+	_prism_core.default_color = Color(1.0, 1.0, 0.96, 0.95 * t)
 
 func beam_peak_mult() -> float:
 	return BEAM_BASE_PEAK + GameState.get_skill_total("beam_ramp")

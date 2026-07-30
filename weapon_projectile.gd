@@ -118,11 +118,11 @@ func _ready() -> void:
 	# Terra standard: the wind-crescent is TALL now, and its reach must be
 	# honest about it; the zenith image is a whole blade
 	if kind == "slash":
-		shape.size = Vector2(44, 58) * girth
+		shape.size = Vector2(38, 46) * girth
 	elif kind == "zenith_blade":
-		shape.size = Vector2(52, 52) * girth
+		shape.size = Vector2(44, 44) * girth
 	elif kind == "courtier":
-		shape.size = Vector2(46, 46) * girth
+		shape.size = Vector2(40, 40) * girth
 	cs.shape = shape
 	add_child(cs)
 	body_entered.connect(_on_body_entered)
@@ -614,6 +614,7 @@ func _on_body_entered(body: Node2D) -> void:
 			# THE MOUNTAIN THAT KNEELS pays for its PACE, not its size
 			if kind == "kneeling_stone":
 				dealt = boulder_damage()
+				_rock_smoke(body.global_position)   # the source bursts white smoke
 			# REGICIDE: the spear does NOT merely hit -- it stays in them, and
 			# the stack it joins is the weapon (see embedded_stack.gd)
 			if kind == "crown_spear":
@@ -922,15 +923,33 @@ func _cut_along_edict(tip: Vector2) -> void:
 				FloatingText.spawn(get_parent(), e.global_position
 					+ Vector2(randf_range(-22.0, 22.0), randf_range(-18.0, 6.0)), damage, is_crit)
 			_apply_status_to(e)
-			_edict_bloom(e.global_position)
+			_edict_bloom(e.global_position, e)
 			if is_instance_valid(source) and source.has_method("on_projectile_hit"):
 				source.on_projectile_hit(e, damage)
 
-# every contact blooms: a short bright flare where the law touched
-func _edict_bloom(at: Vector2) -> void:
+# Every contact BLOOMS -- and the bloom is not decoration. The measured
+# source erupts hit points BEYOND the visible lash (AoE procs), so the flare
+# catches bodies standing NEAR the arm as well as on it. Without this the
+# weapon is a line; with it, it is a sentence with consequences.
+const EDICT_BLOOM_R := 74.0
+func _edict_bloom(at: Vector2, struck: Node = null) -> void:
 	var host := get_parent()
 	if host == null:
 		return
+	var splash: int = maxi(1, int(round(float(damage) * 0.35)))
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if e == struck or not (e is Node2D) or not is_instance_valid(e):
+				continue
+			if not e.has_method("take_damage") or ("is_dead" in e and e.is_dead):
+				continue
+			if at.distance_to(e.global_position) > EDICT_BLOOM_R:
+				continue
+			var landed = e.take_damage(splash)
+			if landed == null or landed:
+				FloatingText.spawn(host, e.global_position
+					+ Vector2(randf_range(-16.0, 16.0), -14.0), splash, false)
+			_apply_status_to(e)
 	var ring := Polygon2D.new()
 	var pts := PackedVector2Array()
 	for i in range(10):
@@ -960,7 +979,7 @@ func _build_edict() -> void:
 	# the halo the whole arm sits in
 	_lash_glow = Line2D.new()
 	_lash_glow.top_level = true
-	_lash_glow.width = 40.0 * girth
+	_lash_glow.width = 28.0 * girth
 	_lash_glow.default_color = Color(1.0, 0.66, 0.18, 0.22)
 	_lash_glow.begin_cap_mode = Line2D.LINE_CAP_ROUND
 	_lash_glow.end_cap_mode = Line2D.LINE_CAP_ROUND
@@ -971,7 +990,7 @@ func _build_edict() -> void:
 	# washing out to white against a dark hall
 	_lash_line = Line2D.new()
 	_lash_line.top_level = true
-	_lash_line.width = 15.0 * girth
+	_lash_line.width = 11.0 * girth
 	_lash_line.default_color = Color(0.98, 0.74, 0.24, 0.96)
 	_lash_line.begin_cap_mode = Line2D.LINE_CAP_ROUND
 	_lash_line.end_cap_mode = Line2D.LINE_CAP_ROUND
@@ -983,7 +1002,7 @@ func _build_edict() -> void:
 		var kp := PackedVector2Array()
 		for j in range(6):
 			var a := TAU * float(j) / 6.0
-			kp.append(Vector2(cos(a), sin(a)) * 13.0 * girth)
+			kp.append(Vector2(cos(a), sin(a)) * 9.0 * girth)
 		k.polygon = kp
 		k.color = Color(1.0, 0.88, 0.5, 0.95)
 		k.top_level = true
@@ -995,7 +1014,7 @@ func _build_edict() -> void:
 	var hp := PackedVector2Array()
 	for j in range(10):
 		var a2 := TAU * float(j) / 10.0
-		hp.append(Vector2(cos(a2), sin(a2)) * (20.0 if j % 2 == 0 else 9.0) * girth)
+		hp.append(Vector2(cos(a2), sin(a2)) * (14.0 if j % 2 == 0 else 6.5) * girth)
 	_lash_head.polygon = hp
 	_lash_head.color = Color(1.0, 0.95, 0.72, 0.95)
 	_lash_head.top_level = true
@@ -1016,7 +1035,7 @@ func _draw_edict(tip: Vector2) -> void:
 		# a real serpentine, wide enough to READ at play zoom -- the arm coils
 		pts.append(base + perp * sin(f * PI * 2.2 + _lash_t * 7.0) * 15.0 * (1.0 - f * 0.35))
 	_lash_line.points = pts
-	_lash_line.width = (14.0 + 3.0 * sin(_lash_t * 18.0)) * girth
+	_lash_line.width = (10.5 + 2.0 * sin(_lash_t * 18.0)) * girth
 	if _lash_glow != null:
 		_lash_glow.points = pts
 	# seat the joints along the cord, biggest at the wrist, smallest at the tip
@@ -1123,9 +1142,49 @@ const BRAZ_SIT := 3.2        # seconds the throne burns before it is taken up
 const BRAZ_SPIT := 0.45      # seconds between embers
 var _braz_spit_t := 0.0
 
+const CHAIN_BAND := 26.0
+const CHAIN_REHIT := 0.35
+var _chain_hits := {}
+
+# THE CHAIN BITES (fidelity pass). The source's chain hits everything along
+# its length -- three bodies at once in the measured footage -- and our own
+# DESIGN_LAWS guardrail says exactly "flail launches must damage along the
+# chain, not just the head". It was drawn but inert. Now it is a line of
+# damage from the wielder to the head, at a third of the head's bite.
+func _chain_bite() -> void:
+	if not is_instance_valid(source):
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	var a: Vector2 = source.global_position
+	var ab: Vector2 = global_position - a
+	var ab_len2: float = maxf(1.0, ab.length_squared())
+	var bite: int = maxi(1, int(round(float(damage) * 0.34)))
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			var eid := e.get_instance_id()
+			if _chain_hits.has(eid) and now < _chain_hits[eid]:
+				continue
+			var t: float = clampf((e.global_position - a).dot(ab) / ab_len2, 0.0, 1.0)
+			var closest: Vector2 = a + ab * t
+			if closest.distance_to(e.global_position) > CHAIN_BAND:
+				continue
+			_chain_hits[eid] = now + CHAIN_REHIT
+			var landed = e.take_damage(bite)
+			if landed == null or landed:
+				FloatingText.spawn(get_parent(), e.global_position
+					+ Vector2(randf_range(-14.0, 14.0), -18.0), bite, false)
+			_apply_status_to(e)
+
 func _tick_brazier(delta: float) -> void:
 	if rope and is_instance_valid(source):
 		rope.points = PackedVector2Array([Vector2.ZERO, to_local(source.global_position)])
+	# the chain is live from the moment it is out until it comes home
+	if _behave_state >= 1:
+		_chain_bite()
 	match _behave_state:
 		0:   # the whirl, tight around the wielder
 			if not is_instance_valid(source):
@@ -1334,11 +1393,15 @@ func _tick_boulder(delta: float) -> void:
 	q.exclude = [self]
 	var hit := space.intersect_ray(q)
 	if hit:
+		var was_falling := _vel_y
 		global_position.y = hit.position.y - 16.0
 		if _vel_y > 0.0:
 			# rolling downhill FEEDS it; a flat floor just carries it
 			speed = minf(1250.0, speed + _vel_y * 0.25)
 			_vel_y = 0.0
+		# a real landing kicks dust; a gentle roll along the floor does not
+		if was_falling > 420.0:
+			_rock_smoke(global_position + Vector2(0, 14.0))
 	if visual:
 		visual.rotation += (speed / 34.0) * delta * (1.0 if direction.x >= 0.0 else -1.0)
 	if traveled >= max_distance or _roll_life > 6.0:
@@ -1349,6 +1412,26 @@ func _tick_boulder(delta: float) -> void:
 # full roll flattens (the climbing numbers ARE the weapon -- DESIGN_LAWS 7)
 func boulder_damage() -> int:
 	return maxi(1, int(round(float(damage) * clampf(speed / 720.0, 0.35, 1.6))))
+
+# white smoke, the way a heavy rock actually announces itself (fidelity pass)
+func _rock_smoke(at: Vector2) -> void:
+	var host := get_parent()
+	if host == null:
+		return
+	for i in range(4):
+		var puff := Polygon2D.new()
+		puff.polygon = _circle(randf_range(7.0, 12.0), 8)
+		puff.color = Color(0.92, 0.9, 0.86, 0.6)
+		puff.z_index = 41
+		host.add_child(puff)
+		puff.global_position = at + Vector2(randf_range(-16.0, 16.0), randf_range(-10.0, 8.0))
+		var tw := puff.create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(puff, "scale", Vector2(2.1, 2.1), 0.42)
+		tw.tween_property(puff, "global_position",
+			puff.global_position + Vector2(randf_range(-18.0, 18.0), -22.0), 0.42)
+		tw.tween_property(puff, "modulate:a", 0.0, 0.42)
+		tw.chain().tween_callback(puff.queue_free)
 
 func _build_boulder() -> void:
 	var rock := Polygon2D.new()
@@ -1456,6 +1539,26 @@ func _build_griefbeam() -> void:
 
 # REGICIDE's thrown spear: a slim crown-gold lance, point-first
 func _build_crownspear() -> void:
+	# THE STREAK (fidelity pass): the source drags a ~2.5 player-height flame
+	# behind every javelin, and our own law says the TRAIL is the signature.
+	# A long tapering additive wedge reads as fire at speed without costing a
+	# per-frame trail node.
+	var streak := Polygon2D.new()
+	streak.polygon = PackedVector2Array([
+		Vector2(-24, -5.0), Vector2(-46, -2.6), Vector2(-70, 0),
+		Vector2(-46, 2.6), Vector2(-24, 5.0)])
+	streak.color = Color(1.0, 0.6, 0.2, 0.42)
+	var sm := CanvasItemMaterial.new()
+	sm.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	streak.material = sm
+	visual.add_child(streak)
+	var streak_hot := Polygon2D.new()
+	streak_hot.polygon = PackedVector2Array([
+		Vector2(-22, -2.2), Vector2(-38, -1.1), Vector2(-52, 0),
+		Vector2(-38, 1.1), Vector2(-22, 2.2)])
+	streak_hot.color = Color(1.0, 0.88, 0.5, 0.55)
+	streak_hot.material = sm
+	visual.add_child(streak_hot)
 	var glow := Polygon2D.new()
 	glow.polygon = PackedVector2Array([
 		Vector2(30, 0), Vector2(6, -7), Vector2(-24, -4), Vector2(-24, 4), Vector2(6, 7)])
@@ -1566,10 +1669,10 @@ func _build_slash() -> void:
 	var wpts = PackedVector2Array()
 	for i in range(9):
 		var a = lerp(-0.75, 0.75, i / 8.0)
-		wpts.append(Vector2(cos(a), sin(a)) * 30.0)
+		wpts.append(Vector2(cos(a), sin(a)) * 24.0)
 	for i in range(9):
 		var a = lerp(0.75, -0.75, i / 8.0)
-		wpts.append(Vector2(cos(a) * 30.0 - 46.0, sin(a) * 26.0))
+		wpts.append(Vector2(cos(a) * 24.0 - 34.0, sin(a) * 21.0))
 	wake.polygon = wpts
 	wake.color = Color(tint.r, tint.g, tint.b, 0.28)
 	var wm := CanvasItemMaterial.new()
@@ -1580,10 +1683,10 @@ func _build_slash() -> void:
 	var pts = PackedVector2Array()
 	for i in range(9):
 		var a = lerp(-0.95, 0.95, i / 8.0)
-		pts.append(Vector2(cos(a), sin(a)) * 34.0)
+		pts.append(Vector2(cos(a), sin(a)) * 27.0)
 	for i in range(9):
 		var a = lerp(0.95, -0.95, i / 8.0)
-		pts.append(Vector2(cos(a), sin(a)) * 22.0)
+		pts.append(Vector2(cos(a), sin(a)) * 18.0)
 	arc.polygon = pts
 	arc.color = Color(tint.r, tint.g, tint.b, 0.9)
 	visual.add_child(arc)
@@ -1591,10 +1694,10 @@ func _build_slash() -> void:
 	var epts = PackedVector2Array()
 	for i in range(9):
 		var a = lerp(-0.95, 0.95, i / 8.0)
-		epts.append(Vector2(cos(a), sin(a)) * 34.0)
+		epts.append(Vector2(cos(a), sin(a)) * 27.0)
 	for i in range(9):
 		var a = lerp(0.95, -0.95, i / 8.0)
-		epts.append(Vector2(cos(a), sin(a)) * 30.0)
+		epts.append(Vector2(cos(a), sin(a)) * 24.0)
 	edge.polygon = epts
 	edge.color = Color(minf(1.0, tint.r + 0.25), minf(1.0, tint.g + 0.25), minf(1.0, tint.b + 0.25), 0.95)
 	visual.add_child(edge)
