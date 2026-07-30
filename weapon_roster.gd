@@ -176,7 +176,7 @@ const ROWS = [
 	["wpn_twinnock",     "Twinnock Bow",         "bow",   3, "volley",    10, 0.6,  {"count": 2, "plain": true}],
 	["wpn_emberarc",     "Emberarc Bow",         "bow",   3, "lob_a",     18, 0.95, {"aoe": 85, "plain": true}],
 	["wpn_paleseeker",   "Pale Seeker",          "bow",   3, "seeker",    12, 0.7,  {}],
-	["wpn_saltwand",     "Saltbinder",           "wand",  3, "bolt",      16, 0.55, {"plain": true}],
+	["wpn_saltwand",     "Saltbinder",           "wand",  3, "saltring",  16, 0.55, {"rung": true}],
 	["wpn_marshlight",   "Marshlight Lantern",   "wand",  3, "cluster",   15, 0.8,  {"shards": 4}],
 	["wpn_leadrod",      "Leaden Judgement",     "wand",  3, "lob",       21, 1.05, {"aoe": 95, "plain": true}],
 	["wpn_finchbolt",    "Finchbolt",            "wand",  3, "ricochet",  13, 0.6,  {"bounces": 3, "plain": true}],
@@ -328,7 +328,7 @@ const ROWS = [
 	["wpn_haleseeker",   "Hale Seeker",          "bow",   3, "seeker",    11, 0.68, {}],
 	["wpn_bogmortar",    "Bog Belcher",          "bow",   3, "lob_a",     17, 1.0,  {"aoe": 80, "plain": true}],
 	["wpn_lightstep",    "Lightstep",            "bow",   3, "rapid",     6,  0.19, {"plain": true}],
-	["wpn_hollowbolt",   "Hollowbolt",           "wand",  3, "bolt",      15, 0.5,  {"plain": true}],
+	["wpn_hollowbolt",   "Hollowbolt",           "wand",  3, "hollowring", 15, 0.5, {"rung": true}],
 	["wpn_mirebook",     "The Mire Pages",       "wand",  3, "tome",      8,  1.45, {"radius": 120, "tome_kind": "mire"}],
 	["wpn_shalewand",    "Shalebreaker",         "wand",  3, "cluster",   14, 0.85, {"shards": 5}],
 	["wpn_pyrelight",    "Pyrelight",            "wand",  3, "fire",      18, 0.8,  {"aoe": 95, "status": "burn_w", "plain": true}],
@@ -359,7 +359,7 @@ const ROWS = [
 	["wpn_gloamburst",   "Gloamburst",           "wand",  4, "gloamburst", 19, 0.8,  {"shards": 6}],
 	["wpn_howlbolt",     "Howling Bolt",         "wand",  4, "howlbolt",  16, 0.58, {"bounces": 4}],
 	["wpn_candlepost",   "Candlekeeper",         "wand",  4, "candlekeeper", 9,  1.2,  {"dur": 18}],
-	["wpn_stormsliver",  "Stormsliver",          "wand",  4, "bolt",      21, 0.5,  {"plain": true}],
+	["wpn_stormsliver",  "Stormsliver",          "wand",  4, "forktree",  21, 0.5,  {"rung": true}],
 	["wpn_paleobelisk",  "Pale Obelisk",         "staff", 4, "staff",     16, 0.46, {"plain": true}],
 	["wpn_fordstaff",    "Fordmaster",           "staff", 4, "staff",     14, 0.4,  {"plain": true}],
 	["wpn_inkbook",      "Inkwell of Storms",    "wand",  4, "ink",       12, 0.9,  {}],
@@ -778,6 +778,24 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			s = {"type": "ink_jet", "damage": dmg, "speed": spd, "range": rng}
 		"wake":
 			s = {"type": "wake_scythe", "damage": dmg, "speed": spd, "range": rng}
+		"saltring":
+			# SALTBINDER binds. A ring of grains on the ground; what is inside
+			# cannot leave, and the salt burns it each time it tries. The only
+			# CONTAINMENT verb in either family -- its job is to keep enemies
+			# somewhere rather than to move, hurt or kill them. Salt-as-binding
+			# is folklore-correct, so name, material and effect all agree.
+			s = {"type": "salt_ring", "damage": dmg, "range": 78.0}
+		"hollowring":
+			# HOLLOWBOLT is empty. It passes through bodies AND TERRAIN hurting
+			# nothing, remembers everyone it crossed, and when it reaches its end
+			# it COLLAPSES and they all pay at once. The waiting IS the weapon.
+			s = {"type": "hollow_ring", "damage": dmg, "speed": 300.0, "range": rng}
+		"forktree":
+			# STORMSLIVER splinters the air: one sliver forks, and each fork
+			# forks again -- a lightning tree that arrives effectively instantly.
+			# Against ten travelling projectiles, "it is already there" is a
+			# silhouette all its own.
+			s = {"type": "fork_tree", "damage": dmg, "range": 220.0}
 		"brookflow":
 			# THE BROOKWAND pours. A band of water runs along the FLOOR, over
 			# ledges and down holes, soaking what it crosses. Keeps the cold

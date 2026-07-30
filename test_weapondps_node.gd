@@ -80,6 +80,9 @@ const HITS_PER_USE := {
 	"stubmisfire": 2.5, # RANDOM 2-4 sparks (or 1 fat x3); measured 3-4 up close
 	"brookflow":   1.8, # the band re-soaks every 0.4s at 0.6x while it passes
 	"sporepatch":  3.0, # the stick, then ~8 ticks at 0.25x if they hold ground
+	"saltring":    2.4, # the scatter + edge-burns from anything that keeps pushing
+	"hollowring":  1.3, # even-pierce: one body takes exactly one, on collapse
+	"forktree":    2.2, # 7 segments at 0.45x; deep in the tree eats 3-4
 	# ---- T6 batch 1 ----
 	"hushfall":    1.8, # the swing, then the late nova at 0.8x in a radius
 	"eclipse":     1.7, # the disc out and back, plus one shadow band at 0.85x

@@ -247,6 +247,11 @@ func _ready() -> void:
 			pierce = true          # water does not stop at the first body
 			_build_brook_band()
 		"spore_light": _build_spore_light()
+		"salt_ring": _build_salt_ring()
+		"hollow_ring":
+			pierce = true          # it phases; nothing stops it
+			_build_hollow_ring()
+		"fork_tree": _build_fork_tree()
 		"moss_patch":
 			_zone_max = 5.0
 			_zone_gap = 0.6
@@ -1010,6 +1015,15 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind == "spore_light":
 		_tick_spore(delta)
+		return
+	if kind == "salt_ring":
+		_tick_salt_ring(delta)
+		return
+	if kind == "hollow_ring":
+		_tick_hollow_ring(delta)
+		return
+	if kind == "fork_tree":
+		_tick_fork_tree(delta)
 		return
 	if kind == "moss_patch":
 		_chalk_t += delta
@@ -3522,6 +3536,232 @@ func _tick_chalk_line(delta: float) -> void:
 				FloatingText.spawn(get_parent(),
 					(e as Node2D).global_position + Vector2(0, -24.0), damage, is_crit)
 			_apply_status_to(e)
+
+# --- SALTBINDER: a prison, not a wall -------------------------------------
+# The only containment verb in the roster. It does not keep enemies OUT; it
+# keeps what is already inside from leaving, and burns it each time it tries.
+# The geometry rule that makes or breaks this in a side-scroller: the ring lies
+# on the GROUND, so it must be drawn as an ellipse flattened to ~0.35 vertical.
+# Drawn as a true circle it reads as a bubble and the weapon stops making sense.
+const SALT_LIFE := 3.5
+const SALT_GRAINS := 16
+var _salt_t := 0.0
+var _salt_arc: Line2D = null
+
+func _build_salt_ring() -> void:
+	var r: float = maxf(40.0, max_distance)
+	# a faint thread through the grains, so the boundary is legible as a line
+	_salt_arc = Line2D.new()
+	var pts := PackedVector2Array()
+	for i in range(SALT_GRAINS + 1):
+		var a: float = TAU * float(i) / float(SALT_GRAINS)
+		pts.append(Vector2(cos(a) * r, sin(a) * r * 0.35))
+	_salt_arc.points = pts
+	_salt_arc.width = 1.0
+	_salt_arc.default_color = Color(1.0, 1.0, 0.98, 0.20)
+	_salt_arc.material = _add_mat()
+	visual.add_child(_salt_arc)
+	for i in range(SALT_GRAINS):
+		var a2: float = TAU * float(i) / float(SALT_GRAINS)
+		var grain := Polygon2D.new()
+		grain.polygon = PackedVector2Array([
+			Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)])
+		grain.color = Color(0.98, 0.98, 0.94, 0.95)
+		grain.position = Vector2(cos(a2) * r, sin(a2) * r * 0.35)
+		# the circle ASSEMBLES clockwise from the throw side rather than
+		# appearing whole -- 0.25s of stagger is what makes it feel scattered
+		grain.scale = Vector2.ZERO
+		visual.add_child(grain)
+		var gt: Tween = grain.create_tween()
+		gt.tween_interval(0.25 * float(i) / float(SALT_GRAINS))
+		gt.tween_property(grain, "scale", Vector2.ONE, 0.08)
+
+func _tick_salt_ring(delta: float) -> void:
+	_salt_t += delta
+	if _salt_t >= SALT_LIFE:
+		done = true
+		queue_free()
+		return
+	if visual:
+		visual.modulate.a = clampf((SALT_LIFE - _salt_t) / 0.4, 0.0, 1.0)
+	var r: float = maxf(40.0, max_distance)
+	for gname in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(gname):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			var rel: Vector2 = (e as Node2D).global_position - global_position
+			# elliptical distance, matching how it is drawn
+			var d: float = sqrt(pow(rel.x / r, 2.0) + pow(rel.y / (r * 0.35), 2.0))
+			if d > 1.0 or d < 0.72:
+				continue      # outside, or well inside and free to move
+			# A BOSS IS NEVER BOUND (the forever rule): it walks through and
+			# takes the burn on the way. Only ordinary bodies are shoved back.
+			if not ("boss_id" in e):
+				if e.has_method("apply_knockback"):
+					e.apply_knockback(-1 if rel.x >= 0.0 else 1, 90.0)
+			if _salt_burn.has(e):
+				continue
+			_salt_burn.append(e)
+			var pay: int = maxi(1, int(round(float(damage) * 0.4)))
+			var landed = e.take_damage(pay)
+			if landed == null or landed:
+				FloatingText.spawn(get_parent(),
+					(e as Node2D).global_position + Vector2(0, -24.0), pay, false)
+			_apply_status_to(e)
+	# the burn ledger clears on a slow clock, so a body that KEEPS pushing
+	# keeps paying, but standing against the edge is not a damage treadmill
+	_ink_rehit += delta
+	if _ink_rehit >= 0.5:
+		_ink_rehit = 0.0
+		_salt_burn.clear()
+
+var _salt_burn: Array = []
+
+# --- HOLLOWBOLT: nothing happens for a second, and then everything does -----
+# It phases through bodies and terrain hurting nothing, REMEMBERS who it
+# crossed, and pays them all when it collapses. Its cost is the wait; shooting
+# through a floor at what you cannot see is its joy.
+var _hollow_t := 0.0
+var _hollow_seen: Array = []
+var _hollow_ring: Line2D = null
+
+func _build_hollow_ring() -> void:
+	_hollow_ring = Line2D.new()
+	var pts := PackedVector2Array()
+	for i in range(17):
+		var a: float = TAU * float(i) / 16.0
+		pts.append(Vector2(cos(a), sin(a)) * 14.0)
+	_hollow_ring.points = pts
+	_hollow_ring.width = 3.0
+	# bruised violet-grey, and NO FILL WHATSOEVER -- the thing is hollow, and
+	# the emptiness is the read
+	_hollow_ring.default_color = Color(0.42, 0.38, 0.50, 0.95)
+	visual.add_child(_hollow_ring)
+
+func _tick_hollow_ring(delta: float) -> void:
+	_hollow_t += delta
+	global_position += direction * speed * delta
+	traveled += speed * delta
+	# a STUTTERING afterimage, not a smooth trail -- because it is hollow
+	if fposmod(_hollow_t, 0.12) < delta:
+		var host := get_parent()
+		if host != null and is_instance_valid(host) and _hollow_ring != null:
+			var ghost := Line2D.new()
+			ghost.points = _hollow_ring.points
+			ghost.width = 3.0
+			ghost.default_color = Color(0.42, 0.38, 0.50, 0.30)
+			host.add_child(ghost)
+			ghost.global_position = global_position
+			var gt: Tween = ghost.create_tween()
+			gt.tween_property(ghost, "modulate:a", 0.0, 0.25)
+			gt.tween_callback(ghost.queue_free)
+	# it only RECORDS -- nothing is hurt while it flies
+	for gname in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(gname):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead or _hollow_seen.has(e):
+				continue
+			if global_position.distance_to((e as Node2D).global_position) <= 30.0:
+				_hollow_seen.append(e)
+	if traveled < max_distance and _hollow_t < 1.1:
+		return
+	_collapse_hollow()
+	done = true
+	queue_free()
+
+func _collapse_hollow() -> void:
+	var host := get_parent()
+	if host == null or not is_instance_valid(host):
+		return
+	# they pay IN THE ORDER IT PASSED THEM, 0.04s apart -- a run of damage
+	# numbers down the lane rather than one lump
+	for i in range(_hollow_seen.size()):
+		var e = _hollow_seen[i]
+		if not is_instance_valid(e):
+			continue
+		var eid: int = e.get_instance_id()
+		var t: Tween = host.create_tween()
+		t.tween_interval(0.04 * float(i))
+		t.tween_callback(func():
+			var v = instance_from_id(eid)
+			if v == null or not is_instance_valid(v) or not v.has_method("take_damage"):
+				return
+			var landed = v.take_damage(damage)
+			if landed == null or landed:
+				FloatingText.spawn(host, (v as Node2D).global_position
+					+ Vector2(0, -26.0), damage, is_crit))
+	var flash := Polygon2D.new()
+	flash.polygon = _circle(6.0, 8)
+	flash.color = Color(1, 1, 1, 0.9)
+	flash.material = _add_mat()
+	host.add_child(flash)
+	flash.global_position = global_position
+	var ft: Tween = flash.create_tween()
+	ft.tween_property(flash, "modulate:a", 0.0, 0.06)
+	ft.tween_callback(flash.queue_free)
+
+# --- STORMSLIVER: it is already there --------------------------------------
+# Seven segments grown over 0.28s, which to the eye is instant. Each segment is
+# a SEPARATE damage instance, so a body deep in the tree eats three or four and
+# a body clipped by one tip eats one.
+var _fork_t := 0.0
+var _fork_done := false
+
+func _build_fork_tree() -> void:
+	pass    # the branches draw themselves as they grow, in the tick
+
+func _tick_fork_tree(delta: float) -> void:
+	_fork_t += delta
+	if not _fork_done and _fork_t >= 0.02:
+		_fork_done = true
+		_grow_fork(Vector2.ZERO, direction.angle(), 90.0, 0)
+	if _fork_t >= 0.5:
+		done = true
+		queue_free()
+
+func _grow_fork(from: Vector2, ang: float, length: float, depth: int) -> void:
+	var to: Vector2 = from + Vector2(cos(ang), sin(ang)) * length
+	# a 2-point mid-kink, so nothing in the tree is a straight line
+	var mid: Vector2 = (from + to) * 0.5 \
+		+ Vector2(-sin(ang), cos(ang)) * randf_range(-4.0, 4.0)
+	var under := Line2D.new()
+	under.points = PackedVector2Array([from, mid, to])
+	under.width = 7.0
+	under.default_color = Color(0.66, 0.78, 1.00, 0.40)
+	under.material = _add_mat()
+	visual.add_child(under)
+	var core := Line2D.new()
+	core.points = PackedVector2Array([from, mid, to])
+	core.width = 3.0
+	core.default_color = Color(1, 1, 1, 0.95)
+	core.material = _add_mat()
+	visual.add_child(core)
+	# each segment bills separately -- stepped falloff would be wrong here
+	var pay: int = maxi(1, int(round(float(damage) * 0.45)))
+	for gname in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(gname):
+			if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			var rel: Vector2 = (e as Node2D).global_position - (global_position + from)
+			var seg: Vector2 = to - from
+			var t: float = clampf(rel.dot(seg) / maxf(1.0, seg.length_squared()), 0.0, 1.0)
+			if rel.distance_to(seg * t) > 34.0:
+				continue
+			var landed = e.take_damage(pay)
+			if landed == null or landed:
+				FloatingText.spawn(get_parent(), (e as Node2D).global_position
+					+ Vector2(randf_range(-10.0, 10.0), -20.0), pay, false)
+			_apply_status_to(e)
+	if depth >= 2:
+		return
+	var spread: float = deg_to_rad(16.0 if depth == 0 else 22.0)
+	_grow_fork(to, ang - spread, length * 0.78, depth + 1)
+	_grow_fork(to, ang + spread, length * 0.78, depth + 1)
 
 # --- THE BROOKWAND: water that runs along the floor and falls down holes ----
 # The only terrain-following projectile in the roster. In a Terraria-shaped
