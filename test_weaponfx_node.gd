@@ -173,8 +173,56 @@ func _ready() -> void:
 				dupes.append("%s == %s (%s)" % [str(row[0]), str(sigs[sig]), sig])
 			sigs[sig] = str(row[0])
 	check("every declared fx kind is handled by the engine", unknown.is_empty(), ", ".join(unknown))
-	check("every DISTINCT weapon carries its own fx", bare.is_empty(), ", ".join(bare))
-	check("no two distinct weapons share an fx signature", dupes.is_empty(), "; ".join(dupes))
+
+	# ---- THE STAT CUT (dev, 2026-07-29): "delete stats by 80% for all
+	# weapons ... I prefer unique effect more op, more projectiles or slashes
+	# or dashes, more summons, more creativity."
+	#
+	# So a weapon's soul is its VERB now, not a pair of numeric passives. The
+	# two checks that used to live here demanded the opposite -- every weapon
+	# must CARRY fx, and no two may share a signature -- and they would have
+	# fought this direction forever. 290 riders became 53: none below tier 7,
+	# exactly one on tier 7-8. These checks pin that instead.
+	var low_dressed := []
+	var crown_wrong := []
+	for row2 in WeaponRoster.ROWS:
+		var ex2: Dictionary = row2[7]
+		var t2: int = int(row2[3])
+		var n_fx := 0
+		if ex2.has("fx"):
+			n_fx = (ex2["fx"] as Array).size() if ex2["fx"] is Array else 1
+		if t2 <= 6 and n_fx > 0:
+			low_dressed.append("%s (T%d, %d riders)" % [str(row2[0]), t2, n_fx])
+		if t2 >= 7 and not bool(ex2.get("plain", false)) and n_fx != 1:
+			crown_wrong.append("%s (T%d, %d riders)" % [str(row2[0]), t2, n_fx])
+	check("no weapon below tier 7 carries a stat rider (the 80% cut holds)",
+		low_dressed.is_empty(), ", ".join(low_dressed))
+	check("every tier 7-8 weapon carries exactly ONE rider",
+		crown_wrong.is_empty(), ", ".join(crown_wrong))
+
+	# ---- MONARCH IS SINGULAR. Riders may now repeat across weapons, so the
+	# uniqueness burden moves to where it belongs: the verb. Tier 8 is the
+	# tier the player opens the crown chest to see, and the dev found half of
+	# it swinging a verb shared with 25 other weapons. Never again.
+	var t8_verbs := {}
+	var t8_shared := []
+	var verb_users := {}
+	for row3 in WeaponRoster.ROWS:
+		var vb := str(row3[4])
+		verb_users[vb] = int(verb_users.get(vb, 0)) + 1
+	for row4 in WeaponRoster.ROWS:
+		if int(row4[3]) != 8:
+			continue
+		var vb4 := str(row4[4])
+		t8_verbs[vb4] = true
+		if int(verb_users.get(vb4, 0)) > 1:
+			t8_shared.append("%s -> %s (used by %d)" % [str(row4[0]), vb4, int(verb_users[vb4])])
+	check("every monarch weapon has a verb of its very own",
+		t8_shared.is_empty(), "; ".join(t8_shared))
+	# `bare` and `dupes` are gathered above but no longer failing conditions:
+	# bareness IS the new normal below tier 7, and riders are allowed to repeat.
+	printerr("  (stat cut: %d weapons bare by design, %d shared rider signatures)"
+		% [bare.size(), dupes.size()])
 	check("the plain ladder is exactly %d rungs, none dressed, none crowned" % PLAIN_QUOTA,
 		plain_n == PLAIN_QUOTA and overdressed.is_empty(),
 		"plain=%d; %s" % [plain_n, ", ".join(overdressed)])
