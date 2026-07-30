@@ -6,7 +6,11 @@ extends Node2D
 
 var damage := 8
 var radius := 130.0
-var duration := 4.5
+# 4.5s was barely longer than the cast cooldown, so a zone wand spent most of
+# its life with no zone on the field -- which is why the Coven's Ledger, the
+# Deluge and the Siren's Appendix all sat under their own tier. A standing
+# storm should outlive the casting of it. (2026-07-30)
+var duration := 6.2
 var strike_gap := 0.4        # seconds between bolts
 var tint := Color(0.55, 0.75, 1.0)
 var source: Node2D = null    # the caster (for on-kill credits later)

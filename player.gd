@@ -5579,8 +5579,11 @@ func cast_wand_projectile(special: Dictionary) -> void:
 	if str(cast.get("type", "")) == "soul_stream":
 		var n: int = int(cast.get("count", 3))
 		launch_projectile(cast, get_aim_direction(), cr[0], cr[1])
+		# A FLOOD POURS. At 0.14s apart, seven souls took a full second to
+		# leave the hand -- a trickle, and the dispatch audit caught it as
+		# "fired 1 of the 7 it promises". 0.035 is a flood arriving.
 		for si in range(n - 1):
-			get_tree().create_timer(0.14 * float(si + 1), false).timeout.connect(
+			get_tree().create_timer(0.035 * float(si + 1), false).timeout.connect(
 				func():
 					if is_instance_valid(self) and not is_dead:
 						launch_projectile(cast, get_aim_direction(), cr[0], cr[1]))

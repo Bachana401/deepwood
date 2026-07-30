@@ -834,6 +834,17 @@ func _physics_process(delta: float) -> void:
 	if kind == "rising_wheel":
 		_tick_rising_wheel(delta)
 		return
+	# THE PIERCE FAMILY RAKES (2026-07-30). All three of these are described as
+	# piercing, and all three could touch a given body exactly once -- so a
+	# "piercing stream" was worth one hit, and the Inkwell (19 dps Epic),
+	# Summer's Coffin and the Heaven-Piercing Point all sat under their tier
+	# while their cards promised a weapon that cuts through a row. They re-cut
+	# what they are still travelling through.
+	if kind == "ink_jet" or kind == "frost_shard" or kind == "piercing_point":
+		_ink_rehit += delta
+		if _ink_rehit >= 0.22:
+			_ink_rehit = 0.0
+			hit_bodies.clear()
 	if kind == "scree":
 		# THE MOUNTAIN THAT KNEELS, second half: the shards the boulder leaves
 		# when it breaks. Heavy little rocks -- they arc hard and die on the
@@ -864,7 +875,20 @@ func _physics_process(delta: float) -> void:
 		speed = minf(1100.0, speed * (1.0 + 2.4 * delta))
 		global_position += direction * speed * delta
 		traveled += speed * delta
+		# AND THEN IT COMES BACK (2026-07-30). A scythe that spends the whole
+		# flight WAKING and then simply vanishes at the far edge wasted every
+		# bit of the speed it earned -- 28 dps at Mythic. It turns at the edge
+		# and cuts the row again on the way home, at full waking speed, and
+		# everything it already passed is fair game a second time.
 		if traveled >= max_distance * 1.4:
+			if not _wake_returned:
+				_wake_returned = true
+				direction = -direction
+				traveled = 0.0
+				hit_bodies.clear()
+				if visual:
+					visual.scale.x *= -1.0
+				return
 			done = true
 			queue_free()
 		return
@@ -1311,19 +1335,32 @@ func _on_body_entered(body: Node2D) -> void:
 			done = true
 			queue_free()
 			return
-		"nova_seed":
+		"nova_seed", "storm_debt":
 			# NOVABURST ROD: one bolt, three bursts -- the seed plants two more
-			# beats after itself so a room keeps going off behind you
+			# beats after itself so a room keeps going off behind you.
+			#
+			# STORMCALLER'S DEBT was listed in this audit as "the bolt plus two
+			# delayed beats" and was never actually wired to this branch at all
+			# -- it borrowed nova_seed's VISUAL from the build table and then
+			# fell through to the ordinary bolt path, so the debt was never
+			# called in. 17 dps at Epic, under the Rare median. It is a debt:
+			# it comes due in FOUR beats, and each one is heavier than the last.
 			var landed_v = body.take_damage(damage)
 			if landed_v == null or landed_v:
 				FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
 			_apply_status_to(body)
 			var host_v := get_parent()
+			var beats: int = 4 if kind == "storm_debt" else 2
 			if host_v != null:
-				for beat in range(2):
+				for beat in range(beats):
 					var lt = (load("res://weapon_projectile.gd") as GDScript).new()
 					lt.kind = "late_thunder"
-					lt.damage = maxi(1, int(round(float(damage) * 0.6)))
+					# a debt ACCRUES: 0.6, 0.78, 0.96, 1.14. The novaburst's two
+					# beats stay flat at 0.6 -- that verb is an echo, not a bill.
+					var owed: float = 0.6
+					if kind == "storm_debt":
+						owed = 0.6 + 0.18 * float(beat)
+					lt.damage = maxi(1, int(round(float(damage) * owed)))
 					lt.element = element
 					lt.on_hit_status = on_hit_status
 					lt.source = source
@@ -1469,6 +1506,25 @@ func _on_body_entered(body: Node2D) -> void:
 					and body.has_method("apply_knockback"):
 				var toward: int = 1 if source.global_position.x > body.global_position.x else -1
 				body.apply_knockback(toward, 165.0)
+				# AND THE LINE SNAPS TAUT. Heavenstring was one shaft, one pull,
+				# 58 dps at Ascended -- "the value is the reposition" is a fine
+				# line to write and a poor weapon to hold. Everything standing
+				# where the hauled body ARRIVES is caught by the same string.
+				var snap: int = maxi(1, int(round(float(damage) * 0.6)))
+				for gname4 in HOSTILE_GROUPS:
+					for e4 in get_tree().get_nodes_in_group(gname4):
+						if not (e4 is Node2D) or not is_instance_valid(e4) \
+								or not e4.has_method("take_damage") or e4 == body:
+							continue
+						if "is_dead" in e4 and e4.is_dead:
+							continue
+						if source.global_position.distance_to(
+								(e4 as Node2D).global_position) > 150.0:
+							continue
+						var ls = e4.take_damage(snap)
+						if ls == null or ls:
+							FloatingText.spawn(get_parent(),
+								(e4 as Node2D).global_position + Vector2(0, -26.0), snap, false)
 			# THE QUIET RECKONING: the arrow stays in, and the bill comes due
 			# a second and a half later. Small now, large then.
 			if kind == "debt_arrow":
@@ -2044,8 +2100,11 @@ func _zen_sparkle(at: Vector2) -> void:
 # whole second weapon hiding inside the first, and it costs the player their
 # flail to use it -- a real trade, not a free bonus.
 const BRAZ_WHIRL := 0.55
-const BRAZ_SIT := 3.2        # seconds the throne burns before it is taken up
-const BRAZ_SPIT := 0.45      # seconds between embers
+# A THRONE BURNS. 3.2s of sitting, spitting one ember every 0.45s, made the
+# Monarch flail a 69 dps weapon -- under the Ascended median. The throne holds
+# the ground longer and throws far more off itself. (2026-07-30)
+const BRAZ_SIT := 4.6        # seconds the throne burns before it is taken up
+const BRAZ_SPIT := 0.26      # seconds between embers
 var _braz_spit_t := 0.0
 
 const CHAIN_BAND := 26.0
@@ -3143,6 +3202,9 @@ func _tick_boulder(delta: float) -> void:
 		_shatter_scree()
 		done = true
 		queue_free()
+
+var _wake_returned := false
+var _ink_rehit := 0.0
 
 const SCREE_SHARDS := 6
 
@@ -4497,16 +4559,20 @@ var _toll_t := 0.0
 var _toll_n := 0
 const TOLL_GAP := 0.3
 
+const TOLL_COUNT := 4
+
 func _tick_toll(delta: float) -> void:
 	_toll_t += delta
-	if _toll_n < 3 and _toll_t >= float(_toll_n) * TOLL_GAP:
-		# each toll is quieter and tighter than the last: a bell dying, not
-		# three copies of the same blow
-		var fall: float = 1.0 - 0.28 * float(_toll_n)
-		_toll_ring(fall)
+	if _toll_n < TOLL_COUNT and _toll_t >= float(_toll_n) * TOLL_GAP:
+		# THE BELL GROWS (2026-07-30). It used to die away -- three tolls at
+		# 1.0 / 0.72 / 0.44, which is a lovely idea and made the World-Anvil a
+		# 51 dps Mythic. A world-anvil struck should ring HARDER as the note
+		# finds the room: four tolls, each wider and heavier than the last.
+		var rise: float = 1.0 + 0.15 * float(_toll_n)
+		_toll_ring(rise)
 		_toll_n += 1
 		return
-	if _toll_t >= 3.0 * TOLL_GAP + 0.3:
+	if _toll_t >= float(TOLL_COUNT) * TOLL_GAP + 0.3:
 		done = true
 		queue_free()
 

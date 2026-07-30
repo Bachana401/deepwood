@@ -32,7 +32,7 @@ const HITS_PER_USE := {
 	"edict":    3.4,   # the arm is out ~0.6s, re-cutting every 0.17s (EDICT_REHIT)
 	"prism":    6.0,   # six beams; at full focus all six are on one body
 	"regicide": 2.4,   # the throw, plus a 5-stack ticking 22% every 0.5s
-	"brazier":  2.2,   # whirl/hurl contacts plus ~7 embers at 45% over the sit
+	"brazier":  3.0,   # whirl/hurl contacts plus ~17 embers over a 4.6s sit
 	"sorrow":   1.4,   # one narrow lance per beat, piercing (the RATE is in
 	                   # the cooldown, not here -- do not double-count it)
 	"sunder":   2.8,   # THREE passes now: out, back harder, back again (GRIEF_PASSES)
@@ -70,9 +70,10 @@ const HITS_PER_USE := {
 	"shardregent":2.2, # five shards, but they pick their own marks and spread
 	"bentheaven": 1.5, # one arcing ray, piercing what it comes down on
 	# T7 batch 6 -- the tier's last four
-	"heavenstring":1.2, # one shaft, one pull; the value is the reposition
+	"heavenstring":1.7, # the shaft, the pull, and the line SNAPPING taut (0.6x)
 	"choirstring": 3.2, # 3 notes, each humming ~4x over 2.4s
-	"heavenpoint": 1.0, # even-pierce: same wound to each, one pass
+	"heavenpoint": 1.6, # it RE-cuts what it is still travelling through (0.22s)
+	"frost":       1.5, # the shard pierces AND re-cuts (same 0.22s rake)
 	# ---- T6 batch 1 ----
 	"hushfall":    1.8, # the swing, then the late nova at 0.8x in a radius
 	"eclipse":     1.7, # the disc out and back, plus one shadow band at 0.85x
@@ -82,14 +83,14 @@ const HITS_PER_USE := {
 	"watchfire":   4.0, # WATCH_RECOVER 1.1 -> 0.78: it flares oftener
 	# ---- T6 batch 2 ----
 	"horizonpike": 2.6, # three staged lengths, 1.0 / 0.84 / 0.68 down one line
-	"deluge":      2.0, # re-hits every 0.2s across a 1.5s run, but pays in shove
+	"deluge":      3.9, # re-hits across a 6.2s run now, and still pays in shove
 	"lodestar":    2.3, # the strike, then the gathered crowd eats one 0.8x nova
 	"secondmoon":  1.5, # ONE moon only, so a recast renews rather than stacks:
 	                    # the sky adds ~half the swing's dps, it does not multiply
 	"shatterhymn": 1.8, # the note, then the GLASS cuts everything near it
 	"longtongue":  1.6, # pierces the row and grows, so ~2 bodies a swing
 	# ---- T6 batch 3 ----
-	"anviltoll":   1.3, # three tolls at 0.55x, each fainter: 0.55+0.40+0.28  [T6]
+	"anviltoll":   2.7, # FOUR tolls at 0.55x, each heavier: 1.0/1.15/1.30/1.45
 	"horizonrend": 1.7, # two halves on one cast, but they overlap on the row
 	"silentchoir": 1.3, # 5 near-silent shafts at 0.2x, then one 1.15x*5 chord
 	"sunpiece":    3.4, # ~12 sweeps at 0.5x over 3.6s, then a 0.8x nova
@@ -151,13 +152,13 @@ const HITS_PER_USE := {
 	# ---- T4 batch 3: the last ten ----
 	"nightbolt":   1.2, # one bolt at 1.2x -- the value is being unreadable
 	"wispwarden":  3.4, # ~7 wisps sent over the post's life
-	"candlekeeper": 3.4, # same sender, three candles' worth
-	"covenledger": 3.6, # ~8 ticks over 4s on anything inside the ring
+	"candlekeeper": 4.6, # the keeper burns longer now (zone duration 6.2)
+	"covenledger": 5.0, # ~14 ticks over 6.2s inside the ring (duration+gap)
 	"gloamburst":  2.4, # the hit plus six 0.4x motes that seek
 	"howlbolt":    2.6, # 4 bounces, each with a 0.45x howl ring
 	"deepdebt":    2.8, # 4 bookings, each ticking and coming due
 	"huntword":    2.0, # two stoops, and they pick DIFFERENT bodies
-	"stormdebt":   2.2, # the bolt plus two delayed beats
+	"stormdebt":   3.8, # the bolt plus FOUR delayed beats, each heavier
 	# ---- T5 batch 4: the last eleven ----
 	"omenseek":    2.6, # a slow read, then every marked body eats a 1.3x nova
 	"ironomen":    2.2, # 4 bounces, each planting a spike that ticks its zone
@@ -166,7 +167,7 @@ const HITS_PER_USE := {
 	"kestrelcourt": 2.8, # 4 kestrels, staggered stoops, each picking a body
 	"thunderhead": 2.5, # 4 bolts from a parked cloud at 0.62x
 	"midnightpost": 1.4, # the haul is control; the eight-way burst is one hit
-	"sirensong":   3.2, # ~3 bites while singing plus the shut, and it GATHERS
+	"sirensong":   4.6, # ~6 bites while singing plus the shut, and it GATHERS
 	"starsplinter": 2.4, # 8 splinters out and back; a body catches ~3 passes
 	"emberhymn":   2.8, # ~5 ticks in the column, taller the longer you sing
 	"saintsreward": 2.6, # ~12 halo bites over 4s, and it pays HP back
@@ -195,10 +196,10 @@ const HITS_PER_USE := {
 	"sentry":     4.1,   # fire_gap 0.85 -> 0.62
 	# a homing shaft SPLITS on impact into two lesser seekers (arrow.split_gen)
 	"seeker":     1.6,
-	"souls":      3.0,
+	"souls":      3.9,   # SEVEN homing souls at 0.55x (the verb it never had)
 	"zenith":     4.0, # THE STORM: 9 blades, ~5 bites over its 1.05s life,
-	"ink":        1.4,
-	"wake":       1.4,
+	"ink":        2.4,   # a piercing stream that rakes the row as it falls
+	"wake":       2.8,   # the scythe wakes, cuts, and RETURNS through the row
 }
 
 func hits_for(behavior: String) -> float:
@@ -348,12 +349,26 @@ func _ready() -> void:
 	# tier sags, its median sags with it and everything still "passes". The
 	# floor has to be anchored to the tier BELOW. Rarity is a promise that the
 	# next rung is better; this is that promise, written down.
+	# THE ONE EXEMPTION, AND ITS RULE. A weapon may sit under the ladder only if
+	# its payoff is explicitly NOT damage and something else in the repo pays
+	# it. King's Ransom brands a foe and pays GOLD when they die still wearing
+	# it (embedded_stack.gd, ransom_gold) -- buffing it to clear a dps floor
+	# would delete the only weapon in the game that trades damage for money.
+	# The bar for joining this list is a real, readable, non-damage payoff.
+	var PAYS_ELSEWHERE := {
+		"kingsransom": "pays in GOLD on death, not damage (embedded_stack ransom_gold)",
+	}
+	for b3 in PAYS_ELSEWHERE:
+		var stack_src := FileAccess.get_file_as_string("res://embedded_stack.gd")
+		check("the '%s' exemption is still paid for somewhere" % b3,
+			stack_src.contains("ransom"), "nothing pays it -- the exemption is now a hole")
+
 	var LADDER_FLOOR := 0.85     # you may be a weak Monarch, never a good Ascended
 	var regressions := []
 	for id3 in rows:
 		var r3: Dictionary = rows[id3]
 		var t3: int = int(r3["tier"])
-		if t3 <= 1:
+		if t3 <= 1 or PAYS_ELSEWHERE.has(str(r3["behavior"])):
 			continue
 		var below: float = float(medians.get("%s%d" % [r3["fam"], t3 - 1], 0.0))
 		if below <= 0.0:

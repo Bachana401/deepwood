@@ -1150,6 +1150,16 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 				"count": 12, "speed": spd - 140.0, "range": rng}
 		"skycharges":
 			s = {"type": "sky_charge", "damage": maxi(1, int(round(float(dmg) * 0.85)))}
+		"souls":
+			# FLOOD OF SOULS had NO branch here at all -- it fell through with an
+			# empty special, so a Monarch wand cast an ordinary bolt and nothing
+			# else, and the audit skipped it because a weapon with no special is
+			# not something the dispatch audit can check. Second weapon this
+			# batch found dead the same way (see storm_debt). Seven souls now,
+			# each bending toward whatever is nearest.
+			s = {"type": "soul_stream", "count": 7,
+				"damage": maxi(1, int(round(float(dmg) * 0.55))),
+				"speed": spd, "range": rng}
 		"worldcut":
 			s = {"type": "world_cut", "damage": dmg}
 		"deepcourt":

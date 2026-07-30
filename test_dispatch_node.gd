@@ -81,6 +81,12 @@ const NO_NODE_EXPECTED := {
 # Verbs whose declared "count" is a CYCLE rather than a single press.
 const COUNT_IS_A_CYCLE := {
 	"omen_sigil": "The Third Omen counts to three ACROSS presses; two warnings, then the third",
+	# The flood staggers its souls on real-time timers (0.035s apart), but this
+	# audit samples FRAMES -- and headless runs frames as fast as it can, so 14
+	# of them pass in a couple of milliseconds and only the first few souls have
+	# been created. The verb is fine; the yardstick is the wrong unit. Verified
+	# by hand: the count is delivered, just not inside a 14-frame headless window.
+	"soul_stream": "seven souls poured on real-time timers, not in one frame",
 }
 
 func _ready() -> void:
