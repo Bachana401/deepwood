@@ -76,8 +76,8 @@ const HITS_PER_USE := {
 	"frost":       1.5, # the shard pierces AND re-cuts (same 0.22s rake)
 	# --- the eleven wands freed from the shared ice dart (2026-07-30) ---
 	"chalkline":   1.2, # a static stroke; a body crosses it about once
-	"tallowdrip":  2.2, # the splat, then ~4 burn ticks at 0.3x from the puddle
-	"stubmisfire": 1.4, # 2-4 sparks at 0.5x that SPREAD; one or two land
+	"tallowdrip":  2.4, # the splat + ~2 ticks; a T1 puddle is SHORT by design
+	"stubmisfire": 2.5, # RANDOM 2-4 sparks (or 1 fat x3); measured 3-4 up close
 	"brookflow":   1.8, # the band re-soaks every 0.4s at 0.6x while it passes
 	"sporepatch":  3.0, # the stick, then ~8 ticks at 0.25x if they hold ground
 	# ---- T6 batch 1 ----

@@ -52,7 +52,12 @@ const PROBE_IDS := ["wpn_lastword", "wpn_griefcrown", "wpn_unbentcolumn",
 	# the two wands that shipped dealing literally zero -- kept here permanently
 	# as the regression guard, since "it has a case label now" is not the same
 	# claim as "it damages a body"
-	"wpn_inkbook", "wpn_wakebook", "wpn_chalkwand"]
+	"wpn_inkbook", "wpn_wakebook",
+	# every wand reworked off the shared icicle stays here permanently. A new
+	# verb that compiles, dispatches and declares a hit count can still land
+	# nothing -- that was true of three weapons before this probe existed.
+	"wpn_chalkwand", "wpn_tallowwand", "wpn_stubwand",
+	"wpn_brookwand", "wpn_mosswand"]
 const PROBE_RANGES := [90.0, 170.0, 280.0]
 
 func _ready() -> void:
@@ -106,13 +111,26 @@ func _ready() -> void:
 			var dummy := Counter.new()
 			dummy.add_to_group("course_enemy")
 			stage.add_child(dummy)
-			dummy.global_position = (p as Node2D).global_position + aim.normalized() * dist
+			# TWO dummies' worth of coverage from one: place it along the aim,
+			# but at the player's OWN height. A purely aim-following placement
+			# puts the target in mid-air, which is invisible to a floor-hugging
+			# weapon -- the Brookwand runs along the ground by design and read as
+			# stone dead against a target hovering above it. Keeping the target
+			# at ground level while offset along the aim's horizontal serves the
+			# thrown, the fired and the poured alike.
+			var off: Vector2 = aim.normalized() * dist
+			off.y = clampf(off.y, -40.0, 40.0)
+			dummy.global_position = (p as Node2D).global_position + off
 			await get_tree().process_frame
 			await get_tree().process_frame
 			p.attack_cooldown_remaining = 0.0
 			p.perform_attack()
-			# let the whole verb play out -- a storm lives over a second
-			await get_tree().create_timer(1.8, true).timeout
+			# Let the whole verb play out. 1.8s was too short for the slow ones:
+			# the Mosslight spore DRIFTS for up to 2.4s before it even plants,
+			# so its patch had barely appeared when the window closed and a
+			# 5-second zone measured as a single tap. A zone weapon has to be
+			# watched for as long as it lives or the number is about the clock.
+			await get_tree().create_timer(4.0, true).timeout
 			per_range.append("%dpx:%d" % [int(dist), dummy.hits])
 			if dummy.hits > best:
 				best = dummy.hits

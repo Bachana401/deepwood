@@ -253,8 +253,14 @@ func _ready() -> void:
 			_zone_r = 44.0
 			_build_moss_patch()
 		"tallow_pool":
-			_zone_max = 3.2
-			_zone_gap = 0.7
+			# A TIER-1 PUDDLE IS A SHORT ONE. Measured at 3.2s/0.7s it landed 6-7
+			# ticks for 68 dps against a T1 median of 18 -- a 3.8x runaway on a
+			# common wand. The spec makes burn DURATION this family's tier
+			# ladder, so the humble rung gets the brief puddle and a later
+			# tallow-kin weapon earns the long one. The verb is unchanged; only
+			# how long it lasts.
+			_zone_max = 1.7
+			_zone_gap = 0.8
 			_zone_r = 46.0
 			_build_tallow_pool()
 		"sky_measure": _build_sky_measure()
@@ -1521,6 +1527,20 @@ func _on_body_entered(body: Node2D) -> void:
 			done = true
 			queue_free()
 			return
+		"spore_light":
+			# it STICKS to the first thing it touches. I built only the "plants
+			# at the end of its drift" half, so the spore sailed PAST its target
+			# and grew its patch harmlessly behind them -- measured 1 hit where
+			# the spec promised eight ticks of denial. The probe caught a gap
+			# that compiled, dispatched and declared itself perfectly fine.
+			var landed_sp = body.take_damage(damage)
+			if landed_sp == null or landed_sp:
+				FloatingText.spawn(get_parent(), body.global_position, damage, is_crit)
+			_apply_status_to(body)
+			_plant_moss()
+			done = true
+			queue_free()
+			return
 		"nova_seed", "storm_debt":
 			# NOVABURST ROD: one bolt, three bursts -- the seed plants two more
 			# beats after itself so a room keeps going off behind you.
@@ -1874,7 +1894,13 @@ func explode() -> void:
 	# which is why the lob family sagged under its own tier at T3, T4 AND T7 at
 	# once. A burst throws PIECES: five fragments on hard arcs that keep hurting
 	# after the flash, so a bomb clears a space instead of poking a hole in one.
-	_shrapnel()
+	# A SHELL FRAGMENTS. A GOB OF WAX DOES NOT. Shrapnel was added to explode()
+	# for the whole lob family, which quietly gave the Tallow Wand flying wax
+	# splinters -- illogical on its face, and the reason a Tier-1 common
+	# measured six hits and 68 dps against a tier median of 18. The verb decides
+	# whether there is anything to fragment.
+	if rider != "tallow":
+		_shrapnel()
 	for group_name in HOSTILE_GROUPS:
 		for e in get_tree().get_nodes_in_group(group_name):
 			if not is_instance_valid(e) or not e.has_method("take_damage"):
