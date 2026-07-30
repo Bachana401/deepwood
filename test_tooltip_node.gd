@@ -24,11 +24,62 @@ func _ready() -> void:
 		asrc.contains("Inventory.sell_value(item_id)") and not asrc.contains("STALL_PRICES"))
 
 	# ---- a mythic weapon card reads like Terraria ----
+	# THE TOP RARITY'S NAME MUST CYCLE (dev reference clip, 2026-07-30).
+	# Terraria colours the whole name one hue at a time and walks it round the
+	# wheel; BBCode's [rainbow] stripes the spectrum across the letters instead,
+	# which is a different effect. The custom [monarch] tag does the former --
+	# but a tag nothing has INSTALLED renders as literal text, so the card would
+	# read "[monarch]The Rumor[/monarch]". Both halves are checked.
+	var mon_id := ""
+	for wid_m in WeaponRoster.all_ids():
+		if Inventory.get_grade(wid_m) == Inventory.MONARCH_GRADE:
+			mon_id = str(wid_m)
+			break
+	check("a monarch weapon exists to test", mon_id != "")
+	var mcard := Inventory.build_tooltip_bbcode(mon_id)
+	check("a monarch name uses the cycling [monarch] tag", mcard.contains("[monarch]"))
+	check("...and NOT the striped built-in [rainbow]", not mcard.contains("[rainbow]"))
+	var tt_src := FileAccess.get_file_as_string("res://item_tooltip.gd")
+	check("the tooltip INSTALLS the effect, or the tag prints as literal text",
+		tt_src.contains("install_effect"))
+	var fx_src := FileAccess.get_file_as_string("res://monarch_name_fx.gd")
+	check("the effect answers to the same tag name the card emits",
+		fx_src.contains('bbcode := "monarch"'))
+	# the whole word must share one hue: a term derived from the character's
+	# position would stripe it, which is the thing we are deliberately not doing
+	# strip comments before scanning: the effect's own comment EXPLAINS that a
+	# char_fx.range term would stripe the word, and a naive scan matched that
+	# prose and failed the file for describing the mistake it avoids
+	var fx_code := ""
+	for fx_line in fx_src.split("\n"):
+		var trimmed := str(fx_line).strip_edges()
+		if trimmed.begins_with("#"):
+			continue
+		fx_code += str(fx_line).split("#")[0] + "\n"
+	check("the cycle is driven by TIME alone, so the word stays one colour",
+		fx_code.contains("elapsed_time") and not fx_code.contains("char_fx.range"))
+	# a lower rarity must NOT cycle -- the whole point is that it marks the top
+	check("a legendary name does not cycle",
+		not Inventory.build_tooltip_bbcode("exc_dawnbreaker").contains("[monarch]"))
+
 	var w := Inventory.build_tooltip_bbcode("exc_ragnarok")
 	check("weapon card names the item big", w.contains("[font_size=16]") and w.contains(Inventory.get_display_name("exc_ragnarok")))
 	check("weapon card shows a damage line", w.to_lower().contains("damage"))
 	check("weapon card shows a speed word", w.to_lower().contains("speed"))
-	check("weapon card paints while-wielded bonuses GREEN", w.contains("#74d074") and w.contains("while wielded"))
+	# WAS: "weapon card paints while-wielded bonuses GREEN". That assertion
+	# outlived the thing it described. GRADE_PASSIVES was emptied on 2026-07-30
+	# (dev: "unnecessary stats -- delete all of it"), so no weapon grants a
+	# while-wielded bundle any more and no card can print one. The check is
+	# INVERTED rather than deleted: the green block coming back would mean the
+	# stat bundle had crept back onto weapons, which is exactly what the dev
+	# asked to be rid of.
+	check("weapon card no longer prints a while-wielded stat block",
+		not w.to_lower().contains("while wielded"))
+	# ARMOUR still pays in stats -- that is the line we drew, and if this goes
+	# quiet the budget has left the game rather than moved
+	var arm := Inventory.build_tooltip_bbcode("armor_bulwark")
+	check("armour cards still show their bonuses in green",
+		arm.contains("#74d074"), "armour stopped paying")
 	check("weapon card prints the coin-gold sell value", w.contains("#e8c24a") and w.contains("Sells for 600g"))
 	check("weapon card dims the usage hint", w.contains("#71717c") and w.contains("hotbar"))
 

@@ -9,6 +9,7 @@ extends CanvasLayer
 # item name in its rarity colour, base stats in white, every "+" bonus in
 # green, specials in gold, and the sell value in coin-gold -- all rendered as
 # BBCode by Inventory.build_tooltip_bbcode.
+const MONARCH_FX = preload("res://monarch_name_fx.gd")
 
 const PAD = 9.0
 const WIDTH = 250.0
@@ -43,6 +44,11 @@ func _ready() -> void:
 	rich.add_theme_constant_override("shadow_offset_x", 1)
 	rich.add_theme_constant_override("shadow_offset_y", 1)
 	rich.add_theme_constant_override("line_separation", 3)
+	# the [monarch] tag: the top rarity's name walks the colour wheel as one
+	# word, the way the dev's reference clip does. A custom effect has to be
+	# registered on the label itself -- there is no theme-level equivalent --
+	# and this is the only RichTextLabel that renders an item card.
+	rich.install_effect(MONARCH_FX.new())
 	panel.add_child(rich)
 
 	panel.visible = false

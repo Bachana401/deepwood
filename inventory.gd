@@ -1450,7 +1450,10 @@ static func build_tooltip_bbcode(item_id: String) -> String:
 	# [rainbow] is a native BBCode animation -- it cycles on its own, no
 	# per-frame code and nothing to keep in sync.
 	if get_grade(item_id) == MONARCH_GRADE:
-		lines.append("[font_size=16][rainbow freq=0.45 sat=0.55 val=1.0]%s[/rainbow][/font_size]"
+		# [monarch], not [rainbow]: the built-in tag stripes the spectrum ACROSS
+		# the letters, which is a different effect from the reference clip.
+		# See monarch_name_fx.gd for why that one term matters.
+		lines.append("[font_size=16][monarch]%s[/monarch][/font_size]"
 			% get_display_name(item_id))
 	else:
 		lines.append("[font_size=16][color=#%s]%s[/color][/font_size]" % [_hex(name_col.lightened(0.12)), get_display_name(item_id)])
