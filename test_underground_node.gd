@@ -32,7 +32,7 @@ func check(label: String, ok: bool) -> void:
 # another session) stopped it booting, the run reported "ALL PASS (27 passed)"
 # and exited 0 -- a green light over a third of a suite. Never again: the count
 # itself is now an assertion.
-const EXPECTED_CHECKS := 83
+const EXPECTED_CHECKS := 87
 
 func _ready() -> void:
 	_test_generator()
@@ -696,6 +696,28 @@ func _test_in_engine() -> void:
 		GameState.chest_contents.has(keg_id) and not is_instance_valid(keg))
 	await get_tree().create_timer(UG.KEG_FUSE + 0.5, false).timeout
 	check("a keg in range is set off by the blast", not is_instance_valid(keg2))
+
+	# ── AUTO-TILING: sixteen neighbour masks, picked from the live map ──
+	var src: TileSetAtlasSource = ug._map.tile_set.get_source(0)
+	check("the block atlas carries all 16 neighbour masks",
+		src.has_tile(Vector2i(0, 15)) and src.has_tile(Vector2i(UG.OBSIDIAN, 15)))
+	check("_mask_for encodes the four sides (roof-over-shaft = 15)",
+		ug._mask_for(UG.AIR, UG.WATER, UG.LAVA, UG.AIR) == 15
+		and ug._mask_for(1, 1, 1, 1) == 0 and ug._mask_for(UG.AIR, 1, 1, 1) == UG.TILE_EXPOSED)
+	# dig a pocket and the block under it must wear the open-above mask
+	var tcell: Vector2i = ug._door_stand(ug._doors[11])
+	var probe := tcell + Vector2i(0, 3)          # inside the road's apron: solid all round
+	if ug._cell_kind(probe) != UG.AIR and ug._cell_kind(probe + Vector2i(0, 1)) != UG.AIR:
+		ug._edits[probe] = UG.AIR
+		ug._map.erase_cell(probe)
+		for d in [Vector2i(0, 1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(1, 0)]:
+			ug._reface(probe + d)
+		check("digging re-faces the newly exposed block (mask & open-above)",
+			int(ug._map.get_cell_atlas_coords(probe + Vector2i(0, 1)).y) & 1 == 1)
+
+	# ── THE YELLOW BOX ──
+	check("the cursor box exists with its four edges",
+		ug._cursor_box != null and ug._cursor_box.get_child_count() == 4)
 
 	# ── a mob sealed in rock is freed, not left frozen ──
 	var e = preload("res://enemy.tscn").instantiate()

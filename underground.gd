@@ -884,14 +884,22 @@ func _drain_stream_queue() -> void:
 			_load_chunk(c)
 			return   # one chunk a frame is plenty -- these are offscreen
 
-# which face a block wears, from what surrounds it. Air and water both count as
-# "open" -- a block under a lake is a lakebed surface, not buried rock.
-func _face_for(above: int, left: int, right: int) -> int:
-	if above == AIR or above == WATER:
-		return TILE_EXPOSED
-	if left == AIR or left == WATER or right == AIR or right == WATER:
-		return TILE_FACE
-	return TILE_INTERIOR
+# the 4-bit neighbour mask a block wears (see TILE_ROWS). Air and both liquids
+# count as "open" -- a block under a lake is a lakebed surface, not buried rock.
+func _open_kind(k: int) -> bool:
+	return k == AIR or k == WATER or k == LAVA
+
+func _mask_for(above: int, left: int, right: int, below: int) -> int:
+	var m := 0
+	if _open_kind(above):
+		m |= 1
+	if _open_kind(left):
+		m |= 2
+	if _open_kind(right):
+		m |= 4
+	if _open_kind(below):
+		m |= 8
+	return m
 
 # Re-derive one cell's face from the live map. Used after a dig, so the blocks
 # a new tunnel uncovers stop looking like buried interior rock.
@@ -899,8 +907,8 @@ func _reface(cell: Vector2i) -> void:
 	if _map.get_cell_source_id(cell) == -1:
 		return
 	_map.set_cell(cell, 0, Vector2i(_map.get_cell_atlas_coords(cell).x,
-		_face_for(_cell_kind(cell + Vector2i(0, -1)), _cell_kind(cell + Vector2i(-1, 0)),
-			_cell_kind(cell + Vector2i(1, 0)))))
+		_mask_for(_cell_kind(cell + Vector2i(0, -1)), _cell_kind(cell + Vector2i(-1, 0)),
+			_cell_kind(cell + Vector2i(1, 0)), _cell_kind(cell + Vector2i(0, 1)))))
 
 func _load_chunk(c: Vector2i) -> void:
 	_loaded[c] = true
@@ -908,7 +916,7 @@ func _load_chunk(c: Vector2i) -> void:
 	# can see what is above it without paying for a second _gen_kind (which costs
 	# up to 27 noise samples). 33 extra lookups per chunk instead of 1024.
 	var kinds: Array = []
-	for ly in range(-1, CHUNK):
+	for ly in range(-1, CHUNK + 1):   # one row above AND below, for the neighbour masks
 		var row: Array = []
 		row.resize(CHUNK + 2)
 		for lx in range(-1, CHUNK + 1):
@@ -937,8 +945,9 @@ func _load_chunk(c: Vector2i) -> void:
 				_lavaglow.set_cell(cell, 0, lcoord)
 			elif not open_cell:
 				var left: int = kinds[ly + 1][lx]
+				var below_k: int = kinds[ly + 2][lx + 1]
 				var right: int = kinds[ly + 1][lx + 2]
-				_map.set_cell(cell, 0, Vector2i(kind, _face_for(above, left, right)))
+				_map.set_cell(cell, 0, Vector2i(kind, _mask_for(above, left, right, below_k)))
 				if kind >= ORE_COL and kind < SAND:
 					_sparkmap.set_cell(cell, 0, Vector2i(kind - ORE_COL, 0))   # + its glint
 	_populate_chunk(c)
@@ -2181,6 +2190,43 @@ func _drop_through(delta: float) -> void:
 				pf.collision_layer = 1)
 		return
 
+# ══ THE YELLOW BOX ═══════════════════════════════════════════════════════════
+# Terraria outlines the tile your tool will affect, and the dev asked for the
+# same. One rectangle, four thin edges, snapped to the cell under the cursor:
+# shown when a block is in reach of the pickaxe, breathing slightly so the eye
+# finds it, hidden when the cursor points past reach or at nothing minable.
+const CURSOR_REACH := 6.0 * 16.0       # matches player.gd's DIG_REACH
+var _cursor_box: Node2D = null
+
+func _build_cursor_box() -> void:
+	_cursor_box = Node2D.new()
+	_cursor_box.z_index = 30
+	_cursor_box.visible = false
+	add_child(_cursor_box)
+	for e in range(4):
+		var edge := ColorRect.new()
+		edge.color = Color(1.0, 0.92, 0.25, 0.9)
+		edge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		match e:
+			0: edge.position = Vector2(-TILE / 2.0, -TILE / 2.0); edge.size = Vector2(TILE, 1.6)
+			1: edge.position = Vector2(-TILE / 2.0, TILE / 2.0 - 1.6); edge.size = Vector2(TILE, 1.6)
+			2: edge.position = Vector2(-TILE / 2.0, -TILE / 2.0); edge.size = Vector2(1.6, TILE)
+			3: edge.position = Vector2(TILE / 2.0 - 1.6, -TILE / 2.0); edge.size = Vector2(1.6, TILE)
+		_cursor_box.add_child(edge)
+
+func _update_cursor_box() -> void:
+	if _cursor_box == null or _player == null or not is_instance_valid(_player):
+		return
+	var cell := _cell_at(get_global_mouse_position())
+	var centre := _map.to_global(_map.map_to_local(cell))
+	var in_reach: bool = _player.global_position.distance_to(centre) <= CURSOR_REACH
+	_cursor_box.visible = in_reach and _map.get_cell_source_id(cell) != -1
+	if _cursor_box.visible:
+		_cursor_box.global_position = centre
+		var a := 0.65 + 0.3 * sin(Time.get_ticks_msec() / 180.0)   # it breathes
+		for e in _cursor_box.get_children():
+			e.color = Color(1.0, 0.92, 0.25, a)
+
 # ══ TORCHES YOU PLANT YOURSELF ═══════════════════════════════════════════════
 # Lighting your own way is the core loop of a Terraria cave, and the reason a
 # dark tunnel is exciting rather than annoying: you decide where the dark ends.
@@ -3003,6 +3049,7 @@ func _process(delta: float) -> void:
 				ev.x = clampf(ev.x, -SWIM_X, SWIM_X)
 				e.velocity = ev
 	_update_depth_hud()
+	_update_cursor_box()
 
 # ── NOTHING STAYS BURIED ──────────────────────────────────────────────────────
 # _spot_ok stops mobs being BORN in rock, but a mob can still end up inside a
@@ -3397,10 +3444,45 @@ func _exit_tree() -> void:
 # now has two rows and _load_chunk picks between them from the cell above:
 #   row 0  INTERIOR   -- uniform, a shade darker, grain only. Masses read solid.
 #   row 1  EXPOSED    -- the lit lip and the gradient, for a block open to the air.
+# ── AUTO-TILING (dev: "like in Terraria") ─────────────────────────────────────
+# The atlas row is now a 4-bit NEIGHBOUR MASK -- bit 0 = open above, bit 1 = open
+# left, bit 2 = open right, bit 3 = open below -- sixteen variants per block. A
+# block lit only where it actually meets air is what makes Terraria terrain read
+# as carved ground instead of painted squares: lips on top edges, shadowed
+# undersides, lit flanks, and notched corners where two open sides meet.
+#
+# The old three constants survive unchanged because the encoding absorbs them:
+# INTERIOR = mask 0 (nothing open), EXPOSED = mask 1 (open above), FACE = mask 2
+# (open to one side).
 const TILE_INTERIOR := 0
 const TILE_EXPOSED := 1
 const TILE_FACE := 2
-const TILE_ROWS := 3
+const TILE_ROWS := 16
+
+# the shared edge treatment, applied over any column's base material
+func _edge_pixel(col: Color, lip: Color, x: int, y: int, mask: int) -> Color:
+	if mask & 1:                                  # open above: lit from the surface
+		var t := float(y) / float(TILE - 1)
+		col = col.lightened(0.10 * (1.0 - t)).darkened(0.10 * t)
+		if y <= 1:
+			col = lip
+	if (mask & 8) and y >= TILE - 2:
+		col = col.darkened(0.24)                  # the underside hangs in shadow
+	if (mask & 2) and x <= 1 and y > 1:
+		col = col.lightened(0.13)                 # a flank catching side light
+	if (mask & 4) and x >= TILE - 2 and y > 1:
+		col = col.lightened(0.13)
+	# NOTCHED CORNERS where two open sides meet -- the rounding that makes
+	# Terraria's terrain silhouettes soft instead of pixel-square
+	if (mask & 1) and (mask & 2) and x + y <= 1:
+		col = col.darkened(0.45)
+	if (mask & 1) and (mask & 4) and (TILE - 1 - x) + y <= 1:
+		col = col.darkened(0.45)
+	if (mask & 8) and (mask & 2) and x + (TILE - 1 - y) <= 1:
+		col = col.darkened(0.45)
+	if (mask & 8) and (mask & 4) and (TILE - 1 - x) + (TILE - 1 - y) <= 1:
+		col = col.darkened(0.45)
+	return col
 
 # ── EACH ROCK ITS OWN MATERIAL ────────────────────────────────────────────────
 # Every biome used to run the SAME hash through the same two thresholds, so all
@@ -3462,48 +3544,34 @@ func _build_tileset() -> void:
 	for row in range(TILE_ROWS):
 		for x in range(TILE):
 			for y in range(TILE):
-				var sc := Color(0.72, 0.61, 0.38)
-				if row == TILE_EXPOSED and y <= 1:
-					sc = Color(0.82, 0.71, 0.47)
-				elif row == TILE_INTERIOR:
-					sc = sc.darkened(0.10)
+				var sc := Color(0.72, 0.61, 0.38).darkened(0.06)
 				var sh := ((x * 26699) ^ (y * 8191)) & 0x7fffffff
 				if sh % 5 == 0:
 					sc = sc.darkened(0.10)
 				elif sh % 7 == 0:
 					sc = sc.lightened(0.08)
+				sc = _edge_pixel(sc, Color(0.84, 0.73, 0.48), x, y, row)
 				img.set_pixel(SAND * TILE + x, row * TILE + y, sc)
 				# OBSIDIAN, the quench-stone: near-black glass with a violet sheen
 				# and thin bright fracture lines -- unmistakably not the local rock
 				var oc2 := Color(0.10, 0.07, 0.16)
-				if row == TILE_EXPOSED and y <= 1:
-					oc2 = Color(0.30, 0.22, 0.45)
 				var ohh := ((x * 48271) ^ (y * 16807)) & 0x7fffffff
 				if (x * 2 + y * 3) % 17 == 0:
 					oc2 = Color(0.42, 0.30, 0.62)          # a fracture catching light
 				elif ohh % 11 == 0:
 					oc2 = Color(0.05, 0.03, 0.09)
+				oc2 = _edge_pixel(oc2, Color(0.34, 0.25, 0.50), x, y, row)
 				img.set_pixel(OBSIDIAN * TILE + x, row * TILE + y, oc2)
 	for c in range(n):
 		var base: Color = BIOMES[c].base
 		var gem: Color = ORE_GEM[c]
+		var lip := base.lightened(0.20)
 		for row in range(TILE_ROWS):
 			for x in range(TILE):
 				for y in range(TILE):
-					var col: Color
-					if row == TILE_EXPOSED:
-						var t := float(y) / float(TILE - 1)
-						col = base.lightened(0.10 * (1.0 - t)).darkened(0.16 * t)
-						if y <= 1:
-							col = base.lightened(0.20)         # the lit surface lip
-					elif row == TILE_FACE:
-						# a cave WALL: roofed over, but open to one side. Catches a
-						# little light so the outline of a cavern reads instead of
-						# dissolving into one flat dark mass.
-						col = base.lightened(0.05)
-					else:
-						col = base.darkened(0.10)              # buried: flat and a touch darker
+					var col := base.darkened(0.08)
 					col = _biome_pixel(c, x, y, col)           # each rock its own material
+					col = _edge_pixel(col, lip, x, y, row)     # ...lit where it meets air
 					img.set_pixel(c * TILE + x, row * TILE + y, col)
 					# ORE variant: the same block, salted with bright gem clusters
 					var oc := col
@@ -3963,6 +4031,7 @@ func _build_hud_extras() -> void:
 	death.name = "DeathScreen"
 	add_child(death)
 	_build_breath_hud()
+	_build_cursor_box()
 	_build_depth_hud()
 	# LAST child, so its _physics_process runs AFTER the player's: swimming is a
 	# correction applied to velocity once move_and_slide has already had its say.
