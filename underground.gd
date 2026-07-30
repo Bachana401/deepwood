@@ -2819,6 +2819,22 @@ func _process(delta: float) -> void:
 	if _unstick_cd <= 0.0:
 		_unstick_cd = 1.0
 		_free_the_stuck()
+	# MOBS FEEL THE WATER TOO. Without this they ran through lakes at full speed
+	# and full gravity like the water was painted on -- the surest tell that it
+	# isn't real. Same outside-the-body drive as the player's swim: clamp the
+	# fall to a sink, drag the run. (No breath -- drowning a cave's whole
+	# population by kiting it into a lake is a farm, not a feature.)
+	_mob_swim_cd -= delta
+	if _mob_swim_cd <= 0.0:
+		_mob_swim_cd = 0.12
+		for e in get_tree().get_nodes_in_group("course_enemy"):
+			if not is_instance_valid(e) or e.get_parent() != self or not ("velocity" in e):
+				continue
+			if _wlevel(_cell_at(e.global_position)) >= 4:
+				var ev: Vector2 = e.velocity
+				ev.y = clampf(ev.y, SWIM_RISE, SWIM_SINK)
+				ev.x = clampf(ev.x, -SWIM_X, SWIM_X)
+				e.velocity = ev
 	_update_depth_hud()
 
 # ── NOTHING STAYS BURIED ──────────────────────────────────────────────────────
@@ -2829,6 +2845,7 @@ func _process(delta: float) -> void:
 # exactly what the dev kept walking past. So sweep once a second and lift anything
 # buried up to the nearest open cell above it.
 var _unstick_cd := 0.0
+var _mob_swim_cd := 0.0
 
 func _free_the_stuck() -> void:
 	for e in get_tree().get_nodes_in_group("course_enemy"):
