@@ -133,7 +133,13 @@ func _ready() -> void:
 	# stacked with WeaponFx._gscale until a crown arrow drew at 5.6 player-
 	# heights -- the dev's "sizes are still big". Hitbox slightly larger than
 	# the image is the friendly direction for the mismatch to run.
-	_draw_girth = 1.0 + (girth - 1.0) * 0.32
+	# 0.32 was set when a crown arrow was drawing at 5.6 player-heights and the
+	# dev's note was "sizes are still big". It over-corrected: the reply to
+	# "how do the projectiles look" was "too small and thin". 0.48 splits the
+	# difference, and the glow + trail added in _enrich_visual give a late-tier
+	# bolt PRESENCE without making it a billboard -- apparent size, not bulk,
+	# is what was actually missing. (2026-07-30)
+	_draw_girth = 1.0 + (girth - 1.0) * 0.48
 	visual.scale = Vector2.ONE * _draw_girth
 	add_child(visual)
 	match kind:
@@ -549,10 +555,137 @@ func _ready() -> void:
 			pierce = false
 	if spin_speed == 0.0:
 		rotation = direction.angle()
+	_enrich_visual()
+
+# ==========================================================================
+# THE VISUAL PASS (dev, 2026-07-30). Asked what was wrong with the projectiles,
+# the dev picked ALL FOUR options: too small and thin, crude flat shapes with no
+# layering or glow or trails, wrong motion, and too few on screen.
+#
+# There are ~146 _build_* functions. Editing each one would take a week and
+# produce 146 inconsistent answers, so the fix goes HERE, at the seam every
+# projectile already passes through: whatever a verb built for itself, it also
+# gets a glow behind it, a rim of its own element's colour, and a trail that
+# says which way it is going and how fast. The verb keeps its silhouette; it
+# stops being a flat polygon on a dark background.
+# ==========================================================================
+
+# Verbs that must NOT be enriched: they are already a zone, a beam, a rope or a
+# standing object, and a halo/trail on them reads as a bug rather than polish.
+const NO_ENRICH := {
+	"lash": true, "long_tongue": true, "tether_arrow": true, "harp_string": true,
+	"sun_pool": true, "watch_fire": true, "cinder_shelf": true, "iron_spike": true,
+	"asphodel_post": true, "storm_cloud": true, "colonnade": true, "sky_pillar": true,
+	"grief_beam": true, "dawn_line": true, "world_cut": true, "bent_ray": true,
+	"seawall": true, "brazier_flail": true, "chain_maul": true, "gallows_head": true,
+	"pilgrim_lash": true, "hook": true,
+}
+
+var _trail: Line2D = null
+var _trail_pts: Array[Vector2] = []
+const TRAIL_LEN := 9
+
+func _enrich_visual() -> void:
+	if visual == null or NO_ENRICH.has(kind):
+		return
+	var fx: Dictionary = Inventory.element_fx(element)
+	var tint: Color = fx.get("glow", Color(1.0, 0.92, 0.7))
+	# --- 1. THE GLOW. An additive bloom UNDER whatever the verb drew, so a
+	# bolt reads as lit rather than as a shape cut out of paper.
+	var halo := Polygon2D.new()
+	halo.polygon = _circle(_halo_radius(), 14)
+	halo.color = Color(tint.r, tint.g, tint.b, 0.30)
+	var hm := CanvasItemMaterial.new()
+	hm.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	halo.material = hm
+	halo.z_index = -2
+	visual.add_child(halo)
+	visual.move_child(halo, 0)      # behind the verb's own art
+	# a second, tighter core makes the middle read HOT instead of flat
+	var core := Polygon2D.new()
+	core.polygon = _circle(_halo_radius() * 0.42, 10)
+	core.color = Color(1.0, 1.0, 1.0, 0.22)
+	core.material = hm
+	core.z_index = -1
+	visual.add_child(core)
+	visual.move_child(core, 1)
+	# --- 2. THE TRAIL. Lives on the PARENT, not on us, so it lags behind
+	# instead of riding along -- that lag is the whole sense of speed.
+	if speed > 60.0:
+		var host := get_parent()
+		if host != null and is_instance_valid(host):
+			_trail = Line2D.new()
+			_trail.width = maxf(3.0, _halo_radius() * 0.72)
+			_trail.default_color = Color(tint.r, tint.g, tint.b, 0.5)
+			_trail.material = hm
+			_trail.z_index = 39          # under the projectile itself (z 40)
+			_trail.begin_cap_mode = Line2D.LINE_CAP_ROUND
+			_trail.end_cap_mode = Line2D.LINE_CAP_ROUND
+			# it tapers to nothing at the tail, like something actually moving
+			var curve := Curve.new()
+			curve.add_point(Vector2(0.0, 0.15))
+			curve.add_point(Vector2(1.0, 1.0))
+			_trail.width_curve = curve
+			host.add_child(_trail)
+
+# How big this projectile reads, from what the verb actually drew. Measuring
+# beats guessing: a crown crescent and a pebble should not get the same bloom.
+func _halo_radius() -> float:
+	var far := 0.0
+	for c in visual.get_children():
+		if c is Polygon2D:
+			for p in (c as Polygon2D).polygon:
+				far = maxf(far, (p * (c as Polygon2D).scale).length())
+		elif c is Line2D:
+			far = maxf(far, (c as Line2D).width * 1.2)
+	if far <= 0.0:
+		far = 12.0
+	return clampf(far * 1.35, 11.0, 78.0)
+
+# The trail is redrawn in GLOBAL space each frame: the projectile's last few
+# positions, newest first. A Line2D parented to a moving node would just draw a
+# rigid stick, which is exactly the "motion is wrong" the dev flagged.
+func _tick_trail() -> void:
+	if _trail == null or not is_instance_valid(_trail):
+		return
+	_trail_pts.push_front(global_position)
+	if _trail_pts.size() > TRAIL_LEN:
+		_trail_pts.resize(TRAIL_LEN)
+	var pts := PackedVector2Array()
+	for p in _trail_pts:
+		pts.append(_trail.to_local(p))
+	_trail.points = pts
+
+# --- 3. MOTION. "It flies too straight and dies too flat" was the third of the
+# dev's four complaints. Nothing here changes where a projectile GOES -- the
+# trajectories are the verbs and they are tuned. What it changes is how the
+# thing carries itself along that path: a live object breathes and leans.
+var _vm_t := 0.0
+func _visual_motion(delta: float) -> void:
+	if visual == null or NO_ENRICH.has(kind):
+		return
+	_vm_t += delta
+	# a subtle pulse, so a bolt in flight is never a frozen decal
+	var breath: float = 1.0 + 0.055 * sin(_vm_t * 13.0)
+	visual.scale = Vector2.ONE * _draw_girth * breath
+	# and a slight lean into the direction of travel, unless the verb is
+	# already spinning on its own account (flails, discs, boomerangs)
+	if spin_speed == 0.0:
+		visual.rotation = sin(_vm_t * 7.0) * 0.055
+
+func _exit_tree() -> void:
+	# the trail outlives us by a breath, then fades -- cutting it dead on the
+	# same frame as the impact is what made hits feel like a light switch
+	if _trail != null and is_instance_valid(_trail):
+		var t: Tween = _trail.create_tween()
+		t.tween_property(_trail, "modulate:a", 0.0, 0.16)
+		t.tween_callback(_trail.queue_free)
 
 func _physics_process(delta: float) -> void:
+	_tick_trail()
 	if done:
 		return
+	_visual_motion(delta)
 	# the behavior kinds that OWN their whole flight take the frame here
 	if kind == "orbiter" and _tick_orbiter(delta):
 		return
@@ -1648,8 +1781,11 @@ func _shrapnel() -> void:
 		fr.on_hit_status = on_hit_status
 		fr.source = source
 		fr.girth = girth * 0.45
-		host.add_child(fr)
+		# DEFERRED: _shrapnel runs from explode() <- _on_body_entered, i.e.
+		# inside a physics callback while Godot is flushing queries, and adding
+		# an Area2D there is an error every single time a bomb hits anything.
 		fr.global_position = global_position + Vector2(0, -8.0)
+		host.call_deferred("add_child", fr)
 
 func explode() -> void:
 	if done:
@@ -6423,8 +6559,11 @@ func _rumor_spread(at: Vector2) -> void:
 		child.speed = speed * 0.94
 		child.max_distance = max_distance * 0.7
 		child.direction = Vector2.RIGHT.rotated(randf_range(0.0, TAU))
-		host.add_child(child)
+		# deferred for the same reason as _shrapnel: this runs from a body_entered
+		# callback, and adding an Area2D mid-query-flush errors every time the
+		# rumour is told. (Pre-existing; found by the visual walker's error spew.)
 		child.global_position = at
+		host.call_deferred("add_child", child)
 		child.set_rumor_gen(_rum_gen + 1)
 
 func _build_rumor_bolt() -> void:

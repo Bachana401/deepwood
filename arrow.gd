@@ -29,13 +29,21 @@ var homing := false
 # 0 = the shot you fired; 1 = a shaft born from a split. Splits are one deep.
 var split_gen := 0
 
+const SELF_SCENE = preload("res://arrow.tscn")
+
 func _split_seekers() -> void:
 	var host := get_parent()
 	if host == null or not is_instance_valid(host):
 		return
-	var script: GDScript = get_script()
+	# INSTANTIATE THE SCENE, never the script. arrow.gd's _ready() reaches for
+	# $HitArea, which only exists in arrow.tscn -- a script-only `.new()` makes
+	# a bare CharacterBody2D with no hit area, no sprite and no collision, so
+	# the split shafts were invisible ghosts that could not hit anything AND
+	# threw a null error on every spawn. (Shipped in c3ca689; caught by the
+	# error spew in the dispatch log, not by any assertion -- the audit only
+	# checks that SOMETHING spawned, and something did.)
 	for side in [-0.7, 0.7]:
-		var s = script.new()
+		var s = SELF_SCENE.instantiate()
 		s.homing = true
 		s.split_gen = 1
 		s.damage = maxi(1, int(round(float(damage) * 0.5)))
@@ -47,8 +55,12 @@ func _split_seekers() -> void:
 		s.max_range = max_range * 0.5
 		s.start_position = global_position
 		s.add_to_group("player_projectile")
-		host.add_child(s)
+		# DEFERRED, because this runs inside a body_entered callback and Godot
+		# is mid-flush of its physics queries -- adding an Area2D right there is
+		# "Can't change this state while flushing queries". The split shafts
+		# join the world on the next idle frame instead.
 		s.global_position = global_position
+		host.call_deferred("add_child", s)
 var girth := 1.0   # grade-driven scale: a heavier shaft, drawn AND felt
 var element := "physical"   # the bow's element (VFX pass): hit bursts pop in its colour
 const HOMING_TURN_RATE = 5.0     # radians/sec of steering authority
