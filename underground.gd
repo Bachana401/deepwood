@@ -23,6 +23,12 @@ const AIR := -1
 # counts as ground. Everything that used to ask `kind != AIR` to mean "solid"
 # must ask _solid_kind() instead.
 const WATER := 100
+# LAVA is water's twin: same span tables, same level automaton, its own maps.
+# It flows THICKER (see _flow_cell) and it burns; where the two liquids touch
+# they quench into OBSIDIAN, which is the Terraria rule and also what spares the
+# automaton from ever having to resolve two liquids in one cell.
+const LAVA := 101
+const OBSIDIAN := 11                   # atlas column after SAND
 
 # 5 biomes by depth. base = block colour, accent = grain fleck. tier = pickaxe
 # grade needed to MINE it (the true path is carved open, so you can always descend
@@ -91,6 +97,7 @@ var _content := {}                     # Vector2i(chunk) -> [spawned content nod
 var _road_air: Array = []              # y -> spans that must be open (the corridor)
 var _road_rock: Array = []             # y -> spans that must be solid (the road bed)
 var _water_rows: Array = []            # y -> spans of WATER
+var _lava_rows: Array = []             # y -> spans of LAVA (deep-biome lakes)
 var _lake_air: Array = []              # y -> spans of air above a lake's surface
 var _lake_rock: Array = []             # y -> spans of the basin shell (holds the water in)
 var _road_flood: Array = []            # y -> stretches where the road itself wades
@@ -110,6 +117,7 @@ func _ready() -> void:
 	_build_tileset()
 	_build_sparkmap()        # the glint on every ore vein (above the rock, under the player)
 	_build_watermap()        # the lakes (behind the player, so you're visible under water)
+	_build_lavamap()         # ...and the deep's molten twins, with their glow
 	_ensure_dark()
 	_build_hud_frame()       # BEFORE the player: its _ready writes to ../CanvasLayer/*
 	_load_save()
@@ -557,6 +565,7 @@ const FLOOD_DEPTH := 5                 # tiles of water over the road bed (playe
 
 func _build_lakes() -> void:
 	_water_rows = _new_rows()
+	_lava_rows = _new_rows()
 	_lake_air = _new_rows()
 	_lake_rock = _new_rows()
 	_road_flood = _new_rows()
@@ -614,8 +623,9 @@ func _build_lakes() -> void:
 			for by in range(b0.y, b1.y + 1):
 				for bx in range(b0.x, b1.x + 1):
 					claimed[Vector2i(bx, by)] = true
-			_carve_lake(cx, sy, hw, d)
-			_lakes.append({"c": Vector2i(cx, sy), "hw": hw, "d": d, "big": big})
+			var molten := _biome_of(sy) >= 3      # the deep pools LAVA, not water
+			_carve_lake(cx, sy, hw, d, molten)
+			_lakes.append({"c": Vector2i(cx, sy), "hw": hw, "d": d, "big": big, "lava": molten})
 	# ── stretches where the ROAD ITSELF goes under ──
 	# The road is otherwise sacred, so these are placed deliberately: a handful of
 	# short wades you swim across, spaced down the chain.
@@ -650,6 +660,7 @@ func _build_lakes() -> void:
 							continue
 						_add_span(_road_flood, c.y - dy, fx, fx)
 	_merge_rows(_water_rows)
+	_merge_rows(_lava_rows)
 	_merge_rows(_lake_air)
 	_merge_rows(_lake_rock)
 	_merge_rows(_road_flood)
@@ -664,7 +675,7 @@ func _build_lakes() -> void:
 
 # an elliptical bowl: widest at the surface, tapering to the bed -- with a rock
 # shell around it and open air above, so it reads as a lake in a cave.
-func _carve_lake(cx: int, sy: int, hw: int, d: int) -> void:
+func _carve_lake(cx: int, sy: int, hw: int, d: int, molten := false) -> void:
 	for dy in range(0, d + 1):
 		var t := float(dy) / float(d)
 		# RAGGED, not geometric. A clean ellipse read as a bowl of water set into
@@ -677,7 +688,7 @@ func _carve_lake(cx: int, sy: int, hw: int, d: int) -> void:
 		# always write the centre column, even at the very bottom where the ellipse
 		# has closed to nothing and both wobbles rolled negative -- skipping it left
 		# a 1-cell bubble of raw noise in the floor of about a third of the bowls
-		_add_span(_water_rows, y, cx - lw, cx + rw)
+		_add_span(_lava_rows if molten else _water_rows, y, cx - lw, cx + rw)
 		# The shell that holds it in: thick at depth, THIN at the waterline. A
 		# 3-tile rim all the way up walled every lake off from the caves around
 		# it -- the water has to meet the cave, or you can see it and never
@@ -712,7 +723,7 @@ func _spans_hit(tbl: Array, y0: int, y1: int, x0: int, x1: int) -> bool:
 # `kind != AIR` would happily stand a mob on the surface of a lake.
 func _solid_kind(cell: Vector2i) -> bool:
 	var k := _cell_kind(cell)
-	return k != AIR and k != WATER
+	return k != AIR and k != WATER and k != LAVA
 
 # ── deterministic 2-D world ───────────────────────────────────────────────────
 func _biome_of(y: int) -> int:
@@ -753,6 +764,8 @@ func _gen_kind(x: int, y: int) -> int:
 		return AIR
 	if _in_span(_water_rows, y, x):
 		return WATER
+	if _in_span(_lava_rows, y, x):
+		return LAVA
 	if _in_span(_lake_rock, y, x):
 		return _biome_of(y)
 	var b := _biome_of(y)
@@ -909,12 +922,20 @@ func _load_chunk(c: Vector2i) -> void:
 			var above: int = kinds[ly][lx + 1]
 			# water is drawn from its LEVEL, which is generation unless something
 			# has since disturbed it (see _wlevel / _flow_cell)
+			var open_cell := kind == AIR or kind == WATER or kind == LAVA
 			var lvl: int = int(_lv[cell]) if _lv.has(cell) else (WLEVELS if kind == WATER else 0)
-			if lvl > 0 and not (kind != AIR and kind != WATER):
+			var lava_lvl: int = int(_ll[cell]) if _ll.has(cell) else (WLEVELS if kind == LAVA else 0)
+			if lvl > 0 and open_cell:
 				var ab: int = int(_lv[cell + Vector2i(0, -1)]) if _lv.has(cell + Vector2i(0, -1)) \
 					else (WLEVELS if above == WATER else 0)
 				_watermap.set_cell(cell, 0, Vector2i(lvl - 1, 0 if ab > 0 else 1))
-			elif kind != AIR and kind != WATER:
+			elif lava_lvl > 0 and open_cell:
+				var lab: int = int(_ll[cell + Vector2i(0, -1)]) if _ll.has(cell + Vector2i(0, -1)) \
+					else (WLEVELS if above == LAVA else 0)
+				var lcoord := Vector2i(lava_lvl - 1, 0 if lab > 0 else 1)
+				_lavamap.set_cell(cell, 0, lcoord)
+				_lavaglow.set_cell(cell, 0, lcoord)
+			elif not open_cell:
 				var left: int = kinds[ly + 1][lx]
 				var right: int = kinds[ly + 1][lx + 2]
 				_map.set_cell(cell, 0, Vector2i(kind, _face_for(above, left, right)))
@@ -930,6 +951,10 @@ func _unload_chunk(c: Vector2i) -> void:
 			_map.erase_cell(cell)
 			_wallmap.erase_cell(cell)
 			_watermap.erase_cell(cell)
+			_lavamap.erase_cell(cell)
+			_lavaglow.erase_cell(cell)
+			_lavamap.erase_cell(cell)
+			_lavaglow.erase_cell(cell)
 			_sparkmap.erase_cell(cell)
 	_loaded.erase(c)
 
@@ -993,10 +1018,9 @@ func _populate_chunk(c: Vector2i) -> void:
 		var rvc = _find_floor_cell(c, rng)
 		if rvc != null:
 			nodes.append_array(_spawn_runevault(rvc, biome, rng))
-	if rng.randf() < 0.05:
-		var plc = _find_floor_cell(c, rng)
-		if plc != null:
-			nodes.append_array(_spawn_pool(plc, biome, rng))
+	# (the old _spawn_pool rectangles are gone: water pools were retired when the
+	# carved lakes landed, and the lava half is retired now that the deep's lakes
+	# ARE lava -- real, flowing, cell-burning. One liquid system, no stickers.)
 	# an ELITE mob now and then -- tougher, glowing, a real threat
 	if rng.randf() < 0.10 and _player != null:
 		var ec = _find_floor_cell(c, rng)
@@ -1143,12 +1167,15 @@ func _explode(centre: Vector2i, radius: int) -> void:
 				continue
 			_edits[cell] = AIR
 			_lv.erase(cell)                    # vaporised water is GONE -- a stale
+			_ll.erase(cell)                    # ...and vaporised lava with it
 			                                   # level here meant invisible swimmable
 			                                   # water in the crater
 			_hp.erase(cell)
 			_map.erase_cell(cell)
 			_sparkmap.erase_cell(cell)
 			_watermap.erase_cell(cell)
+			_lavamap.erase_cell(cell)
+			_lavaglow.erase_cell(cell)
 			if not col_top.has(dx) or cell.y < int(col_top[dx]):
 				col_top[dx] = cell.y
 	for dx in range(-radius - 1, radius + 2):   # re-light the new crater's rim
@@ -1528,6 +1555,13 @@ func _wlevel(cell: Vector2i) -> int:
 		return int(_lv[cell])
 	return WLEVELS if _cell_kind(cell) == WATER else 0
 
+# lava's twin ledger (see LAVA)
+var _ll := {}
+func _llevel(cell: Vector2i) -> int:
+	if _ll.has(cell):
+		return int(_ll[cell])
+	return WLEVELS if _cell_kind(cell) == LAVA else 0
+
 # Draw one water cell at its level, with the waterline only where nothing is
 # floating above it (see _build_watermap).
 func _draw_water(cell: Vector2i) -> void:
@@ -1539,6 +1573,46 @@ func _draw_water(cell: Vector2i) -> void:
 		return
 	var surf := 0 if _wlevel(cell + Vector2i(0, -1)) > 0 else 1
 	_watermap.set_cell(cell, 0, Vector2i(lv - 1, surf))
+
+func _draw_lava(cell: Vector2i) -> void:
+	if _lavamap == null:
+		return
+	var lv := _llevel(cell)
+	if lv <= 0 or _solid_kind(cell):
+		_lavamap.erase_cell(cell)
+		_lavaglow.erase_cell(cell)
+		return
+	var surf := 0 if _llevel(cell + Vector2i(0, -1)) > 0 else 1
+	_lavamap.set_cell(cell, 0, Vector2i(lv - 1, surf))
+	_lavaglow.set_cell(cell, 0, Vector2i(lv - 1, surf))
+
+func _set_lava(cell: Vector2i, v: int) -> void:
+	var nv := clampi(v, 0, WLEVELS)
+	if _llevel(cell) == nv:
+		return
+	_ll[cell] = nv
+	_draw_lava(cell)
+	_draw_lava(cell + Vector2i(0, 1))
+	_wake(cell)
+	for d in [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]:
+		_wake(cell + d)
+
+# ── WHERE THE LIQUIDS MEET: OBSIDIAN ──────────────────────────────────────────
+# The Terraria rule, and the reason one cell never has to hold both liquids:
+# the touch quenches into rock on the spot, both liquids at the seam are spent,
+# and the new block needs a serious pickaxe to take home.
+func _quench(cell: Vector2i) -> void:
+	_lv.erase(cell)
+	_ll.erase(cell)
+	_edits[cell] = OBSIDIAN
+	_watermap.erase_cell(cell)
+	_lavamap.erase_cell(cell)
+	_lavaglow.erase_cell(cell)
+	_map.set_cell(cell, 0, Vector2i(OBSIDIAN, TILE_EXPOSED))
+	for d in [Vector2i(0, 1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(1, 0)]:
+		_reface(cell + d)
+	_disturb(cell)
+	_chips(_map.to_global(_map.map_to_local(cell)), Color(0.35, 0.25, 0.45), true)
 
 func _wake(cell: Vector2i) -> void:
 	if _wq.has(cell) or _solid_kind(cell):
@@ -1594,37 +1668,65 @@ func _flow_cell(c: Vector2i) -> void:
 	if _flow_solid(c):
 		if _wlevel(c) > 0:
 			_set_level(c, 0)          # rock filled in on top of it
+		if _llevel(c) > 0:
+			_set_lava(c, 0)
 		return
-	var L := _wlevel(c)
-	if L <= 0:
-		return
-	# DOWN first, and completely -- water falls before it spreads
+	if _wlevel(c) > 0:
+		_flow_liquid(c, true)
+	elif _llevel(c) > 0:
+		_flow_liquid(c, false)
+
+# One body of rules for both liquids. `water` picks the ledger; lava differs in
+# exactly one number -- it spreads only on a difference of 3+, which is what
+# makes it visibly THICKER, crawling where water races. Where a move would enter
+# the OTHER liquid, the destination quenches to obsidian and the moved volume is
+# spent (see _quench).
+func _flow_liquid(c: Vector2i, water: bool) -> void:
+	var L := _wlevel(c) if water else _llevel(c)
+	# DOWN first, and completely -- liquid falls before it spreads
 	var b := c + Vector2i(0, 1)
 	if not _flow_solid(b) and b.y < DEPTH - 1:
-		var space := WLEVELS - _wlevel(b)
+		if (_llevel(b) if water else _wlevel(b)) > 0:
+			_quench(b)
+			_lvset(c, water, L - mini(L, 2))   # the seam eats a little of the pour
+			return
+		var lb := _wlevel(b) if water else _llevel(b)
+		var space := WLEVELS - lb
 		if space > 0:
 			var mv := mini(L, space)
-			_set_level(b, _wlevel(b) + mv)
-			_set_level(c, L - mv)
+			_lvset(b, water, lb + mv)
+			_lvset(c, water, L - mv)
 			L -= mv
 			if L <= 0:
 				return
 	# ...then SIDEWAYS, halving the difference so a surface settles flat
+	var min_diff := 2 if water else 3
 	for d in [-1, 1]:
 		var s := c + Vector2i(d, 0)
 		if _flow_solid(s) or s.x < 2 or s.x >= WIDTH - 2:
 			continue
-		var ls := _wlevel(s)
-		if ls >= L:
+		if (_llevel(s) if water else _wlevel(s)) > 0:
+			_quench(s)
+			L = maxi(0, L - 2)
+			_lvset(c, water, L)
+			if L <= 0:
+				return
+			continue
+		var ls := _wlevel(s) if water else _llevel(s)
+		if L - ls < min_diff:
 			continue
 		var mv2 := int((L - ls) / 2)
-		if mv2 < 1:
-			continue
-		_set_level(s, ls + mv2)
-		_set_level(c, L - mv2)
+		_lvset(s, water, ls + mv2)
+		_lvset(c, water, L - mv2)
 		L -= mv2
 		if L <= 0:
 			return
+
+func _lvset(cell: Vector2i, water: bool, v: int) -> void:
+	if water:
+		_set_level(cell, v)
+	else:
+		_set_lava(cell, v)
 
 # ══ MINECART LINES ═══════════════════════════════════════════════════════════
 # Rails are laid ALONG THE DELVER'S ROAD, and that is the whole trick. A cart
@@ -1849,7 +1951,10 @@ func _sand_tick(delta: float) -> void:
 			# not pushed aside -- deliberate, and the Terraria-ish reading: sand
 			# swallows the water it buries.
 			_lv.erase(here)
+			_ll.erase(here)
 			_watermap.erase_cell(here)
+			_lavamap.erase_cell(here)
+			_lavaglow.erase_cell(here)
 			_map.set_cell(here, 0, Vector2i(SAND, TILE_EXPOSED))
 			_reface(here + Vector2i(0, 1))
 			_disturb(here)                     # neighbouring water reacts to the new block
@@ -2166,6 +2271,8 @@ func _place_lake_life(c: Vector2i, nodes: Array) -> void:
 		return
 	for li in here:
 		var lk: Dictionary = _lakes[li]
+		if bool(lk.get("lava", false)):
+			continue                # no fishing line survives lava, and nothing bubbles UP through it
 		var centre: Vector2i = lk.c
 		var hw: int = int(lk.hw)
 		var surface := _map.to_global(_map.map_to_local(centre))
@@ -2272,11 +2379,14 @@ const SPOT_RUN := 2                    # tiles of floor either side, so it can p
 func _spot_ok(cell: Vector2i, need_dry := true) -> bool:
 	if not _solid_kind(cell + Vector2i(0, 1)):
 		return false                                   # nothing to stand on
-	if need_dry and _cell_kind(cell) == WATER:
+	var ck := _cell_kind(cell)
+	if need_dry and (ck == WATER or ck == LAVA):
 		return false                                   # don't spawn things in a lake
 	for dy in range(0, SPOT_H):
 		for dx in range(-SPOT_HALF_W, SPOT_HALF_W + 1):
 			var k := _cell_kind(cell + Vector2i(dx, -dy))
+			if k == LAVA:
+				return false                           # never spawn anything in lava
 			if k != AIR and (need_dry or k != WATER):
 				return false                           # the body would clip rock
 	var run := 0
@@ -2864,11 +2974,13 @@ func _process(delta: float) -> void:
 	_lava_cd -= delta
 	if _lava_cd <= 0.0:
 		_lava_cd = 0.4
-		for hz in get_tree().get_nodes_in_group("ug_hazard"):
-			if is_instance_valid(hz) and bool(hz.get_meta("lava", false)) and bool(hz.get_meta("in", false)):
-				if _player.has_method("take_damage"):
-					_player.take_damage(7)
-				break
+		# real lava burns by CELL now, not by hazard rectangle -- touch molten
+		# rock anywhere, however it got there, and it costs you
+		if _llevel(_cell_at(_player.global_position + Vector2(0, 19))) >= 2 \
+				or _llevel(_cell_at(_player.global_position + Vector2(0, -17))) >= 2:
+			if _player.has_method("take_damage"):
+				_player.take_damage(13)
+			_chips(_player.global_position + Vector2(0, 12), Color(1.0, 0.5, 0.1), true)
 	_unstick_cd -= delta
 	if _unstick_cd <= 0.0:
 		_unstick_cd = 1.0
@@ -2884,7 +2996,8 @@ func _process(delta: float) -> void:
 		for e in get_tree().get_nodes_in_group("course_enemy"):
 			if not is_instance_valid(e) or e.get_parent() != self or not ("velocity" in e):
 				continue
-			if _wlevel(_cell_at(e.global_position)) >= 4:
+			var ec := _cell_at(e.global_position)
+			if maxi(_wlevel(ec), _llevel(ec)) >= 4:
 				var ev: Vector2 = e.velocity
 				ev.y = clampf(ev.y, SWIM_RISE, SWIM_SINK)
 				ev.x = clampf(ev.x, -SWIM_X, SWIM_X)
@@ -2975,9 +3088,12 @@ func _water_tick(delta: float) -> void:
 		_drop_through(delta)
 	# the player box is 32x48: sample the head and the feet separately, so wading
 	# through the shallows is not the same as being under
-	var head := _wlevel(_cell_at(_player.global_position + Vector2(0, -17))) >= 4
-	var feet := _wlevel(_cell_at(_player.global_position + Vector2(0, 19))) >= 4
-	var wet := head or feet
+	var hc := _cell_at(_player.global_position + Vector2(0, -17))
+	var fc := _cell_at(_player.global_position + Vector2(0, 19))
+	var head := _wlevel(hc) >= 4
+	var wet_l := maxi(_wlevel(hc), _llevel(hc)) >= 4 or maxi(_wlevel(fc), _llevel(fc)) >= 4
+	var feet := _wlevel(fc) >= 4
+	var wet := wet_l    # lava clamps movement exactly like water -- you WADE in it, burning
 	if wet and not driven:
 		var v: Vector2 = _player.velocity
 		v.y = clampf(v.y, SWIM_RISE, SWIM_SINK)
@@ -3100,15 +3216,20 @@ func _break(cell: Vector2i, pick_tier: int, player: Node) -> bool:
 	# SAND lives past the ore columns, so the ore arithmetic below would read it
 	# as a sixth biome's ore. It is loose stuff: always tier 0, soft, drops stone.
 	var is_sand := kind == SAND
-	var is_ore := kind >= ORE_COL and not is_sand
-	var bi := (kind - ORE_COL) if is_ore else (0 if is_sand else kind)
+	var is_obs := kind == OBSIDIAN
+	var is_ore := kind >= ORE_COL and not is_sand and not is_obs
+	var bi := (kind - ORE_COL) if is_ore else (0 if (is_sand or is_obs) else kind)
 	var biome: Dictionary = BIOMES[clampi(bi, 0, BIOMES.size() - 1)]
 	var center := _map.to_global(_map.map_to_local(cell))
-	if pick_tier < int(biome.tier) and not is_sand:
+	if is_obs and pick_tier < 2:
+		_notify("Obsidian shrugs the blow off — it wants a stronger pickaxe.")
+		_chips(center, Color(0.5, 0.4, 0.7), true)
+		return false
+	if pick_tier < int(biome.tier) and not is_sand and not is_obs:
 		_notify("%s is too hard for your pickaxe — you'll need a stronger one." % biome.name)
 		_chips(center, biome.accent, true)
 		return false
-	var hard := 2 if is_sand else int(biome.hard) + (2 if is_ore else 0)   # ore tougher, sand loose
+	var hard := 2 if is_sand else (8 if is_obs else int(biome.hard) + (2 if is_ore else 0))
 	var left := int(_hp.get(cell, hard))
 	left -= 1
 	_chips(center, (Color(0.72, 0.61, 0.38) if is_sand else (ORE_GEM[bi] if is_ore else biome.base)), false)
@@ -3209,6 +3330,15 @@ func _load_save() -> void:
 				# unsettled ones resume the pour. The frame budget bounds the rest.
 				if int(wsave[k]) > 0:
 					_wake(wcell)
+	var lsave = data.get("lava", {})
+	if typeof(lsave) == TYPE_DICTIONARY:
+		for k in lsave.keys():
+			var lp: PackedStringArray = String(k).split(",")
+			if lp.size() == 2:
+				var lcell := Vector2i(int(lp[0]), int(lp[1]))
+				_ll[lcell] = int(lsave[k])
+				if int(lsave[k]) > 0:
+					_wake(lcell)
 	for k in data.get("ropes", []):
 		var rp: PackedStringArray = String(k).split(",")
 		if rp.size() == 2:
@@ -3237,6 +3367,9 @@ func _save() -> void:
 		for cell in _own_torches.keys():
 			tor.append("%d,%d" % [cell.x, cell.y])
 		var wl := {}
+		var la := {}
+		for cell in _ll.keys():
+			la["%d,%d" % [cell.x, cell.y]] = int(_ll[cell])
 		for cell in _lv.keys():
 			wl["%d,%d" % [cell.x, cell.y]] = int(_lv[cell])
 		var rop := []
@@ -3246,7 +3379,7 @@ func _save() -> void:
 		for cell in _platforms.keys():
 			plt.append("%d,%d" % [cell.x, cell.y])
 		f.store_string(JSON.stringify({"edits": e, "flags": fl, "seed": _seed, "torches": tor,
-			"ropes": rop, "platforms": plt, "water": wl}))
+			"ropes": rop, "platforms": plt, "water": wl, "lava": la}))
 		f.close()
 		DirAccess.remove_absolute(_save_path())
 		DirAccess.rename_absolute(_save_path() + ".tmp", _save_path())
@@ -3322,7 +3455,7 @@ func _biome_pixel(c: int, x: int, y: int, col: Color) -> Color:
 
 func _build_tileset() -> void:
 	var n := BIOMES.size()
-	var img := Image.create((n * 2 + 1) * TILE, TILE_ROWS * TILE, false, Image.FORMAT_RGBA8)
+	var img := Image.create((n * 2 + 2) * TILE, TILE_ROWS * TILE, false, Image.FORMAT_RGBA8)   # + SAND + OBSIDIAN
 	# SAND gets the column after the ores (see SAND / _topple_sand): loose, pale,
 	# grainy, and obviously not the rock around it -- you should be able to tell
 	# at a glance which ceiling is about to come down on you.
@@ -3340,6 +3473,17 @@ func _build_tileset() -> void:
 				elif sh % 7 == 0:
 					sc = sc.lightened(0.08)
 				img.set_pixel(SAND * TILE + x, row * TILE + y, sc)
+				# OBSIDIAN, the quench-stone: near-black glass with a violet sheen
+				# and thin bright fracture lines -- unmistakably not the local rock
+				var oc2 := Color(0.10, 0.07, 0.16)
+				if row == TILE_EXPOSED and y <= 1:
+					oc2 = Color(0.30, 0.22, 0.45)
+				var ohh := ((x * 48271) ^ (y * 16807)) & 0x7fffffff
+				if (x * 2 + y * 3) % 17 == 0:
+					oc2 = Color(0.42, 0.30, 0.62)          # a fracture catching light
+				elif ohh % 11 == 0:
+					oc2 = Color(0.05, 0.03, 0.09)
+				img.set_pixel(OBSIDIAN * TILE + x, row * TILE + y, oc2)
 	for c in range(n):
 		var base: Color = BIOMES[c].base
 		var gem: Color = ORE_GEM[c]
@@ -3518,6 +3662,77 @@ func _build_watermap() -> void:
 	smat.shader = sh
 	_watermap.material = smat
 	add_child(_watermap)
+
+# ── LAVA'S LOOK ───────────────────────────────────────────────────────────────
+# Terraria's lava is OPAQUE -- molten rock, not orange water: a near-white-hot
+# surface line, a deep red-orange body with dark clots drifting in it, and it
+# GLOWS. The glow is a second TileMapLayer mirroring the first with additive
+# blending (the forever-rule: fake glow with additive canvas items, never a
+# PointLight2D) -- that is what lets it punch through the cave's darkness the
+# way a CanvasModulate-multiplied colour never could.
+var _lavamap: TileMapLayer
+var _lavaglow: TileMapLayer
+const LAVA_SHADER := """
+shader_type canvas_item;
+varying vec2 wpos;
+void vertex() { wpos = (MODEL_MATRIX * vec4(VERTEX, 0.0, 1.0)).xy; }
+void fragment() {
+	vec4 c = texture(TEXTURE, UV);
+	// the slow churn: molten rock turning over, much slower than water's swell
+	float churn = sin(wpos.x * 0.03 + TIME * 0.5) * 0.5 + sin(wpos.y * 0.05 - TIME * 0.35) * 0.5;
+	c.rgb += vec3(0.10, 0.03, 0.0) * churn;
+	// embers: bright motes crawling along the surface
+	float em = sin(wpos.x * 0.23 + TIME * 0.8) * sin(wpos.y * 0.19 + TIME * 0.6);
+	c.rgb += vec3(0.55, 0.30, 0.05) * smoothstep(0.86, 1.0, em);
+	// the whole body breathes, like a thing with heat inside it
+	c.rgb *= 1.0 + 0.08 * sin(TIME * 1.1 + wpos.x * 0.01);
+	COLOR = c;
+}
+"""
+
+func _build_lavamap() -> void:
+	var img := Image.create(WLEVELS * TILE, 2 * TILE, false, Image.FORMAT_RGBA8)
+	var body := Color(0.86, 0.24, 0.04, 0.97)
+	for t in range(WLEVELS):
+		var fill := int(round(float(TILE) * float(t + 1) / float(WLEVELS)))
+		var top := TILE - fill
+		for surf in range(2):
+			for x in range(TILE):
+				for y in range(TILE):
+					if y < top:
+						img.set_pixel(t * TILE + x, surf * TILE + y, Color(0, 0, 0, 0))
+						continue
+					var col := body
+					var h := ((x * 6151) ^ (y * 92821)) & 0x7fffffff
+					if h % 19 == 0:
+						col = Color(0.44, 0.10, 0.03, 0.97)  # a dark clot of cooling rock
+					elif h % 29 == 0:
+						col = Color(1.0, 0.55, 0.10, 0.97)   # a hot vein
+					if surf == 1 and y <= top:
+						col = Color(1.0, 0.93, 0.55, 1.0)    # the white-hot surface
+					elif surf == 1 and y <= top + 2:
+						col = Color(1.0, 0.62, 0.16, 0.98)
+					img.set_pixel(t * TILE + x, surf * TILE + y, col)
+	_lavamap = TileMapLayer.new()
+	_lavamap.tile_set = _make_tileset(img, false)
+	_lavamap.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_lavamap.z_index = -1
+	var sh := Shader.new()
+	sh.code = LAVA_SHADER
+	var smat2 := ShaderMaterial.new()
+	smat2.shader = sh
+	_lavamap.material = smat2
+	add_child(_lavamap)
+	# the glow twin: same tiles, additive, faint -- the pool lights its cave
+	_lavaglow = TileMapLayer.new()
+	_lavaglow.tile_set = _lavamap.tile_set
+	_lavaglow.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_lavaglow.z_index = -1
+	var add_mat := CanvasItemMaterial.new()
+	add_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	_lavaglow.material = add_mat
+	_lavaglow.self_modulate = Color(1.0, 0.55, 0.25, 0.38)
+	add_child(_lavaglow)
 
 # Dark textured back-wall behind EVERYTHING, so the big open caverns read as
 # carved rock, not dead black (Terraria's back walls).

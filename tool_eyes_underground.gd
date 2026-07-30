@@ -156,6 +156,13 @@ func _ready() -> void:
 			await _settle(0.25)
 			await _shot("ug_sand_falling")
 			break
+	# ── LAVA: the deep biomes molten, glowing, with obsidian where liquids met ──
+	for lk in ug._lakes:
+		if bool(lk.get("lava", false)) and bool(lk.big):
+			await _tp(p, ug, Vector2i(int(lk.c.x), int(lk.c.y) - 4))
+			await _settle(0.8)
+			await _shot("ug_lava")
+			break
 	# ── WATER FLOW: breach a lake and photograph it draining ──
 	var lake := {}
 	for lk in ug._lakes:
@@ -189,6 +196,14 @@ func _tp(p: Node, ug: Node, cell: Vector2i) -> void:
 	p.global_position = ug._map.to_global(ug._map.map_to_local(cell))
 	if "velocity" in p:
 		p.velocity = Vector2.ZERO
+	# a long teleport DOWN reads as an 8000px fall to the player's void-recovery,
+	# which quietly snapped us back to the last floor we stood on -- the "lava
+	# lake" shot was actually Stonewarren. Move the anchor with us.
+	if "_last_ground_pos" in p:
+		p._last_ground_pos = p.global_position
+	# fall-damage tracking must also not see the jump as an apex
+	if "fall_apex_y" in p:
+		p.fall_apex_y = p.global_position.y
 	await _settle(0.7)                            # let the chunks stream in around it
 
 func _await_player() -> Node:

@@ -32,7 +32,7 @@ func check(label: String, ok: bool) -> void:
 # another session) stopped it booting, the run reported "ALL PASS (27 passed)"
 # and exited 0 -- a green light over a third of a suite. Never again: the count
 # itself is now an assertion.
-const EXPECTED_CHECKS := 71
+const EXPECTED_CHECKS := 83
 
 func _ready() -> void:
 	_test_generator()
@@ -523,7 +523,75 @@ func _test_in_engine() -> void:
 		check("...so water pours INTO the crater instead of hanging over it (%d units)" % fell,
 			fell > 0)
 
-	# levels ride the save like everything else down here
+	# ── LAVA ──
+	# The deep's lakes are molten now. It must exist, it must flow (thicker than
+	# water), it must burn-track via _llevel, and the two liquids must QUENCH.
+	var lava_lakes := 0
+	var wet_lakes := 0
+	for lk in ug._lakes:
+		if bool(lk.get("lava", false)):
+			lava_lakes += 1
+		else:
+			wet_lakes += 1
+	check("the deep pools lava (%d lava lakes, %d water)" % [lava_lakes, wet_lakes],
+		lava_lakes > 100 and wet_lakes > 100)
+	var mixed := 0
+	for lk in ug._lakes:
+		var is_deep: bool = ug._biome_of(int(lk.c.y)) >= 3
+		if is_deep != bool(lk.get("lava", false)):
+			mixed += 1
+	check("lava stays in the deep biomes, water above (%d misplaced)" % mixed, mixed == 0)
+	# find a lava lake and check the generator agrees
+	var llake := {}
+	for lk in ug._lakes:
+		if bool(lk.get("lava", false)) and int(lk.d) >= 8:
+			llake = lk
+			break
+	if not llake.is_empty():
+		var lmid := Vector2i(int(llake.c.x), int(llake.c.y) + int(llake.d) / 2)
+		check("the middle of a lava lake really is lava", ug._gen_kind(lmid.x, lmid.y) == UG.LAVA)
+		check("...and _llevel reads it full", ug._llevel(lmid) == UG.WLEVELS)
+	# THE QUENCH: pour water onto lava -> obsidian, in a clean dry pocket
+	ug._lv = {}
+	ug._ll = {}
+	ug._wq = {}
+	ug._wq_list = []
+	# a FLOOR cell, not any air pocket: lava poured into open space runs away
+	# downhill before the water can reach it, and the two never meet. One door's
+	# surroundings can be all rock or all road, so hunt across several.
+	# +30/+30 from a door is inside the road's solid apron -- hunt BESIDE the
+	# road instead, where the corridor floor guarantees standable cells
+	var qc := Vector2i(-9999, -9999)
+	for dq in [9, 24, 41, 58, 73]:
+		var qbase: Vector2i = ug._door_stand(ug._doors[dq])
+		for off in [10, -10, 16, -16]:
+			qc = ug._floor_near(qbase.x + off, qbase.y - 1)
+			if qc.x > -9000:
+				break
+		if qc.x > -9000:
+			break
+	check("a quench test site exists somewhere along the chain", qc.x > -9000)
+	if qc.x > -9000 and ug._cell_kind(qc) == UG.AIR:
+		ug._set_lava(qc, UG.WLEVELS)                # a puddle of lava...
+		ug._set_level(qc + Vector2i(0, -2), UG.WLEVELS)   # ...and water above it
+		for i in range(300):
+			ug._flow_tick()
+		check("water falling onto lava quenches to OBSIDIAN",
+			ug._cell_kind(qc) == UG.OBSIDIAN or ug._cell_kind(qc + Vector2i(0, -1)) == UG.OBSIDIAN)
+		var both := 0
+		for dy in range(-3, 3):
+			var cc := qc + Vector2i(0, dy)
+			if ug._wlevel(cc) > 0 and ug._llevel(cc) > 0:
+				both += 1
+		check("no cell ever holds both liquids", both == 0)
+	# leave the quench leftovers IN _lv/_ll -- the save round-trip below measures
+	# them, and clearing here left it measuring an empty dict
+
+	# levels ride the save like everything else down here -- seed a known entry
+	# first, so this measures the round-trip and not whatever the tests above
+	# happened to leave behind
+	if qc.x > -9000:
+		ug._set_level(qc + Vector2i(0, -4), 5)
 	ug._save()
 	var lv_n: int = ug._lv.size()
 	ug._lv = {}
