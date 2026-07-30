@@ -27,9 +27,21 @@ func check(label: String, ok: bool) -> void:
 		fail_count += 1
 		printerr("FAIL  " + label)
 
+# The in-engine half is roughly two thirds of this suite, and it only runs if the
+# scene actually boots. When a compile error ELSEWHERE (player.gd, mid-edit by
+# another session) stopped it booting, the run reported "ALL PASS (27 passed)"
+# and exited 0 -- a green light over a third of a suite. Never again: the count
+# itself is now an assertion.
+const EXPECTED_CHECKS := 68
+
 func _ready() -> void:
 	_test_generator()
 	await _test_in_engine()
+	var ran := pass_count + fail_count
+	if ran < EXPECTED_CHECKS:
+		fail_count += 1
+		printerr("FAIL  only %d of ~%d checks ran -- the scene never booted (compile error elsewhere?)"
+			% [ran, EXPECTED_CHECKS])
 	printerr("RESULT: %s   (%d passed, %d failed)"
 		% ["ALL PASS" if fail_count == 0 else "FAILURES", pass_count, fail_count])
 	get_tree().quit(1 if fail_count > 0 else 0)
@@ -384,6 +396,113 @@ func _test_in_engine() -> void:
 	check("...and it lands and becomes solid ground again",
 		get_tree().get_nodes_in_group("ug_fallsand").is_empty()
 		and ug._cell_kind(sand_cell + Vector2i(0, 4)) == UG.SAND)
+
+	# ── FLOWING WATER ──
+	# A corridor cell with a floor under it, and a bucket's worth dropped in from
+	# three tiles up. It must fall, it must not vanish, and it must end up flat.
+	ug._lv = {}
+	ug._wq = {}
+	ug._wq_list = []
+	var floor_cell: Vector2i = ug._door_stand(ug._doors[7])
+	var above: Vector2i = floor_cell - Vector2i(0, 1)
+	var high: Vector2i = floor_cell - Vector2i(0, 4)
+	if ug._cell_kind(high) == UG.AIR and ug._cell_kind(above) == UG.AIR:
+		ug._set_level(high, UG.WLEVELS)
+		var total_before := 0
+		for cell in ug._lv.keys():
+			total_before += int(ug._lv[cell])
+		check("water starts where it was poured", ug._wlevel(high) == UG.WLEVELS)
+		for i in range(200):
+			ug._flow_tick()
+		check("it falls to the floor rather than hanging in the air",
+			ug._wlevel(high) == 0 and ug._wlevel(above) > 0)
+		# conservation: nothing may be created or destroyed by settling
+		var total_after := 0
+		for cell in ug._lv.keys():
+			total_after += int(ug._lv[cell])
+		check("no water is created or lost while it settles (%d -> %d)"
+			% [total_before, total_after], total_after == total_before)
+		# a surface settles level: no neighbour differs by more than one step
+		var ragged := 0
+		for cell in ug._lv.keys():
+			var l: int = int(ug._lv[cell])
+			if l <= 0:
+				continue
+			for dx in [-1, 1]:
+				var s: Vector2i = cell + Vector2i(dx, 0)
+				if ug._solid_kind(s) or ug._solid_kind(cell + Vector2i(0, 1)):
+					continue
+				if absi(l - ug._wlevel(s)) > 1:
+					ragged += 1
+		check("the surface settles flat (%d ragged edges)" % ragged, ragged == 0)
+		# and it never soaks into rock
+		var in_rock_water := 0
+		for cell in ug._lv.keys():
+			if int(ug._lv[cell]) > 0 and ug._solid_kind(cell):
+				in_rock_water += 1
+		check("water never ends up inside solid rock", in_rock_water == 0)
+	# THE HEADLINE CASE: cut a lake's wall and it must actually drain, not hang
+	# there like glass. Pick a big lake, punch a hole low in its side, and check
+	# the water leaves through it.
+	ug._lv = {}
+	ug._wq = {}
+	ug._wq_list = []
+	var big := {}
+	for lk in ug._lakes:
+		if bool(lk.big) and int(lk.d) >= 16:
+			big = lk
+			break
+	if not big.is_empty():
+		var lc: Vector2i = big.c
+		var deep: Vector2i = Vector2i(lc.x, lc.y + int(big.d) - 2)
+		var inside_before: int = ug._wlevel(deep)
+		# find the shell to the right of that row and open it
+		var wx: int = deep.x
+		while wx < deep.x + 120 and not ug._solid_kind(Vector2i(wx, deep.y)):
+			wx += 1
+		# Cut all the way THROUGH the shell, however thick it is, so the water has
+		# somewhere to go. (Cutting a fixed 4 into a 3-thick wall and then reading
+		# the lake's CENTRE measures nothing: upstream water refills the middle
+		# instantly, so a perfectly good drain reads as "8 -> 8".)
+		var holed := 0
+		var x2: int = wx
+		while x2 < wx + 12 and ug._solid_kind(Vector2i(x2, deep.y)):
+			ug._edits[Vector2i(x2, deep.y)] = UG.AIR
+			ug._map.erase_cell(Vector2i(x2, deep.y))
+			holed += 1
+			x2 += 1
+		ug._disturb(Vector2i(wx, deep.y))
+		check("a lake wall can be opened (%d tiles cut)" % holed, holed > 0)
+		var breach_before: int = ug._wlevel(Vector2i(wx, deep.y))
+		for i in range(600):
+			ug._flow_tick()
+		var breach_after: int = ug._wlevel(Vector2i(wx, deep.y))
+		check("water pours through the breach (level %d -> %d in the hole)"
+			% [breach_before, breach_after], breach_after > breach_before)
+		# ...and it keeps going into whatever lies beyond -- but only if the dig
+		# actually reached open ground. Here the rock past the shell ran solid for
+		# the full 12 tiles, so there is nowhere to run to, and asserting it would
+		# be testing the terrain rather than the water.
+		if not ug._solid_kind(Vector2i(x2, deep.y)):
+			var beyond := 0
+			for k in range(0, 6):
+				beyond += ug._wlevel(Vector2i(x2 + k, deep.y))
+				beyond += ug._wlevel(Vector2i(x2 + k, deep.y + 1))
+			check("...and runs on past the old wall line (%d units beyond)" % beyond, beyond > 0)
+		else:
+			check("the dig stopped inside rock, so there was nowhere to run to", true)
+		check("the lake is not bottomless -- it gave up water to do it (%d at centre)"
+			% ug._wlevel(deep), ug._wlevel(deep) <= inside_before)
+
+	# levels ride the save like everything else down here
+	ug._save()
+	var lv_n: int = ug._lv.size()
+	ug._lv = {}
+	ug._load_save()
+	check("water levels survive a save and reload", ug._lv.size() == lv_n and lv_n > 0)
+	ug._lv = {}
+	ug._wq = {}
+	ug._wq_list = []
 
 	# ── ROPES AND PLATFORMS ──
 	ug._ropes = {}

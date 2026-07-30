@@ -907,11 +907,14 @@ func _load_chunk(c: Vector2i) -> void:
 			_wallmap.set_cell(cell, 0, Vector2i(_biome_of(cell.y), 0))   # back-wall always
 			var kind: int = kinds[ly + 1][lx + 1]
 			var above: int = kinds[ly][lx + 1]
-			if kind == WATER:
-				# the SURFACE tile (atlas 1) wherever there's no water directly above,
-				# so every lake gets Terraria's bright waterline instead of a flat slab
-				_watermap.set_cell(cell, 0, Vector2i(0 if above == WATER else 1, 0))
-			elif kind != AIR:
+			# water is drawn from its LEVEL, which is generation unless something
+			# has since disturbed it (see _wlevel / _flow_cell)
+			var lvl: int = int(_lv[cell]) if _lv.has(cell) else (WLEVELS if kind == WATER else 0)
+			if lvl > 0 and not (kind != AIR and kind != WATER):
+				var ab: int = int(_lv[cell + Vector2i(0, -1)]) if _lv.has(cell + Vector2i(0, -1)) \
+					else (WLEVELS if above == WATER else 0)
+				_watermap.set_cell(cell, 0, Vector2i(lvl - 1, 0 if ab > 0 else 1))
+			elif kind != AIR and kind != WATER:
 				var left: int = kinds[ly + 1][lx]
 				var right: int = kinds[ly + 1][lx + 2]
 				_map.set_cell(cell, 0, Vector2i(kind, _face_for(above, left, right)))
@@ -1137,6 +1140,9 @@ func _explode(centre: Vector2i, radius: int) -> void:
 			_reface(centre + Vector2i(dx, dy))
 	for dx in range(-radius, radius + 1):       # ...and the sand above it pours in
 		_topple_sand(centre + Vector2i(dx, -radius))
+	for dy in range(-radius - 1, radius + 2):   # ...and any lake it opened drains
+		_disturb(centre + Vector2i(-radius - 1, dy))
+		_disturb(centre + Vector2i(radius + 1, dy))
 	# everything caught in it
 	if _player != null and is_instance_valid(_player) and _player.has_method("take_damage"):
 		var d: float = _player.global_position.distance_to(at)
@@ -1479,6 +1485,109 @@ func _decor_rubble(cell: Vector2i, base: Color, rng: RandomNumberGenerator) -> N
 		stone.position = Vector2(rng.randf_range(-5.0, 5.0), float(TILE) * 0.5 - r * 0.7)
 		n.add_child(stone)
 	return n
+
+# ══ FLOWING WATER ════════════════════════════════════════════════════════════
+# Until now a lake was carved geometry: mine its wall and the water hung there
+# in mid-air like glass. Terraria's water is a LEVEL per tile that falls, spreads
+# and settles, and that is what makes cutting into a flooded cavern exciting
+# rather than a texture bug.
+#
+# Two things make this affordable on a 4200x1800 world. First, level is stored
+# only as a DIFF: a cell with no entry in _lv is simply whatever generation said,
+# so a still lake costs nothing. Second, it is an ACTIVE SET, not a sweep --
+# nothing simulates until something disturbs it, and then only the disturbed
+# cells and their neighbours wake, a bounded number per frame. A drained lake
+# therefore drains progressively, which is also how it should look.
+const WLEVELS := 8                     # a full tile; the atlas draws each step
+const FLOW_BUDGET := 420               # cells settled per frame
+
+var _lv := {}                          # Vector2i -> level, ONLY where it differs from generation
+var _wq := {}                          # active set membership
+var _wq_list: Array = []               # ...and its order
+
+func _wlevel(cell: Vector2i) -> int:
+	if _lv.has(cell):
+		return int(_lv[cell])
+	return WLEVELS if _cell_kind(cell) == WATER else 0
+
+# Draw one water cell at its level, with the waterline only where nothing is
+# floating above it (see _build_watermap).
+func _draw_water(cell: Vector2i) -> void:
+	if _watermap == null:
+		return
+	var lv := _wlevel(cell)
+	if lv <= 0 or _solid_kind(cell):
+		_watermap.erase_cell(cell)
+		return
+	var surf := 0 if _wlevel(cell + Vector2i(0, -1)) > 0 else 1
+	_watermap.set_cell(cell, 0, Vector2i(lv - 1, surf))
+
+func _wake(cell: Vector2i) -> void:
+	if _wq.has(cell) or _solid_kind(cell):
+		return
+	_wq[cell] = true
+	_wq_list.append(cell)
+
+func _set_level(cell: Vector2i, v: int) -> void:
+	var nv := clampi(v, 0, WLEVELS)
+	if _wlevel(cell) == nv:
+		return
+	_lv[cell] = nv
+	_draw_water(cell)
+	_draw_water(cell + Vector2i(0, 1))   # the one below may have gained a lid
+	_wake(cell)
+	for d in [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]:
+		_wake(cell + d)
+
+# Anything that opens a hole must say so, or the lake beside it never learns.
+func _disturb(cell: Vector2i) -> void:
+	_wake(cell)
+	for d in [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]:
+		_wake(cell + d)
+
+func _flow_tick() -> void:
+	var budget := FLOW_BUDGET
+	while budget > 0 and not _wq_list.is_empty():
+		budget -= 1
+		var c: Vector2i = _wq_list.pop_front()
+		_wq.erase(c)
+		_flow_cell(c)
+
+func _flow_cell(c: Vector2i) -> void:
+	if _solid_kind(c):
+		if _wlevel(c) > 0:
+			_set_level(c, 0)          # rock filled in on top of it
+		return
+	var L := _wlevel(c)
+	if L <= 0:
+		return
+	# DOWN first, and completely -- water falls before it spreads
+	var b := c + Vector2i(0, 1)
+	if not _solid_kind(b) and b.y < DEPTH - 1:
+		var space := WLEVELS - _wlevel(b)
+		if space > 0:
+			var mv := mini(L, space)
+			_set_level(b, _wlevel(b) + mv)
+			_set_level(c, L - mv)
+			L -= mv
+			if L <= 0:
+				return
+	# ...then SIDEWAYS, halving the difference so a surface settles flat
+	for d in [-1, 1]:
+		var s := c + Vector2i(d, 0)
+		if _solid_kind(s) or s.x < 2 or s.x >= WIDTH - 2:
+			continue
+		var ls := _wlevel(s)
+		if ls >= L:
+			continue
+		var mv2 := int((L - ls) / 2)
+		if mv2 < 1:
+			continue
+		_set_level(s, ls + mv2)
+		_set_level(c, L - mv2)
+		L -= mv2
+		if L <= 0:
+			return
 
 # ══ MINECART LINES ═══════════════════════════════════════════════════════════
 # Rails are laid ALONG THE DELVER'S ROAD, and that is the whole trick. A cart
@@ -2787,9 +2896,10 @@ func _water_tick(delta: float) -> void:
 	if _rope_tick(delta):
 		return
 	_drop_through(delta)
+	_flow_tick()
 	_sand_tick(delta)
-	var head := _cell_kind(_cell_at(_player.global_position + Vector2(0, -17))) == WATER
-	var feet := _cell_kind(_cell_at(_player.global_position + Vector2(0, 19))) == WATER
+	var head := _wlevel(_cell_at(_player.global_position + Vector2(0, -17))) >= 4
+	var feet := _wlevel(_cell_at(_player.global_position + Vector2(0, 19))) >= 4
 	var wet := head or feet
 	if wet:
 		var v: Vector2 = _player.velocity
@@ -2936,6 +3046,7 @@ func _break(cell: Vector2i, pick_tier: int, player: Node) -> bool:
 		for d in [Vector2i(0, 1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(1, 0)]:
 			_reface(cell + d)
 		_topple_sand(cell)              # anything loose resting on this now falls
+		_disturb(cell)                  # ...and any water beside it starts moving
 		if player != null and "inventory" in player and player.inventory != null:
 			var drop_id: String = ORE_DROP[bi] if is_ore else "stone"
 			var leftover: int = player.inventory.add_item(drop_id, 1)
@@ -3007,6 +3118,12 @@ func _load_save() -> void:
 	if typeof(flags) == TYPE_DICTIONARY:
 		for k in flags.keys():
 			_flags[String(k)] = true
+	var wsave = data.get("water", {})
+	if typeof(wsave) == TYPE_DICTIONARY:
+		for k in wsave.keys():
+			var wp: PackedStringArray = String(k).split(",")
+			if wp.size() == 2:
+				_lv[Vector2i(int(wp[0]), int(wp[1]))] = int(wsave[k])
 	for k in data.get("ropes", []):
 		var rp: PackedStringArray = String(k).split(",")
 		if rp.size() == 2:
@@ -3034,6 +3151,9 @@ func _save() -> void:
 		var tor := []
 		for cell in _own_torches.keys():
 			tor.append("%d,%d" % [cell.x, cell.y])
+		var wl := {}
+		for cell in _lv.keys():
+			wl["%d,%d" % [cell.x, cell.y]] = int(_lv[cell])
 		var rop := []
 		for cell in _ropes.keys():
 			rop.append("%d,%d" % [cell.x, cell.y])
@@ -3041,7 +3161,7 @@ func _save() -> void:
 		for cell in _platforms.keys():
 			plt.append("%d,%d" % [cell.x, cell.y])
 		f.store_string(JSON.stringify({"edits": e, "flags": fl, "seed": _seed, "torches": tor,
-			"ropes": rop, "platforms": plt}))
+			"ropes": rop, "platforms": plt, "water": wl}))
 		f.close()
 		DirAccess.remove_absolute(_save_path())
 		DirAccess.rename_absolute(_save_path() + ".tmp", _save_path())
@@ -3228,20 +3348,34 @@ void fragment() {
 """
 
 func _build_watermap() -> void:
-	var img := Image.create(2 * TILE, TILE, false, Image.FORMAT_RGBA8)
+	# ONE TILE PER LEVEL. Terraria draws a partly-filled tile short, with the
+	# bright waterline at the top of the water rather than the top of the tile --
+	# that stepping is what a draining lake and a shallow puddle actually look
+	# like. Level L fills the bottom L/WLEVELS of the tile.
+	# TWO ROWS, exactly like the rock faces. Drawing the bright waterline on every
+	# tile turns a deep lake into horizontal stripes every 12px -- the same bug the
+	# block atlas had. Row 0 is submerged body (water above it), row 1 carries the
+	# waterline, and the renderer picks by what is overhead.
+	var img := Image.create(WLEVELS * TILE, 2 * TILE, false, Image.FORMAT_RGBA8)
 	var body := Color(0.11, 0.33, 0.76, 0.60)
-	for t in range(2):
-		for x in range(TILE):
-			for y in range(TILE):
-				var col := body
-				var h := ((x * 7919) ^ (y * 104729) ^ (t * 31337)) & 0x7fffffff
-				if h % 23 == 0:
-					col = Color(0.20, 0.46, 0.88, 0.58)      # a little depth mottle
-				if t == 1 and y <= 1:
-					col = Color(0.62, 0.86, 1.00, 0.80)      # THE WATERLINE
-				elif t == 1 and y <= 3:
-					col = Color(0.24, 0.55, 0.95, 0.66)
-				img.set_pixel(t * TILE + x, y, col)
+	for t in range(WLEVELS):
+		var fill := int(round(float(TILE) * float(t + 1) / float(WLEVELS)))
+		var top := TILE - fill                           # first row that holds water
+		for surf in range(2):
+			for x in range(TILE):
+				for y in range(TILE):
+					if y < top:
+						img.set_pixel(t * TILE + x, surf * TILE + y, Color(0, 0, 0, 0))
+						continue
+					var col := body
+					var h := ((x * 7919) ^ (y * 104729)) & 0x7fffffff
+					if h % 23 == 0:
+						col = Color(0.20, 0.46, 0.88, 0.58)  # a little depth mottle
+					if surf == 1 and y <= top:
+						col = Color(0.62, 0.86, 1.00, 0.80)  # THE WATERLINE
+					elif surf == 1 and y <= top + 2:
+						col = Color(0.24, 0.55, 0.95, 0.66)
+					img.set_pixel(t * TILE + x, surf * TILE + y, col)
 	_watermap = TileMapLayer.new()
 	_watermap.tile_set = _make_tileset(img, false)
 	_watermap.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST

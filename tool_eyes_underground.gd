@@ -156,6 +156,32 @@ func _ready() -> void:
 			await _settle(0.25)
 			await _shot("ug_sand_falling")
 			break
+	# ── WATER FLOW: breach a lake and photograph it draining ──
+	var lake := {}
+	for lk in ug._lakes:
+		if bool(lk.big) and int(lk.d) >= 16:
+			lake = lk
+			break
+	if not lake.is_empty():
+		var lc: Vector2i = lake.c
+		var row: int = lc.y + int(lake.d) - 3
+		var wx: int = lc.x
+		while wx < lc.x + 140 and not ug._solid_kind(Vector2i(wx, row)):
+			wx += 1
+		await _tp(p, ug, Vector2i(wx + 6, row - 6))
+		await _settle(0.7)
+		await _shot("ug_flow_before")
+		# cut a channel out of the side and let it run
+		for k in range(14):
+			var h := Vector2i(wx + k, row)
+			for dy in range(0, 2):
+				ug._edits[h + Vector2i(0, dy)] = ug.AIR
+				ug._map.erase_cell(h + Vector2i(0, dy))
+		ug._disturb(Vector2i(wx, row))
+		await _settle(0.35)
+		await _shot("ug_flow_running")
+		await _settle(2.5)
+		await _shot("ug_flow_settled")
 	say("EYES-UG: done -> %s" % shot_dir)
 	get_tree().quit(0)
 
