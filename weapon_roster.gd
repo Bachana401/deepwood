@@ -1211,8 +1211,13 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 				"m_solo": bool(ex.get("m_solo", false)),
 				"mana": 10.0 + 3.0 * float(tier)}
 		"whipcrack":
-			s = {"type": "whipcrack", "damage": dmg,
-				"reach": float(ex.get("reach", 0.0)),
+			# REACH CLIMBS WITH THE TIER (Kaleidoscope law, 2026-07-30): the
+			# reference whip reaches ~6.5 player-heights and ours were all
+			# pinned at 2.75 regardless of rung, which is a large part of why
+			# the whip family reads as the weakest thing at every tier. The
+			# per-weapon `reach` extra still stacks on top.
+			s = {"type": "whipcrack", "damage": dmg, "tier": tier,
+				"reach": float(ex.get("reach", 0.0)) + float(tier - 1) * 20.0,
 				"tag_dmg": float(ex.get("tag_dmg", 0.0)),
 				"tag_crit": float(ex.get("tag_crit", 0.0)),
 				"tag_dur": float(ex.get("tag_dur", 0.0)),

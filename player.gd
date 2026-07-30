@@ -2271,6 +2271,128 @@ func post_budget() -> int:
 
 # THE WHIP CRACK: a fast thin arc that TAGS. Its raw damage is deliberately
 # modest -- the power is the mark it paints and the army that answers it.
+# THE KALEIDOSCOPE LAW, measured off the dev's reference clip (2026-07-30).
+#
+# A whip is not a stroke. The reference lash is a CHAIN OF DISCRETE SEGMENTS
+# with visible gaps, bent into a concave arc, ending in its own tip object,
+# with the colour cycling ALONG its length -- and a cloud of four-pointed
+# sparkle stars that OUTLIVES the lash itself.
+#
+# Ours was one flat gold hexagon drawn dead straight, 0.16s, and IDENTICAL on
+# all thirteen whips. The colour axis was sitting right there unused: every
+# whip already carries its own tag rider, so the lash is now the colour of the
+# mark it paints, and only the apex earns the full rainbow. If every weapon
+# owns the screen then none of them do.
+const WHIP_TAG_COLOURS := {
+	"":          [Color(0.98, 0.94, 0.80), Color(0.84, 0.76, 0.54)],
+	"knock":     [Color(1.00, 0.84, 0.46), Color(0.74, 0.46, 0.20)],
+	"detonate":  [Color(1.00, 0.88, 0.48), Color(1.00, 0.40, 0.16)],
+	"chill":     [Color(0.84, 0.97, 1.00), Color(0.40, 0.66, 1.00)],
+	"storm":     [Color(1.00, 1.00, 1.00), Color(0.60, 0.46, 1.00)],
+	"coin":      [Color(1.00, 0.95, 0.56), Color(1.00, 0.72, 0.14)],
+	"mend":      [Color(0.82, 1.00, 0.84), Color(0.30, 0.82, 0.48)],
+	"propagate": [Color(0.88, 1.00, 0.70), Color(0.36, 0.72, 0.32)],
+}
+# pastel, HIGH brightness, LOW saturation -- the reference is nothing like a
+# saturated rainbow, and copying a saturated one is what made earlier attempts
+# read as a toy.
+const WHIP_RAINBOW := [
+	Color(1.00, 0.62, 0.78), Color(1.00, 0.86, 0.62), Color(0.98, 1.00, 0.68),
+	Color(0.68, 1.00, 0.78), Color(0.68, 0.88, 1.00), Color(0.80, 0.70, 1.00)]
+
+func _draw_whip_lash(host: Node2D, aim: Vector2, reach: float, tier: int,
+		tag: String) -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var perp := Vector2(-aim.y, aim.x)
+	# THE ARC, kept deliberately shallow. The hit test below is a straight lane
+	# 34px either side of the aim, so a lash that bowed further than that would
+	# be drawing a lie -- a curve the player can see but cannot hit along. 26px
+	# stays inside its own hitbox.
+	var bow: float = 26.0
+	var pal: Array = WHIP_RAINBOW if tag == "tenfold" \
+		else (WHIP_TAG_COLOURS[tag] if WHIP_TAG_COLOURS.has(tag) else WHIP_TAG_COLOURS[""])
+	# the ladder: a tier-1 whip gets a short plain chain, the apex gets links,
+	# colour and sparks. Polish is a tier reward, same as power.
+	var links: int = 7 + mini(maxi(tier, 1), 8)
+	var root := Node2D.new()
+	root.z_index = 41
+	host.add_child(root)
+	root.global_position = global_position
+	for i in range(links):
+		var t0: float = float(i) / float(links)
+		var t1: float = t0 + (1.0 / float(links)) * 0.62      # 38% is GAP
+		var seg := Line2D.new()
+		seg.points = PackedVector2Array([
+			aim * reach * t0 + perp * bow * sin(PI * t0),
+			aim * reach * ((t0 + t1) * 0.5) + perp * bow * sin(PI * (t0 + t1) * 0.5),
+			aim * reach * t1 + perp * bow * sin(PI * t1)])
+		seg.width = lerpf(3.6, 1.9, t0)          # tapers toward the tip
+		seg.default_color = _whip_link_colour(pal, t0)
+		seg.joint_mode = Line2D.LINE_JOINT_ROUND
+		seg.begin_cap_mode = Line2D.LINE_CAP_ROUND
+		seg.end_cap_mode = Line2D.LINE_CAP_ROUND
+		seg.material = m
+		root.add_child(seg)
+	# THE TIP IS ITS OWN OBJECT. In the reference it is a distinct arrowhead,
+	# not the line simply ending -- which is what stops a whip reading as a
+	# scratch on the screen.
+	var tip := Polygon2D.new()
+	tip.polygon = PackedVector2Array([
+		Vector2(9.0, 0.0), Vector2(-4.0, -5.0), Vector2(-1.0, 0.0), Vector2(-4.0, 5.0)])
+	tip.color = _whip_link_colour(pal, 0.999)
+	tip.material = m
+	tip.position = aim * reach + perp * bow * sin(PI)
+	tip.rotation = aim.angle()
+	root.add_child(tip)
+	var tw := root.create_tween()
+	tw.tween_property(root, "modulate:a", 0.0, 0.22)
+	tw.tween_callback(root.queue_free)
+	# ...and the sparks, which are parented to the HOST rather than to the lash
+	# so they outlive it. That single detail is most of what makes the
+	# reference whip feel expensive.
+	var sparks: int = int(round(2.0 + float(maxi(tier, 1)) * 2.2))
+	for i in range(sparks):
+		var t: float = randf()
+		var at: Vector2 = global_position + aim * reach * t \
+			+ perp * (bow * sin(PI * t) + randf_range(-16.0, 16.0))
+		_whip_spark(host, at, _whip_link_colour(pal, t), m)
+
+func _whip_link_colour(pal: Array, t: float) -> Color:
+	if pal.is_empty():
+		return Color(1.0, 1.0, 1.0, 0.9)
+	# the colour CYCLES along the lash rather than sitting flat on it
+	var f: float = clampf(t, 0.0, 0.999) * float(pal.size() - 1)
+	var a: int = int(floor(f))
+	var b: int = mini(a + 1, pal.size() - 1)
+	var c: Color = (pal[a] as Color).lerp(pal[b] as Color, f - float(a))
+	return Color(c.r, c.g, c.b, 0.92)
+
+# one four-pointed star: Terraria's universal particle, present in every
+# high-tier clip the dev has sent.
+func _whip_spark(host: Node2D, at: Vector2, col: Color, m: CanvasItemMaterial) -> void:
+	var r: float = randf_range(2.4, 6.2)
+	var star := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(8):
+		var ang: float = TAU * float(i) / 8.0
+		var rr: float = r if i % 2 == 0 else r * 0.30
+		pts.append(Vector2(cos(ang), sin(ang)) * rr)
+	star.polygon = pts
+	star.color = col
+	star.material = m
+	star.z_index = 42
+	host.add_child(star)
+	star.global_position = at
+	star.rotation = randf_range(0.0, TAU)
+	var tw := star.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(star, "global_position",
+		at + Vector2(randf_range(-14.0, 14.0), randf_range(-26.0, -8.0)), 0.5)
+	tw.tween_property(star, "scale", Vector2(0.2, 0.2), 0.5)
+	tw.tween_property(star, "modulate:a", 0.0, 0.5)
+	tw.chain().tween_callback(star.queue_free)
+
 func whip_crack(stats, special: Dictionary) -> void:
 	play_sfx(SFX_SWORD)
 	var aim := get_aim_direction()
@@ -2279,25 +2401,9 @@ func whip_crack(stats, special: Dictionary) -> void:
 		* skill_damage_mult("whip"))))
 	var host := get_parent()
 	var perp := Vector2(-aim.y, aim.x)
-	# the ribbon: a long thin lash drawn along the aim, gone in a blink
 	if host != null:
-		var m := CanvasItemMaterial.new()
-		m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-		var lash := Polygon2D.new()
-		lash.polygon = PackedVector2Array([
-			Vector2(0, -3.0), Vector2(reach * 0.5, -9.0), Vector2(reach, -2.0),
-			Vector2(reach, 2.0), Vector2(reach * 0.5, 9.0), Vector2(0, 3.0)])
-		lash.color = Color(0.95, 0.74, 0.36, 0.88)
-		lash.material = m
-		lash.z_index = 41
-		lash.rotation = aim.angle()
-		host.add_child(lash)
-		lash.global_position = global_position
-		var tw := lash.create_tween()
-		tw.set_parallel(true)
-		tw.tween_property(lash, "scale", Vector2(1.06, 0.3), 0.16)
-		tw.tween_property(lash, "modulate:a", 0.0, 0.16)
-		tw.chain().tween_callback(lash.queue_free)
+		_draw_whip_lash(host, aim, reach, int(special.get("tier", 1)),
+			str(special.get("tag_fx", "")))
 	# it hits everything along the lane, and TAGS the first thing it reaches
 	var struck: Node2D = null
 	var best_along := 1e9
