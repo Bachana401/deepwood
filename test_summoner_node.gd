@@ -141,5 +141,52 @@ func _ready() -> void:
 	check("a totem is weapon_type summon",
 		str(WeaponRoster.get_def("pst_watchingstone").get("weapon_type", "")) == "summon")
 
+	# --- 7. THE TREE (batch 3) ------------------------------------------
+	var tree_nodes: Array = SkillTreeData.TREES.get("Summoner", [])
+	check("the Summoner tree exists", tree_nodes.size() >= 25,
+		"%d nodes" % tree_nodes.size())
+	check("it has three branch names",
+		(SkillTreeData.BRANCH_NAMES.get("Summoner", []) as Array).size() == 3)
+	check("it has a class colour", SkillTreeData.CLASS_COLORS.has("Summoner"))
+
+	# every tier-4 fork must be mutually exclusive, or a player takes both
+	var groups := {}
+	for n in tree_nodes:
+		var exg := str((n as Dictionary).get("exclusive", ""))
+		if exg == "":
+			continue
+		groups[exg] = int(groups.get(exg, 0)) + 1
+	check("all three specs fork into an exclusive PAIR",
+		groups.size() == 3 and groups.values().all(func(v): return v == 2),
+		str(groups))
+
+	# THE PROMISE AUDIT, in miniature: a node effect nobody reads is a lie on
+	# the card. This class adds 16 keys and it is its biggest build risk.
+	var readers := {}
+	for path in ["res://player.gd", "res://companion.gd", "res://summon_post.gd",
+			"res://bond_mark.gd"]:
+		readers[path] = FileAccess.get_file_as_string(path)
+	var unread := []
+	for n2 in tree_nodes:
+		for key in ((n2 as Dictionary).get("effect", {}) as Dictionary):
+			if key in ["max_health"]:
+				continue          # read by the shared stat pipeline
+			var found := false
+			for path2 in readers:
+				if str(readers[path2]).contains('"%s"' % key):
+					found = true
+					break
+			if not found:
+				unread.append("%s (in %s)" % [key, str((n2 as Dictionary).get("id", "?"))])
+	check("every tree effect key is READ somewhere", unread.is_empty(),
+		", ".join(unread))
+
+	# the class must be pickable, and its starters must exist to be granted
+	var ui_src := FileAccess.get_file_as_string("res://skill_tree_ui.gd")
+	check("the class picker offers the Summoner", ui_src.contains('"Summoner"'))
+	for gift in ["whp_firstlesson", "smn_smallloyalty"]:
+		check("the starter %s exists to grant" % gift,
+			not (WeaponRoster.get_def(gift) as Dictionary).is_empty())
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(0 if fails == 0 else 1)

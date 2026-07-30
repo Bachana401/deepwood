@@ -231,7 +231,8 @@ func refresh() -> void:
 func rebuild_class_choice() -> void:
 	for child in class_choice_box.get_children():
 		child.queue_free()
-	for class_name_key in ["Sword", "Archer", "Mage", "Shadow Monarch"]:
+	# the Summoner is a LAUNCH class -- only the Monarch stays completion-locked
+	for class_name_key in ["Sword", "Archer", "Mage", "Summoner", "Shadow Monarch"]:
 		var button = Button.new()
 		var color = SkillTreeData.CLASS_COLORS[class_name_key]
 		button.custom_minimum_size = Vector2(0, 48)
@@ -258,6 +259,15 @@ func rebuild_class_choice() -> void:
 
 func _on_class_chosen(picked: String) -> void:
 	GameState.chosen_class = picked
+	# THE SUMMONER'S STARTER BUNDLE. The other three classes can play with what
+	# the world already hands out; a Summoner with no scepter and no whip
+	# cannot play at all. Both are ordinary T1 drops for everyone else.
+	if picked == "Summoner":
+		var p = get_tree().get_first_node_in_group("player")
+		if p != null and p.get("inventory") != null:
+			for gift in ["whp_firstlesson", "smn_smallloyalty"]:
+				if p.inventory.get_count(gift) <= 0:
+					p.inventory.add_item(gift, 1)
 	notify("Class chosen: " + picked + "!")
 	refresh()
 

@@ -26,6 +26,7 @@ var reach := 300.0
 var _cool := 0.0
 var _t := 0.0
 var _berserk := 0.0
+var _bastion_t := 0.0
 var visual: Node2D = null
 
 func _ready() -> void:
@@ -65,6 +66,24 @@ func _physics_process(delta: float) -> void:
 	if visual != null and is_instance_valid(visual):
 		# a lit post leans forward slightly while roused, so the state reads
 		visual.rotation = sin(_t * (14.0 if _berserk > 0.0 else 1.6)) * (0.07 if _berserk > 0.0 else 0.02)
+	# BASTION ROW: ground you hold. Anything standing near a post moves slow,
+	# whether or not the post is shooting it -- that is what holding is.
+	var bastion: float = GameState.get_bonus_total("post_bastion")
+	if bastion > 0.0:
+		_bastion_t -= delta
+		if _bastion_t <= 0.0:
+			_bastion_t = 0.5
+			for group_name in HOSTILE_GROUPS:
+				for e in get_tree().get_nodes_in_group(group_name):
+					if not (e is Node2D) or not is_instance_valid(e):
+						continue
+					if "is_dead" in e and e.is_dead:
+						continue
+					if not e.has_method("apply_status"):
+						continue
+					if global_position.distance_to((e as Node2D).global_position) > 130.0:
+						continue
+					e.apply_status("slow", 0.8, bastion)
 	if _cool > 0.0:
 		return
 	var prey := _pick()

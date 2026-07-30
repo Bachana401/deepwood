@@ -17,9 +17,15 @@ func _ready() -> void:
 
 	# every effect key any node grants, and the sources that may consume them
 	var sources := ""
+	# The list is FIXED, so a class whose readers live in new files reads as
+	# all-lies until the file is added here. companion.gd was already consuming
+	# keys before the Summoner and was never scanned -- a pre-existing blind
+	# spot this class walked straight into. Widening the audit's view, not
+	# loosening the check.
 	for f in ["player.gd", "arrow.gd", "weapon_projectile.gd", "shade.gd",
 			"enemy.gd", "game_state.gd", "boss.gd", "skill_tree_ui.gd",
-			"main.gd", "dungeon_interior.gd"]:
+			"main.gd", "dungeon_interior.gd",
+			"companion.gd", "summon_post.gd", "bond_mark.gd"]:
 		var fa := FileAccess.open("res://" + f, FileAccess.READ)
 		if fa != null:
 			sources += fa.get_as_text()

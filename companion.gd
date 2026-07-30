@@ -38,6 +38,12 @@ const BOND_MARK := preload("res://bond_mark.gd")
 #   "blink" teleports above the mark and snipes -- never out of position
 #   "ram"   drives THROUGH bodies rather than stopping at one
 var style := ""
+# THE BOND (Bondmaster spec). Your FIRST slot stops being one of a crowd and
+# becomes a named companion that grows with what it kills this run. Everything
+# below is read only when is_bond is true, so a Hordecaller pays nothing for it.
+var is_bond := false
+var bond_kills := 0
+var _form_broken := 0
 var _latched: Node2D = null
 var _loop_t := 0.0
 var _empower := 0        # Keeper of One: recasts make her stronger, not more
@@ -232,6 +238,12 @@ func strike_damage(on: Node) -> Array:
 			if c.get("summoned") == true:
 				alive += 1
 		d *= 1.0 + pack * float(alive)
+	# THE BOND GROWS with what it kills, and BREAKS FORM twice on the way.
+	if is_bond:
+		var growth: float = GameState.get_bonus_total("bond_growth")
+		if growth > 0.0:
+			d *= 1.0 + growth * float(mini(25, bond_kills))
+		d *= 1.0 + GameState.get_bonus_total("bond_damage") * float(_form_broken)
 	var crit := false
 	var mk = BOND_MARK.mark_on(on)
 	if mk != null:
@@ -256,7 +268,22 @@ func _land() -> void:
 	if is_instance_valid(_mark) and not _is_dead(_mark) and _mark.has_method("take_damage"):
 		var roll: Array = strike_damage(_mark)
 		var pay: int = int(roll[0])
+		# FANG OF THE BOND: it finishes tagged prey rather than whittling them.
+		# Bosses are exempt -- the boss rule allows DoT and focus, never an
+		# execute, and a minion deleting a boss would be exactly that.
+		var ex_pct: float = GameState.get_bonus_total("bond_execute")
+		if is_bond and ex_pct > 0.0 and BOND_MARK.is_marked(_mark) \
+				and not _mark.is_in_group("boss") \
+				and "health" in _mark and "max_health" in _mark \
+				and float(_mark.max_health) > 0.0 \
+				and float(_mark.health) / float(_mark.max_health) <= ex_pct:
+			pay = int(_mark.health)
+			FloatingText.spawn_word(get_parent(),
+				(_mark as Node2D).global_position + Vector2(0, -46), "finished",
+				Color(0.95, 0.76, 0.4))
+		var was_alive: bool = ("health" not in _mark) or int(_mark.health) > 0
 		var landed = _mark.take_damage(pay)
+		_after_strike(_mark, was_alive)
 		if landed == null or landed:
 			FloatingText.spawn(get_parent(), _mark.global_position, pay, bool(roll[1]))
 		HitFx.burst(get_parent(), _mark_point, "physical", bool(roll[1]))
@@ -278,6 +305,58 @@ func _land() -> void:
 			_state = 1
 			return
 	_state = 2
+
+# Everything that keys off a summon's KILL lives here, so the horde echo and
+# the Bond's growth cannot drift apart from each other.
+func _after_strike(victim: Node, was_alive: bool) -> void:
+	if not summoned or not was_alive:
+		return
+	var died: bool = ("health" in victim and int(victim.health) <= 0) \
+		or ("is_dead" in victim and victim.is_dead)
+	if not died:
+		return
+	# FORM BREAK: at 10 and again at 20 the Bond outgrows its own shape
+	if is_bond:
+		bond_kills += 1
+		if GameState.get_bonus_total("bond_form") > 0.0:
+			var want_forms: int = (1 if bond_kills >= 10 else 0) + (1 if bond_kills >= 20 else 0)
+			if want_forms > _form_broken:
+				_form_broken = want_forms
+				if visual != null:
+					visual.scale = Vector2.ONE * (1.0 + 0.22 * float(_form_broken))
+				FloatingText.spawn_word(get_parent(),
+					global_position + Vector2(0, -40), "form breaks",
+					Color(0.95, 0.7, 0.35))
+	# THE HUNDRED HANDS: a kill may call a short-lived echo of the killer.
+	# It is deliberately NOT a permanent slot -- the horde refuses arithmetic,
+	# but it must not refuse the slot cap either.
+	var echo_odds: float = GameState.get_bonus_total("horde_echo")
+	if echo_odds <= 0.0 or randf() >= echo_odds:
+		return
+	var standing := 0
+	for c in get_parent().get_children():
+		if c.get("_is_echo") == true:
+			standing += 1
+	if standing >= 4:
+		return
+	var echo = load("res://companion.gd").new()
+	echo.kind = kind
+	echo.style = style
+	echo.summoned = true
+	echo.damage = maxi(1, int(round(float(damage) * 0.6)))
+	echo.gap = gap
+	echo.player = player
+	echo.slot = 5 + standing
+	echo.set("_is_echo", true)
+	get_parent().add_child(echo)
+	echo.global_position = global_position
+	echo.modulate = Color(1.0, 1.0, 1.0, 0.7)
+	var tw: Tween = echo.create_tween()
+	tw.tween_interval(8.0)
+	tw.tween_property(echo, "modulate:a", 0.0, 0.4)
+	tw.tween_callback(echo.queue_free)
+
+var _is_echo := false
 
 # the wisp does not fly at anyone: it lobs a slow seeking mote (the homing
 # soul_stream kind, already in the projectile library) and stays a candle

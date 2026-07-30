@@ -224,6 +224,10 @@ var unlocked_skills: Array = []
 # the Player node, which is re-instanced on every dungeon entry/exit.
 # Saved with a [] default so old saves load clean (the house pattern).
 var active_summons: Array = []
+# THE WATCH ETERNAL (Wallwarden keystone) lets posts REDEPLOY themselves when
+# you change floors. Posts are scene nodes and die with the scene, so the ones
+# worth keeping are remembered here as [{s_kind, damage, gap, source_id}].
+var active_posts: Array = []
 # Material types the Science Lab has identified -- until a material id is in
 # here, the UI shows it as an unknown substance and skill nodes can't spend it.
 var researched_materials: Array = []
@@ -6356,6 +6360,7 @@ func save_game(player: Node) -> void:
 		"chosen_class": chosen_class,
 		"unlocked_skills": unlocked_skills,
 		"active_summons": active_summons,
+		"active_posts": active_posts,
 		"researched_materials": researched_materials,
 		"equipment": equipment,
 		"game_hours": game_hours,
@@ -6616,6 +6621,7 @@ func load_game() -> Dictionary:
 		unlocked_skills = parsed.get("unlocked_skills", unlocked_skills)
 		# a save written before the Summoner existed simply has no pack
 		active_summons = parsed.get("active_summons", [])
+		active_posts = parsed.get("active_posts", [])
 		researched_materials = parsed.get("researched_materials", researched_materials)
 		if parsed.has("equipment"):
 			load_equipment(parsed["equipment"])

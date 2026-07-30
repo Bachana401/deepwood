@@ -52,6 +52,9 @@ const BRANCH_NAMES = {
 	"Archer": ["Marksman", "Ranger", "Warden"],
 	"Mage": ["Elementalist", "Sage", "Mystic"],
 	"Shadow Monarch": ["Legion", "Dominion", "Ascendant"],
+	# THE SUMMONER (2026-07-30). Display flavour is "the Bondcaller" -- where
+	# the Monarch binds the DEAD, this one is answered by the LIVING.
+	"Summoner": ["Hordecaller", "Bondmaster", "Wallwarden"],
 }
 
 const TREES = {
@@ -205,6 +208,44 @@ const TREES = {
 		{"id": "nc_a6", "branch": 2, "col": 4.5, "name": "Eternal Monarch", "desc": "KEYSTONE: +120 max HP, +15% lifesteal", "tier": 6, "cost": 4, "prereq": "nc_a5", "materials": {"void_essence": 2}, "effect": {"max_health": 120.0, "lifesteal": 0.15}, "keystone": true},
 		{"id": "nc_a7", "branch": 2, "col": 4.5, "name": "Sovereign of the Dead", "desc": "ULTIMATE: ASSUME THE TRUE FORM at will -- the god-king rises: permanent army, shadow novas, +150 HP, +20% damage.", "tier": 7, "cost": 6, "prereq": "nc_a6", "materials": {"void_essence": 3, "ancient_relic": 2}, "effect": {"true_form_unlock": 1.0, "max_health": 150.0, "melee_damage": 0.20, "bow_damage": 0.20, "wand_damage": 0.20}, "keystone": true},
 	],
+	# ================= THE SUMMONER (2026-07-30) =================
+	# Three specs: a swarm that counts, a single companion that GROWS, and a
+	# line of ground you hold. Every effect key below has a reader -- the
+	# named-but-never-read passive is this class's biggest build risk and it
+	# was written last, after the readers existed.
+	"Summoner": [
+		{"id": "sm_root", "branch": -1, "col": 2.5, "name": "The First Calling", "desc": "+8% summon damage, +5% whip damage", "tier": 0, "cost": 1, "prereq": "", "materials": {}, "effect": {"summon_damage": 0.08, "whip_damage": 0.05}},
+		# === Hordecaller (0): how MANY, versus how hungry ===
+		{"id": "sm_h1", "branch": 0, "col": 0.5, "name": "Open Kennels", "desc": "+1 minion slot", "tier": 1, "cost": 1, "prereq": "sm_root", "materials": {}, "effect": {"summon_cap": 1.0}},
+		{"id": "sm_h2", "branch": 0, "col": 0.5, "name": "Sharpened Pack", "desc": "+20% summon damage", "tier": 2, "cost": 1, "prereq": "sm_h1", "materials": {}, "effect": {"summon_damage": 0.20}},
+		{"id": "sm_h3", "branch": 0, "col": 0.5, "name": "The Full Kennel", "desc": "KEYSTONE: +1 minion slot, and casting costs 20% less mana", "tier": 3, "cost": 2, "prereq": "sm_h2", "materials": {"slime": 3}, "effect": {"summon_cap": 1.0, "summon_mana_cut": 0.20}, "keystone": true},
+		{"id": "sm_h4a", "branch": 0, "col": 0.0, "name": "The Numberless", "desc": "FORK: +2 minion slots — overwhelm them with bodies", "tier": 4, "cost": 3, "prereq": "sm_h3", "materials": {"iron_shard": 2}, "effect": {"summon_cap": 2.0}, "keystone": true, "exclusive": "sm0"},
+		{"id": "sm_h4b", "branch": 0, "col": 1.0, "name": "Pack Law", "desc": "FORK: +8% summon damage for every minion you hold — fewer, hungrier", "tier": 4, "cost": 3, "prereq": "sm_h3", "materials": {"iron_shard": 2}, "effect": {"pack_law": 0.08}, "keystone": true, "exclusive": "sm0"},
+		{"id": "sm_h5", "branch": 0, "col": 0.5, "name": "Fed and Furious", "desc": "+25% summon damage, +25 max HP", "tier": 5, "cost": 2, "prereq": ["sm_h4a", "sm_h4b"], "materials": {"ember_crystal": 1}, "effect": {"summon_damage": 0.25, "max_health": 25.0}},
+		{"id": "sm_h6", "branch": 0, "col": 0.5, "name": "Tide of Teeth", "desc": "KEYSTONE: +1 minion slot, and your pack FRENZIES at a tagged foe (+30% strike rate)", "tier": 6, "cost": 4, "prereq": "sm_h5", "materials": {"void_essence": 2}, "effect": {"summon_cap": 1.0, "tag_frenzy": 0.30}, "keystone": true},
+		{"id": "sm_h7", "branch": 0, "col": 0.5, "name": "The Hundred Hands", "desc": "ULTIMATE: a summon's kill has a 35% chance to call a short-lived ECHO of itself (up to 4). +30% summon damage.", "tier": 7, "cost": 6, "prereq": "sm_h6", "materials": {"void_essence": 3, "ancient_relic": 2}, "effect": {"horde_echo": 0.35, "summon_damage": 0.30}, "keystone": true},
+		# === Bondmaster (1): ONE companion, and it grows ===
+		{"id": "sm_b1", "branch": 1, "col": 2.5, "name": "A Steady Hand", "desc": "+15% summon damage, +10% whip damage", "tier": 1, "cost": 1, "prereq": "sm_root", "materials": {}, "effect": {"summon_damage": 0.15, "whip_damage": 0.10}},
+		{"id": "sm_b2", "branch": 1, "col": 2.5, "name": "Longer Leash", "desc": "your minions range 25% farther", "tier": 2, "cost": 1, "prereq": "sm_b1", "materials": {}, "effect": {"leash_bonus": 0.25}},
+		{"id": "sm_b3", "branch": 1, "col": 2.5, "name": "The First Bond", "desc": "KEYSTONE: your first minion becomes THE BOND — it grows +2% damage per kill this run (up to 25)", "tier": 3, "cost": 2, "prereq": "sm_b2", "materials": {"slime": 3}, "effect": {"bond_unlock": 1.0, "bond_growth": 0.02}, "keystone": true},
+		{"id": "sm_b4a", "branch": 1, "col": 2.0, "name": "Fang of the Bond", "desc": "FORK: the Bond FINISHES tagged foes below 12% HP (never bosses)", "tier": 4, "cost": 3, "prereq": "sm_b3", "materials": {"ember_crystal": 2}, "effect": {"bond_execute": 0.12}, "keystone": true, "exclusive": "sm1"},
+		{"id": "sm_b4b", "branch": 1, "col": 3.0, "name": "Shield of the Bond", "desc": "FORK: the Bond intercepts 15% of the damage aimed at you, +40 max HP", "tier": 4, "cost": 3, "prereq": "sm_b3", "materials": {"ember_crystal": 2}, "effect": {"bond_guard": 0.15, "max_health": 40.0}, "keystone": true, "exclusive": "sm1"},
+		{"id": "sm_b5", "branch": 1, "col": 2.5, "name": "Two of One Mind", "desc": "+20% summon damage, +6% crit for summon hits on a tagged foe", "tier": 5, "cost": 2, "prereq": ["sm_b4a", "sm_b4b"], "materials": {"ember_crystal": 1}, "effect": {"summon_damage": 0.20, "tag_crit": 0.06}},
+		{"id": "sm_b6", "branch": 1, "col": 2.5, "name": "Form Break", "desc": "KEYSTONE: at 10 and 20 kills the Bond BREAKS FORM — bigger, and +40% damage each time", "tier": 6, "cost": 4, "prereq": "sm_b5", "materials": {"void_essence": 2}, "effect": {"bond_form": 1.0, "bond_damage": 0.40}, "keystone": true},
+		{"id": "sm_b7", "branch": 1, "col": 2.5, "name": "No Grave for the Faithful", "desc": "ULTIMATE: when YOU are struck, the Bond avenges you at 250%.", "tier": 7, "cost": 6, "prereq": "sm_b6", "materials": {"void_essence": 3, "ancient_relic": 2}, "effect": {"bond_avenge": 2.5, "summon_damage": 0.20}, "keystone": true},
+		# === Wallwarden (2): ground you hold ===
+		{"id": "sm_w1", "branch": 2, "col": 4.5, "name": "Groundwork", "desc": "+20% post damage", "tier": 1, "cost": 1, "prereq": "sm_root", "materials": {}, "effect": {"post_damage": 0.20}},
+		{"id": "sm_w2", "branch": 2, "col": 4.5, "name": "Deep Footings", "desc": "your posts work 15% faster from firmer ground, +25 max HP", "tier": 2, "cost": 1, "prereq": "sm_w1", "materials": {}, "effect": {"post_cooldown": 0.15, "max_health": 25.0}},
+		{"id": "sm_w3", "branch": 2, "col": 4.5, "name": "The Second Post", "desc": "KEYSTONE: +1 standing post", "tier": 3, "cost": 2, "prereq": "sm_w2", "materials": {"slime": 3}, "effect": {"post_cap": 1.0}, "keystone": true},
+		{"id": "sm_w4a", "branch": 2, "col": 4.0, "name": "Bastion Row", "desc": "FORK: enemies near your posts are SLOWED, +40 max HP — ground you hold", "tier": 4, "cost": 3, "prereq": "sm_w3", "materials": {"iron_shard": 2}, "effect": {"post_bastion": 0.35, "max_health": 40.0}, "keystone": true, "exclusive": "sm2"},
+		{"id": "sm_w4b", "branch": 2, "col": 5.0, "name": "The Long Shot", "desc": "FORK: +35% post damage and post shots PIERCE — artillery", "tier": 4, "cost": 3, "prereq": "sm_w3", "materials": {"iron_shard": 2}, "effect": {"post_damage": 0.35, "post_pierce": 1.0}, "keystone": true, "exclusive": "sm2"},
+		{"id": "sm_w5", "branch": 2, "col": 4.5, "name": "Garrison Discipline", "desc": "+20% post damage, +15% summon damage", "tier": 5, "cost": 2, "prereq": ["sm_w4a", "sm_w4b"], "materials": {"ember_crystal": 1}, "effect": {"post_damage": 0.20, "summon_damage": 0.15}},
+		{"id": "sm_w6", "branch": 2, "col": 4.5, "name": "The Watch Eternal", "desc": "KEYSTONE: +1 post, and your posts REDEPLOY themselves when you change floors", "tier": 6, "cost": 4, "prereq": "sm_w5", "materials": {"void_essence": 2}, "effect": {"post_cap": 1.0, "post_persist": 1.0}, "keystone": true},
+		{"id": "sm_w7", "branch": 2, "col": 4.5, "name": "The Posts Do Not Sleep", "desc": "ULTIMATE: when you are struck, every post goes BERSERK — double rate for 5s. +25% post damage.", "tier": 7, "cost": 6, "prereq": "sm_w6", "materials": {"void_essence": 3, "ancient_relic": 2}, "effect": {"post_berserk": 5.0, "post_damage": 0.25}, "keystone": true},
+		# === the two roads (the Wukong pattern) ===
+		{"id": "sm_rd1", "branch": 0, "col": 1.5, "name": "The Cracking Rhythm", "desc": "ROAD: consecutive whip hits quicken your arm, +10% speed each (x3). The whip is a drum.", "tier": 2, "cost": 2, "prereq": "sm_h1", "materials": {"slime": 2}, "effect": {"whip_frenzy": 0.10}, "road": true},
+		{"id": "sm_rd2", "branch": 2, "col": 5.5, "name": "The Shepherd's Whistle", "desc": "ROAD: press Z to RECALL the pack to your side at once (12s).", "tier": 3, "cost": 2, "prereq": "sm_w1", "materials": {"iron_shard": 2}, "effect": {"whistle": 1.0}, "road": true},
+	],
 }
 
 const CLASS_COLORS = {
@@ -212,6 +253,8 @@ const CLASS_COLORS = {
 	"Archer": Color(0.28, 0.65, 0.3),
 	"Mage": Color(0.5, 0.35, 0.85),
 	"Shadow Monarch": Color(0.2, 0.55, 0.4),
+	# hearth-gold: amber against the Mage's violet and the Monarch's green-black
+	"Summoner": Color(0.82, 0.62, 0.3),
 }
 
 static func get_node_by_id(node_id: String) -> Dictionary:

@@ -1916,6 +1916,10 @@ func skill_cooldown_mult(weapon: String) -> float:
 		reduction = GameState.get_bonus_total("bow_cooldown")
 	elif weapon == "wand":
 		reduction = GameState.get_bonus_total("wand_cooldown")
+	elif weapon == "whip":
+		reduction = GameState.get_bonus_total("whip_cooldown")
+	elif weapon == "summon":
+		reduction = GameState.get_bonus_total("summon_cooldown")
 	return max(0.3, 1.0 - reduction)
 
 # --- Standing torches (G) ---
@@ -2118,6 +2122,7 @@ func on_equipment_changed() -> void:
 	update_health_display()
 	update_mana_display()
 	_reconcile_companions()
+	redeploy_posts()
 
 # --- COMPANIONS (light summoner 2026-07-29): an item CARRIES its companion.
 # Wield or wear the carrier and it walks with you; put it away and it bows
@@ -2213,6 +2218,10 @@ func _reconcile_companions() -> void:
 			sc.style = str(ent.get("style", ""))
 			sc.source_id = str(ent.get("scepter_id", ""))
 			sc.summoned = true          # <- the whole difference: it takes orders
+			# THE FIRST BOND: with the keystone taken, slot 0 stops being one
+			# of a crowd and becomes a named companion that grows all run.
+			sc.is_bond = GameState.get_bonus_total("bond_unlock") > 0.0 \
+				and str(key2) == "summon#0"
 			sc.player = self
 			sc.position = global_position + Vector2(0, -46)
 			get_parent().add_child(sc)
@@ -2439,16 +2448,51 @@ func plant_post(special: Dictionary) -> bool:
 		var oldest = live.pop_front()
 		if is_instance_valid(oldest):
 			oldest.queue_free()
-	var post = SUMMON_POST_SCRIPT.new()
-	post.s_kind = str(special.get("s_kind", "watchstone"))
-	post.damage = int(special.get("damage", 8))
-	post.gap = float(special.get("p_gap", 1.1))
-	post.source_id = active_weapon_id
-	post.player = self
-	get_parent().add_child(post)
-	post.global_position = global_position + Vector2(0, 8.0)
+	var rec := {
+		"s_kind": str(special.get("s_kind", "watchstone")),
+		"damage": int(special.get("damage", 8)),
+		"gap": float(special.get("p_gap", 1.1)),
+		"source_id": active_weapon_id,
+	}
+	# THE WATCH ETERNAL: with post_persist the ledger remembers, so a post
+	# rebuilds itself on the next floor instead of being left behind.
+	if GameState.get_bonus_total("post_persist") > 0.0:
+		while GameState.active_posts.size() >= post_budget():
+			GameState.active_posts.pop_front()
+		GameState.active_posts.append(rec)
+	_raise_post(rec, global_position + Vector2(0, 8.0))
 	SfxSynth.play_at(self, global_position, "pop", -14.0, 0.7)
 	return true
+
+func _raise_post(rec: Dictionary, at: Vector2) -> Node:
+	var post = SUMMON_POST_SCRIPT.new()
+	post.s_kind = str(rec.get("s_kind", "watchstone"))
+	post.damage = int(rec.get("damage", 8))
+	post.gap = float(rec.get("gap", 1.1))
+	post.source_id = str(rec.get("source_id", ""))
+	post.player = self
+	get_parent().add_child(post)
+	post.global_position = at
+	return post
+
+# Called once when the player lands in a new scene: the Watch Eternal's posts
+# put themselves back up beside you.
+func redeploy_posts() -> void:
+	if GameState.get_bonus_total("post_persist") <= 0.0:
+		return
+	if GameState.active_posts.is_empty():
+		return
+	var standing := get_tree().get_nodes_in_group("summon_post").size()
+	var i := 0
+	for rec in GameState.active_posts:
+		if standing + i >= post_budget():
+			break
+		if typeof(rec) != TYPE_DICTIONARY:
+			continue
+		if inventory.get_count(str(rec.get("source_id", ""))) <= 0:
+			continue
+		_raise_post(rec, global_position + Vector2(46.0 + 44.0 * float(i), 8.0))
+		i += 1
 
 func update_health_display() -> void:
 	var percent = clamp(float(health) / get_max_health(), 0.0, 1.0)
@@ -2903,6 +2947,12 @@ func take_damage(amount: int) -> void:
 		return
 	if _now() < monarch_iframes_until:
 		return   # Shadowstep: mid-dash the Monarch simply isn't there
+	# THE SUMMONER ANSWERS BEING HIT (batch 3). The Bond steps in front of part
+	# of it and then avenges; every standing post goes berserk. All three are
+	# real triggers hung on the actual hit, never polled.
+	amount = bond_intercept(amount)
+	bond_avenge(null)
+	rouse_posts()
 	# Evasion (Riposte / Evasion / Blink Step): a chance to dodge the hit whole
 	var dodge = GameState.get_bonus_total("dodge_chance")
 	if dodge > 0.0 and randf() < dodge:
@@ -3523,6 +3573,11 @@ func _physics_process(delta: float) -> void:
 	# Riftweaving (Mage): Z weaves the doors -- see try_weave_portal
 	if Input.is_action_just_pressed("portal") and has_portal_skill():
 		try_weave_portal()
+	# THE SHEPHERD'S WHISTLE (Summoner road): the SAME key, bound per class.
+	# Riftweaving is a Mage road and the Whistle is a Summoner one, so they can
+	# never both be unlocked and there is no conflict to arbitrate.
+	elif Input.is_action_just_pressed("portal"):
+		shepherd_whistle()
 
 	# MOVABLE BUILDINGS (5.2): a packed building plants where you stand on H
 	if Input.is_action_just_pressed("harvest") and GameState.moving_building != "" and not GameState.in_dungeon:
@@ -5977,6 +6032,104 @@ func apply_omnivamp(total_damage: int) -> void:
 # and the Pilgrim's waymarks promise one when you walk your own road -- but
 # there was no heal() on the player at all, so the grief-urn's payout was a
 # SILENT no-op behind a has_method() guard that was never true.
+# --- THE BOND'S TWO PROMISES (Bondmaster, read by player.take_damage) ------
+
+# SHIELD OF THE BOND: it steps in front of a share of what is aimed at you.
+# Returns the damage AFTER the Bond has taken its part.
+func bond_intercept(amount: int) -> int:
+	var share: float = GameState.get_bonus_total("bond_guard")
+	if share <= 0.0 or amount <= 0:
+		return amount
+	var bond := find_bond()
+	if bond == null:
+		return amount
+	var taken: int = int(round(float(amount) * clampf(share, 0.0, 0.6)))
+	if taken <= 0:
+		return amount
+	FloatingText.spawn_word(get_parent(),
+		(bond as Node2D).global_position + Vector2(0, -34), "guarded",
+		Color(0.8, 0.9, 1.0))
+	return maxi(0, amount - taken)
+
+# NO GRAVE FOR THE FAITHFUL: strike the master and the Bond answers at once,
+# at a multiple. The trigger is real -- take_damage calls it -- rather than a
+# polled check, so it always lands on the thing that actually hit you.
+func bond_avenge(attacker: Node) -> void:
+	var mult: float = GameState.get_bonus_total("bond_avenge")
+	if mult <= 0.0:
+		return
+	# take_damage() is called from a dozen places and none of them pass WHO
+	# hit you, so rather than thread an attacker through every caller the Bond
+	# turns on whoever is closest. In practice that is the thing that hit you,
+	# and when it is not, a furious dog biting the nearest enemy still reads
+	# exactly right.
+	if attacker == null or not is_instance_valid(attacker):
+		var best: Node2D = null
+		var bd := 300.0
+		for group_name in ["course_enemy", "dungeon_combatant", "siege_enemy"]:
+			for e in get_tree().get_nodes_in_group(group_name):
+				if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+					continue
+				if "is_dead" in e and e.is_dead:
+					continue
+				var d3: float = global_position.distance_to((e as Node2D).global_position)
+				if d3 < bd:
+					bd = d3
+					best = e
+		attacker = best
+	if attacker == null or not is_instance_valid(attacker):
+		return
+	if not attacker.has_method("take_damage"):
+		return
+	var bond := find_bond()
+	if bond == null or not bond.has_method("strike_damage"):
+		return
+	var roll: Array = bond.strike_damage(attacker)
+	var pay: int = maxi(1, int(round(float(roll[0]) * mult)))
+	var landed = attacker.take_damage(pay)
+	if landed == null or landed:
+		FloatingText.spawn(get_parent(), (attacker as Node2D).global_position
+			+ Vector2(0, -40), pay, true)
+
+func find_bond() -> Node:
+	for key in _companions:
+		var c = _companions[key]
+		if is_instance_valid(c) and c.get("is_bond") == true:
+			return c
+	return null
+
+# THE POSTS DO NOT SLEEP: being struck rouses every post you have standing.
+func rouse_posts() -> void:
+	var secs: float = GameState.get_bonus_total("post_berserk")
+	if secs <= 0.0:
+		return
+	for p in get_tree().get_nodes_in_group("summon_post"):
+		if is_instance_valid(p) and p.has_method("rouse"):
+			p.rouse(secs)
+
+# THE SHEPHERD'S WHISTLE (road): press Z and the pack comes home to orbit you
+# as a brief ward, then lashes back out. Z is free for non-Mage classes.
+var _whistle_ready_at := 0.0
+func shepherd_whistle() -> void:
+	if GameState.get_bonus_total("whistle") <= 0.0:
+		return
+	var now: float = Time.get_ticks_msec() / 1000.0
+	if now < _whistle_ready_at:
+		return
+	_whistle_ready_at = now + 12.0
+	var called := 0
+	for key in _companions:
+		var c = _companions[key]
+		if not is_instance_valid(c) or c.get("summoned") != true:
+			continue
+		(c as Node2D).global_position = global_position \
+			+ Vector2(cos(TAU * float(called) / 5.0), sin(TAU * float(called) / 5.0)) * 44.0
+		c.set("_cool", 0.0)
+		called += 1
+	if called > 0:
+		FloatingText.spawn_word(get_parent(), global_position + Vector2(0, -60),
+			"to me", Color(0.95, 0.78, 0.4))
+
 # FALCON'S OATH (T4): the shaft keeps the promise. Where it lands, you are.
 # The dev asked for dashes among the verbs and the roster had none -- this is
 # the only weapon that moves the WIELDER. Lands you just short of the body so
