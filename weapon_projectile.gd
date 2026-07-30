@@ -599,6 +599,7 @@ func _ready() -> void:
 			_build_inkjet()
 			pierce = true
 			_vel_y = -absf(float(speed)) * 0.3   # a lobbed STREAM: gentle arc
+			_ink_launch = absf(float(speed))
 		"wake_scythe":
 			_build_wakescythe()
 			pierce = true
@@ -1228,6 +1229,15 @@ func _physics_process(delta: float) -> void:
 		speed = maxf(140.0, speed * (1.0 - 1.35 * delta))
 		_vel_y += 620.0 * delta
 		global_position += direction * speed * delta + Vector2(0, _vel_y * delta)
+		# ...AND THEN IT BECOMES A STORM. The name promised weather and the
+		# weapon delivered one tidy stream, which is why it sat under the tier
+		# below it. Once the jet has lost nearly half its speed the column
+		# breaks up the way a real falling stream does: three finer jets, each
+		# still raking. This is the ladder fixed in the VERB -- the damage
+		# number is untouched.
+		if not _ink_split and _ink_launch > 0.0 and speed <= _ink_launch * 0.55:
+			_ink_split = true
+			_ink_fork()
 		# and it widens as it thins out, so the stain reads as spreading
 		if visual:
 			visual.scale = Vector2.ONE * _draw_girth * (1.0 + 0.5 * clampf(
@@ -2018,6 +2028,30 @@ const SHRAPNEL_N := 5
 
 # the pieces a burst shell throws. Reuses the scree engine (a heavy fragment on
 # a hard arc) but carries the shell's own element, so a frost bomb throws frost.
+# THE INKWELL OF STORMS breaks up. Two finer jets peel off either side of the
+# failing stream; the parent carries on as the middle one, so the player sees
+# one column become three rather than one thing replaced by two.
+func _ink_fork() -> void:
+	var host := get_parent()
+	if host == null or not is_instance_valid(host):
+		return
+	var pay: int = maxi(1, int(round(float(damage) * 0.6)))
+	for s in [-1.0, 1.0]:
+		var jet = (load("res://weapon_projectile.gd") as GDScript).new()
+		jet.kind = "ink_jet"
+		jet.direction = direction.rotated(s * 0.28).normalized()
+		jet.speed = speed * 0.92
+		jet.damage = pay
+		jet.max_distance = maxf(90.0, max_distance - traveled)
+		jet.knockback = knockback * 0.5
+		jet.element = element
+		jet.on_hit_status = on_hit_status
+		jet.source = source
+		jet.girth = girth * 0.7
+		jet._ink_split = true          # the children do not fork again
+		jet.global_position = global_position
+		host.call_deferred("add_child", jet)
+
 func _shrapnel() -> void:
 	var host := get_parent()
 	if host == null or not is_instance_valid(host):
@@ -2972,19 +3006,13 @@ func _build_regent_shard() -> void:
 
 # HEAVEN, BENT: a ray with a spine, drawn so the arc reads
 func _build_bent_ray() -> void:
-	var m := CanvasItemMaterial.new()
-	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	var glow := Polygon2D.new()
-	glow.polygon = PackedVector2Array([
-		Vector2(26, 0), Vector2(2, -8), Vector2(-24, 0), Vector2(2, 8)])
-	glow.color = Color(0.62, 0.78, 1.0, 0.36)
-	glow.material = m
-	visual.add_child(glow)
-	var ray := Polygon2D.new()
-	ray.polygon = PackedVector2Array([
-		Vector2(22, 0), Vector2(1, -3.2), Vector2(-18, 0), Vector2(1, 3.2)])
-	ray.color = Color(0.9, 0.95, 1.0, 0.95)
-	visual.add_child(ray)
+	# HEAVEN, BENT: a shaft of daylight forced out of true. One tier below the
+	# Sorrow, so it gets a shorter bundle and one fewer filament -- the ladder
+	# is kept in the COUNT and the LENGTH, never by making it uglier.
+	_art_filament_beam(138.0, [
+		Color(1.0, 0.86, 0.42),         # gold at the hand
+		Color(1.0, 0.97, 0.80),         # to daylight
+		Color(0.80, 0.94, 1.0)], 5)
 
 # PILLAR OF THE SKY: a standing column of daylight. Reuses the standing-zone
 # tick wholesale -- only the shape and the numbers differ.
@@ -3203,13 +3231,12 @@ func _build_dawn_line() -> void:
 	glow.color = Color(1.0, 0.7, 0.26, 0.34)
 	glow.material = m
 	visual.add_child(glow)
-	var bar := Polygon2D.new()
-	bar.polygon = PackedVector2Array([
-		Vector2(-72, 0), Vector2(-46, -4.2), Vector2(46, -4.2),
-		Vector2(72, 0), Vector2(46, 4.2), Vector2(-46, 4.2)])
-	bar.color = Color(1.0, 0.9, 0.55, 0.85)
-	bar.material = m
-	visual.add_child(bar)
+	# the bar itself, by the filament law: five hairlines of slightly different
+	# length rather than one solid slab. The taper was already right -- what it
+	# lacked was an INTERIOR for the eye to resolve as the dawn climbs.
+	_art_filament_bar(72.0, [
+		Color(1.0, 0.90, 0.55),         # the lit centre
+		Color(1.0, 0.62, 0.22)], 5, 4.6)   # to ember at the ends
 	# a few motes lifting off it, so the rise reads as dawn and not a slab
 	for i in range(5):
 		var mote := Polygon2D.new()
@@ -3611,6 +3638,8 @@ func _tick_boulder(delta: float) -> void:
 
 var _wake_returned := false
 var _ink_rehit := 0.0
+var _ink_launch := 0.0      # ink_jet: the speed it was thrown at
+var _ink_split := false     # ink_jet: has this stream already broken up?
 
 # CLEARING hit_bodies DOES NOTHING ON ITS OWN (found by measurement, 2026-07-30).
 # The re-cut pattern used everywhere in this file empties the ledger on a clock
@@ -4776,24 +4805,14 @@ func _build_marcher() -> void:
 # THE CROWN'S SORROW's lance: a narrow spindle of pale light with a white
 # core -- small, fast, and there are always several in the air
 func _build_griefbeam() -> void:
-	var halo := Polygon2D.new()
-	halo.polygon = PackedVector2Array([
-		Vector2(30, 0), Vector2(4, -6), Vector2(-16, 0), Vector2(4, 6)])
-	halo.color = Color(0.62, 0.78, 1.0, 0.34)
-	var m := CanvasItemMaterial.new()
-	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	halo.material = m
-	visual.add_child(halo)
-	var body := Polygon2D.new()
-	body.polygon = PackedVector2Array([
-		Vector2(25, 0), Vector2(3, -2.6), Vector2(-12, 0), Vector2(3, 2.6)])
-	body.color = Color(0.82, 0.9, 1.0, 0.95)
-	visual.add_child(body)
-	var core := Polygon2D.new()
-	core.polygon = PackedVector2Array([
-		Vector2(20, 0), Vector2(2, -1.1), Vector2(-8, 0), Vector2(2, 1.1)])
-	core.color = Color(1.0, 1.0, 1.0, 0.98)
-	visual.add_child(core)
+	# THE CROWN'S SORROW is the roster's own "Starlight-kin" -- and it was drawn
+	# as three stacked diamonds 46px long, well under one player-height. Rebuilt
+	# to the measured law: a bundle at 3.3 PL, mourning-violet at the hand and
+	# burning out white at the tip.
+	_art_filament_beam(158.0, [
+		Color(0.55, 0.36, 0.86),        # violet, at the hand
+		Color(0.42, 0.62, 0.98),        # into blue
+		Color(0.62, 0.92, 1.0)], 6)     # and cold light before the burn-out
 
 # REGICIDE's thrown spear: a slim crown-gold lance, point-first
 func _build_crownspear() -> void:
@@ -9735,6 +9754,140 @@ func _art_shard(r: float, col: Color, facets: int = 6, host: Node2D = null) -> v
 	lit.color = Color(1.0, 1.0, 1.0, 0.42)
 	lit.material = m
 	into.add_child(lit)
+
+# THE STARLIGHT LAW (measured off the dev's reference clip, 2026-07-30).
+#
+# A beam is NOT one thick bar. The reference weapon draws 4-6 RAZOR-THIN
+# filaments at slightly different angles, all converging at the hand and
+# fanning out toward the tip -- and each filament is widest in the MIDDLE,
+# needling to a point at BOTH ends. A spindle, not a wedge. The colour runs
+# ALONG the length (saturated at the hand, burning out to white at the tip)
+# rather than across it.
+#
+# Every beam in this file used to be three nested diamond polygons about one
+# player-height long. That single choice is most of what "cheap / silly"
+# meant: a flat diamond has no interior, so there is nothing for the eye to
+# resolve as it passes, and no amount of glow fixes that.
+#
+# `length` is the full reach in px. The reference measures ~3.3 PL (160px) for
+# a top-tier weapon -- do not call this with a length under ~2 PL, because a
+# short filament bundle just reads as fuzz.
+func _art_filament_beam(length: float, colours: Array, count: int = 5,
+		fan: float = 0.13, host: Node2D = null) -> void:
+	var into: Node2D = host if host != null else visual
+	var m := _add_mat()
+	var back: float = -length * 0.20            # a little tail behind the hand
+	# the spindle: zero width at both ends, full at ~45% along
+	var spindle := Curve.new()
+	spindle.add_point(Vector2(0.0, 0.0))
+	spindle.add_point(Vector2(0.45, 1.0))
+	spindle.add_point(Vector2(1.0, 0.0))
+	for i in range(maxi(1, count)):
+		# splay symmetrically about the axis. The OUTER filaments are both
+		# thinner and shorter, which is what makes six separate lines read as
+		# one object instead of a mess.
+		var t: float = 0.0
+		if count > 1:
+			t = (float(i) / float(count - 1)) * 2.0 - 1.0
+		var ang: float = t * fan
+		var reach: float = length * (1.0 - absf(t) * 0.22)
+		var fil := Line2D.new()
+		fil.points = PackedVector2Array([
+			Vector2(back, 0.0).rotated(ang),
+			Vector2(reach * 0.45, 0.0).rotated(ang),
+			Vector2(reach, 0.0).rotated(ang)])
+		fil.width = maxf(1.6, length * 0.045 * (1.0 - absf(t) * 0.45))
+		fil.width_curve = spindle
+		fil.joint_mode = Line2D.LINE_JOINT_ROUND
+		fil.begin_cap_mode = Line2D.LINE_CAP_ROUND
+		fil.end_cap_mode = Line2D.LINE_CAP_ROUND
+		fil.gradient = _length_gradient(colours, 0.55 + 0.40 * (1.0 - absf(t)))
+		fil.material = m
+		into.add_child(fil)
+	# THE SPINE: one near-opaque white hairline straight down the axis. Without
+	# it the bundle glows but has no centre and reads as smoke rather than as a
+	# weapon. It is the smallest element here and the one that does the most.
+	var core := Line2D.new()
+	core.points = PackedVector2Array([
+		Vector2(back * 0.5, 0.0), Vector2(length * 0.45, 0.0),
+		Vector2(length * 0.97, 0.0)])
+	core.width = maxf(1.2, length * 0.022)
+	core.width_curve = spindle
+	core.default_color = Color(1.0, 1.0, 1.0, 0.95)
+	core.joint_mode = Line2D.LINE_JOINT_ROUND
+	core.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	core.end_cap_mode = Line2D.LINE_CAP_ROUND
+	core.material = m
+	into.add_child(core)
+
+# The same law for a bar that is LAID DOWN rather than thrown: filaments run
+# parallel and offset across the width instead of fanning from a point. A bar
+# of light drawn as one polygon reads as a UI element sitting in the world;
+# drawn as five hairlines of slightly different length it reads as light.
+# `half` is half the bar's length -- it is centred on the origin.
+func _art_filament_bar(half: float, colours: Array, count: int = 5,
+		spread: float = 5.0, host: Node2D = null) -> void:
+	var into: Node2D = host if host != null else visual
+	var m := _add_mat()
+	var spindle := Curve.new()
+	spindle.add_point(Vector2(0.0, 0.0))
+	spindle.add_point(Vector2(0.5, 1.0))
+	spindle.add_point(Vector2(1.0, 0.0))
+	for i in range(maxi(1, count)):
+		var t: float = 0.0
+		if count > 1:
+			t = (float(i) / float(count - 1)) * 2.0 - 1.0
+		var reach: float = half * (1.0 - absf(t) * 0.18)
+		var fil := Line2D.new()
+		fil.points = PackedVector2Array([
+			Vector2(-reach, t * spread), Vector2(0.0, t * spread),
+			Vector2(reach, t * spread)])
+		fil.width = maxf(1.5, half * 0.075 * (1.0 - absf(t) * 0.45))
+		fil.width_curve = spindle
+		fil.joint_mode = Line2D.LINE_JOINT_ROUND
+		fil.begin_cap_mode = Line2D.LINE_CAP_ROUND
+		fil.end_cap_mode = Line2D.LINE_CAP_ROUND
+		# A bar is lit from its MIDDLE outward, so it needs a SYMMETRIC gradient
+		# -- both ends fade, and the hot white sits in the centre. Running the
+		# travelling-beam gradient along it would burn out one end only, which
+		# is exactly the lopsided look this is meant to replace.
+		var a: float = 0.5 + 0.42 * (1.0 - absf(t))
+		var edge: Color = colours[colours.size() - 1] if not colours.is_empty() \
+			else Color(1.0, 0.7, 0.26)
+		var mid: Color = colours[0] if not colours.is_empty() else Color(1.0, 0.95, 0.72)
+		var g := Gradient.new()
+		g.offsets = PackedFloat32Array([0.0, 0.28, 0.5, 0.72, 1.0])
+		g.colors = PackedColorArray([
+			Color(edge.r, edge.g, edge.b, 0.0), Color(mid.r, mid.g, mid.b, a),
+			Color(1.0, 1.0, 1.0, a), Color(mid.r, mid.g, mid.b, a),
+			Color(edge.r, edge.g, edge.b, 0.0)])
+		fil.gradient = g
+		fil.material = m
+		into.add_child(fil)
+
+# Colour ALONG the length. The last stop is always white, because the reference
+# tip is HOT -- a beam that ends in its own body colour looks like it stopped,
+# and one that burns out to white looks like it is still going.
+func _length_gradient(colours: Array, alpha: float) -> Gradient:
+	var src: Array = colours
+	if src.is_empty():
+		src = [Color(0.62, 0.78, 1.0)]
+	var g := Gradient.new()
+	var offs := PackedFloat32Array()
+	var cols := PackedColorArray()
+	var n: int = src.size()
+	# the body colours are squeezed into the first 82% so the burn-out has room.
+	# Scaling ALL of them (rather than nudging the last one) is what keeps the
+	# offsets sorted no matter how many colours a weapon passes in.
+	for i in range(n):
+		var c: Color = src[i]
+		offs.append(0.0 if n == 1 else 0.82 * float(i) / float(n - 1))
+		cols.append(Color(c.r, c.g, c.b, alpha))
+	offs.append(1.0)
+	cols.append(Color(1.0, 1.0, 1.0, alpha * 0.9))   # ...to make room for the burn-out
+	g.offsets = offs
+	g.colors = cols
+	return g
 
 func _circle(radius: float, sides: int) -> PackedVector2Array:
 	var pts = PackedVector2Array()

@@ -246,7 +246,9 @@ const HITS_PER_USE := {
 	# old 4.0 was a guess made when the blades rode one thin ring and actually
 	# landed one or two -- the number flattered a weapon the dev called weak.
 	"zenith":     6.0, # THE STORM: 12 blades on staggered radii over 1.15s,
-	"ink":        2.2,   # the stream SLOWS as it falls, so its 0.22s re-cut lands
+	"ink":        3.4,   # the stream SLOWS as it falls, so its 0.22s re-cut lands
+	                     # -- and at 55% speed it FORKS into three, each raking
+	                     # (2.2 for the parent, plus two children at 0.6 damage)
 	"wake":       2.8,   # the scythe wakes, cuts, and RETURNS through the row
 }
 

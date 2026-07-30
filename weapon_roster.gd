@@ -775,8 +775,10 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			# split: that belongs to the Pale one, and removing it here is
 			# what makes the pair read as two weapons.
 			s = {"type": "homing", "hunt": "biggest", "pierce": true}
-		"seeker":
-			s = {"type": "homing"}
+		# ("seeker" -- plain nearest-target homing -- used to live here. Both of
+		# its owners now hunt by their own rule, so the generic case had no
+		# weapon left and tool_deadverb_audit called it: a case label nothing
+		# reaches is exactly the kind of thing that quietly rots.)
 		"lob_a", "lob":
 			s = {"type": "lob", "damage": dmg, "speed": spd, "range": rng, "aoe": float(ex.get("aoe", 90.0))}
 		# TWO WANDS THAT DEALT LITERALLY NOTHING (found 2026-07-30).
@@ -1432,17 +1434,8 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"crescent":   return "Every swing also hurls a flying crescent down the lane."
 		"jab_volley": return "Conjures a fan of %d spectral javelins and lets fly." % int(ex.get("count", 3))
 		"volley":     return "Looses a fan of %d arrows with every draw." % int(ex.get("count", 2))
-		"paleseek":
-			# PALE SEEKER ignores the healthy and bends, unhurried, toward
-			# whatever is already WOUNDED -- then comes apart on landing.
-			s = {"type": "homing", "hunt": "wounded"}
-		"haleseek":
-			# HALE SEEKER flies dead straight and takes exactly ONE hard turn
-			# onto the BIGGEST thing in the room, then never turns again. No
-			# split: that belongs to the Pale one, and removing it here is
-			# what makes the pair read as two weapons.
-			s = {"type": "homing", "hunt": "biggest", "pierce": true}
-		"seeker":     return "Its shots bend mid-flight, hunting the nearest enemy."
+		"paleseek":   return "Ignores the healthy. Bends, unhurried, toward whatever is already WOUNDED -- and comes apart on landing into two more that hunt the same way."
+		"haleseek":   return "Flies dead straight, then takes exactly ONE hard turn onto the BIGGEST thing in the room and never turns again. It pierces, and it does not reconsider."
 		"lob_a", "lob": return "Sails a mortar arc and BLOSSOMS where it lands."
 		"bolt":       return "A hard, fast bolt of force."
 		"fire":       return "Detonates on impact, scorching everything close."
