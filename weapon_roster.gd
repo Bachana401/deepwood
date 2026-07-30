@@ -369,6 +369,10 @@ const ROWS = [
 	["wpn_worldsgrief",  "The World's Grief",    "wand", 8, "worldsgrief", 40, 0.72, {"shards": 10,
 		"fx": [{"kind": "splinter", "n": 6, "pct": 1, "range": 190.0}]}],
 	["wpn_deepcrown",    "Crown of the Deep Court","wand", 8, "deepcourt", 24, 1.1,  {"dur": 30,
+		# THREE courtiers, as the card has always claimed. The companion system
+		# reads these TOP-LEVEL keys, not the special -- this row carried none
+		# of them, so the crown summoned nobody at all.
+		"companion": "wisp", "c_damage": 22, "c_gap": 1.3, "c_count": 3,
 		"fx": [{"kind": "soulwisp", "dmg": 12, "pct": 1}]}],
 	# CROWN TEN #10: a `staff` shared with 20 becomes a rolling stone whose
 	# bite is its own gathered pace -- a hill is a damage multiplier.
@@ -547,6 +551,9 @@ static func _expand(row: Array) -> Dictionary:
 		d["companion"] = str(ex["companion"])
 		d["c_damage"] = int(ex.get("c_damage", 12))
 		d["c_gap"] = float(ex.get("c_gap", 1.8))
+		# how MANY it carries. Crown of the Deep Court promises three courtiers
+		# and this key was not forwarded at all, so it summoned one.
+		d["c_count"] = int(ex.get("c_count", 1))
 		if COMPANION_DESC.has(d["companion"]):
 			d["unique_desc"] = (str(d.get("unique_desc", "")) + " " + COMPANION_DESC[d["companion"]]).strip_edges()
 	return d

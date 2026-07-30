@@ -325,8 +325,12 @@ func _ready() -> void:
 	var guard_def: Dictionary = Inventory.ITEM_DEFS.get("relic_guardian", {})
 	if str(guard_def.get("companion", "")) == "" or not comp_kinds.has(str(guard_def.get("companion", ""))):
 		comp_bad.append("relic_guardian carries no known companion")
-	check("three weapon carriers + the Standing Star all speak real companions",
-		comp_n == 3 and comp_bad.is_empty(), "n=%d; %s" % [comp_n, "; ".join(comp_bad)])
+	# FOUR now: Crown of the Deep Court joined them. Its card promised "three
+	# drowned courtiers" from the day it was written and the row carried no
+	# companion keys at all, so the crown summoned nobody -- the dynamic
+	# dispatch audit caught it counting 1 of the 3 it promises.
+	check("four weapon carriers + the Standing Star all speak real companions",
+		comp_n == 4 and comp_bad.is_empty(), "n=%d; %s" % [comp_n, "; ".join(comp_bad)])
 	# THE SOUL MUST BE READABLE (dev: "not dumb and only plain stats"): every
 	# fx-bearing weapon's CARD says what it does -- an invisible unique is
 	# stats with extra steps

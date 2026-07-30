@@ -2132,24 +2132,33 @@ func _reconcile_companions() -> void:
 		var idef = Inventory.get_item_def(id)
 		if str(idef.get("companion", "")) != "":
 			wanted[id] = idef
-	for sid in _companions.keys():
-		if not wanted.has(sid) or not is_instance_valid(_companions[sid]):
-			if is_instance_valid(_companions[sid]):
-				_companions[sid].queue_free()
-			_companions.erase(sid)
-	var idx := 0
+	# An item may carry MORE THAN ONE. Crown of the Deep Court's card promises
+	# "three drowned courtiers" and this only ever made one -- the dynamic
+	# dispatch audit caught it counting 1 of the 3 it promises. Slots are keyed
+	# "<item>#<n>" so a three-courtier crown and a one-wisp wand coexist.
+	var want_slots := {}
 	for sid in wanted:
-		if not _companions.has(sid):
+		var n: int = maxi(1, int(wanted[sid].get("c_count", 1)))
+		for i in range(n):
+			want_slots["%s#%d" % [sid, i]] = wanted[sid]
+	for key in _companions.keys():
+		if not want_slots.has(key) or not is_instance_valid(_companions[key]):
+			if is_instance_valid(_companions[key]):
+				_companions[key].queue_free()
+			_companions.erase(key)
+	var idx := 0
+	for key in want_slots:
+		if not _companions.has(key):
 			var c = COMPANION_SCRIPT.new()
-			c.kind = str(wanted[sid].get("companion", "blade"))
-			c.damage = int(wanted[sid].get("c_damage", 12))
-			c.gap = float(wanted[sid].get("c_gap", 1.8))
-			c.source_id = sid
+			c.kind = str(want_slots[key].get("companion", "blade"))
+			c.damage = int(want_slots[key].get("c_damage", 12))
+			c.gap = float(want_slots[key].get("c_gap", 1.8))
+			c.source_id = str(key).split("#")[0]
 			c.player = self
 			c.position = global_position + Vector2(0, -46)
 			get_parent().add_child(c)
-			_companions[sid] = c
-		_companions[sid].slot = idx
+			_companions[key] = c
+		_companions[key].slot = idx
 		idx += 1
 
 func update_health_display() -> void:
@@ -4478,6 +4487,13 @@ func perform_attack() -> void:
 		zs.girth = grade_projectile_girth()
 		get_parent().add_child(zs)
 		zs.global_position = global_position
+	# THROWN MELEE (found by the dynamic dispatch audit, 2026-07-29): six
+	# melee weapons declare "ricochet" and one staff declares "kneeling_stone",
+	# and NONE of them had a branch on the melee chain -- so all seven simply
+	# swung and threw nothing. They had been dead this whole time.
+	elif special_type == "ricochet" or special_type == "kneeling_stone":
+		var thr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+		launch_projectile(special, aim_dir, thr[0], thr[1])
 	# THE MONARCH STAVES (T8): staff weapons resolve to weapon_type "melee",
 	# so these must live here -- on the wand chain they never fired at all.
 	elif special_type == "sky_measure" or special_type == "colonnade":
