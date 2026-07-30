@@ -17,6 +17,11 @@ var ug                                   # the bare generator
 func say(t: String) -> void: printerr(t)
 
 func _ready() -> void:
+	# Pin the reference world, or every run audits a different map and the numbers
+	# cannot be compared across a change (reset_for_new_game rolls a random
+	# world_seed, and the MONARCH_TEST hook calls it). Pass UG_SEED to audit
+	# another one.
+	GameState.world_seed = int(OS.get_environment("UG_SEED")) if OS.get_environment("UG_SEED") != "" else 0
 	var t0 := Time.get_ticks_msec()
 	ug = UG.new()
 	ug._init_noise()
@@ -26,6 +31,7 @@ func _ready() -> void:
 		% [UG.WIDTH, UG.DEPTH, UG.TILE, gen_ms])
 	_audit_descent()
 	_audit_mob_spots()
+	_audit_fit()
 	_audit_door_chain()
 	_audit_shape()
 	say("")
@@ -144,6 +150,9 @@ func _audit_descent() -> void:
 	var thin := 0
 	var min_dig := 9999
 	var thin_danger := 0
+	var thin_onto_road := 0
+	var thin_onto_water := 0
+	var thin_onto_cave := 0
 	var thin_worst := 0
 	var thin_at := Vector2i.ZERO
 	var dig_total := 0
@@ -172,6 +181,16 @@ func _audit_descent() -> void:
 				drop += 1
 			if drop > JUMP_UP:
 				thin_danger += 1
+				# WHAT did we break into? Landing on the road's own lower corridor,
+				# or in a lake, is not a bypass of the route at all -- it matters
+				# only if it opens into unrelated natural cave.
+				var land := top + solid_run + drop
+				if ug._in_span(ug._road_air, land, c.x) or ug._in_span(ug._road_air, land - 1, c.x):
+					thin_onto_road += 1
+				elif ug._gen_kind(c.x, land) == UG.WATER:
+					thin_onto_water += 1
+				else:
+					thin_onto_cave += 1
 				if thin_worst < drop:
 					thin_worst = drop
 					thin_at = Vector2i(c.x, top)
@@ -180,6 +199,8 @@ func _audit_descent() -> void:
 		% [int(float(dig_total) / maxf(1.0, float(samples))), min_dig, thin, samples])
 	say("  ...of those, ones that DROP you more than a jump: %d   worst %d tiles (%d px) at %s"
 		% [thin_danger, thin_worst, thin_worst * UG.TILE, str(thin_at)])
+	say("     ...landing on the road below: %d   in water: %d   in unrelated cave: %d"
+		% [thin_onto_road, thin_onto_water, thin_onto_cave])
 	say("  wades ON the road: %d cells   flood painted in total: %d  (%.0f%% landed on the trail)"
 		% [wade, flood_cells, 100.0 * float(wade * UG.FLOOD_DEPTH) / maxf(1.0, float(flood_cells))])
 	say("  legs that never dodged a crossing: %d   holes patched over voids: %d"
@@ -283,6 +304,36 @@ func _audit_door_chain() -> void:
 	say(line)
 
 # ── 4. SHAPE / WATER ──────────────────────────────────────────────────────────
+# ── CAN THE PLAYER ACTUALLY GO THERE? ─────────────────────────────────────────
+# "Open" is not the same as "passable": the cellular-automata caves are full of
+# one- and two-tile capillaries that a 32x48 body (3 x 4 tiles) cannot enter. The
+# dev's complaint -- "player can't even fit, he has to mine to get anywhere" --
+# is this number, not the openness number.
+func _audit_fit() -> void:
+	say("")
+	say("── 2b. PASSABILITY (a 32x48 body needs 3 wide x 4 tall) ──")
+	for b in range(5):
+		var y0 := b * UG.BIOME_H + 40
+		var open := 0
+		var fits := 0
+		for y in range(y0, y0 + 70, 2):
+			for x in range(500, 3700, 3):
+				if _solid(x, y):
+					continue
+				open += 1
+				if _fits_at(x, y):
+					fits += 1
+		say("  %-14s : %5.1f%% of open space is big enough to walk through"
+			% [String(UG.BIOMES[b].name), 100.0 * float(fits) / maxf(1.0, float(open))])
+
+# a 3-wide, 4-tall clear box with its feet at (x, y)
+func _fits_at(x: int, y: int) -> bool:
+	for dy in range(0, 4):
+		for dx in range(-1, 2):
+			if _solid(x + dx, y - dy):
+				return false
+	return true
+
 func _audit_shape() -> void:
 	say("")
 	say("── 4. SHAPE + WATER by depth ──")

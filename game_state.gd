@@ -714,6 +714,15 @@ func capture_player_state(player: Node) -> Dictionary:
 # (see player.gd's die()) -- no other gameplay scaling reads this.
 var difficulty = "Medium"
 
+# THE WORLD SEED (2026-07-30). Every noise field and every placement roll in the
+# tile underground used to be a hardcoded constant, so every playthrough on every
+# machine got a byte-identical map -- the opposite of what a seeded world means.
+# Rolled fresh per New Game, saved with the run, and mixed into everything
+# underground.gd generates, so a new game is a new world and a loaded game is the
+# one you left. 0 means "not rolled yet" (old saves), which reads as the original
+# fixed map so an existing run's dug tunnels still line up with its terrain.
+var world_seed: int = 0
+
 # Roster of every villager (rescued hostages AND their children), each:
 # {"id", "name", "sex", "is_kid", "stat_name", "stat_value", "role_key",
 #  "role_title", "paired"}.
@@ -6043,6 +6052,8 @@ func record_level_reached(level: int) -> void:
 # active session would silently carry over the previous session's villagers,
 # mating state, and unlocked dungeon levels instead of starting clean.
 func reset_for_new_game() -> void:
+	# a fresh world every New Game (see world_seed)
+	world_seed = abs(int(Time.get_unix_time_from_system() * 1000.0)) ^ (randi() & 0x7fffffff)
 	rescued_villagers = []
 	adventurers = {}
 	ensure_adventurers()                       # the opening trio stands ready
@@ -6350,6 +6361,7 @@ func save_game(player: Node) -> void:
 		"school_enrollments": school_enrollments,
 		"highest_unlocked_level": highest_unlocked_level,
 		"floors_cleared": floors_cleared,
+		"world_seed": world_seed,
 		# hidden event bosses: which have fired/been looted + the run counters
 		"event_state": event_state,
 		"event_rematch_level": event_rematch_level,
@@ -6591,6 +6603,9 @@ func load_game() -> Dictionary:
 			highest_unlocked_level = int(parsed["highest_unlocked_level"])
 		if parsed.has("floors_cleared") and parsed["floors_cleared"] is Dictionary:
 			floors_cleared = parsed["floors_cleared"]
+		# a save from before world seeds keeps the original fixed map (seed 0), so
+		# its already-dug tunnels still match the terrain they were cut from
+		world_seed = int(parsed.get("world_seed", 0))
 		# hidden event bosses (older saves lack these -> arm fresh, counters 0)
 		if parsed.has("event_state") and parsed["event_state"] is Dictionary:
 			event_state = parsed["event_state"]

@@ -15,7 +15,7 @@ const TILE := 12                       # smaller blocks (was 16) -> finer terrai
 const CHUNK := 32
 const LOAD_R := 3                      # chunks kept live around the player (bounded collision)
 const WIDTH := 4200                    # world width in tiles (Terraria "small" ~= 4200x1200)
-const BIOME_H := 300                   # tiles of depth per biome -> 1500 deep
+const BIOME_H := 360                   # tiles of depth per biome -> 1800 deep (room between road passes)
 const SAVE_PATH := "user://underground_save.json"
 const AIR := -1
 # WATER is a cell kind like any other, but it lives on its own non-colliding
@@ -66,6 +66,8 @@ var _tunnels: FastNoiseLite             # long winding tunnels between them
 var _region: FastNoiseLite              # slow field: tight warrens <-> grand caverns
 var _chasm: FastNoiseLite               # vertical chasms / drops
 var _ore: FastNoiseLite                 # mineral vein pockets
+var _roadw: FastNoiseLite               # how the road corridor swells and pinches
+var _seed := 0                          # GameState.world_seed, salted into every field above
 var _loaded := {}                      # Vector2i(chunk) -> true
 var _edits := {}                       # Vector2i(cell) -> kind (AIR = dug)
 var _flags := {}                       # puzzle/lever state: id(String) -> true (persisted)
@@ -130,21 +132,30 @@ func _ready() -> void:
 # the terrain is a pure function of these, so a bare instance generates the
 # exact same world the game does.
 func _init_noise() -> void:
+	# THE WORLD SEED. Every field below used to be a hardcoded constant, so every
+	# playthrough generated the identical map -- "seeded world" in name only. All
+	# of them are now salted with GameState.world_seed (rolled per New Game, saved
+	# with the run), so a new game really is a new world. Seed 0 -- an old save, or
+	# a bare generator in a test -- reproduces the original fixed map exactly,
+	# which is what keeps the audits and this file's regression suite stable.
+	_seed = 0
+	if Engine.has_singleton("GameState") or GameState != null:
+		_seed = int(GameState.world_seed) & 0x7fffffff
 	# BIG ORGANIC CAVERNS: low-freq domain-warped fbm blobs -> large open rooms with
 	# wandering edges (not TV-static holes).
 	_caverns = FastNoiseLite.new()
-	_caverns.seed = 0x0F0F
+	_caverns.seed = 0x0F0F ^ _seed
 	_caverns.noise_type = FastNoiseLite.TYPE_SIMPLEX
 	_caverns.frequency = 0.014
 	_caverns.fractal_type = FastNoiseLite.FRACTAL_FBM
-	_caverns.fractal_octaves = 4
+	_caverns.fractal_octaves = 2
 	_caverns.domain_warp_enabled = true
 	_caverns.domain_warp_amplitude = 42.0
 	_caverns.domain_warp_fractal_octaves = 3
 	# LONG WINDING TUNNELS: low-freq |fbm| ridges that snake for a long way and
 	# stitch the caverns together.
 	_tunnels = FastNoiseLite.new()
-	_tunnels.seed = 0xCA7E
+	_tunnels.seed = 0xCA7E ^ _seed
 	_tunnels.noise_type = FastNoiseLite.TYPE_SIMPLEX
 	_tunnels.frequency = 0.012
 	_tunnels.fractal_type = FastNoiseLite.FRACTAL_FBM
@@ -154,17 +165,22 @@ func _init_noise() -> void:
 	# REGION FIELD: a slow-varying value that shapes each area's character -- from
 	# tight winding warrens (solid, thin passages) to grand open caverns.
 	_region = FastNoiseLite.new()
-	_region.seed = 0x2B1E
+	_region.seed = 0x2B1E ^ _seed
 	_region.noise_type = FastNoiseLite.TYPE_SIMPLEX
 	_region.frequency = 0.006
 	_region.fractal_type = FastNoiseLite.FRACTAL_FBM
 	_region.fractal_octaves = 2
 	# CHASMS: vertically-stretched cracks that drop you between levels.
 	_chasm = FastNoiseLite.new()
-	_chasm.seed = 0x9D71
+	_chasm.seed = 0x9D71 ^ _seed
 	_chasm.noise_type = FastNoiseLite.TYPE_SIMPLEX
 	_chasm.frequency = 0.02
-	_ore = FastNoiseLite.new(); _ore.seed = 0xACE1; _ore.frequency = 0.10
+	_ore = FastNoiseLite.new(); _ore.seed = 0xACE1 ^ _seed; _ore.frequency = 0.10
+	# how the Delver's Road swells and pinches along its length
+	_roadw = FastNoiseLite.new()
+	_roadw.seed = 0x7A11 ^ _seed
+	_roadw.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	_roadw.frequency = 0.018
 	_build_route()          # the walkable way down + the 100 doors chained along it
 	_build_lakes()          # water basins, placed around the road
 
@@ -229,11 +245,19 @@ func _in_span(tbl: Array, y: int, x: int) -> bool:
 # The road is also THE CHAIN. Floor 1's door sits on it, then floor 2 a hop
 # further along, then 3 -- so following the road is following the ladder of
 # levels. It wanders: long sideways runs, staircases down, the occasional rise.
-const ROAD_HALF := 1                   # corridor half-width -> 3 tiles wide
-const ROAD_HEAD := 5                   # tiles of air above the road bed (player is 4 tall)
+# THE CORRIDOR BREATHES. A fixed 3-wide, 5-tall slot gave the player 12px of
+# headroom -- close-up (pl_work/ug/ug_closeup_12.png) his hair is in the ceiling
+# -- and, worse, it ran dead straight for thousands of tiles, which is what read
+# as "long repeatable patterns of road everywhere". Both numbers now ride a slow
+# noise field along the trail, so the tunnel opens into rooms, pinches to a
+# passage, and never holds one profile long enough to look machined.
+const ROAD_HALF := 2                   # base half-width  -> 5 tiles
+const ROAD_HALF_VAR := 1               # ...swelling to 7
+const ROAD_HEAD := 6                   # base headroom (player is 4 tall)
+const ROAD_HEAD_VAR := 3               # ...opening to 9 (higher and passes collide -- see CROSS_CLEAR)
 const ROAD_BED := 2                    # tiles of solid rock under it
-const ROAD_UNDER := 10                 # ...plus this much solid apron beneath THAT
-const ROAD_MASS_HALF := 5              # wider than the corridor, so you can't sidestep and dig
+const ROAD_UNDER := 15                 # ...plus this much solid apron beneath THAT
+const ROAD_MASS_HALF := 7              # wider than the corridor, so you cant sidestep and dig
 const STAIR_TREAD := 3                 # horizontal tiles per 1-tile step (shallower = comfier)
 const LEVELS := 100
 const DOOR_HOP_MIN := 90               # tiles between consecutive floor doors...
@@ -246,7 +270,7 @@ func _build_route() -> void:
 	_road_mass = _new_rows()
 	_doors = []
 	var rng := RandomNumberGenerator.new()
-	rng.seed = 0x0DDBA11
+	rng.seed = 0x0DDBA11 ^ _seed
 	_beds = {}
 	_path = []
 	_road_fix = {}
@@ -355,9 +379,24 @@ func _repair_road() -> void:
 		var drop := 0
 		while drop < REPAIR_DROP and _gen_kind(c.x, c.y + 1 + drop) == AIR:
 			drop += 1
-		if drop >= REPAIR_DROP:
-			_road_fix[c] = true
-			patched += 1
+		if drop < REPAIR_DROP:
+			continue
+		# NEVER PATCH A CORRIDOR'S CEILING. _road_fix is resolved before _road_air,
+		# so a patch here outranks every other pass -- and where two passes run
+		# close, the cell that "lost its floor" is also the headroom of the road
+		# underneath. Filling it walls that road off completely (measured: 14-15
+		# impassable cells on two of four seeds). Falling is the lesser evil, and
+		# it is a small one: every such drop lands on the road below, ~10 tiles,
+		# under both the 300px damage threshold and one level of descent.
+		var over_road := false
+		for k in range(1, ROAD_HEAD + ROAD_HEAD_VAR + ROAD_BED + 1):
+			if _in_span(_road_rock, c.y + k, c.x):
+				over_road = true
+				break
+		if over_road:
+			continue
+		_road_fix[c] = true
+		patched += 1
 	road_holes_patched = patched
 
 # Every road cell in order. Kept (about 200KB) rather than thrown away, because
@@ -376,7 +415,7 @@ var road_holes_patched := 0            # audit reads this
 var _beds := {}                        # column x -> [Vector2i(row, path index)]
 var _path_i := 0
 var _crossings := 0                    # legs that never found a clear line (audit reads this)
-const CROSS_CLEAR := ROAD_HEAD + ROAD_BED     # rows of separation two passes need
+const CROSS_CLEAR := ROAD_HEAD + ROAD_HEAD_VAR + ROAD_BED   # the TALLEST the corridor gets
 const CROSS_RECENT := 44               # ...but the leg we just came off doesn't count
 
 func _leg_clear(path: Array) -> bool:
@@ -411,7 +450,7 @@ func _carve_path(path: Array) -> void:
 func _plan_leg(a: Vector2i, b: Vector2i, rng: RandomNumberGenerator, attempt: int) -> Array:
 	var pts: Array = [a]
 	var legs := rng.randi_range(2, 3)
-	var rise := maxi(0, 8 - attempt * 3)          # give up the climbs if they're in the way
+	var rise := maxi(0, 5 - attempt * 2)          # give up the climbs if they're in the way
 	for i in range(1, legs):
 		var f := float(i) / float(legs)
 		var wx := int(round(lerpf(float(a.x), float(b.x), f)))
@@ -455,13 +494,27 @@ func _walk_to(p: Vector2i, q: Vector2i, out: Array) -> Vector2i:
 # bed is what makes it a ROAD -- without it the corridor would open into a
 # cavern and drop you through.
 func _carve_road_cell(c: Vector2i) -> void:
-	for dy in range(1, ROAD_HEAD + 1):
-		_add_span(_road_air, c.y - dy, c.x - ROAD_HALF, c.x + ROAD_HALF)
+	var half := _road_half_at(c)
+	var head := _road_head_at(c)
+	for dy in range(1, head + 1):
+		_add_span(_road_air, c.y - dy, c.x - half, c.x + half)
 	for dy in range(0, ROAD_BED):
-		_add_span(_road_rock, c.y + dy, c.x - ROAD_HALF, c.x + ROAD_HALF)
+		_add_span(_road_rock, c.y + dy, c.x - half, c.x + half)
 	# the apron of rock the road rides on (see _gen_kind)
 	for dy in range(ROAD_BED, ROAD_BED + ROAD_UNDER):
 		_add_span(_road_mass, c.y + dy, c.x - ROAD_MASS_HALF, c.x + ROAD_MASS_HALF)
+
+# The corridor's profile at a point, from a slow noise field so it changes over
+# tens of tiles rather than per-cell -- a cave that widens and narrows, not a
+# jagged one. Sampled off world position, so the same spot is always the same
+# shape however the route reaches it.
+func _road_half_at(c: Vector2i) -> int:
+	var n := _roadw.get_noise_2d(float(c.x) * 0.8, float(c.y) * 0.8 + 400.0)
+	return ROAD_HALF + int(round((n * 0.5 + 0.5) * float(ROAD_HALF_VAR)))
+
+func _road_head_at(c: Vector2i) -> int:
+	var n := _roadw.get_noise_2d(float(c.x), float(c.y))
+	return ROAD_HEAD + int(round((n * 0.5 + 0.5) * float(ROAD_HEAD_VAR)))
 
 const ENTRY_HALF := 15
 
@@ -499,7 +552,7 @@ func _build_lakes() -> void:
 	_road_flood = _new_rows()
 	_lakes = []
 	var rng := RandomNumberGenerator.new()
-	rng.seed = 0x5EA1EDE1
+	rng.seed = 0x5EA1EDE1 ^ _seed
 	var claimed := {}                  # coarse buckets, so bowls never overlap and mix levels
 	for gy in range(1, int(float(DEPTH - 40) / LAKE_STEP_Y)):
 		for gx in range(1, int(float(WIDTH - 2 * ROAD_MARGIN) / LAKE_STEP_X)):
@@ -713,12 +766,17 @@ func _gen_kind(x: int, y: int) -> int:
 	# reads open (one cellular-automata smoothing pass over the noise). This melts
 	# the single-tile speckle into big, smooth, sweeping caverns + tunnels -- one
 	# connected system you explore freely, opening up with depth.
+	# WIDE ENOUGH TO WALK. A majority vote (>=5 of 9) carves passages one and two
+	# tiles across -- open space a 3x4 body cannot enter, so a quarter of the cave
+	# system read as "there, but you have to mine to use it". Dropping the vote to
+	# 4 dilates every passage by about a tile in each direction, which is what
+	# turns capillaries into tunnels.
 	var open := 0
 	for oy in range(-1, 2):
 		for ox in range(-1, 2):
 			if _raw_open(x + ox, y + oy):
 				open += 1
-	if open >= 5:
+	if open >= 4:
 		return AIR
 	# solid rock -- salt in clustered ORE VEINS for a reward when you dig
 	if _ore.get_noise_2d(float(x) * 1.3, float(y) * 1.3) > 0.42:
@@ -1198,7 +1256,7 @@ func _place_floor_doors(c: Vector2i, nodes: Array) -> void:
 # player actually stands on, instead of hovering a tile above it.
 func _door_stand(cell: Vector2i) -> Vector2i:
 	var f := cell
-	for i in range(8):
+	for i in range(16):
 		if _solid_kind(f):
 			return f
 		f.y += 1
@@ -2107,6 +2165,13 @@ func _load_save() -> void:
 	var data = JSON.parse_string(f.get_as_text())
 	if typeof(data) != TYPE_DICTIONARY:
 		return
+	# A DIG BELONGS TO ITS WORLD. Now that the terrain is generated from
+	# GameState.world_seed, tunnels cut in a previous run describe rock that no
+	# longer exists -- replaying them into a new world would scatter holes and
+	# floating slabs through unrelated terrain. Files written before seeds carry
+	# no "seed" key and pair with world_seed 0, which is the original fixed map.
+	if int(data.get("seed", 0)) != _seed:
+		return
 	# new format {"edits":{...},"flags":{...}}; old format was the edits dict itself
 	var edits = data.get("edits", data)
 	if typeof(edits) == TYPE_DICTIONARY:
@@ -2130,7 +2195,7 @@ func _save() -> void:
 	# a crash mid-write used to cost every tunnel ever dug
 	var f := FileAccess.open(_save_path() + ".tmp", FileAccess.WRITE)
 	if f != null:
-		f.store_string(JSON.stringify({"edits": e, "flags": fl}))
+		f.store_string(JSON.stringify({"edits": e, "flags": fl, "seed": _seed}))
 		f.close()
 		DirAccess.remove_absolute(_save_path())
 		DirAccess.rename_absolute(_save_path() + ".tmp", _save_path())
