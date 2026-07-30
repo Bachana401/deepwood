@@ -135,7 +135,7 @@ const ROWS = [
 	["wpn_eelspear",     "Eelcatcher",           "spear", 1, "thrust",    7,  0.6,  {"plain": true}],
 	["wpn_orchardbow",   "Orchard Bow",          "bow",   1, "shot",      7,  0.55, {"plain": true}],
 	["wpn_gutterbow",    "Gutter Bow",           "bow",   1, "shot",      6,  0.45, {"plain": true}],
-	["wpn_tallowwand",   "Tallow Wand",          "wand",  1, "bolt",      9,  0.6,  {"plain": true}],
+	["wpn_tallowwand",   "Tallow Wand",          "wand",  1, "tallowdrip", 9, 0.6,  {"rung": true}],
 	# was behavior "bolt" -> frost_shard. A wand named for CHALK fired an ice
 	# dart, along with the tallow, moss, leech, salt, hollow and storm wands:
 	# one match arm gave eleven differently-named weapons the same icicle.
@@ -293,7 +293,7 @@ const ROWS = [
 	["wpn_haypike",      "Haymaker's Pike",      "spear", 1, "thrust",    8,  0.7,  {"plain": true}],
 	["wpn_crowbow",      "Crowchaser",           "bow",   1, "shot",      6,  0.5,  {"plain": true}],
 	["wpn_sparrowbow",   "Sparrowhawk",          "bow",   1, "rapid",     4,  0.25, {"plain": true}],
-	["wpn_stubwand",     "Stubwand",             "wand",  1, "bolt",      8,  0.55, {"plain": true}],
+	["wpn_stubwand",     "Stubwand",             "wand",  1, "stubmisfire", 8, 0.55, {"rung": true}],
 	["wpn_reedstaff",    "River Reed",           "staff", 1, "staff",     5,  0.38, {"plain": true}],
 	# ---------------- WAVE 3 - TIER 2 (14) ----------------
 	["wpn_tannerknife",  "Tanner's Long Knife",  "melee", 2, "arc",       9,  0.3,  {"plain": true}],
@@ -778,6 +778,23 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			s = {"type": "ink_jet", "damage": dmg, "speed": spd, "range": rng}
 		"wake":
 			s = {"type": "wake_scythe", "damage": dmg, "speed": spd, "range": rng}
+		"stubmisfire":
+			# THE STUBWAND is BROKEN. Two to four ragged sparks in a wide fan,
+			# and about one cast in six coughs a single fat one instead that
+			# hits for triple and shoves YOU back a step. The only random-output
+			# wand in the game -- its silhouette changes cast to cast.
+			# deliberately NO "count": the number of sparks is random (2-4, or a
+			# single fat one), so declaring a count would promise the dispatch
+			# audit something this weapon cannot honour on any given cast.
+			s = {"type": "stub_spark", "damage": dmg, "speed": 700.0,
+				"range": 150.0}
+		"tallowdrip":
+			# THE TALLOW WAND throws hot candle-fat, not ice. A slow gravity lob
+			# that splats and stands a small flame up out of the puddle. The
+			# only lobbed wand in the eleven, and the honest counterweight to
+			# the Chalk Wand's speed: short, slow, and it owns the ground.
+			s = {"type": "lob", "damage": dmg, "speed": 300.0, "range": rng * 0.55,
+				"aoe": 46.0, "rider": "tallow"}
 		"chalkline":
 			# THE CHALK WAND draws instead of throwing: a stroke that hangs in
 			# the air and cuts whatever crosses it. The only zero-velocity wand

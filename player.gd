@@ -4200,6 +4200,34 @@ func perform_attack() -> void:
 			ice.source = self
 			get_parent().add_child(ice)
 			ice.global_position = global_position + get_aim_direction() * 104.0 + Vector2(0, 20.0)
+		# THE STUBWAND (T1): a broken wand. 2-4 ragged sparks in a wide fan, and
+		# ~1 cast in 6 a single FAT spark that hits for triple and shoves you
+		# back. The jackpot is recoloured AT SPAWN, never revealed by the damage
+		# number -- the player must be able to see it coming down the lane.
+		elif special_type == "stub_spark":
+			play_sfx(SFX_BOW)
+			var jackpot: bool = randf() < 0.167
+			if jackpot:
+				# explicit types: duplicate() returns Variant and `:=` cannot
+				# infer from it -- a build error in this project, not a warning
+				var fat: Dictionary = special.duplicate()
+				fat["damage"] = int(round(float(special.get("damage", 8)) * 3.0))
+				fat["speed"] = 420.0
+				fat["range"] = 300.0
+				fat["pierce"] = true
+				var fcr = roll_crit(int(round(float(fat["damage"]) * skill_damage_mult("wand"))))
+				launch_projectile(fat, get_aim_direction(), fcr[0], fcr[1])
+				# it kicks: the wand is broken, and the player wears that
+				velocity.x -= get_aim_direction().x * 190.0
+			else:
+				var n_sparks: int = 2 + randi() % 3
+				for si in range(n_sparks):
+					var spark: Dictionary = special.duplicate()
+					spark["damage"] = maxi(1, int(round(float(special.get("damage", 8)) * 0.5)))
+					var spread: float = deg_to_rad(randf_range(-17.0, 17.0))
+					var scr = roll_crit(int(round(float(spark["damage"]) * skill_damage_mult("wand"))))
+					launch_projectile(spark, get_aim_direction().rotated(spread),
+						scr[0], scr[1])
 		# THE DELUGE / SHATTERHYMN / NOVABURST (T6): all leave the hand as one body
 		elif special_type == "flood_wave" or special_type == "glass_note" \
 				or special_type == "nova_seed" or special_type == "courier_route" \

@@ -76,6 +76,8 @@ const HITS_PER_USE := {
 	"frost":       1.5, # the shard pierces AND re-cuts (same 0.22s rake)
 	# --- the eleven wands freed from the shared ice dart (2026-07-30) ---
 	"chalkline":   1.2, # a static stroke; a body crosses it about once
+	"tallowdrip":  2.2, # the splat, then ~4 burn ticks at 0.3x from the puddle
+	"stubmisfire": 1.4, # 2-4 sparks at 0.5x that SPREAD; one or two land
 	# ---- T6 batch 1 ----
 	"hushfall":    1.8, # the swing, then the late nova at 0.8x in a radius
 	"eclipse":     1.7, # the disc out and back, plus one shadow band at 0.85x

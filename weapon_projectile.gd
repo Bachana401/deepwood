@@ -242,6 +242,12 @@ func _ready() -> void:
 		"chalk_line":
 			pierce = true          # a drawn line cuts everyone who crosses it
 			_build_chalk_line()
+		"stub_spark": _build_stub_spark()
+		"tallow_pool":
+			_zone_max = 3.2
+			_zone_gap = 0.7
+			_zone_r = 46.0
+			_build_tallow_pool()
 		"sky_measure": _build_sky_measure()
 		"colonnade": _build_colonnade()
 		"harmonic": _build_harmonic()
@@ -983,6 +989,14 @@ func _physics_process(delta: float) -> void:
 			_rake_overlapping()
 	if kind == "chalk_line":
 		_tick_chalk_line(delta)
+		return
+	if kind == "tallow_pool":
+		# the flame leans and breathes -- a smooth 0.2s cycle, never a strobe
+		_chalk_t += delta
+		if _tallow_flame != null and is_instance_valid(_tallow_flame):
+			_tallow_flame.scale = Vector2.ONE * (1.0 + 0.15 * sin(_chalk_t * 9.0))
+			_tallow_flame.rotation = sin(_chalk_t * 6.0) * 0.14
+		_tick_standing_zone(delta)
 		return
 	if kind == "scree":
 		# THE MOUNTAIN THAT KNEELS, second half: the shards the boulder leaves
@@ -1821,6 +1835,20 @@ func explode() -> void:
 		pool.source = source
 		pool.position = global_position
 		get_parent().call_deferred("add_child", pool)
+	# THE TALLOW WAND: the gob splats and stands a flame up out of itself. Wax
+	# behaves like wax -- it lands, it spreads, and the fire is what the puddle
+	# GROWS, not a second thing thrown after it.
+	if rider == "tallow":
+		var host_t := get_parent()
+		if host_t != null and is_instance_valid(host_t):
+			var pud = (load("res://weapon_projectile.gd") as GDScript).new()
+			pud.kind = "tallow_pool"
+			pud.damage = maxi(1, int(round(float(damage) * 0.3)))
+			pud.element = element
+			pud.on_hit_status = {"kind": "burn", "dur": 3.0, "mag": 1.0}
+			pud.source = source
+			pud.global_position = global_position
+			host_t.call_deferred("add_child", pud)
 	# SHRAPNEL (2026-07-30). A thrown shell used to make one circle and stop,
 	# which is why the lob family sagged under its own tier at T3, T4 AND T7 at
 	# once. A burst throws PIECES: five fragments on hard arcs that keep hurting
@@ -3447,6 +3475,55 @@ func _tick_chalk_line(delta: float) -> void:
 				FloatingText.spawn(get_parent(),
 					(e as Node2D).global_position + Vector2(0, -24.0), damage, is_crit)
 			_apply_status_to(e)
+
+# --- THE STUBWAND's sparks: ragged, short-lived, and DELIBERATELY unglamorous
+# The fat one recolours itself so the jackpot is visible in the air rather than
+# revealed by a damage number after the fact.
+func _build_stub_spark() -> void:
+	var fat: bool = damage > 12
+	var r: float = 16.0 if fat else 6.0
+	var sliver := Polygon2D.new()
+	sliver.polygon = PackedVector2Array([
+		Vector2(r, 0), Vector2(0, -r * 0.42), Vector2(-r * 0.7, 0), Vector2(0, r * 0.36)])
+	sliver.color = Color(0.80, 0.74, 0.98, 0.95)
+	visual.add_child(sliver)
+	if fat:
+		# a white core inside the lilac shell, and a crackling tail
+		var core := Polygon2D.new()
+		core.polygon = PackedVector2Array([
+			Vector2(r * 0.5, 0), Vector2(0, -r * 0.2), Vector2(-r * 0.3, 0), Vector2(0, r * 0.18)])
+		core.color = Color(1.0, 1.0, 1.0, 0.95)
+		core.material = _add_mat()
+		visual.add_child(core)
+		var crackle := Line2D.new()
+		crackle.points = PackedVector2Array([
+			Vector2(-r * 0.8, 0), Vector2(-r * 1.6, -3.0),
+			Vector2(-r * 2.3, 2.0), Vector2(-r * 3.0, -1.0)])
+		crackle.width = 3.0
+		crackle.default_color = Color(0.9, 0.85, 1.0, 0.7)
+		crackle.material = _add_mat()
+		visual.add_child(crackle)
+
+# --- THE TALLOW WAND's puddle: wax on the floor, with a flame growing out ---
+var _tallow_flame: Polygon2D = null
+
+func _build_tallow_pool() -> void:
+	# the puddle: a low ellipse, matte -- molten wax is not a light source
+	var pud := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(14):
+		var a: float = TAU * float(i) / 14.0
+		pts.append(Vector2(cos(a) * 28.0, sin(a) * 9.0 + 6.0))
+	pud.polygon = pts
+	pud.color = Color(0.90, 0.82, 0.58, 0.80)
+	visual.add_child(pud)
+	# and the flame it stands up: ONE additive teardrop, leaning
+	_tallow_flame = Polygon2D.new()
+	_tallow_flame.polygon = PackedVector2Array([
+		Vector2(0, -26.0), Vector2(7.0, -4.0), Vector2(-7.0, -4.0)])
+	_tallow_flame.color = Color(1.0, 0.78, 0.35, 0.85)
+	_tallow_flame.material = _add_mat()
+	visual.add_child(_tallow_flame)
 
 const SCREE_SHARDS := 6
 
