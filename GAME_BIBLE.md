@@ -168,6 +168,23 @@ What the player is actually *doing and worrying about* at every stage. This is t
 - **Lore layer on the same enemies:** they are *fallen humans* — people whose hope died (morale 0 → hopeless → despair → evil; the Law of Despair, §2.2; §10 makes it mechanical, not just flavor).
 - **Rescues inside the dungeon** ✅ (Sorrow-Crystal rework built, 4.2a): 19 leadership VIPs freed at bosses 5–95, + the earlier deep figures. **The Ten (§8) are separate and deeper.**
 
+### 4.2b THE BESTIARY — a species is a VERB, not a skin ✅ built (2026-07-29)
+
+*The bosses got named phase twos; the ordinary horde you fight for a hundred floors did not. This closes it — and it is the mob-side mirror of the weapon overhaul's thesis: identity from mechanics, never from stat bumps.*
+
+**The diagnosis it fixes:** the six rosters differed only in colour, scale and three multipliers, and the floor drew its specials from ONE shared five-item bag — so an Orc was exactly as likely to be a *healer* as a Rotfiend, and a floor-3 mob fought identically to a floor-97 mob at a different HP total.
+
+- **Every species now has its own NAMED signature**, keyed in `enemy.gd`'s `ENEMY_ROSTERS` and always on:
+  - **Orc — "War Cry."** Plants its feet, roars: every orc within 300px runs *and* swings faster for 6s. Deals no damage at all; the threat is a loose pack suddenly moving like a unit. **Counter:** kill the crier, or break away and let the window lapse.
+  - **Blood Fiend — "Bloodscent."** Frenzies while the hero is under half health (faster, sight doubled) and settles again past 62%. **Counter:** healing is now a tactical act, not a number going up.
+  - **Demon — "Emberburst."** The corpse keeps burning: a ring swells for 0.7s (the readable tell), then a burning patch for 3s. Punishes standing on what you just killed. Hard-capped at **2% of max HP per tick** and it can **never land the killing blow**.
+  - **Wraith — "Fade."** Goes incorporeal for 1.1s: untouchable, and unable to strike back. A timing lesson, and the exact counter to dumping a committed channel into the first thing you see.
+  - **Bone Golem — "Reassemble."** Killed, it drops into a rattling heap and rises **once** at 35% HP. **Counter is in your hands:** the heap is still a target, and any hit inside the window smashes it for good.
+  - **Rotfiend — "Miasma."** Poisons the *ground* it stood on rather than bursting. **Counter:** stop standing still; kite it off its own gas.
+- **The generic specials now suit the face wearing them** (`affinity` per roster): a healer is a plague-priest Rotfiend, a shield is an Orc or a Bone Golem, a summoner raises bones or spectres. **Balance is untouched by design** — the same share of mobs becomes special (`dungeon_interior.assign_enemy_behavior` keeps its curve), and no signature touches the floor's hp/dmg/speed multipliers.
+- **Identity follows the FACE, not the floor.** Since floors field mixed hordes (a grunt can wear a neighbour's skin), the signature comes from the *visual* block — a grunt wearing a golem's bones reassembles like one.
+- **The three laws every signature obeys:** telegraphed before it can cost anything; capped so it can never one-shot; and differing in *kind*, not in numbers. `test_bestiary_node.gd` (33 assertions) holds each promise, including every counter-play above and the invariant that a golem heaps **however** it died (poison as surely as a sword — `die()` is the one door both walk through).
+
 ### 4.2a The Rescue — the Sorrow-Crystals ✅ built (guard-gated shatter, wrapped stats, Sorrowshard)
 
 *How a taken person is actually freed — the mechanic behind Pillar #2 and the fuel for the whole village flywheel (§5.7 chain E).*

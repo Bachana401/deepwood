@@ -2314,7 +2314,16 @@ func assign_enemy_behavior(enemy: Node) -> void:
 	var elite_chance = clamp(0.03 + current_level * 0.004, 0.03, 0.16)
 	var kind := ""
 	if randf() < special_chance:
-		kind = ENEMY_BEHAVIORS[randi() % ENEMY_BEHAVIORS.size()]
+		# THE BESTIARY: draw from the SPECIES' own affinity, not one shared bag.
+		# The same share of mobs becomes special (the curve above is untouched) --
+		# but a healer is now a plague-priest Rotfiend and a shield is an Orc or a
+		# Bone Golem, instead of the roll that made every roster feel alike.
+		var bag: Array = ENEMY_BEHAVIORS
+		if enemy.has_method("species_behaviors"):
+			var own: Array = enemy.species_behaviors()
+			if not own.is_empty():
+				bag = own
+		kind = bag[randi() % bag.size()]
 	var elite = randf() < elite_chance
 	if kind != "" or elite:
 		enemy.set_behavior(kind, elite)

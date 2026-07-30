@@ -77,20 +77,37 @@ const WEAPONS = {
 # past the end of the list it simply cycles. Each entry re-skins the plain
 # enemy body (color/size), picks its weapon mix, and nudges the base stats so
 # the flavor is felt in combat, not just visually.
+#
+# THE BESTIARY (2026-07-29): a species is no longer a skin over the same fight.
+# Two more keys give each one an identity you have to answer differently:
+#   "signature" -- its own NAMED ability, always on, always telegraphed, and
+#                  capped so it can never one-shot (the forever boss rule).
+#   "affinity"  -- which of the generic specials (shield/caster/healer/summoner/
+#                  dasher) this species is even allowed to roll. Before this,
+#                  dungeon_interior drew from one 5-item bag, so an Orc was as
+#                  likely to be a HEALER as a Rotfiend -- the roster read as
+#                  random. Difficulty is untouched: the same share of mobs get a
+#                  special, they just get one that suits the face wearing it.
 const ENEMY_ROSTERS = [
 	# 0 -- Orcs (levels 1-5): melee brutes (sprite swings a cleaver -> no bows).
-	{"name": "Orc", "color": Color(0.33, 0.4, 0.29), "accent": Color(0.7, 1.0, 0.45), "scale": 1.0, "shape": "grunt", "sprite": "orc", "weapons": ["sword", "spear"], "hp_mult": 1.0, "dmg_mult": 1.0, "speed_mult": 1.0},
+	{"name": "Orc", "color": Color(0.33, 0.4, 0.29), "accent": Color(0.7, 1.0, 0.45), "scale": 1.0, "shape": "grunt", "sprite": "orc", "weapons": ["sword", "spear"], "hp_mult": 1.0, "dmg_mult": 1.0, "speed_mult": 1.0,
+		"signature": "warcry", "affinity": ["shield", "dasher"]},
 	# 1 -- Blood Fiends (6-10): fast melee skirmishers (claw/lunge sprite).
-	{"name": "Blood Fiend", "color": Color(0.4, 0.5, 0.6), "accent": Color(0.7, 0.92, 1.0), "scale": 0.92, "shape": "frost", "sprite": "blood_monster", "weapons": ["spear", "sword"], "hp_mult": 0.85, "dmg_mult": 1.0, "speed_mult": 1.22},
+	{"name": "Blood Fiend", "color": Color(0.4, 0.5, 0.6), "accent": Color(0.7, 0.92, 1.0), "scale": 0.92, "shape": "frost", "sprite": "blood_monster", "weapons": ["spear", "sword"], "hp_mult": 0.85, "dmg_mult": 1.0, "speed_mult": 1.22,
+		"signature": "bloodscent", "affinity": ["dasher", "dasher", "caster"]},
 	# 2 -- Demons (11-15): heavy melee, hit hard but slow.
-	{"name": "Demon", "color": Color(0.2, 0.15, 0.15), "accent": Color(1.0, 0.5, 0.12), "scale": 1.12, "shape": "ember", "sprite": "demon", "weapons": ["sword", "spear"], "hp_mult": 1.3, "dmg_mult": 1.18, "speed_mult": 0.88},
+	{"name": "Demon", "color": Color(0.2, 0.15, 0.15), "accent": Color(1.0, 0.5, 0.12), "scale": 1.12, "shape": "ember", "sprite": "demon", "weapons": ["sword", "spear"], "hp_mult": 1.3, "dmg_mult": 1.18, "speed_mult": 0.88,
+		"signature": "emberburst", "affinity": ["caster", "shield"]},
 	# 3 -- Wraiths (16-20): spectral fast archers (PixelLab "wraith" skin -- looses
 	# a ghostly bow; the Soldier sprite stays reserved for the village Barracks).
-	{"name": "Wraith", "color": Color(0.32, 0.22, 0.42), "accent": Color(0.7, 0.4, 1.0), "scale": 0.9, "shape": "wraith", "sprite": "wraith", "weapons": ["bow", "bow", "sword"], "hp_mult": 0.78, "dmg_mult": 1.0, "speed_mult": 1.32},
+	{"name": "Wraith", "color": Color(0.32, 0.22, 0.42), "accent": Color(0.7, 0.4, 1.0), "scale": 0.9, "shape": "wraith", "sprite": "wraith", "weapons": ["bow", "bow", "sword"], "hp_mult": 0.78, "dmg_mult": 1.0, "speed_mult": 1.32,
+		"signature": "fade", "affinity": ["caster", "caster", "summoner"]},
 	# 4 -- Bone Golems (21-25): huge tomb-bone tanks, slow, pure melee.
-	{"name": "Bone Golem", "color": Color(0.52, 0.5, 0.44), "accent": Color(0.86, 0.84, 0.72), "scale": 1.28, "shape": "stone", "sprite": "bone_golem", "weapons": ["sword"], "hp_mult": 1.7, "dmg_mult": 1.22, "speed_mult": 0.78},
+	{"name": "Bone Golem", "color": Color(0.52, 0.5, 0.44), "accent": Color(0.86, 0.84, 0.72), "scale": 1.28, "shape": "stone", "sprite": "bone_golem", "weapons": ["sword"], "hp_mult": 1.7, "dmg_mult": 1.22, "speed_mult": 0.78,
+		"signature": "reassemble", "affinity": ["shield", "shield", "summoner"]},
 	# 5 -- Rotfiends (26-30): small, fast, diseased jabbers.
-	{"name": "Rotfiend", "color": Color(0.28, 0.4, 0.2), "accent": Color(0.7, 1.0, 0.3), "scale": 0.84, "shape": "venom", "sprite": "rotfiend", "weapons": ["spear", "spear", "bow"], "hp_mult": 0.85, "dmg_mult": 1.12, "speed_mult": 1.26},
+	{"name": "Rotfiend", "color": Color(0.28, 0.4, 0.2), "accent": Color(0.7, 1.0, 0.3), "scale": 0.84, "shape": "venom", "sprite": "rotfiend", "weapons": ["spear", "spear", "bow"], "hp_mult": 0.85, "dmg_mult": 1.12, "speed_mult": 1.26,
+		"signature": "miasma", "affinity": ["healer", "healer", "summoner"]},
 ]
 
 @export var weapon_type: String = "sword"
@@ -178,11 +195,68 @@ var elite_slam_timer := 0.0
 var behavior_timer := 0.0
 var summoned_minions: Array = []
 
+# --- THE BESTIARY: the species signature (see ENEMY_ROSTERS). Set by
+# apply_mixed_archetype off the VISUAL block -- identity follows the face the
+# player sees, not the floor's stat band. "" = a plain grunt (a spawner that
+# never skins its mobs, e.g. the village course, is untouched). ---
+var species_index := -1
+var species_name := ""
+var signature := ""
+var signature_timer := 0.0
+# War Cry (Orc): the pack runs and swings faster for a few seconds.
+var rally_until := 0.0
+# Bloodscent (Blood Fiend): frenzied while the hero is wounded.
+var frenzied := false
+var _frenzy_aura: Sprite2D = null
+# Fade (Wraith): briefly incorporeal -- untouchable, and unable to strike.
+var fade_until := 0.0
+# Reassemble (Bone Golem): collapses to a heap once, then rises at a fraction
+# of its health -- unless the heap gets smashed inside the window.
+var heap_until := 0.0
+var has_reassembled := false
+const RALLY_DURATION = 6.0
+const RALLY_SPEED = 1.18
+const RALLY_ATTACK_SPEED = 0.75    # cooldown multiplier while rallied
+const WARCRY_RANGE = 340.0
+const WARCRY_RADIUS = 300.0
+const WARCRY_CD_MIN = 11.0
+const WARCRY_CD_MAX = 14.0
+const FRENZY_TRIGGER = 0.5         # hero HP fraction that wakes a Blood Fiend
+const FRENZY_CALM = 0.62           # ...and the fraction that settles it (hysteresis)
+const FRENZY_SPEED = 1.35
+const EMBER_TELEGRAPH = 0.7        # the ring swells this long BEFORE it burns
+const EMBER_LIFETIME = 3.0
+const EMBER_RADIUS = 60.0
+const EMBER_TICK = 0.5
+const EMBER_TICK_SHARE = 0.02      # per tick, as a share of the hero's max HP
+const FADE_DURATION = 1.1
+const FADE_CD_MIN = 6.0
+const FADE_CD_MAX = 9.0
+const FADE_RANGE = 420.0
+const HEAP_DURATION = 3.0
+const HEAP_RISE_SHARE = 0.35       # it comes back up with this much of max HP
+const MIASMA_CD = 2.2
+const MIASMA_RANGE = 500.0
+const MIASMA_RADIUS = 44.0
+const MIASMA_LIFETIME = 4.0
+const MIASMA_POISON_DPS = 3.0
+
 func _now_s() -> float:
 	return Time.get_ticks_msec() / 1000.0
 
 func move_speed() -> float:
-	return SPEED * speed_variance * wave_speed_multiplier * status_slow_mult()
+	return SPEED * speed_variance * wave_speed_multiplier * status_slow_mult() * signature_speed_mult()
+
+# THE BESTIARY's two tempo signatures ride here rather than editing the floor's
+# speed curve: a rallied orc and a frenzied blood fiend are temporary states you
+# can end (kill the crier / heal up), not a rebalanced mob.
+func signature_speed_mult() -> float:
+	var m := 1.0
+	if is_rallied():
+		m *= RALLY_SPEED
+	if frenzied:
+		m *= FRENZY_SPEED
+	return m
 
 func status_slow_mult() -> float:
 	var now := _now_s()
@@ -399,6 +473,13 @@ func apply_mixed_archetype(stat_block: int, visual_block: int) -> void:
 	character_shape = vd.get("shape", "grunt")
 	accent_color = vd.get("accent", accent_color)
 	sprite_skin = vd.get("sprite", "")
+	# THE BESTIARY: identity follows the FACE, so the signature comes from the
+	# visual block -- a grunt wearing a golem's bones reassembles like one. The
+	# random first-cast offset keeps a pack from crying/fading on one beat.
+	species_index = visual_block % ENEMY_ROSTERS.size()
+	species_name = str(vd.get("name", ""))
+	signature = str(vd.get("signature", ""))
+	signature_timer = randf_range(0.8, 3.0)
 	var sd: Dictionary = ENEMY_ROSTERS[stat_block % ENEMY_ROSTERS.size()]
 	wave_hp_multiplier *= float(sd.get("hp_mult", 1.0))
 	wave_damage_multiplier *= float(sd.get("dmg_mult", 1.0))
@@ -601,6 +682,16 @@ func _physics_process(delta: float) -> void:
 	# harmless", but only take_damage read _split_until -- a split mob kept
 	# chasing and hitting at full damage while untouchable for 4s, making the
 	# finale's own reward weapon strictly worse than not firing it.
+	# A HEAPED golem is in the same gate: a pile of bones does not chase or swing
+	# (but it still falls, and it is still a target -- see take_damage).
+	if is_heaped():
+		velocity.x = 0
+		move_and_slide()
+		return
+	if heap_until > 0.0:
+		# the window closed without anyone smashing it: it stands back up
+		rise_from_heap()
+
 	if is_frozen() or is_petrified() or is_split():
 		velocity.x = 0
 		move_and_slide()
@@ -610,6 +701,8 @@ func _physics_process(delta: float) -> void:
 	# normal movement AI below
 	if behavior != "":
 		process_behavior(delta)
+	if signature != "":
+		_tick_signature(delta)
 	if is_elite:
 		_tick_elite_slam(delta)
 
@@ -778,7 +871,9 @@ func try_attack(dir_to_player: int) -> void:
 			return
 	elif not _melee_connects(stats.range):
 		return
-	attack_cooldown_remaining = stats.cooldown
+	# a rallied pack (Orc War Cry) swings faster as well as running faster --
+	# "many ways at once" is the rule, and one of them must be felt in the fight
+	attack_cooldown_remaining = stats.cooldown * (RALLY_ATTACK_SPEED if is_rallied() else 1.0)
 	facing_direction = dir_to_player
 	is_attacking = true
 	match weapon_type:
@@ -1064,6 +1159,423 @@ func process_behavior(delta: float) -> void:
 		_:
 			behavior_timer = 1.0
 
+# ============================ THE BESTIARY ============================
+# Six species, six verbs. Every signature below obeys the same three laws:
+#   1. it is TELEGRAPHED (a ring, a flush, a shout) before it can cost anything,
+#   2. it can never one-shot -- the only one that deals damage at all is capped
+#      to a share of the hero's max HP per tick,
+#   3. it differs in KIND, not in numbers -- none of them touches the floor's
+#      hp/dmg/speed curve, so the difficulty ladder is exactly as tuned.
+# The point: the answer to a pack of Orcs cannot be the answer to a Wraith.
+
+func is_fading() -> bool:
+	return _now_s() < fade_until
+
+func is_heaped() -> bool:
+	return _now_s() < heap_until
+
+func is_rallied() -> bool:
+	return _now_s() < rally_until
+
+# The generic specials this species is allowed to roll (dungeon_interior asks).
+func species_behaviors() -> Array:
+	if species_index < 0 or ENEMY_ROSTERS.is_empty():
+		return []
+	var d: Dictionary = ENEMY_ROSTERS[species_index % ENEMY_ROSTERS.size()]
+	return d.get("affinity", [])
+
+func _tick_signature(delta: float) -> void:
+	match signature:
+		"bloodscent":
+			_tick_bloodscent()
+		"reassemble":
+			pass   # the heap's rise is handled in _tick_heap, before this gate
+	signature_timer -= delta
+	if signature_timer > 0.0:
+		return
+	match signature:
+		"warcry":
+			signature_timer = 0.6
+			if _hero_within(WARCRY_RANGE) and is_on_floor() and not is_attacking:
+				signature_timer = randf_range(WARCRY_CD_MIN, WARCRY_CD_MAX)
+				war_cry()
+		"fade":
+			signature_timer = 0.4
+			if _hero_within(FADE_RANGE) and not is_attacking:
+				signature_timer = randf_range(FADE_CD_MIN, FADE_CD_MAX) + FADE_DURATION
+				fade_out()
+		"miasma":
+			signature_timer = MIASMA_CD
+			if _hero_within(MIASMA_RANGE):
+				exhale_miasma()
+		_:
+			signature_timer = 1.0
+
+# The hero -- never the villager or adventurer a mob happens to be chasing. A
+# signature is a lesson for the human holding the sword (same rule take_damage's
+# shield guard follows).
+func _hero() -> Node2D:
+	if real_player != null and is_instance_valid(real_player):
+		return real_player
+	return null
+
+func _hero_within(r: float) -> bool:
+	var h := _hero()
+	return h != null and global_position.distance_to(h.global_position) <= r
+
+# ---------- ORC: "War Cry" ----------
+# One orc plants its feet and roars; every orc that hears it runs and swings
+# faster for six seconds. It deals no damage at all -- the threat is that a
+# loose pack suddenly moves like a unit. The counter is to kill the crier, or to
+# break line of sight and let the shout expire.
+func war_cry() -> void:
+	var until := _now_s() + RALLY_DURATION
+	var roused := 0
+	for e in _living_allies(WARCRY_RADIUS):
+		if "rally_until" in e:
+			e.rally_until = maxf(e.rally_until, until)
+			if e.has_method("spawn_status_spark"):
+				e.spawn_status_spark(Color(1.0, 0.6, 0.25))
+			roused += 1
+	rally_until = maxf(rally_until, until)
+	spawn_status_spark(Color(1.0, 0.6, 0.25))
+	_spawn_cry_ring()
+	FloatingText.spawn_word(get_parent(), global_position + Vector2(0, -66),
+		"WAR CRY" if roused > 0 else "WAR CRY?", Color(1.0, 0.62, 0.25))
+
+# The shout made visible: a ring that sweeps out to the radius it actually
+# reaches, so you can see who just got faster.
+func _spawn_cry_ring() -> void:
+	var ring := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(24):
+		var a := TAU * float(i) / 24.0
+		pts.append(Vector2(cos(a), sin(a) * 0.32) * 20.0)
+	ring.polygon = pts
+	ring.color = Color(1.0, 0.62, 0.25, 0.6)
+	ring.position = Vector2(0, -14)
+	ring.z_index = -1
+	# ADDITIVE, for the reason day_night_cycle and building_lights both record:
+	# under the village's night modulate, plain alpha reads as a grey smudge --
+	# only additive blending genuinely brightens what it crosses. Filmed at
+	# 22:00 the first pass, this ring was almost invisible.
+	var mat := CanvasItemMaterial.new()
+	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	ring.material = mat
+	add_child(ring)
+	var t := ring.create_tween()
+	t.set_parallel(true)
+	t.tween_property(ring, "scale", Vector2.ONE * (WARCRY_RADIUS / 20.0), 0.55)
+	t.tween_property(ring, "modulate:a", 0.0, 0.55)
+	t.set_parallel(false)
+	t.tween_callback(ring.queue_free)
+
+# ---------- BLOOD FIEND: "Bloodscent" ----------
+# It smells a wounded hero. Below half health it frenzies -- faster, and its
+# sight doubles, so a fight you were losing gets harder to walk away from. It
+# costs no damage and it settles again once you heal past 62%, which makes a
+# healing potion a real tactical answer instead of just a number going up.
+func _tick_bloodscent() -> void:
+	var h := _hero()
+	if h == null or not ("health" in h) or not h.has_method("get_max_health"):
+		return
+	var maxhp: int = h.get_max_health()
+	if maxhp <= 0:
+		return
+	var frac := float(h.health) / float(maxhp)
+	if not frenzied and frac <= FRENZY_TRIGGER:
+		frenzied = true
+		detection_range_current *= 2.0
+		_show_frenzy(true)
+		FloatingText.spawn_word(get_parent(), global_position + Vector2(0, -60), "BLOODSCENT", Color(1.0, 0.3, 0.35))
+	elif frenzied and frac >= FRENZY_CALM:
+		frenzied = false
+		detection_range_current *= 0.5
+		_show_frenzy(false)
+
+func _show_frenzy(on: bool) -> void:
+	if on:
+		if _frenzy_aura != null and is_instance_valid(_frenzy_aura):
+			return
+		var aura := Sprite2D.new()
+		aura.texture = _elite_glow_tex()
+		aura.modulate = Color(1.0, 0.25, 0.3, 0.75)
+		aura.scale = Vector2(1.1, 1.1)
+		aura.z_index = -1
+		aura.position = Vector2(0, -18)
+		var mat := CanvasItemMaterial.new()
+		mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		aura.material = mat
+		add_child(aura)
+		var pulse := aura.create_tween()
+		pulse.set_loops()
+		pulse.tween_property(aura, "scale", Vector2(1.35, 1.35), 0.35).set_trans(Tween.TRANS_SINE)
+		pulse.tween_property(aura, "scale", Vector2(1.1, 1.1), 0.35).set_trans(Tween.TRANS_SINE)
+		_frenzy_aura = aura
+	elif _frenzy_aura != null and is_instance_valid(_frenzy_aura):
+		_frenzy_aura.queue_free()
+		_frenzy_aura = null
+
+# ---------- DEMON: "Emberburst" ----------
+# A demon's body keeps burning after it dies. The corpse swells for 0.7s -- a
+# ring you can read and step out of -- then ignites for three seconds. It
+# punishes the habit of standing on top of what you just killed, and it is the
+# one signature that deals damage, so it is hard-capped at 2% of the hero's max
+# HP per half-second tick and can never land the killing blow itself.
+func spawn_ember_burst() -> void:
+	var host := get_parent()
+	if host == null or not is_instance_valid(host):
+		return
+	var pos := global_position
+	var patch := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(20):
+		var a := TAU * float(i) / 20.0
+		pts.append(Vector2(cos(a), sin(a) * 0.45) * EMBER_RADIUS)
+	patch.polygon = pts
+	patch.color = Color(1.0, 0.45, 0.12, 0.0)
+	patch.global_position = pos
+	patch.z_index = 3
+	# fire must BRIGHTEN the ground, not tint it: filmed with plain alpha this
+	# patch read as a dull maroon stain you would walk straight through
+	var fire_mat := CanvasItemMaterial.new()
+	fire_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	patch.material = fire_mat
+	host.add_child(patch)
+	# THE TELL, in the game's existing grammar (elite slam, boss sigils): a ring
+	# that swells to the exact reach the fire will have. Ring = warning; flames =
+	# it is live now. Two different pictures, so "safe" and "burning" never look
+	# the same.
+	var tell := Polygon2D.new()
+	var tpts := PackedVector2Array()
+	for i in range(24):
+		var a := TAU * float(i) / 24.0
+		tpts.append(Vector2(cos(a), sin(a) * 0.45) * 10.0)
+	tell.polygon = tpts
+	tell.color = Color(1.0, 0.6, 0.2, 0.55)
+	tell.material = fire_mat
+	tell.global_position = pos
+	tell.z_index = 3
+	host.add_child(tell)
+	var tw := tell.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(tell, "scale", Vector2.ONE * (EMBER_RADIUS / 10.0), EMBER_TELEGRAPH)
+	tw.tween_property(tell, "modulate:a", 0.0, EMBER_TELEGRAPH)
+	tw.set_parallel(false)
+	tw.tween_callback(tell.queue_free)
+	# SELF-MANAGING (the plaguebearer's pattern): the tell, the burn and the
+	# cleanup all live on the patch, so a demon that is mid-death -- or already
+	# freed -- never gets touched again.
+	var hero := _hero()
+	var timer := Timer.new()
+	timer.wait_time = EMBER_TICK
+	timer.autostart = true
+	patch.add_child(timer)
+	var elapsed := [0.0]
+	var lit := [false]
+	timer.timeout.connect(func():
+		elapsed[0] += EMBER_TICK
+		if elapsed[0] < EMBER_TELEGRAPH:
+			return                            # still swelling: the window to leave
+		if not lit[0]:
+			lit[0] = true
+			_ignite_ember(patch)
+		if is_instance_valid(hero) and hero.global_position.distance_to(pos) < EMBER_RADIUS \
+				and hero.has_method("take_damage") and hero.has_method("get_max_health"):
+			var cap := maxi(1, int(round(float(hero.get_max_health()) * EMBER_TICK_SHARE)))
+			if ("health" in hero) and hero.health > cap:   # never the killing blow
+				hero.take_damage(cap)
+		if elapsed[0] >= EMBER_TELEGRAPH + EMBER_LIFETIME:
+			patch.queue_free())
+
+# The moment the fire is live: the bed glows up and tongues of flame stand in it,
+# bobbing. Static means safe, moving means burning -- a rule you can read at a
+# glance across a crowded floor. Runs ON the patch (it must outlive the demon).
+func _ignite_ember(patch: Polygon2D) -> void:
+	if patch == null or not is_instance_valid(patch):
+		return
+	var glow := patch.create_tween()
+	glow.tween_property(patch, "color:a", 0.42, 0.18)
+	for i in range(6):
+		var fx := float(i - 3) * (EMBER_RADIUS / 3.2) + randf_range(-6.0, 6.0)
+		var h := randf_range(16.0, 30.0)
+		var tongue := Polygon2D.new()
+		tongue.polygon = PackedVector2Array([
+			Vector2(-5, 0), Vector2(5, 0), Vector2(2, -h * 0.55), Vector2(0, -h), Vector2(-3, -h * 0.5)])
+		tongue.position = Vector2(fx, 2)
+		tongue.color = Color(1.0, 0.72, 0.25, 0.85) if i % 2 == 0 else Color(1.0, 0.42, 0.12, 0.8)
+		var m := CanvasItemMaterial.new()
+		m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		tongue.material = m
+		patch.add_child(tongue)
+		var t := tongue.create_tween()
+		t.set_loops()
+		t.tween_property(tongue, "scale", Vector2(0.72, 1.25), randf_range(0.16, 0.26)).set_trans(Tween.TRANS_SINE)
+		t.tween_property(tongue, "scale", Vector2(1.1, 0.8), randf_range(0.16, 0.26)).set_trans(Tween.TRANS_SINE)
+
+# ---------- WRAITH: "Fade" ----------
+# It goes incorporeal for just over a second: untouchable, and unable to strike
+# back. Nothing about it is a stat -- it is a timing lesson, and it is the exact
+# counter to dumping a committed channel or a big wind-up into the first thing
+# you see. Wait it out and it is a normal wraith again.
+func fade_out() -> void:
+	fade_until = _now_s() + FADE_DURATION
+	# it cannot swing while it is smoke -- keep its own weapon on cooldown for
+	# the whole window, so the fade is never a free attack
+	attack_cooldown_remaining = maxf(attack_cooldown_remaining, FADE_DURATION)
+	spawn_status_spark(Color(0.75, 0.45, 1.0))
+	FloatingText.spawn_word(get_parent(), global_position + Vector2(0, -60), "FADES", Color(0.78, 0.5, 1.0))
+	var a := modulate.a
+	var t := create_tween()
+	t.tween_property(self, "modulate:a", 0.26, 0.18)
+	t.tween_interval(FADE_DURATION - 0.36)
+	t.tween_property(self, "modulate:a", a, 0.18)
+	# A wisp stays behind. At 26% alpha in a dark room the body itself vanishes,
+	# and a foe you cannot LOCATE is a different (worse) mechanic than a foe you
+	# cannot hit -- you have to know where it will come back. Additive, so the
+	# dark is exactly where it shows up best.
+	var wisp := Sprite2D.new()
+	wisp.texture = _elite_glow_tex()
+	wisp.modulate = Color(0.66, 0.42, 1.0, 0.55)
+	wisp.scale = Vector2(0.85, 1.05)
+	wisp.position = Vector2(0, -20)
+	wisp.z_index = -1
+	var wm := CanvasItemMaterial.new()
+	wm.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	wisp.material = wm
+	add_child(wisp)
+	var wt := wisp.create_tween()
+	wt.tween_property(wisp, "modulate:a", 0.22, FADE_DURATION * 0.5).set_trans(Tween.TRANS_SINE)
+	wt.tween_property(wisp, "modulate:a", 0.0, FADE_DURATION * 0.5).set_trans(Tween.TRANS_SINE)
+	wt.tween_callback(wisp.queue_free)
+
+# ---------- BONE GOLEM: "Reassemble" ----------
+# Killing a golem drops it into a rattling heap of bones. Three seconds later it
+# stands back up with 35% of its health -- once. The counter is in your hands:
+# the heap is still a target, and any hit inside that window smashes it for
+# good. So a golem is two fights or one, and which it is depends on whether you
+# stayed to finish the job.
+func collapse_to_heap() -> void:
+	heap_until = _now_s() + HEAP_DURATION
+	health = 1
+	update_health_bar()
+	is_attacking = false
+	velocity = Vector2.ZERO
+	# The body goes away and a PILE takes its place. This has to be its own
+	# drawn thing, not the squashed torso rect: a skinned golem hides that rect
+	# entirely (_build_sprite_visual), so re-colouring it left a live, lethal,
+	# INVISIBLE monster on the floor -- the exact trap this file already learned
+	# once ("NEVER an invisible enemy"). Caught on film, not by the assertions.
+	_set_body_visible(false)
+	_spawn_heap_visual()
+	FloatingText.spawn_word(get_parent(), global_position + Vector2(0, -40), "...BONES RATTLE", BONE)
+	spawn_status_spark(BONE)
+
+func rise_from_heap() -> void:
+	heap_until = 0.0
+	has_reassembled = true
+	health = maxi(1, int(round(max_health * HEAP_RISE_SHARE)))
+	update_health_bar()
+	var pile := get_node_or_null("BoneHeap")
+	if pile != null:
+		pile.queue_free()
+	_set_body_visible(true)
+	FloatingText.spawn_word(get_parent(), global_position + Vector2(0, -66), "REASSEMBLES", BONE)
+	spawn_status_spark(BONE)
+
+# Show/hide whichever body this mob actually has -- a sprite skin, or the
+# procedural torso + features -- without disturbing the other.
+func _set_body_visible(on: bool) -> void:
+	if use_sprite:
+		if enemy_sprite != null and is_instance_valid(enemy_sprite):
+			enemy_sprite.visible = on
+	else:
+		if has_node("ColorRect"):
+			$ColorRect.visible = on
+		if has_node("Features"):
+			$Features.visible = on
+		if has_node("WeaponIcon"):
+			$WeaponIcon.visible = on and weapon_type != "bow"
+		if has_node("BowVisual"):
+			$BowVisual.visible = on and weapon_type == "bow"
+
+# A readable pile of bones at the feet: a low mound, a few ribs, and two sockets
+# still glowing -- so a heap says "not finished" rather than "gone".
+func _spawn_heap_visual() -> void:
+	if has_node("BoneHeap"):
+		return
+	var pile := Node2D.new()
+	pile.name = "BoneHeap"
+	pile.z_index = 1
+	add_child(pile)
+	var mound := Polygon2D.new()
+	mound.polygon = PackedVector2Array([
+		Vector2(-20, 4), Vector2(-13, -8), Vector2(-4, -3),
+		Vector2(5, -10), Vector2(14, -2), Vector2(20, 4)])
+	mound.color = BONE.darkened(0.05)
+	pile.add_child(mound)
+	for r in [[-12.0, -1.0, 7.0], [1.0, -4.0, 9.0], [11.0, 0.0, 6.0]]:
+		var rib := Polygon2D.new()
+		rib.polygon = PackedVector2Array([
+			Vector2(r[0], r[1]), Vector2(r[0] + r[2], r[1] - 2.0),
+			Vector2(r[0] + r[2], r[1] + 1.0), Vector2(r[0], r[1] + 3.0)])
+		rib.color = BONE
+		pile.add_child(rib)
+	for sx in [-5.0, 5.0]:
+		var eye := Polygon2D.new()
+		eye.polygon = PackedVector2Array([Vector2(-1.6, -1.6), Vector2(1.6, -1.6), Vector2(1.6, 1.6), Vector2(-1.6, 1.6)])
+		eye.position = Vector2(sx, -2.0)
+		eye.color = accent_color
+		pile.add_child(eye)
+		# it is still awake in there -- the glow pulses while the window runs
+		var t := eye.create_tween()
+		t.set_loops()
+		t.tween_property(eye, "modulate:a", 0.25, 0.45).set_trans(Tween.TRANS_SINE)
+		t.tween_property(eye, "modulate:a", 1.0, 0.45).set_trans(Tween.TRANS_SINE)
+	# the bones shiver as the window runs down: the tell that it is coming back
+	var shake := pile.create_tween()
+	shake.set_loops()
+	shake.tween_property(pile, "position", Vector2(1.5, 0), 0.09)
+	shake.tween_property(pile, "position", Vector2(-1.5, 0), 0.09)
+
+# ---------- ROTFIEND: "Miasma" ----------
+# It does not burst; it POISONS THE GROUND. Every couple of seconds it exhales a
+# cloud that lingers where it stood, so a rotfiend fought toe-to-toe slowly
+# turns the floor under you against you. The answer is to stop standing still --
+# kite it off its own gas. (Same self-managing cloud the Plaguebearer uses, so a
+# rotfiend that dies mid-exhale leaves its gas behind harmlessly.)
+func exhale_miasma() -> void:
+	var host := get_parent()
+	if host == null or not is_instance_valid(host):
+		return
+	var pos := global_position + Vector2(0, -12)
+	var cloud := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(20):
+		var a := TAU * float(i) / 20.0
+		pts.append(Vector2(cos(a), sin(a) * 0.7) * 34.0)
+	cloud.polygon = pts
+	cloud.color = Color(accent_color.r, accent_color.g, accent_color.b, 0.26)
+	cloud.global_position = pos
+	cloud.z_index = 3
+	host.add_child(cloud)
+	var hero := _hero()
+	var timer := Timer.new()
+	timer.wait_time = 0.5
+	timer.autostart = true
+	cloud.add_child(timer)
+	var elapsed := [0.0]
+	timer.timeout.connect(func():
+		elapsed[0] += 0.5
+		if is_instance_valid(hero) and hero.global_position.distance_to(pos) < MIASMA_RADIUS \
+				and hero.has_method("apply_poison"):
+			hero.apply_poison(2.0, MIASMA_POISON_DPS)
+		cloud.modulate.a = maxf(0.0, 1.0 - elapsed[0] / MIASMA_LIFETIME)
+		if elapsed[0] >= MIASMA_LIFETIME:
+			cloud.queue_free())
+
+# ======================== end of THE BESTIARY =========================
+
 func _living_allies(radius: float) -> Array:
 	var out = []
 	for g in ["course_enemy", "dungeon_combatant", "siege_enemy"]:
@@ -1215,6 +1727,27 @@ func take_damage(amount: int) -> void:
 		return   # while split, a creature is scattered light -- untouchable
 	if is_dead:
 		return
+	# FADE (Wraith): smoke takes nothing. It cannot hit you either, and the tell
+	# is a second of near-transparency -- so this is a timing cost, not a wall.
+	if is_fading():
+		spawn_status_spark(Color(0.75, 0.45, 1.0))
+		return
+	# REASSEMBLE (Bone Golem): a hit that lands on the HEAP is the smash that
+	# ends it for good -- fall through to the normal death below.
+	if is_heaped():
+		heap_until = 0.0
+		has_reassembled = true
+		FloatingText.spawn_word(get_parent(), global_position + Vector2(0, -40), "SMASHED", BONE)
+		var pile := get_node_or_null("BoneHeap")
+		if pile != null:
+			# scatter rather than blink out -- the pile is what you just destroyed
+			var t := pile.create_tween()
+			t.set_parallel(true)
+			t.tween_property(pile, "scale", Vector2(1.35, 0.35), 0.22)
+			t.tween_property(pile, "modulate:a", 0.0, 0.22)
+		health = 0
+		die()
+		return
 	# The Golden Gaze (Wukong road): a gold-marked foe takes +15% from
 	# everything that serves the player -- always at least one point more.
 	if has_meta("gold_mark_until") and Time.get_ticks_msec() / 1000.0 < float(get_meta("gold_mark_until")):
@@ -1287,7 +1820,17 @@ func die() -> void:
 	# alive_count / a floor's kill count). Bulletproof regardless of call path.
 	if is_dead:
 		return
+	# REASSEMBLE (Bone Golem) is intercepted HERE, at the one door every death
+	# walks through -- a poison tick kills as surely as a sword, and a golem that
+	# only heaped when struck by hand would be a half-built promise.
+	if signature == "reassemble" and not has_reassembled and not is_heaped():
+		collapse_to_heap()
+		return
 	is_dead = true
+	# EMBERBURST (Demon): the corpse keeps burning. Spawned before any of the
+	# reward/teardown work below, so it never rides a half-freed node.
+	if signature == "emberburst":
+		spawn_ember_burst()
 	# damage_multiplier is the VILLAGE respawn-generation scaler; the deep
 	# pays through depth_reward_mult instead (flat-8-at-floor-90 bug)
 	var depth: float = GameState.depth_reward_mult()
