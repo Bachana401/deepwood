@@ -6394,12 +6394,36 @@ func _build_warden_post() -> void:
 # armoury at once: a swirling storm of many blades, continuous, screen-filling.
 # So: one node, NINE blades, one damage loop, one instance cap.
 # ==========================================================================
-const ZS_BLADES := 9
-const ZS_LIFE := 1.05
-const ZS_R0 := 34.0
-const ZS_R1 := 215.0
-const ZS_BITE := 0.2
-const ZS_REACH := 40.0
+# REBUILT AGAINST THE REFERENCE FILM (2026-07-30). The dev sent a zoomed clip
+# of Terraria's Zenith precisely so the numbers could be MEASURED rather than
+# guessed, and the measurements condemned the old version twice over.
+#
+# SIZE. In the clip the player stands ~90px tall and the blades run 130-150px:
+# every sword is 1.4-1.7 PLAYER HEIGHTS long. Deepwood's player is 48px, so a
+# blade must be 67-82px. The old ones were 26-47px -- half scale. Nine small
+# daggers spinning is not "every sword you ever carried"; that is what "looks
+# silly and cheap" meant, and it was measurable all along.
+#
+# COVERAGE, which is why it also felt WEAK. The blades used to ride ONE ring
+# whose radius swelled 34 -> 215 -> 34 across the life. A body at a fixed
+# distance is inside that ring for a fraction of a second, so the storm landed
+# one or two hits -- while this audit was told it landed four. The declared
+# number was wishful and nothing measured it. Blades now hold STAGGERED radii
+# spread across the whole band, so the disc is cut continuously at every
+# distance, which is also what the film shows: swords scattered near and far,
+# never a tidy circle.
+#
+# THE SWEEP. The single loudest thing in the reference is not the blades at all
+# -- it is an enormous translucent crescent carrying them, about 7 player
+# heights across. Mine had none. See _build_zenith_sweep.
+const ZS_BLADES := 12
+const ZS_LIFE := 1.15
+const ZS_R0 := 30.0
+const ZS_R1 := 232.0
+const ZS_BITE := 0.13
+const ZS_REACH := 62.0        # a 70px blade cuts along its whole length
+const ZS_LEN_MIN := 62.0      # 1.3 PL
+const ZS_LEN_MAX := 82.0      # 1.7 PL, the top of the measured range
 
 var _zs_t := 0.0
 var _zs_parts: Array = []
@@ -6422,12 +6446,23 @@ func _tick_zenith_storm(delta: float) -> void:
 		if not is_instance_valid(part):
 			continue
 		var a: float = spin + TAU * float(i) / float(ZS_BLADES)
-		# each blade rides its own slightly different radius, so nine of them
-		# read as a CROWD of swords and not one spinning ring
-		var rr: float = r * (0.72 + 0.28 * sin(_zs_t * 5.0 + float(i) * 1.7))
-		part.position = Vector2(cos(a), sin(a) * 0.78) * rr
+		# STAGGERED RADII, not one ring. Blade i sits at its own fraction of the
+		# band, so at any instant the storm occupies the whole disc and a body
+		# anywhere inside it is being cut -- instead of waiting for a thin ring
+		# to sweep past once. This is the fix for "it's weak", and it is also
+		# what the reference film actually shows.
+		var band: float = 0.30 + 0.70 * (float(i) + 0.5) / float(ZS_BLADES)
+		var rr: float = lerpf(ZS_R0, r, band)
+		part.position = Vector2(cos(a), sin(a) * 0.82) * rr
+		# blades point ALONG their travel, so the crowd reads as one motion
+		# rather than a jumble -- the "symmetry" the dev asked for
 		part.rotation = a + PI * 0.5
-		part.modulate.a = 0.35 + 0.65 * swell
+		part.modulate.a = 0.45 + 0.55 * swell
+	# the crescent rides just behind the leading blade and grows with the storm
+	if _zs_sweep != null and is_instance_valid(_zs_sweep):
+		_zs_sweep.rotation = spin - 0.5
+		_zs_sweep.scale = Vector2.ONE * lerpf(0.35, 1.0, swell)
+		_zs_sweep.color.a = 0.05 + 0.16 * swell
 	if visual:
 		visual.modulate.a = 1.0
 	_rehit_t += delta
@@ -6459,7 +6494,34 @@ func _tick_zenith_storm(delta: float) -> void:
 					+ Vector2(randf_range(-22.0, 22.0), -26.0), pay, randf() < 0.3)
 			_apply_status_to(e)
 
+var _zs_sweep: Polygon2D = null
+
+# THE SWEEP. The loudest thing in the reference film is not the swords -- it is
+# the enormous translucent crescent that carries them, roughly seven player
+# heights across, trailing behind the whole storm. Without it the blades read as
+# nine objects flying near each other; with it they read as one strike. This is
+# most of the difference between "cheap" and the thing in the clip.
+func _build_zenith_sweep() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var pts := PackedVector2Array()
+	var steps := 26
+	# outer edge of the crescent, then back along the inner edge
+	for i in range(steps + 1):
+		var a: float = lerpf(-1.15, 1.15, float(i) / float(steps))
+		pts.append(Vector2(cos(a), sin(a) * 0.82) * ZS_R1)
+	for i in range(steps + 1):
+		var a2: float = lerpf(1.15, -1.15, float(i) / float(steps))
+		pts.append(Vector2(cos(a2), sin(a2) * 0.82) * (ZS_R1 * 0.42))
+	_zs_sweep = Polygon2D.new()
+	_zs_sweep.polygon = pts
+	_zs_sweep.color = Color(0.72, 1.0, 0.82, 0.16)
+	_zs_sweep.material = m
+	_zs_sweep.z_index = -1
+	visual.add_child(_zs_sweep)
+
 func _build_zenith_storm() -> void:
+	_build_zenith_sweep()
 	var m := CanvasItemMaterial.new()
 	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	for i in range(ZS_BLADES):
@@ -6467,8 +6529,10 @@ func _build_zenith_storm() -> void:
 		var part := Node2D.new()
 		# each one a DIFFERENT blade silhouette, because the fantasy is that
 		# every sword you ever carried is in the air at once
-		var length: float = 26.0 + 7.0 * float(i % 4)
-		var width: float = 5.0 + 1.6 * float(i % 3)
+		# MEASURED off the reference film: 1.3-1.7 player heights. The old
+		# 26-47px made nine daggers; these make a storm of great swords.
+		var length: float = lerpf(ZS_LEN_MIN, ZS_LEN_MAX, float(i % 4) / 3.0)
+		var width: float = 7.0 + 2.2 * float(i % 3)
 		var blade := Polygon2D.new()
 		blade.polygon = PackedVector2Array([
 			Vector2(0, -length), Vector2(width, -length * 0.55),

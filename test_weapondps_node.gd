@@ -197,7 +197,11 @@ const HITS_PER_USE := {
 	# a homing shaft SPLITS on impact into two lesser seekers (arrow.split_gen)
 	"seeker":     1.6,
 	"souls":      3.9,   # SEVEN homing souls at 0.55x (the verb it never had)
-	"zenith":     4.0, # THE STORM: 9 blades, ~5 bites over its 1.05s life,
+	# MEASURED, not estimated (test_realhits_node, 2026-07-30): 8 hits at 90px,
+	# 5 at 170px, 0 at 280px. 6.0 is the honest middle of its useful band. The
+	# old 4.0 was a guess made when the blades rode one thin ring and actually
+	# landed one or two -- the number flattered a weapon the dev called weak.
+	"zenith":     6.0, # THE STORM: 12 blades on staggered radii over 1.15s,
 	"ink":        2.4,   # a piercing stream that rakes the row as it falls
 	"wake":       2.8,   # the scythe wakes, cuts, and RETURNS through the row
 }
