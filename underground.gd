@@ -87,6 +87,7 @@ var _water_rows: Array = []            # y -> spans of WATER
 var _lake_air: Array = []              # y -> spans of air above a lake's surface
 var _lake_rock: Array = []             # y -> spans of the basin shell (holds the water in)
 var _road_flood: Array = []            # y -> stretches where the road itself wades
+var _road_mass: Array = []            # y -> the solid apron carrying the road (see _gen_kind)
 var _lakes: Array = []                 # [{c:Vector2i, hw:int, d:int, big:bool}] for content spawns
 var _lakes_by_chunk := {}              # chunk -> [index into _lakes] (the chunk that owns each lake)
 var _doors: Array = []                 # level L (1..100) -> its door cell, index L-1
@@ -231,6 +232,8 @@ func _in_span(tbl: Array, y: int, x: int) -> bool:
 const ROAD_HALF := 1                   # corridor half-width -> 3 tiles wide
 const ROAD_HEAD := 5                   # tiles of air above the road bed (player is 4 tall)
 const ROAD_BED := 2                    # tiles of solid rock under it
+const ROAD_UNDER := 10                 # ...plus this much solid apron beneath THAT
+const ROAD_MASS_HALF := 5              # wider than the corridor, so you can't sidestep and dig
 const STAIR_TREAD := 3                 # horizontal tiles per 1-tile step (shallower = comfier)
 const LEVELS := 100
 const DOOR_HOP_MIN := 90               # tiles between consecutive floor doors...
@@ -240,6 +243,7 @@ const ROAD_MARGIN := 120               # keep the chain clear of the world edges
 func _build_route() -> void:
 	_road_air = _new_rows()
 	_road_rock = _new_rows()
+	_road_mass = _new_rows()
 	_doors = []
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 0x0DDBA11
@@ -305,6 +309,7 @@ func _build_route() -> void:
 	_carve_path(_plan_leg(cur, tail, rng, 0))
 	_merge_rows(_road_air)
 	_merge_rows(_road_rock)
+	_merge_rows(_road_mass)
 	_repair_road()
 	# LIGHT THE ROAD. The dev's complaint was that there was no clear way down;
 	# geometry alone fixes that only if you can SEE it. A lantern every ~14 tiles
@@ -454,6 +459,9 @@ func _carve_road_cell(c: Vector2i) -> void:
 		_add_span(_road_air, c.y - dy, c.x - ROAD_HALF, c.x + ROAD_HALF)
 	for dy in range(0, ROAD_BED):
 		_add_span(_road_rock, c.y + dy, c.x - ROAD_HALF, c.x + ROAD_HALF)
+	# the apron of rock the road rides on (see _gen_kind)
+	for dy in range(ROAD_BED, ROAD_BED + ROAD_UNDER):
+		_add_span(_road_mass, c.y + dy, c.x - ROAD_MASS_HALF, c.x + ROAD_MASS_HALF)
 
 const ENTRY_HALF := 15
 
@@ -681,6 +689,21 @@ func _gen_kind(x: int, y: int) -> int:
 	if _in_span(_lake_rock, y, x):
 		return _biome_of(y)
 	var b := _biome_of(y)
+	# ── THE MASS UNDER THE ROAD ───────────────────────────────────────────────
+	# The bed is only ROAD_BED thick, and what sat under it was whatever the noise
+	# felt like -- usually open cavern. So you could stand on the trail, dig two
+	# tiles, and drop straight through, skipping the whole winding route in
+	# seconds and taking the exact fall this rework exists to prevent.
+	#
+	# Now the road rides on a deep apron of solid rock, wider than the corridor so
+	# you cannot just sidestep and dig there. Cutting down through it is still
+	# ALLOWED -- it just costs real time, which is the point: the road becomes the
+	# sane way to travel rather than the only one. Checked after the lakes, so a
+	# lake below the road keeps its water instead of being filled in.
+	if _in_span(_road_mass, y, x):
+		if _ore.get_noise_2d(float(x) * 1.3, float(y) * 1.3) > 0.42:
+			return ORE_COL + b            # ...and the long dig down still pays
+		return b
 	# PICKAXE-GATE SEAL: a solid band of the hardest rock at the MOUTH of the deepest
 	# biome. Free exploration gets you this far; to go deeper you must DIG through it
 	# with a strong enough pickaxe. (The way down is otherwise open.)

@@ -60,6 +60,38 @@ func _test_generator() -> void:
 	# so every step of the road is reversible
 	check("no fall on the road exceeds a jump (%d tiles)" % worst_fall, worst_fall <= 7)
 
+	# ── 1b. YOU CANNOT DIG STRAIGHT DOWN AND SKIP THE ROUTE ──
+	# The bed is only ROAD_BED thick and what lay under it used to be whatever the
+	# noise felt like -- usually open cavern. Two pickaxe swings from the trail
+	# dropped you into a void, skipping the whole winding chain. ROAD_UNDER puts a
+	# deep apron of rock beneath it: tunnelling down stays possible, it just costs
+	# real time, so the road is the sane way to travel rather than the only one.
+	var dig_total := 0
+	var dig_n := 0
+	var breakthroughs := 0
+	for i in range(0, path.size(), 11):
+		var c: Vector2i = path[i]
+		var top := c.y
+		while top < c.y + 4 and not _solid(ug, c.x, top):
+			top += 1                              # stair lips: the real floor is lower
+		var run := 0
+		while run < 90 and _solid(ug, c.x, top + run):
+			run += 1
+		dig_total += run
+		dig_n += 1
+		if run < 6:
+			# only counts if breaking through actually DROPS you -- punching into
+			# the road's own lower corridor, or into water, is a step, not a shortcut
+			var drop := 0
+			while drop < 120 and ug._gen_kind(c.x, top + run + drop) == UG.AIR:
+				drop += 1
+			if drop > 7:
+				breakthroughs += 1
+	var mean_dig := int(float(dig_total) / maxf(1.0, float(dig_n)))
+	check("the road rides on real mass (mean %d tiles to dig through)" % mean_dig, mean_dig >= 9)
+	check("digging down never drops you past the route (%d spots)" % breakthroughs,
+		breakthroughs <= dig_n / 100)
+
 	# ── 2. THE CHAIN ──
 	check("100 floor doors exist", ug._doors.size() == 100)
 	var worst_hop := 0

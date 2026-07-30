@@ -138,7 +138,48 @@ func _audit_descent() -> void:
 	for y in range(ug._road_flood.size()):
 		for s in ug._road_flood[y]:
 			flood_cells += int(s.y) - int(s.x) + 1
+	# THE SHORTCUT TEST: stand on the road, dig straight down. How many tiles
+	# before you break into open space? Two meant you could skip the whole route
+	# and fall into a cavern.
+	var thin := 0
+	var min_dig := 9999
+	var thin_danger := 0
+	var thin_worst := 0
+	var thin_at := Vector2i.ZERO
+	var dig_total := 0
+	var samples := 0
+	for i in range(0, path.size(), 7):
+		var c: Vector2i = path[i]
+		# start at the floor the player is really standing on: at a stair lip the
+		# recorded bed cell is air and the ground is a row or two lower
+		var top := c.y
+		while top < c.y + 4 and not _solid(c.x, top):
+			top += 1
+		var solid_run := 0
+		while solid_run < 90 and _solid(c.x, top + solid_run):
+			solid_run += 1
+		samples += 1
+		dig_total += solid_run
+		min_dig = mini(min_dig, solid_run)
+		if solid_run < 6:
+			thin += 1
+			# A thin spot only MATTERS if breaking through drops you a long way --
+			# punching into the road's own lower corridor, or into water, is a
+			# 7-tile step and no shortcut at all.
+			var below := top + solid_run
+			var drop := 0
+			while drop < 120 and ug._gen_kind(c.x, below + drop) == UG.AIR:
+				drop += 1
+			if drop > JUMP_UP:
+				thin_danger += 1
+				if thin_worst < drop:
+					thin_worst = drop
+					thin_at = Vector2i(c.x, top)
 	say("  road length : %d cells (%d px of walking)" % [path.size(), path.size() * UG.TILE])
+	say("  DIG-DOWN depth under the road: mean %d tiles, thinnest %d  (spots under 6 tiles: %d of %d)"
+		% [int(float(dig_total) / maxf(1.0, float(samples))), min_dig, thin, samples])
+	say("  ...of those, ones that DROP you more than a jump: %d   worst %d tiles (%d px) at %s"
+		% [thin_danger, thin_worst, thin_worst * UG.TILE, str(thin_at)])
 	say("  wades ON the road: %d cells   flood painted in total: %d  (%.0f%% landed on the trail)"
 		% [wade, flood_cells, 100.0 * float(wade * UG.FLOOD_DEPTH) / maxf(1.0, float(flood_cells))])
 	say("  legs that never dodged a crossing: %d   holes patched over voids: %d"
