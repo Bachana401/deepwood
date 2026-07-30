@@ -254,6 +254,20 @@ func _ready() -> void:
 		"prism_bolt": _build_prism_bolt()
 		"comet_chain": _build_chainmaul()
 		"oath_arrow": _build_stoop_arrow()
+		# ---- T4 batch 2: the last fifteen ----
+		"gloam_fork":
+			pierce = true
+			_build_gloam_fork()
+		"owl_wheel":
+			pierce = true
+			_build_owl_wheel()
+		"river_cut":
+			pierce = true
+			_build_river_cut()
+		"smoke_pall": _build_smoke_pall()
+		"drift_wheel":
+			pierce = true
+			_build_drift_wheel()
 		# ---- T5 batch 4: the last eleven ----
 		"omen_eye":
 			pierce = true
@@ -683,6 +697,21 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind == "world_cut":
 		_tick_worldcut(delta)
+		return
+	if kind == "gloam_fork":
+		_tick_gloam(delta)
+		return
+	if kind == "owl_wheel":
+		_tick_owlwheel(delta)
+		return
+	if kind == "river_cut":
+		_tick_river(delta)
+		return
+	if kind == "smoke_pall":
+		_tick_standing_zone(delta)
+		return
+	if kind == "drift_wheel":
+		_tick_drift(delta)
 		return
 	if kind == "howl_crescent":
 		_tick_howl(delta)
@@ -7249,6 +7278,219 @@ func _tick_comet_chain(delta: float) -> void:
 	fb.girth = girth * 0.55
 	host.add_child(fb)
 	fb.global_position = global_position + Vector2(randf_range(-8.0, 8.0), 10.0)
+
+# ==========================================================================
+# TIER 4, BATCH 2 -- the last fifteen. Closes the tier.
+# ==========================================================================
+
+# --- GLOAMING LASH: the whip FORKS at the tip ---------------------------
+var _gl_t := 0.0
+var _gl_bend := 1.0
+
+func _tick_gloam(delta: float) -> void:
+	_gl_t += delta
+	# each tine bows away from the other, so one crack covers two lanes
+	var perp := Vector2(-direction.y, direction.x)
+	var bow: float = sin(clampf(_gl_t / 0.5, 0.0, 1.0) * PI) * 46.0 * _gl_bend
+	traveled += speed * delta
+	global_position += direction * speed * delta + perp * (bow * delta * 3.0)
+	rotation = direction.angle() + bow * 0.008 * _gl_bend
+	_rehit_t += delta
+	if _rehit_t >= 0.3:
+		_rehit_t = 0.0
+		hit_bodies.clear()
+	if traveled >= max_distance:
+		done = true
+		queue_free()
+
+func set_gloam_bend(b: float) -> void:
+	_gl_bend = b
+
+func _build_gloam_fork() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	for i in range(2):
+		var cord := Polygon2D.new()
+		var off: float = -3.0 + 6.0 * float(i)
+		cord.polygon = PackedVector2Array([
+			Vector2(-24, off * 0.4), Vector2(6, off), Vector2(26, off * 0.8),
+			Vector2(26, off * 0.8 + 2.2), Vector2(6, off + 2.6), Vector2(-24, off * 0.4 + 2.0)])
+		cord.color = Color(0.42, 0.34, 0.56, 0.9 - 0.18 * float(i))
+		visual.add_child(cord)
+	var tip := Polygon2D.new()
+	tip.polygon = PackedVector2Array([Vector2(32, 0), Vector2(22, -5.0), Vector2(22, 5.0)])
+	tip.color = Color(0.78, 0.66, 0.96, 0.94)
+	tip.material = m
+	visual.add_child(tip)
+
+# --- OWL-EYE WHEEL: it WATCHES, and only bites what looks back ----------
+var _ow_t := 0.0
+const OW_LIFE := 3.4
+
+func _tick_owlwheel(delta: float) -> void:
+	_ow_t += delta
+	if _ow_t >= OW_LIFE or not is_instance_valid(source):
+		done = true
+		queue_free()
+		return
+	# it does not orbit on a circle -- it DRIFTS toward whatever is nearest,
+	# hanging over the fight like a watching eye
+	var prey := _nearest_hostile_node(340.0)
+	if prey != null:
+		var want: Vector2 = ((prey as Node2D).global_position + Vector2(0, -54.0)) - global_position
+		if want.length() > 8.0:
+			global_position += want.normalized() * 190.0 * delta
+	elif is_instance_valid(source):
+		var home: Vector2 = (source as Node2D).global_position + Vector2(0, -60.0)
+		global_position = global_position.lerp(home, 2.0 * delta)
+	if visual:
+		visual.rotation = sin(_ow_t * 3.0) * 0.22
+	_rehit_t += delta
+	if _rehit_t < 0.42:
+		return
+	_rehit_t = 0.0
+	if prey == null:
+		return
+	var host := get_parent()
+	var pay: int = maxi(1, damage)
+	var landed = prey.take_damage(pay)
+	if landed == null or landed:
+		FloatingText.spawn(host, (prey as Node2D).global_position
+			+ Vector2(randf_range(-14.0, 14.0), -26.0), pay, false)
+	_apply_status_to(prey)
+	# a blink of the eye when it strikes
+	if host != null:
+		var m := CanvasItemMaterial.new()
+		m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		var flash := Polygon2D.new()
+		flash.polygon = PackedVector2Array([
+			Vector2(-14, 0), Vector2(0, -8.0), Vector2(14, 0), Vector2(0, 8.0)])
+		flash.color = Color(1.0, 0.92, 0.6, 0.8)
+		flash.material = m
+		flash.z_index = 43
+		host.add_child(flash)
+		flash.global_position = global_position
+		var tw := flash.create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(flash, "scale", Vector2(2.2, 0.4), 0.2)
+		tw.tween_property(flash, "modulate:a", 0.0, 0.2)
+		tw.chain().tween_callback(flash.queue_free)
+
+func _build_owl_wheel() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var lid := Polygon2D.new()
+	lid.polygon = PackedVector2Array([
+		Vector2(-19, 0), Vector2(0, -12.0), Vector2(19, 0), Vector2(0, 12.0)])
+	lid.color = Color(0.7, 0.62, 0.42, 0.9)
+	visual.add_child(lid)
+	var iris := Polygon2D.new()
+	iris.polygon = _circle(8.0, 10)
+	iris.color = Color(1.0, 0.88, 0.5, 0.96)
+	iris.material = m
+	visual.add_child(iris)
+	var pupil := Polygon2D.new()
+	pupil.polygon = _circle(3.4, 8)
+	pupil.color = Color(0.1, 0.08, 0.06, 0.98)
+	visual.add_child(pupil)
+
+# --- RIVERRENDER: the cut RUNS along the ground like water --------------
+var _rv_t := 0.0
+
+func _tick_river(delta: float) -> void:
+	_rv_t += delta
+	# it hugs the floor and swells as it runs
+	global_position += direction * speed * delta
+	traveled += speed * delta
+	if visual:
+		visual.scale = Vector2(1.0 + 0.9 * (traveled / maxf(1.0, max_distance)),
+			1.0 + 0.4 * sin(_rv_t * 9.0)) * _draw_girth
+	_rehit_t += delta
+	if _rehit_t >= 0.26:
+		_rehit_t = 0.0
+		hit_bodies.clear()
+	if traveled >= max_distance:
+		done = true
+		queue_free()
+
+func _build_river_cut() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var sheet := Polygon2D.new()
+	sheet.polygon = PackedVector2Array([
+		Vector2(-20, 12.0), Vector2(-8, -6.0), Vector2(8, -12.0),
+		Vector2(20, -2.0), Vector2(14, 14.0)])
+	sheet.color = Color(0.4, 0.74, 0.9, 0.66)
+	sheet.material = m
+	visual.add_child(sheet)
+	var foam := Polygon2D.new()
+	foam.polygon = PackedVector2Array([
+		Vector2(2, -11.0), Vector2(16, -3.0), Vector2(6, 1.0)])
+	foam.color = Color(0.9, 0.98, 1.0, 0.8)
+	foam.material = m
+	visual.add_child(foam)
+
+# --- SMOKE AND ASH: the lash leaves a PALL you cannot see through -------
+func _build_smoke_pall() -> void:
+	_zone_max = 3.2
+	_zone_r = 58.0
+	_zone_gap = 0.52
+	for k in range(5):
+		var puff := Polygon2D.new()
+		puff.polygon = _circle(randf_range(15.0, 24.0), 9)
+		puff.color = Color(0.28, 0.26, 0.28, 0.5)
+		puff.position = Vector2(randf_range(-26.0, 26.0), randf_range(-18.0, 8.0))
+		visual.add_child(puff)
+		var tw := puff.create_tween().set_loops()
+		tw.tween_property(puff, "position:x", puff.position.x + 6.0, randf_range(1.0, 1.6))
+		tw.tween_property(puff, "position:x", puff.position.x, randf_range(1.0, 1.6))
+
+# --- DRIFTWHEEL: thrown, and it keeps DRIFTING wherever you look --------
+var _dw_t := 0.0
+const DW_LIFE := 3.0
+
+func _tick_drift(delta: float) -> void:
+	_dw_t += delta
+	if _dw_t >= DW_LIFE:
+		done = true
+		queue_free()
+		return
+	# it never stops and it never comes back -- it wanders on, turning
+	# slowly toward whatever is nearest, cutting the whole way
+	var prey := _nearest_hostile_node(420.0)
+	if prey != null:
+		var want: Vector2 = ((prey as Node2D).global_position - global_position).normalized()
+		direction = direction.lerp(want, 1.6 * delta).normalized()
+	global_position += direction * speed * delta
+	if visual:
+		visual.rotation += 11.0 * delta
+	_rehit_t += delta
+	if _rehit_t >= 0.34:
+		_rehit_t = 0.0
+		hit_bodies.clear()
+
+func _build_drift_wheel() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var rim := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(10):
+		var a := TAU * float(i) / 10.0
+		pts.append(Vector2(cos(a), sin(a)) * 16.0)
+	for i in range(10):
+		var a2 := TAU * float(9 - i) / 10.0
+		pts.append(Vector2(cos(a2), sin(a2)) * 10.0)
+	rim.polygon = pts
+	rim.color = Color(0.62, 0.72, 0.66, 0.88)
+	rim.material = m
+	visual.add_child(rim)
+	for k in range(4):
+		var vane := Polygon2D.new()
+		vane.polygon = PackedVector2Array([
+			Vector2(-3.0, -19.0), Vector2(3.0, -16.0), Vector2(1.0, -9.0), Vector2(-2.0, -10.0)])
+		vane.color = Color(0.82, 0.9, 0.84, 0.85)
+		vane.rotation = deg_to_rad(90.0 * float(k))
+		visual.add_child(vane)
 
 func _circle(radius: float, sides: int) -> PackedVector2Array:
 	var pts = PackedVector2Array()

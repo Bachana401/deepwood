@@ -88,7 +88,7 @@ const ROWS = [
 	["wpn_vespersting",  "Vesper Sting",         "melee", 4, "arc",       13, 0.26, {"status": "poison_w", "plain": true}],
 	["wpn_howlpiece",    "Howlpiece",            "melee", 4, "howlpiece", 17, 0.55, {"p_damage": 15}],
 	["wpn_winterwheel",  "Winterwheel",          "melee", 4, "winterwheel", 16, 0.8,  {"dwell": 2.4, "status": "slow_w"}],
-	["wpn_gloamlash",    "Gloaming Lash",        "melee", 4, "lash",      17, 0.85, {"status": "burn_w"}],
+	["wpn_gloamlash",    "Gloaming Lash",        "melee", 4, "gloamlash", 17, 0.85, {"status": "burn_w"}],
 	["wpn_reaperrebuke", "Reaper's Rebuke",      "melee", 4, "reaperrebuke", 16, 0.6,  {"bounces": 4}],
 	["wpn_sunderpike",   "Sunder Pike",          "spear", 4, "thrust",    23, 0.85, {"plain": true}],
 	["wpn_galeprong",    "Galeprong",            "spear", 4, "jab_volley", 15, 0.9, {"count": 4, "plain": true}],
@@ -232,10 +232,10 @@ const ROWS = [
 	["wpn_eveningblade", "Evening's Empire",     "melee", 4, "arc",       18, 0.42, {"plain": true}],
 	["wpn_barrowmaul",   "Barrow King's Maul",   "melee", 4, "cleave",    26, 1.0,  {"knockup": true, "plain": true}],
 	["wpn_cometflail",   "Comet on a Chain",     "melee", 4, "cometflail", 20, 0.95, {"status": "burn_w"}],
-	["wpn_owlwheel",     "Owl-Eye Wheel",        "melee", 4, "orbiter",   15, 0.78, {"dwell": 2.2}],
+	["wpn_owlwheel",     "Owl-Eye Wheel",        "melee", 4, "owlwheel",  15, 0.78, {"dwell": 2.2}],
 	["wpn_palefang",     "Palefang",             "melee", 4, "arc",       12, 0.25, {"status": "slow_w", "plain": true}],
-	["wpn_riverrender",  "Riverrender",          "melee", 4, "crescent",  16, 0.55, {"p_damage": 14}],
-	["wpn_smokelash",    "Smoke and Ash",        "melee", 4, "lash",      16, 0.82, {"status": "burn_w"}],
+	["wpn_riverrender",  "Riverrender",          "melee", 4, "riverrender", 16, 0.55, {"p_damage": 14}],
+	["wpn_smokelash",    "Smoke and Ash",        "melee", 4, "smokelash", 16, 0.82, {"status": "burn_w"}],
 	["wpn_debtblade",    "Debt of the Deep",     "melee", 4, "ricochet",  15, 0.6,  {"bounces": 4}],
 	["wpn_vigilpike",    "Vigil Unbroken",       "spear", 4, "thrust",    22, 0.82, {"plain": true}],
 	["wpn_winterreach",  "Winter's Reach",       "spear", 4, "thrust",    18, 0.6,  {"status": "slow_w", "plain": true}],
@@ -256,7 +256,7 @@ const ROWS = [
 	["wpn_paleobelisk",  "Pale Obelisk",         "staff", 4, "staff",     16, 0.46, {"plain": true}],
 	["wpn_fordstaff",    "Fordmaster",           "staff", 4, "staff",     14, 0.4,  {"plain": true}],
 	["wpn_inkbook",      "Inkwell of Storms",    "wand",  4, "ink",       12, 0.9,  {}],
-	["wpn_driftwheel",   "Driftwheel",           "melee", 4, "orbiter",   17, 0.85, {"dwell": 2.6}],
+	["wpn_driftwheel",   "Driftwheel",           "melee", 4, "driftwheel", 17, 0.85, {"dwell": 2.6}],
 	# ---------------- WAVE 3 - TIER 5 (26) ----------------
 	["wpn_lastlantern",  "The Last Lantern",     "melee", 5, "arc",       23, 0.4,  {"status": "burn_w", "plain": true}],
 	["wpn_hourmaul",     "The Eleventh Hour",    "melee", 5, "cleave",    34, 1.08, {"knockup": true, "plain": true}],
@@ -912,6 +912,20 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 		"falconoath":
 			s = {"type": "oath_arrow", "damage": maxi(1, int(round(float(dmg) * 1.15))),
 				"speed": spd + 200.0, "range": rng}
+		# ---- T4 batch 2 ----
+		"gloamlash":
+			s = {"type": "gloam_fork", "damage": maxi(1, int(round(float(dmg) * 0.8))),
+				"count": 2, "speed": spd - 170.0, "range": rng * 0.4}
+		"owlwheel":
+			s = {"type": "owl_wheel", "damage": maxi(1, int(round(float(dmg) * 0.85)))}
+		"riverrender":
+			s = {"type": "river_cut", "damage": maxi(1, int(round(float(dmg) * 0.9))),
+				"speed": spd - 200.0, "range": rng * 0.6}
+		"smokelash":
+			s = {"type": "smoke_pall", "damage": maxi(1, int(round(float(dmg) * 0.55)))}
+		"driftwheel":
+			s = {"type": "drift_wheel", "damage": maxi(1, int(round(float(dmg) * 0.7))),
+				"speed": spd - 300.0}
 		# ---- T5 batch 4: the last eleven (incl. the OMEN TRIO) ----
 		"omenseek":
 			s = {"type": "omen_eye", "damage": maxi(1, int(round(float(dmg) * 0.5))),
@@ -1050,6 +1064,11 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"hushfall":    return "The blow lands in SILENCE. The sound of it arrives a moment later, from where you struck, and the sound is the heavier half."
 		"eclipse":     return "The wheel rolls out and goes DARK, and the shadow it throws is the weapon -- a long band of night that cuts everything standing in it."
 		"cometfall":   return "Lobs high and comes down as a COMET, cratering where it lands and leaving the ground burning for whatever walks in next."
+		"gloamlash":   return "The whip FORKS at the tip -- two tines bowing apart, so one crack covers two lanes at once."
+		"owlwheel":    return "It does not orbit. It WATCHES -- hanging over the fight, drifting to whatever is nearest, and blinking once every time it strikes."
+		"riverrender": return "The cut RUNS along the floor like water and SWELLS the further it goes."
+		"smokelash":   return "Where the lash cracks it leaves a PALL -- ash hanging in the air that keeps working on anything standing in it."
+		"driftwheel":  return "Thrown once and never returned: it DRIFTS on, turning slowly toward whatever is nearest, cutting the whole way."
 		"howlpiece":   return "The crescent HOWLS as it flies -- every beat it throws a ring out across its own path, so the lane it cuts is far wider than the blade."
 		"winterwheel": return "It ROLLS, and the floor freezes behind it. The lane it took stays cold long after the wheel is gone."
 		"reaperrebuke": return "The scythe takes a round of the room and comes back HEAVIER for every visit, then returns to your hand."

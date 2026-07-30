@@ -129,6 +129,12 @@ const HITS_PER_USE := {
 	"prismbreak":  1.9, # the bolt plus three 0.55x colours, which fan apart
 	"cometflail":  1.8, # the maul's contacts plus the fire it sheds
 	"falconoath":  1.2, # one shaft at 1.15x -- the value is the REPOSITION
+	# ---- T4 batch 2 ----
+	"gloamlash":   1.9, # two tines, but they bow APART -- rarely both on one
+	"owlwheel":    2.6, # ONE eye (recast renews): ~7 blinks over its 3.4s
+	"riverrender": 2.2, # it swells as it runs, re-hitting every 0.26s
+	"smokelash":   2.4, # ~6 ticks in the pall at 0.55x if they stand in it
+	"driftwheel":  2.5, # 3s of wandering, re-hitting every 0.34s
 	# ---- T5 batch 4: the last eleven ----
 	"omenseek":    2.6, # a slow read, then every marked body eats a 1.3x nova
 	"ironomen":    2.2, # 4 bounces, each planting a spike that ticks its zone

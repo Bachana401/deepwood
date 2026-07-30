@@ -4494,7 +4494,8 @@ func perform_attack() -> void:
 	# swung and threw nothing. They had been dead this whole time.
 	elif special_type == "ricochet" or special_type == "kneeling_stone" \
 			or special_type == "howl_crescent" or special_type == "frost_roller" \
-			or special_type == "reaper_return" or special_type == "comet_chain":
+			or special_type == "reaper_return" or special_type == "comet_chain" \
+			or special_type == "river_cut" or special_type == "drift_wheel":
 		var thr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
 		launch_projectile(special, aim_dir, thr[0], thr[1])
 	# THE MONARCH STAVES (T8): staff weapons resolve to weapon_type "melee",
@@ -4509,6 +4510,49 @@ func perform_attack() -> void:
 		mk2.direction = aim_dir
 		get_parent().add_child(mk2)
 		mk2.global_position = global_position + aim_dir * (70.0 if special_type == "colonnade" else 120.0)
+	# GLOAMING LASH (T4): two tines, bowing apart around the middle
+	elif special_type == "gloam_fork":
+		var gcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+		for bend in [1.0, -1.0]:
+			var gf = WEAPON_PROJECTILE_SCRIPT.new()
+			gf.kind = "gloam_fork"
+			gf.damage = gcr[0]
+			gf.is_crit = gcr[1]
+			gf.element = Inventory.element_of(active_weapon_id)
+			gf.on_hit_status = special.get("status", {})
+			gf.source = self
+			gf.girth = grade_projectile_girth()
+			gf.direction = aim_dir
+			gf.speed = float(special.get("speed", 340.0))
+			gf.max_distance = float(special.get("range", 220.0))
+			get_parent().add_child(gf)
+			gf.global_position = global_position + aim_dir * 26.0
+			gf.set_gloam_bend(bend)
+	# OWL-EYE WHEEL (T4): one watching eye at a time
+	elif special_type == "owl_wheel":
+		for old_ow in get_tree().get_nodes_in_group("owl_wheel_instance"):
+			if is_instance_valid(old_ow):
+				old_ow.queue_free()
+		var ow = WEAPON_PROJECTILE_SCRIPT.new()
+		ow.add_to_group("owl_wheel_instance")
+		ow.kind = "owl_wheel"
+		ow.damage = maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+		ow.element = Inventory.element_of(active_weapon_id)
+		ow.on_hit_status = special.get("status", {})
+		ow.source = self
+		ow.girth = grade_projectile_girth()
+		get_parent().add_child(ow)
+		ow.global_position = global_position + Vector2(0, -60.0)
+	# SMOKE AND ASH (T4): the crack leaves a pall hanging
+	elif special_type == "smoke_pall":
+		var sp2 = WEAPON_PROJECTILE_SCRIPT.new()
+		sp2.kind = "smoke_pall"
+		sp2.damage = maxi(1, int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+		sp2.element = Inventory.element_of(active_weapon_id)
+		sp2.on_hit_status = special.get("status", {})
+		sp2.source = self
+		get_parent().add_child(sp2)
+		sp2.global_position = global_position + aim_dir * 86.0
 	# A CUT ACROSS THE WORLD (T8): one slash the whole length of the lane
 	elif special_type == "world_cut":
 		var wc = WEAPON_PROJECTILE_SCRIPT.new()
