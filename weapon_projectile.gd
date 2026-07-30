@@ -574,6 +574,15 @@ func _ready() -> void:
 			pierce = true          # the whirl and the hurl both rake through
 		"ricochet":
 			_build_ricochet()
+			# THE MEOWMERE TREATMENT, earned by depth. A ricochet with seven or
+			# more leaps is the family's showcase, and the reference clip is
+			# unambiguous about what a showcase bouncer looks like: a tiny body
+			# and an enormous rainbow BAND drawn around the level as it goes.
+			# Below seven bounces a weapon keeps its plain trail -- the ribbon
+			# has to mean something, or every dart owns the screen and none of
+			# them do.
+			if bounces >= 7:
+				_make_ribbon(RAINBOW, 3.0)
 		"cluster":
 			_build_cluster()
 		"lob":
@@ -719,6 +728,81 @@ func _tick_trail() -> void:
 	for p in _trail_pts:
 		pts.append(_trail.to_local(p))
 	_trail.points = pts
+	# a RIBBON weapon draws the same path as several parallel strips, offset
+	# perpendicular to the direction of travel. Measured off the Meowmere clip:
+	# its rainbow is not one tinted line, it is a BAND of about six colour
+	# strips ~15px (0.33 PL) thick in total. A single gradient line cannot look
+	# like that at any width, which is why the first trail pass still read thin.
+	if _ribbon.is_empty():
+		return
+	for i in range(_ribbon.size()):
+		var strip: Line2D = _ribbon[i]
+		if not is_instance_valid(strip):
+			continue
+		var off: float = (float(i) - float(_ribbon.size() - 1) * 0.5) * 2.6
+		var sp := PackedVector2Array()
+		for k in range(_trail_pts.size()):
+			var perp := Vector2.UP
+			if k + 1 < _trail_pts.size():
+				var d: Vector2 = _trail_pts[k] - _trail_pts[k + 1]
+				if d.length() > 0.01:
+					perp = Vector2(-d.y, d.x).normalized()
+			sp.append(strip.to_local(_trail_pts[k] + perp * off))
+		strip.points = sp
+
+# THE RAINBOW BAND. Six strips is what the reference draws; fewer reads as a
+# stripe rather than a spectrum. Any weapon can ask for one by calling this in
+# its build -- it is the cheapest way for a weapon to own the screen, and it is
+# what separates a showcase weapon from a coloured dot with a smear behind it.
+var _ribbon: Array = []
+const RAINBOW := [
+	Color(1.0, 0.20, 0.22), Color(1.0, 0.58, 0.16), Color(1.0, 0.90, 0.25),
+	Color(0.32, 0.85, 0.35), Color(0.25, 0.55, 1.0), Color(0.62, 0.32, 0.95),
+]
+
+# Four-pointed STARS, not dots -- the reference sparkles are clearly star
+# shaped, and at this size that silhouette is the whole difference between
+# "sparkle" and "dust".
+func _bounce_sparkle(at: Vector2) -> void:
+	var host := get_parent()
+	if host == null or not is_instance_valid(host):
+		return
+	for i in range(20):
+		var s := Polygon2D.new()
+		var r: float = randf_range(3.0, 7.0)
+		s.polygon = PackedVector2Array([
+			Vector2(0, -r), Vector2(r * 0.3, -r * 0.3), Vector2(r, 0),
+			Vector2(r * 0.3, r * 0.3), Vector2(0, r), Vector2(-r * 0.3, r * 0.3),
+			Vector2(-r, 0), Vector2(-r * 0.3, -r * 0.3)])
+		s.color = Color(1.0, randf_range(0.85, 1.0), randf_range(0.55, 0.85), 0.95)
+		s.material = _add_mat()
+		s.z_index = 44
+		host.add_child(s)
+		s.global_position = at + Vector2(randf_range(-14.0, 14.0), randf_range(-14.0, 14.0))
+		var fly: Vector2 = s.global_position \
+			+ Vector2(randf_range(-70.0, 70.0), randf_range(-60.0, 20.0))
+		var tw: Tween = s.create_tween()
+		tw.set_parallel(true)
+		# they ARC and fall, rather than drifting -- gravity is what makes a
+		# burst read as thrown debris instead of a fade-out
+		tw.tween_property(s, "global_position", fly + Vector2(0, 90.0), 0.55)
+		tw.tween_property(s, "modulate:a", 0.0, 0.55)
+		tw.tween_property(s, "rotation", randf_range(-3.0, 3.0), 0.55)
+		tw.chain().tween_callback(s.queue_free)
+
+func _make_ribbon(colours: Array, w: float = 3.0) -> void:
+	var host := get_parent()
+	if host == null or not is_instance_valid(host):
+		return
+	for c in colours:
+		var strip := Line2D.new()
+		strip.width = w
+		strip.default_color = c
+		strip.z_index = 38          # under the projectile and its own halo
+		strip.begin_cap_mode = Line2D.LINE_CAP_ROUND
+		strip.end_cap_mode = Line2D.LINE_CAP_ROUND
+		host.add_child(strip)
+		_ribbon.append(strip)
 
 # --- 3. MOTION. "It flies too straight and dies too flat" was the third of the
 # dev's four complaints. Nothing here changes where a projectile GOES -- the
@@ -747,6 +831,14 @@ func _exit_tree() -> void:
 		var t: Tween = _trail.create_tween()
 		t.tween_property(_trail, "modulate:a", 0.0, 0.55)
 		t.tween_callback(_trail.queue_free)
+	# the ribbon outlives the projectile by longer still -- in the reference the
+	# rainbow is hanging across the whole screen well after every cat has gone
+	for strip in _ribbon:
+		if is_instance_valid(strip):
+			var rt: Tween = strip.create_tween()
+			rt.tween_interval(0.25)
+			rt.tween_property(strip, "modulate:a", 0.0, 0.7)
+			rt.tween_callback(strip.queue_free)
 
 func _physics_process(delta: float) -> void:
 	_tick_trail()
@@ -1735,6 +1827,12 @@ func _on_body_entered(body: Node2D) -> void:
 			# -- unless it's The Rumor, which GROWS in the telling
 			bounces -= 1
 			damage = maxi(1, int(round(damage * (1.08 if rider == "grows" else 0.85))))
+			# THE BOUNCE BURST. In the reference clip each leap throws roughly
+			# twenty gold-and-white STAR sparkles that fall under gravity -- it
+			# is a big, generous punctuation mark, and it is a large part of why
+			# every bounce feels like an event rather than a direction change.
+			if not _ribbon.is_empty():
+				_bounce_sparkle(body.global_position)
 			# Grave Courier: a quarter of the bodies it departs are left
 			# FEARED -- rooted deep in a slow, watching it leave
 			if rider == "courier" and randf() < 0.25 and body.has_method("apply_status"):
