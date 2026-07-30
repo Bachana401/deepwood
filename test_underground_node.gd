@@ -600,14 +600,34 @@ func _test_in_engine() -> void:
 	# a FLOOR cell, not any air pocket: lava poured into open space runs away
 	# downhill before the water can reach it, and the two never meet. One door's
 	# surroundings can be all rock or all road, so hunt across several.
-	# +30/+30 from a door is inside the road's solid apron -- hunt BESIDE the
-	# road instead, where the corridor floor guarantees standable cells
+	# The site must be OFF THE ROAD (a road quench deliberately flashes to STEAM,
+	# never obsidian across the promised route) -- and HUNTING for a natural
+	# standable off-road pocket at a door's row is luck, which failed on every
+	# door. So stop hunting: find solid rock clear of the road and CARVE the
+	# test chamber, like a lab bench. Deterministic on every seed.
 	var qc := Vector2i(-9999, -9999)
 	for dq in [9, 24, 41, 58, 73]:
 		var qbase: Vector2i = ug._door_stand(ug._doors[dq])
-		for off in [10, -10, 16, -16]:
-			qc = ug._floor_near(qbase.x + off, qbase.y - 1)
-			if qc.x > -9000:
+		for off in [40, -40, 60, -60]:
+			var base_c := Vector2i(qbase.x + off, qbase.y + 18)
+			var solid_all := true
+			for dy in range(-7, 2):
+				for dx in range(-2, 3):
+					var cc := base_c + Vector2i(dx, dy)
+					if not _solid(ug, cc.x, cc.y) \
+							or ug._in_span(ug._road_air, cc.y, cc.x) \
+							or ug._in_span(ug._road_rock, cc.y, cc.x):
+						solid_all = false
+						break
+				if not solid_all:
+					break
+			if solid_all:
+				for dy in range(-6, 0):          # a 3-wide, 6-tall sealed chamber
+					for dx in range(-1, 2):
+						var carve := base_c + Vector2i(dx, dy)
+						ug._edits[carve] = UG.AIR
+						ug._map.erase_cell(carve)
+				qc = Vector2i(base_c.x, base_c.y - 1)   # floor of the chamber
 				break
 		if qc.x > -9000:
 			break

@@ -2043,9 +2043,11 @@ func _cart_tick(delta: float) -> bool:
 		return false
 	var cell: Vector2i = _path[int(_cart_i)]
 	# an OBSTRUCTION on the line -- quenched obsidian, landed sand, anything solid
-	# where the rail runs -- stops the cart instead of teleporting the rider
-	# through rock (review finding 7)
-	if _solid_kind(cell) or _solid_kind(cell + Vector2i(0, -1)):
+	# where the RIDER rides -- stops the cart instead of teleporting them through
+	# rock (review finding 7). The rider sits ABOVE the bed: the path cell itself
+	# is the bed's top and is solid BY DESIGN, so testing it stopped every cart
+	# at the moment of boarding (suite catch).
+	if _solid_kind(cell + Vector2i(0, -1)) or _solid_kind(cell + Vector2i(0, -2)):
 		_leave_cart()
 		_notify("🛑 The line is blocked — the cart stops.")
 		return false
