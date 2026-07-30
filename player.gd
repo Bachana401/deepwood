@@ -5563,6 +5563,54 @@ func spawn_swing_trail(aim_dir: Vector2, stats: Dictionary, finisher := false) -
 	edge.color = Color(edge_glow.r, edge_glow.g, edge_glow.b, 0.75 + rank * 0.04)
 	edge.material = mat
 	poly.add_child(edge)   # child of the arc: shares its rotation, fade and death
+	# THE TERRA BLADE LAW (measured from the dev's reference clip, 2026-07-30).
+	# The reference swing is TWO concentric strokes, not one: a solid bright
+	# inner edge -- which we already had -- and a BEADED outer stroke sitting
+	# about half a player-height further out, made of discrete dots rather than
+	# a line. That second stroke is most of why the reference arc reads as
+	# carved rather than smeared, and it costs almost nothing.
+	# Gated on grade: a common blade still just smudges the air.
+	if rank >= 3:
+		var beads: int = 9 + rank * 2
+		for i in range(beads):
+			var ba: float = lerpf(-arc * 0.5, arc * 0.5, float(i) / float(beads - 1))
+			var bead := Polygon2D.new()
+			var br: float = randf_range(1.4, 3.0) * (0.8 + rank * 0.06)
+			var bp := PackedVector2Array()
+			for k in range(6):
+				var ka: float = TAU * float(k) / 6.0
+				bp.append(Vector2(cos(ka), sin(ka)) * br)
+			bead.polygon = bp
+			bead.color = Color(edge_glow.r, edge_glow.g, edge_glow.b,
+				randf_range(0.45, 0.95))
+			bead.material = mat
+			bead.position = Vector2(cos(ba), sin(ba)) * (radius + 9.0 + rank * 1.4)
+			poly.add_child(bead)
+	# ...and a four-pointed STAR riding the leading tip of the sweep. In the
+	# reference this is the single brightest thing on screen during a swing --
+	# it is what gives the arc a direction and a moment of impact instead of
+	# being a shape that merely appears.
+	if rank >= 4:
+		var star := Polygon2D.new()
+		var sr: float = 10.0 + rank * 3.4
+		var sp := PackedVector2Array()
+		for k in range(8):
+			var ka2: float = TAU * float(k) / 8.0
+			# the long spikes are much longer than the short ones: a 4-point
+			# star is a CROSS with a small diamond at its centre, not an
+			# octagon, and getting that ratio wrong is what reads as a blob
+			var kr: float = sr if k % 2 == 0 else sr * 0.17
+			sp.append(Vector2(cos(ka2), sin(ka2)) * kr)
+		star.polygon = sp
+		star.color = Color(1.0, 1.0, 1.0, 0.9)
+		star.material = mat
+		star.position = Vector2(cos(arc * 0.5), sin(arc * 0.5)) * radius
+		star.rotation = arc * 0.5
+		poly.add_child(star)
+		var stw := star.create_tween()
+		stw.set_parallel(true)
+		stw.tween_property(star, "scale", Vector2(0.2, 0.2), 0.13)
+		stw.tween_property(star, "modulate:a", 0.0, 0.13)
 	# the tween belongs to the trail itself, so it dies with it rather than
 	# outliving the node it animates
 	var life := 0.15 + rank * 0.035

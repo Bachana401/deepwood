@@ -1133,6 +1133,17 @@ func _physics_process(delta: float) -> void:
 	# Summer's Coffin and the Heaven-Piercing Point all sat under their tier
 	# while their cards promised a weapon that cuts through a row. They re-cut
 	# what they are still travelling through.
+	# THE FLYING DRAGON LAW (measured from the dev's reference clip, 2026-07-30).
+	# The reference crescent's trail is NOT a smear -- it is four or five
+	# progressively fainter GHOST COPIES of the projectile's own silhouette,
+	# spaced about a player-height apart. A smear says "something moved"; an
+	# echo says "something big moved fast", which is the whole difference.
+	# Gated on girth so only the heavier grades throw echoes: the ladder again.
+	if kind == "slash" and _draw_girth >= 1.1:
+		_echo_clock += delta
+		if _echo_clock >= 0.055:
+			_echo_clock = 0.0
+			_drop_echo()
 	if kind == "ink_jet" or kind == "frost_shard" or kind == "piercing_point":
 		_ink_rehit += delta
 		if _ink_rehit >= 0.22:
@@ -2031,6 +2042,26 @@ const SHRAPNEL_N := 5
 # THE INKWELL OF STORMS breaks up. Two finer jets peel off either side of the
 # failing stream; the parent carries on as the middle one, so the player sees
 # one column become three rather than one thing replaced by two.
+# One frozen copy of the projectile's own silhouette, left behind to fade. The
+# copy is parented to the HOST, never to the projectile -- an echo that dies
+# when its parent hits something is not an echo, it is a flicker.
+func _drop_echo() -> void:
+	var host := get_parent()
+	if host == null or not is_instance_valid(host) or visual == null:
+		return
+	var ghost := visual.duplicate()
+	host.add_child(ghost)
+	ghost.global_position = visual.global_position
+	ghost.global_rotation = visual.global_rotation
+	ghost.scale = visual.scale * 0.94
+	ghost.z_index = 5                # behind the live projectile, never over it
+	var tw := ghost.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(ghost, "modulate:a", 0.0, 0.30)
+	tw.tween_property(ghost, "scale", ghost.scale * 0.70, 0.30)
+	tw.set_parallel(false)
+	tw.tween_callback(ghost.queue_free)
+
 func _ink_fork() -> void:
 	var host := get_parent()
 	if host == null or not is_instance_valid(host):
@@ -3637,6 +3668,7 @@ func _tick_boulder(delta: float) -> void:
 		queue_free()
 
 var _wake_returned := false
+var _echo_clock := 0.0      # slash: Flying Dragon silhouette echoes
 var _ink_rehit := 0.0
 var _ink_launch := 0.0      # ink_jet: the speed it was thrown at
 var _ink_split := false     # ink_jet: has this stream already broken up?
