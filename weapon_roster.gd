@@ -238,7 +238,15 @@ const ROWS = [
 		"fx": [{"kind": "frostbloom", "radius": 170.0, "dur": 3.0}]}],
 	["wpn_novatongue",   "Nova Tongue",          "melee", 7, "nova", 29, 0.88, {"status": "burn_w",
 		"fx": [{"kind": "quake", "radius": 140.0, "pct": 0.28}]}],
-	["wpn_zenithpike",   "Zenith",               "spear", 7, "thrust", 40, 0.75, {
+	# RENAMED from "Zenith" (2026-07-30). The dev asked four separate times where
+	# the Zenith-like weapon was and could not find it -- because searching the
+	# chests for "Zenith" turned up THIS: a plain thrust rung with no verb at
+	# all. The actual homage is The Last Word (T8, behavior "zenith" ->
+	# zenith_storm, nine ancestor blades). A plain rung must never wear the name
+	# of a flagship; whoever goes looking for the famous thing will find the
+	# wrong object and conclude the feature does not exist. Apogee means the
+	# same thing and claims nothing. The ID is unchanged -- saves key on ids.
+	["wpn_zenithpike",   "Apogee",               "spear", 7, "thrust", 40, 0.75, {
 		"fx": [{"kind": "duelist", "pct_per": 0.05, "max": 6}]}],
 	["wpn_ninthcommand", "Ninth Commandment",    "bow", 7, "commandment", 22, 0.52, {"pierce": true,
 		"fx": [{"kind": "chain", "n": 2, "pct": 0.28, "range": 260.0}]}],

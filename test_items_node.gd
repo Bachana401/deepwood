@@ -396,5 +396,39 @@ func _ready() -> void:
 	check("...but an unknown id is still dropped, not resurrected",
 		junk.get_count("wpn_does_not_exist") == 0)
 
+	# --- NO PLAIN RUNG MAY WEAR A FLAGSHIP'S NAME -------------------------
+	# The dev asked four times where the Zenith-like weapon was and could not
+	# find it. It existed -- The Last Word, T8, behavior "zenith" -- but a
+	# TIER-7 PLAIN THRUST was called "Zenith", so searching the chests for the
+	# famous name produced a spear that just pokes. Anyone hunting the flagship
+	# finds the wrong object and concludes the feature was never built.
+	var PLAIN_BEHAVIORS := ["arc", "thrust", "shot", "rapid"]
+	var verb_names := {}
+	for row_v in WeaponRoster.ROWS:
+		if not (str(row_v[4]) in PLAIN_BEHAVIORS):
+			verb_names[str(row_v[4]).to_lower()] = str(row_v[1])
+	var squatters := []
+	for row_n in WeaponRoster.ROWS:
+		if not (str(row_n[4]) in PLAIN_BEHAVIORS):
+			continue
+		var nm := str(row_n[1]).to_lower()
+		if verb_names.has(nm):
+			squatters.append("%s (plain %s) squats the name of the '%s' verb, which is %s"
+				% [row_n[1], row_n[4], nm, verb_names[nm]])
+	check("no plain weapon is named after a flagship verb", squatters.is_empty(),
+		"; ".join(squatters))
+
+	# and while we are here: two weapons sharing a display name is the same
+	# class of problem seen from the other side
+	var by_name := {}
+	var dupe_names := []
+	for row_d in WeaponRoster.ROWS:
+		var dn := str(row_d[1])
+		if by_name.has(dn):
+			dupe_names.append("%s (%s and %s)" % [dn, by_name[dn], row_d[0]])
+		by_name[dn] = str(row_d[0])
+	check("no two weapons share a display name", dupe_names.is_empty(),
+		"; ".join(dupe_names))
+
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)
