@@ -798,18 +798,30 @@ func _drain_stream_queue() -> void:
 
 func _load_chunk(c: Vector2i) -> void:
 	_loaded[c] = true
+	# Resolve the chunk's cells ONCE, one row taller than the chunk, so each block
+	# can see what is above it without paying for a second _gen_kind (which costs
+	# up to 27 noise samples). 33 extra lookups per chunk instead of 1024.
+	var kinds: Array = []
+	for ly in range(-1, CHUNK):
+		var row: Array = []
+		row.resize(CHUNK)
+		for lx in range(CHUNK):
+			row[lx] = _cell_kind(Vector2i(c.x * CHUNK + lx, c.y * CHUNK + ly))
+		kinds.append(row)
 	for ly in range(CHUNK):
 		for lx in range(CHUNK):
 			var cell := Vector2i(c.x * CHUNK + lx, c.y * CHUNK + ly)
 			_wallmap.set_cell(cell, 0, Vector2i(_biome_of(cell.y), 0))   # back-wall always
-			var kind := _cell_kind(cell)
+			var kind: int = kinds[ly + 1][lx]
+			var above: int = kinds[ly][lx]
 			if kind == WATER:
 				# the SURFACE tile (atlas 1) wherever there's no water directly above,
 				# so every lake gets Terraria's bright waterline instead of a flat slab
-				var top := 0 if _cell_kind(cell + Vector2i(0, -1)) == WATER else 1
-				_watermap.set_cell(cell, 0, Vector2i(top, 0))
+				_watermap.set_cell(cell, 0, Vector2i(0 if above == WATER else 1, 0))
 			elif kind != AIR:
-				_map.set_cell(cell, 0, Vector2i(kind, 0))               # solid block on top
+				# lit lip only where the block is actually open to the air
+				var face := TILE_EXPOSED if (above == AIR or above == WATER) else TILE_INTERIOR
+				_map.set_cell(cell, 0, Vector2i(kind, face))
 				if kind >= ORE_COL:
 					_sparkmap.set_cell(cell, 0, Vector2i(kind - ORE_COL, 0))   # + its glint
 	_populate_chunk(c)
@@ -1830,6 +1842,11 @@ func _break(cell: Vector2i, pick_tier: int, player: Node) -> bool:
 		_map.erase_cell(cell)
 		_sparkmap.erase_cell(cell)      # ...and its glint, or the vein you just mined
 		                                # keeps twinkling in mid-air until the chunk reloads
+		# the block you just uncovered is open to the air now, so give it the lit
+		# surface lip -- otherwise a dug tunnel is floored with flat interior rock
+		var under := cell + Vector2i(0, 1)
+		if _map.get_cell_source_id(under) != -1:
+			_map.set_cell(under, 0, Vector2i(_map.get_cell_atlas_coords(under).x, TILE_EXPOSED))
 		if player != null and "inventory" in player and player.inventory != null:
 			var drop_id: String = ORE_DROP[bi] if is_ore else "stone"
 			var leftover: int = player.inventory.add_item(drop_id, 1)
@@ -1915,32 +1932,50 @@ func _exit_tree() -> void:
 	_save()
 
 # ── the tileset (one natural-looking block per biome) ─────────────────────────
+# EVERY block used to be drawn with a lit top lip and a light-to-dark gradient --
+# including blocks buried forty tiles deep with rock on every side. A solid mass
+# of stone therefore rendered as repeating light-dark bands, which is why the
+# caves read as HORIZONTAL STRIPES rather than rock.
+#
+# Terraria lights the exposed SURFACE and leaves the interior flat, so the atlas
+# now has two rows and _load_chunk picks between them from the cell above:
+#   row 0  INTERIOR   -- uniform, a shade darker, grain only. Masses read solid.
+#   row 1  EXPOSED    -- the lit lip and the gradient, for a block open to the air.
+const TILE_INTERIOR := 0
+const TILE_EXPOSED := 1
+
 func _build_tileset() -> void:
 	var n := BIOMES.size()
-	var img := Image.create(n * 2 * TILE, TILE, false, Image.FORMAT_RGBA8)
+	var img := Image.create(n * 2 * TILE, 2 * TILE, false, Image.FORMAT_RGBA8)
 	for c in range(n):
 		var base: Color = BIOMES[c].base
 		var gem: Color = ORE_GEM[c]
-		for x in range(TILE):
-			for y in range(TILE):
-				var t := float(y) / float(TILE - 1)
-				var col := base.lightened(0.10 * (1.0 - t)).darkened(0.16 * t)
-				if y <= 1:
-					col = base.lightened(0.20)                 # grassy top lip
-				var h := ((x * 73856093) ^ (y * 19349663) ^ (c * 83492791)) & 0x7fffffff
-				if h % 34 == 0:
-					col = base.darkened(0.24)                  # a sparse crack
-				elif h % 57 == 0:
-					col = base.lightened(0.07)
-				img.set_pixel(c * TILE + x, y, col)            # plain biome block
-				# ORE variant: the same block, salted with bright gem clusters
-				var oc := col
-				var oh := ((x * 40503) ^ (y * 20441) ^ (c * 12553)) & 0x7fffffff
-				if oh % 6 == 0:
-					oc = gem
-				elif oh % 13 == 0:
-					oc = gem.darkened(0.35)
-				img.set_pixel((ORE_COL + c) * TILE + x, y, oc)
+		for row in range(2):
+			var exposed := row == TILE_EXPOSED
+			for x in range(TILE):
+				for y in range(TILE):
+					var col: Color
+					if exposed:
+						var t := float(y) / float(TILE - 1)
+						col = base.lightened(0.10 * (1.0 - t)).darkened(0.16 * t)
+						if y <= 1:
+							col = base.lightened(0.20)         # the lit surface lip
+					else:
+						col = base.darkened(0.10)              # buried: flat and a touch darker
+					var h := ((x * 73856093) ^ (y * 19349663) ^ (c * 83492791)) & 0x7fffffff
+					if h % 34 == 0:
+						col = col.darkened(0.24)               # a sparse crack
+					elif h % 57 == 0:
+						col = col.lightened(0.07)
+					img.set_pixel(c * TILE + x, row * TILE + y, col)
+					# ORE variant: the same block, salted with bright gem clusters
+					var oc := col
+					var oh := ((x * 40503) ^ (y * 20441) ^ (c * 12553)) & 0x7fffffff
+					if oh % 6 == 0:
+						oc = gem
+					elif oh % 13 == 0:
+						oc = gem.darkened(0.35)
+					img.set_pixel((ORE_COL + c) * TILE + x, row * TILE + y, oc)
 	_map = TileMapLayer.new()
 	_map.tile_set = _make_tileset(img, true)
 	_map.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -1961,13 +1996,17 @@ func _make_tileset(img: Image, collide: bool) -> TileSet:
 	var sq := PackedVector2Array([
 		Vector2(-TILE / 2.0, -TILE / 2.0), Vector2(TILE / 2.0, -TILE / 2.0),
 		Vector2(TILE / 2.0, TILE / 2.0), Vector2(-TILE / 2.0, TILE / 2.0)])
-	for c in range(int(img.get_width() / TILE)):
-		var coord := Vector2i(c, 0)
-		src.create_tile(coord)
-		if collide:
-			var td := src.get_tile_data(coord, 0)
-			td.add_collision_polygon(0)
-			td.set_collision_polygon_points(0, 0, sq)
+	# every row of the atlas, so a texture can carry variants (the block tileset
+	# has an interior row and an exposed-surface row); the wall/water/spark
+	# textures are one row tall and are unaffected
+	for r in range(int(img.get_height() / TILE)):
+		for c in range(int(img.get_width() / TILE)):
+			var coord := Vector2i(c, r)
+			src.create_tile(coord)
+			if collide:
+				var td := src.get_tile_data(coord, 0)
+				td.add_collision_polygon(0)
+				td.set_collision_polygon_points(0, 0, sq)
 	return ts
 
 # ── THE GLINT ON THE ORE ──────────────────────────────────────────────────────
