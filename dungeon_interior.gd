@@ -385,6 +385,52 @@ var current_ceiling := CEILING_Y
 
 const GATE_SCRIPT = preload("res://dungeon_gate.gd")
 
+# ── THE FULL MAP (M), floor edition ───────────────────────────────────────────
+# The same fullscreen chart the village and the underground carry, fed the
+# floor's real geometry: every platform snapshotted from its collision shapes,
+# with the combatants moving on it live.
+const WORLD_MAP_SCRIPT := preload("res://world_map.gd")
+var _world_map: CanvasLayer = null
+
+func _unhandled_input(e: InputEvent) -> void:
+	if _world_map != null and _world_map.handle_input(e):
+		return
+	# the full map is ADMIN kit (dev call, 2026-07-30): launch --dev to use it
+	if e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_M and GameState.dev_mode:
+		_open_floor_map()
+
+func _open_floor_map() -> void:
+	if _world_map == null:
+		_world_map = WORLD_MAP_SCRIPT.new()
+		add_child(_world_map)
+	if _world_map.is_open():
+		_world_map.close_map()
+		return
+	var rects: Array = []
+	var markers: Array = []
+	# every platform and wall, straight from the physics that carries them
+	for body in _all_static_rects(self):
+		rects.append({"rect": body, "color": Color(0.40, 0.38, 0.44)})
+	markers.append({"at": Vector2.ZERO, "color": Color(0.4, 0.9, 1.0, 0.0), "label": "Floor %d" % GameState.active_dungeon_level})
+	var live := {
+		"dungeon_combatant": {"color": Color(1.0, 0.35, 0.3), "label": "Something hostile"},
+	}
+	_world_map.open_map(rects, markers, live, get_tree().get_first_node_in_group("player"))
+
+# world-space rectangles of every StaticBody2D's rectangle shape under `root`
+func _all_static_rects(root: Node) -> Array:
+	var out: Array = []
+	var stack: Array = [root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.append(c)
+		if n is CollisionShape2D and n.shape is RectangleShape2D \
+				and n.get_parent() is StaticBody2D:
+			var sz: Vector2 = (n.shape as RectangleShape2D).size
+			out.append(Rect2((n as Node2D).global_position - sz / 2.0, sz))
+	return out
+
 func _ready() -> void:
 	add_to_group("level_director")   # mid-fight summoned minions register here to join alive_count
 	# the village diary is readable even down here -- what happened up top

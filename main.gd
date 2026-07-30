@@ -1263,6 +1263,57 @@ func _process(delta: float) -> void:
 	_check_arrival_talk()
 	_tick_music(delta)
 
+# ── THE FULL MAP (M), village edition ─────────────────────────────────────────
+# The underground grew Terraria's fullscreen map and the dev asked for it
+# everywhere. Here the chart is a SNAPSHOT of the living village: every building
+# by name, the walls, the ways out -- and the people walk on it live.
+const WORLD_MAP := preload("res://world_map.gd")
+var _world_map: CanvasLayer = null
+
+func _unhandled_input(e: InputEvent) -> void:
+	if _world_map != null and _world_map.handle_input(e):
+		return
+	# the full map is ADMIN kit (dev call, 2026-07-30): launch --dev to use it
+	if e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_M and GameState.dev_mode:
+		_open_village_map()
+
+func _open_village_map() -> void:
+	if _world_map == null:
+		_world_map = WORLD_MAP.new()
+		add_child(_world_map)
+	if _world_map.is_open():
+		_world_map.close_map()
+		return
+	var rects: Array = []
+	var markers: Array = []
+	# the ground: one long strip so the chart has a floor line
+	rects.append({"rect": Rect2(-2600, 300, 42000, 90), "color": Color(0.24, 0.30, 0.18)})
+	for b in get_tree().get_nodes_in_group("building"):
+		if not is_instance_valid(b) or not (b is Node2D):
+			continue
+		var w: float = b.width if "width" in b else 100.0
+		var h: float = b.height if "height" in b else 80.0
+		rects.append({"rect": Rect2(b.global_position.x - w / 2.0, b.global_position.y - h, w, h),
+			"color": Color(0.52, 0.42, 0.28)})
+		var bname: String = b.building_name if "building_name" in b else "Building"
+		markers.append({"at": Vector2(b.global_position.x, b.global_position.y - h - 14.0),
+			"color": Color(1.0, 0.85, 0.3, 0.0), "label": bname})   # invisible dot: hover names the building
+	for w2 in get_tree().get_nodes_in_group("village_wall"):
+		if is_instance_valid(w2) and w2 is Node2D:
+			rects.append({"rect": Rect2(w2.global_position.x - 14, w2.global_position.y - 110, 28, 110),
+				"color": Color(0.45, 0.44, 0.48)})
+			markers.append({"at": w2.global_position + Vector2(0, -120),
+				"color": Color(0.8, 0.8, 0.9, 0.0), "label": "The rampart — the village wall"})
+	# the ways out of town
+	markers.append({"at": Vector2((UNDERDARK_SCRIPT.MOUND_LEFT + UNDERDARK_SCRIPT.MOUND_RIGHT) / 2.0, 260.0),
+		"color": Color(0.4, 0.9, 1.0), "label": "The cave mouth — down to the underground"})
+	var live := {
+		"npc": {"color": Color(0.55, 0.85, 0.5), "label": "A villager"},
+		"adventurer": {"color": Color(0.4, 0.7, 1.0), "label": "A defender"},
+		"siege_enemy": {"color": Color(1.0, 0.3, 0.25), "label": "An enemy at the walls"},
+	}
+	_world_map.open_map(rects, markers, live, get_tree().get_first_node_in_group("player"))
+
 func start_music() -> void:
 	# THE SURFACE THEME (dev-supplied, 2026-07-27). Ogg/MP3 streams, so looping
 	# is a property on the resource rather than WAV loop-point samples.

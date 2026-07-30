@@ -4109,7 +4109,8 @@ var _exit_area: Area2D = null
 func _unhandled_input(e: InputEvent) -> void:
 	if _map_input(e):
 		return
-	if e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_M:
+	# the full map is ADMIN kit (dev call, 2026-07-30): launch --dev to use it
+	if e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_M and GameState.dev_mode:
 		_toggle_map()
 		return
 	if e.is_action_pressed("place_torch"):

@@ -63,8 +63,8 @@ test_npcai_node
 test_opening_ui_node
 test_peril_node
 test_petrify_node
-test_phase_node
 test_phase2_node
+test_phase_node
 test_pickaxetiers_node
 test_placetorch_node
 test_profile_node
@@ -93,7 +93,9 @@ test_underdark_node
 test_villagerdefend_node
 test_wall_node
 test_wanderbounds_node
+test_warp_node
 test_wavesides_node
+test_weapondps_node
 test_weaponfx_node
 test_weapons2_node
 test_weeping_node
@@ -101,6 +103,5 @@ test_whisperstone_node
 test_wilderness_node
 test_workers_node
 test_world_node
+test_worldmap_node
 test_wukong_node
-test_weapondps_node
-test_warp_node
