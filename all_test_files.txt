@@ -1,14 +1,11 @@
-﻿test_adjacency_node
 test_adventurer_node
 test_advfix_node
 test_arena_node
 test_arrival_node
 test_arrivalreload_node
 test_audit_node
-test_autoladder_node
 test_autorepair_node
 test_autostaff_node
-test_bestiary_node
 test_blacktide_node
 test_boss_guard_node
 test_bossfree_node
@@ -25,8 +22,6 @@ test_cottageids_node
 test_craft_node
 test_deep_node
 test_deepreach_node
-test_dispatch_node
-test_districts_node
 test_doorloop_node
 test_dotdeath_node
 test_dragsplit_node
@@ -87,7 +82,6 @@ test_skilltree_node
 test_soak_node
 test_startpop_node
 test_status_node
-test_summoner_node
 test_supermob_node
 test_ten_node
 test_tenkits_node
@@ -96,12 +90,10 @@ test_transition_node
 test_trash_node
 test_trueending_node
 test_underdark_node
-test_underground_node
 test_villagerdefend_node
 test_wall_node
 test_wanderbounds_node
 test_wavesides_node
-test_weapondps_node
 test_weaponfx_node
 test_weapons2_node
 test_weeping_node
@@ -110,3 +102,5 @@ test_wilderness_node
 test_workers_node
 test_world_node
 test_wukong_node
+test_weapondps_node
+test_warp_node

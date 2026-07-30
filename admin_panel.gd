@@ -52,6 +52,7 @@ func _process(_delta: float) -> void:
 		refresh()
 
 func refresh() -> void:
+	_refresh_warp()
 	if morale_label:
 		morale_label.text = "Morale: %.1f / 10   (nudge %+d)" % [GameState.village_morale_10(), GameState.morale_admin_offset / 10]
 	if god_button:
@@ -80,8 +81,10 @@ func _build() -> void:
 	panel.anchor_bottom = 0.5
 	panel.offset_left = -W / 2.0
 	panel.offset_right = W / 2.0
-	panel.offset_top = -334.0
-	panel.offset_bottom = 334.0
+	# grown to fit the WARP section (2026-07-30); the panel is laid out by a
+	# running `y`, so anything added mid-list pushes the tail off the bottom
+	panel.offset_top = -378.0
+	panel.offset_bottom = 378.0
 	add_child(panel)
 
 	var title = Label.new()
@@ -161,12 +164,118 @@ func _build() -> void:
 	_btn("All Lv 1", PAD + (92 + GAP) * 2.0, y, 92, BH, func(): _buildings_level(0))
 	y += BH + 12.0
 
+	# --- Warp (dev 2026-07-30: "teleport to any dungeon level of my choice, so
+	# I can test weapons on different bosses"). A stepper rather than 22 boss
+	# buttons: it reaches EVERY floor, not just the boss ones, and the label
+	# tells you what is waiting down there before you commit to the trip.
+	y = _section("WARP TO DUNGEON FLOOR", y)
+	var wx := PAD
+	for spec in [["<<10", -10], ["<5", -5], ["<1", -1], ["1>", 1], ["5>", 5], ["10>", 10]]:
+		var step: int = spec[1]
+		_btn(spec[0], wx, y, 52.0, BH, func(): _warp_step(step))
+		wx += 52.0 + GAP
+	_btn("BOSS >", wx, y, 62.0, BH, _warp_next_boss)
+	y += BH + GAP
+	warp_label = _text("", y)
+	y += 22.0
+	_btn("WARP DOWN", PAD, y, W - PAD * 2.0, BH, _warp_go)
+	y += BH + 12.0
+
 	# --- Test arena ---
 	y = _section("TEST ARENA", y)
 	_btn("PROVING GROUNDS  (all items in chests + DPS dummy)", PAD, y, W - PAD * 2.0, BH, _enter_proving_grounds)
 	y += BH + 12.0
 
 	_btn("Close (P)", PAD, y, W - PAD * 2.0, BH, close)
+
+# ==========================================================================
+# WARP. Pick any floor 1..100 and drop into it directly, so a weapon can be
+# tried against a specific boss without descending ninety floors to reach it.
+# ==========================================================================
+var _warp_level := 5
+var warp_label: Label = null
+
+func _warp_step(by: int) -> void:
+	_warp_level = clampi(_warp_level + by, 1, _max_level())
+	_refresh_warp()
+
+# jump to the next floor that actually holds a boss -- the reason the dev asked
+# for this at all, and 4 of every 5 floors do not have one
+func _warp_next_boss() -> void:
+	var top: int = _max_level()
+	for n in range(_warp_level + 1, top + 1):
+		if _boss_on(n) != "":
+			_warp_level = n
+			_refresh_warp()
+			return
+	# past the last boss: wrap to the first
+	for n2 in range(1, top + 1):
+		if _boss_on(n2) != "":
+			_warp_level = n2
+			break
+	_refresh_warp()
+
+func _max_level() -> int:
+	# read the LIVE constant, never a copy of it -- `"MAX_LEVEL" in d` would
+	# always be false (consts are not properties) and quietly pin this to a
+	# hardcoded 100 that stops matching the day the dungeon gets deeper.
+	# _dungeon() only ever returns dungeon_interior, which declares it.
+	var d := _dungeon()
+	if d != null:
+		return int(d.MAX_LEVEL)
+	return 100
+
+# The panel is parented to whatever scene spawned it -- dungeon_interior in the
+# dungeon, underground.gd below. Only the former knows the boss ladder, so ask
+# rather than preload: admin_panel is itself preloaded BY dungeon_interior, and
+# preloading it back would be a cycle.
+func _dungeon() -> Node:
+	var p := get_parent()
+	if p != null and p.has_method("get_boss_id") and p.has_method("is_boss_level"):
+		return p
+	return null
+
+func _boss_on(level: int) -> String:
+	var d := _dungeon()
+	if d == null:
+		return ""
+	if not d.is_boss_level(level):
+		return ""
+	return str(d.get_boss_id(level))
+
+func _refresh_warp() -> void:
+	if warp_label == null:
+		return
+	var boss := _boss_on(_warp_level)
+	if boss != "":
+		warp_label.text = "Floor %d  ·  BOSS: %s" % [_warp_level, boss.replace("_", " ").to_upper()]
+		warp_label.add_theme_color_override("font_color", Color(1.0, 0.82, 0.45))
+	else:
+		var d := _dungeon()
+		var nxt := ""
+		if d != null:
+			for n in range(_warp_level + 1, _max_level() + 1):
+				if _boss_on(n) != "":
+					nxt = "  (next boss: floor %d)" % n
+					break
+		warp_label.text = "Floor %d  ·  no boss%s" % [_warp_level, nxt]
+		warp_label.add_theme_color_override("font_color", Color(0.72, 0.74, 0.78))
+
+func _warp_go() -> void:
+	# the floor must be UNLOCKED or the dungeon bounces you back to the deepest
+	# level you have earned -- which silently makes this button do nothing
+	GameState.highest_unlocked_level = maxi(GameState.highest_unlocked_level, _warp_level)
+	GameState.proving_grounds = false
+	GameState.active_dungeon_level = _warp_level
+	var pl = _player()
+	if pl:
+		GameState.pending_player_state = GameState.capture_player_state(pl)
+		# same reason as the Proving Grounds entry below: without a real exit
+		# anchor you return to (0,0), under the village floor, and fall through
+		GameState.pre_dungeon_position = pl.global_position
+	_notify("Admin: warping to floor %d." % _warp_level)
+	close()
+	get_tree().change_scene_to_file.call_deferred("res://dungeon_interior.tscn")
 
 # Enter the Proving Grounds: a flat test arena (dungeon_interior in a special
 # mode) with every item in labelled rarity chests and an invincible DPS dummy.
