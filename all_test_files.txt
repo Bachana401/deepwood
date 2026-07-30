@@ -96,6 +96,7 @@ test_transition_node
 test_trash_node
 test_trueending_node
 test_underdark_node
+test_underground_node
 test_villagerdefend_node
 test_wall_node
 test_wanderbounds_node
