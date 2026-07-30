@@ -81,6 +81,26 @@ func _ready() -> void:
 		await _tp(p, ug, d + Vector2i(6, -2))
 		await _settle(0.5)
 		await _shot("ug_closeup_%d" % lvl)
+	# ── a Life Crystal, and a keg mid-fuse ──
+	for ci in range(ug._crystals.size()):
+		var cc: Vector2i = ug._crystals[ci]
+		if cc.x < -9000:
+			continue
+		await _tp(p, ug, cc - Vector2i(0, 2))
+		await _settle(0.5)
+		await _shot("ug_crystal")
+		break
+	var kegs := get_tree().get_nodes_in_group("ug_keg")
+	if not kegs.is_empty():
+		var k = kegs[0]
+		p.global_position = k.global_position + Vector2(-70, -20)
+		await _settle(0.6)
+		await _shot("ug_keg")
+		ug._light_keg(k)
+		await _settle(0.5)
+		await _shot("ug_keg_fuse")
+		await _settle(0.9)
+		await _shot("ug_keg_boom")
 	say("EYES-UG: done -> %s" % shot_dir)
 	get_tree().quit(0)
 

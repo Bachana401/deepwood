@@ -1953,6 +1953,13 @@ const STANDING_TORCH_COST = {"wood": 2, "resin": 1}
 func try_place_torch() -> void:
 	var stack = get_tree().get_first_node_in_group("notification_stack")
 	if GameState.in_dungeon:
+		# The tile underground has its OWN torches (underground.gd
+		# _try_place_own_torch): cheaper, lit at once, and saved into the cave's
+		# diff rather than into GameState.placed_torches, which holds VILLAGE
+		# coordinates. It answers this same key, so say nothing here or planting
+		# one underground also scolds you for planting it.
+		if get_tree().get_first_node_in_group("tile_world") != null:
+			return
 		if stack:
 			stack.show_notification("Standing torches can only be placed in the overworld.")
 		return

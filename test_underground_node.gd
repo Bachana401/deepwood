@@ -266,6 +266,105 @@ func _test_in_engine() -> void:
 		await get_tree().physics_frame
 	check("air refills out of the water", ug._breath > air_start - 0.5)
 
+	# ── LIFE CRYSTALS: permanent max HP, finite, and not farmable ──
+	check("the world holds a full set of Life Crystals",
+		ug._crystals.size() == GameState.LIFE_CRYSTALS_MAX)
+	var placed := 0
+	var on_road := 0
+	for cell in ug._crystals:
+		if cell.x < -9000:
+			continue
+		placed += 1
+		if ug._in_span(ug._road_air, cell.y, cell.x) or ug._in_span(ug._road_rock, cell.y, cell.x):
+			on_road += 1
+	check("the crystals actually found homes (%d of %d)" % [placed, GameState.LIFE_CRYSTALS_MAX],
+		placed >= GameState.LIFE_CRYSTALS_MAX - 1)
+	check("crystals sit OFF the road, so you have to leave it", on_road == 0)
+	GameState.life_crystals = 0
+	var base_hp: int = p.get_max_health()
+	var crystal: Node = ug._spawn_crystal(ug._crystals[0], "ug_test_crystal")
+	ug._take_crystal(crystal)
+	check("taking one raises max health for good (%d -> %d)" % [base_hp, p.get_max_health()],
+		p.get_max_health() == base_hp + GameState.LIFE_CRYSTAL_HP)
+	check("...and it is spent, so it cannot be farmed",
+		GameState.chest_contents.has("ug_test_crystal"))
+	var capped := GameState.LIFE_CRYSTALS_MAX + 5
+	GameState.life_crystals = capped
+	check("the bonus is capped at the set that exists",
+		p.get_max_health() == base_hp + GameState.LIFE_CRYSTALS_MAX * GameState.LIFE_CRYSTAL_HP)
+	GameState.life_crystals = 0
+
+	# ── TORCHES YOU PLANT YOURSELF ──
+	var lit: Vector2i = ug._door_stand(ug._doors[1]) - Vector2i(0, 1)
+	p.global_position = ug._map.to_global(ug._map.map_to_local(lit))
+	p.inventory.add_item("wood", 4)
+	# HERMETIC. _save() writes the sidecar, _load_save() reads it back on the next
+	# boot -- so a torch planted by the PREVIOUS run of this suite was already
+	# standing here, and placement correctly refused a second one on the same
+	# tile. (Proof the persistence works, but it made the test pass once and fail
+	# forever after.) Start from a clean slate.
+	ug._own_torches = {}
+	ug._edits = {}                                 # ...and last run's blast crater
+	ug._hp = {}
+	DirAccess.remove_absolute(ug._save_path())
+	var wood_before: int = p.inventory.get_count("wood")
+	var torches_before: int = ug._own_torches.size()
+	ug._try_place_own_torch()
+	check("a torch is planted where you stand", ug._own_torches.size() == torches_before + 1)
+	check("...and it costs wood", p.inventory.get_count("wood") == wood_before - 1)
+	ug._try_place_own_torch()
+	check("the same tile refuses a second torch", ug._own_torches.size() == torches_before + 1)
+	# it must survive the round trip, like a dug tunnel
+	ug._save()
+	var keep: Dictionary = ug._own_torches.duplicate()
+	ug._own_torches = {}
+	ug._load_save()
+	check("planted torches survive a save and reload", ug._own_torches.size() == keep.size())
+	# and never inside rock
+	var in_rock: Vector2i = lit + Vector2i(0, 6)
+	p.global_position = ug._map.to_global(ug._map.map_to_local(in_rock))
+	var n_before: int = ug._own_torches.size()
+	ug._try_place_own_torch()
+	check("a torch cannot be planted inside solid rock", ug._own_torches.size() == n_before)
+
+	# ── THE POWDER KEGS ──
+	# Somewhere solid, well away from the road, so the crater is measurable.
+	var kc := Vector2i(ug._doors[3].x + 60, ug._doors[3].y + 40)
+	while ug._gen_kind(kc.x, kc.y) == UG.AIR and kc.y < UG.DEPTH - 40:
+		kc.y += 1                                  # find rock to blow up
+	var rng2 := RandomNumberGenerator.new()
+	rng2.seed = 7
+	var keg: Node = ug._spawn_keg(kc - Vector2i(0, 2), rng2)
+	check("a keg spawns armed but unlit", keg.is_in_group("ug_keg") and not bool(keg.get_meta("lit")))
+	# _cell_kind, NOT _gen_kind: the blast records itself in _edits, and _gen_kind
+	# only describes the world as GENERATED. Reading the wrong one showed a crater
+	# that had plainly happened as "45 -> 45 solid".
+	var rock_before := 0
+	for dy in range(-4, 5):
+		for dx in range(-4, 5):
+			if ug._cell_kind(kc + Vector2i(dx, dy)) != UG.AIR:
+				rock_before += 1
+	# a second keg in range must go up with the first
+	var keg2: Node = ug._spawn_keg(kc - Vector2i(6, 2), rng2)
+	var keg_id: String = String(keg.get_meta("keg_id"))
+	p.global_position = ug._map.to_global(ug._map.map_to_local(kc - Vector2i(40, 20)))
+	ug._light_keg(keg)
+	check("lighting it starts a fuse rather than exploding at once",
+		bool(keg.get_meta("lit")) and is_instance_valid(keg))
+	await get_tree().create_timer(UG.KEG_FUSE + 0.5, false).timeout
+	var rock_after := 0
+	for dy in range(-4, 5):
+		for dx in range(-4, 5):
+			if ug._cell_kind(kc + Vector2i(dx, dy)) != UG.AIR:
+				rock_after += 1
+	check("the blast takes tiles out of the world (%d -> %d solid)" % [rock_before, rock_after],
+		rock_after < rock_before and rock_before > 0)
+	check("the crater persists as world edits", ug._edits.size() > 0)
+	check("a spent keg is gone for good",
+		GameState.chest_contents.has(keg_id) and not is_instance_valid(keg))
+	await get_tree().create_timer(UG.KEG_FUSE + 0.5, false).timeout
+	check("a keg in range is set off by the blast", not is_instance_valid(keg2))
+
 	# ── a mob sealed in rock is freed, not left frozen ──
 	var e = preload("res://enemy.tscn").instantiate()
 	e.add_to_group("course_enemy")

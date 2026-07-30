@@ -183,6 +183,7 @@ func _init_noise() -> void:
 	_roadw.frequency = 0.018
 	_build_route()          # the walkable way down + the 100 doors chained along it
 	_build_lakes()          # water basins, placed around the road
+	_build_crystals()       # the Life Crystals, once the terrain is settled
 
 const ENTRY_ROW := 5
 
@@ -946,6 +947,14 @@ func _populate_chunk(c: Vector2i) -> void:
 		var tc = _find_floor_cell(c, rng)
 		if tc != null:
 			nodes.append(_spawn_trap(tc))
+	# ...and several somethings worse. The dev asked for a LOT of these, and they
+	# get commoner the deeper you go -- one roll per chunk gave about one keg per
+	# screenful, which is a curiosity rather than a hazard.
+	for _ki in range(3):
+		if rng.randf() < KEG_CHANCE + float(biome) * 0.05:
+			var kc = _find_floor_cell(c, rng)
+			if kc != null:
+				nodes.append(_spawn_keg(kc, rng))
 	var mob_count := 3 + biome                     # MORE mobs, and more with depth
 	for i in range(mob_count):
 		if rng.randf() < 0.7:
@@ -993,10 +1002,282 @@ func _populate_chunk(c: Vector2i) -> void:
 				nodes.append(_spawn_torch(lc))
 	_place_lake_life(c, nodes)
 	_place_road_lamps(c, nodes)
+	_place_crystals(c, nodes)
+	_place_own_torches(c, nodes)
 	_place_decor(c, nodes, biome, rng)
 	_place_floor_doors(c, nodes)
 	if not nodes.is_empty():
 		_content[c] = nodes
+
+# ══ THE POWDER KEGS ══════════════════════════════════════════════════════════
+# The dev wants the deep to hold surprises, and this is the loudest one: a keg
+# you do NOT recognise as dangerous until it starts hissing. Touch it, hit it,
+# or press E on it and a short fuse burns, then it takes a chunk out of the
+# world -- rock, ore, decor, mobs and you.
+#
+# The fuse is deliberate. An instant blast is just unfair damage; a second of
+# sparking means you SEE what you did and get one chance to sprint, which is the
+# whole joke. It also lets a keg set off its neighbours, so a seam of them goes
+# off like a string of firecrackers.
+const KEG_FUSE := 0.95
+const KEG_RADIUS := 8                  # tiles of world removed
+const KEG_DAMAGE := 55                 # at the centre, falling off with distance
+const KEG_CHANCE := 0.13               # per chunk
+
+func _spawn_keg(cell: Vector2i, rng: RandomNumberGenerator) -> Node:
+	var id := "ug_keg_%d_%d" % [cell.x, cell.y]
+	var n := _decor_at(cell, 6)
+	if GameState.chest_contents.has(id):
+		return n                                   # this one already went off
+	n.add_to_group("ug_keg")
+	n.set_meta("keg_id", id)
+	n.set_meta("lit", false)
+	# Deliberately unremarkable: a banded barrel that reads as scenery next to
+	# the crates and pots, until it starts sparking.
+	var body := Polygon2D.new()
+	body.polygon = PackedVector2Array([
+		Vector2(-6, 2), Vector2(-7, -5), Vector2(-5, -11), Vector2(5, -11),
+		Vector2(7, -5), Vector2(6, 2)])
+	body.color = Color(0.42, 0.30, 0.19)
+	body.position = Vector2(0, float(TILE) * 0.5)
+	n.add_child(body)
+	for by in [-8, -3]:
+		var band := Polygon2D.new()
+		band.polygon = PackedVector2Array([Vector2(-7, by), Vector2(7, by), Vector2(7, by + 2), Vector2(-7, by + 2)])
+		band.color = Color(0.26, 0.20, 0.14)
+		band.position = Vector2(0, float(TILE) * 0.5)
+		n.add_child(band)
+	var wick := Line2D.new()
+	wick.points = PackedVector2Array([Vector2(0, -11), Vector2(2, -15)])
+	wick.width = 1.4
+	wick.default_color = Color(0.30, 0.26, 0.20)
+	wick.position = Vector2(0, float(TILE) * 0.5)
+	n.add_child(wick)
+	# touch sets it off, same as hitting it
+	var area := Area2D.new()
+	area.collision_mask = 2
+	var cs := CollisionShape2D.new()
+	var r := RectangleShape2D.new()
+	r.size = Vector2(20, 22)
+	cs.shape = r
+	cs.position = Vector2(0, float(TILE) * 0.5 - 5.0)
+	area.add_child(cs)
+	area.body_entered.connect(func(b):
+		if b.is_in_group("player"):
+			_light_keg(n))
+	n.add_child(area)
+	return n
+
+func _light_keg(keg: Node) -> void:
+	if not is_instance_valid(keg) or bool(keg.get_meta("lit", false)):
+		return
+	keg.set_meta("lit", true)
+	_notify("🧨 A fuse catches — RUN!")
+	var add_mat := CanvasItemMaterial.new()
+	add_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var spark := Polygon2D.new()
+	spark.polygon = _disc(4.0)
+	spark.color = Color(1.0, 0.85, 0.4, 0.95)
+	spark.material = add_mat
+	spark.position = Vector2(2, float(TILE) * 0.5 - 15.0)
+	keg.add_child(spark)
+	var tw := keg.create_tween().set_loops()
+	tw.tween_property(spark, "scale", Vector2(1.7, 1.7), 0.12)
+	tw.tween_property(spark, "scale", Vector2(0.7, 0.7), 0.12)
+	var t := get_tree().create_timer(KEG_FUSE, false)
+	t.timeout.connect(func():
+		if is_instance_valid(keg):
+			_blow_keg(keg))
+
+func _blow_keg(keg: Node) -> void:
+	var at: Vector2 = keg.global_position
+	var centre := _cell_at(at)
+	GameState.chest_contents[String(keg.get_meta("keg_id", "ug_keg_?"))] = {}
+	keg.queue_free()
+	_explode(centre, KEG_RADIUS)
+	# ...and anything else nearby goes up with it
+	for other in get_tree().get_nodes_in_group("ug_keg"):
+		if is_instance_valid(other) and not bool(other.get_meta("lit", false)) \
+				and other.global_position.distance_to(at) < float(KEG_RADIUS + 3) * TILE:
+			_light_keg(other)
+
+# Takes a bite out of the world: every tile inside the radius, whatever it is --
+# the pickaxe gate does not apply, a blast does not care how hard the rock is.
+func _explode(centre: Vector2i, radius: int) -> void:
+	var at := _map.to_global(_map.map_to_local(centre))
+	for dy in range(-radius, radius + 1):
+		for dx in range(-radius, radius + 1):
+			if dx * dx + dy * dy > radius * radius:
+				continue
+			var cell := centre + Vector2i(dx, dy)
+			if cell.x < 3 or cell.x >= WIDTH - 3 or cell.y < 1 or cell.y >= DEPTH - 2:
+				continue                       # never blow out the world's shell
+			if _cell_kind(cell) == AIR:
+				continue
+			_edits[cell] = AIR
+			_hp.erase(cell)
+			_map.erase_cell(cell)
+			_sparkmap.erase_cell(cell)
+			_watermap.erase_cell(cell)
+	for dx in range(-radius - 1, radius + 2):   # re-light the new crater's rim
+		for dy in range(-radius - 1, radius + 2):
+			_reface(centre + Vector2i(dx, dy))
+	# everything caught in it
+	if _player != null and is_instance_valid(_player) and _player.has_method("take_damage"):
+		var d: float = _player.global_position.distance_to(at)
+		var reach := float(radius + 2) * TILE
+		if d < reach:
+			_player.take_damage(int(round(float(KEG_DAMAGE) * (1.0 - d / reach))))
+	for e in get_tree().get_nodes_in_group("course_enemy"):
+		if not is_instance_valid(e):
+			continue
+		var ed: float = e.global_position.distance_to(at)
+		var er := float(radius + 2) * TILE
+		if ed < er and e.has_method("take_damage"):
+			e.take_damage(int(round(float(KEG_DAMAGE) * 2.2 * (1.0 - ed / er))))
+	_boom_fx(at, radius)
+
+func _boom_fx(at: Vector2, radius: int) -> void:
+	var add_mat := CanvasItemMaterial.new()
+	add_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	var flash := Polygon2D.new()
+	flash.polygon = _disc(float(radius) * TILE * 0.65)
+	flash.color = Color(1.0, 0.86, 0.55, 0.9)
+	flash.material = add_mat
+	flash.global_position = at
+	flash.z_index = 40
+	add_child(flash)
+	var ft := create_tween()
+	ft.set_parallel(true)
+	ft.tween_property(flash, "scale", Vector2(1.9, 1.9), 0.42)
+	ft.tween_property(flash, "modulate:a", 0.0, 0.42)
+	ft.chain().tween_callback(flash.queue_free)
+	for i in range(26):
+		var p := ColorRect.new()
+		p.size = Vector2(4, 4)
+		p.color = Color(1.0, randf_range(0.4, 0.8), 0.2)
+		p.material = add_mat
+		p.global_position = at
+		p.z_index = 41
+		add_child(p)
+		var a := randf() * TAU
+		var dist := randf_range(30.0, float(radius) * TILE * 1.3)
+		var t := create_tween()
+		t.set_parallel(true)
+		t.tween_property(p, "global_position", at + Vector2(cos(a), sin(a)) * dist, 0.5)
+		t.tween_property(p, "modulate:a", 0.0, 0.5)
+		t.chain().tween_callback(p.queue_free)
+	# and the ground kicks
+	if _player != null and is_instance_valid(_player):
+		var cam = _player.get_node_or_null("Camera2D")
+		if cam != null:
+			var st := create_tween()
+			for i in range(7):
+				st.tween_property(cam, "offset",
+					Vector2(randf_range(-9, 9), randf_range(-9, 9)), 0.045)
+			st.tween_property(cam, "offset", Vector2.ZERO, 0.08)
+
+# ══ LIFE CRYSTALS ════════════════════════════════════════════════════════════
+# Terraria's one permanent underground reward: a red crystal you dig out of the
+# deep that raises your maximum health for good. There are exactly
+# LIFE_CRYSTALS_MAX of them in a world -- a FINITE, deterministic set placed at
+# build time -- so they can be hunted but never farmed.
+#
+# They sit OFF the road on purpose. The road is the safe way through; the
+# crystals are the reason to leave it.
+var _crystals: Array = []              # cell per crystal, index = its id
+
+func _build_crystals() -> void:
+	_crystals = []
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0xC0FFEE ^ _seed
+	var n: int = GameState.LIFE_CRYSTALS_MAX
+	for i in range(n):
+		# spread down the world, one per band, so the first is reachable early and
+		# the last is deep enough to be a real expedition
+		var band_lo := 60 + int(float(i) * float(DEPTH - 160) / float(n))
+		var band_hi := 60 + int(float(i + 1) * float(DEPTH - 160) / float(n))
+		var placed := false
+		for attempt in range(60):
+			var x := rng.randi_range(ROAD_MARGIN, WIDTH - ROAD_MARGIN)
+			var y := rng.randi_range(band_lo, band_hi)
+			var cell := _floor_near(x, y)
+			if cell.x < -9000:
+				continue
+			# off the road: near it is fine, ON it defeats the point. Test the cell
+			# _floor_near actually RETURNED -- it wanders up to ten columns from the
+			# sample point, so checking the sample let crystals land on the trail.
+			if _in_span(_road_air, cell.y, cell.x) or _in_span(_road_rock, cell.y, cell.x) \
+					or _in_span(_road_air, cell.y - 1, cell.x):
+				continue
+			_crystals.append(cell)
+			placed = true
+			break
+		if not placed:
+			_crystals.append(Vector2i(-9999, -9999))   # this band had nowhere; skip it
+
+func _place_crystals(c: Vector2i, nodes: Array) -> void:
+	for i in range(_crystals.size()):
+		var cell: Vector2i = _crystals[i]
+		if cell.x < -9000 or _chunk_of_cell(cell) != c:
+			continue
+		var id := "ug_lifecrystal_%d_%d" % [_seed, i]
+		if GameState.chest_contents.has(id):
+			continue                                   # already taken, for good
+		nodes.append(_spawn_crystal(cell, id))
+
+func _spawn_crystal(cell: Vector2i, id: String) -> Node:
+	var n := _decor_at(cell, 7)
+	n.add_to_group("ug_crystal")
+	n.set_meta("crystal_id", id)
+	var add_mat := CanvasItemMaterial.new()
+	add_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	# a soft red bloom so it catches the eye from across a dark cavern
+	var glow := Polygon2D.new()
+	glow.polygon = _disc(20.0)
+	glow.color = Color(1.0, 0.16, 0.28, 0.20)
+	glow.material = add_mat
+	glow.position = Vector2(0, 1)
+	n.add_child(glow)
+	var gem := Polygon2D.new()
+	gem.polygon = PackedVector2Array([
+		Vector2(0, -13), Vector2(6, -7), Vector2(7, 2), Vector2(0, 8),
+		Vector2(-7, 2), Vector2(-6, -7)])
+	gem.color = Color(0.92, 0.13, 0.26)
+	gem.position = Vector2(0, 1)
+	n.add_child(gem)
+	var shine := Polygon2D.new()
+	shine.polygon = PackedVector2Array([Vector2(-2, -8), Vector2(1, -9), Vector2(2, -2), Vector2(-1, -1)])
+	shine.color = Color(1.0, 0.62, 0.68, 0.85)
+	shine.position = Vector2(0, 1)
+	n.add_child(shine)
+	var tw := n.create_tween().set_loops()
+	tw.tween_property(glow, "scale", Vector2(1.18, 1.18), 1.1).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(glow, "scale", Vector2(0.9, 0.9), 1.1).set_trans(Tween.TRANS_SINE)
+	return n
+
+func _take_crystal(cr: Node) -> void:
+	GameState.chest_contents[String(cr.get_meta("crystal_id"))] = {}
+	GameState.life_crystals = mini(GameState.life_crystals + 1, GameState.LIFE_CRYSTALS_MAX)
+	if _player != null and "health" in _player and _player.has_method("get_max_health"):
+		# the new points arrive FULL, like Terraria -- the reward is felt at once
+		_player.health = _player.get_max_health()
+	_notify("❤ Life Crystal — maximum health %d (+%d). %d of %d found."
+		% [_player.get_max_health() if _player != null and _player.has_method("get_max_health") else 0,
+			GameState.LIFE_CRYSTAL_HP, GameState.life_crystals, GameState.LIFE_CRYSTALS_MAX])
+	for i in range(14):
+		var p := ColorRect.new()
+		p.size = Vector2(3, 3)
+		p.color = Color(1.0, 0.35, 0.45)
+		p.global_position = cr.global_position
+		p.z_index = 30
+		add_child(p)
+		var t := create_tween()
+		t.set_parallel(true)
+		t.tween_property(p, "global_position", cr.global_position + Vector2(randf_range(-26, 26), randf_range(-30, -6)), 0.5)
+		t.tween_property(p, "modulate:a", 0.0, 0.5)
+		t.chain().tween_callback(p.queue_free)
+	cr.queue_free()
 
 # ══ CAVE DECOR ═══════════════════════════════════════════════════════════════
 # The caves were BARE: correct rock shapes with nothing growing on them. Terraria's
@@ -1183,6 +1464,64 @@ func _decor_rubble(cell: Vector2i, base: Color, rng: RandomNumberGenerator) -> N
 		stone.position = Vector2(rng.randf_range(-5.0, 5.0), float(TILE) * 0.5 - r * 0.7)
 		n.add_child(stone)
 	return n
+
+# ══ TORCHES YOU PLANT YOURSELF ═══════════════════════════════════════════════
+# Lighting your own way is the core loop of a Terraria cave, and the reason a
+# dark tunnel is exciting rather than annoying: you decide where the dark ends.
+#
+# This is NOT the village's standing torch (player.gd try_place_torch): that one
+# costs Wood + Resin, "lights at dusk", and is saved into GameState.placed_torches
+# as VILLAGE world-coordinates -- writing cave positions into that list would
+# scatter torches through the village. So the deep gets its own: cheap, lit at
+# once, and saved into the underground's own diff beside the dug tunnels.
+const OWN_TORCH_COST := {"wood": 1}
+var _own_torches := {}                 # Vector2i(cell) -> true, persisted
+
+func _place_own_torches(c: Vector2i, nodes: Array) -> void:
+	for cell in _own_torches.keys():
+		if _chunk_of_cell(cell) == c:
+			nodes.append(_spawn_torch(cell))
+
+func _try_place_own_torch() -> void:
+	if _player == null or not is_instance_valid(_player) or _map == null:
+		return
+	# Look around the body, not at one fixed offset: the player's origin is their
+	# centre and their feet are 24px lower, so a single "centre + 8px" probe lands
+	# in the floor as often as in the air. Nearest candidate that is open AND has
+	# something to sit against wins.
+	var base := _cell_at(_player.global_position)
+	var cell := Vector2i(-9999, -9999)
+	for off in [Vector2i(0, 1), Vector2i(0, 0), Vector2i(0, 2), Vector2i(0, -1),
+			Vector2i(1, 1), Vector2i(-1, 1)]:
+		var try_cell: Vector2i = base + off
+		if _cell_kind(try_cell) != AIR or _own_torches.has(try_cell):
+			continue
+		if _solid_kind(try_cell + Vector2i(0, 1)) or _solid_kind(try_cell + Vector2i(-1, 0)) \
+				or _solid_kind(try_cell + Vector2i(1, 0)):
+			cell = try_cell
+			break
+	if cell.x < -9000:
+		if _own_torches.has(base) or _own_torches.has(base + Vector2i(0, 1)):
+			return                                   # already lit here
+		_notify("A torch needs a floor or a wall to sit against.")
+		return
+	var inv = _player.inventory if "inventory" in _player else null
+	if inv == null:
+		return
+	for mat in OWN_TORCH_COST:
+		if inv.get_count(mat) < int(OWN_TORCH_COST[mat]):
+			_notify("A torch needs %d %s." % [int(OWN_TORCH_COST[mat]), Inventory.get_display_name(mat)])
+			return
+	for mat in OWN_TORCH_COST:
+		inv.remove_item(mat, int(OWN_TORCH_COST[mat]))
+	_own_torches[cell] = true
+	var t := _spawn_torch(cell)
+	# hand it to the chunk that owns it, so it streams out with everything else
+	var ch := _chunk_of_cell(cell)
+	if _content.has(ch):
+		_content[ch].append(t)
+	else:
+		_content[ch] = [t]
 
 # The arrival chamber is the first thing anyone sees of this place, and unlit it
 # was a figure on a dark ledge under a black void. Brackets along its back wall
@@ -2067,6 +2406,14 @@ func _update_breath_hud() -> void:
 func mine_at(cursor: Vector2, from: Vector2, reach_px: float, smart: bool, pick_tier: int, player: Node) -> bool:
 	if _map == null:
 		return false
+	# a swing that lands on a keg lights it -- checked before the pots, because
+	# finding out the hard way is the point of them
+	for k in get_tree().get_nodes_in_group("ug_keg"):
+		if is_instance_valid(k) and not bool(k.get_meta("lit", false)) \
+				and from.distance_to(k.global_position) <= reach_px + 14.0 \
+				and cursor.distance_to(k.global_position) <= 24.0:
+			_light_keg(k)
+			return true
 	if _smash_pot(cursor, from, reach_px, player):
 		return true                       # the swing broke a pot instead of rock
 	var cell: Vector2i
@@ -2201,6 +2548,10 @@ func _load_save() -> void:
 	if typeof(flags) == TYPE_DICTIONARY:
 		for k in flags.keys():
 			_flags[String(k)] = true
+	for k in data.get("torches", []):
+		var tp: PackedStringArray = String(k).split(",")
+		if tp.size() == 2:
+			_own_torches[Vector2i(int(tp[0]), int(tp[1]))] = true
 
 func _save() -> void:
 	var e := {}
@@ -2213,7 +2564,10 @@ func _save() -> void:
 	# a crash mid-write used to cost every tunnel ever dug
 	var f := FileAccess.open(_save_path() + ".tmp", FileAccess.WRITE)
 	if f != null:
-		f.store_string(JSON.stringify({"edits": e, "flags": fl, "seed": _seed}))
+		var tor := []
+		for cell in _own_torches.keys():
+			tor.append("%d,%d" % [cell.x, cell.y])
+		f.store_string(JSON.stringify({"edits": e, "flags": fl, "seed": _seed, "torches": tor}))
 		f.close()
 		DirAccess.remove_absolute(_save_path())
 		DirAccess.rename_absolute(_save_path() + ".tmp", _save_path())
@@ -2511,7 +2865,20 @@ func _spawn_exit() -> void:
 var _exit_area: Area2D = null
 
 func _unhandled_input(e: InputEvent) -> void:
+	if e.is_action_pressed("place_torch"):
+		_try_place_own_torch()
+		return
 	if e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_E:
+		if _player != null:
+			for cr in get_tree().get_nodes_in_group("ug_crystal"):
+				if is_instance_valid(cr) and _player.global_position.distance_to(cr.global_position) < 44.0:
+					_take_crystal(cr)
+					return
+			for k in get_tree().get_nodes_in_group("ug_keg"):
+				if is_instance_valid(k) and not bool(k.get_meta("lit", false)) \
+						and _player.global_position.distance_to(k.global_position) < 46.0:
+					_light_keg(k)
+					return
 		if _player != null and _exit_area != null \
 				and _player.global_position.distance_to(_exit_area.global_position) < 70.0:
 			_return_to_village()

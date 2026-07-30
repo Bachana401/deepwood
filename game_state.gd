@@ -309,7 +309,25 @@ func get_weapon_passive_total(effect_key: String) -> float:
 # Single source of truth for combat/economy bonuses: skill tree + worn gear
 # + completed set bonuses + the wielded weapon's grade passive.
 func get_bonus_total(effect_key: String) -> float:
-	return get_skill_total(effect_key) + get_equipment_total(effect_key) + get_set_bonus_total(effect_key) + get_weapon_passive_total(effect_key) + monarch_bonus(effect_key)
+	return get_skill_total(effect_key) + get_equipment_total(effect_key) + get_set_bonus_total(effect_key) + get_weapon_passive_total(effect_key) + monarch_bonus(effect_key) + found_bonus(effect_key)
+
+# ── LIFE CRYSTALS ─────────────────────────────────────────────────────────────
+# Every other term above is DERIVED -- unequip the gear, respec the tree, and it
+# is gone. This one is earned and kept: Terraria's Life Crystals, dug out of the
+# deep and permanently yours (underground.gd places them, GameState counts them).
+#
+# BALANCE: the endgame curves are tuned around a 160 HP player, so this is
+# deliberately far short of Terraria's ratio (100 -> 400, four-fold). Twelve
+# crystals at +12 takes 160 -> 304, under double, and every one of them has to be
+# found in a biome deep enough to be dangerous.
+const LIFE_CRYSTAL_HP := 12
+const LIFE_CRYSTALS_MAX := 12
+var life_crystals: int = 0
+
+func found_bonus(effect_key: String) -> float:
+	if effect_key == "max_health":
+		return float(mini(life_crystals, LIFE_CRYSTALS_MAX) * LIFE_CRYSTAL_HP)
+	return 0.0
 
 func get_equipped_item_ids() -> Array:
 	var ids = []
@@ -6054,6 +6072,7 @@ func record_level_reached(level: int) -> void:
 func reset_for_new_game() -> void:
 	# a fresh world every New Game (see world_seed)
 	world_seed = abs(int(Time.get_unix_time_from_system() * 1000.0)) ^ (randi() & 0x7fffffff)
+	life_crystals = 0
 	rescued_villagers = []
 	adventurers = {}
 	ensure_adventurers()                       # the opening trio stands ready
@@ -6362,6 +6381,7 @@ func save_game(player: Node) -> void:
 		"highest_unlocked_level": highest_unlocked_level,
 		"floors_cleared": floors_cleared,
 		"world_seed": world_seed,
+		"life_crystals": life_crystals,
 		# hidden event bosses: which have fired/been looted + the run counters
 		"event_state": event_state,
 		"event_rematch_level": event_rematch_level,
@@ -6606,6 +6626,7 @@ func load_game() -> Dictionary:
 		# a save from before world seeds keeps the original fixed map (seed 0), so
 		# its already-dug tunnels still match the terrain they were cut from
 		world_seed = int(parsed.get("world_seed", 0))
+		life_crystals = int(parsed.get("life_crystals", 0))
 		# hidden event bosses (older saves lack these -> arm fresh, counters 0)
 		if parsed.has("event_state") and parsed["event_state"] is Dictionary:
 			event_state = parsed["event_state"]
