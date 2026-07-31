@@ -51,7 +51,7 @@ func _ready() -> void:
 	# runs of the SAME weapon were not comparable -- and a colour judgement
 	# between two incomparable frames is worth nothing, which is exactly the
 	# judgement these frames exist to support.
-	var arena = ARENA.take_over(get_tree())
+	var arena = ARENA.take_over(get_tree(), self)
 	for _f in range(20):
 		await get_tree().process_frame
 	var p: Node = arena.player

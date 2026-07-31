@@ -142,7 +142,13 @@ func totals() -> Dictionary:
 	return {"hits": hits, "dmg": dmg, "struck": struck, "reach": reach}
 
 # swap the running game out for a clean arena. Returns the arena node.
-static func take_over(tree: SceneTree) -> Node2D:
+#
+# `keep` is the CALLING TOOL and must be passed. main_menu.gd parents the test
+# driver to the ROOT so it survives the scene change (main_menu.gd:55), which
+# means the root sweep below will happily delete the very script asking for the
+# arena. It did exactly that: the first run after I added the sweep produced
+# zero frames because the walker freed itself on its second line.
+static func take_over(tree: SceneTree, keep: Node = null) -> Node2D:
 	var arena = (load("res://weapon_arena.gd") as GDScript).new()
 	tree.root.add_child(arena)
 	var old := tree.current_scene
@@ -159,7 +165,7 @@ static func take_over(tree: SceneTree) -> Node2D:
 	# itself outlives both of the above. In a rig that exists to give
 	# comparable frames, one stray leftover is a wrong answer waiting to happen.
 	for n in tree.root.get_children():
-		if n == arena or n.name == "" or n is Window:
+		if n == arena or n == keep or n.name == "" or n is Window:
 			continue
 		# autoloads are root children too and must survive
 		if ProjectSettings.has_setting("autoload/" + str(n.name)):
