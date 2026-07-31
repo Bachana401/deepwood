@@ -63,10 +63,19 @@ func _ready() -> void:
 
 	var rows := []
 	say("\n=== THE PROVING SWEEP: %d weapons ===" % WeaponRoster.ROWS.size())
+	# SWEEP_TIER=8 re-runs one tier in a minute instead of the whole roster in
+	# fifteen -- which is what you want when you are chasing one finding.
+	var only_tier := 0
+	var env_tier := OS.get_environment("SWEEP_TIER")
+	if env_tier != "":
+		only_tier = int(env_tier)
 	for row in WeaponRoster.ROWS:
+		if only_tier > 0 and int(row[3]) != only_tier:
+			continue
 		var id := str(row[0])
 		var def: Dictionary = WeaponRoster.get_def(id)
 		if def.is_empty():
+			say("  [skipped: no def] %s" % id)
 			continue
 		var special: Dictionary = def.get("special", {})
 		var stype := str(special.get("type", ""))
@@ -90,13 +99,23 @@ func _ready() -> void:
 		await get_tree().process_frame
 		await get_tree().process_frame
 
-		# fire for the whole window, the way a held trigger does
+		# HOLD THE TRIGGER -- and let the weapon's OWN COOLDOWN rule the rate.
+		#
+		# The first cut of this zeroed attack_cooldown_remaining before every
+		# call, which fires every 0.12s no matter what the weapon's cooldown
+		# says. That is not a held trigger, it is a machine gun, and it reported
+		# A Cut Across the World at 8,275 dps -- a number I nearly took to the
+		# dev as a balance emergency. A fast weapon was being handed the same
+		# rate as a slow one and then judged for being fast.
+		#
+		# perform_attack already returns immediately if the cooldown is unspent,
+		# so calling it every frame IS holding the button.
+		p.attack_cooldown_remaining = 0.0        # start ready, then earn it
 		var t := 0.0
 		while t < WATCH:
-			p.attack_cooldown_remaining = 0.0
 			p.perform_attack()
-			await get_tree().create_timer(0.12, true).timeout
-			t += 0.12
+			await get_tree().process_frame
+			t += get_process_delta_time()
 
 		var struck := 0
 		var hits := 0

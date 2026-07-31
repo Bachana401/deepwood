@@ -9246,7 +9246,17 @@ const WC_LEN := 1050.0
 
 func _tick_worldcut(delta: float) -> void:
 	_wc_t += delta
-	if _wc_t < 0.02:
+	# ONCE MEANS ONCE. This used to read `if _wc_t < 0.02`, which is "once" only
+	# if a frame happens to be 16ms long. At 144Hz three frames fit inside that
+	# window and the world was cut THREE times; headless runs frames as fast as
+	# it can and cut it TEN times, which is how the proving sweep read this
+	# weapon at four times its tier's median.
+	#
+	# That is FRAMERATE-DEPENDENT DAMAGE: the same weapon in the same hands hits
+	# harder on a better monitor. No audit could see it -- they all measure hits
+	# per use and this changes what "a use" even means.
+	if not _ink_split:
+		_ink_split = true
 		_world_cut()
 	if visual:
 		visual.scale = Vector2(1.0, maxf(0.05, 1.0 - _wc_t * 3.2))
