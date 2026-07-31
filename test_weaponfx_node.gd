@@ -199,7 +199,7 @@ func _ready() -> void:
 	#             CLOUDCOUNTER.
 	#  96 ->  89: the last seven of tier 5. TIER 5 IS CLEAR; every plain rung
 	#             left in the roster is tier 4 or below.
-	var PLAIN_QUOTA := 52
+	var PLAIN_QUOTA := 36
 	var plain_n := 0
 	var overdressed := []
 	var unknown := []
@@ -336,8 +336,8 @@ func _ready() -> void:
 	# 106 -> 105 for the same reason: a rung that gains a verb leaves the chain.
 	# The `broken` list stayed EMPTY, which is the part that actually mattered --
 	# nothing downstream was forging FROM Daybreak Edge.
-	check("every chained rung forges from kin plus materials (52 links)",
-		chained == 52 and broken.is_empty(),
+	check("every chained rung forges from kin plus materials (42 links)",
+		chained == 42 and broken.is_empty(),
 		"chained=%d; broken: %s" % [chained, ", ".join(broken)])
 	# ---- THE CULMINATION (Zenith-kin): the melee crown forges from its three
 	# famous T7 ancestors -- the same blades whose tinted ghosts its zenith

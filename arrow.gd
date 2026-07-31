@@ -30,6 +30,12 @@ var homing := false
 var split_gen := 0
 var split_at := 0.0      # Twinnock: fraction of range at which one shaft becomes two
 var _has_split := false
+# THE PLAIN-BOW SOULS (2026-07-31): sixteen material-ladder bows shared two
+# verbs (shot, rapid) and differed only in stats. Each now carries ONE small
+# named trick -- the rider -- same seam as the whips' tag, the staffs' slam
+# and the lobs' riders. Children spawned by tricks never inherit the rider.
+var rider := ""
+var _rider_spent := false   # one-shot tricks (gutter skip, glass, needle) fire once
 
 const SELF_SCENE = preload("res://arrow.tscn")
 
@@ -183,12 +189,22 @@ func _physics_process(_delta: float) -> void:
 				host.call_deferred("add_child", half)
 		despawn()
 		return
+	# ORCHARD BOW: the shaft is a windfall -- it drops as it flies, and what
+	# falls hits harder (the pay is in _rider_pay, the droop is here)
+	if rider == "windfall":
+		direction = (direction + Vector2(0.0, 0.55 * _delta)).normalized()
+
 	if global_position.distance_to(start_position) > max_range:
-		despawn()
+		_end_of_flight()
 		return
 
 	if not pierces_terrain and get_slide_collision_count() > 0:
-		break_arrow()
+		# GUTTER BOW: the first thing the world puts in its way is a lip to
+		# SKIP off, not a wall to die on
+		if rider == "gutter" and not _rider_spent:
+			_gutter_skip()
+		else:
+			break_arrow()
 
 # TWO SEEKERS, TWO DIFFERENT HUNTERS (2026-07-30).
 # They were one weapon with two names: same shaft, same nearest-target rule,
@@ -267,10 +283,123 @@ func break_arrow() -> void:
 	sfx.finished.connect(sfx.queue_free)
 	queue_free()
 
+# what THIS hit pays, per rider. Reads the world (poison on the body, the
+# shaft's own droop, how far it has flown) rather than a dice roll -- every
+# one of these is a fact the player can see and steer.
+func _rider_pay(body: Node2D) -> int:
+	var now := Time.get_ticks_msec() / 1000.0
+	match rider:
+		"dart":
+			# EMBERDART gathers heat the whole flight: weak point-blank,
+			# half again as hard at full stretch
+			var fl := clampf(global_position.distance_to(start_position)
+				/ maxf(1.0, max_range), 0.0, 1.0)
+			return maxi(1, int(round(float(damage) * (0.8 + 0.65 * fl))))
+		"windfall":
+			# ORCHARD BOW: what FALLS hits harder
+			if direction.y > 0.12:
+				return int(round(float(damage) * 1.35))
+		"briar":
+			# BRAMBLEBOW: thorns catch best in a wound already poisoned
+			if "status_poison_until" in body and float(body.status_poison_until) > now:
+				return int(round(float(damage) * 1.4))
+		"reminder":
+			# THE POLITE REMINDER: the second notice, as previously discussed
+			if float(body.get_meta("reminder_at", -100.0)) > now - 3.0:
+				return int(round(float(damage) * 1.6))
+	return damage
+
+# what happens AFTER the hit. Returns true when the trick keeps the shaft
+# flying (through the burning, through the dead) instead of letting it die.
+func _rider_after(body: Node2D) -> bool:
+	var now := Time.get_ticks_msec() / 1000.0
+	match rider:
+		"crow":
+			# CROWCHASER: the hit CAWS -- everything near the struck body
+			# startles back a step. No damage; a T1 bow that herds.
+			for gname in ["course_enemy", "dungeon_combatant", "siege_enemy"]:
+				for e in get_tree().get_nodes_in_group(gname):
+					if e == body or not (e is Node2D) or not is_instance_valid(e):
+						continue
+					if not e.has_method("apply_knockback"):
+						continue
+					if body.global_position.distance_to((e as Node2D).global_position) > 90.0:
+						continue
+					e.apply_knockback(1.0 if (e as Node2D).global_position.x
+						>= body.global_position.x else -1.0, 150.0)
+		"curfew":
+			# CURFEW BOW: everyone it passes is sent HOME -- slowed hard
+			if body.has_method("apply_status"):
+				body.apply_status("slow", 1.0, 0.5)
+		"reminder":
+			body.set_meta("reminder_at", now)
+		"veil":
+			# VEILPIERCER: every layer parted sharpens the point for the next
+			damage = int(round(float(damage) * 1.25))
+		"ash":
+			# ASHWOOD: ash remembers fire -- the shaft passes CLEAN through
+			# anything already burning, still paying it on the way
+			if "status_burn_until" in body and float(body.status_burn_until) > now:
+				return true
+		"shrike":
+			# SHRIKEBOW: a kill does not stop the shaft; it goes through the
+			# dead to the living, harder
+			if "is_dead" in body and body.is_dead:
+				damage = int(round(float(damage) * 1.3))
+				return true
+	return false
+
+# the tricks that fire where the shaft DIES in the air
+func _end_of_flight() -> void:
+	if not _rider_spent:
+		match rider:
+			"gutter":
+				_gutter_skip()
+				return
+			"glass":
+				_glass_shatter()
+			"needle":
+				# NEEDLERAIN: a miss is not nothing -- it falls where it died
+				_rider_spent = true
+				var host := get_parent()
+				if host != null and is_instance_valid(host):
+					var nd = SELF_SCENE.instantiate()
+					nd.setup(Vector2.DOWN, maxi(1, int(round(float(damage) * 0.6))),
+						knockback_min, knockback_max, 4, false, 400.0)
+					nd.girth = girth * 0.8
+					nd.global_position = global_position + Vector2(0.0, -8.0)
+					host.call_deferred("add_child", nd)
+	despawn()
+
+# GUTTER BOW: drop flat, skip once, run half the road again at reduced pay
+func _gutter_skip() -> void:
+	_rider_spent = true
+	direction = Vector2(1.0 if direction.x >= 0.0 else -1.0, 0.0)
+	damage = maxi(1, int(round(float(damage) * 0.6)))
+	start_position = global_position
+	max_range = max_range * 0.5
+	global_position.y -= 6.0   # off the lip, not into it
+
+func _glass_shatter() -> void:
+	_rider_spent = true
+	var host := get_parent()
+	if host == null or not is_instance_valid(host):
+		return
+	for s in [-0.3, 0.0, 0.3]:
+		var sl = SELF_SCENE.instantiate()
+		sl.setup(direction.rotated(s), maxi(1, int(round(float(damage) * 0.35))),
+			knockback_min, knockback_max, 4, false, 140.0)
+		sl.girth = girth * 0.7
+		sl.global_position = global_position
+		host.call_deferred("add_child", sl)
+
 func _on_hit_area_body_entered(body: Node2D) -> void:
 	if has_hit or body in pierced_bodies:
 		return
 	pierced_bodies.append(body)
+	# a rider that changes what THIS hit pays does it before the damage lands
+	if rider != "" and not body.is_in_group("player"):
+		damage = _rider_pay(body)
 	if body.has_method("take_damage"):
 		if body.is_in_group("player"):
 			# the player's take_damage is a coroutine (its i-frames await
@@ -336,10 +465,18 @@ func _on_hit_area_body_entered(body: Node2D) -> void:
 		var knockback_distance = randf_range(knockback_min, knockback_max)
 		var knockback_dir_sign = 1 if direction.x >= 0 else -1
 		body.apply_knockback(knockback_dir_sign, knockback_distance)
+	# a rider that acts after the hit -- and may keep the shaft flying
+	if rider != "" and not body.is_in_group("player"):
+		if _rider_after(body):
+			return
 	# Piercing Shot: keep flying through the first N enemies instead of stopping
 	if pierce_count > 0:
 		pierce_count -= 1
 		return
+	# GLASSTRING: the shaft's DEATH is the weapon -- on its last body it
+	# shatters onward into three slivers
+	if rider == "glass" and not _rider_spent:
+		_glass_shatter()
 	has_hit = true
 	set_physics_process(false)
 	$HitArea.set_deferred("monitoring", false)

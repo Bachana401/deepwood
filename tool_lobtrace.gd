@@ -40,13 +40,31 @@ func _ready() -> void:
 	if p == null or not is_instance_valid(p):
 		say("ABORTED: arena has no puppet"); get_tree().quit(0); return
 	var stage: Node = arena
+	# same furniture rule as the sweep: the EYES-rig house marks leave first,
+	# or the nearest one eats every shaft at +70 and the trace lies
+	for hm in arena.marks:
+		if is_instance_valid(hm):
+			hm.queue_free()
+	arena.marks.clear()
+	await get_tree().process_frame
 	p.set_test_aim(Vector2.RIGHT)
 	var home: Vector2 = (p as Node2D).global_position
 	say("puppet at (%.0f, %.0f)" % [home.x, home.y])
-	p.inventory.add_item("wpn_bogmortar", 1)
-	p.wield_weapon("wpn_bogmortar")
+	# TRACE_WEAPON picks the weapon; the tracer outgrew the lob family the day
+	# a bow needed the same treatment (arrows are CharacterBody2D, not Area2D)
+	var wid := OS.get_environment("TRACE_WEAPON")
+	if wid == "":
+		wid = "wpn_bogmortar"
+	p.inventory.add_item(wid, 1)
+	p.wield_weapon(wid)
+	# let the puppet SETTLE onto the floor before placing anything relative to
+	# it -- spawn #1 fired from mid-fall taught this the hard way
+	for _s in range(20):
+		await get_tree().process_frame
+	home = (p as Node2D).global_position
+	say("settled at (%.0f, %.0f)" % [home.x, home.y])
 	var marks := []
-	for d in [560]:
+	for d in [45, 150, 280]:
 		var m := Mark.new()
 		m.add_to_group("course_enemy")
 		stage.add_child(m)
@@ -56,8 +74,26 @@ func _ready() -> void:
 	p.mana = p.get_max_mana()
 	p.attack_cooldown_remaining = 0.0
 	get_tree().paused = false
-	p.perform_attack()
-	say("attack performed; watching 3.0s  (tree paused=%s)" % str(get_tree().paused))
+	# HOLD the trigger exactly as the sweep does -- a single loose cannot see
+	# repeat-fire bugs, and Orchard Bow's sweep number said the repeats vanish
+	var hold := 0.0
+	var spawns := 0
+	var last_seen: Node = null
+	while hold < 2.4:
+		p.perform_attack()
+		await get_tree().process_frame
+		hold += get_process_delta_time()
+		for c2 in stage.get_children():
+			if c2 != last_seen and is_instance_valid(c2) \
+					and c2 is CharacterBody2D and c2.get("rider") != null \
+					and not c2.is_in_group("player"):
+				spawns += 1
+				last_seen = c2
+				say("  spawn #%d at t=%.2f rel(%.0f, %.0f) cd=%.2f" % [spawns, hold,
+					c2.global_position.x - home.x, c2.global_position.y - home.y,
+					p.attack_cooldown_remaining])
+	say("total spawns seen: %d" % spawns)
+	say("trigger held 2.4s; watching the tail  (tree paused=%s)" % str(get_tree().paused))
 	var flips := 0
 	var t := 0.0
 	var traced = null
@@ -75,7 +111,8 @@ func _ready() -> void:
 			if traced != null:
 				traced = null
 			for c in stage.get_children():
-				if is_instance_valid(c) and c is Area2D and c.get("kind") != null:
+				if is_instance_valid(c) and ((c is Area2D and c.get("kind") != null)
+						or (c is CharacterBody2D and c.get("rider") != null and not c.is_in_group("player"))):
 					traced = c
 					if not seen:
 						seen = true
@@ -85,10 +122,10 @@ func _ready() -> void:
 								str(c.can_process()), str(c.is_physics_processing()),
 								str(get_tree().paused)])
 		elif int(t * 10.0) != int((t - dt) * 10.0):
-			say("  t=%.2f kind=%s rel(%.0f, %.0f) vel_y=%.0f done=%s"
-				% [t, traced.get("kind"), traced.global_position.x - home.x,
-					traced.global_position.y - home.y, traced.get("_vel_y"),
-					str(traced.get("done"))])
+			say("  t=%.2f kind=%s rel(%.0f, %.0f) vel_y=%s max_range=%s"
+				% [t, str(traced.get("kind")), traced.global_position.x - home.x,
+					traced.global_position.y - home.y, str(traced.get("_vel_y")),
+					str(traced.get("max_range"))])
 	if not seen:
 		say("  NO PROJECTILE EVER APPEARED on the stage")
 	say("--- final mark tally ---")

@@ -847,6 +847,9 @@ const NOVA_RADIUS := 260.0
 const SHADE_LIFETIME := 12.0
 
 var monarch_iframes_until := 0.0
+# the plain-bow souls (2026-07-31): spawn-time rider state
+var last_hurt_at := -100.0   # Lark's Reply: the 2s answering window
+var _sting_count := 0        # Stinger: every fourth shaft is the sting
 var monarch_long_dark_ready_at := 0.0
 var monarch_dread_accum := 0.0
 var monarch_nova_accum := 0.0
@@ -3204,6 +3207,8 @@ func take_damage(amount: int) -> void:
 		return
 	if _now() < monarch_iframes_until:
 		return   # Shadowstep: mid-dash the Monarch simply isn't there
+	# LARK'S REPLY reads this: a bow that answers being hurt needs to know when
+	last_hurt_at = _now()
 	# THE SUMMONER ANSWERS BEING HIT (batch 3). The Bond steps in front of part
 	# of it and then avenges; every standing post goes berserk. All three are
 	# real triggers hung on the actual hit, never polled.
@@ -8179,6 +8184,28 @@ func spawn_arrow(stats: Dictionary, aim_dir: Vector2) -> void:
 			"dur": float(wst.get("dur", 3.0)), "mag": float(wst.get("mag", 4.0))})
 	var spreads_poison = GameState.get_bonus_total("poison_spread") > 0.0
 	var spread = deg_to_rad(float(special.get("spread_deg", 0.0)))
+	# THE PLAIN-BOW SOULS (2026-07-31). Sixteen material-ladder bows shared two
+	# verbs; each now carries one small named trick. The flight/hit tricks live
+	# in arrow.gd behind arrow.rider; the SPAWN-TIME tricks -- the ones that
+	# read the archer's own state at the moment of loosing -- are priced here.
+	var brider := str(special.get("rider", ""))
+	var base_dmg := int(round(stats.damage * skill_damage_mult("bow")))
+	match brider:
+		"stoop":
+			# SPARROWHAWK: loosed while FALLING, it is a stoop -- the dive
+			# is the weapon, and standing still is the tax
+			if not is_on_floor() and velocity.y > 40.0:
+				base_dmg = int(round(float(base_dmg) * 1.6))
+		"lightstep":
+			# LIGHTSTEP pays for MOTION: a walking archer never quite stops
+			if absf(velocity.x) > 30.0:
+				base_dmg = int(round(float(base_dmg) * 1.3))
+		"sting":
+			# STINGER: a wasp's rhythm -- every fourth shaft IS the sting
+			_sting_count += 1
+			if _sting_count % 4 == 0:
+				base_dmg = int(round(float(base_dmg) * 1.5))
+				arrow_statuses = arrow_statuses + [{"kind": "poison", "dur": 3.0, "mag": 1.0}]
 	# skill-granted multishot on a PLAIN bow (no authored spread) used to spawn
 	# every arrow at the identical position/direction/speed -- permanent
 	# lockstep, one invisible fat arrow into one target. The whole Ranger spec
@@ -8195,11 +8222,11 @@ func spawn_arrow(stats: Dictionary, aim_dir: Vector2) -> void:
 		arrow.position = global_position + dir * (stats.icon_offset + 8.0)
 		# DEADEYE (Windstalker set-soul): a primed stillness makes this whole
 		# volley CERTAIN -- every shaft of it flies as a crit
-		var cr = force_crit(int(round(stats.damage * skill_damage_mult("bow")))) \
-			if _deadeye_primed else roll_crit(int(round(stats.damage * skill_damage_mult("bow"))))
+		var cr = force_crit(base_dmg) if _deadeye_primed else roll_crit(base_dmg)
 		arrow.setup(dir, cr[0], stats.knockback_min, stats.knockback_max, 4)
 		arrow.is_crit = cr[1]
 		arrow.homing = homing
+		arrow.rider = brider   # the shaft carries its bow's soul
 		# the two Seekers hunt by DIFFERENT rules -- wounded-first and biggest-
 		# first -- and that single difference is most of what tells them apart.
 		# Without passing it through they both fall back to nearest and are one
@@ -8216,6 +8243,17 @@ func spawn_arrow(stats: Dictionary, aim_dir: Vector2) -> void:
 		arrow.max_range = arrow.DEFAULT_MAX_RANGE * grade_projectile_range()
 		arrow.element = Inventory.element_of(active_weapon_id)   # VFX: hit bursts in the bow's colour
 		get_parent().add_child(arrow)
+	# LARK'S REPLY: for two seconds after you are hurt, every loose is
+	# ANSWERED -- a second shaft follows the first at half pay. The lark does
+	# not start the song; it replies.
+	if brider == "reply" and _now() - last_hurt_at < 2.0:
+		var echo = ARROW_SCENE.instantiate()
+		echo.position = global_position + aim_dir * (stats.icon_offset + 8.0)
+		echo.setup(aim_dir, maxi(1, int(round(float(base_dmg) * 0.5))),
+			stats.knockback_min, stats.knockback_max, 4)
+		echo.girth = grade_projectile_girth() * 0.8
+		echo.element = Inventory.element_of(active_weapon_id)
+		get_parent().add_child(echo)
 	# loosing SPENDS the Deadeye prime; the next certainty is earned by
 	# another breath of stillness
 	if _deadeye_primed:

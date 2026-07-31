@@ -25,7 +25,14 @@ extends Node2D
 const PLAYER_SCENE := preload("res://player.tscn")
 const MARK_AT := [70.0, 190.0, 330.0]
 const FLOOR_Y := 360.0
-const SPAWN := Vector2(200.0, 296.0)
+# ON THE FLOOR, not 40px above it (2026-07-31). The puppet used to spawn
+# mid-air and settle during the FIRST weapon's watch -- and if the menu's
+# late pauser froze the tree through the warmup frames, the fall happened
+# DURING measurement: marks placed at the pre-fall height, every shaft after
+# the first leaving 40px below them. The first weapon of every sweep process
+# measured garbage (Orchard Bow: 1 hit where its kin land 5) and nothing in
+# the table said why. Puppet half-height is 24; FLOOR_Y - 24 = standing.
+const SPAWN := Vector2(200.0, 336.0)
 
 var player: Node2D = null
 var marks: Array = []

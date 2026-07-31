@@ -194,6 +194,22 @@ func _ready() -> void:
 		var true_reach := 0.0
 		var rings_desc := RINGS.duplicate()
 		rings_desc.reverse()
+		# PRUNE the stations a weapon cannot possibly touch: declared range
+		# (x1.2 REACH_BONUS) + blast + 150px of honest headroom. Without this,
+		# every sword pays six probe-and-settle windows to prove it cannot
+		# reach 800px, and the full sweep balloons to an hour. The headroom
+		# means a weapon overshooting its declaration still shows up -- capped,
+		# not hidden. A row with no declared range is never pruned.
+		var declared: float = float(special.get("range", 0.0))
+		if declared > 0.0:
+			var cap: float = declared * 1.2 + float(special.get("aoe", 0.0)) + 150.0
+			var kept := []
+			for rr in rings_desc:
+				if float(rr) <= cap:
+					kept.append(rr)
+			if kept.is_empty():
+				kept.append(RINGS[0])
+			rings_desc = kept
 		for ring in rings_desc:
 			var solo := Mark.new()
 			solo.add_to_group("course_enemy")
