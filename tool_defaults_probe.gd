@@ -40,9 +40,11 @@ class Counter extends StaticBody2D:
 	func apply_knockback(_s: float, _f: float) -> void: pass
 
 const WANTED := ["arc", "rapid", "fire", "shot", "staff", "volley"]
-# real separations, and short ones included: a melee arc that only reaches 70px
-# must be measured somewhere it can actually connect
-const DISTS := [45.0, 80.0, 140.0, 240.0]
+# REAL separations. The short end matters most: at a 45px floor, Mongrel Knife
+# and Barrel Stave connected at NO distance and no staff connected at all, which
+# is the harness bottoming out rather than the weapons missing. A melee arc that
+# reaches 30px has to be measured at 30px or the number is about the probe.
+const DISTS := [16.0, 26.0, 36.0, 45.0, 80.0, 140.0, 240.0]
 const SAMPLES := 3          # three weapons per behavior, not one
 
 func _weapons_for(behavior: String) -> Array:
