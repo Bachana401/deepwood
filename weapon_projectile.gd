@@ -469,6 +469,15 @@ func _ready() -> void:
 			monitoring = false
 			pierce = true
 			_build_lingering_arc()
+		"grief_shard":
+			# GRIEF MADE SHARP (T6): a thin dark sliver, thrown off the edge.
+			pierce = true
+			_build_grief_shard()
+		"world_stake":
+			# WORLDSPIKE (T6): it travels, then it STOPS and stands there.
+			_build_world_stake()
+			_zone_max = 3.2
+			_zone_r = 34.0
 		"sky_ladder":
 			# LADDER TO NOWHERE (T6): a RUNG, not a sunrise. It rides the Dawn
 			# Chorus motion because a bar of light rising is a bar of light
@@ -913,6 +922,17 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind == "still_mountain":
 		_tick_anvil(delta)
+		return
+	if kind == "world_stake":
+		# it flies until it has gone its distance, and then it is FURNITURE:
+		# a standing hazard rather than a projectile that expired
+		if not _stake_planted:
+			global_position += direction * speed * delta
+			traveled += speed * delta
+			if traveled >= max_distance:
+				_stake_planted = true
+			return
+		_tick_standing_zone(delta)
 		return
 	if kind == "rift_bloom":
 		_tick_rift(delta)
@@ -2237,6 +2257,39 @@ func set_star_target(p: Vector2) -> void:
 	# spawn ABOVE the frame, not at the hand. The jitter is what stops a volley
 	# reading as one thick column.
 	global_position = p + Vector2(randf_range(-86.0, 86.0), -430.0)
+
+# A SLIVER OF GRIEF: thin, dark, and lit only along one edge, so it reads
+# against the night without ever looking bright.
+func _build_grief_shard() -> void:
+	var outline := PackedVector2Array([
+		Vector2(17, 0), Vector2(-2, -3.4), Vector2(-11, 0), Vector2(-2, 3.4)])
+	var body := Polygon2D.new()
+	body.polygon = outline
+	body.color = Color(0.26, 0.19, 0.38, 0.96)
+	visual.add_child(body)
+	_art_rim(outline, Color(0.72, 0.60, 1.0), 1.6)
+
+# A STAKE: driven point-down, with a collar where it meets the ground. It has
+# to read as PLANTED once it stops, not as a spear that happens to be resting.
+func _build_world_stake() -> void:
+	var m := _add_mat()
+	var shaft := Polygon2D.new()
+	shaft.polygon = PackedVector2Array([
+		Vector2(22, 0), Vector2(-4, -4.5), Vector2(-18, -2.4),
+		Vector2(-18, 2.4), Vector2(-4, 4.5)])
+	shaft.color = Color(0.42, 0.36, 0.30, 1.0)
+	visual.add_child(shaft)
+	var band := Polygon2D.new()
+	band.polygon = PackedVector2Array([
+		Vector2(2, -5.2), Vector2(8, -5.2), Vector2(8, 5.2), Vector2(2, 5.2)])
+	band.color = Color(0.66, 0.62, 0.54, 1.0)
+	visual.add_child(band)
+	var lit := Polygon2D.new()
+	lit.polygon = _circle(7.0, 10)
+	lit.color = Color(0.86, 0.78, 0.52, 0.30)
+	lit.material = m
+	lit.position = Vector2(18, 0)
+	visual.add_child(lit)
 
 # A LADDER RUNG: shorter and colder than the Dawn Chorus bar, with a post at
 # each end. A rung is a thing you could stand on; a sunrise is not.
@@ -3851,6 +3904,7 @@ func _tick_boulder(delta: float) -> void:
 
 var _wake_returned := false
 var _echo_clock := 0.0      # slash: Flying Dragon silhouette echoes
+var _stake_planted := false # world_stake: has it stopped and become furniture?
 var _ink_rehit := 0.0
 var _ink_launch := 0.0      # ink_jet: the speed it was thrown at
 var _ink_split := false     # ink_jet: has this stream already broken up?

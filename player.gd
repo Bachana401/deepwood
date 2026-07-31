@@ -4767,6 +4767,16 @@ func perform_attack() -> void:
 			sp.direction = get_aim_direction()
 			get_parent().add_child(sp)
 			sp.global_position = global_position + sp.direction * 26.0
+		elif special_type == "world_stake":
+			# WORLDSPIKE (T6): the thrust drives a stake, and the stake STAYS.
+			# This lives in the SPEAR chain, not the melee one -- I put it in
+			# the melee chain first and the dispatch audit reported the weapon
+			# firing nothing at all, which is precisely what a spear running
+			# down the wrong branch looks like from outside.
+			play_sfx(SFX_SPEAR)
+			animate_spear(stats)
+			var kcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("spear"))))
+			launch_projectile(special, get_aim_direction(), kcr[0], kcr[1])
 		elif special_type == "horizon_line":
 			# HORIZON PIKE (T6): the point keeps going, out to the edge of sight
 			play_sfx(SFX_SPEAR)
@@ -5088,6 +5098,31 @@ func perform_attack() -> void:
 			or special_type == "bent_ray":
 		var wcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
 		launch_projectile(special, aim_dir, wcr[0], wcr[1])
+	# GRIEF MADE SHARP (T6): the worse you are doing, the more comes off it
+	elif special_type == "grief_shard":
+		var whole: float = float(get_max_health())
+		var hurt: float = 0.0
+		if whole > 0.0:
+			hurt = clampf(1.0 - float(health) / whole, 0.0, 1.0)
+		# ONE while you are whole, up to max_shards when you are nearly gone
+		var shards: int = maxi(1, int(round(1.0
+			+ hurt * (float(special.get("max_shards", 4)) - 1.0))))
+		for i in range(shards):
+			var gcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+			var spread: float = 0.0 if shards == 1 else \
+				lerpf(-0.30, 0.30, float(i) / float(shards - 1))
+			var gsh = WEAPON_PROJECTILE_SCRIPT.new()
+			gsh.kind = "grief_shard"
+			gsh.damage = gcr[0]
+			gsh.is_crit = gcr[1]
+			gsh.speed = 620.0
+			gsh.max_distance = 320.0
+			gsh.direction = aim_dir.rotated(spread)
+			gsh.element = Inventory.element_of(active_weapon_id)
+			gsh.on_hit_status = special.get("status", {})
+			gsh.source = self
+			get_parent().add_child(gsh)
+			gsh.global_position = global_position + gsh.direction * 28.0
 	# TWELFTH PILLAR (T6): eleven blows are only blows. Count to twelve.
 	elif special_type == "twelfth_pillar":
 		_twelfth_count += 1

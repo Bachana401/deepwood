@@ -220,7 +220,7 @@ const ROWS = [
 	["wpn_longwatch",    "Warden's Long Watch",  "wand",  5, "wardenwatch", 14, 1.2,  {"dur": 22}],
 	["wpn_summitstaff",  "Summit That Walks",    "staff", 5, "staff",     19, 0.42, {"plain": true}],
 	# ---------------- TIER 6 - MYTHIC (floors 58-88) ----------------
-	["wpn_griefedge",    "Grief Made Sharp",     "melee", 6, "arc",       30, 0.4,  {"plain": true}],
+	["wpn_griefedge",    "Grief Made Sharp",     "melee", 6, "griefsharp", 19, 0.4, {}],
 	["wpn_hushfall",     "Hushfall",             "melee", 6, "hushfall",  44, 1.1,  {"knockup": true, "status": "slow_w"}],
 	["wpn_eclipsewheel", "Eclipse Wheel",        "melee", 6, "eclipse",   27, 0.8,  {"dwell": 3.2}],
 	["wpn_dawntongue",   "Dawn's Long Tongue",   "melee", 6, "longtongue", 28, 0.82, {"status": "burn_w"}],
@@ -403,7 +403,7 @@ const ROWS = [
 	["wpn_horizonrender","Horizonrender",        "melee", 6, "horizonrend", 27, 0.54, {"p_damage": 25}],
 	["wpn_nightlash",    "A Long Night's Tongue","melee", 6, "nightlash", 27, 0.8,  {"status": "slow_w", "companion": "blade", "c_damage": 13, "c_gap": 1.7}],
 	["wpn_griefcollect", "Grief, Collected",     "melee", 6, "griefcollect", 24, 0.56, {"bounces": 6}],
-	["wpn_worldspike",   "Worldspike",           "spear", 6, "thrust",    35, 0.76, {"plain": true}],
+	["wpn_worldspike",   "Worldspike",           "spear", 6, "worldstake", 21, 0.76, {}],
 	["wpn_ashherd",      "Herd of Ashes",        "spear", 6, "ashherd",   22, 0.86, {"count": 5, "status": "burn_w"}],
 	["wpn_griffvolley",  "Griffin Volley",       "bow",   6, "griffinvolley", 18, 0.5,  {"count": 4}],
 	["wpn_silentchoir",  "The Silent Choir",     "bow",   6, "silentchoir", 13, 0.15, {}],
@@ -1068,6 +1068,20 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			# metronome: ordinary shots, and every ninth is a RULING
 			s = {"type": "commandment", "damage": dmg, "speed": spd + 300.0,
 				"range": rng + 200.0, "every": 9}
+		"griefsharp":
+			# GRIEF MADE SHARP reads the PLAYER, which nothing else in 350 does.
+			# The worse you are doing, the more of it comes off the blade: one
+			# shard at full health, four when you are nearly gone. Grief is not
+			# a stat here, it is a state you are in.
+			s = {"type": "grief_shard",
+				"damage": maxi(1, int(round(float(dmg) * 0.30))), "max_shards": 4}
+		"worldstake":
+			# WORLDSPIKE does not cut, it PINS. The thrust drives a stake
+			# through and the stake stays in the ground, holding what it caught
+			# and hurting whatever else wanders onto it.
+			s = {"type": "world_stake",
+				"damage": maxi(1, int(round(float(dmg) * 0.55))),
+				"speed": spd + 180.0, "range": rng - 60.0}
 		# ---- the three plain STAFFS of tier 6, given their names back ----
 		"twelfthpillar":
 			# A METRONOME the player can count, like the Ninth Commandment --
@@ -1510,6 +1524,8 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"edict":      return "The law REACHES: a jointed arm of light unfolds the length of the hall, cutting everything along it and blooming where it touches -- and stone does not stop a sentence."
 		"heavenstring": return "Every shaft trails a THREAD, and when it lands the thread goes taut: what you hit comes to you, whether it meant to or not."
 		"choirstring": return "Each shaft that lands plants a NOTE, humming where it stuck. Fill a room with notes and the room sings -- and singing hurts."
+		"griefsharp":  return "It knows how badly you are doing. Every swing throws shards of the grief off the edge -- ONE while you are whole, and as many as four when you are nearly gone."
+		"worldstake":  return "It does not cut. It PINS: the thrust drives a stake clean through and leaves it standing in the ground, holding what it caught and waiting for whatever wanders onto it next."
 		"twelfthpillar": return "Count. Eleven blows are only blows -- and on the TWELFTH a column of daylight stands up where you pointed and keeps standing."
 		"skyladder":   return "Lays a rung of light, and then another above it, and another. Three of them, climbing. It goes nowhere and everything caught between them is caught between them."
 		"stillmountain": return "STOP MOVING. Stand a moment and the next blow brings a mountain down with it. Keep running and it is only a staff."

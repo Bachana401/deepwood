@@ -83,6 +83,9 @@ const HITS_PER_USE := {
 	# ticking" -- true of the rungs, but each rung carries 0.24 of the row, so
 	# the model read 230 dps and hauled the whole T6 median up by four points.
 	# The number here is TOTAL DAMAGE PER USE AS A MULTIPLE OF ROW DAMAGE.
+	"griefsharp":  1.6,   # the swing, plus ~2 shards on average at 0.30 each
+	                      # (one at full health, four when nearly dead)
+	"worldstake":  2.1,   # the thrust, plus a stake that stands and ticks
 	"twelfthpillar": 1.15, # the swing, plus a column amortised over twelve blows
 	"skyladder":   1.35,  # three rungs at 0.24 each, ticking
 	"stillmountain": 1.30, # the swing, plus a mountain GATED on standing still
