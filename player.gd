@@ -2700,10 +2700,31 @@ func redeploy_posts() -> void:
 		_raise_post(rec, global_position + Vector2(46.0 + 44.0 * float(i), 8.0))
 		i += 1
 
+# THE HUD IS OPTIONAL (2026-07-30).
+#
+# The player used to reach out of itself BY PATH into its parent scene's
+# CanvasLayer -- `$"../CanvasLayer/HealthBarFill"` -- which throws the instant a
+# player exists anywhere that is not main.tscn. update_health_display runs from
+# _ready via wield_weapon, so the FIRST FRAME of a player in a test arena, a
+# boss stage or a menu preview died on it.
+#
+# That single coupling is why the weapon arena could not be its own scene: I
+# spent an evening trying to delete main.tscn out from under a puppet that
+# could not live without main.tscn's health bar.
+#
+# A player should work without a HUD. If the labels are there it updates them;
+# if they are not it gets on with its job.
+func _hud(path: String) -> Node:
+	return get_node_or_null("../CanvasLayer/" + path)
+
 func update_health_display() -> void:
 	var percent = clamp(float(health) / get_max_health(), 0.0, 1.0)
-	$"../CanvasLayer/HealthBarFill".size.x = 100 * percent
-	$"../CanvasLayer/HealthLabel".text = str(max(health, 0)) + "/" + str(get_max_health())
+	var fill := _hud("HealthBarFill")
+	if fill != null:
+		fill.size.x = 100 * percent
+	var lab := _hud("HealthLabel")
+	if lab != null:
+		lab.text = str(max(health, 0)) + "/" + str(get_max_health())
 
 # --- Mana pool ---
 
@@ -3417,10 +3438,13 @@ func apply_difficulty_death_penalty() -> void:
 func update_currency_display() -> void:
 	# levels are the game's reward engine (the depth pays) -- the current
 	# level and the road to the next live on the HUD, not only inside K
+	var cur := _hud("CurrencyLabel")
+	if cur == null:
+		return                     # no HUD in this scene: nothing to tell
 	if GameState.player_level >= GameState.PLAYER_LEVEL_CAP:
-		$"../CanvasLayer/CurrencyLabel".text = "Lv 100 — Shadow Sovereign   •   %dg" % currency
+		cur.text = "Lv 100 — Shadow Sovereign   •   %dg" % currency
 	else:
-		$"../CanvasLayer/CurrencyLabel".text = "Lv %d  (%d/%d)   •   %dg" % [
+		cur.text = "Lv %d  (%d/%d)   •   %dg" % [
 			GameState.player_level, GameState.player_xp, GameState.xp_to_next_level(), currency]
 
 func perform_dash(dash_direction: int) -> void:
