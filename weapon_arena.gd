@@ -148,5 +148,22 @@ static func take_over(tree: SceneTree) -> Node2D:
 	var old := tree.current_scene
 	tree.current_scene = arena
 	if old != null and is_instance_valid(old):
+		# REMOVE FIRST, free after. queue_free() is deferred, and a scene that is
+		# merely SCHEDULED to die still draws -- which is why a strip of village
+		# terrain, trees and a second player kept appearing along the top of
+		# every arena screenshot. remove_child takes it out of the tree on this
+		# line, so it stops rendering immediately; queue_free then cleans up.
+		tree.root.remove_child(old)
 		old.queue_free()
+	# and anything the old scene parented directly to the ROOT rather than to
+	# itself outlives both of the above. In a rig that exists to give
+	# comparable frames, one stray leftover is a wrong answer waiting to happen.
+	for n in tree.root.get_children():
+		if n == arena or n.name == "" or n is Window:
+			continue
+		# autoloads are root children too and must survive
+		if ProjectSettings.has_setting("autoload/" + str(n.name)):
+			continue
+		tree.root.remove_child(n)
+		n.queue_free()
 	return arena

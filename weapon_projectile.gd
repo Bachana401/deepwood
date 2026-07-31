@@ -3011,7 +3011,7 @@ func _build_horizon_line() -> void:
 	_art_filament_beam(118.0, [
 		Color(1.00, 0.56, 0.10),        # hard low sun at the point
 		Color(1.00, 0.88, 0.36),        # to a HOT bar of daylight
-		Color(0.94, 1.00, 1.00)], 4)
+		Color(0.94, 1.00, 1.00)], 6)
 
 func _build_sky_star() -> void:
 	var m := _add_mat()
@@ -3971,7 +3971,7 @@ func _build_bent_ray() -> void:
 	_art_filament_beam(138.0, [
 		Color(1.00, 0.70, 0.06),        # hard gold at the hand
 		Color(1.00, 0.94, 0.48),        # to burning daylight
-		Color(0.88, 1.00, 1.00)], 5)
+		Color(0.88, 1.00, 1.00)], 7)
 
 # PILLAR OF THE SKY: a standing column of daylight. Reuses the standing-zone
 # tick wholesale -- only the shape and the numbers differ.
@@ -5778,7 +5778,7 @@ func _build_griefbeam() -> void:
 	_art_filament_beam(158.0, [
 		Color(1.00, 0.24, 0.86),        # hot magenta at the hand
 		Color(0.66, 0.34, 1.00),        # electric violet
-		Color(0.70, 0.98, 1.00)], 6)    # white-blue before the burn-out
+		Color(0.70, 0.98, 1.00)], 9)    # white-blue before the burn-out
 
 # REGICIDE's thrown spear: a slim crown-gold lance, point-first
 func _build_crownspear() -> void:
@@ -10765,10 +10765,13 @@ func _art_filament_beam(length: float, colours: Array, count: int = 5,
 	# A soft wide glow under the filaments gives the bundle PRESENCE.
 	var glow_col: Color = colours[0] if not colours.is_empty() else Color(0.9, 0.95, 1.0)
 	var bloom := Polygon2D.new()
+	# WIDER than the first cut (0.085 -> 0.15 of length). Photographed in the
+	# arena the beam was legible but not COMMANDING, and the fix was mass rather
+	# than more colour: a narrow glow behind a narrow bundle adds nothing.
 	bloom.polygon = PackedVector2Array([
-		Vector2(back, 0.0), Vector2(length * 0.45, -length * 0.085),
-		Vector2(length, 0.0), Vector2(length * 0.45, length * 0.085)])
-	bloom.color = Color(glow_col.r, glow_col.g, glow_col.b, 0.30)
+		Vector2(back, 0.0), Vector2(length * 0.45, -length * 0.15),
+		Vector2(length, 0.0), Vector2(length * 0.45, length * 0.15)])
+	bloom.color = Color(glow_col.r, glow_col.g, glow_col.b, 0.34)
 	bloom.material = m
 	into.add_child(bloom)
 	# the spindle: zero width at both ends, full at ~45% along

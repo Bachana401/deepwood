@@ -4221,6 +4221,26 @@ func attack_area_bodies() -> Array:
 			out.append(c)
 	return out
 
+# HOLDING FIRE MUST NOT CANCEL WHAT IS ALREADY IN THE AIR (dev, 2026-07-30:
+# "i don't want weapon to stop previous attacks projectiles or anything, many
+# kinda stop midway and start new attack and that leads to not fully
+# attacking").
+#
+# Several weapons were written as "there is only ever ONE of me" and enforced it
+# by DESTROYING the previous instance on every cast. With the trigger held that
+# means the wheel, halo or storm is wiped a fraction of a second into its life,
+# every single time, and the weapon never once completes the thing it exists to
+# do. The player sees a weapon that constantly restarts and never lands.
+#
+# The cap is right -- these are not meant to stack to infinity. Enforcing it by
+# REFUSING the new cast instead of killing the old one keeps the cap and lets
+# the thing you started finish.
+func singleton_busy(group: String) -> bool:
+	for n in get_tree().get_nodes_in_group(group):
+		if is_instance_valid(n):
+			return true
+	return false
+
 func perform_attack() -> void:
 	if attack_cooldown_remaining > 0 or not has_weapon():
 		return
@@ -5604,10 +5624,7 @@ func perform_attack() -> void:
 			gf.global_position = global_position + aim_dir * 26.0
 			gf.set_gloam_bend(bend)
 	# OWL-EYE WHEEL (T4): one watching eye at a time
-	elif special_type == "owl_wheel":
-		for old_ow in get_tree().get_nodes_in_group("owl_wheel_instance"):
-			if is_instance_valid(old_ow):
-				old_ow.queue_free()
+	elif special_type == "owl_wheel" and not singleton_busy("owl_wheel_instance"):
 		var ow = WEAPON_PROJECTILE_SCRIPT.new()
 		ow.add_to_group("owl_wheel_instance")
 		ow.kind = "owl_wheel"
@@ -5640,10 +5657,7 @@ func perform_attack() -> void:
 		get_parent().add_child(wc)
 		wc.global_position = global_position + aim_dir * 26.0
 	# SAINT'S REWARD (T5): a halo that turns above your shoulder
-	elif special_type == "saint_halo":
-		for old_sn in get_tree().get_nodes_in_group("saint_halo_instance"):
-			if is_instance_valid(old_sn):
-				old_sn.queue_free()
+	elif special_type == "saint_halo" and not singleton_busy("saint_halo_instance"):
 		var sn = WEAPON_PROJECTILE_SCRIPT.new()
 		sn.add_to_group("saint_halo_instance")
 		sn.kind = "saint_halo"
@@ -5655,10 +5669,7 @@ func perform_attack() -> void:
 		get_parent().add_child(sn)
 		sn.global_position = global_position + Vector2(72.0, -30.0)
 	# MIDWINTER WHEEL (T5): a wide cold circuit around you, one at a time
-	elif special_type == "winter_wheel":
-		for old_mw in get_tree().get_nodes_in_group("winter_wheel_instance"):
-			if is_instance_valid(old_mw):
-				old_mw.queue_free()
+	elif special_type == "winter_wheel" and not singleton_busy("winter_wheel_instance"):
 		var mw = WEAPON_PROJECTILE_SCRIPT.new()
 		mw.add_to_group("winter_wheel_instance")
 		mw.kind = "winter_wheel"
@@ -5670,10 +5681,7 @@ func perform_attack() -> void:
 		get_parent().add_child(mw)
 		mw.global_position = global_position + Vector2(84.0, 0)
 	# WHEEL OF THE HOLLOW (T6): a guard, not a throw
-	elif special_type == "hollow_wheel":
-		for old_hw in get_tree().get_nodes_in_group("hollow_wheel_instance"):
-			if is_instance_valid(old_hw):
-				old_hw.queue_free()
+	elif special_type == "hollow_wheel" and not singleton_busy("hollow_wheel_instance"):
 		var hw = WEAPON_PROJECTILE_SCRIPT.new()
 		hw.add_to_group("hollow_wheel_instance")
 		hw.kind = "hollow_wheel"
