@@ -1906,6 +1906,7 @@ func _tick_lob(delta: float) -> void:
 		if rider == "fuse":
 			_fused = true
 			_vel_y = 0.0
+			SfxSynth.play_at(self, global_position, "pop", -16.0, 0.7)   # the ARM, low and dry
 			return
 		explode()
 

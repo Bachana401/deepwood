@@ -374,6 +374,7 @@ func _end_of_flight() -> void:
 # GUTTER BOW: drop flat, skip once, run half the road again at reduced pay
 func _gutter_skip() -> void:
 	_rider_spent = true
+	SfxSynth.play_at(self, global_position, "pop", -15.0, 1.9)   # the skip: a small bright tick off the lip
 	direction = Vector2(1.0 if direction.x >= 0.0 else -1.0, 0.0)
 	damage = maxi(1, int(round(float(damage) * 0.6)))
 	start_position = global_position
