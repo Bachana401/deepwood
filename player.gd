@@ -6757,6 +6757,21 @@ func staff_reach_mult() -> float:
 
 # `_landed` is deliberately ignored now -- kept in the signature because what
 # the staff pointedly does NOT care about is worth stating at the call site.
+# the four staffs whose slam LEAVES something behind. One helper, because the
+# only thing that differs between them is which kind stands up.
+func _staff_leaves(at: Vector2, kind: String, dmg: int) -> void:
+	var host := get_parent()
+	if host == null or not is_instance_valid(host):
+		return
+	var n = WEAPON_PROJECTILE_SCRIPT.new()
+	n.kind = kind
+	n.damage = maxi(1, int(round(float(dmg) * 0.45)))
+	n.element = Inventory.element_of(active_weapon_id)
+	n.source = self
+	n.direction = Vector2(float(facing_direction), 0.0)
+	host.add_child(n)
+	n.global_position = at
+
 func staff_note_swing(_landed: bool, at: Vector2) -> void:
 	if str(active_def.get("special", {}).get("type", "")) != "staff_extend":
 		return
@@ -6782,17 +6797,70 @@ func staff_note_swing(_landed: bool, at: Vector2) -> void:
 		SfxSynth.play_at(self, at, "thump", -8.0, 0.8)   # deeper than the pillar's
 		var slam_mult := 0.8 * (1.25 if GameState.get_bonus_total("staff_mastery") > 0.0 else 1.0)
 		var slam_dmg := int(round(active_stats.damage * slam_mult * skill_damage_mult("melee")))
+		# WHAT THE SLAM DOES is the weapon. Ten staffs shared staff_extend and
+		# nothing else, and the extend is their CLASS -- rhythm draws it longer,
+		# the fourth blow strikes the earth. Stripping that from nine of them to
+		# make them differ would have stopped them being staffs. So they differ
+		# in the rider, the way the whips do.
+		var slam_fx := str(active_def.get("special", {}).get("slam_fx", ""))
+		# PILGRIM'S MILESTONE measures DISTANCE: its slam simply reaches further
+		# than anyone else's, which is the whole of what a milestone is about.
+		var slam_r: float = 170.0 if slam_fx == "mile" else 110.0
 		for group_name in ["course_enemy", "dungeon_combatant", "siege_enemy"]:
 			for e in get_tree().get_nodes_in_group(group_name):
 				if not is_instance_valid(e) or not e.has_method("take_damage"):
 					continue
 				if "is_dead" in e and e.is_dead:
 					continue
-				if at.distance_to(e.global_position) <= 110.0:
+				if at.distance_to(e.global_position) <= slam_r:
 					e.take_damage(slam_dmg)
 					FloatingText.spawn(get_parent(), e.global_position, slam_dmg, false)
-					if e.has_method("apply_knockback"):
-						e.apply_knockback(1 if e.global_position.x >= at.x else -1, 160.0)
+					var out_sign: float = 1.0 if e.global_position.x >= at.x else -1.0
+					match slam_fx:
+						"shove":
+							# FERRYMAN'S POLE punts. Everything goes, and it goes hard.
+							if e.has_method("apply_knockback"):
+								e.apply_knockback(out_sign, 420.0)
+						"herd":
+							# GOOSEHERD'S CROOK gathers rather than scatters: the
+							# only slam in the rack that pulls INWARD.
+							if e.has_method("apply_knockback"):
+								e.apply_knockback(-out_sign, 210.0)
+						"drive":
+							# DROVER'S CROOK drives a herd ONE WAY -- everything
+							# goes the direction you are facing, not outward.
+							if e.has_method("apply_knockback"):
+								e.apply_knockback(float(facing_direction), 300.0)
+						"splash":
+							# RIVER REED leaves water underfoot.
+							if e.has_method("apply_status"):
+								e.apply_status("slow", 2.4, 0.4)
+							if e.has_method("apply_knockback"):
+								e.apply_knockback(out_sign, 90.0)
+						"spring":
+							# WILLOW SWITCH is green wood: it gives the striker
+							# back a little of what it takes.
+							if e.has_method("apply_knockback"):
+								e.apply_knockback(out_sign, 160.0)
+							health = mini(get_max_health(), health + 2)
+							update_health_display()
+						_:
+							if e.has_method("apply_knockback"):
+								e.apply_knockback(out_sign, 160.0)
+		# ---- and the four that leave something STANDING where they struck ----
+		match slam_fx:
+			"cairn":
+				# SHEPHERD OF STONES raises one, and it stays.
+				_staff_leaves(at, "granite_step", slam_dmg)
+			"well":
+				# WELLWALKER opens a well: a dark mouth that keeps working.
+				_staff_leaves(at + Vector2(0, -6.0), "dusk_rip", slam_dmg)
+			"column":
+				# PALE OBELISK stands a column of pale light.
+				_staff_leaves(at, "sky_pillar", slam_dmg)
+			"ford":
+				# FORDMASTER lays a crossing: water running out along the ground.
+				_staff_leaves(at, "brook_band", slam_dmg)
 		# the slam reads: a ground-crack ring at the strike point
 		var ring := Line2D.new()
 		var pts := PackedVector2Array()

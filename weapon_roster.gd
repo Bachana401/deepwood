@@ -142,7 +142,7 @@ const ROWS = [
 	# "rung" (not "plain"): it keeps its place in the forge ladder -- Brookwand
 	# still forges from it -- while no longer being featureless.
 	["wpn_chalkwand",    "Chalk Wand",           "wand",  1, "chalkline", 7,  0.45, {"rung": true}],
-	["wpn_willowswitch", "Willow Switch",        "staff", 1, "staff",     6,  0.4,  {"plain": true}],
+	["wpn_willowswitch", "Willow Switch",        "staff", 1, "staff",     6,  0.4,  {"slam_fx": "spring"}],
 	# ---------------- TIER 2 - UNCOMMON (floors 5-18) ----------------
 	["wpn_gravespade",   "Gravekeeper's Spade",  "melee", 2, "opengrave", 14, 0.8,  {"rung": true}],
 	["wpn_lanternblade", "Lanternblade",         "melee", 2, "arc",       10, 0.45, {"status": "burn_w", "plain": true}],
@@ -180,7 +180,7 @@ const ROWS = [
 	["wpn_marshlight",   "Marshlight Lantern",   "wand",  3, "cluster",   15, 0.8,  {"shards": 4}],
 	["wpn_leadrod",      "Leaden Judgement",     "wand",  3, "lob",       21, 1.05, {"aoe": 95, "plain": true}],
 	["wpn_finchbolt",    "Finchbolt",            "wand",  3, "finchbolt", 13, 0.6,  {"bounces": 3}],
-	["wpn_droverstaff",  "Drover's Crook",       "staff", 3, "staff",     12, 0.45, {"plain": true}],
+	["wpn_droverstaff",  "Drover's Crook",       "staff", 3, "staff",     12, 0.45, {"slam_fx": "drive"}],
 	# ---------------- TIER 4 - EPIC (floors 24-52) ----------------
 	["wpn_duskrender",   "Duskrender",           "melee", 4, "duskrip",    8, 0.45, {}],
 	["wpn_tolloftheend", "Toll of the End",      "melee", 4, "endtoll",   28, 1.05, {"knockup": true, "rung": true}],
@@ -202,7 +202,7 @@ const ROWS = [
 	["wpn_wispwarden",   "Wisp Warden",          "wand",  4, "wispwarden", 10, 1.2,  {"dur": 18}],
 	["wpn_nightbolt",    "Nightbolt",            "wand",  4, "nightbolt", 17, 0.6,  {"bounces": 4}],
 	["wpn_magmawrit",    "Magma Writ",           "wand",  4, "magmacrawl", 10, 0.85, {"status": "burn_w"}],
-	["wpn_pilgrimstaff", "Pilgrim's Milestone",  "staff", 4, "staff",     15, 0.45, {"plain": true}],
+	["wpn_pilgrimstaff", "Pilgrim's Milestone",  "staff", 4, "staff",     15, 0.45, {"slam_fx": "mile"}],
 	# ---------------- TIER 5 - LEGENDARY (floors 42-72) ----------------
 	["wpn_daybreakedge", "Daybreak Edge",        "melee", 5, "daybreak",  24, 0.42, {"status": "burn_w", "count": 3, "aoe": 58}],
 	["wpn_worldtoll",    "Worldtoll Maul",       "melee", 5, "worldtoll", 36, 1.1,  {"knockup": true}],
@@ -294,7 +294,7 @@ const ROWS = [
 	["wpn_crowbow",      "Crowchaser",           "bow",   1, "shot",      6,  0.5,  {"plain": true}],
 	["wpn_sparrowbow",   "Sparrowhawk",          "bow",   1, "rapid",     4,  0.25, {"plain": true}],
 	["wpn_stubwand",     "Stubwand",             "wand",  1, "stubmisfire", 8, 0.55, {"rung": true}],
-	["wpn_reedstaff",    "River Reed",           "staff", 1, "staff",     5,  0.38, {"plain": true}],
+	["wpn_reedstaff",    "River Reed",           "staff", 1, "staff",     5,  0.38, {"slam_fx": "splash"}],
 	# ---------------- WAVE 3 - TIER 2 (14) ----------------
 	["wpn_tannerknife",  "Tanner's Long Knife",  "melee", 2, "arc",       9,  0.3,  {"plain": true}],
 	["wpn_orchardaxe",   "Orchard Feller",       "melee", 2, "fellblow",  15, 0.95, {"rung": true}],
@@ -311,8 +311,8 @@ const ROWS = [
 	# uncommon at 80 dps against a tier ceiling of 74. A tether that DRINKS and
 	# heals you should not be spammable -- slow is the honest cost of sustain.
 	["wpn_leechwand",    "Leechlight",           "wand",  2, "drinkthread", 10, 0.9, {"status": "poison_w", "rung": true}],
-	["wpn_ferrypole",    "Ferryman's Pole",      "staff", 2, "staff",     9,  0.42, {"plain": true}],
-	["wpn_gooseherd",    "Gooseherd's Crook",    "staff", 2, "staff",     8,  0.36, {"plain": true}],
+	["wpn_ferrypole",    "Ferryman's Pole",      "staff", 2, "staff",     9,  0.42, {"slam_fx": "shove"}],
+	["wpn_gooseherd",    "Gooseherd's Crook",    "staff", 2, "staff",     8,  0.36, {"slam_fx": "herd"}],
 	# ---------------- WAVE 3 - TIER 3 (24) ----------------
 	["wpn_sextonblade",  "Sexton's Edge",        "melee", 3, "arc",       14, 0.45, {"plain": true}],
 	["wpn_quarrymaul",   "Quarry Maul",          "melee", 3, "scoresplit", 21, 1.05, {"knockup": true, "rung": true}],
@@ -336,8 +336,8 @@ const ROWS = [
 	["wpn_shalewand",    "Shalebreaker",         "wand",  3, "cluster",   14, 0.85, {"shards": 5}],
 	["wpn_pyrelight",    "Pyrelight",            "wand",  3, "fire",      18, 0.8,  {"aoe": 95, "status": "burn_w", "plain": true}],
 	["wpn_courierrod",   "Courier's Bad News",   "wand",  3, "badnews",   12, 0.62, {"bounces": 3}],
-	["wpn_shepherdstaff","Shepherd of Stones",   "staff", 3, "staff",     11, 0.42, {"plain": true}],
-	["wpn_wellstaff",    "Wellwalker",           "staff", 3, "staff",     13, 0.5,  {"plain": true}],
+	["wpn_shepherdstaff","Shepherd of Stones",   "staff", 3, "staff",     11, 0.42, {"slam_fx": "cairn"}],
+	["wpn_wellstaff",    "Wellwalker",           "staff", 3, "staff",     13, 0.5,  {"slam_fx": "well"}],
 	# ---------------- WAVE 3 - TIER 4 (28) ----------------
 	["wpn_eveningblade", "Evening's Empire",     "melee", 4, "arc",       18, 0.42, {"plain": true}],
 	["wpn_barrowmaul",   "Barrow King's Maul",   "melee", 4, "gravehands", 26, 1.0, {"knockup": true, "rung": true}],
@@ -363,8 +363,8 @@ const ROWS = [
 	["wpn_howlbolt",     "Howling Bolt",         "wand",  4, "howlbolt",  16, 0.58, {"bounces": 4}],
 	["wpn_candlepost",   "Candlekeeper",         "wand",  4, "candlekeeper", 9,  1.2,  {"dur": 18}],
 	["wpn_stormsliver",  "Stormsliver",          "wand",  4, "forktree",  21, 0.5,  {"rung": true}],
-	["wpn_paleobelisk",  "Pale Obelisk",         "staff", 4, "staff",     16, 0.46, {"plain": true}],
-	["wpn_fordstaff",    "Fordmaster",           "staff", 4, "staff",     14, 0.4,  {"plain": true}],
+	["wpn_paleobelisk",  "Pale Obelisk",         "staff", 4, "staff",     16, 0.46, {"slam_fx": "column"}],
+	["wpn_fordstaff",    "Fordmaster",           "staff", 4, "staff",     14, 0.4,  {"slam_fx": "ford"}],
 	["wpn_inkbook",      "Inkwell of Storms",    "wand",  4, "ink",       20, 0.9,  {}],
 	["wpn_driftwheel",   "Driftwheel",           "melee", 4, "driftwheel", 17, 0.85, {"dwell": 2.6}],
 	# ---------------- WAVE 3 - TIER 5 (26) ----------------
@@ -1656,7 +1656,13 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 		"cinderdrag":
 			s = {"type": "cinder_drag", "damage": dmg, "range": rng + 40.0}
 		"staff":
-			s = {"type": "staff_extend"}
+			# TEN STAFFS, ONE EXTEND, TEN SLAMS. staff_extend is the staff's
+			# CLASS identity -- rhythm draws it longer, the fourth blow slams --
+			# exactly as whipcrack is the whip's, and taking it away from nine of
+			# them to make them "different" would have made them stop being
+			# staffs. So they differ where the whips do: in the RIDER. What the
+			# slam DOES is the weapon; the extend is the family.
+			s = {"type": "staff_extend", "slam_fx": str(ex.get("slam_fx", ""))}
 	if not st.is_empty():
 		if s.is_empty():
 			s = {"status": st}   # the typeless rider (plain swing/shot + status)
@@ -1913,7 +1919,22 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"brazier":    return "Whirl it, hurl it -- and where the head comes to REST it stops being a weapon and becomes a THRONE, a brazier sitting in the dirt spitting embers at whatever comes near, until you take it up again."
 		"regicide":   return "You do not stab a king once. Every throw leaves a crown-spear STANDING in them, biting while it stays -- five at a time, and the sixth shoves the first out in a burst."
 		"prism":      return "HOLD IT. Six sunbeams open in a fan and draw slowly together; the longer you stand and pour, the tighter they close, until all six burn through the same body at once. Moving lets the sun go out."
-		"staff":      return "Landed blows in rhythm DRAW IT LONGER; the fourth strikes the earth as a pillar."
+		"staff":
+			# the extend is the FAMILY; the slam is the weapon. Same shape as the
+			# whips, whose card names their tag rather than the crack.
+			var slam := {
+				"spring": " Green wood gives back: every body the slam catches returns a little life to you.",
+				"splash": " The slam leaves WATER underfoot, and what stands in it goes slow.",
+				"shove":  " It PUNTS. Everything the slam touches leaves hard and does not come back soon.",
+				"herd":   " It GATHERS -- the only slam that pulls inward instead of scattering.",
+				"drive":  " It DRIVES: the whole herd goes the way you are facing, not outward.",
+				"cairn":  " The slam raises a STONE, and the stone stays.",
+				"well":   " The slam opens a WELL -- a dark mouth that keeps working after you walk away.",
+				"mile":   " A milestone measures DISTANCE: this slam reaches half again as far as any other.",
+				"column": " The slam stands a COLUMN of pale light where it struck.",
+				"ford":   " The slam lays a CROSSING: water running out along the ground.",
+			}.get(str(ex.get("slam_fx", "")), "")
+			return "Landed blows in rhythm DRAW IT LONGER; the fourth strikes the earth as a pillar." + slam
 		"arc", "thrust", "shot", "rapid":
 			if ex.has("status"):
 				return "Its edge carries a lingering hurt."
