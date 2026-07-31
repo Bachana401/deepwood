@@ -154,7 +154,7 @@ const ROWS = [
 	["wpn_wallpike",     "Wallwatcher's Pike",   "spear", 2, "thrust",    14, 0.95, {"plain": true}],
 	["wpn_reedjavelin",  "Reed Javelins",        "spear", 2, "jab_volley", 9, 0.9,  {"count": 2, "plain": true}],
 	["wpn_ashbow",       "Ashwood Bow",          "bow",   2, "shot",      10, 0.5,  {"plain": true}],
-	["wpn_ferrybow",     "Ferryman's Bow",       "bow",   2, "volley",    7,  0.65, {"count": 2, "plain": true}],
+	["wpn_ferrybow",     "Ferryman's Bow",       "bow",   2, "ferrytwin", 7,  0.65, {"count": 2}],
 	["wpn_stingerbow",   "Stinger",              "bow",   2, "rapid",     5,  0.22, {"plain": true}],
 	["wpn_mosswand",     "Mosslight Wand",       "wand",  2, "sporepatch", 12, 0.55, {"rung": true}],
 	["wpn_cinderrod",    "Cinder Rod",           "wand",  2, "fire",      14, 0.8,  {"aoe": 70, "plain": true}],
@@ -173,7 +173,7 @@ const ROWS = [
 	["wpn_stormprong",   "Stormprong",           "spear", 3, "jab_volley", 12, 0.95, {"count": 3, "plain": true}],
 	["wpn_veilbow",      "Veilpiercer",          "bow",   3, "shot",      16, 0.6,  {"pierce": true, "plain": true}],
 	["wpn_larkbow",      "Lark's Reply",         "bow",   3, "rapid",     7,  0.2,  {"plain": true}],
-	["wpn_twinnock",     "Twinnock Bow",         "bow",   3, "volley",    10, 0.6,  {"count": 2, "plain": true}],
+	["wpn_twinnock",     "Twinnock Bow",         "bow",   3, "twinnock",  10, 0.6,  {"count": 2}],
 	["wpn_emberarc",     "Emberarc Bow",         "bow",   3, "lob_a",     18, 0.95, {"aoe": 85, "plain": true}],
 	["wpn_paleseeker",   "Pale Seeker",          "bow",   3, "paleseek",    12, 0.7,  {}],
 	["wpn_saltwand",     "Saltbinder",           "wand",  3, "saltring",  16, 0.55, {"rung": true}],
@@ -193,7 +193,7 @@ const ROWS = [
 	["wpn_galeprong",    "Galeprong",            "spear", 4, "jab_volley", 15, 0.9, {"count": 4, "plain": true}],
 	["wpn_midnightlance","Midnight Lance",       "spear", 4, "thrust",    19, 0.6,  {"status": "slow_w", "plain": true}],
 	["wpn_curfewbow",    "Curfew Bow",           "bow",   4, "shot",      21, 0.6,  {"pierce": true, "plain": true}],
-	["wpn_choirbow",     "Choir of Points",      "bow",   4, "volley",    12, 0.6,  {"count": 3, "plain": true}],
+	["wpn_choirbow",     "Choir of Points",      "bow",   4, "choirpoints", 12, 0.6, {"count": 3}],
 	["wpn_hummingbow",   "Hummingbird",          "bow",   4, "hummingbird", 4, 0.18, {}],
 	["wpn_falconoath",   "Falcon's Oath",        "bow",   4, "falconoath", 16, 0.65, {}],
 	["wpn_sapperanswer", "Sapper's Answer",      "bow",   4, "lob_a",     24, 1.0,  {"aoe": 100, "plain": true}],
@@ -303,7 +303,7 @@ const ROWS = [
 	["wpn_ditchpike",    "Ditchwarden",          "spear", 2, "thrust",    13, 0.85, {"plain": true}],
 	["wpn_frostprong",   "Frostbitten Prong",    "spear", 2, "thrust",    11, 0.7,  {"status": "slow_w", "plain": true}],
 	["wpn_bramblebow",   "Bramblebow",           "bow",   2, "shot",      9,  0.5,  {"status": "poison_w", "plain": true}],
-	["wpn_paleflight",   "Pale Flight",          "bow",   2, "volley",    6,  0.6,  {"count": 2, "plain": true}],
+	["wpn_paleflight",   "Pale Flight",          "bow",   2, "paleflight", 6,  0.6,  {"count": 2}],
 	["wpn_emberdart",    "Emberdart",            "bow",   2, "shot",      8,  0.45, {"status": "burn_w", "plain": true}],
 	["wpn_foxfirewand",  "Foxfire Wand",         "wand",  2, "fire",      12, 0.75, {"aoe": 60, "plain": true}],
 	["wpn_saltcaster",   "Saltcaster",           "wand",  2, "cluster",   10, 0.85, {"shards": 3}],
@@ -327,7 +327,7 @@ const ROWS = [
 	["wpn_gullprong",    "Gullwing Prong",       "spear", 3, "jab_volley", 11, 0.9, {"count": 3, "plain": true}],
 	["wpn_reedvolley",   "Reedsong Volley",      "spear", 3, "jab_volley", 10, 0.85, {"count": 4, "plain": true}],
 	["wpn_shrikebow",    "Shrikebow",            "bow",   3, "shot",      15, 0.55, {"plain": true}],
-	["wpn_finchvolley",  "Finchstorm",           "bow",   3, "volley",    9,  0.6,  {"count": 3, "plain": true}],
+	["wpn_finchvolley",  "Finchstorm",           "bow",   3, "finchstorm", 9,  0.6,  {"count": 3}],
 	["wpn_haleseeker",   "Hale Seeker",          "bow",   3, "haleseek",    11, 0.68, {}],
 	["wpn_bogmortar",    "Bog Belcher",          "bow",   3, "lob_a",     17, 1.0,  {"aoe": 80, "plain": true}],
 	["wpn_lightstep",    "Lightstep",            "bow",   3, "rapid",     6,  0.19, {"plain": true}],
@@ -352,7 +352,7 @@ const ROWS = [
 	["wpn_hawkvolley",   "Hawks in Formation",   "spear", 4, "jab_volley", 14, 0.88, {"count": 4, "plain": true}],
 	["wpn_marrowprong",  "Marrowsplitter",       "spear", 4, "jab_volley", 16, 0.95, {"count": 3, "plain": true}],
 	["wpn_gravebow",     "The Polite Reminder",  "bow",   4, "shot",      20, 0.58, {"pierce": true, "plain": true}],
-	["wpn_larkstorm",    "A Storm of Larks",     "bow",   4, "volley",    11, 0.58, {"count": 3, "plain": true}],
+	["wpn_larkstorm",    "A Storm of Larks",     "bow",   4, "larkstorm", 15, 0.58, {"count": 3}],
 	["wpn_needlerain",   "Needlerain",           "bow",   4, "rapid",     8,  0.17, {"plain": true}],
 	["wpn_huntmaster",   "Huntmaster's Word",    "bow",   4, "huntword",  15, 0.62, {}],
 	["wpn_sapperkiss",   "Sapper's Kiss",        "bow",   4, "lob_a",     23, 1.0,  {"aoe": 95, "status": "burn_w", "plain": true}],
@@ -763,8 +763,43 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			s = {"type": "flying_slash", "damage": int(ex.get("p_damage", dmg)), "speed": spd, "range": rng}
 		"jab_volley":
 			s = {"type": "javelin_volley", "count": int(ex.get("count", 3)), "spread_deg": 10.0, "damage": dmg, "speed": spd + 150.0, "range": rng}
-		"volley":
-			s = {"type": "multi_shot", "count": int(ex.get("count", 2)), "spread_deg": 12.0}
+		# ("volley" -- the plain 12-degree fan -- used to live here. All SIX of
+		# its owners now have shapes of their own, so the case had no weapon
+		# left and tool_deadverb_audit called it, exactly as it did for
+		# "seeker". A verb nothing reaches is a verb that quietly rots.)
+		# ---- THE SIX THAT WERE ONE BOW WEARING SIX NAMES --------------------
+		# All six declared "volley" -> multi_shot, count 2-3, spread 12 degrees.
+		# Identical fans, separated only by damage. The sameness audit put them
+		# in one bucket and it was right. Each now owns a SHAPE the eye can read
+		# from a single shot -- not a stat, a motion.
+		"ferrytwin":
+			# THE FERRYMAN'S BOW makes the crossing TWICE: one shaft goes, and a
+			# second retraces its exact line a beat later. There and back.
+			s = {"type": "ferry_twin", "count": 2, "delay": 0.22}
+		"twinnock":
+			# TWINNOCK: two arrows nocked as one. It leaves the string as a
+			# SINGLE shaft and comes apart into two halfway down the lane.
+			s = {"type": "twin_nock", "count": 2, "split_at": 0.45}
+		"choirpoints":
+			# A CHOIR OF POINTS sings in HARMONY, so its arrows do not spread --
+			# they CONVERGE, three lines meeting at one spot ahead of you.
+			s = {"type": "choir_points", "count": int(ex.get("count", 3)),
+				"focus": 210.0}
+		"paleflight":
+			# PALE FLIGHT: ghost shafts. They pass THROUGH bodies instead of
+			# stopping in them, and pay for it -- each one lands softer.
+			s = {"type": "pale_flight", "count": 2, "soft": 0.65, "pierce_n": 4}
+		"finchstorm":
+			# FINCHSTORM: finches do not fly straight. Three shafts that FLIT --
+			# each picks its own wandering line and drifts toward whatever it
+			# passes near.
+			s = {"type": "finch_storm", "count": int(ex.get("count", 3)),
+				"jitter": 0.30}
+		"larkstorm":
+			# A STORM OF LARKS scatters. Not a tight fan but a WIDE front, 46
+			# degrees of sky, so it covers a room rather than a lane.
+			s = {"type": "lark_storm", "count": int(ex.get("count", 3)),
+				"spread_deg": 46.0}
 		"paleseek":
 			# PALE SEEKER ignores the healthy and bends, unhurried, toward
 			# whatever is already WOUNDED -- then comes apart on landing.
@@ -1623,7 +1658,12 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"cleave":     return "Heavy enough to cleave through EVERY enemy in the arc."
 		"crescent":   return "Every swing also hurls a flying crescent down the lane."
 		"jab_volley": return "Conjures a fan of %d spectral javelins and lets fly." % int(ex.get("count", 3))
-		"volley":     return "Looses a fan of %d arrows with every draw." % int(ex.get("count", 2))
+		"ferrytwin":  return "Makes the crossing TWICE. One shaft goes, and a second retraces its exact line a beat behind it -- there, and back."
+		"twinnock":   return "Two arrows nocked as one. It leaves the string as a SINGLE shaft and comes apart into two halfway down the lane."
+		"choirpoints": return "A choir sings in HARMONY, so these do not spread -- three lines CONVERGE on one spot ahead of you, and whatever stands there takes all three."
+		"paleflight": return "Ghost shafts. They pass THROUGH what they hit instead of stopping in it, and pay for the privilege: each one lands softer."
+		"finchstorm": return "Finches do not fly straight. Three shafts FLIT -- each on its own wandering line, drifting toward whatever it passes near."
+		"larkstorm":  return "Not a fan. A WIDE FRONT -- %d larks thrown across forty-six degrees of sky, covering a room instead of a lane." % int(ex.get("count", 3))
 		"paleseek":   return "Ignores the healthy. Bends, unhurried, toward whatever is already WOUNDED -- and comes apart on landing into two more that hunt the same way."
 		"haleseek":   return "Flies dead straight, then takes exactly ONE hard turn onto the BIGGEST thing in the room and never turns again. It pierces, and it does not reconsider."
 		"lob_a", "lob": return "Sails a mortar arc and BLOSSOMS where it lands."

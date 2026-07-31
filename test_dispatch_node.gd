@@ -57,6 +57,16 @@ const KIND_ALIAS := {
 	"court_barrage":  ["courtier"],       # the Court spawns its shades
 	"king_rain":      ["javelin", "crown_spear"],  # the rain drops shafts
 	"multi_shot":     ["script:arrow.gd", "shot", "arrow"],
+	# THE SIX SHAPED VOLLEYS. Each is its own verb now -- one bow used to wear
+	# six names -- but every one of them still puts ARROWS in the air, which is
+	# the only thing this audit can see. The difference between them is the
+	# SHAPE those arrows fly in, and a node-type check cannot read a shape.
+	"ferry_twin":     ["script:arrow.gd", "arrow"],
+	"twin_nock":      ["script:arrow.gd", "arrow"],
+	"choir_points":   ["script:arrow.gd", "arrow"],
+	"pale_flight":    ["script:arrow.gd", "arrow"],
+	"finch_storm":    ["script:arrow.gd", "arrow"],
+	"lark_storm":     ["script:arrow.gd", "arrow"],
 	"companion":      ["companion", "script:companion.gd"],
 	"storm_flock":    ["storm_bird"],     # the flock IS a set of birds
 	# these three spawn something real that simply is not a weapon_projectile

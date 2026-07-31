@@ -28,6 +28,8 @@ var pierced_bodies := []   # bodies already struck this flight (so pierce never 
 var homing := false
 # 0 = the shot you fired; 1 = a shaft born from a split. Splits are one deep.
 var split_gen := 0
+var split_at := 0.0      # Twinnock: fraction of range at which one shaft becomes two
+var _has_split := false
 
 const SELF_SCENE = preload("res://arrow.tscn")
 
@@ -160,6 +162,27 @@ func _physics_process(_delta: float) -> void:
 	velocity = direction * SPEED
 	move_and_slide()
 
+	# TWINNOCK: two arrows nocked as one. It leaves the string as a SINGLE shaft
+	# and comes apart MID-FLIGHT -- which is a different event from the Pale
+	# Seeker's split, and needed its own trigger: that one divides when it HITS
+	# something, this one divides on the way there whether or not anything is in
+	# the lane. The halves diverge, and neither splits again.
+	if split_at > 0.0 and not _has_split \
+			and global_position.distance_to(start_position) >= max_range * split_at:
+		_has_split = true
+		var host := get_parent()
+		if host != null and is_instance_valid(host):
+			for s in [-1.0, 1.0]:
+				var half = SELF_SCENE.instantiate()
+				half.setup(direction.rotated(s * 0.20), maxi(1, int(round(damage * 0.7))),
+					knockback_min, knockback_max, 4)
+				half.split_at = 0.0          # a half never halves again
+				half.enemy_statuses = enemy_statuses
+				half.girth = girth * 0.8
+				half.global_position = global_position
+				host.call_deferred("add_child", half)
+		despawn()
+		return
 	if global_position.distance_to(start_position) > max_range:
 		despawn()
 		return

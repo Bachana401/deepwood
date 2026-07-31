@@ -83,6 +83,16 @@ const HITS_PER_USE := {
 	# ticking" -- true of the rungs, but each rung carries 0.24 of the row, so
 	# the model read 230 dps and hauled the whole T6 median up by four points.
 	# The number here is TOTAL DAMAGE PER USE AS A MULTIPLE OF ROW DAMAGE.
+	# THE SIX SHAPED VOLLEYS -- one bow that used to be six. Each number is what
+	# ONE BODY feels, not how many shafts leave the string: a fan that spreads
+	# cannot put every arrow in the same target, which is the lesson `ink` and
+	# `stubmisfire` both taught.
+	"ferrytwin":   2.0,   # both crossings land -- they fly the SAME line
+	"twinnock":    1.7,   # one shaft becomes two at 0.45 range; both may connect
+	"choirpoints": 2.6,   # they CONVERGE, so all three meet on one body
+	"paleflight":  1.9,   # 2 shafts at 0.65 damage, but they pierce onward
+	"finchstorm":  1.6,   # three wandering lines, weakly homing -- most connect
+	"larkstorm":   1.2,   # a 46-degree front: wide cover, few on any ONE target
 	"duskrip":     2.3,   # the swing, plus a tear that keeps cutting for ~1.9s
 	"sunderpoint": 2.4,   # the thrust, plus one point becoming two on contact
 	"hummingbird": 2.2,   # out, plus the thrum at the far end, plus the return

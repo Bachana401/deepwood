@@ -4593,6 +4593,12 @@ func perform_attack() -> void:
 			var cr_b = roll_crit(int(round(special.get("damage", stats.damage) * skill_damage_mult("bow"))))
 			launch_projectile(special, get_aim_direction(), cr_b[0], cr_b[1])
 			return
+		# THE SIX SHAPES. Six bows used to be one bow: multi_shot, a 12-degree
+		# fan, separated only by damage. Each now owns a motion instead.
+		if special_type in ["ferry_twin", "twin_nock", "choir_points",
+				"pale_flight", "finch_storm", "lark_storm"]:
+			loose_shaped_volley(special_type, special, stats)
+			return
 		# THE LAST LARK climbs and sings; WINTERMARK marks and pays later.
 		# Both are ordinary launches -- the whole weapon is in the projectile.
 		if special_type == "lark_song" or special_type == "winter_mark" \
@@ -6350,6 +6356,77 @@ func _ghost_arrival_sparks(at: Vector2) -> void:
 		tw.tween_property(s, "scale", Vector2(0.15, 0.15), 0.35)
 		tw.tween_property(s, "modulate:a", 0.0, 0.35)
 		tw.chain().tween_callback(s.queue_free)
+
+# ONE FUNCTION, SIX SHAPES. They share a spawner because they are all "some
+# arrows leave the string" -- but no two of them look alike in the air, which is
+# the whole point of splitting them. Sharing an implementation is fine; sharing
+# a SILHOUETTE is what the dev was complaining about.
+func loose_shaped_volley(shape: String, special: Dictionary, stats: Dictionary) -> void:
+	play_sfx(SFX_BOW)
+	animate_bow(stats)
+	var aim := get_aim_direction()
+	var n: int = maxi(1, int(special.get("count", 2)))
+	var base: int = int(round(float(special.get("damage", stats.get("damage", 8)))
+		* skill_damage_mult("bow")))
+	match shape:
+		"ferry_twin":
+			_shaft(aim, base, special)
+			# the return crossing, on the SAME line a beat later
+			var d: float = float(special.get("delay", 0.22))
+			var keep_aim := aim
+			get_tree().create_timer(d).timeout.connect(
+				func():
+					if is_instance_valid(self):
+						_shaft(keep_aim, base, special))
+		"twin_nock":
+			# leaves as ONE and comes apart: the shaft carries the split
+			var a = _shaft(aim, base, special)
+			if a != null:
+				a.split_at = float(special.get("split_at", 0.45))
+		"choir_points":
+			# CONVERGE rather than spread: every shaft is aimed at one point
+			var focus: Vector2 = global_position + aim * float(special.get("focus", 210.0))
+			var perp := Vector2(-aim.y, aim.x)
+			for i in range(n):
+				var off: float = 0.0 if n == 1 else lerpf(-34.0, 34.0, float(i) / float(n - 1))
+				var from: Vector2 = global_position + perp * off
+				_shaft((focus - from).normalized(), base, special, from)
+		"pale_flight":
+			var soft: int = maxi(1, int(round(float(base) * float(special.get("soft", 0.65)))))
+			for i in range(n):
+				var t: float = 0.0 if n == 1 else (float(i) / float(n - 1)) * 2.0 - 1.0
+				var a2 = _shaft(aim.rotated(t * 0.10), soft, special)
+				if a2 != null:
+					a2.pierce_count = maxi(a2.pierce_count, int(special.get("pierce_n", 4)))
+		"finch_storm":
+			var j: float = float(special.get("jitter", 0.30))
+			for i in range(n):
+				var a3 = _shaft(aim.rotated(randf_range(-j, j)), base, special)
+				if a3 != null:
+					a3.homing = true          # drifts toward whatever it passes
+		"lark_storm":
+			var wide: float = deg_to_rad(float(special.get("spread_deg", 46.0)))
+			for i in range(n):
+				var t2: float = 0.0 if n == 1 else (float(i) / float(n - 1)) * 2.0 - 1.0
+				_shaft(aim.rotated(t2 * wide * 0.5), base, special)
+
+func _shaft(dir: Vector2, dmg: int, special: Dictionary, from := Vector2.INF):
+	var arrow = ARROW_SCENE.instantiate()
+	var cr = roll_crit(dmg)
+	arrow.setup(dir, cr[0], stats_knockback_min(), stats_knockback_max(), 4)
+	arrow.is_crit = cr[1]
+	arrow.enemy_statuses = special.get("status", {})
+	arrow.girth = grade_projectile_girth()
+	get_parent().add_child(arrow)
+	arrow.global_position = (global_position + dir * 26.0) if from == Vector2.INF \
+		else (from + dir * 26.0)
+	return arrow
+
+func stats_knockback_min() -> float:
+	return float(active_stats.get("knockback_min", 40.0))
+
+func stats_knockback_max() -> float:
+	return float(active_stats.get("knockback_max", 80.0))
 
 func call_the_kings_rain(special: Dictionary) -> void:
 	play_sfx(SFX_BOW)

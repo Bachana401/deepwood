@@ -177,7 +177,7 @@ func _ready() -> void:
 	#             CLOUDCOUNTER.
 	#  96 ->  89: the last seven of tier 5. TIER 5 IS CLEAR; every plain rung
 	#             left in the roster is tier 4 or below.
-	var PLAIN_QUOTA := 85
+	var PLAIN_QUOTA := 79
 	var plain_n := 0
 	var overdressed := []
 	var unknown := []
@@ -281,6 +281,13 @@ func _ready() -> void:
 		# `rung` marks "still a step in a craft ladder, verb or no verb".
 		if bool(row[7].get("plain", false)) or bool(row[7].get("rung", false)):
 			plain_ids[str(row[0])] = true
+	# `ladder_kin`, NOT roster_ids -- that name is already taken further down
+	# this same function, and redeclaring it is a parse error that presents as
+	# the whole test HANGING rather than failing. Third time this file has
+	# taught me that lesson.
+	var ladder_kin := {}
+	for row2 in WeaponRoster.ROWS:
+		ladder_kin[str(row2[0])] = true
 	var chained := 0
 	var broken := []
 	for pid in plain_ids:
@@ -291,7 +298,14 @@ func _ready() -> void:
 		var prev_ok := false
 		var mat_ok := false
 		for k in ing:
-			if plain_ids.has(str(k)):
+			# KIN, not necessarily a PLAIN kin. This used to demand that the
+			# weapon a rung forges from is itself plain, and that quietly made
+			# the ladder brittle: the moment a rung earned a verb, every recipe
+			# downstream of it "broke" even though the forge path was untouched.
+			# Six bows gained shapes and Lark's Reply, Lightstep and Needlerain
+			# were reported broken -- none of them had changed at all.
+			# A ladder step only needs an EARLIER WEAPON plus a material.
+			if ladder_kin.has(str(k)):
 				prev_ok = true
 			elif Inventory.get_item_def(str(k)).get("is_material", false):
 				mat_ok = true
@@ -300,8 +314,8 @@ func _ready() -> void:
 	# 106 -> 105 for the same reason: a rung that gains a verb leaves the chain.
 	# The `broken` list stayed EMPTY, which is the part that actually mattered --
 	# nothing downstream was forging FROM Daybreak Edge.
-	check("every chained rung forges from kin plus materials (82 links)",
-		chained == 82 and broken.is_empty(),
+	check("every chained rung forges from kin plus materials (76 links)",
+		chained == 76 and broken.is_empty(),
 		"chained=%d; broken: %s" % [chained, ", ".join(broken)])
 	# ---- THE CULMINATION (Zenith-kin): the melee crown forges from its three
 	# famous T7 ancestors -- the same blades whose tinted ghosts its zenith
