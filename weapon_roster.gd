@@ -157,14 +157,14 @@ const ROWS = [
 	["wpn_ferrybow",     "Ferryman's Bow",       "bow",   2, "ferrytwin", 7,  0.65, {"count": 2}],
 	["wpn_stingerbow",   "Stinger",              "bow",   2, "rapid",     5,  0.22, {"rider": "sting"}],
 	["wpn_mosswand",     "Mosslight Wand",       "wand",  2, "sporepatch", 12, 0.55, {"rung": true}],
-	["wpn_cinderrod",    "Cinder Rod",           "wand",  2, "fire",      14, 0.8,  {"aoe": 70, "plain": true}],
+	["wpn_cinderrod",    "Cinder Rod",           "wand",  2, "fire",      14, 0.8,  {"aoe": 70, "rider": "blast"}],
 	["wpn_brookwand",    "Brookwand",            "wand",  2, "brookflow", 10, 0.5,  {"status": "slow_w", "rung": true}],
 	# ---------------- TIER 3 - RARE (floors 12-32) ----------------
 	["wpn_watchmansword","Watchman's Justice",   "melee", 3, "arc",       15, 0.5,  {"rider": "scales"}],
 	["wpn_furrowscythe", "Furrow Scythe",        "melee", 3, "reaprow",   19, 0.9,  {"rung": true}],
 	["wpn_adderfang",    "Adderfang",            "melee", 3, "arc",       11, 0.3,  {"status": "poison_w", "rider": "adder"}],
 	["wpn_bellhammer",   "Bell Hammer",          "melee", 3, "belltoll",  22, 1.0,  {"knockup": true, "rung": true}],
-	["wpn_squallblade",  "Squallblade",          "melee", 3, "crescent",  13, 0.55, {"p_damage": 11, "plain": true}],
+	["wpn_squallblade",  "Squallblade",          "melee", 3, "crescent",  13, 0.55, {"p_damage": 11, "rider": "squall"}],
 	["wpn_thornwheel",   "Thornwheel",           "melee", 3, "orbiter",   12, 0.8,  {"dwell": 1.8}],
 	["wpn_hookbill",     "Hookbill",             "melee", 3, "hookbill",  12, 0.65, {"bounces": 3}],
 	["wpn_shrikelash",   "Shrike's Tail",        "melee", 3, "lash",      12, 0.85, {}],
@@ -289,7 +289,7 @@ const ROWS = [
 	# ---------------- WAVE 3 - TIER 1 (8) ----------------
 	["wpn_hearthpoker",  "Hearth Poker",         "melee", 1, "arc",       6,  0.4,  {"rider": "poker"}],
 	["wpn_cellarmallet", "Cellar Mallet",        "melee", 1, "hoopshunt", 10, 0.9,  {"rung": true}],
-	["wpn_thistleflail", "Thistle Knot",         "melee", 1, "chain_maul", 8, 0.9,  {"plain": true}],
+	["wpn_thistleflail", "Thistle Knot",         "melee", 1, "chain_maul", 8, 0.9,  {"rider": "thistle"}],
 	["wpn_haypike",      "Haymaker's Pike",      "spear", 1, "thrust",    8,  0.7,  {"rider": "hay"}],
 	["wpn_crowbow",      "Crowchaser",           "bow",   1, "shot",      6,  0.5,  {"rider": "crow"}],
 	["wpn_sparrowbow",   "Sparrowhawk",          "bow",   1, "rapid",     4,  0.25, {"rider": "stoop"}],
@@ -305,7 +305,7 @@ const ROWS = [
 	["wpn_bramblebow",   "Bramblebow",           "bow",   2, "shot",      9,  0.5,  {"status": "poison_w", "rider": "briar"}],
 	["wpn_paleflight",   "Pale Flight",          "bow",   2, "paleflight", 6,  0.6,  {"count": 2}],
 	["wpn_emberdart",    "Emberdart",            "bow",   2, "shot",      8,  0.45, {"status": "burn_w", "rider": "dart"}],
-	["wpn_foxfirewand",  "Foxfire Wand",         "wand",  2, "fire",      12, 0.75, {"aoe": 60, "plain": true}],
+	["wpn_foxfirewand",  "Foxfire Wand",         "wand",  2, "fire",      12, 0.75, {"aoe": 60, "rider": "fox"}],
 	["wpn_saltcaster",   "Saltcaster",           "wand",  2, "cluster",   10, 0.85, {"shards": 3}],
 	# cd 0.5 -> 0.9: measured 9 hits (four pulls plus the poison after) put a Tier-2
 	# uncommon at 80 dps against a tier ceiling of 74. A tether that DRINKS and
@@ -334,7 +334,7 @@ const ROWS = [
 	["wpn_hollowbolt",   "Hollowbolt",           "wand",  3, "hollowring", 15, 0.5, {"rung": true}],
 	["wpn_mirebook",     "The Mire Pages",       "wand",  3, "tome",      8,  1.45, {"radius": 120, "tome_kind": "mire"}],
 	["wpn_shalewand",    "Shalebreaker",         "wand",  3, "cluster",   14, 0.85, {"shards": 5}],
-	["wpn_pyrelight",    "Pyrelight",            "wand",  3, "fire",      18, 0.8,  {"aoe": 95, "status": "burn_w", "plain": true}],
+	["wpn_pyrelight",    "Pyrelight",            "wand",  3, "fire",      18, 0.8,  {"aoe": 95, "status": "burn_w", "rider": "pyre"}],
 	["wpn_courierrod",   "Courier's Bad News",   "wand",  3, "badnews",   12, 0.62, {"bounces": 3}],
 	["wpn_shepherdstaff","Shepherd of Stones",   "staff", 3, "staff",     11, 0.42, {"slam_fx": "cairn"}],
 	["wpn_wellstaff",    "Wellwalker",           "staff", 3, "staff",     13, 0.5,  {"slam_fx": "well"}],
@@ -1789,6 +1789,12 @@ const RIDER_DESC = {
 	"vesper":  "An evening midge stings best in the SWARM: with three or more foes close around you it pays near half again.",
 	"empire":  "An empire of evening GROWS: every distinct body struck in the last breaths widens the court, up to three-fifths more.",
 	"pale":    "The pale fang drinks from the COLD: anything slowed pays a third more -- and its own touch is what slows them.",
+	# the last five plain rungs (2026-07-31) -- the ladder is fully souled
+	"blast":   "Fire that SHOVES: half the blast is concussion, and whatever survives the crater leaves it in a hurry.",
+	"fox":     "Foxfire FOLLOWS. The ghost-light bends gently toward the nearest body -- never a lock, always a leaning.",
+	"pyre":    "What its blast kills burns as a PYRE, and the pyre lights whoever stands nearest to mourn.",
+	"squall":  "The crescent carries the GUST: everything it cuts is lifted off its feet a beat -- the only blade that throws UP.",
+	"thistle": "Every touch of the whirl leaves a PRICKLE: a small poison that outlasts the lap and adds up on anyone who lingers.",
 }
 
 static func _desc_for(behavior: String, ex: Dictionary) -> String:

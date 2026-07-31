@@ -1667,6 +1667,24 @@ func _physics_process(delta: float) -> void:
 			queue_free()
 			return
 		direction = to_src.normalized()
+	# FOXFIRE: the ghost-light FOLLOWS. The only fire in the game that bends
+	# toward what it wants -- a gentle turn, never a lock-on.
+	if kind == "fireball" and rider == "fox":
+		var fox_best: Node2D = null
+		var fox_d := 260.0
+		for gname_f in HOSTILE_GROUPS:
+			for fe in get_tree().get_nodes_in_group(gname_f):
+				if not (fe is Node2D) or not is_instance_valid(fe):
+					continue
+				if "is_dead" in fe and fe.is_dead:
+					continue
+				var fd: float = global_position.distance_to((fe as Node2D).global_position)
+				if fd < fox_d:
+					fox_d = fd
+					fox_best = fe
+		if fox_best != null:
+			var want := (fox_best.global_position - global_position).normalized()
+			direction = direction.slerp(want, minf(1.0, 2.2 * delta)).normalized()
 	var step = speed * delta
 	global_position += direction * step
 	if kind == "lash":
@@ -2410,6 +2428,14 @@ func _on_body_entered(body: Node2D) -> void:
 			if kind == "kneeling_stone":
 				dealt = boulder_damage()
 				_rock_smoke(body.global_position)   # the source bursts white smoke
+			# SQUALLBLADE: the crescent carries the GUST -- everything it cuts
+			# is lifted off its feet a beat. The only weapon that throws UP.
+			if rider == "squall" and "velocity" in body:
+				body.velocity.y = -190.0
+			# THISTLE KNOT: every touch of the whirl leaves a PRICKLE in the
+			# skin -- a small poison that outlasts the lap
+			if rider == "thistle" and body.has_method("apply_status"):
+				body.apply_status("poison", 1.5, 0.6)
 			# HEAVENSTRING: the thread snaps taut and brings them to you
 			if kind == "tether_arrow" and is_instance_valid(source) \
 					and body.has_method("apply_knockback"):
@@ -2676,6 +2702,23 @@ func explode() -> void:
 				_apply_status_to(e)
 				if e.has_method("apply_knockback"):
 					e.apply_knockback(1 if e.global_position.x >= global_position.x else -1, knockback)
+				# CINDER ROD: fire that SHOVES -- the blast is half concussion,
+				# and the crowd leaves the crater in a hurry
+				if rider == "blast" and e.has_method("apply_knockback"):
+					e.apply_knockback(1 if e.global_position.x >= global_position.x else -1, 320.0)
+				# PYRELIGHT: a body the blast KILLS burns as a PYRE, and the
+				# pyre lights whoever stands nearest to mourn it
+				if rider == "pyre" and "is_dead" in e and e.is_dead:
+					for gname_p in HOSTILE_GROUPS:
+						for m in get_tree().get_nodes_in_group(gname_p):
+							if m == e or not (m is Node2D) or not is_instance_valid(m):
+								continue
+							if not m.has_method("apply_status"):
+								continue
+							if "is_dead" in m and m.is_dead:
+								continue
+							if (e as Node2D).global_position.distance_to((m as Node2D).global_position) <= 80.0:
+								m.apply_status("burn", 3.0, 1.2)
 	# A Small Personal Sun: the blast doesn't leave -- a grounded sunlet
 	# keeps burning the spot for a few seconds after the flash
 	if rider == "sunfall":
