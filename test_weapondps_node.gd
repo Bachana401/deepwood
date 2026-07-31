@@ -90,6 +90,15 @@ const HITS_PER_USE := {
 	# THE FIVE RICOCHETS -- all leap, none the same way. Numbers are what ONE
 	# body feels: a chain spends most of itself on OTHER bodies, so a single
 	# dummy only ever sees the first hit plus whatever the rider adds to it.
+	# THE SEVEN SPEAR SHAPES -- one throw that used to be seven. Same rule as the
+	# bows: what ONE body feels, not how many shafts leave the hand.
+	"reedcast":    1.5,   # light and fast, a tight pair -- both often connect
+	"stormprong":  2.2,   # the fan, plus the bolt that answers where it landed
+	"galeprong":   1.1,   # 34 degrees of arc puts few on any single target
+	"gullwing":    2.4,   # they CONVERGE, so the whole volley meets one body
+	"reedsong":    1.7,   # staggered, so a moving target sheds some of it
+	"hawkline":    2.8,   # four abreast at 2 degrees AND piercing: a wall
+	"marrowsplit": 2.6,   # three, then six at 0.6 -- the split is the weapon
 	"ratterdart":  1.2,   # hunts the hurt one, so the first body is rarely revisited
 	"hookbill":    1.3,   # drags what it leaves; the pull is not damage
 	"finchbolt":   1.4,   # refunded leaps mean a longer chain, not a heavier one

@@ -152,7 +152,7 @@ const ROWS = [
 	["wpn_ratterdart",   "Ratter's Dart",        "melee", 2, "ratterdart", 10, 0.7,  {"bounces": 2}],
 	["wpn_boarspit",     "Boarspit",             "spear", 2, "thrust",    12, 0.75, {"plain": true}],
 	["wpn_wallpike",     "Wallwatcher's Pike",   "spear", 2, "thrust",    14, 0.95, {"plain": true}],
-	["wpn_reedjavelin",  "Reed Javelins",        "spear", 2, "jab_volley", 9, 0.9,  {"count": 2, "plain": true}],
+	["wpn_reedjavelin",  "Reed Javelins",        "spear", 2, "reedcast",  9, 0.9,  {"count": 2}],
 	["wpn_ashbow",       "Ashwood Bow",          "bow",   2, "shot",      10, 0.5,  {"plain": true}],
 	["wpn_ferrybow",     "Ferryman's Bow",       "bow",   2, "ferrytwin", 7,  0.65, {"count": 2}],
 	["wpn_stingerbow",   "Stinger",              "bow",   2, "rapid",     5,  0.22, {"plain": true}],
@@ -170,7 +170,7 @@ const ROWS = [
 	["wpn_shrikelash",   "Shrike's Tail",        "melee", 3, "lash",      12, 0.85, {}],
 	["wpn_gatecleaver",  "Gatecleaver",          "spear", 3, "thrust",    17, 0.85, {"plain": true}],
 	["wpn_heronlance",   "Heron Lance",          "spear", 3, "thrust",    14, 0.6,  {"plain": true}],
-	["wpn_stormprong",   "Stormprong",           "spear", 3, "jab_volley", 12, 0.95, {"count": 3, "plain": true}],
+	["wpn_stormprong",   "Stormprong",           "spear", 3, "stormprong", 12, 0.95, {"count": 3}],
 	["wpn_veilbow",      "Veilpiercer",          "bow",   3, "shot",      16, 0.6,  {"pierce": true, "plain": true}],
 	["wpn_larkbow",      "Lark's Reply",         "bow",   3, "rapid",     7,  0.2,  {"plain": true}],
 	["wpn_twinnock",     "Twinnock Bow",         "bow",   3, "twinnock",  10, 0.6,  {"count": 2}],
@@ -190,7 +190,7 @@ const ROWS = [
 	["wpn_gloamlash",    "Gloaming Lash",        "melee", 4, "gloamlash", 17, 0.85, {"status": "burn_w"}],
 	["wpn_reaperrebuke", "Reaper's Rebuke",      "melee", 4, "reaperrebuke", 16, 0.6,  {"bounces": 4}],
 	["wpn_sunderpike",   "Sunder Pike",          "spear", 4, "sunderpoint", 15, 0.85, {}],
-	["wpn_galeprong",    "Galeprong",            "spear", 4, "jab_volley", 15, 0.9, {"count": 4, "plain": true}],
+	["wpn_galeprong",    "Galeprong",            "spear", 4, "galeprong", 23, 0.9, {"count": 4}],
 	["wpn_midnightlance","Midnight Lance",       "spear", 4, "thrust",    19, 0.6,  {"status": "slow_w", "plain": true}],
 	["wpn_curfewbow",    "Curfew Bow",           "bow",   4, "shot",      21, 0.6,  {"pierce": true, "plain": true}],
 	["wpn_choirbow",     "Choir of Points",      "bow",   4, "choirpoints", 12, 0.6, {"count": 3}],
@@ -324,8 +324,8 @@ const ROWS = [
 	["wpn_tithegather",  "Tithe Gatherer",       "melee", 3, "tithegather", 11, 0.65, {"bounces": 3}],
 	["wpn_harrowpike",   "Harrower",             "spear", 3, "thrust",    16, 0.8,  {"plain": true}],
 	["wpn_lamplighter",  "Lamplighter's Reach",  "spear", 3, "thrust",    13, 0.6,  {"status": "burn_w", "plain": true}],
-	["wpn_gullprong",    "Gullwing Prong",       "spear", 3, "jab_volley", 11, 0.9, {"count": 3, "plain": true}],
-	["wpn_reedvolley",   "Reedsong Volley",      "spear", 3, "jab_volley", 10, 0.85, {"count": 4, "plain": true}],
+	["wpn_gullprong",    "Gullwing Prong",       "spear", 3, "gullwing",  11, 0.9, {"count": 3}],
+	["wpn_reedvolley",   "Reedsong Volley",      "spear", 3, "reedsong",  10, 0.85, {"count": 4}],
 	["wpn_shrikebow",    "Shrikebow",            "bow",   3, "shot",      15, 0.55, {"plain": true}],
 	["wpn_finchvolley",  "Finchstorm",           "bow",   3, "finchstorm", 9,  0.6,  {"count": 3}],
 	["wpn_haleseeker",   "Hale Seeker",          "bow",   3, "haleseek",    11, 0.68, {}],
@@ -349,8 +349,8 @@ const ROWS = [
 	["wpn_debtblade",    "Debt of the Deep",     "melee", 4, "deepdebt",  15, 0.6,  {"bounces": 4}],
 	["wpn_vigilpike",    "Vigil Unbroken",       "spear", 4, "thrust",    22, 0.82, {"plain": true}],
 	["wpn_winterreach",  "Winter's Reach",       "spear", 4, "thrust",    18, 0.6,  {"status": "slow_w", "plain": true}],
-	["wpn_hawkvolley",   "Hawks in Formation",   "spear", 4, "jab_volley", 14, 0.88, {"count": 4, "plain": true}],
-	["wpn_marrowprong",  "Marrowsplitter",       "spear", 4, "jab_volley", 16, 0.95, {"count": 3, "plain": true}],
+	["wpn_hawkvolley",   "Hawks in Formation",   "spear", 4, "hawkline",  14, 0.88, {"count": 4}],
+	["wpn_marrowprong",  "Marrowsplitter",       "spear", 4, "marrowsplit", 16, 0.95, {"count": 3}],
 	["wpn_gravebow",     "The Polite Reminder",  "bow",   4, "shot",      20, 0.58, {"pierce": true, "plain": true}],
 	["wpn_larkstorm",    "A Storm of Larks",     "bow",   4, "larkstorm", 15, 0.58, {"count": 3}],
 	["wpn_needlerain",   "Needlerain",           "bow",   4, "rapid",     8,  0.17, {"plain": true}],
@@ -761,8 +761,53 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 		# inventory.gd, which earned it honestly.
 		"crescent":
 			s = {"type": "flying_slash", "damage": int(ex.get("p_damage", dmg)), "speed": spd, "range": rng}
-		"jab_volley":
-			s = {"type": "javelin_volley", "count": int(ex.get("count", 3)), "spread_deg": 10.0, "damage": dmg, "speed": spd + 150.0, "range": rng}
+		# ("jab_volley" -- the plain ten-degree fan -- used to live here. All SEVEN
+		# of its owners now throw shapes of their own, so the case had no weapon
+		# left. Third verb to empty out this way, after "seeker" and "volley":
+		# clearing a bucket of look-alikes always ends with the bucket itself
+		# becoming dead code, and tool_deadverb_audit catches it every time.)
+		# ---- THE SEVEN THAT WERE ONE THROW ----------------------------------
+		# All seven declared "jab_volley": a fan of 2-4 spectral javelins at ten
+		# degrees. Seven names, one throw. Each now owns the SHAPE of its cast --
+		# how the shafts leave the hand, not how hard they land.
+		"reedcast":
+			# reeds are LIGHT. They go further and faster than anything this
+			# cheap has a right to, and they land like reeds.
+			s = {"type": "javelin_volley", "shape": "reed", "count": int(ex.get("count", 2)),
+				"spread_deg": 6.0, "damage": maxi(1, int(round(float(dmg) * 0.8))),
+				"speed": spd + 320.0, "range": rng + 200.0}
+		"stormprong":
+			# the prongs are CHARGED: where the volley lands, the sky answers.
+			s = {"type": "javelin_volley", "shape": "storm", "count": int(ex.get("count", 3)),
+				"spread_deg": 10.0, "damage": dmg, "speed": spd + 150.0, "range": rng}
+		"galeprong":
+			# a GALE does not aim. Four prongs thrown across a wide arc, and
+			# every one of them SHOVES.
+			s = {"type": "javelin_volley", "shape": "gale", "count": int(ex.get("count", 4)),
+				"spread_deg": 34.0, "damage": dmg, "speed": spd + 150.0, "range": rng}
+		"gullwing":
+			# gulls BANK. The prongs leave wide and curve back in, meeting at a
+			# point ahead -- the opposite of a fan.
+			s = {"type": "javelin_volley", "shape": "gull", "count": int(ex.get("count", 3)),
+				"spread_deg": 10.0, "damage": dmg, "speed": spd + 150.0, "range": rng,
+				"focus": 230.0}
+		"reedsong":
+			# a SONG is a sequence, not a chord: the shafts leave one after
+			# another on a beat rather than all at once.
+			s = {"type": "javelin_song", "shape": "song", "count": int(ex.get("count", 4)),
+				"spread_deg": 14.0, "damage": dmg, "speed": spd + 150.0, "range": rng,
+				"beat": 0.09}
+		"hawkline":
+			# FORMATION. Almost no spread at all -- four shafts abreast, holding
+			# the line, going through what they meet.
+			s = {"type": "javelin_volley", "shape": "line", "count": int(ex.get("count", 4)),
+				"spread_deg": 2.0, "damage": dmg, "speed": spd + 150.0, "range": rng,
+				"pierce": true}
+		"marrowsplit":
+			# it SPLITS. Three shafts go, and a beat later each one is two.
+			s = {"type": "javelin_volley", "shape": "marrow", "count": int(ex.get("count", 3)),
+				"spread_deg": 8.0, "damage": maxi(1, int(round(float(dmg) * 0.8))),
+				"speed": spd + 150.0, "range": rng, "split_after": 0.16}
 		# ("volley" -- the plain 12-degree fan -- used to live here. All SIX of
 		# its owners now have shapes of their own, so the case had no weapon
 		# left and tool_deadverb_audit called it, exactly as it did for
@@ -1688,7 +1733,13 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 	match behavior:
 		"cleave":     return "Heavy enough to cleave through EVERY enemy in the arc."
 		"crescent":   return "Every swing also hurls a flying crescent down the lane."
-		"jab_volley": return "Conjures a fan of %d spectral javelins and lets fly." % int(ex.get("count", 3))
+		"reedcast":   return "Reeds are LIGHT. They go further and faster than anything this cheap has a right to."
+		"stormprong": return "The prongs are CHARGED. Where the volley lands, the sky answers a beat later."
+		"galeprong":  return "A gale does not aim. Four prongs across a wide arc, and every one of them SHOVES."
+		"gullwing":   return "Gulls BANK. The prongs leave wide and curve back in, meeting at a point ahead of you -- the opposite of a fan."
+		"reedsong":   return "A song is a sequence, not a chord. The shafts leave one after another, on a beat."
+		"hawkline":   return "FORMATION. Four shafts abreast with barely a hand between them, holding the line and going through whatever they meet."
+		"marrowsplit": return "It splits. Three shafts go out, and a beat later each of them is two."
 		"ferrytwin":  return "Makes the crossing TWICE. One shaft goes, and a second retraces its exact line a beat behind it -- there, and back."
 		"twinnock":   return "Two arrows nocked as one. It leaves the string as a SINGLE shaft and comes apart into two halfway down the lane."
 		"choirpoints": return "A choir sings in HARMONY, so these do not spread -- three lines CONVERGE on one spot ahead of you, and whatever stands there takes all three."

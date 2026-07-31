@@ -4868,7 +4868,10 @@ func perform_attack() -> void:
 		animate_bow(stats)
 		return
 	if active_weapon_type == "spear":
-		if special_type == "javelin_volley":
+		# javelin_song is Reedsong Volley: the same shafts on a BEAT, and it
+		# carries its own type only so the dispatch audit can exempt its
+		# staggered count without exempting the other six spears too.
+		if special_type == "javelin_volley" or special_type == "javelin_song":
 			throw_javelin_volley(special)
 		elif special_type == "storm_beast":
 			# STORMHERD (T5): each jab looses a beast that runs on ahead
@@ -6373,7 +6376,7 @@ func loose_shaped_volley(shape: String, special: Dictionary, stats: Dictionary) 
 			_shaft(aim, base, special)
 			# the return crossing, on the SAME line a beat later
 			var d: float = float(special.get("delay", 0.22))
-			var keep_aim := aim
+			var keep_aim: Vector2 = aim
 			get_tree().create_timer(d).timeout.connect(
 				func():
 					if is_instance_valid(self):
@@ -6495,7 +6498,11 @@ func launch_projectile(cfg: Dictionary, dir: Vector2, dmg: int, is_crit: bool = 
 	var kind = str(cfg.get("type", "slash"))
 	match kind:
 		"flying_slash": kind = "slash"
-		"javelin_volley": kind = "javelin"
+		# javelin_song rides the same shaft -- it is Reedsong Volley, which
+		# differs in its TIMING, not its projectile. Without this line it built
+		# an unknown kind: no javelin art, no javelin behaviour, and the
+		# dispatch audit reporting a node whose type nothing in the engine knew.
+		"javelin_volley", "javelin_song": kind = "javelin"
 	p.kind = kind
 	p.direction = dir.normalized()
 	p.speed = float(cfg.get("speed", 500.0))
@@ -6544,10 +6551,87 @@ func throw_javelin_volley(special: Dictionary) -> void:
 	var spread = deg_to_rad(float(special.get("spread_deg", 10.0)))
 	var aim = get_aim_direction()
 	var dmg = int(round(special.get("damage", 10) * skill_damage_mult("spear")))
+	# THE SEVEN SHAPES. Seven spears used to make the identical throw -- a fan of
+	# 2-4 at ten degrees, separated only by damage. They share this launcher on
+	# purpose: they are all "spectral javelins leave the hand". What differs is
+	# HOW they leave it, which is the part a player can actually see.
+	var shape := str(special.get("shape", ""))
+	match shape:
+		"gull":
+			# BANK IN: every shaft aimed at one point ahead, so the volley
+			# closes rather than opens
+			var focus: Vector2 = global_position + aim * float(special.get("focus", 230.0))
+			var perp := Vector2(-aim.y, aim.x)
+			for i in range(count):
+				var off: float = 0.0 if count <= 1 else lerpf(-40.0, 40.0, float(i) / float(count - 1))
+				var from: Vector2 = global_position + perp * off
+				var cg = roll_crit(dmg)
+				launch_projectile(special, (focus - from).normalized(), cg[0], cg[1])
+			return
+		"song":
+			# ONE AFTER ANOTHER, on a beat. A chord and an arpeggio are made of
+			# the same notes; only the timing tells them apart.
+			var beat: float = float(special.get("beat", 0.09))
+			for i in range(count):
+				var fr: float = 0.5 if count <= 1 else float(i) / float(count - 1)
+				var ang: float = lerpf(-spread, spread, fr)
+				if i == 0:
+					var c0 = roll_crit(dmg)
+					launch_projectile(special, aim.rotated(ang), c0[0], c0[1])
+				else:
+					# TYPED: `aim` above is untyped, and `var x :=` on a Variant is a
+					# BUILD ERROR in GDScript, not a warning. Fourth time today.
+					var keep: Vector2 = aim
+					get_tree().create_timer(beat * float(i)).timeout.connect(
+						func():
+							if is_instance_valid(self):
+								var cn = roll_crit(dmg)
+								launch_projectile(special, keep.rotated(ang), cn[0], cn[1]))
+			return
+		"marrow":
+			# THREE GO, AND THEN EACH IS TWO. The split is a second volley from
+			# the same angles a beat later, fanned either side of the first.
+			for i in range(count):
+				var fm: float = 0.5 if count <= 1 else float(i) / float(count - 1)
+				var am: float = lerpf(-spread, spread, fm)
+				var cm = roll_crit(dmg)
+				launch_projectile(special, aim.rotated(am), cm[0], cm[1])
+			var after: float = float(special.get("split_after", 0.16))
+			var keep_aim: Vector2 = aim
+			get_tree().create_timer(after).timeout.connect(
+				func():
+					if not is_instance_valid(self):
+						return
+					for i2 in range(count):
+						var f2: float = 0.5 if count <= 1 else float(i2) / float(count - 1)
+						var a2: float = lerpf(-spread, spread, f2)
+						for s in [-0.16, 0.16]:
+							var c2 = roll_crit(maxi(1, int(round(float(dmg) * 0.6))))
+							launch_projectile(special, keep_aim.rotated(a2 + s), c2[0], c2[1]))
+			return
+	# the ordinary fan -- reed, storm, gale and line all throw one, and differ in
+	# their spread, their speed and what happens after
 	for i in range(count):
 		var frac = 0.5 if count <= 1 else float(i) / float(count - 1)
 		var cr = roll_crit(dmg)
 		launch_projectile(special, aim.rotated(lerp(-spread, spread, frac)), cr[0], cr[1])
+	if shape == "storm":
+		# THE SKY ANSWERS where the volley went, a beat behind it
+		var mark: Vector2 = global_position + aim * 200.0
+		var keep_dmg: int = maxi(1, int(round(float(dmg) * 0.9)))
+		get_tree().create_timer(0.28).timeout.connect(
+			func():
+				if not is_instance_valid(self):
+					return
+				var st = WEAPON_PROJECTILE_SCRIPT.new()
+				st.kind = "sky_star"
+				st.damage = keep_dmg
+				st.speed = 1250.0
+				st.aoe_radius = 62.0
+				st.element = Inventory.element_of(active_weapon_id)
+				st.source = self
+				get_parent().add_child(st)
+				st.set_star_target(mark))
 
 # Emberstaff / Icicle Wand: a cast that launches a real projectile instead of
 # the classic wand's screen nuke. Scales with the Mage tree's wand_damage.

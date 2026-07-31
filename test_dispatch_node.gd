@@ -53,6 +53,7 @@ class Dummy extends StaticBody2D:
 const KIND_ALIAS := {
 	"flying_slash":   ["slash"],          # launch_projectile renames it
 	"javelin_volley": ["javelin"],        # ditto
+	"javelin_song":   ["javelin"],        # Reedsong: the same shafts, on a beat
 	"storm_beast":    ["storm_bird"],     # Stormherd rides the runner engine
 	"court_barrage":  ["courtier"],       # the Court spawns its shades
 	"king_rain":      ["javelin", "crown_spear"],  # the rain drops shafts
@@ -106,6 +107,12 @@ const COUNT_IS_A_CYCLE := {
 	# been created. The verb is fine; the yardstick is the wrong unit. Verified
 	# by hand: the count is delivered, just not inside a 14-frame headless window.
 	"soul_stream": "seven souls poured on real-time timers, not in one frame",
+	# REEDSONG VOLLEY is a sequence by design -- a chord and an arpeggio are the
+	# same notes and only the timing tells them apart. Its shafts leave on a
+	# 0.09s beat, and a frame-sampled count sees two of four. It has its OWN type
+	# rather than exempting javelin_volley wholesale, which would have hidden a
+	# real miscount in the other six spears.
+	"javelin_song": "four shafts on a beat, not in one frame",
 }
 
 func _ready() -> void:
