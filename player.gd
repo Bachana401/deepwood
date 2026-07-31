@@ -850,6 +850,8 @@ var monarch_iframes_until := 0.0
 # the plain-bow souls (2026-07-31): spawn-time rider state
 var last_hurt_at := -100.0   # Lark's Reply: the 2s answering window
 var _sting_count := 0        # Stinger: every fourth shaft is the sting
+var _last_melee_at := -100.0 # Heron Lance: the pause before the strike
+var _hay_hits := 0           # Haymaker's Pike: two jabs, then the haymaker
 var monarch_long_dark_ready_at := 0.0
 var monarch_dread_accum := 0.0
 var monarch_nova_accum := 0.0
@@ -4231,6 +4233,25 @@ func _clear_bobber() -> void:
 # A direct shape query answers where the hitbox is NOW rather than where the
 # engine last looked. Safe here because perform_attack is only ever called from
 # _physics_process (player.gd:3802), so the space is live.
+# the nearest OTHER living foe within reach of a struck body -- the gate's
+# queue, the prong's second point, the winter's neighbour
+func _nearest_foe_near(struck: Node2D, reach: float) -> Node2D:
+	var best: Node2D = null
+	var best_d := reach
+	for gname in ["course_enemy", "dungeon_combatant", "siege_enemy"]:
+		for e in get_tree().get_nodes_in_group(gname):
+			if e == struck or not (e is Node2D) or not is_instance_valid(e):
+				continue
+			if not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			var d: float = struck.global_position.distance_to((e as Node2D).global_position)
+			if d < best_d:
+				best_d = d
+				best = e
+	return best
+
 func attack_area_bodies() -> Array:
 	var area: Area2D = $AttackArea
 	var cs := area.get_node_or_null("CollisionShape2D") as CollisionShape2D
@@ -5147,10 +5168,55 @@ func perform_attack() -> void:
 			var dealt = cr[0]
 			# The Patient Knife: the FIRST cut is the deepest -- +40% against
 			# a foe still standing at full health
-			if str(active_def.get("special", {}).get("rider", "")) == "patient" \
+			var srider := str(active_def.get("special", {}).get("rider", ""))
+			if srider == "patient" \
 					and "health" in target and "max_health" in target \
 					and int(target.health) >= int(target.max_health):
 				dealt = int(round(dealt * 1.4))
+			# THE PLAIN-SPEAR SOULS (2026-07-31): fourteen material-ladder
+			# spears shared one thrust. Each now reads ONE fact -- about the
+			# wielder, the hour, or the body on the point -- and prices it.
+			# The facts that act AFTER the blow live below, past the landing.
+			var now_s := _now()
+			match srider:
+				"vigil":
+					# VIGIL UNBROKEN: while your own health is whole
+					if health >= get_max_health():
+						dealt = int(round(dealt * 1.45))
+				"wall":
+					# WALLWATCHER'S PIKE: braced -- a still wielder
+					if absf(velocity.x) < 10.0 and is_on_floor():
+						dealt = int(round(dealt * 1.35))
+				"boar":
+					# BOARSPIT: braced against the CHARGE, like the hunt it
+					# is named for -- pays against a body coming AT you
+					if "velocity" in target and (target.velocity as Vector2).x \
+							* signf(global_position.x - target.global_position.x) > 20.0:
+						dealt = int(round(dealt * 1.45))
+				"ditch":
+					# DITCHWARDEN strikes DOWN into the ditch
+					if target.global_position.y > global_position.y + 12.0:
+						dealt = int(round(dealt * 1.4))
+				"heron":
+					# HERON LANCE: the fisher's patience -- a pause before
+					# the strike is the strike
+					if now_s - _last_melee_at >= 0.7:
+						dealt = int(round(dealt * 1.65))
+				"lamp":
+					# LAMPLIGHTER'S REACH: a lit target is easy to hit
+					if "status_burn_until" in target \
+							and float(target.status_burn_until) > now_s:
+						dealt = int(round(dealt * 1.3))
+				"midnight":
+					# MIDNIGHT LANCE keeps its own hours
+					var tod: float = GameState.time_of_day()
+					if tod >= 20.0 or tod < 5.0:
+						dealt = int(round(dealt * 1.4))
+				"hay":
+					# HAYMAKER'S PIKE: two honest jabs, then the HAYMAKER
+					if _hay_hits >= 2:
+						dealt = int(round(dealt * 1.8))
+			_last_melee_at = now_s
 			_last_swing_target = target
 			_last_swing_damage = dealt
 			if target.has_method("take_damage"):
@@ -5174,6 +5240,54 @@ func perform_attack() -> void:
 				target.apply_knockback(knockback_sign_toward(target), knockback_distance)
 			if is_excellent:
 				apply_excellent_effect(target, dealt)
+			# the spear souls that act AFTER the landing (gated on a blow that
+			# actually connected -- an absorbed hit zeroes _last_swing_damage)
+			if srider != "" and _last_swing_damage > 0:
+				match srider:
+					"fence":
+						# FENCE PIKE: a fence HOLDS. The struck body stands
+						# pinned at the rail for a beat.
+						if target.has_method("apply_status"):
+							target.apply_status("freeze", 0.35, 0.0)
+					"eel":
+						# EELCATCHER lands the catch: the point hooks the body
+						# a step TOWARD you, the only thrust that pulls
+						if target.has_method("apply_knockback"):
+							target.apply_knockback(-knockback_sign_toward(target), 130.0)
+					"harrow":
+						# THE HARROW TURNS THE SOIL: the struck body is dragged
+						# through and dropped on your other side, half as far
+						# out as it stood
+						if is_instance_valid(target):
+							target.global_position.x = global_position.x \
+								- (target.global_position.x - global_position.x) * 0.5
+					"gate":
+						# GATECLEAVER slams them INTO whoever queues behind
+						if target.has_method("apply_knockback"):
+							target.apply_knockback(knockback_sign_toward(target), 420.0)
+						var behind := _nearest_foe_near(target, 90.0)
+						if behind != null:
+							behind.take_damage(maxi(1, int(round(float(dealt) * 0.5))))
+							FloatingText.spawn(get_parent(), behind.global_position
+								+ Vector2(0, -22.0), maxi(1, int(round(float(dealt) * 0.5))), false)
+					"prong":
+						# FROSTBITTEN PRONG: TWO points -- the fork finds a
+						# second body beside the first
+						var second := _nearest_foe_near(target, 60.0)
+						if second != null:
+							second.take_damage(maxi(1, int(round(float(dealt) * 0.5))))
+							FloatingText.spawn(get_parent(), second.global_position
+								+ Vector2(0, -22.0), maxi(1, int(round(float(dealt) * 0.5))), false)
+					"winter":
+						# WINTER'S REACH: cold SPREADS -- a slowed body passes
+						# its winter to the nearest neighbour
+						if "status_slow_until" in target \
+								and float(target.status_slow_until) > _now():
+							var chilled := _nearest_foe_near(target, 90.0)
+							if chilled != null and chilled.has_method("apply_status"):
+								chilled.apply_status("slow", 2.0, 0.4)
+					"hay":
+						_hay_hits = 0 if _hay_hits >= 2 else _hay_hits + 1
 	# THE CARVE (2026-07-30). `cleave` was one of three verbs that produced
 	# nothing whatsoever when you swung at empty air -- ten weapons whose whole
 	# identity is "it cuts through everything" and which, on a miss, were
