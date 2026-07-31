@@ -82,6 +82,7 @@ const NO_NODE_EXPECTED := {
 	# fire rather than timing it, and a single-press yardstick cannot see a ramp
 	# any more than it can see the Ninth Commandment's metronome above.
 	"ghost_bows": "a RAMP -- the spectral bows arrive on the fourth shot, never the first",
+	"twelfth_pillar": "a METRONOME on a long beat -- the column stands on the twelfth blow",
 }
 
 # Verbs whose declared "count" is a CYCLE rather than a single press.

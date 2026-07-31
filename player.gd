@@ -1628,6 +1628,13 @@ func _process(_delta: float) -> void:
 	# the Ghost Repeater's company disperses when you stop shooting. In _process
 	# rather than _physics_process on purpose: it is a fade, not a hitbox.
 	_tick_ghost_bows(_delta)
+	# The Still Mountain's patience. Measured on HORIZONTAL speed only: falling
+	# is not moving for this purpose, and a player pinned mid-jump should not
+	# lose the beat they have already stood for.
+	if absf(velocity.x) < 8.0:
+		_still_for += _delta
+	else:
+		_still_for = 0.0
 
 func _exit_tree() -> void:
 	# leaving the scene mid-freeze must never carry the slow-mo into the next one
@@ -5081,6 +5088,52 @@ func perform_attack() -> void:
 			or special_type == "bent_ray":
 		var wcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
 		launch_projectile(special, aim_dir, wcr[0], wcr[1])
+	# TWELFTH PILLAR (T6): eleven blows are only blows. Count to twelve.
+	elif special_type == "twelfth_pillar":
+		_twelfth_count += 1
+		if _twelfth_count % maxi(2, int(special.get("every", 12))) == 0:
+			var tp = WEAPON_PROJECTILE_SCRIPT.new()
+			tp.kind = "sky_pillar"
+			var tcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+			tp.damage = tcr[0]
+			tp.is_crit = tcr[1]
+			tp.element = Inventory.element_of(active_weapon_id)
+			tp.on_hit_status = special.get("status", {})
+			tp.source = self
+			tp.position = global_position + aim_dir * 118.0 + Vector2(0, 18.0)
+			get_parent().add_child(tp)
+			SfxSynth.play_at(self, global_position, "chime", -6.0, 0.5)
+	# LADDER TO NOWHERE (T6): three rungs of light, one above the other
+	elif special_type == "sky_ladder":
+		var rungs: int = maxi(1, int(special.get("rungs", 3)))
+		for i in range(rungs):
+			var rg = WEAPON_PROJECTILE_SCRIPT.new()
+			rg.kind = "sky_ladder"
+			var rcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+			rg.damage = rcr[0]
+			rg.is_crit = rcr[1]
+			rg.element = Inventory.element_of(active_weapon_id)
+			rg.on_hit_status = special.get("status", {})
+			rg.source = self
+			# each rung sits further out AND higher: a ladder leans away from
+			# you, it does not stand in a column
+			rg.position = global_position + aim_dir * (92.0 + 26.0 * float(i)) \
+				+ Vector2(0, 14.0 - 44.0 * float(i))
+			get_parent().add_child(rg)
+	# THE STILL MOUNTAIN (T6): stand still, and something enormous comes down
+	elif special_type == "still_mountain":
+		if _still_for >= float(special.get("still", 1.5)):
+			_still_for = 0.0          # spent: you have to earn it again
+			var sm = WEAPON_PROJECTILE_SCRIPT.new()
+			sm.kind = "still_mountain"
+			var mcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+			sm.damage = mcr[0]
+			sm.is_crit = mcr[1]
+			sm.element = Inventory.element_of(active_weapon_id)
+			sm.on_hit_status = special.get("status", {})
+			sm.source = self
+			get_parent().add_child(sm)
+			sm.set_anvil_target(global_position + aim_dir * 92.0 + Vector2(0, 6.0))
 	# PILLAR OF THE SKY (T7): a column of daylight stood where you pointed
 	elif special_type == "sky_pillar":
 		var sp2 = WEAPON_PROJECTILE_SCRIPT.new()
@@ -5823,6 +5876,8 @@ func call_the_daybreak(special: Dictionary, aim_dir: Vector2) -> void:
 var _ghost_shots := 0
 var _ghost_idle := 0.0
 var _ghost_bows: Array = []
+var _twelfth_count := 0     # Twelfth Pillar: the beat the player is counting
+var _still_for := 0.0       # The Still Mountain: how long you have not moved
 
 func fire_with_ghosts(special: Dictionary, stats: Dictionary) -> void:
 	animate_bow(stats)                 # the real shot, unchanged

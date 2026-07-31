@@ -469,6 +469,18 @@ func _ready() -> void:
 			monitoring = false
 			pierce = true
 			_build_lingering_arc()
+		"sky_ladder":
+			# LADDER TO NOWHERE (T6): a RUNG, not a sunrise. It rides the Dawn
+			# Chorus motion because a bar of light rising is a bar of light
+			# rising -- but it gets its own kind and its own art, because the
+			# dispatch audit is right that borrowing another weapon's node
+			# wholesale is how two weapons quietly become one.
+			_build_ladder_rung()
+		"still_mountain":
+			# THE STILL MOUNTAIN (T6): the anvil's fall, but what comes down is
+			# a slab of the world rather than a smith's tool.
+			monitoring = false
+			_build_still_mountain()
 		"horizon_line":
 			# HORIZON PIKE (T6): a hairline drawn to the edge of sight.
 			pierce = true
@@ -896,8 +908,11 @@ func _physics_process(delta: float) -> void:
 	if kind == "marcher" or kind == "storm_bird":
 		_tick_marcher(delta)
 		return
-	if kind == "dawn_line":
+	if kind == "dawn_line" or kind == "sky_ladder":
 		_tick_dawn_line(delta)
+		return
+	if kind == "still_mountain":
+		_tick_anvil(delta)
 		return
 	if kind == "rift_bloom":
 		_tick_rift(delta)
@@ -2222,6 +2237,38 @@ func set_star_target(p: Vector2) -> void:
 	# spawn ABOVE the frame, not at the hand. The jitter is what stops a volley
 	# reading as one thick column.
 	global_position = p + Vector2(randf_range(-86.0, 86.0), -430.0)
+
+# A LADDER RUNG: shorter and colder than the Dawn Chorus bar, with a post at
+# each end. A rung is a thing you could stand on; a sunrise is not.
+func _build_ladder_rung() -> void:
+	var m := _add_mat()
+	_art_filament_bar(52.0, [
+		Color(0.86, 0.95, 1.00),        # cold white at the centre
+		Color(0.44, 0.68, 1.00)], 4, 3.4)
+	for s in [-1.0, 1.0]:
+		var post := Line2D.new()
+		post.points = PackedVector2Array([Vector2(s * 52.0, -7.0), Vector2(s * 52.0, 7.0)])
+		post.width = 2.4
+		post.default_color = Color(0.72, 0.88, 1.0, 0.8)
+		post.material = m
+		visual.add_child(post)
+
+# A SLAB OF THE WORLD, not a smith's tool: heavier, rougher, and lit along its
+# top edge so it does not silhouette into the night.
+func _build_still_mountain() -> void:
+	var slab := Polygon2D.new()
+	var outline := PackedVector2Array([
+		Vector2(-34, -16), Vector2(-24, -24), Vector2(20, -22),
+		Vector2(34, -12), Vector2(30, 16), Vector2(-30, 16)])
+	slab.polygon = outline
+	slab.color = Color(0.30, 0.31, 0.36, 1.0)
+	visual.add_child(slab)
+	var cap := Polygon2D.new()
+	cap.polygon = PackedVector2Array([
+		Vector2(-24, -24), Vector2(20, -22), Vector2(24, -14), Vector2(-28, -15)])
+	cap.color = Color(0.46, 0.48, 0.54, 1.0)
+	visual.add_child(cap)
+	_art_rim(outline, Color(0.80, 0.86, 1.0), 2.0)
 
 func _build_horizon_line() -> void:
 	# One tier BELOW Heaven, Bent, so four filaments and a shorter bundle. The

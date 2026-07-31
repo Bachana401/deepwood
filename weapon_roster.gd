@@ -233,7 +233,7 @@ const ROWS = [
 	["wpn_deluge",       "The Deluge",           "wand",  6, "deluge",    18, 1.3,  {"radius": 170, "tome_kind": "column"}],
 	["wpn_shatterhymn",  "Shatterhymn",          "wand",  6, "shatterhymn", 31, 0.78, {"shards": 8, "companion": "wisp", "c_damage": 11, "c_gap": 2.1}],
 	["wpn_debtcollector","The Debt Collector",   "wand",  6, "debtmark",  27, 0.58, {"bounces": 6}],
-	["wpn_twelfthpillar","Twelfth Pillar",       "staff", 6, "staff",     24, 0.4,  {"plain": true}],
+	["wpn_twelfthpillar","Twelfth Pillar",       "staff", 6, "twelfthpillar", 24, 0.4, {}],
 	# ---------------- TIER 7 - ASCENDED (floors 70-97) ----------------
 	["wpn_afterlight",   "Afterlight",           "melee", 7, "afterlight", 29, 0.42, {"status": "burn_w",
 		"fx": [{"kind": "echo", "pct": 0.34, "delay": 0.4}]}],
@@ -415,8 +415,8 @@ const ROWS = [
 	["wpn_lastcourier",  "The Last Courier",     "wand",  6, "lastcourier", 26, 0.56, {"bounces": 6}],
 	["wpn_watchfire",    "Watchfire",            "wand",  6, "watchfire", 17, 1.15, {"dur": 24}],
 	["wpn_cindershelf",  "Cindershelf",          "wand",  6, "cindershelf", 36, 0.8,  {"aoe": 140, "status": "burn_w"}],
-	["wpn_skyladder",    "Ladder to Nowhere",    "staff", 6, "staff",     23, 0.42, {"plain": true}],
-	["wpn_stillmountain","The Still Mountain",   "staff", 6, "staff",     26, 0.48, {"plain": true}],
+	["wpn_skyladder",    "Ladder to Nowhere",    "staff", 6, "skyladder", 23, 0.42, {"rungs": 3}],
+	["wpn_stillmountain","The Still Mountain",   "staff", 6, "stillmountain", 26, 0.48, {}],
 	# ---------------- WAVE 3 - TIER 7 (14) ----------------
 	["wpn_dawnchorus",   "Dawn Chorus",          "melee", 7, "dawnline", 30, 0.42, {"status": "burn_w",
 		"fx": [{"kind": "echo", "pct": 0.32, "delay": 0.35}]}],
@@ -1068,6 +1068,31 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			# metronome: ordinary shots, and every ninth is a RULING
 			s = {"type": "commandment", "damage": dmg, "speed": spd + 300.0,
 				"range": rng + 200.0, "every": 9}
+		# ---- the three plain STAFFS of tier 6, given their names back ----
+		"twelfthpillar":
+			# A METRONOME the player can count, like the Ninth Commandment --
+			# but on a staff and on a longer beat, so the two never feel like
+			# the same trick. Eleven ordinary blows, and the twelfth stands a
+			# column of daylight where you pointed.
+			# 0.71 because the column stands on top of the ordinary blow rather
+			# than replacing it -- the twelfth swing is a swing AND a pillar.
+			s = {"type": "twelfth_pillar",
+				"damage": maxi(1, int(round(float(dmg) * 0.71))), "every": 12}
+		"skyladder":
+			# LADDER TO NOWHERE: not one bar of light but THREE, stacked one
+			# above the other and climbing. It reuses the Dawn Chorus bar and
+			# is not the Dawn Chorus: one rung rising is a sunrise, three rungs
+			# stacked is a ladder, and the difference is the whole weapon.
+			s = {"type": "sky_ladder",
+				"damage": maxi(1, int(round(float(dmg) * 0.24))),
+				"rungs": int(ex.get("rungs", 3))}
+		"stillmountain":
+			# THE STILL MOUNTAIN asks the player to STOP. Stand still a beat
+			# and a mountain comes down on your next blow. The only weapon in
+			# the roster that pays you for not moving, which in a side-scroller
+			# full of dodging is a real decision rather than a stat.
+			s = {"type": "still_mountain",
+				"damage": maxi(1, int(round(float(dmg) * 1.11))), "still": 1.5}
 		"skypillar":
 			s = {"type": "sky_pillar", "damage": maxi(1, int(round(float(dmg) * 0.55)))}
 		"finaldebt":
@@ -1485,6 +1510,9 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"edict":      return "The law REACHES: a jointed arm of light unfolds the length of the hall, cutting everything along it and blooming where it touches -- and stone does not stop a sentence."
 		"heavenstring": return "Every shaft trails a THREAD, and when it lands the thread goes taut: what you hit comes to you, whether it meant to or not."
 		"choirstring": return "Each shaft that lands plants a NOTE, humming where it stuck. Fill a room with notes and the room sings -- and singing hurts."
+		"twelfthpillar": return "Count. Eleven blows are only blows -- and on the TWELFTH a column of daylight stands up where you pointed and keeps standing."
+		"skyladder":   return "Lays a rung of light, and then another above it, and another. Three of them, climbing. It goes nowhere and everything caught between them is caught between them."
+		"stillmountain": return "STOP MOVING. Stand a moment and the next blow brings a mountain down with it. Keep running and it is only a staff."
 		"horizonreach": return "The thrust does not stop at arm's length. The point keeps GOING -- a hairline of light drawn out to the edge of sight, and everything standing in it is standing in the line."
 		"heavenpoint": return "One lance, and everything standing in the line takes the SAME wound. It does not weaken for the second body, or the third."
 		"asphodel":    return "Plants a pale marker in the ground. It stands there on its own and keeps sending wisps out after whatever is nearest, long after you have moved on."

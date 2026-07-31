@@ -78,6 +78,14 @@ const HITS_PER_USE := {
 	# T7 batch 6 -- the tier's last four
 	"heavenstring":1.7, # the shaft, the pull, and the line SNAPPING taut (0.6x)
 	"choirstring": 3.2, # 3 notes, each humming ~4x over 2.4s
+	# CAREFUL: this table multiplies the ROW damage, not the scaled damage in
+	# the special. I first wrote 4.2 for skyladder reasoning "three rungs each
+	# ticking" -- true of the rungs, but each rung carries 0.24 of the row, so
+	# the model read 230 dps and hauled the whole T6 median up by four points.
+	# The number here is TOTAL DAMAGE PER USE AS A MULTIPLE OF ROW DAMAGE.
+	"twelfthpillar": 1.15, # the swing, plus a column amortised over twelve blows
+	"skyladder":   1.35,  # three rungs at 0.24 each, ticking
+	"stillmountain": 1.30, # the swing, plus a mountain GATED on standing still
 	"horizonreach": 1.9, # a long fast pierce line crossing a room. This number
 	                     # is an ESTIMATE and I first wrote 2.2 -- at which the
 	                     # T6 median moved and pushed Flock of Storms and The
