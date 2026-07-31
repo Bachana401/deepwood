@@ -82,7 +82,7 @@ func _ready() -> void:
 			var best := 0
 			var best_at := 0.0
 			for dist in DISTS:
-				for mode in ["aim", "flat"]:
+				for mode in ["aim", "flat", "area"]:
 					p.inventory.add_item(id, 1)
 					p.wield_weapon(id)
 					p.mana = p.get_max_mana()
@@ -90,19 +90,50 @@ func _ready() -> void:
 					var aim: Vector2 = p.get_aim_direction()
 					if aim.length() < 0.01:
 						aim = Vector2.RIGHT
-					var off: Vector2
-					if mode == "aim":
-						off = aim.normalized() * dist     # TRUE distance, no clamp
-					else:
-						off = Vector2(signf(aim.x) if aim.x != 0.0 else 1.0, 0.0) * dist
 					var dummy := Counter.new()
 					dummy.add_to_group("course_enemy")
 					stage.add_child(dummy)
-					dummy.global_position = (p as Node2D).global_position + off
+					if mode == "area":
+						# THE ANSWER to five weapons measuring zero. Melee damage
+						# is `$AttackArea.get_overlapping_bodies()` -- a hitbox
+						# on the PLAYER, offset along the aim. Headless aim points
+						# up and to the left, so a small area sits up-left while
+						# every other placement puts the target to the right. Oak
+						# Cudgel's area is wide enough to catch it anyway and
+						# Mongrel Knife's is not, which is the whole of the
+						# "five weapons deal no damage" scare.
+						# For a melee weapon "hits per USE" is not a function of
+						# range at all -- it is what one swing does to a body
+						# that is in the arc. So put the body in the arc.
+						var area = (p as Node2D).get_node_or_null("AttackArea")
+						if area == null:
+							dummy.queue_free()
+							continue
+						dummy.global_position = (area as Node2D).global_position
+					elif mode == "aim":
+						dummy.global_position = (p as Node2D).global_position \
+							+ aim.normalized() * dist        # TRUE distance, no clamp
+					else:
+						dummy.global_position = (p as Node2D).global_position \
+							+ Vector2(signf(aim.x) if aim.x != 0.0 else 1.0, 0.0) * dist
 					await get_tree().process_frame
 					await get_tree().process_frame
+					# THE PRIMING SWING. perform_attack MOVES $AttackArea to
+					# aim_dir * range_offset (player.gd:4895) and then reads
+					# get_overlapping_bodies() (player.gd:4940) in the SAME
+					# call -- and Godot's overlap set is whatever the last
+					# PHYSICS STEP computed, at the area's OLD position. So the
+					# first swing after the area moves reads a stale set.
+					# One throwaway swing parks the area, a physics frame lets
+					# the engine notice, and the swing we actually count then
+					# reads a true overlap set.
 					p.attack_cooldown_remaining = 0.0
-					p.perform_attack()          # exactly ONE use
+					p.perform_attack()
+					await get_tree().physics_frame
+					await get_tree().physics_frame
+					dummy.hits = 0              # the priming swing does not count
+					p.attack_cooldown_remaining = 0.0
+					p.perform_attack()          # exactly ONE counted use
 					await get_tree().create_timer(2.0, true).timeout
 					if dummy.hits > best:
 						best = dummy.hits

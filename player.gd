@@ -3072,7 +3072,12 @@ func update_weapon_visual(offset: float) -> void:
 		$WeaponIcon.visible = true
 		$WeaponIcon.position = aim_dir * offset - $WeaponIcon.pivot_offset
 		$WeaponIcon.rotation = aim_dir.angle()
-		$AttackArea.position = aim_dir * stats.range_offset
+		# staff_reach_mult() belongs HERE as well as at swing time. Without it
+		# the per-frame hitbox and the swing-time hitbox sat in DIFFERENT
+		# places for an extending staff, so the swing jumped the area outward
+		# and then judged the blow by the near position. Same bug as the whiff
+		# above, arriving by a different road: the two must agree every frame.
+		$AttackArea.position = aim_dir * stats.range_offset * staff_reach_mult()
 		$AttackArea.rotation = aim_dir.angle()
 		if active_weapon_type == "spear":
 			$WeaponTip.visible = true
@@ -4098,6 +4103,42 @@ func _clear_bobber() -> void:
 		_fish_bobber.queue_free()
 	_fish_bobber = null
 
+# THE WHIFF BUG (2026-07-30).
+#
+# perform_attack MOVES $AttackArea to aim_dir * range_offset and then reads
+# attack_area_bodies() a few lines later, in the SAME call.
+# Godot's overlap set is not live: it is whatever the last PHYSICS STEP
+# computed, at the area's OLD position. So a swing taken on the frame your aim
+# changed is resolved against where your hitbox USED TO BE.
+#
+# In play that is an occasional inexplicable whiff -- turn around and swing, or
+# snap the cursor across a target and swing, and the blow passes through. It is
+# worst for weapons with a SMALL arc, because a wide arc still overlaps the
+# target from its old position and a narrow one does not. And no audit in the
+# kit could ever have seen it: they all swing without changing aim.
+#
+# A direct shape query answers where the hitbox is NOW rather than where the
+# engine last looked. Safe here because perform_attack is only ever called from
+# _physics_process (player.gd:3802), so the space is live.
+func attack_area_bodies() -> Array:
+	var area: Area2D = $AttackArea
+	var cs := area.get_node_or_null("CollisionShape2D") as CollisionShape2D
+	if cs == null or cs.shape == null:
+		return area.get_overlapping_bodies()   # never lose a swing to this fix
+	var q := PhysicsShapeQueryParameters2D.new()
+	q.shape = cs.shape
+	q.transform = cs.global_transform
+	q.collision_mask = area.collision_mask
+	q.collide_with_bodies = true
+	q.collide_with_areas = false
+	q.exclude = [self]
+	var out := []
+	for h in get_world_2d().direct_space_state.intersect_shape(q, 32):
+		var c = h.get("collider")
+		if c != null and not out.has(c):
+			out.append(c)
+	return out
+
 func perform_attack() -> void:
 	if attack_cooldown_remaining > 0 or not has_weapon():
 		return
@@ -4937,7 +4978,7 @@ func perform_attack() -> void:
 				if st:
 					st.show_notification("That needs a TOOL — wield your Woodsman's Axe (trees) or Miner's Pickaxe (rock) from the hotbar, then swing.")
 				break
-	var bodies = $AttackArea.get_overlapping_bodies()
+	var bodies = attack_area_bodies()
 	if special_type == "cleave":
 		# the Sunderer carves through EVERY body in the arc, not just one
 		var cleave_total = 0
@@ -5021,7 +5062,7 @@ func perform_attack() -> void:
 				# backwards as one body rather than scattered.
 				spawn_shock_ring(global_position + aim_dir * 40.0, 44.0,
 					Color(0.62, 0.50, 0.34))
-				for b in $AttackArea.get_overlapping_bodies():
+				for b in attack_area_bodies():
 					if b.has_method("apply_knockback"):
 						b.apply_knockback(knockback_sign_toward(b), 210.0)
 			"grave":
@@ -5040,7 +5081,7 @@ func perform_attack() -> void:
 			"fell":
 				# ORCHARD FELLER: notch it now, and a beat later it TIPS -- into
 				# whatever is beside it, felled like a tree.
-				for b in $AttackArea.get_overlapping_bodies():
+				for b in attack_area_bodies():
 					if not b.has_method("take_damage") or ("boss_id" in b):
 						continue
 					_fell_later(b, int(round(stats.damage * 0.6 * skill_damage_mult("melee"))))
@@ -5066,14 +5107,14 @@ func perform_attack() -> void:
 				for ri in range(3):
 					var rr: float = 40.0 + 34.0 * float(ri)
 					spawn_shock_ring(bell_at, rr, Color(0.85, 0.68, 0.32))
-				for b2 in $AttackArea.get_overlapping_bodies():
+				for b2 in attack_area_bodies():
 					if b2.has_method("take_damage"):
 						b2.take_damage(maxi(1, int(round(stats.damage * 0.35
 							* skill_damage_mult("melee")))))
 			"score":
 				# QUARRY MAUL: score the stone, then SPLIT it. The only cleave
 				# with a two-swing rhythm -- it asks you to set up.
-				for b3 in $AttackArea.get_overlapping_bodies():
+				for b3 in attack_area_bodies():
 					if not b3.has_method("take_damage"):
 						continue
 					if b3.get_meta("quarry_scored", false):
@@ -5086,7 +5127,7 @@ func perform_attack() -> void:
 			"toll":
 				# TOLL OF THE END: a countdown hung on a body. Mark-and-pay,
 				# shared with The Eleventh Hour -- same machine, different rules.
-				for b4 in $AttackArea.get_overlapping_bodies():
+				for b4 in attack_area_bodies():
 					if b4.has_method("take_damage"):
 						_toll_mark(b4, int(round(stats.damage * 1.1
 							* skill_damage_mult("melee"))), 2.5, false)
@@ -5108,7 +5149,7 @@ func perform_attack() -> void:
 				# should have taken is STORED, and it all lands when time starts
 				# again. Same mark-and-pay engine as the Toll, three parameters
 				# apart -- building it twice would have been the mistake.
-				for b5 in $AttackArea.get_overlapping_bodies():
+				for b5 in attack_area_bodies():
 					if b5.has_method("take_damage"):
 						_toll_mark(b5, int(round(stats.damage * 1.4
 							* skill_damage_mult("melee"))), 0.8, true)
