@@ -2200,8 +2200,29 @@ func _on_body_entered(body: Node2D) -> void:
 			_apply_status_to(body)
 			# leap to the nearest fresh target; the arc loses an edge each jump
 			# -- unless it's The Rumor, which GROWS in the telling
+			# THE DELIVERY. Courier's Bad News: the leaps are ordinary and the
+			# LAST one lands hard. Checked before `bounces` is spent, so "last"
+			# means the blow that ends the chain.
+			if rider == "badnews" and bounces <= 0:
+				body.take_damage(maxi(1, int(round(float(damage) * 1.5))))
+				FloatingText.spawn(get_parent(), body.global_position
+					+ Vector2(0, -30), int(round(float(damage) * 1.5)), true)
 			bounces -= 1
 			damage = maxi(1, int(round(damage * (1.08 if rider == "grows" else 0.85))))
+			# HOOKBILL gathers: the body it leaves is dragged toward the place it
+			# was struck, so a chain pulls a scattered room into a knot.
+			if rider == "hook" and body.has_method("apply_knockback"):
+				var toward: float = -1.0 if body.global_position.x > global_position.x else 1.0
+				body.apply_knockback(toward, 190.0)
+			# FINCHBOLT keeps finding fresh birds: an UNTOUCHED body refunds the
+			# leap, so a full room carries it further than a half-cleared one.
+			if rider == "finch" and "health" in body and "max_health" in body \
+					and int(body.health) >= int(body.max_health):
+				bounces = mini(bounces + 1, 8)
+			# TITHE GATHERER collects on the way past.
+			if rider == "tithe" and source != null and is_instance_valid(source) \
+					and source.has_method("add_currency"):
+				source.add_currency(1)
 			# THE BOUNCE BURST. In the reference clip each leap throws roughly
 			# twenty gold-and-white STAR sparkles that fall under gravity -- it
 			# is a big, generous punctuation mark, and it is a large part of why
@@ -2235,6 +2256,18 @@ func _on_body_entered(body: Node2D) -> void:
 						if "is_dead" in e and e.is_dead:
 							continue
 						var d: float = global_position.distance_to(e.global_position)
+						# RATTER'S DART does not take the nearest -- it takes the
+						# HURT one. Scoring by health fraction inside the same
+						# search keeps one loop instead of two, and it is the
+						# whole identity of the weapon: a finisher, not a
+						# scatterer.
+						if rider == "ratter":
+							var frac := 1.0
+							if "health" in e and "max_health" in e and float(e.max_health) > 0.0:
+								frac = clampf(float(e.health) / float(e.max_health), 0.0, 1.0)
+							# distance still matters, but a wounded body is worth
+							# crossing the room for
+							d = d * (0.35 + 0.65 * frac)
 						if d < best:
 							best = d
 							next = e

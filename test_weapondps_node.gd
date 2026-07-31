@@ -87,6 +87,14 @@ const HITS_PER_USE := {
 	# ONE BODY feels, not how many shafts leave the string: a fan that spreads
 	# cannot put every arrow in the same target, which is the lesson `ink` and
 	# `stubmisfire` both taught.
+	# THE FIVE RICOCHETS -- all leap, none the same way. Numbers are what ONE
+	# body feels: a chain spends most of itself on OTHER bodies, so a single
+	# dummy only ever sees the first hit plus whatever the rider adds to it.
+	"ratterdart":  1.2,   # hunts the hurt one, so the first body is rarely revisited
+	"hookbill":    1.3,   # drags what it leaves; the pull is not damage
+	"finchbolt":   1.4,   # refunded leaps mean a longer chain, not a heavier one
+	"tithegather": 1.3,   # the coin is the reward, not the hit
+	"badnews":     1.9,   # ordinary leaps, and the LAST one lands 1.5x on top
 	"ferrytwin":   2.0,   # both crossings land -- they fly the SAME line
 	"twinnock":    1.7,   # one shaft becomes two at 0.45 range; both may connect
 	"choirpoints": 2.6,   # they CONVERGE, so all three meet on one body
@@ -131,7 +139,7 @@ const HITS_PER_USE := {
 	# --- the eleven wands freed from the shared ice dart (2026-07-30) ---
 	"chalkline":   1.2, # a static stroke; a body crosses it about once
 	"tallowdrip":  2.4, # the splat + ~2 ticks; a T1 puddle is SHORT by design
-	"stubmisfire": 1.5, # RANDOM 2-4 sparks (or 1 fat x3) thrown in a WIDE FAN.
+	"stubmisfire": 2.0, # RANDOM 2-4 sparks (or 1 fat x3) thrown in a WIDE FAN.
 	                    # 2.5 counted every spark, which only happens against a
 	                    # crowd: test_realhits puts ONE dummy on the line and
 	                    # measures 1, because the rest of the fan flies past it.

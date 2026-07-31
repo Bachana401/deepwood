@@ -149,7 +149,7 @@ const ROWS = [
 	["wpn_millsickle",   "Mill Sickle",          "melee", 2, "arc",       9,  0.32, {"plain": true}],
 	["wpn_bonepick",     "Bonepick",             "melee", 2, "arc",       12, 0.6,  {"plain": true}],
 	["wpn_coldiron",     "Cold Iron Edge",       "melee", 2, "arc",       11, 0.5,  {"status": "slow_w", "plain": true}],
-	["wpn_ratterdart",   "Ratter's Dart",        "melee", 2, "ricochet",  8,  0.7,  {"bounces": 2, "plain": true}],
+	["wpn_ratterdart",   "Ratter's Dart",        "melee", 2, "ratterdart", 10, 0.7,  {"bounces": 2}],
 	["wpn_boarspit",     "Boarspit",             "spear", 2, "thrust",    12, 0.75, {"plain": true}],
 	["wpn_wallpike",     "Wallwatcher's Pike",   "spear", 2, "thrust",    14, 0.95, {"plain": true}],
 	["wpn_reedjavelin",  "Reed Javelins",        "spear", 2, "jab_volley", 9, 0.9,  {"count": 2, "plain": true}],
@@ -166,7 +166,7 @@ const ROWS = [
 	["wpn_bellhammer",   "Bell Hammer",          "melee", 3, "belltoll",  22, 1.0,  {"knockup": true, "rung": true}],
 	["wpn_squallblade",  "Squallblade",          "melee", 3, "crescent",  13, 0.55, {"p_damage": 11, "plain": true}],
 	["wpn_thornwheel",   "Thornwheel",           "melee", 3, "orbiter",   12, 0.8,  {"dwell": 1.8}],
-	["wpn_hookbill",     "Hookbill",             "melee", 3, "ricochet",  12, 0.65, {"bounces": 3, "plain": true}],
+	["wpn_hookbill",     "Hookbill",             "melee", 3, "hookbill",  12, 0.65, {"bounces": 3}],
 	["wpn_shrikelash",   "Shrike's Tail",        "melee", 3, "lash",      12, 0.85, {}],
 	["wpn_gatecleaver",  "Gatecleaver",          "spear", 3, "thrust",    17, 0.85, {"plain": true}],
 	["wpn_heronlance",   "Heron Lance",          "spear", 3, "thrust",    14, 0.6,  {"plain": true}],
@@ -179,7 +179,7 @@ const ROWS = [
 	["wpn_saltwand",     "Saltbinder",           "wand",  3, "saltring",  16, 0.55, {"rung": true}],
 	["wpn_marshlight",   "Marshlight Lantern",   "wand",  3, "cluster",   15, 0.8,  {"shards": 4}],
 	["wpn_leadrod",      "Leaden Judgement",     "wand",  3, "lob",       21, 1.05, {"aoe": 95, "plain": true}],
-	["wpn_finchbolt",    "Finchbolt",            "wand",  3, "ricochet",  13, 0.6,  {"bounces": 3, "plain": true}],
+	["wpn_finchbolt",    "Finchbolt",            "wand",  3, "finchbolt", 13, 0.6,  {"bounces": 3}],
 	["wpn_droverstaff",  "Drover's Crook",       "staff", 3, "staff",     12, 0.45, {"plain": true}],
 	# ---------------- TIER 4 - EPIC (floors 24-52) ----------------
 	["wpn_duskrender",   "Duskrender",           "melee", 4, "duskrip",    8, 0.45, {}],
@@ -321,7 +321,7 @@ const ROWS = [
 	["wpn_curseknife",   "Cursewright's Knife",  "melee", 3, "arc",       10, 0.28, {"status": "poison_w", "plain": true}],
 	["wpn_wardenblade",  "Warden of the Row",    "melee", 3, "rowsickle", 12, 0.30, {"p_damage": 10}],
 	["wpn_marshlash",    "Marsh Tongue",         "melee", 3, "lash",      11, 0.85, {"status": "poison_w"}],
-	["wpn_tithegather",  "Tithe Gatherer",       "melee", 3, "ricochet",  11, 0.65, {"bounces": 3, "plain": true}],
+	["wpn_tithegather",  "Tithe Gatherer",       "melee", 3, "tithegather", 11, 0.65, {"bounces": 3}],
 	["wpn_harrowpike",   "Harrower",             "spear", 3, "thrust",    16, 0.8,  {"plain": true}],
 	["wpn_lamplighter",  "Lamplighter's Reach",  "spear", 3, "thrust",    13, 0.6,  {"status": "burn_w", "plain": true}],
 	["wpn_gullprong",    "Gullwing Prong",       "spear", 3, "jab_volley", 11, 0.9, {"count": 3, "plain": true}],
@@ -335,7 +335,7 @@ const ROWS = [
 	["wpn_mirebook",     "The Mire Pages",       "wand",  3, "tome",      8,  1.45, {"radius": 120, "tome_kind": "mire"}],
 	["wpn_shalewand",    "Shalebreaker",         "wand",  3, "cluster",   14, 0.85, {"shards": 5}],
 	["wpn_pyrelight",    "Pyrelight",            "wand",  3, "fire",      18, 0.8,  {"aoe": 95, "status": "burn_w", "plain": true}],
-	["wpn_courierrod",   "Courier's Bad News",   "wand",  3, "ricochet",  12, 0.62, {"bounces": 3, "plain": true}],
+	["wpn_courierrod",   "Courier's Bad News",   "wand",  3, "badnews",   12, 0.62, {"bounces": 3}],
 	["wpn_shepherdstaff","Shepherd of Stones",   "staff", 3, "staff",     11, 0.42, {"plain": true}],
 	["wpn_wellstaff",    "Wellwalker",           "staff", 3, "staff",     13, 0.5,  {"plain": true}],
 	# ---------------- WAVE 3 - TIER 4 (28) ----------------
@@ -968,6 +968,37 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 		# (the "frost" label lived here -- see the note above "chalkline")
 		"ricochet":
 			s = {"type": "ricochet", "damage": dmg, "speed": spd + 120.0, "range": rng, "bounces": int(ex.get("bounces", 3))}
+		# ---- THE FIVE THAT WERE ONE DART ------------------------------------
+		# Ratter's Dart, Hookbill, Finchbolt, Tithe Gatherer and Courier's Bad
+		# News all declared "ricochet": leap, lose 15% a bounce, repeat. Five
+		# names, one dart. The bounce ALREADY had a rider hook (The Rumor grows,
+		# the Grave Courier fears, The Final Debt books) -- these five were
+		# simply never given one.
+		"ratterdart":
+			# a ratter FINISHES things. Its leaps ignore the healthy and go for
+			# whatever is already hurt.
+			s = {"type": "ricochet", "damage": dmg, "speed": spd + 160.0,
+				"range": rng, "bounces": int(ex.get("bounces", 2)), "rider": "ratter"}
+		"hookbill":
+			# a hook GATHERS. Every body it leaves is dragged a step toward the
+			# place it was struck, so a chain pulls the room into a knot.
+			s = {"type": "ricochet", "damage": dmg, "speed": spd + 120.0,
+				"range": rng, "bounces": int(ex.get("bounces", 3)), "rider": "hook"}
+		"finchbolt":
+			# a finch keeps finding fresh birds: striking something UNTOUCHED
+			# refunds the leap, so a full room carries it further than a hurt one.
+			s = {"type": "ricochet", "damage": dmg, "speed": spd + 200.0,
+				"range": rng, "bounces": int(ex.get("bounces", 3)), "rider": "finch"}
+		"tithegather":
+			# it COLLECTS. Every bounce mints a coin -- the only weapon in the
+			# roster that pays you for the length of a chain.
+			s = {"type": "ricochet", "damage": dmg, "speed": spd + 120.0,
+				"range": rng, "bounces": int(ex.get("bounces", 3)), "rider": "tithe"}
+		"badnews":
+			# news travels quietly and lands hard: the leaps are ordinary, and
+			# the LAST one -- the delivery -- hits for two and a half times.
+			s = {"type": "ricochet", "damage": dmg, "speed": spd + 120.0,
+				"range": rng, "bounces": int(ex.get("bounces", 3)), "rider": "badnews"}
 		"cluster":
 			s = {"type": "cluster", "damage": dmg, "speed": spd, "range": rng, "shards": int(ex.get("shards", 5))}
 		"tome":
@@ -1671,6 +1702,11 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"fire":       return "Detonates on impact, scorching everything close."
 		"frost":      return "A razor sliver that skewers everyone along its line."
 		"ricochet":   return "Leaps foe to foe up to %d times, each hit a little lighter." % int(ex.get("bounces", 3))
+		"ratterdart": return "A ratter FINISHES things. Its leaps ignore the healthy and go straight for whatever is already hurt."
+		"hookbill":   return "A hook GATHERS. Every body it leaves is dragged a step toward where it was struck, so a long chain pulls the room into a knot."
+		"finchbolt":  return "A finch keeps finding fresh birds. Striking something UNTOUCHED refunds the leap, so a full room carries it further than a hurt one."
+		"tithegather": return "It COLLECTS. Every bounce mints a coin -- the only thing you own that pays you by the length of the chain."
+		"badnews":    return "News travels quietly and lands hard. The leaps are ordinary; the LAST one, the delivery, hits for two and a half times."
 		"cluster":    return "Bursts on its first mark into a fan of %d biting shards." % int(ex.get("shards", 5))
 		"tome":       return "Reads a stormlet down over the aimed ground for a few seconds."
 		"sentry":     return "Plants ONE watching totem that snipes on its own clock."

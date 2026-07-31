@@ -57,6 +57,8 @@ const KIND_ALIAS := {
 	"court_barrage":  ["courtier"],       # the Court spawns its shades
 	"king_rain":      ["javelin", "crown_spear"],  # the rain drops shafts
 	"multi_shot":     ["script:arrow.gd", "shot", "arrow"],
+	# the five shaped ricochets all still spawn the ricochet body -- what
+	# differs is the RIDER on it, which a node-type check cannot see
 	# THE SIX SHAPED VOLLEYS. Each is its own verb now -- one bow used to wear
 	# six names -- but every one of them still puts ARROWS in the air, which is
 	# the only thing this audit can see. The difference between them is the
