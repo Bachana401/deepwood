@@ -164,9 +164,9 @@ func _ready() -> void:
 	# 107 -> 106: HORIZON PIKE finally does what its name says (same day).
 	# 106 -> 103: the three plain STAFFS of tier 6 (Twelfth Pillar, Ladder to
 	#             Nowhere, The Still Mountain) got their names back too.
-	# 103 -> 101: GRIEF MADE SHARP and WORLDSPIKE, the last two T6 plain rungs
-	#             that had verbs designed for them.
-	var PLAIN_QUOTA := 101
+	# 103 -> 101: GRIEF MADE SHARP and WORLDSPIKE.
+	# 101 ->  99: REQUIEM EDGE and SORROWFANG. TIER 6 NOW HAS NO PLAIN RUNGS.
+	var PLAIN_QUOTA := 99
 	var plain_n := 0
 	var overdressed := []
 	var unknown := []
@@ -289,8 +289,8 @@ func _ready() -> void:
 	# 106 -> 105 for the same reason: a rung that gains a verb leaves the chain.
 	# The `broken` list stayed EMPTY, which is the part that actually mattered --
 	# nothing downstream was forging FROM Daybreak Edge.
-	check("every chained rung forges from kin plus materials (98 links)",
-		chained == 98 and broken.is_empty(),
+	check("every chained rung forges from kin plus materials (96 links)",
+		chained == 96 and broken.is_empty(),
 		"chained=%d; broken: %s" % [chained, ", ".join(broken)])
 	# ---- THE CULMINATION (Zenith-kin): the melee crown forges from its three
 	# famous T7 ancestors -- the same blades whose tinted ghosts its zenith

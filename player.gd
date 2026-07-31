@@ -5098,6 +5098,42 @@ func perform_attack() -> void:
 			or special_type == "bent_ray":
 		var wcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
 		launch_projectile(special, aim_dir, wcr[0], wcr[1])
+	# REQUIEM EDGE (T6): three cuts in a cadence, not a fan
+	elif special_type == "requiem_note":
+		var notes: int = maxi(1, int(special.get("notes", 3)))
+		for i in range(notes):
+			var ncr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+			var rn = WEAPON_PROJECTILE_SCRIPT.new()
+			rn.kind = "requiem_note"
+			rn.damage = ncr[0]
+			rn.is_crit = ncr[1]
+			# THE CADENCE lives here: same launch, DIFFERENT SPEEDS, so they
+			# string out into a sequence instead of arriving as a wall. A fan
+			# spreads in angle; this one spreads in TIME.
+			rn.speed = 520.0 - 130.0 * float(i)
+			rn.max_distance = 330.0
+			rn.direction = aim_dir
+			rn.element = Inventory.element_of(active_weapon_id)
+			rn.on_hit_status = special.get("status", {})
+			rn.source = self
+			get_parent().add_child(rn)
+			rn.global_position = global_position + aim_dir * 30.0 + Vector2(0, -6.0 * float(i))
+	# SORROWFANG (T6): one bite, and then it goes looking for the next
+	elif special_type == "sorrow_fang":
+		var fcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+		var fg = WEAPON_PROJECTILE_SCRIPT.new()
+		fg.kind = "sorrow_fang"
+		fg.damage = fcr[0]
+		fg.is_crit = fcr[1]
+		fg.speed = float(special.get("speed", 620.0))
+		fg.max_distance = float(special.get("range", 300.0))
+		fg.direction = aim_dir
+		fg.element = Inventory.element_of(active_weapon_id)
+		fg.on_hit_status = special.get("status", {})
+		fg.source = self
+		fg._bites_left = maxi(1, int(special.get("bites", 3))) - 1
+		get_parent().add_child(fg)
+		fg.global_position = global_position + aim_dir * 26.0
 	# GRIEF MADE SHARP (T6): the worse you are doing, the more comes off it
 	elif special_type == "grief_shard":
 		var whole: float = float(get_max_health())

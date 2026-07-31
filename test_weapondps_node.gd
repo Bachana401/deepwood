@@ -83,6 +83,9 @@ const HITS_PER_USE := {
 	# ticking" -- true of the rungs, but each rung carries 0.24 of the row, so
 	# the model read 230 dps and hauled the whole T6 median up by four points.
 	# The number here is TOTAL DAMAGE PER USE AS A MULTIPLE OF ROW DAMAGE.
+	"requiem":     2.3,   # the swing, plus three piercing notes at 0.42 each
+	"sorrowfang":  2.2,   # the swing, plus a chain of 3 bites at 0.62 falling
+	                      # 0.7x each (0.62 + 0.43 + 0.30 = 1.35 of the row)
 	"griefsharp":  1.6,   # the swing, plus ~2 shards on average at 0.30 each
 	                      # (one at full health, four when nearly dead)
 	"worldstake":  2.1,   # the thrust, plus a stake that stands and ticks

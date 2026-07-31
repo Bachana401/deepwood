@@ -395,11 +395,11 @@ const ROWS = [
 	["wpn_nightmortar",  "Midnight Post",        "bow",   5, "midnightpost", 27, 0.95, {"aoe": 105}],
 	["wpn_saintwheel",   "Saint's Reward",       "melee", 5, "saintsreward", 22, 0.8,  {"dwell": 3.0}],
 	# ---------------- WAVE 3 - TIER 6 (22) ----------------
-	["wpn_requiemedge",  "Requiem Edge",         "melee", 6, "arc",       29, 0.38, {"plain": true}],
+	["wpn_requiemedge",  "Requiem Edge",         "melee", 6, "requiem",   13, 0.38, {}],
 	["wpn_worldanvil",   "The World-Anvil",      "melee", 6, "anviltoll", 42, 1.08, {"knockup": true}],
 	["wpn_cinderchain",  "Cinderchain",          "melee", 6, "cinderdrag", 32, 0.92, {"status": "burn_w"}],
 	["wpn_voidwheel",    "Wheel of the Hollow",  "melee", 6, "hollowwheel", 26, 0.78, {"dwell": 3.2}],
-	["wpn_sorrowfang",   "Sorrowfang",           "melee", 6, "arc",       19, 0.24, {"status": "poison_w", "plain": true}],
+	["wpn_sorrowfang",   "Sorrowfang",           "melee", 6, "sorrowfang", 8, 0.24, {"status": "poison_w", "bites": 3}],
 	["wpn_horizonrender","Horizonrender",        "melee", 6, "horizonrend", 27, 0.54, {"p_damage": 25}],
 	["wpn_nightlash",    "A Long Night's Tongue","melee", 6, "nightlash", 27, 0.8,  {"status": "slow_w", "companion": "blade", "c_damage": 13, "c_gap": 1.7}],
 	["wpn_griefcollect", "Grief, Collected",     "melee", 6, "griefcollect", 24, 0.56, {"bounces": 6}],
@@ -1068,6 +1068,23 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			# metronome: ordinary shots, and every ninth is a RULING
 			s = {"type": "commandment", "damage": dmg, "speed": spd + 300.0,
 				"range": rng + 200.0, "every": 9}
+		"requiem":
+			# REQUIEM EDGE sings a DESCENDING chord: three cuts leave the blade
+			# at once but at different speeds, so they string out into a
+			# sequence, and each one FALLS and GROWS as it travels. Everything
+			# else in the roster that throws several things throws them in a
+			# FAN; this one throws them in a cadence.
+			s = {"type": "requiem_note",
+				"damage": maxi(1, int(round(float(dmg) * 0.42))), "notes": 3}
+		"sorrowfang":
+			# SORROWFANG's poison does not spread, it TRAVELS. The fang bites,
+			# leaves its poison in the wound, and LEAPS to the next nearest
+			# body -- three bites, each weaker than the last. The chain is the
+			# weapon; the poison is only what it leaves behind.
+			s = {"type": "sorrow_fang",
+				"damage": maxi(1, int(round(float(dmg) * 0.62))),
+				"speed": spd + 240.0, "range": rng,
+				"bites": int(ex.get("bites", 3))}
 		"griefsharp":
 			# GRIEF MADE SHARP reads the PLAYER, which nothing else in 350 does.
 			# The worse you are doing, the more of it comes off the blade: one
@@ -1524,6 +1541,8 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"edict":      return "The law REACHES: a jointed arm of light unfolds the length of the hall, cutting everything along it and blooming where it touches -- and stone does not stop a sentence."
 		"heavenstring": return "Every shaft trails a THREAD, and when it lands the thread goes taut: what you hit comes to you, whether it meant to or not."
 		"choirstring": return "Each shaft that lands plants a NOTE, humming where it stuck. Fill a room with notes and the room sings -- and singing hurts."
+		"requiem":     return "Three cuts leave the blade at once and arrive one after another, each one falling lower and growing louder than the last. Not a fan. A CADENCE."
+		"sorrowfang":  return "The poison does not spread -- it TRAVELS. The fang bites, leaves its sorrow in the wound, and leaps to the next nearest body. Three bites, each weaker, none of them where you aimed."
 		"griefsharp":  return "It knows how badly you are doing. Every swing throws shards of the grief off the edge -- ONE while you are whole, and as many as four when you are nearly gone."
 		"worldstake":  return "It does not cut. It PINS: the thrust drives a stake clean through and leaves it standing in the ground, holding what it caught and waiting for whatever wanders onto it next."
 		"twelfthpillar": return "Count. Eleven blows are only blows -- and on the TWELFTH a column of daylight stands up where you pointed and keeps standing."

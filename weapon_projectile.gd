@@ -469,6 +469,13 @@ func _ready() -> void:
 			monitoring = false
 			pierce = true
 			_build_lingering_arc()
+		"requiem_note":
+			# REQUIEM EDGE (T6): a cut that falls and grows as it goes.
+			pierce = true
+			_build_requiem_note()
+		"sorrow_fang":
+			# SORROWFANG (T6): it bites, then it leaps to the next body.
+			_build_sorrow_fang()
 		"grief_shard":
 			# GRIEF MADE SHARP (T6): a thin dark sliver, thrown off the edge.
 			pierce = true
@@ -922,6 +929,17 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind == "still_mountain":
 		_tick_anvil(delta)
+		return
+	if kind == "requiem_note":
+		# it FALLS and it GROWS. A requiem gets lower and louder, and both of
+		# those are motion the eye can read without being told.
+		_vel_y += 340.0 * delta
+		global_position += direction * speed * delta + Vector2(0, _vel_y * delta)
+		traveled += speed * delta
+		if visual != null:
+			visual.scale = Vector2.ONE * (1.0 + traveled / 420.0)
+		if traveled >= max_distance:
+			queue_free()
 		return
 	if kind == "world_stake":
 		# it flies until it has gone its distance, and then it is FURNITURE:
@@ -1569,6 +1587,14 @@ func _on_body_entered(body: Node2D) -> void:
 	if "is_dead" in body and body.is_dead:
 		return
 	hit_bodies.append(body)
+	# SORROWFANG: bite, leave the poison in the wound, and go find the next one
+	if kind == "sorrow_fang":
+		done = true
+		body.take_damage(damage)
+		_apply_status_to(body)
+		_sorrow_leap(body)
+		queue_free()
+		return
 	# the Soul Split bolt never damages -- it only asks the target to divide
 	if kind == "soul_split":
 		# `done` on EVERY terminal path (audit fix): queue_free() does not stop
@@ -2257,6 +2283,88 @@ func set_star_target(p: Vector2) -> void:
 	# spawn ABOVE the frame, not at the hand. The jitter is what stops a volley
 	# reading as one thick column.
 	global_position = p + Vector2(randf_range(-86.0, 86.0), -430.0)
+
+# A NOTE: a narrow crescent, hollow, lit along its inner curve. It has to be
+# thin, because it GROWS as it falls and a fat one would end up a wall.
+func _build_requiem_note() -> void:
+	var m := _add_mat()
+	var pts := PackedVector2Array()
+	for i in range(9):
+		var a: float = lerpf(-0.95, 0.95, float(i) / 8.0)
+		pts.append(Vector2(cos(a), sin(a)) * 21.0)
+	for i in range(8, -1, -1):
+		var a2: float = lerpf(-0.95, 0.95, float(i) / 8.0)
+		pts.append(Vector2(cos(a2), sin(a2)) * 15.0)
+	var body := Polygon2D.new()
+	body.polygon = pts
+	body.color = Color(0.55, 0.50, 0.72, 0.88)
+	body.material = m
+	visual.add_child(body)
+	var lit := Line2D.new()
+	var lp := PackedVector2Array()
+	for i in range(9):
+		var a3: float = lerpf(-0.95, 0.95, float(i) / 8.0)
+		lp.append(Vector2(cos(a3), sin(a3)) * 15.0)
+	lit.points = lp
+	lit.width = 1.8
+	lit.default_color = Color(0.92, 0.88, 1.0, 0.85)
+	lit.material = m
+	visual.add_child(lit)
+
+# A FANG: short, curved, pale, with a dark root. Small on purpose -- it is
+# meant to read as a bite, and the drama is where it goes NEXT.
+func _build_sorrow_fang() -> void:
+	var outline := PackedVector2Array([
+		Vector2(13, 0), Vector2(1, -5.0), Vector2(-9, -2.6),
+		Vector2(-9, 2.6), Vector2(1, 5.0)])
+	var body := Polygon2D.new()
+	body.polygon = outline
+	body.color = Color(0.82, 0.86, 0.74, 0.96)
+	visual.add_child(body)
+	var root := Polygon2D.new()
+	root.polygon = PackedVector2Array([
+		Vector2(-9, -2.6), Vector2(-3, -3.2), Vector2(-3, 3.2), Vector2(-9, 2.6)])
+	root.color = Color(0.30, 0.34, 0.26, 1.0)
+	visual.add_child(root)
+	_art_rim(outline, Color(0.62, 0.82, 0.50), 1.4)
+
+# THE LEAP. Called from the hit path, so the new fang goes in DEFERRED: adding
+# an Area2D while Godot is flushing queries is an error every single time.
+func _sorrow_leap(from: Node) -> void:
+	if _bites_left <= 0:
+		return
+	var host := get_parent()
+	if host == null or not is_instance_valid(host):
+		return
+	var best: Node2D = null
+	var best_d := 460.0
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if e == from or not is_instance_valid(e) or not (e is Node2D):
+				continue
+			if not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			var d: float = global_position.distance_to((e as Node2D).global_position)
+			if d < best_d:
+				best_d = d
+				best = e
+	if best == null:
+		return          # nothing else to bite: the chain simply ends
+	var nxt = (load("res://weapon_projectile.gd") as GDScript).new()
+	nxt.kind = "sorrow_fang"
+	nxt.direction = (best.global_position - global_position).normalized()
+	nxt.speed = speed
+	nxt.damage = maxi(1, int(round(float(damage) * 0.7)))   # each bite weaker
+	nxt.max_distance = best_d + 60.0
+	nxt.knockback = knockback * 0.6
+	nxt.element = element
+	nxt.on_hit_status = on_hit_status
+	nxt.source = source
+	nxt._bites_left = _bites_left - 1
+	nxt.global_position = global_position
+	host.call_deferred("add_child", nxt)
 
 # A SLIVER OF GRIEF: thin, dark, and lit only along one edge, so it reads
 # against the night without ever looking bright.
@@ -3905,6 +4013,7 @@ func _tick_boulder(delta: float) -> void:
 var _wake_returned := false
 var _echo_clock := 0.0      # slash: Flying Dragon silhouette echoes
 var _stake_planted := false # world_stake: has it stopped and become furniture?
+var _bites_left := 0        # sorrow_fang: leaps remaining in the chain
 var _ink_rehit := 0.0
 var _ink_launch := 0.0      # ink_jet: the speed it was thrown at
 var _ink_split := false     # ink_jet: has this stream already broken up?
