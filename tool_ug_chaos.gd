@@ -21,7 +21,7 @@ func flag(label: String, ok: bool) -> void:
 		printerr("CHAOS-FAIL  " + label)
 
 func _ready() -> void:
-	GameState.world_seed = 0
+	GameState.world_seed = int(OS.get_environment("UG_SEED")) if OS.get_environment("UG_SEED") != "" else 0
 	get_tree().change_scene_to_file.call_deferred("res://underground.tscn")
 	var ug: Node = null
 	var p: Node = null
@@ -47,7 +47,7 @@ func _ready() -> void:
 	ug._ropes = {}
 	ug._platforms = {}
 	var rng := RandomNumberGenerator.new()
-	rng.seed = 0xC4405
+	rng.seed = int(OS.get_environment("CHAOS_SEED")) if OS.get_environment("CHAOS_SEED") != "" else 0xC4405
 	var t0 := Time.get_ticks_msec()
 	for burst in range(40):
 		# go somewhere real: near a random door, chunks streamed in

@@ -566,7 +566,7 @@ func _entry_kind(x: int, y: int) -> int:
 const SAFE_DOORS := 8                  # the spawn stretch keeps the old guarantee
 const HOLE_EVERY := 340                # ~one per this many path cells beyond the safe zone
 const HOLE_DROP_MIN := 30              # tiles: 360px -> 9 damage
-const HOLE_DROP_MAX := 48              # tiles: 576px -> 41 damage. Felt, survivable.
+const HOLE_DROP_MAX := 44              # tiles: +4 pocket rows = 48 total = 576px = 41 damage max
 var _hole_air: Array = []              # y -> spans: the shaft + its pocket
 var _hole_caps := {}                   # cell -> true: the sand lids
 var _holes: Array = []                 # registry: {top, bottom, depth, wet, chest}
@@ -590,10 +590,22 @@ func _build_sinkholes() -> void:
 				break
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 0x51C0 ^ _seed
+	# Pocket floors are COLLECTED here and appended to _road_rock only after the
+	# loop (review finding 4): appending mid-loop left the table unsorted while
+	# the crossing probe was still reading it, and _in_span early-outs on sorted
+	# order -- so a later hole could pierce an earlier hole's floor undetected.
+	var pocket_floors: Array = []
 	var i := safe_end + rng.randi_range(60, HOLE_EVERY)
+	# A rejected candidate advances only a LITTLE, a placed hole advances the full
+	# interval: the safety filters below (no lakes, no road crossings, no repairs,
+	# no tracks) reject most spots on a wet world, and skipping a whole interval
+	# per rejection starved the reference seed down to 3 holes.
+	var placed_hole := true
 	while i < _path.size() - 40:
 		var top: Vector2i = _path[i]
-		i += rng.randi_range(int(HOLE_EVERY * 0.6), int(HOLE_EVERY * 1.5))
+		i += rng.randi_range(int(HOLE_EVERY * 0.6), int(HOLE_EVERY * 1.5)) if placed_hole \
+			else rng.randi_range(18, 40)
+		placed_hole = false
 		# never beside a door (landings stay honest) and never under a wade
 		# (the water would drain through the road into the shaft)
 		var near_door := false
@@ -617,40 +629,72 @@ func _build_sinkholes() -> void:
 		# the audit's 3 unfittable cells. The road promised itself first.
 		var crosses := false
 		for dy in range(0, depth + 6):
-			if _in_span(_road_air, top.y + dy, top.x) or _in_span(_road_rock, top.y + dy, top.x) \
-					or _in_span(_road_air, top.y + dy, top.x - 1) or _in_span(_road_rock, top.y + dy, top.x - 1):
-				if dy > 1:                     # our own bed at the lip is expected
+			var yy := top.y + dy
+			for xx in range(top.x - 1, top.x + 2):
+				if dy > 1 and (_in_span(_road_air, yy, xx) or _in_span(_road_rock, yy, xx)):
+					crosses = true             # another pass of the road (own bed at the lip is fine)
+				# ...nor through a LAKE (finding 3: hole air outranks the water
+				# spans, so a shaft cut a dry slot through the lake and left its
+				# water standing as glass walls the flow queue never wakes)
+				if _in_span(_water_rows, yy, xx) or _in_span(_lava_rows, yy, xx):
 					crosses = true
-					break
+				# ...nor where the road repair already patched the bed (finding 8:
+				# _road_fix outranks the shaft in _gen_kind -- a sealed mouth, or a
+				# cap cell that can never topple)
+				if dy <= 1 and _road_fix.has(Vector2i(xx, yy)):
+					crosses = true
+			if crosses:
+				break
+		# ...nor through an EARLIER hole's pocket (the local list, always current)
+		if not crosses:
+			for pf in pocket_floors:
+				if absi(int(pf[0]) - top.y) < depth + 8 and top.x + 1 >= int(pf[1]) and top.x - 1 <= int(pf[2]):
+					if int(pf[0]) > top.y:
+						crosses = true
+						break
 		if crosses:
 			continue
 		var wet := rng.randf() < 0.35
 		var chest := not wet and rng.randf() < 0.55
 		var capped := rng.randf() < 0.5
-		# the shaft: 2 wide, from the bed down through the apron
+		# THE SHAFT IS 3 TILES WIDE -- 36px -- because the player is 32px (review
+		# finding 1, the worst of the wave: at 2 tiles/24px NOBODY COULD FALL IN.
+		# The body overhung the intact bed by 4px a side and move_and_slide kept
+		# it standing over the pit forever. Every geometry audit passed, because
+		# none of them ever dropped a BODY down a shaft -- the static-sweep limit
+		# the project memory warns about, proven again.)
 		for dy in range(0, depth):
-			_add_span(_hole_air, top.y + dy, top.x - 1, top.x)
-		# the pocket at the bottom: wide enough to stand and look around in
+			_add_span(_hole_air, top.y + dy, top.x - 1, top.x + 1)
+		# the pocket at the bottom: wide enough to stand and look around in.
+		# A WET pocket's water cells must NOT enter _hole_air (finding 2: hole
+		# air outranks water in _gen_kind, so every "flooded" pocket generated
+		# bone dry and its map label lied) -- only the air row above the surface.
 		var by := top.y + depth
-		for dy in range(0, 4):
-			_add_span(_hole_air, by + dy, top.x - 4, top.x + 3)
+		if wet:
+			_add_span(_hole_air, by, top.x - 4, top.x + 3)
+			for dy in range(1, 4):
+				_add_span(_water_rows, by + dy, top.x - 4, top.x + 3)
+		else:
+			for dy in range(0, 4):
+				_add_span(_hole_air, by + dy, top.x - 4, top.x + 3)
 		# a GUARANTEED floor under the pocket (audit: a shaft that happened to
 		# open into natural cave below stacked the two drops into 64 tiles --
 		# past the promise that a sinkhole stings but never mauls)
 		for dy in range(4, 6):
-			_add_span(_road_rock, by + dy, top.x - 5, top.x + 4)
-		if wet:
-			for dy in range(1, 4):
-				_add_span(_water_rows, by + dy, top.x - 4, top.x + 3)
+			pocket_floors.append([by + dy, top.x - 5, top.x + 4])
 		if capped:
 			_hole_caps[Vector2i(top.x - 1, top.y)] = true
 			_hole_caps[Vector2i(top.x, top.y)] = true
+			_hole_caps[Vector2i(top.x + 1, top.y)] = true
 		var bottom := Vector2i(top.x, by + 3)
+		placed_hole = true
 		_holes.append({"top": top, "bottom": bottom, "depth": depth, "wet": wet, "chest": chest})
 		var key := _chunk_of_cell(bottom)
 		if not _holes_by_chunk.has(key):
 			_holes_by_chunk[key] = []
 		_holes_by_chunk[key].append(_holes.size() - 1)
+	for pf in pocket_floors:
+		_add_span(_road_rock, int(pf[0]), int(pf[1]), int(pf[2]))
 	_merge_rows(_hole_air)
 	_merge_rows(_water_rows)               # the flooded pockets joined after the lakes
 	_merge_rows(_road_rock)                # ...and the pocket floors joined the bed table
@@ -2457,7 +2501,11 @@ func _build_mapview() -> void:
 	_map_player.color = Color(1, 1, 1)
 	_map_player.z_index = 5
 	_map_root.add_child(_map_player)
-	var tw := create_tween().set_loops()
+	# the pulse tween is BOUND TO THE ARROW, not to this node: this node outlives
+	# the mapview it rebuilds each open, and a surviving loop tween whose target
+	# was freed trips Godot's infinite-loop detector with a console error on
+	# every reopen (review finding 5)
+	var tw := _map_player.create_tween().set_loops()
 	tw.tween_property(_map_player, "modulate:a", 0.45, 0.5)
 	tw.tween_property(_map_player, "modulate:a", 1.0, 0.5)
 	# the hover tooltip, following the mouse
@@ -2495,7 +2543,13 @@ func _build_map_markers() -> void:
 	for h in _holes:
 		var ht: Vector2i = h.top
 		var what := "flooded below" if bool(h.wet) else ("a chest below" if bool(h.get("chest", false)) else "a drop")
-		var hidden := "hidden under sand, " if _hole_caps.has(Vector2i(ht.x, ht.y)) or _hole_caps.has(Vector2i(ht.x - 1, ht.y)) else ""
+		# LIVE state, not the build-time dict: a toppled or blasted cap is gone, and
+		# an admin chart must not call an open pit hidden (review finding 6)
+		var hidden := ""
+		for cx2 in range(ht.x - 1, ht.x + 2):
+			if _hole_caps.has(Vector2i(cx2, ht.y)) and _cell_kind(Vector2i(cx2, ht.y)) == SAND:
+				hidden = "hidden under sand, "
+				break
 		_map_dot(Vector2(ht.x, ht.y) / MAP_SCALE, Color(0.95, 0.35, 0.75),
 			"Sinkhole — %s%d tiles down, %s" % [hidden, int(h.depth), what], mat)
 	_map_dot(Vector2(_route_start.x, _route_start.y) / MAP_SCALE, Color(0.4, 0.9, 1.0), "The way out — back to Deepwood", mat)
@@ -2716,7 +2770,7 @@ func _place_road_lamps(c: Vector2i, nodes: Array) -> void:
 		if _cell_kind(cell) == WATER or _cell_kind(cell + Vector2i(0, -1)) == WATER:
 			continue                    # no lantern in the middle of a wade
 		if _in_span(_hole_air, cell.y, cell.x) or _in_span(_hole_air, cell.y + 1, cell.x) \
-				or _hole_caps.has(cell) or _hole_caps.has(cell + Vector2i(-1, 0)):
+				or _hole_caps.has(cell) or _hole_caps.has(cell + Vector2i(-1, 0)) or _hole_caps.has(cell + Vector2i(1, 0)):
 			continue                    # ...nor floating over a sinkhole, nor FLAGGING a hidden cap
 		nodes.append(_spawn_torch(cell + Vector2i(0, -1)))
 

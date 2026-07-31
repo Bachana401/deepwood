@@ -122,7 +122,7 @@ func _audit_descent() -> void:
 			# a SINKHOLE is a deliberate fall (dev: "0 fall damage should not be a
 			# thing") -- judged by its own rules below, not as a road defect
 			if ug._in_span(ug._hole_air, c.y, c.x) or ug._in_span(ug._hole_air, c.y + 1, c.x) \
-					or ug._hole_caps.has(c) or ug._hole_caps.has(c + Vector2i(-1, 0)):
+					or ug._hole_caps.has(c) or ug._hole_caps.has(c + Vector2i(-1, 0)) or ug._hole_caps.has(c + Vector2i(1, 0)):
 				sink_falls += 1
 				sink_worst = maxi(sink_worst, drop)
 				continue

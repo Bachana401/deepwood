@@ -32,7 +32,7 @@ func check(label: String, ok: bool) -> void:
 # another session) stopped it booting, the run reported "ALL PASS (27 passed)"
 # and exited 0 -- a green light over a third of a suite. Never again: the count
 # itself is now an assertion.
-const EXPECTED_CHECKS := 101
+const EXPECTED_CHECKS := 106
 
 func _ready() -> void:
 	_test_generator()
@@ -71,7 +71,7 @@ func _test_generator() -> void:
 		if not _solid(ug, c.x, c.y):
 			# sinkholes are DELIBERATE falls (checked by their own rules above)
 			if ug._in_span(ug._hole_air, c.y, c.x) or ug._in_span(ug._hole_air, c.y + 1, c.x) \
-					or ug._hole_caps.has(c) or ug._hole_caps.has(c + Vector2i(-1, 0)):
+					or ug._hole_caps.has(c) or ug._hole_caps.has(c + Vector2i(-1, 0)) or ug._hole_caps.has(c + Vector2i(1, 0)):
 				continue
 			var drop := 0
 			while drop < 60 and ug._gen_kind(c.x, c.y + 1 + drop) == UG.AIR:
@@ -111,6 +111,24 @@ func _test_generator() -> void:
 	check("every sinkhole LANDS somewhere (%d bottomless)" % no_floor, no_floor == 0)
 	check("some are flooded, some capped with sand, some pay a chest (%d/%d/%d)"
 		% [wet_n, capped_n, chest_n], wet_n > 0 and capped_n > 0 and chest_n > 0)
+	# REALITY, not the registry (review finding 2: every "flooded" pocket was
+	# bone dry -- hole air outranked the water spans -- and this suite passed
+	# because it only ever counted the FLAG)
+	var dry_wet := 0
+	var narrow := 0
+	for h in ug._holes:
+		if bool(h.wet):
+			var pc: Vector2i = Vector2i(int(h.top.x), int(h.bottom.y) - 1)
+			if ug._gen_kind(pc.x, pc.y) != UG.WATER:
+				dry_wet += 1
+		# the MOUTH must admit a 32px body: 3 open-or-sand cells across
+		for xx in range(int(h.top.x) - 1, int(h.top.x) + 2):
+			var mk: int = ug._gen_kind(xx, int(h.top.y))
+			if mk != UG.AIR and mk != UG.SAND:
+				narrow += 1
+	check("every flooded pocket holds REAL water (%d dry liars)" % dry_wet, dry_wet == 0)
+	check("every shaft mouth is wide enough for the player (%d blocked cells)" % narrow,
+		narrow == 0)
 	# THE GUARANTEE IS "NO FALL DAMAGE", not "no fall". Where two passes of the
 	# road run close, one loses its floor to the other's headroom, and the honest
 	# fix is to let you drop onto the road below rather than to seal that lower
@@ -719,6 +737,34 @@ func _test_in_engine() -> void:
 	ug._load_save()
 	check("ropes and platforms survive a save and reload",
 		ug._ropes.size() == ropes_n and ug._platforms.size() == plats_n)
+
+	# ── A BODY ACTUALLY FALLS DOWN A SINKHOLE ──
+	# The review's worst finding: shafts were 24px wide, the player is 32px, and
+	# NOBODY could ever fall in -- yet every geometry audit passed, because none
+	# of them dropped a body down a shaft. This one does, forever.
+	var fall_hole := {}
+	for h in ug._holes:
+		if not ug._hole_caps.has(Vector2i(int(h.top.x), int(h.top.y))):
+			fall_hole = h                      # an OPEN mouth, no cap in the way
+			break
+	check("an open sinkhole exists to jump into", not fall_hole.is_empty())
+	if not fall_hole.is_empty():
+		var mouth := Vector2i(int(fall_hole.top.x), int(fall_hole.top.y))
+		p.global_position = ug._map.to_global(ug._map.map_to_local(mouth - Vector2i(0, 3)))
+		p.velocity = Vector2.ZERO
+		if "_last_ground_pos" in p:
+			p._last_ground_pos = p.global_position
+		if "fall_apex_y" in p:
+			p.fall_apex_y = p.global_position.y
+		var fy0: float = p.global_position.y
+		for i in range(140):
+			await get_tree().physics_frame
+		var fell: float = p.global_position.y - fy0
+		check("the player physically FALLS down the shaft (%.0f px)" % fell,
+			fell > float(fall_hole.depth) * UG.TILE * 0.6)
+
+		check("...and lands in the pocket, not inside rock",
+			not ug._solid_kind(ug._cell_at(p.global_position)))
 
 	# ── THE POWDER KEGS ──
 	# Somewhere solid, well away from the road, so the crater is measurable.

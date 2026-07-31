@@ -86,7 +86,9 @@ func open_map(rects: Array, markers: Array, live_groups: Dictionary, player: Nod
 	_player_dot.color = Color(1, 1, 1)
 	_player_dot.z_index = 6
 	_view.add_child(_player_dot)
-	var tw := create_tween().set_loops()
+	# bound to the dot itself: _teardown frees it, and a loop tween outliving its
+	# freed target trips the engine's infinite-loop error on every reopen
+	var tw := _player_dot.create_tween().set_loops()
 	tw.tween_property(_player_dot, "modulate:a", 0.45, 0.5)
 	tw.tween_property(_player_dot, "modulate:a", 1.0, 0.5)
 	_tip = Label.new()
