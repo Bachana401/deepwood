@@ -25,8 +25,11 @@ extends Node
 # The near ring sits at 45px, inside melee's own reach, so a sword is judged
 # where a sword can actually swing.
 
+const ARENA := preload("res://weapon_arena.gd")
+
 const RINGS := [45.0, 150.0, 280.0]
-const WATCH := 2.4           # seconds of firing per weapon
+const WATCH := 2.4           # seconds of firing per weapon (pass A)
+const REACH_WATCH := 0.9     # and a short probe per ring for reach (pass B)
 const CHANNELLED := ["prism_converge", "beam_channel", "soul_stream"]
 
 func say(t: String) -> void: printerr(t)
@@ -54,18 +57,24 @@ class Mark extends StaticBody2D:
 
 func _ready() -> void:
 	await get_tree().process_frame
-	get_tree().paused = false
-	var p: Node = null
-	for i in range(1200):
-		await get_tree().process_frame
-		p = get_tree().get_first_node_in_group("player")
-		if p != null:
-			break
-	if p == null:
-		say("ABORTED: no player"); get_tree().quit(0); return
 	GameState.opening_done = true
 	get_tree().paused = false
-	var stage: Node = p.get_parent()
+	# THE ARENA, NOT THE VILLAGE -- and this is not tidiness, it is the answer to
+	# "50 ranged weapons never reach past 45px".
+	#
+	# The arena floor is long and flat, so nothing a weapon fires has terrain to
+	# break on between the puppet and 280px, and every run is identical.
+	#
+	# (An earlier version of this note blamed village terrain for "50 ranged
+	# weapons never reach past 45px". That was wrong -- see the reach probe
+	# below. Moving to the arena was still right, just not for that reason.)
+	var arena = ARENA.take_over(get_tree(), self)
+	for _f in range(20):
+		await get_tree().process_frame
+	var p: Node = arena.player
+	if p == null or not is_instance_valid(p):
+		say("ABORTED: arena has no puppet"); get_tree().quit(0); return
+	var stage: Node = arena
 
 	var rows := []
 	say("\n=== THE PROVING SWEEP: %d weapons ===" % WeaponRoster.ROWS.size())
@@ -125,15 +134,50 @@ func _ready() -> void:
 		var struck := 0
 		var hits := 0
 		var total := 0
-		var reach := 0.0
 		for i in range(marks.size()):
 			var m = marks[i]
 			if m.hits > 0:
 				struck += 1
-				reach = maxf(reach, float(RINGS[i]))
 			hits += m.hits
 			total += m.total
 			m.queue_free()
+		await get_tree().process_frame
+
+		# ---- PASS B: REACH, MEASURED HONESTLY, ONE MARK AT A TIME -----------
+		# Pass A above puts three marks in a LINE, and a line can only ever
+		# measure PENETRATION. A non-piercing arrow hits the nearest mark and is
+		# consumed -- correctly -- so it can never register on the second, and
+		# the old code called that "never reached past 45px". 105 weapons were
+		# flagged as short when every one of them was a single-target weapon
+		# doing exactly its job, and I nearly went hunting for a bug in all of
+		# them. Veilpiercer and Curfew Bow reached 280 with the SAME arrow; the
+		# only difference was `pierce` in the roster, which is what gave it away.
+		#
+		# So reach is now asked as its own question: put ONE mark out at the far
+		# ring with nothing in front of it, and see whether the weapon can touch
+		# it. Farthest first, stop at the first hit -- usually one probe.
+		var true_reach := 0.0
+		for ring in [RINGS[2], RINGS[1], RINGS[0]]:
+			var solo := Mark.new()
+			solo.add_to_group("course_enemy")
+			stage.add_child(solo)
+			solo.global_position = (p as Node2D).global_position + aim * ring
+			await get_tree().process_frame
+			await get_tree().process_frame
+			p.mana = p.get_max_mana()
+			p.attack_cooldown_remaining = 0.0
+			var rt := 0.0
+			while rt < REACH_WATCH:
+				p.perform_attack()
+				await get_tree().process_frame
+				rt += get_process_delta_time()
+			var landed: bool = solo.hits > 0
+			solo.queue_free()
+			await get_tree().process_frame
+			if landed:
+				true_reach = ring
+				break
+		var reach := true_reach
 		var spent: float = maxf(0.0, mana_before - float(p.mana))
 		rows.append({
 			"name": str(def.get("name", id)), "id": id,
@@ -146,16 +190,21 @@ func _ready() -> void:
 
 	# ------- THE VERDICT: only the rows that do not fit are worth reading -----
 	var dead := []
-	var single := []
-	var freebies := []
+	var short_ranged := []
 	for r in rows:
 		if int(r["hits"]) == 0:
 			dead.append(r)
-		elif int(r["struck"]) == 1 and float(r["reach"]) <= RINGS[0]:
-			single.append(r)      # never got past the nearest ring
-	say("\n--- FULL TABLE (tier, class, verb | reach, targets, hits, dps, mana) ---")
+			continue
+		# SHORT means short, and only for a class that is SUPPOSED to reach.
+		# A sword that cannot touch 150px is a sword; a bow that cannot is a
+		# bug. The old flag lumped them together and called 30 melee weapons
+		# short, which is how a metric ends up describing the game rather than
+		# faulting it.
+		if float(r["reach"]) <= RINGS[0] and str(r["cls"]) in ["bow", "wand", "staff"]:
+			short_ranged.append(r)
+	say("\n--- FULL TABLE  (reach = solo probe | breadth = how many of 3 in a LINE) ---")
 	for r in rows:
-		say("  T%d %-7s %-26s %-15s reach %4.0f  tgt %d/3  hits %3d  dps %6.1f  %s%s"
+		say("  T%d %-7s %-26s %-15s reach %4.0f  breadth %d/3  hits %3d  dps %6.1f  %s%s"
 			% [r["tier"], r["cls"], r["name"], r["verb"], r["reach"], r["struck"],
 				r["hits"], r["dps"],
 				("FREE" if float(r["mana"]) <= 0.0 else "%.0f mana" % float(r["mana"])),
@@ -163,8 +212,11 @@ func _ready() -> void:
 	say("\n=== NOTHING LANDED (%d) ===" % dead.size())
 	for r in dead:
 		say("  T%d %-7s %-26s %s" % [r["tier"], r["cls"], r["name"], r["verb"]])
-	say("\n=== NEVER REACHED PAST %dpx (%d) ===" % [int(RINGS[0]), single.size()])
-	for r in single:
+	say("\n=== RANGED WEAPONS THAT CANNOT REACH %dpx (%d) ===" % [int(RINGS[1]), short_ranged.size()])
+	for r in short_ranged:
 		say("  T%d %-7s %-26s %s" % [r["tier"], r["cls"], r["name"], r["verb"]])
+	say("\n--- BREADTH is NOT reach. 1/3 means the shot stopped at the first body,")
+	say("    which is correct for anything without pierce or splash. Read it as")
+	say("    single-target, never as broken. ---")
 	say("\n=== SWEPT %d weapons ===" % rows.size())
 	get_tree().quit(0)
