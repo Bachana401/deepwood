@@ -164,12 +164,42 @@ static func take_over(tree: SceneTree, keep: Node = null) -> Node2D:
 	# and anything the old scene parented directly to the ROOT rather than to
 	# itself outlives both of the above. In a rig that exists to give
 	# comparable frames, one stray leftover is a wrong answer waiting to happen.
-	for n in tree.root.get_children():
-		if n == arena or n == keep or n.name == "" or n is Window:
-			continue
-		# autoloads are root children too and must survive
-		if ProjectSettings.has_setting("autoload/" + str(n.name)):
-			continue
-		tree.root.remove_child(n)
-		n.queue_free()
+	# WHAT IS ACTUALLY THERE. I have now guessed twice at what draws the leftover
+	# village strip -- a deferred free, then a stray CanvasLayer -- and been
+	# wrong twice. Printing the tree ends the guessing in one run, and costs
+	# nothing in a rig that only ever runs under a test harness.
+	if OS.has_environment("ARENA_DUMP"):
+		printerr("\n=== ROOT CHILDREN AT TAKEOVER ===")
+		for n in tree.root.get_children():
+			printerr("  %-28s %-22s vis=%s" % [n.name, n.get_class(),
+				str(n.visible) if n is CanvasItem else "-"])
+			for c in n.get_children():
+				printerr("      %-24s %-22s" % [c.name, c.get_class()])
+		printerr("=== current_scene: %s ===\n" % (
+			"null" if tree.current_scene == null else tree.current_scene.name))
+	# THE ROOT SWEEP IS GONE, and the reason is the answer to the whole hunt.
+	#
+	# The leftover "village strip" is not a stray node I failed to kill. It is
+	# main.tscn, and THE PLAYER CANNOT LIVE WITHOUT IT:
+	#
+	#   player.gd:2705  $"../CanvasLayer/HealthBarFill".size.x = ...
+	#
+	# The player reaches OUT of itself, by path, into its parent scene's HUD --
+	# health bar, labels, hotbar. update_health_display runs from _ready via
+	# wield_weapon, so a player instanced anywhere that is not main.tscn errors
+	# on its first frame. Dumping the tree turned a cosmetic puzzle into a
+	# structural fact in one run, after I had guessed wrong twice.
+	#
+	# So the arena can never be a truly standalone scene while the player is
+	# coupled to main's UI. Killing main to tidy up a screenshot would break the
+	# very puppet the arena exists to hold. The strip stays until the player's
+	# HUD access is decoupled -- and that is a real refactor of player.gd, not a
+	# tweak to a test rig, so it is the dev's call rather than a thing to
+	# quietly attempt at the end of a session.
+	# ...and what SURVIVED it, which is the half that actually matters
+	if OS.has_environment("ARENA_DUMP"):
+		printerr("=== ROOT CHILDREN AFTER THE SWEEP ===")
+		for n2 in tree.root.get_children():
+			printerr("  %-28s %-22s" % [n2.name, n2.get_class()])
+		printerr("=====================================\n")
 	return arena
