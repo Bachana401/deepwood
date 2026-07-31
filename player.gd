@@ -8536,6 +8536,9 @@ func spawn_arrow(stats: Dictionary, aim_dir: Vector2) -> void:
 			stats.knockback_min, stats.knockback_max, 4)
 		echo.girth = grade_projectile_girth() * 0.8
 		echo.element = Inventory.element_of(active_weapon_id)
+		# an ANSWER reads as an answer (polish): the echo flies half-faded,
+		# a ghost of the shaft it follows -- not a second full arrow
+		echo.modulate.a = 0.55
 		get_parent().add_child(echo)
 	# loosing SPENDS the Deadeye prime; the next certainty is earned by
 	# another breath of stillness
