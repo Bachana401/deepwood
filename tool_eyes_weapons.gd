@@ -24,31 +24,15 @@ extends Node
 #   EYES_TIER   lowest tier to shoot (default 6 -- the tiers the dev is
 #               complaining about; set 1 to photograph the whole roster)
 
+const ARENA := preload("res://weapon_arena.gd")
+
 var shot_dir := "user://eyes_weapons"
 var min_tier := 6
 
 func say(t: String) -> void: printerr(t)
 
-class Mark extends StaticBody2D:
-	var health := 999999999
-	var max_health := 999999999
-	var is_dead := false
-	func _init() -> void:
-		collision_layer = 4
-		collision_mask = 0
-		var cs := CollisionShape2D.new()
-		var sh := RectangleShape2D.new()
-		sh.size = Vector2(34, 64)
-		cs.shape = sh
-		add_child(cs)
-		var body := Polygon2D.new()
-		body.polygon = PackedVector2Array([
-			Vector2(-17, -32), Vector2(17, -32), Vector2(17, 32), Vector2(-17, 32)])
-		body.color = Color(0.42, 0.34, 0.26, 1.0)
-		add_child(body)
-	func take_damage(_n: int): return true
-	func apply_status(_k: String, _d: float, _m: float) -> void: pass
-	func apply_knockback(_s: float, _f: float) -> void: pass
+# (the Mark class lived here until the arena became a scene of its own -- it is
+# weapon_arena.Mark now, so there is exactly one puppet definition to keep true)
 
 func _ready() -> void:
 	var env_dir := OS.get_environment("EYES_DIR")
@@ -60,30 +44,19 @@ func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(shot_dir)
 
 	await get_tree().process_frame
-	get_tree().paused = false
-	var p: Node = null
-	for i in range(1800):
-		await get_tree().process_frame
-		p = get_tree().get_first_node_in_group("player")
-		if p != null:
-			break
-	if p == null:
-		say("ABORTED: no player"); get_tree().quit(0); return
 	GameState.opening_done = true
 	get_tree().paused = false
-	var stage: Node = p.get_parent()
-
-	# three marks along the real aim, same placement law the sweep uses: a
-	# target off the aim vector makes a healthy weapon look dead
-	# THE TEST OWNS THE AIM. Flat and to the right, always -- never the real
-	# cursor, which headless makes nonsense and windowed steals from the dev.
-	p.set_test_aim(Vector2.RIGHT)
-	var aim := Vector2.RIGHT
-	for r in [70.0, 170.0, 290.0]:
-		var m := Mark.new()
-		m.add_to_group("course_enemy")
-		stage.add_child(m)
-		m.global_position = (p as Node2D).global_position + aim.normalized() * r
+	# ITS OWN SCENE. Shooting inside the live village meant every frame carried
+	# whatever terrain, buildings, NPCs and hour happened to be there, so two
+	# runs of the SAME weapon were not comparable -- and a colour judgement
+	# between two incomparable frames is worth nothing, which is exactly the
+	# judgement these frames exist to support.
+	var arena = ARENA.take_over(get_tree())
+	for _f in range(20):
+		await get_tree().process_frame
+	var p: Node = arena.player
+	if p == null or not is_instance_valid(p):
+		say("ABORTED: arena has no puppet"); get_tree().quit(0); return
 
 	var shot := 0
 	for row in WeaponRoster.ROWS:
