@@ -4428,7 +4428,8 @@ func perform_attack() -> void:
 			return
 		# THE LAST LARK climbs and sings; WINTERMARK marks and pays later.
 		# Both are ordinary launches -- the whole weapon is in the projectile.
-		if special_type == "lark_song" or special_type == "winter_mark":
+		if special_type == "lark_song" or special_type == "winter_mark" \
+				or special_type == "hummingbird":
 			play_sfx(SFX_BOW)
 			animate_bow(stats)
 			var lcr = roll_crit(int(round(float(special.get("damage", stats.damage))
@@ -4776,6 +4777,12 @@ func perform_attack() -> void:
 			sp.direction = get_aim_direction()
 			get_parent().add_child(sp)
 			sp.global_position = global_position + sp.direction * 26.0
+		elif special_type == "sunder_point":
+			# SUNDER PIKE (T4): one point in, two out
+			play_sfx(SFX_SPEAR)
+			animate_spear(stats)
+			var scr2 = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("spear"))))
+			launch_projectile(special, get_aim_direction(), scr2[0], scr2[1])
 		elif special_type == "moon_reach":
 			# MOONREACH (T5): the reach goes UP, not out
 			play_sfx(SFX_SPEAR)
@@ -5128,6 +5135,22 @@ func perform_attack() -> void:
 			or special_type == "bent_ray":
 		var wcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
 		launch_projectile(special, aim_dir, wcr[0], wcr[1])
+	# DUSKRENDER (T4): the tear stays where you made it
+	elif special_type == "dusk_rip":
+		var dr = WEAPON_PROJECTILE_SCRIPT.new()
+		dr.kind = "dusk_rip"
+		var drc = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+		dr.damage = drc[0]
+		dr.is_crit = drc[1]
+		dr.element = Inventory.element_of(active_weapon_id)
+		dr.on_hit_status = special.get("status", {})
+		dr.source = self
+		get_parent().add_child(dr)
+		dr.global_position = global_position + aim_dir * 62.0
+	# MAGMA WRIT (T4): it pours, and then it crawls
+	elif special_type == "magma_crawl":
+		var mcr2 = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("wand"))))
+		launch_projectile(special, aim_dir, mcr2[0], mcr2[1])
 	# SUMMIT THAT WALKS (T5): a standing stone that simply walks
 	elif special_type == "walking_summit":
 		var ws = WEAPON_PROJECTILE_SCRIPT.new()

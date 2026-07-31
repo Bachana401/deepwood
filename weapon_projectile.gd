@@ -469,6 +469,19 @@ func _ready() -> void:
 			monitoring = false
 			pierce = true
 			_build_lingering_arc()
+		# ---- tier 4 ----
+		"dusk_rip":
+			_build_dusk_rip()
+			_zone_max = 1.9
+			_zone_r = 46.0
+		"sunder_point":
+			_build_sunder_point()
+		"hummingbird":
+			pierce = true
+			_build_hummingbird()
+		"magma_crawl":
+			pierce = true
+			_build_magma_crawl()
 		# ---- tier 5, the last seven plain rungs ----
 		"lark_song":
 			pierce = true
@@ -983,6 +996,43 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind == "still_mountain":
 		_tick_anvil(delta)
+		return
+	if kind == "dusk_rip":
+		_tick_standing_zone(delta)
+		return
+	if kind == "hummingbird":
+		# OUT, HOVER, BACK. The hover is the weapon: it is the only window in
+		# which this bow beats an ordinary one, and it happens at a fixed
+		# distance, so the player has to find that distance and hold it.
+		_zone_t += delta
+		if _zone_t < 0.34:
+			global_position += direction * speed * delta
+		elif _zone_t < 0.62:
+			# thrumming in place, taking whatever is close
+			global_position += Vector2(0, sin(_zone_t * 46.0) * 22.0 * delta)
+			_ink_rehit += delta
+			if _ink_rehit >= 0.12:
+				_ink_rehit = 0.0
+				_rake_overlapping()
+		else:
+			global_position -= direction * speed * 1.25 * delta
+			if source != null and is_instance_valid(source) \
+					and global_position.distance_to(source.global_position) < 26.0:
+				queue_free()
+			if _zone_t > 2.4:
+				queue_free()
+		return
+	if kind == "magma_crawl":
+		# it POURS along the floor: forward at a walk, sagging until it finds
+		# ground, and raking whatever it crawls over
+		global_position += direction * speed * 0.34 * delta + Vector2(0, 90.0 * delta)
+		traveled += speed * 0.34 * delta
+		_ink_rehit += delta
+		if _ink_rehit >= 0.20:
+			_ink_rehit = 0.0
+			_rake_overlapping()
+		if traveled >= max_distance:
+			queue_free()
 		return
 	if kind == "lark_song":
 		# it climbs, slows, and SINGS at the top -- the one thing in the file
@@ -1727,6 +1777,14 @@ func _on_body_entered(body: Node2D) -> void:
 	if "is_dead" in body and body.is_dead:
 		return
 	hit_bodies.append(body)
+	# SUNDER PIKE: one point in, two out. It keeps going as well, so the strike
+	# reads as the point COMING APART rather than being replaced.
+	if kind == "sunder_point" and not _ink_split:
+		_ink_split = true
+		body.take_damage(damage)
+		_apply_status_to(body)
+		_sunder_split()
+		return
 	# WINTERMARK: the shaft only MARKS. Winter arrives when it is spent.
 	if kind == "winter_mark":
 		body.take_damage(damage)
@@ -2442,6 +2500,96 @@ func set_star_target(p: Vector2) -> void:
 	# spawn ABOVE the frame, not at the hand. The jitter is what stops a volley
 	# reading as one thick column.
 	global_position = p + Vector2(randf_range(-86.0, 86.0), -430.0)
+
+# ---- tier 4 ----
+
+# A TEAR in the air: a jagged sliver of dark with a lit edge, so it reads
+# against a night background instead of vanishing into it.
+func _build_dusk_rip() -> void:
+	var outline := PackedVector2Array([
+		Vector2(0, -34), Vector2(7, -12), Vector2(4, 3),
+		Vector2(9, 30), Vector2(-2, 12), Vector2(-6, -6)])
+	var body := Polygon2D.new()
+	body.polygon = outline
+	body.color = Color(0.13, 0.10, 0.20, 0.92)
+	visual.add_child(body)
+	_art_rim(outline, Color(0.68, 0.52, 0.96), 2.0)
+
+func _build_sunder_point() -> void:
+	var outline := PackedVector2Array([
+		Vector2(18, 0), Vector2(2, -4.4), Vector2(-12, -1.8),
+		Vector2(-12, 1.8), Vector2(2, 4.4)])
+	var body := Polygon2D.new()
+	body.polygon = outline
+	body.color = Color(0.78, 0.76, 0.70, 0.96)
+	visual.add_child(body)
+	# the split is drawn INTO the point: a hairline down its spine, so the
+	# thing looks like it is already halfway to being two things
+	var seam := Line2D.new()
+	seam.points = PackedVector2Array([Vector2(16, 0), Vector2(-10, 0)])
+	seam.width = 1.2
+	seam.default_color = Color(0.30, 0.30, 0.34, 0.9)
+	visual.add_child(seam)
+	_art_rim(outline, Color(1.0, 0.94, 0.78), 1.4)
+
+# THE SPLIT: one point in, two out, each carrying on past what it struck.
+func _sunder_split() -> void:
+	var host := get_parent()
+	if host == null or not is_instance_valid(host):
+		return
+	for s in [-1.0, 1.0]:
+		var half = (load("res://weapon_projectile.gd") as GDScript).new()
+		half.kind = "sunder_point"
+		half.direction = direction.rotated(s * 0.34).normalized()
+		half.speed = speed * 0.9
+		half.damage = maxi(1, int(round(float(damage) * 0.65)))
+		half.max_distance = maxf(80.0, max_distance - traveled)
+		half.knockback = knockback * 0.6
+		half.element = element
+		half.on_hit_status = on_hit_status
+		half.source = source
+		half._ink_split = true          # the halves do not split again
+		half.global_position = global_position
+		host.call_deferred("add_child", half)
+
+func _build_hummingbird() -> void:
+	var m := _add_mat()
+	var body := Polygon2D.new()
+	body.polygon = PackedVector2Array([
+		Vector2(10, 0), Vector2(0, -3.4), Vector2(-7, 0), Vector2(0, 3.4)])
+	body.color = Color(0.34, 0.78, 0.62, 0.96)
+	visual.add_child(body)
+	for s in [-1.0, 1.0]:
+		var wing := Polygon2D.new()
+		wing.polygon = PackedVector2Array([
+			Vector2(0, s * 1.5), Vector2(-5, s * 11.0), Vector2(-8, s * 3.0)])
+		wing.color = Color(0.72, 1.0, 0.88, 0.55)
+		wing.material = m
+		visual.add_child(wing)
+		# the blur: wings that beat too fast to see are the whole bird
+		var tw := wing.create_tween().set_loops()
+		tw.tween_property(wing, "scale", Vector2(1.0, 0.3), 0.06)
+		tw.tween_property(wing, "scale", Vector2(1.0, 1.0), 0.06)
+
+func _build_magma_crawl() -> void:
+	var m := _add_mat()
+	var glow := Polygon2D.new()
+	glow.polygon = _circle(20.0, 12)
+	glow.color = Color(1.0, 0.44, 0.12, 0.22)
+	glow.material = m
+	visual.add_child(glow)
+	var pool := Polygon2D.new()
+	pool.polygon = PackedVector2Array([
+		Vector2(-15, 5), Vector2(-9, -5), Vector2(6, -7),
+		Vector2(16, 2), Vector2(9, 8), Vector2(-8, 9)])
+	pool.color = Color(0.42, 0.13, 0.08, 1.0)
+	visual.add_child(pool)
+	var hot := Polygon2D.new()
+	hot.polygon = PackedVector2Array([
+		Vector2(-9, 3), Vector2(-4, -3), Vector2(5, -4), Vector2(10, 2), Vector2(2, 5)])
+	hot.color = Color(1.0, 0.62, 0.18, 0.95)
+	hot.material = m
+	visual.add_child(hot)
 
 # ---- tier 5, the last seven ----
 

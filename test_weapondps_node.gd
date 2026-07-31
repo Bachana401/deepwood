@@ -83,6 +83,10 @@ const HITS_PER_USE := {
 	# ticking" -- true of the rungs, but each rung carries 0.24 of the row, so
 	# the model read 230 dps and hauled the whole T6 median up by four points.
 	# The number here is TOTAL DAMAGE PER USE AS A MULTIPLE OF ROW DAMAGE.
+	"duskrip":     2.3,   # the swing, plus a tear that keeps cutting for ~1.9s
+	"sunderpoint": 2.4,   # the thrust, plus one point becoming two on contact
+	"hummingbird": 2.2,   # out, plus the thrum at the far end, plus the return
+	"magmacrawl":  2.6,   # the pour, plus a tongue that crawls and rakes
 	"larksong":    2.2,   # the shaft, plus the ring of song at the top of its climb
 	"walksummit":  2.6,   # one stone, walking, raking every 0.30s as it goes
 	"lastlantern": 2.4,   # the swing, plus a light that burns where you left it

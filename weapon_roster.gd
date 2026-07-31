@@ -182,26 +182,26 @@ const ROWS = [
 	["wpn_finchbolt",    "Finchbolt",            "wand",  3, "ricochet",  13, 0.6,  {"bounces": 3, "plain": true}],
 	["wpn_droverstaff",  "Drover's Crook",       "staff", 3, "staff",     12, 0.45, {"plain": true}],
 	# ---------------- TIER 4 - EPIC (floors 24-52) ----------------
-	["wpn_duskrender",   "Duskrender",           "melee", 4, "arc",       19, 0.45, {"plain": true}],
+	["wpn_duskrender",   "Duskrender",           "melee", 4, "duskrip",    8, 0.45, {}],
 	["wpn_tolloftheend", "Toll of the End",      "melee", 4, "endtoll",   28, 1.05, {"knockup": true, "rung": true}],
 	["wpn_vespersting",  "Vesper Sting",         "melee", 4, "arc",       13, 0.26, {"status": "poison_w", "plain": true}],
 	["wpn_howlpiece",    "Howlpiece",            "melee", 4, "howlpiece", 17, 0.55, {"p_damage": 15}],
 	["wpn_winterwheel",  "Winterwheel",          "melee", 4, "winterwheel", 16, 0.8,  {"dwell": 2.4, "status": "slow_w"}],
 	["wpn_gloamlash",    "Gloaming Lash",        "melee", 4, "gloamlash", 17, 0.85, {"status": "burn_w"}],
 	["wpn_reaperrebuke", "Reaper's Rebuke",      "melee", 4, "reaperrebuke", 16, 0.6,  {"bounces": 4}],
-	["wpn_sunderpike",   "Sunder Pike",          "spear", 4, "thrust",    23, 0.85, {"plain": true}],
+	["wpn_sunderpike",   "Sunder Pike",          "spear", 4, "sunderpoint", 15, 0.85, {}],
 	["wpn_galeprong",    "Galeprong",            "spear", 4, "jab_volley", 15, 0.9, {"count": 4, "plain": true}],
 	["wpn_midnightlance","Midnight Lance",       "spear", 4, "thrust",    19, 0.6,  {"status": "slow_w", "plain": true}],
 	["wpn_curfewbow",    "Curfew Bow",           "bow",   4, "shot",      21, 0.6,  {"pierce": true, "plain": true}],
 	["wpn_choirbow",     "Choir of Points",      "bow",   4, "volley",    12, 0.6,  {"count": 3, "plain": true}],
-	["wpn_hummingbow",   "Hummingbird",          "bow",   4, "rapid",     9,  0.18, {"plain": true}],
+	["wpn_hummingbow",   "Hummingbird",          "bow",   4, "hummingbird", 4, 0.18, {}],
 	["wpn_falconoath",   "Falcon's Oath",        "bow",   4, "falconoath", 16, 0.65, {}],
 	["wpn_sapperanswer", "Sapper's Answer",      "bow",   4, "lob_a",     24, 1.0,  {"aoe": 100, "plain": true}],
 	["wpn_prismbreak",   "Prismbreak",           "wand",  4, "prismbreak", 20, 0.8,  {"shards": 6}],
 	["wpn_stormdebt",    "Stormcaller's Debt",   "wand",  4, "stormdebt", 11, 1.4,  {"radius": 140}],
 	["wpn_wispwarden",   "Wisp Warden",          "wand",  4, "wispwarden", 10, 1.2,  {"dur": 18}],
 	["wpn_nightbolt",    "Nightbolt",            "wand",  4, "nightbolt", 17, 0.6,  {"bounces": 4}],
-	["wpn_magmawrit",    "Magma Writ",           "wand",  4, "fire",      26, 0.85, {"aoe": 120, "status": "burn_w", "plain": true}],
+	["wpn_magmawrit",    "Magma Writ",           "wand",  4, "magmacrawl", 10, 0.85, {"status": "burn_w"}],
 	["wpn_pilgrimstaff", "Pilgrim's Milestone",  "staff", 4, "staff",     15, 0.45, {"plain": true}],
 	# ---------------- TIER 5 - LEGENDARY (floors 42-72) ----------------
 	["wpn_daybreakedge", "Daybreak Edge",        "melee", 5, "daybreak",  24, 0.42, {"status": "burn_w", "count": 3, "aoe": 58}],
@@ -1068,6 +1068,36 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			# metronome: ordinary shots, and every ninth is a RULING
 			s = {"type": "commandment", "damage": dmg, "speed": spd + 300.0,
 				"range": rng + 200.0, "every": 9}
+		# ---- tier 4 begins ----
+		"duskrip":
+			# DUSKRENDER tears the air and the tear STAYS -- a standing blade
+			# of dark that keeps cutting whatever stands in it. Afterlight (T7)
+			# does this at the top of the ladder; this is the same idea at a
+			# quarter of the scale, which is what a tier-4 version of a good
+			# idea is supposed to be.
+			s = {"type": "dusk_rip",
+				"damage": maxi(1, int(round(float(dmg) * 0.5)))}
+		"sunderpoint":
+			# SUNDER PIKE: one point goes in and TWO come out. It splits on
+			# what it hits, and the halves keep going past it.
+			s = {"type": "sunder_point",
+				"damage": maxi(1, int(round(float(dmg) * 0.7))),
+				"speed": spd + 160.0, "range": rng}
+		"hummingbird":
+			# HUMMINGBIRD: out, HOVER, back. It darts to the end of its reach,
+			# thrums there for a beat taking whatever is close, and returns --
+			# so the shot is worth most at a specific distance, and nothing
+			# else in the roster asks the player to find a range and hold it.
+			s = {"type": "hummingbird",
+				"damage": maxi(1, int(round(float(dmg) * 0.8))),
+				"speed": spd + 200.0, "range": rng - 60.0}
+		"magmacrawl":
+			# MAGMA WRIT does not burst. It POURS: what lands crawls off along
+			# the floor and keeps going, so the danger walks away from where
+			# you aimed it.
+			s = {"type": "magma_crawl",
+				"damage": maxi(1, int(round(float(dmg) * 0.75))),
+				"speed": spd, "range": rng}
 		# ---- tier 5, the last seven plain rungs ----
 		"larksong":
 			# THE LAST LARK: the shaft RISES instead of falling, and sings at
@@ -1612,6 +1642,10 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"edict":      return "The law REACHES: a jointed arm of light unfolds the length of the hall, cutting everything along it and blooming where it touches -- and stone does not stop a sentence."
 		"heavenstring": return "Every shaft trails a THREAD, and when it lands the thread goes taut: what you hit comes to you, whether it meant to or not."
 		"choirstring": return "Each shaft that lands plants a NOTE, humming where it stuck. Fill a room with notes and the room sings -- and singing hurts."
+		"duskrip":     return "Tears the air, and the TEAR STAYS -- a standing sliver of dark that keeps cutting whatever is careless enough to stand in it."
+		"sunderpoint": return "One point goes in and TWO come out. It splits on whatever it strikes and the halves carry on past, so the body you hit is rarely the last one."
+		"hummingbird": return "Out, HOVER, back. The shaft darts to the end of its reach, thrums there taking whatever is close, and returns -- so there is a distance at which this bow is twice the weapon it is anywhere else."
+		"magmacrawl":  return "It does not burst. It POURS -- what lands crawls off along the floor and keeps going, so the danger walks away from where you aimed it."
 		"larksong":    return "The shaft CLIMBS instead of falling, and at the top of its climb it sings -- a ring of song that takes everything near it. The only thing in the armoury that goes up."
 		"walksummit":  return "A standing stone that WALKS. One speed, no hurry, straight through whatever is in front of it. The ground has no say in where it goes."
 		"lastlantern": return "Hangs a light where you swung, and burns whatever comes near it. There is only ever ONE -- lighting a new one snuffs the old, so the question is always where you want the room lit."
