@@ -4776,6 +4776,12 @@ var _roll_life := 0.0
 
 func _tick_boulder(delta: float) -> void:
 	_roll_life += delta
+	# A MOUNTAIN GATHERS. The pace-pay (boulder_damage: speed/720, cap 1.6x)
+	# only ever charged UP on a downhill -- on flat ground the launch speed of
+	# 600 paid 0.83x forever, a Monarch under-delivering its own card unless
+	# the dev supplied a hill. The mountain now feeds itself as it rolls: flat
+	# ground reaches full pace in ~2.5s, and a hill still gets there faster.
+	speed = minf(1250.0, speed + 260.0 * delta)
 	_vel_y += 1500.0 * delta
 	global_position += direction * speed * delta + Vector2(0, _vel_y * delta)
 	traveled += speed * delta
@@ -9489,6 +9495,7 @@ func _build_sky_charge() -> void:
 # Straight off the study's aura ladder: at the crown the swing aura is TRADED
 # AWAY for an every-swing screen-crossing beam (~22 player-heights).
 var _wc_t := 0.0
+var _wc_second := false     # the closing stroke fires once, by flag not clock
 const WC_LEN := 1050.0
 
 func _tick_worldcut(delta: float) -> void:
@@ -9505,16 +9512,29 @@ func _tick_worldcut(delta: float) -> void:
 	if not _ink_split:
 		_ink_split = true
 		_world_cut()
+	# AND THE WORLD CLOSES (2026-07-31). One instant cut measured 73 dps -- the
+	# floor of swing-T8, under swing-T7's median, on a Monarch. The verb-true
+	# raise is the second stroke the reference library already codified (the
+	# TERRA BLADE law): the cut runs out, and a beat later the lane CLOSES on
+	# everything still standing in it, at half pay. Once, flag-gated, never by
+	# the clock -- this weapon has been framerate-dependent before.
 	if visual:
 		visual.scale = Vector2(1.0, maxf(0.05, 1.0 - _wc_t * 3.2))
-		visual.modulate.a = 1.0 - _wc_t * 2.6
-	if _wc_t >= 0.4:
+		visual.modulate.a = 1.0 - _wc_t * 1.8
+	if _wc_t >= 0.22 and not _wc_second:
+		_wc_second = true
+		_world_cut(0.5)
+		if visual:
+			# the line flares back to a blade for a beat as the world closes
+			visual.scale.y = 0.6
+			visual.modulate.a = 0.9
+	if _wc_t >= 0.55:
 		done = true
 		queue_free()
 
-func _world_cut() -> void:
+func _world_cut(pay_mult: float = 1.0) -> void:
 	var host := get_parent()
-	var pay: int = maxi(1, damage)
+	var pay: int = maxi(1, int(round(float(damage) * pay_mult)))
 	var perp := Vector2(-direction.y, direction.x)
 	for group_name in HOSTILE_GROUPS:
 		for e in get_tree().get_nodes_in_group(group_name):

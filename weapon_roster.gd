@@ -491,7 +491,7 @@ const ROWS = [
 		"fx": [{"kind": "soulwisp", "dmg": 5, "pct": 0.35}]}],
 	# CROWN TEN #10: a `staff` shared with 20 becomes a rolling stone whose
 	# bite is its own gathered pace -- a hill is a damage multiplier.
-	["wpn_mountainking", "The Mountain That Kneels","staff", 8, "boulder", 30, 1.3, {
+	["wpn_mountainking", "The Mountain That Kneels","staff", 8, "boulder", 36, 1.3, {
 		"fx": [{"kind": "bulwark", "dr": 0.08, "dur": 3.5}]}],
 	# ---------------- WAVE 3 - FLAGSHIPS (11) ----------------
 	["wpn_therumor",     "The Rumor",            "wand", 8, "rumor", 34, 0.5,  {"bounces": 9, "rider": "grows",
@@ -1852,7 +1852,7 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"thronestrings": return "Seven STRINGS stretch across the room, and plucking them makes the whole span ring -- everything standing on a string pays for the note."
 		"worldsgrief": return "It breaks into TWELVE tears, and every one of them finds someone. Grief does not miss."
 		"skycharges":  return "The sky sends the bill: EIGHT bolts down the field, one after another, and each one lands like a full stop."
-		"worldcut":    return "One cut, and it does not stop at the edge of the screen. Everything in that line, however far, is already cut."
+		"worldcut":    return "One cut, and it does not stop at the edge of the screen. Everything in that line, however far, is already cut. Then the world CLOSES over the wound, and closing cuts again."
 		"deepcourt":   return "Three drowned courtiers rise and STAY, drifting at your shoulder and striking on their own for as long as you hold the crown."
 		"quietwheel":  return "It shows you NOTHING while it works -- no numbers, no noise, just a grey wheel turning in the middle of them. When it stops it bills you all at once."
 		"midwinterwheel": return "Runs a wide circle around you laying a RING of rime on the floor, and anything caught in the track goes slow and cold."
@@ -1920,7 +1920,7 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"sunder":     return "The blow does not stop at the body. It runs out THROUGH the ground -- a front of broken force crossing the room, taking everything it passes once, and stone is no argument."
 		"skyfall_rain": return "Nothing leaves the bow. The king's arrows fall from ABOVE wherever you aim -- %d of them -- so open sky is a slaughter and a low ceiling is an apology." % int(ex.get("count", 3))
 		"parade":     return "Every arrow that lands calls one of the PROCESSION: a lantern-carrying shade walks in from beyond the edge of the world, through whatever stands between, and strikes the one you marked."
-		"boulder":    return "Summons a boulder and lets the world do the rest. It rolls, it follows the slope, and it hits for whatever pace it has gathered -- a hill is worth more than an arm."
+		"boulder":    return "Summons a boulder and lets the world do the rest. It rolls, it follows the slope, and it hits for whatever pace it has gathered -- and it only ever GATHERS. A hill is still worth more than an arm."
 		"sorrow":     return "It does not swing so much as WEEP: narrow lances of grief leave the blade many times a second, each one passing clean through whatever stands in it. No single tear is much. There are a great many tears."
 		"brazier":    return "Whirl it, hurl it -- and where the head comes to REST it stops being a weapon and becomes a THRONE, a brazier sitting in the dirt spitting embers at whatever comes near, until you take it up again."
 		"regicide":   return "You do not stab a king once. Every throw leaves a crown-spear STANDING in them, biting while it stays -- five at a time, and the sixth shoves the first out in a burst."

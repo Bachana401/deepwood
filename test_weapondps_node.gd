@@ -299,7 +299,7 @@ const HITS_PER_USE := {
 	# of the dev's "huge dps difference between weapons".
 	"worldsgrief": 8.0, # 12 tears that SEEK; most of them find one body
 	"skycharges":  3.4, # 8 bolts over 1.5s, half aimed at whoever is nearest
-	"worldcut":    1.0, # ONE cut -- but it is the whole lane, every body once
+	"worldcut":    1.5, # the cut, then the lane CLOSES at half pay (Terra second-stroke law)
 	"deepcourt":   5.0, # 5 drowned courtiers striking on their own
 	# --- pre-existing multi-hit verbs, for a fair comparison ---
 	"volley":     2.0,
