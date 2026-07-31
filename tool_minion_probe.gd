@@ -54,11 +54,25 @@ class Mark extends StaticBody2D:
 func _summon_class(cls: String) -> bool:
 	return cls in ["scepter", "totem", "whip"]
 
-func _live_bodies() -> int:
+# COUNT THE BODIES WHERE THEY ACTUALLY LIVE. This scanned four groups --
+# "player_companion", "companion" and friends -- and reported x0 for every
+# scepter in the roster while those scepters were visibly dealing damage.
+# companion.gd joins NO GROUP AT ALL; minions are held in the player's own
+# `_companions` dict, and posts are the only ones with a group.
+#
+# Worth noting beyond this tool: a summoned body that is in no group cannot be
+# found by anything else in the game either -- no sweep, no aura, no boss
+# ability, no audit. That is a real gap, just not this probe's to close.
+func _live_bodies(p: Node) -> int:
 	var n := 0
-	for g in ["summon_post", "player_sentry", "player_companion", "companion"]:
+	for g in ["summon_post", "player_sentry"]:
 		for c in get_tree().get_nodes_in_group(g):
 			if is_instance_valid(c):
+				n += 1
+	if p != null and "_companions" in p:
+		for key in p._companions:
+			var c2 = p._companions[key]
+			if is_instance_valid(c2) and c2.get("summoned") == true:
 				n += 1
 	return n
 
@@ -90,10 +104,16 @@ func _ready() -> void:
 		var body_kind := str(ex.get("m_kind", ex.get("s_kind", ex.get("tag_fx", "-"))))
 
 		# clear the field so the last summoner's bodies cannot do this one's work
-		for g in ["summon_post", "player_sentry", "player_companion", "companion"]:
+		for g in ["summon_post", "player_sentry"]:
 			for c in get_tree().get_nodes_in_group(g):
 				if is_instance_valid(c):
 					c.queue_free()
+		# and the minions, which live in the player rather than in a group
+		if "_companions" in p:
+			for key in p._companions:
+				var prev = p._companions[key]
+				if is_instance_valid(prev):
+					prev.queue_free()
 		await get_tree().process_frame
 
 		p.inventory.add_item(id, 1)
@@ -121,7 +141,7 @@ func _ready() -> void:
 			p.perform_attack()
 			await get_tree().process_frame
 			t += get_process_delta_time()
-		var bodies := _live_bodies()
+		var bodies := _live_bodies(p)
 
 		# WATCH. The player does nothing at all from here: whatever lands now is
 		# the minion's own work, which is the entire point.
