@@ -79,6 +79,11 @@ var source: Node2D = null   # the player (hook pull target / boomerang home)
 var from_wand := false      # set by player.launch_projectile for true wand casts (Stillness)
 var rider := ""             # flagship bespoke behavior (The Rumor "grows", ...)
 var _borrowed := false      # A Borrowed Star: the apex split fires only once
+# the lob riders (2026-07-31): five mortars that used to land identically
+var _peak_y := 1000000.0    # lead: the highest point of the arc, for the drop bill
+var _fused := false         # fuse: landed and armed, counting down to the answer
+var _fuse_t := 0.0          # fuse + kiss share the countdown clock
+var _stuck: Node2D = null   # kiss: the body the charge is riding
 
 func _apply_status_to(node) -> void:
 	# element impact burst (VFX pass): every landed projectile pops in colour
@@ -355,6 +360,16 @@ func _ready() -> void:
 			_zone_gap = 0.8
 			_zone_r = 46.0
 			_build_tallow_pool()
+		"bog_pool":
+			# BOG BELCHER's mud: long for a T3 pool because the damage is
+			# nearly nothing -- the SLOW is the payload, and a slow that
+			# vanishes before anyone walks into it is no slow at all
+			monitoring = false
+			pierce = true
+			_zone_max = 3.0
+			_zone_gap = 0.75
+			_zone_r = 54.0
+			_build_bog_pool()
 		"sky_measure": _build_sky_measure()
 		"colonnade": _build_colonnade()
 		"harmonic": _build_harmonic()
@@ -1054,7 +1069,7 @@ func _physics_process(delta: float) -> void:
 	if kind == "sunder_wave":
 		_tick_sunder(delta)
 		return
-	if kind in ["lingering_arc", "ground_thorn", "sun_pool", "sky_pillar"]:
+	if kind in ["lingering_arc", "ground_thorn", "sun_pool", "sky_pillar", "bog_pool"]:
 		_tick_standing_zone(delta)
 		return
 	if kind == "sky_star":
@@ -1791,6 +1806,52 @@ func _tick_chainmaul(delta: float) -> void:
 # Lob: a mortar arc under its own gravity; blossoms where it lands (or on
 # whatever it meets on the way down).
 func _tick_lob(delta: float) -> void:
+	# SAPPER'S ANSWER: it landed. It has not answered yet. The charge sits
+	# where it stopped, blinking faster as the fuse runs, and the answer is
+	# half again as wide as an honest shell.
+	if _fused:
+		_fuse_t += delta
+		if visual:
+			visual.modulate.a = 0.45 + 0.55 * absf(sin(_fuse_t * (10.0 + _fuse_t * 26.0)))
+		if _fuse_t >= 0.55:
+			aoe_radius *= 1.45
+			explode()
+		return
+	# SAPPER'S KISS: the charge is riding a body. It goes where they go, and
+	# when it goes off, it goes off ON them -- there is no walking away from
+	# a kiss. If they die first the burst happens where they fell.
+	if _stuck != null:
+		if is_instance_valid(_stuck) and not ("is_dead" in _stuck and _stuck.is_dead):
+			global_position = _stuck.global_position + Vector2(0, -12.0)
+		_fuse_t += delta
+		if visual:
+			visual.modulate.a = 0.5 + 0.5 * absf(sin(_fuse_t * 22.0))
+		if _fuse_t >= 0.5:
+			explode()
+		return
+	# EMBERARC: the only mortar whose FLIGHT is a weapon. The shell sheds heat
+	# the whole way over -- anything it passes near gets singed and lit --
+	# so the arc chooses a road, not just a landing spot.
+	if rider == "cinder":
+		_zone_t += delta
+		if _zone_t >= 0.2:
+			_zone_t = 0.0
+			var singe := maxi(1, int(round(float(damage) * 0.25)))
+			for group_name in HOSTILE_GROUPS:
+				for e in get_tree().get_nodes_in_group(group_name):
+					if not (e is Node2D) or not is_instance_valid(e) or not e.has_method("take_damage"):
+						continue
+					if "is_dead" in e and e.is_dead:
+						continue
+					if global_position.distance_to((e as Node2D).global_position) > 46.0:
+						continue
+					var landed_s = e.take_damage(singe)
+					if landed_s == null or landed_s:
+						FloatingText.spawn(get_parent(), (e as Node2D).global_position
+							+ Vector2(0, -20.0), singe, false)
+					_apply_status_to(e)
+	# LEADEN JUDGEMENT: remember the top of the arc; the drop pays at the end
+	_peak_y = minf(_peak_y, global_position.y)
 	# A Borrowed Star: at the TOP of the arc it sheds two smaller embers,
 	# once -- three falling lights where one was borrowed
 	if rider == "borrow" and not _borrowed and _vel_y >= 0.0:
@@ -1817,6 +1878,17 @@ func _tick_lob(delta: float) -> void:
 		visual.rotation += 6.0 * delta
 	# landing: past the launch height on the way down, or out of reach entirely
 	if (_vel_y > 0.0 and global_position.y >= _start_y + 8.0) or traveled >= max_distance * 1.6:
+		# LEADEN JUDGEMENT: judgement COMES DOWN. The bill is the fall itself
+		# -- up to +60% for a shot thrown high and dropped on their heads --
+		# so the wand rewards the lofted throw every other mortar wastes.
+		if rider == "lead":
+			var drop: float = maxf(0.0, global_position.y - _peak_y)
+			damage = maxi(1, int(round(float(damage) * minf(1.6, 1.0 + drop / 400.0))))
+		# SAPPER'S ANSWER arms instead of answering
+		if rider == "fuse":
+			_fused = true
+			_vel_y = 0.0
+			return
 		explode()
 
 # Cluster: the blossom -- a fan of frost-quick shards from the burst point.
@@ -2209,6 +2281,24 @@ func _on_body_entered(body: Node2D) -> void:
 		"fireball":
 			explode()
 		"lob":
+			# SAPPER'S KISS sticks to the FIRST body the arc touches; the burst
+			# happens on them, half a second later. Later arrivals change
+			# nothing -- the kiss was already given.
+			if rider == "kiss":
+				if _stuck == null:
+					_stuck = body
+					SfxSynth.play_at(self, global_position, "pop", -14.0, 1.6)
+				return
+			# an ARMED sapper charge belongs to its own countdown; a body
+			# blundering onto it does not get to hurry the answer
+			if _fused:
+				return
+			# a fuse shell that strikes a body mid-flight arms against them
+			# where it stops, same contract as the ground
+			if rider == "fuse":
+				_fused = true
+				_vel_y = 0.0
+				return
 			explode()
 		"cluster":
 			body.take_damage(damage)
@@ -2547,6 +2637,20 @@ func explode() -> void:
 			pud.source = source
 			pud.global_position = global_position
 			host_t.call_deferred("add_child", pud)
+	# BOG BELCHER: the third pool in the family and the only one that is not
+	# FIRE. Spill burns, tallow burns -- the bog GRIPS: barely any hurt, but
+	# what stands in the mud fights at half speed. The landing zone is the
+	# weapon; the blast is just how the mud gets there.
+	if rider == "bog":
+		var host_b := get_parent()
+		if host_b != null and is_instance_valid(host_b):
+			var mud = (load("res://weapon_projectile.gd") as GDScript).new()
+			mud.kind = "bog_pool"
+			mud.damage = maxi(1, int(round(float(damage) * 0.15)))
+			mud.on_hit_status = {"kind": "slow", "dur": 1.4, "mag": 0.45}
+			mud.source = source
+			mud.global_position = global_position
+			host_b.call_deferred("add_child", mud)
 	# SHRAPNEL (2026-07-30). A thrown shell used to make one circle and stop,
 	# which is why the lob family sagged under its own tier at T3, T4 AND T7 at
 	# once. A burst throws PIECES: five fragments on hard arcs that keep hurting
@@ -2556,7 +2660,9 @@ func explode() -> void:
 	# splinters -- illogical on its face, and the reason a Tier-1 common
 	# measured six hits and 68 dps against a tier median of 18. The verb decides
 	# whether there is anything to fragment.
-	if rider != "tallow":
+	# ...and a GOB does not fragment, whether it is wax or mud. Only a shell
+	# has pieces to throw.
+	if rider != "tallow" and rider != "bog":
 		_shrapnel()
 	for group_name in HOSTILE_GROUPS:
 		for e in get_tree().get_nodes_in_group(group_name):
@@ -5711,6 +5817,38 @@ func _build_tallow_pool() -> void:
 	_tallow_flame.color = Color(1.0, 0.78, 0.35, 0.85)
 	_tallow_flame.material = _add_mat()
 	visual.add_child(_tallow_flame)
+
+# the mud: a wide flat slick, darker than the ground it sits on, with a few
+# wet blister-bubbles. Deliberately NO additive material anywhere -- every
+# other pool in the family glows because it burns; a bog is a hole in the
+# light, and matte is what sells it.
+func _build_bog_pool() -> void:
+	var slick := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for i in range(16):
+		var a: float = TAU * float(i) / 16.0
+		# a lumpy ellipse, not a clean one -- mud spreads where it wants
+		var wobble: float = 1.0 + 0.18 * sin(a * 3.0 + 1.2)
+		pts.append(Vector2(cos(a) * 50.0 * wobble, sin(a) * 13.0 * wobble + 6.0))
+	slick.polygon = pts
+	slick.color = Color(0.23, 0.20, 0.12, 0.85)
+	visual.add_child(slick)
+	# a thin wet sheen ring just inside the rim, barely lighter
+	var sheen := Polygon2D.new()
+	var pts2 := PackedVector2Array()
+	for i in range(12):
+		var a2: float = TAU * float(i) / 12.0
+		pts2.append(Vector2(cos(a2) * 38.0, sin(a2) * 9.0 + 5.0))
+	sheen.polygon = pts2
+	sheen.color = Color(0.34, 0.31, 0.18, 0.55)
+	visual.add_child(sheen)
+	# blisters: small dark domes that read as slow bubbles from a distance
+	for b in range(4):
+		var dome := Polygon2D.new()
+		dome.polygon = _circle(randf_range(2.5, 4.5), 8)
+		dome.color = Color(0.17, 0.15, 0.09, 0.9)
+		dome.position = Vector2(randf_range(-26.0, 26.0), randf_range(-2.0, 8.0))
+		visual.add_child(dome)
 
 const SCREE_SHARDS := 6
 

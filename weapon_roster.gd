@@ -174,11 +174,11 @@ const ROWS = [
 	["wpn_veilbow",      "Veilpiercer",          "bow",   3, "shot",      16, 0.6,  {"pierce": true, "plain": true}],
 	["wpn_larkbow",      "Lark's Reply",         "bow",   3, "rapid",     7,  0.2,  {"plain": true}],
 	["wpn_twinnock",     "Twinnock Bow",         "bow",   3, "twinnock",  10, 0.6,  {"count": 2}],
-	["wpn_emberarc",     "Emberarc Bow",         "bow",   3, "lob_a",     18, 0.95, {"aoe": 85, "plain": true}],
+	["wpn_emberarc",     "Emberarc Bow",         "bow",   3, "lob_a",     18, 0.95, {"aoe": 85, "status": "burn_w", "rider": "cinder"}],
 	["wpn_paleseeker",   "Pale Seeker",          "bow",   3, "paleseek",    12, 0.7,  {}],
 	["wpn_saltwand",     "Saltbinder",           "wand",  3, "saltring",  16, 0.55, {"rung": true}],
 	["wpn_marshlight",   "Marshlight Lantern",   "wand",  3, "cluster",   15, 0.8,  {"shards": 4}],
-	["wpn_leadrod",      "Leaden Judgement",     "wand",  3, "lob",       21, 1.05, {"aoe": 95, "plain": true}],
+	["wpn_leadrod",      "Leaden Judgement",     "wand",  3, "lob",       21, 1.05, {"aoe": 95, "rider": "lead"}],
 	["wpn_finchbolt",    "Finchbolt",            "wand",  3, "finchbolt", 13, 0.6,  {"bounces": 3}],
 	["wpn_droverstaff",  "Drover's Crook",       "staff", 3, "staff",     12, 0.45, {"slam_fx": "drive"}],
 	# ---------------- TIER 4 - EPIC (floors 24-52) ----------------
@@ -196,7 +196,7 @@ const ROWS = [
 	["wpn_choirbow",     "Choir of Points",      "bow",   4, "choirpoints", 12, 0.6, {"count": 3}],
 	["wpn_hummingbow",   "Hummingbird",          "bow",   4, "hummingbird", 4, 0.18, {}],
 	["wpn_falconoath",   "Falcon's Oath",        "bow",   4, "falconoath", 16, 0.65, {}],
-	["wpn_sapperanswer", "Sapper's Answer",      "bow",   4, "lob_a",     24, 1.0,  {"aoe": 100, "plain": true}],
+	["wpn_sapperanswer", "Sapper's Answer",      "bow",   4, "lob_a",     24, 1.0,  {"aoe": 100, "rider": "fuse"}],
 	["wpn_prismbreak",   "Prismbreak",           "wand",  4, "prismbreak", 20, 0.8,  {"shards": 6}],
 	["wpn_stormdebt",    "Stormcaller's Debt",   "wand",  4, "stormdebt", 11, 1.4,  {"radius": 140}],
 	["wpn_wispwarden",   "Wisp Warden",          "wand",  4, "wispwarden", 10, 1.2,  {"dur": 18}],
@@ -329,7 +329,7 @@ const ROWS = [
 	["wpn_shrikebow",    "Shrikebow",            "bow",   3, "shot",      15, 0.55, {"plain": true}],
 	["wpn_finchvolley",  "Finchstorm",           "bow",   3, "finchstorm", 9,  0.6,  {"count": 3}],
 	["wpn_haleseeker",   "Hale Seeker",          "bow",   3, "haleseek",    11, 0.68, {}],
-	["wpn_bogmortar",    "Bog Belcher",          "bow",   3, "lob_a",     17, 1.0,  {"aoe": 80, "plain": true}],
+	["wpn_bogmortar",    "Bog Belcher",          "bow",   3, "lob_a",     17, 1.0,  {"aoe": 80, "rider": "bog"}],
 	["wpn_lightstep",    "Lightstep",            "bow",   3, "rapid",     6,  0.19, {"plain": true}],
 	["wpn_hollowbolt",   "Hollowbolt",           "wand",  3, "hollowring", 15, 0.5, {"rung": true}],
 	["wpn_mirebook",     "The Mire Pages",       "wand",  3, "tome",      8,  1.45, {"radius": 120, "tome_kind": "mire"}],
@@ -355,7 +355,7 @@ const ROWS = [
 	["wpn_larkstorm",    "A Storm of Larks",     "bow",   4, "larkstorm", 15, 0.58, {"count": 3}],
 	["wpn_needlerain",   "Needlerain",           "bow",   4, "rapid",     8,  0.17, {"plain": true}],
 	["wpn_huntmaster",   "Huntmaster's Word",    "bow",   4, "huntword",  15, 0.62, {}],
-	["wpn_sapperkiss",   "Sapper's Kiss",        "bow",   4, "lob_a",     23, 1.0,  {"aoe": 95, "status": "burn_w", "plain": true}],
+	["wpn_sapperkiss",   "Sapper's Kiss",        "bow",   4, "lob_a",     23, 1.0,  {"aoe": 95, "status": "burn_w", "rider": "kiss"}],
 	["wpn_glasstring",   "Glasstring",           "bow",   4, "shot",      17, 0.5,  {"status": "slow_w", "plain": true}],
 	["wpn_covenbook",    "The Coven's Ledger",   "wand",  4, "covenledger", 10, 1.4,  {"radius": 135, "tome_kind": "coven"}],
 	["wpn_frostwrit",    "Frost Writ",           "wand",  4, "writglyph", 19, 0.55, {"status": "slow_w", "rung": true}],
@@ -1733,6 +1733,12 @@ const RIDER_DESC = {
 	"coffin":  "A piercing cold sliver. What it KILLS shatters onto the mourners.",
 	"kindly":  "Every poisoned foe it strikes gives one HP back. A mercy, flowing the wrong way.",
 	"moon":    "A flail whose whirl has its own TIDE, dragging enemies into the blades.",
+	# the lob five (2026-07-31): every mortar in the game now lands differently
+	"cinder":  "The ARC is the weapon: the shell sheds heat the whole way over, singeing and lighting everything it passes. Then it lands.",
+	"lead":    "Judgement COMES DOWN. The higher you throw it, the harder it lands -- the fall itself is the bill, up to half again.",
+	"fuse":    "It lands. It does not answer yet. The charge sits blinking while they stand over it, and the answer is half again as wide.",
+	"bog":     "The blast is just how the MUD gets there: a slick that barely hurts and will not let go. What stands in it fights at half speed.",
+	"kiss":    "It STICKS to the first body it touches and goes off ON them, half a second later. There is no walking away from a kiss.",
 }
 
 static func _desc_for(behavior: String, ex: Dictionary) -> String:

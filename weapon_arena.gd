@@ -224,4 +224,13 @@ static func take_over(tree: SceneTree, keep: Node = null) -> Node2D:
 		for n2 in tree.root.get_children():
 			printerr("  %-28s %-22s" % [n2.name, n2.get_class()])
 		printerr("=====================================\n")
+	# THE ARENA OWNS THE CLOCK (2026-07-31). The scene this rig replaces may
+	# have paused the tree -- the menu did, once, within the first frames --
+	# and a paused tree is invisible from a driver script running at root: the
+	# driver's own awaits keep firing while every PAUSABLE node stands frozen.
+	# The whole lob family measured "nothing landed" for exactly this reason:
+	# eight mortars hanging mid-air, watch windows counting down normally, and
+	# not one number in the table saying anything was wrong. A rig that exists
+	# to measure MOTION must never inherit someone else's pause.
+	tree.paused = false
 	return arena

@@ -27,7 +27,16 @@ extends Node
 
 const ARENA := preload("res://weapon_arena.gd")
 
-const RINGS := [45.0, 150.0, 280.0]
+# the two far stations exist for the MORTARS (2026-07-31): a lob kicks up at
+# 0.62x its speed against 620 gravity and comes down ~520px out, which means
+# every ring of the original three sat comfortably UNDER its arc -- the whole
+# family measured "nothing landed" forever and the short-range report never
+# said so, because reach-0 rows divert to the dead list before that check.
+# RINGS[0] and RINGS[1] are load-bearing indexes (the short-range verdict);
+# append, never reorder. 800 exists because a T7 mortar (speed 690, kick
+# 0.62x) lands ~796px out -- past 560 it overshot every station and got
+# flagged "cannot reach 150px", which is the exact opposite of its problem.
+const RINGS := [45.0, 150.0, 280.0, 430.0, 560.0, 800.0]
 const WATCH := 2.4           # seconds of firing per weapon (pass A)
 const REACH_WATCH := 0.9     # and a short probe per ring for reach (pass B)
 const CHANNELLED := ["prism_converge", "beam_channel", "soul_stream"]
@@ -75,6 +84,17 @@ func _ready() -> void:
 	if p == null or not is_instance_valid(p):
 		say("ABORTED: arena has no puppet"); get_tree().quit(0); return
 	var stage: Node = arena
+	# THE HOUSE MARKS GO. The arena furnishes three marks for the EYES rig,
+	# and the nearest stands at +70 ON THE FLOOR -- inside the spawn box of
+	# any girthy projectile. Every mortar in the roster was contact-popping on
+	# it at the muzzle, which scored the whole family "nothing landed" while
+	# the real arc never got to happen. This sweep owns its own marks; the
+	# stage must be EMPTY between probes.
+	for hm in arena.marks:
+		if is_instance_valid(hm):
+			hm.queue_free()
+	arena.marks.clear()
+	await get_tree().process_frame
 
 	var rows := []
 	say("\n=== THE PROVING SWEEP: %d weapons ===" % WeaponRoster.ROWS.size())
@@ -84,9 +104,21 @@ func _ready() -> void:
 	var env_tier := OS.get_environment("SWEEP_TIER")
 	if env_tier != "":
 		only_tier = int(env_tier)
+	# SWEEP_IDS=wpn_a,wpn_b re-measures a handful in seconds -- for verifying
+	# a batch of new riders without paying for the tiers around them
+	var only_ids: PackedStringArray = []
+	var env_ids := OS.get_environment("SWEEP_IDS")
+	if env_ids != "":
+		only_ids = env_ids.split(",")
 	for row in WeaponRoster.ROWS:
 		if only_tier > 0 and int(row[3]) != only_tier:
 			continue
+		if only_ids.size() > 0 and not only_ids.has(str(row[0])):
+			continue
+		# a pause landing mid-run would freeze every projectile from here on
+		# while this driver keeps counting -- and the table would just show
+		# zeros with nothing to say why. Re-assert per weapon; it costs nothing.
+		get_tree().paused = false
 		var id := str(row[0])
 		var def: Dictionary = WeaponRoster.get_def(id)
 		if def.is_empty():
@@ -104,7 +136,10 @@ func _ready() -> void:
 		p.set_test_aim(Vector2.RIGHT)
 		var aim := Vector2.RIGHT
 		var marks := []
-		for r in RINGS:
+		# the LINE is the first three rings only -- the far stations belong to
+		# Pass B (reach); five marks in a line would just measure penetration
+		# against two more bodies
+		for r in RINGS.slice(0, 3):
 			var m := Mark.new()
 			m.add_to_group("course_enemy")
 			stage.add_child(m)
@@ -157,7 +192,9 @@ func _ready() -> void:
 		# ring with nothing in front of it, and see whether the weapon can touch
 		# it. Farthest first, stop at the first hit -- usually one probe.
 		var true_reach := 0.0
-		for ring in [RINGS[2], RINGS[1], RINGS[0]]:
+		var rings_desc := RINGS.duplicate()
+		rings_desc.reverse()
+		for ring in rings_desc:
 			var solo := Mark.new()
 			solo.add_to_group("course_enemy")
 			stage.add_child(solo)
@@ -171,6 +208,13 @@ func _ready() -> void:
 				p.perform_attack()
 				await get_tree().process_frame
 				rt += get_process_delta_time()
+			# LET WHAT IS IN THE AIR COME DOWN. A mortar's flight is ~1.1s and
+			# the watch is 0.9 -- reading the mark the frame the trigger lifts
+			# scored every arcing weapon zero no matter where the ring stood.
+			var settle := 0.0
+			while settle < 0.9:
+				await get_tree().process_frame
+				settle += get_process_delta_time()
 			var landed: bool = solo.hits > 0
 			solo.queue_free()
 			await get_tree().process_frame
@@ -192,7 +236,10 @@ func _ready() -> void:
 	var dead := []
 	var short_ranged := []
 	for r in rows:
-		if int(r["hits"]) == 0:
+		# dead means NOTHING landed in EITHER pass. A mortar shows hits 0 on
+		# the line (it sails over a line, correctly) while its blossom takes
+		# the solo mark at 430+ -- that is a working weapon, not a dead one.
+		if int(r["hits"]) == 0 and float(r["reach"]) <= 0.0:
 			dead.append(r)
 			continue
 		# SHORT means short, and only for a class that is SUPPOSED to reach.
