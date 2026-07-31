@@ -469,6 +469,30 @@ func _ready() -> void:
 			monitoring = false
 			pierce = true
 			_build_lingering_arc()
+		# ---- tier 5, the last seven plain rungs ----
+		"lark_song":
+			pierce = true
+			_vel_y = -absf(float(speed)) * 0.55      # it CLIMBS
+			_build_lark()
+		"walking_summit":
+			pierce = true
+			_build_walking_summit()
+		"hung_lantern":
+			_build_hung_lantern()
+			_zone_max = 6.0
+			_zone_r = 96.0
+		"kiss_mark":
+			_build_kiss_mark()
+		"moon_reach":
+			_build_moon_reach()
+			_zone_max = 0.45
+			_zone_r = 104.0
+		"winter_mark":
+			pierce = true
+			_build_winter_mark()
+		"granite_step":
+			monitoring = false
+			_build_granite_step()
 		"verdict_point":
 			# FINAL VERDICT (T5): it reads the accused on contact.
 			_build_verdict_point()
@@ -878,6 +902,20 @@ func _visual_motion(delta: float) -> void:
 		visual.rotation = sin(_vm_t * 7.0) * 0.055
 
 func _exit_tree() -> void:
+	# WINTERMARK: the shaft is spent, so winter arrives -- every mark it left
+	# shatters at once, WHEREVER those bodies have wandered to since. Done in
+	# _exit_tree rather than at max_distance because the shaft can also end by
+	# leaving the level, and winter should still come.
+	if kind == "winter_mark" and not _winter_marks.is_empty():
+		for e in _winter_marks:
+			if not is_instance_valid(e) or not e.has_method("take_damage"):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			e.take_damage(maxi(1, int(round(float(damage) * 0.9))))
+			if e.has_method("apply_status"):
+				e.apply_status("freeze", 1.4, 0.0)
+		_winter_marks.clear()
 	# the trail outlives us by a breath, then fades -- cutting it dead on the
 	# same frame as the impact is what made hits feel like a light switch
 	if _trail != null and is_instance_valid(_trail):
@@ -945,6 +983,57 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind == "still_mountain":
 		_tick_anvil(delta)
+		return
+	if kind == "lark_song":
+		# it climbs, slows, and SINGS at the top -- the one thing in the file
+		# that goes up. Apex is where _vel_y crosses zero, which is a real
+		# moment rather than a timer, so the burst always lands at the top.
+		var was_rising := _vel_y < 0.0
+		_vel_y += 520.0 * delta
+		global_position += direction * speed * delta + Vector2(0, _vel_y * delta)
+		traveled += speed * delta
+		if was_rising and _vel_y >= 0.0:
+			_lark_sing()
+		if traveled >= max_distance:
+			queue_free()
+		return
+	if kind == "walking_summit":
+		# one speed, no slope, no hurry. The ground has no say.
+		global_position += direction * speed * delta
+		traveled += speed * delta
+		_ink_rehit += delta
+		if _ink_rehit >= 0.30:
+			_ink_rehit = 0.0
+			_rake_overlapping()
+		if traveled >= max_distance:
+			queue_free()
+		return
+	if kind == "hung_lantern" or kind == "moon_reach":
+		_tick_standing_zone(delta)
+		return
+	if kind == "kiss_mark":
+		# fly, stick, SWELL, bloom once. The delay is the weapon.
+		if not _stake_planted:
+			global_position += direction * speed * delta
+			traveled += speed * delta
+			if traveled >= max_distance:
+				_stake_planted = true
+			return
+		_zone_t += delta
+		if visual != null:
+			visual.scale = Vector2.ONE * (1.0 + _zone_t * 1.6)
+		if _zone_t >= 1.2:
+			_kiss_bloom()
+		return
+	if kind == "granite_step":
+		# each stone waits its turn, then rises. The stagger IS the road.
+		_zone_t += delta
+		if _zone_t < _step_delay:
+			return
+		if not _stake_planted:
+			_stake_planted = true
+			_granite_rise()
+		_tick_standing_zone(delta)
 		return
 	if kind == "border_line":
 		# it flies out, then it STANDS: the same two-phase life as the stake,
@@ -1248,9 +1337,21 @@ func _physics_process(delta: float) -> void:
 			_drop_echo()
 	if kind == "ink_jet" or kind == "frost_shard" or kind == "piercing_point":
 		_ink_rehit += delta
-		if _ink_rehit >= 0.22:
+		# 0.16 for the ink specifically: a slow fluid dwelling inside a body
+		# should cut it more than once, and 0.22 was slow enough that it never
+		# came round twice inside the same target.
+		if _ink_rehit >= (0.16 if kind == "ink_jet" else 0.22):
 			_ink_rehit = 0.0
 			_rake_overlapping()
+			# INK SPLASHES ON CONTACT. The speed-threshold fork below is a
+			# fallback for a jet that never meets anything; on its own it was
+			# WRONG, because the break-up happened at ~220px and the target was
+			# usually nearer than that -- so the two children flew off past an
+			# enemy already behind them. The harness measured 1 hit against a
+			# declared 3.4 and was right to. A fluid splashes where it lands.
+			if kind == "ink_jet" and not _ink_split and not hit_bodies.is_empty():
+				_ink_split = true
+				_ink_fork()
 	if kind == "chalk_line":
 		_tick_chalk_line(delta)
 		return
@@ -1339,8 +1440,12 @@ func _physics_process(delta: float) -> void:
 		# a bullet -- it loses speed and spreads. Slowing it lets the stream
 		# actually rake what it is passing through, which is what the card has
 		# always claimed it does.
-		speed = maxf(140.0, speed * (1.0 - 1.35 * delta))
-		_vel_y += 620.0 * delta
+		# MEASURED, not guessed (test_realhits, 2026-07-30): with decay 1.35 and
+		# gravity 620 the jet reached 90px, fell short of 170px entirely, and
+		# landed ONE hit against a declared 3.4. It was diving into the floor
+		# before it got anywhere. A thrown fluid arcs; it does not plummet.
+		speed = maxf(190.0, speed * (1.0 - 0.75 * delta))
+		_vel_y += 280.0 * delta
 		global_position += direction * speed * delta + Vector2(0, _vel_y * delta)
 		# ...AND THEN IT BECOMES A STORM. The name promised weather and the
 		# weapon delivered one tidy stream, which is why it sat under the tier
@@ -1622,6 +1727,13 @@ func _on_body_entered(body: Node2D) -> void:
 	if "is_dead" in body and body.is_dead:
 		return
 	hit_bodies.append(body)
+	# WINTERMARK: the shaft only MARKS. Winter arrives when it is spent.
+	if kind == "winter_mark":
+		body.take_damage(damage)
+		_apply_status_to(body)
+		if not _winter_marks.has(body):
+			_winter_marks.append(body)
+		return
 	# FINAL VERDICT: the sentence is read off the ACCUSED. Up to 2.2x against
 	# something nearly finished, and barely a formality against the healthy.
 	# Deliberately the mirror of Grief Made Sharp, which reads the player.
@@ -2330,6 +2442,207 @@ func set_star_target(p: Vector2) -> void:
 	# spawn ABOVE the frame, not at the hand. The jitter is what stops a volley
 	# reading as one thick column.
 	global_position = p + Vector2(randf_range(-86.0, 86.0), -430.0)
+
+# ---- tier 5, the last seven ----
+
+func _build_lark() -> void:
+	var m := _add_mat()
+	var body := Polygon2D.new()
+	body.polygon = PackedVector2Array([
+		Vector2(11, 0), Vector2(0, -4.0), Vector2(-8, -1.5),
+		Vector2(-8, 1.5), Vector2(0, 4.0)])
+	body.color = Color(0.88, 0.84, 0.62, 0.96)
+	visual.add_child(body)
+	for s in [-1.0, 1.0]:
+		var wing := Polygon2D.new()
+		wing.polygon = PackedVector2Array([
+			Vector2(1, s * 2.0), Vector2(-6, s * 9.0), Vector2(-7, s * 2.5)])
+		wing.color = Color(0.98, 0.94, 0.74, 0.8)
+		wing.material = m
+		visual.add_child(wing)
+
+# THE SONG at the top of the climb: a widening ring that takes everything near.
+func _lark_sing() -> void:
+	var host := get_parent()
+	if host == null or not is_instance_valid(host):
+		return
+	var r := 88.0
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not is_instance_valid(e) or not e.has_method("take_damage") or not (e is Node2D):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if global_position.distance_to((e as Node2D).global_position) <= r:
+				e.take_damage(damage)
+				_apply_status_to(e)
+	var m := _add_mat()
+	var ring := Line2D.new()
+	ring.points = _circle(r * 0.35, 22)
+	ring.points.append(ring.points[0])
+	ring.width = 3.0
+	ring.default_color = Color(1.0, 0.98, 0.80, 0.85)
+	ring.material = m
+	ring.z_index = 40
+	host.add_child(ring)
+	ring.global_position = global_position
+	var tw := ring.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(ring, "scale", Vector2(2.9, 2.9), 0.32)
+	tw.tween_property(ring, "modulate:a", 0.0, 0.32)
+	tw.chain().tween_callback(ring.queue_free)
+	SfxSynth.play_at(self, global_position, "chime", -10.0, 1.4)
+
+func _build_walking_summit() -> void:
+	var outline := PackedVector2Array([
+		Vector2(-16, 30), Vector2(-13, -14), Vector2(-4, -30),
+		Vector2(7, -26), Vector2(15, -6), Vector2(17, 30)])
+	var body := Polygon2D.new()
+	body.polygon = outline
+	body.color = Color(0.34, 0.35, 0.40, 1.0)
+	visual.add_child(body)
+	var snow := Polygon2D.new()
+	snow.polygon = PackedVector2Array([
+		Vector2(-4, -30), Vector2(7, -26), Vector2(3, -18), Vector2(-9, -20)])
+	snow.color = Color(0.86, 0.90, 0.96, 1.0)
+	visual.add_child(snow)
+	_art_rim(outline, Color(0.72, 0.80, 0.94), 2.0)
+
+func _build_hung_lantern() -> void:
+	var m := _add_mat()
+	var glow := Polygon2D.new()
+	glow.polygon = _circle(46.0, 18)
+	glow.color = Color(1.0, 0.76, 0.34, 0.14)
+	glow.material = m
+	visual.add_child(glow)
+	var case_ := Polygon2D.new()
+	case_.polygon = PackedVector2Array([
+		Vector2(-7, -10), Vector2(7, -10), Vector2(9, 8), Vector2(-9, 8)])
+	case_.color = Color(0.30, 0.26, 0.20, 1.0)
+	visual.add_child(case_)
+	var flame := Polygon2D.new()
+	flame.polygon = _circle(5.0, 8)
+	flame.color = Color(1.0, 0.88, 0.50, 0.95)
+	flame.material = m
+	visual.add_child(flame)
+	var tw := flame.create_tween().set_loops()
+	tw.tween_property(flame, "scale", Vector2(1.25, 1.25), 0.45)
+	tw.tween_property(flame, "scale", Vector2(0.85, 0.85), 0.45)
+
+func _build_kiss_mark() -> void:
+	var m := _add_mat()
+	var bud := Polygon2D.new()
+	bud.polygon = _circle(6.0, 9)
+	bud.color = Color(0.86, 0.84, 0.90, 0.95)
+	visual.add_child(bud)
+	for i in range(5):
+		var petal := Polygon2D.new()
+		var a: float = TAU * float(i) / 5.0
+		petal.polygon = PackedVector2Array([
+			Vector2(0, 0), Vector2(cos(a - 0.3), sin(a - 0.3)) * 10.0,
+			Vector2(cos(a), sin(a)) * 13.0, Vector2(cos(a + 0.3), sin(a + 0.3)) * 10.0])
+		petal.color = Color(0.74, 0.72, 0.84, 0.7)
+		petal.material = m
+		visual.add_child(petal)
+
+# THE BLOOM: one heavy pulse of poison, once, and then it is over.
+func _kiss_bloom() -> void:
+	if done:
+		return
+	done = true
+	var host := get_parent()
+	var r := 74.0
+	for group_name in HOSTILE_GROUPS:
+		for e in get_tree().get_nodes_in_group(group_name):
+			if not is_instance_valid(e) or not e.has_method("take_damage") or not (e is Node2D):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if global_position.distance_to((e as Node2D).global_position) <= r:
+				e.take_damage(damage)
+				_apply_status_to(e)
+	if host != null and is_instance_valid(host):
+		var m := _add_mat()
+		var burst := Polygon2D.new()
+		burst.polygon = _circle(r * 0.45, 16)
+		burst.color = Color(0.72, 0.66, 0.88, 0.6)
+		burst.material = m
+		burst.z_index = 40
+		host.add_child(burst)
+		burst.global_position = global_position
+		var tw := burst.create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(burst, "scale", Vector2(2.4, 2.4), 0.3)
+		tw.tween_property(burst, "modulate:a", 0.0, 0.3)
+		tw.chain().tween_callback(burst.queue_free)
+	queue_free()
+
+func _build_moon_reach() -> void:
+	var m := _add_mat()
+	var pts := PackedVector2Array()
+	for i in range(13):
+		var a: float = lerpf(-2.5, -0.65, float(i) / 12.0)
+		pts.append(Vector2(cos(a), sin(a)) * 96.0)
+	for i in range(12, -1, -1):
+		var a2: float = lerpf(-2.5, -0.65, float(i) / 12.0)
+		pts.append(Vector2(cos(a2), sin(a2)) * 72.0)
+	var arc := Polygon2D.new()
+	arc.polygon = pts
+	arc.color = Color(0.80, 0.86, 1.0, 0.42)
+	arc.material = m
+	visual.add_child(arc)
+	var edge := Line2D.new()
+	var ep := PackedVector2Array()
+	for i in range(13):
+		var a3: float = lerpf(-2.5, -0.65, float(i) / 12.0)
+		ep.append(Vector2(cos(a3), sin(a3)) * 96.0)
+	edge.points = ep
+	edge.width = 3.0
+	edge.default_color = Color(0.96, 0.98, 1.0, 0.9)
+	edge.material = m
+	visual.add_child(edge)
+
+func _build_winter_mark() -> void:
+	var m := _add_mat()
+	var outline := PackedVector2Array([
+		Vector2(15, 0), Vector2(0, -3.4), Vector2(-12, 0), Vector2(0, 3.4)])
+	var body := Polygon2D.new()
+	body.polygon = outline
+	body.color = Color(0.74, 0.88, 1.0, 0.95)
+	visual.add_child(body)
+	_art_rim(outline, Color(0.50, 0.76, 1.0), 1.5)
+	var frost := Polygon2D.new()
+	frost.polygon = _circle(7.0, 6)
+	frost.color = Color(0.62, 0.86, 1.0, 0.30)
+	frost.material = m
+	visual.add_child(frost)
+
+func _build_granite_step() -> void:
+	var outline := PackedVector2Array([
+		Vector2(-26, 14), Vector2(-22, -10), Vector2(20, -13),
+		Vector2(26, 12)])
+	var body := Polygon2D.new()
+	body.polygon = outline
+	body.color = Color(0.38, 0.38, 0.42, 1.0)
+	visual.add_child(body)
+	var cap := Polygon2D.new()
+	cap.polygon = PackedVector2Array([
+		Vector2(-22, -10), Vector2(20, -13), Vector2(22, -6), Vector2(-24, -3)])
+	cap.color = Color(0.56, 0.57, 0.62, 1.0)
+	visual.add_child(cap)
+	_art_rim(outline, Color(0.80, 0.84, 0.92), 1.8)
+	visual.modulate.a = 0.0        # buried until its turn comes
+
+# the stone comes UP out of the floor, which is the only reason the road reads
+# as a road rather than four rocks appearing.
+func _granite_rise() -> void:
+	if visual == null:
+		return
+	visual.modulate.a = 1.0
+	visual.position = Vector2(0, 26.0)
+	var tw := visual.create_tween()
+	tw.tween_property(visual, "position", Vector2.ZERO, 0.18) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 # A VERDICT: a narrow point with a seal riding behind it. Sober, not showy --
 # the drama is in what it reads on arrival, not in the flight.
@@ -4117,6 +4430,8 @@ var _wake_returned := false
 var _echo_clock := 0.0      # slash: Flying Dragon silhouette echoes
 var _stake_planted := false # world_stake: has it stopped and become furniture?
 var _bites_left := 0        # sorrow_fang: leaps remaining in the chain
+var _step_delay := 0.0      # granite_step: how long this stone waits its turn
+var _winter_marks: Array = []   # winter_mark: everything the shaft has passed
 var _ink_rehit := 0.0
 var _ink_launch := 0.0      # ink_jet: the speed it was thrown at
 var _ink_split := false     # ink_jet: has this stream already broken up?

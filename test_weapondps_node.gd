@@ -83,6 +83,13 @@ const HITS_PER_USE := {
 	# ticking" -- true of the rungs, but each rung carries 0.24 of the row, so
 	# the model read 230 dps and hauled the whole T6 median up by four points.
 	# The number here is TOTAL DAMAGE PER USE AS A MULTIPLE OF ROW DAMAGE.
+	"larksong":    2.2,   # the shaft, plus the ring of song at the top of its climb
+	"walksummit":  2.6,   # one stone, walking, raking every 0.30s as it goes
+	"lastlantern": 2.4,   # the swing, plus a light that burns where you left it
+	"asphodelkiss": 2.1,  # the swing, plus one heavy bloom a beat later
+	"moonreach":   1.8,   # the thrust, plus the arc above you
+	"wintermark":  2.3,   # the pierce, plus every mark shattering when it expires
+	"graniteway":  2.8,   # four stones rising in sequence
 	"verdict":     1.5,   # the thrust, plus a point that reads the target and
 	                      # pays 1.0x-2.2x depending on how hurt they already are
 	"borderline":  2.0,   # the thrust, plus a span that stands and ticks
@@ -279,9 +286,16 @@ const HITS_PER_USE := {
 	# old 4.0 was a guess made when the blades rode one thin ring and actually
 	# landed one or two -- the number flattered a weapon the dev called weak.
 	"zenith":     6.0, # THE STORM: 12 blades on staggered radii over 1.15s,
-	"ink":        3.4,   # the stream SLOWS as it falls, so its 0.22s re-cut lands
-	                     # -- and at 55% speed it FORKS into three, each raking
-	                     # (2.2 for the parent, plus two children at 0.6 damage)
+	"ink":        1.4,   # MEASURED, not reasoned (test_realhits, 2026-07-30).
+	                     # I declared 3.4 by adding up a fork into three jets.
+	                     # Against ONE body the harness measures 1: the children
+	                     # fan AWAY from the target that is already beside them,
+	                     # and a jet crosses a 40px body faster than any re-cut
+	                     # clock. The fork is a CROWD verb and this ladder is a
+	                     # single-target yardstick -- so the weapon now pays in
+	                     # damage per hit (12 -> 20) rather than in hits I could
+	                     # not produce. Never declare a number this table cannot
+	                     # be shown; test_realhits exists to catch exactly this.
 	"wake":       2.8,   # the scythe wakes, cuts, and RETURNS through the row
 }
 

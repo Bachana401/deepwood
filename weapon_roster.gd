@@ -211,14 +211,14 @@ const ROWS = [
 	["wpn_finalverdict", "Final Verdict",        "spear", 5, "verdict",   25, 0.8,  {}],
 	["wpn_skyquill",     "Sky of Quills",        "spear", 5, "skyquills", 18, 0.9, {"count": 5}],
 	["wpn_eventide",     "Eventide",             "bow",   5, "eventide",  15, 0.55, {"count": 3}],
-	["wpn_lastlark",     "The Last Lark",        "bow",   5, "rapid",     11, 0.16, {"plain": true}],
+	["wpn_lastlark",     "The Last Lark",        "bow",   5, "larksong",   5, 0.16, {}],
 	["wpn_omenseeker",   "Omen Seeker",          "bow",   5, "omenseek",  20, 0.6,  {}],
 	["wpn_starfallbow",  "Starfall Bow",         "bow",   5, "starfall",  30, 1.0,  {"aoe": 115}],
 	["wpn_grandrains",   "Grand Tome of Rains",  "wand",  5, "tomeofrains", 14, 1.35, {"radius": 155, "tome_kind": "twin"}],
 	["wpn_twinburst",    "Twinburst Sceptre",    "wand",  5, "twinburst", 25, 0.8,  {"shards": 7}],
 	["wpn_kingsransom",  "King's Ransom",        "wand",  5, "kingsransom", 22, 0.6,  {"bounces": 5}],
 	["wpn_longwatch",    "Warden's Long Watch",  "wand",  5, "wardenwatch", 14, 1.2,  {"dur": 22}],
-	["wpn_summitstaff",  "Summit That Walks",    "staff", 5, "staff",     19, 0.42, {"plain": true}],
+	["wpn_summitstaff",  "Summit That Walks",    "staff", 5, "walksummit", 7, 0.42, {}],
 	# ---------------- TIER 6 - MYTHIC (floors 58-88) ----------------
 	["wpn_griefedge",    "Grief Made Sharp",     "melee", 6, "griefsharp", 19, 0.4, {}],
 	["wpn_hushfall",     "Hushfall",             "melee", 6, "hushfall",  44, 1.1,  {"knockup": true, "status": "slow_w"}],
@@ -365,23 +365,23 @@ const ROWS = [
 	["wpn_stormsliver",  "Stormsliver",          "wand",  4, "forktree",  21, 0.5,  {"rung": true}],
 	["wpn_paleobelisk",  "Pale Obelisk",         "staff", 4, "staff",     16, 0.46, {"plain": true}],
 	["wpn_fordstaff",    "Fordmaster",           "staff", 4, "staff",     14, 0.4,  {"plain": true}],
-	["wpn_inkbook",      "Inkwell of Storms",    "wand",  4, "ink",       12, 0.9,  {}],
+	["wpn_inkbook",      "Inkwell of Storms",    "wand",  4, "ink",       20, 0.9,  {}],
 	["wpn_driftwheel",   "Driftwheel",           "melee", 4, "driftwheel", 17, 0.85, {"dwell": 2.6}],
 	# ---------------- WAVE 3 - TIER 5 (26) ----------------
-	["wpn_lastlantern",  "The Last Lantern",     "melee", 5, "arc",       23, 0.4,  {"status": "burn_w", "plain": true}],
+	["wpn_lastlantern",  "The Last Lantern",     "melee", 5, "lastlantern", 10, 0.4, {"status": "burn_w"}],
 	["wpn_hourmaul",     "The Eleventh Hour",    "melee", 5, "stophour",  34, 1.08, {"knockup": true, "rung": true}],
 	["wpn_gallowsflail", "Gallows Swing",        "melee", 5, "gallows",   26, 0.95, {}],
 	["wpn_midwinterwheel","Midwinter Wheel",     "melee", 5, "midwinterwheel", 20, 0.78, {"dwell": 2.8, "status": "slow_w"}],
-	["wpn_asphodelknife","Asphodel Kiss",        "melee", 5, "arc",       15, 0.24, {"status": "poison_w", "plain": true}],
+	["wpn_asphodelknife","Asphodel Kiss",        "melee", 5, "asphodelkiss", 7, 0.24, {"status": "poison_w"}],
 	["wpn_seawallblade", "Seawall",              "melee", 5, "seawall",   21, 0.55, {"p_damage": 19}],
 	["wpn_pilgrimlash",  "Pilgrim's Scourge",    "melee", 5, "pilgrimscourge", 21, 0.83, {}],
 	["wpn_omenblade",    "Omen of Iron",         "melee", 5, "ironomen",  19, 0.58, {"bounces": 5}],
 	["wpn_borderpike",   "Border of the Realm",  "spear", 5, "borderline", 18, 0.78, {}],
 	["wpn_stormherd",    "Stormherd",            "spear", 5, "stormherd", 17, 0.88, {"count": 5}],
-	["wpn_moonreach",    "Moonreach",            "spear", 5, "thrust",    23, 0.58, {"status": "slow_w", "plain": true}],
+	["wpn_moonreach",    "Moonreach",            "spear", 5, "moonreach", 13, 0.58, {"status": "slow_w"}],
 	["wpn_kestrelbow",   "Kestrel's Court",      "bow",   5, "kestrelcourt", 14, 0.54, {"count": 3}],
 	["wpn_quillrain",    "Quillrain",            "bow",   5, "quillrain", 10, 0.16, {}],
-	["wpn_wintermark",   "Wintermark",           "bow",   5, "shot",      26, 0.58, {"pierce": true, "status": "slow_w", "plain": true}],
+	["wpn_wintermark",   "Wintermark",           "bow",   5, "wintermark", 11, 0.58, {"pierce": true, "status": "slow_w"}],
 	["wpn_owlseeker",    "The Owl Remembers",    "bow",   5, "owlremembers", 19, 0.58, {}],
 	["wpn_thunderhead",  "Thunderhead",          "bow",   5, "thunderhead", 29, 1.0,  {"aoe": 110}],
 	["wpn_sirensbook",   "The Siren's Appendix", "wand",  5, "sirensong", 13, 1.35, {"radius": 150, "tome_kind": "lure"}],
@@ -390,7 +390,7 @@ const ROWS = [
 	["wpn_omenbolt",     "The Third Omen",       "wand",  5, "thirdomen", 21, 0.58, {"bounces": 5}],
 	["wpn_beaconpost",   "Beacon of the Deep",   "wand",  5, "deepbeacon", 13, 1.18, {"dur": 22}],
 	["wpn_emberhymn",    "Emberhymn",            "wand",  5, "emberhymn", 30, 0.82, {"aoe": 130, "status": "burn_w"}],
-	["wpn_graniteway",   "The Granite Way",      "staff", 5, "staff",     20, 0.44, {"plain": true}],
+	["wpn_graniteway",   "The Granite Way",      "staff", 5, "graniteway", 7, 0.44, {"steps": 4}],
 	["wpn_cloudcounter", "Cloudcounter",         "staff", 5, "cloudcount", 11, 0.38, {"clouds": 3}],
 	["wpn_nightmortar",  "Midnight Post",        "bow",   5, "midnightpost", 27, 0.95, {"aoe": 105}],
 	["wpn_saintwheel",   "Saint's Reward",       "melee", 5, "saintsreward", 22, 0.8,  {"dwell": 3.0}],
@@ -1068,6 +1068,53 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			# metronome: ordinary shots, and every ninth is a RULING
 			s = {"type": "commandment", "damage": dmg, "speed": spd + 300.0,
 				"range": rng + 200.0, "every": 9}
+		# ---- tier 5, the last seven plain rungs ----
+		"larksong":
+			# THE LAST LARK: the shaft RISES instead of falling, and sings at
+			# the top of its climb. Every other arcing thing in this roster is
+			# a mortar coming down; this one is the only thing going UP.
+			s = {"type": "lark_song", "damage": maxi(1, int(round(float(dmg) * 0.8))),
+				"speed": spd, "range": rng}
+		"walksummit":
+			# SUMMIT THAT WALKS: a standing stone that simply WALKS, at one
+			# speed, through whatever is in front of it. Not the boulder --
+			# that one rolls and the hill decides where it goes. This one
+			# ignores the ground entirely, which is what makes it a summit.
+			s = {"type": "walking_summit",
+				"damage": maxi(1, int(round(float(dmg) * 0.9)))}
+		"lastlantern":
+			# THE LAST LANTERN: hangs a light where you swung, and there is
+			# only ever ONE. Lighting a new one snuffs the old, so the weapon
+			# is really a question about where you want the room lit.
+			s = {"type": "hung_lantern",
+				"damage": maxi(1, int(round(float(dmg) * 0.55)))}
+		"asphodelkiss":
+			# ASPHODEL KISS: the poison does nothing at all, and then it does
+			# everything. It sticks where it lands, swells for a beat, and
+			# blooms once. A DELAY is the whole weapon.
+			s = {"type": "kiss_mark",
+				"damage": maxi(1, int(round(float(dmg) * 1.4))),
+				"speed": spd + 120.0, "range": rng - 80.0}
+		"moonreach":
+			# MOONREACH strikes UPWARD. Every other spear in the roster owns
+			# the lane; this one owns the sky above you, which is the half of
+			# a side-scroller nothing else covers.
+			s = {"type": "moon_reach",
+				"damage": maxi(1, int(round(float(dmg) * 0.85)))}
+		"wintermark":
+			# WINTERMARK: the arrow marks everything it passes and winter
+			# arrives LATER -- when the shaft finally expires, every mark
+			# shatters at once, wherever they have wandered to.
+			s = {"type": "winter_mark",
+				"damage": maxi(1, int(round(float(dmg) * 0.7))),
+				"speed": spd + 80.0, "range": rng + 120.0}
+		"graniteway":
+			# THE GRANITE WAY lays a ROAD: four stones that rise out of the
+			# floor one after another, away from you. The Ladder climbs; this
+			# one goes forward, and the sequence is the point of both.
+			s = {"type": "granite_step",
+				"damage": maxi(1, int(round(float(dmg) * 0.45))),
+				"steps": int(ex.get("steps", 4))}
 		"verdict":
 			# FINAL VERDICT reads the TARGET, and is the deliberate mirror of
 			# Grief Made Sharp, which reads the player. One gets crueller as
@@ -1565,6 +1612,13 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"edict":      return "The law REACHES: a jointed arm of light unfolds the length of the hall, cutting everything along it and blooming where it touches -- and stone does not stop a sentence."
 		"heavenstring": return "Every shaft trails a THREAD, and when it lands the thread goes taut: what you hit comes to you, whether it meant to or not."
 		"choirstring": return "Each shaft that lands plants a NOTE, humming where it stuck. Fill a room with notes and the room sings -- and singing hurts."
+		"larksong":    return "The shaft CLIMBS instead of falling, and at the top of its climb it sings -- a ring of song that takes everything near it. The only thing in the armoury that goes up."
+		"walksummit":  return "A standing stone that WALKS. One speed, no hurry, straight through whatever is in front of it. The ground has no say in where it goes."
+		"lastlantern": return "Hangs a light where you swung, and burns whatever comes near it. There is only ever ONE -- lighting a new one snuffs the old, so the question is always where you want the room lit."
+		"asphodelkiss": return "The poison does nothing. Then it does everything. It sticks where it lands, swells for a beat, and blooms once -- and the beat is the weapon."
+		"moonreach":   return "It strikes UPWARD. Everything else you carry owns the lane in front of you; this owns the sky above you, and things in the air have got used to being safe."
+		"wintermark":  return "The shaft marks everything it passes and keeps going. Winter arrives LATER: when the arrow is spent, every mark shatters at once, wherever they have wandered to."
+		"graniteway":  return "Lays a ROAD -- %d stones rising out of the floor one after another, away from you. Standing on the way is not advised." % int(ex.get("steps", 4))
 		"verdict":     return "It reads the ACCUSED. The thrust lands harder the worse shape they are already in -- a formality against the healthy, and something else entirely against the nearly-finished."
 		"borderline":  return "Draws a LINE across the lane and leaves it there. Whatever tries to cross is hurt and shoved back to the side it came from. The realm ends here."
 		"cloudcount":  return "Casting does nothing. Casting AGAIN does nothing. On the third the sky you have been gathering opens over whatever you are pointing at."

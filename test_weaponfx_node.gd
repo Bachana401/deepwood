@@ -167,8 +167,10 @@ func _ready() -> void:
 	# 103 -> 101: GRIEF MADE SHARP and WORLDSPIKE.
 	# 101 ->  99: REQUIEM EDGE and SORROWFANG. TIER 6 NOW HAS NO PLAIN RUNGS.
 	#  99 ->  96: tier 5 begins -- FINAL VERDICT, BORDER OF THE REALM,
-	#             CLOUDCOUNTER. Seven T5 rungs still plain after this.
-	var PLAIN_QUOTA := 96
+	#             CLOUDCOUNTER.
+	#  96 ->  89: the last seven of tier 5. TIER 5 IS CLEAR; every plain rung
+	#             left in the roster is tier 4 or below.
+	var PLAIN_QUOTA := 89
 	var plain_n := 0
 	var overdressed := []
 	var unknown := []
@@ -291,8 +293,8 @@ func _ready() -> void:
 	# 106 -> 105 for the same reason: a rung that gains a verb leaves the chain.
 	# The `broken` list stayed EMPTY, which is the part that actually mattered --
 	# nothing downstream was forging FROM Daybreak Edge.
-	check("every chained rung forges from kin plus materials (93 links)",
-		chained == 93 and broken.is_empty(),
+	check("every chained rung forges from kin plus materials (86 links)",
+		chained == 86 and broken.is_empty(),
 		"chained=%d; broken: %s" % [chained, ", ".join(broken)])
 	# ---- THE CULMINATION (Zenith-kin): the melee crown forges from its three
 	# famous T7 ancestors -- the same blades whose tinted ghosts its zenith

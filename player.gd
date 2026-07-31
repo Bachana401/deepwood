@@ -4426,6 +4426,15 @@ func perform_attack() -> void:
 			var cr_b = roll_crit(int(round(special.get("damage", stats.damage) * skill_damage_mult("bow"))))
 			launch_projectile(special, get_aim_direction(), cr_b[0], cr_b[1])
 			return
+		# THE LAST LARK climbs and sings; WINTERMARK marks and pays later.
+		# Both are ordinary launches -- the whole weapon is in the projectile.
+		if special_type == "lark_song" or special_type == "winter_mark":
+			play_sfx(SFX_BOW)
+			animate_bow(stats)
+			var lcr = roll_crit(int(round(float(special.get("damage", stats.damage))
+				* skill_damage_mult("bow"))))
+			launch_projectile(special, get_aim_direction(), lcr[0], lcr[1])
+			return
 		# GHOST REPEATER: the longer you hold fire, the more of you there are
 		if special_type == "ghost_bows":
 			fire_with_ghosts(special, stats)
@@ -4767,6 +4776,20 @@ func perform_attack() -> void:
 			sp.direction = get_aim_direction()
 			get_parent().add_child(sp)
 			sp.global_position = global_position + sp.direction * 26.0
+		elif special_type == "moon_reach":
+			# MOONREACH (T5): the reach goes UP, not out
+			play_sfx(SFX_SPEAR)
+			animate_spear(stats)
+			var mr = WEAPON_PROJECTILE_SCRIPT.new()
+			mr.kind = "moon_reach"
+			var mrc = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("spear"))))
+			mr.damage = mrc[0]
+			mr.is_crit = mrc[1]
+			mr.element = Inventory.element_of(active_weapon_id)
+			mr.on_hit_status = special.get("status", {})
+			mr.source = self
+			get_parent().add_child(mr)
+			mr.global_position = global_position + Vector2(0, -10.0)
 		elif special_type == "verdict_point" or special_type == "border_line":
 			# FINAL VERDICT and BORDER OF THE REALM: both spears, both launched
 			# the same way -- what they do lives entirely in the projectile.
@@ -5105,6 +5128,57 @@ func perform_attack() -> void:
 			or special_type == "bent_ray":
 		var wcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
 		launch_projectile(special, aim_dir, wcr[0], wcr[1])
+	# SUMMIT THAT WALKS (T5): a standing stone that simply walks
+	elif special_type == "walking_summit":
+		var ws = WEAPON_PROJECTILE_SCRIPT.new()
+		ws.kind = "walking_summit"
+		var wsc = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+		ws.damage = wsc[0]
+		ws.is_crit = wsc[1]
+		ws.speed = 128.0                  # no hurry. That is the joke.
+		ws.max_distance = 420.0
+		ws.direction = Vector2(signf(aim_dir.x) if aim_dir.x != 0.0 else 1.0, 0.0)
+		ws.element = Inventory.element_of(active_weapon_id)
+		ws.on_hit_status = special.get("status", {})
+		ws.source = self
+		get_parent().add_child(ws)
+		ws.global_position = global_position + ws.direction * 46.0 + Vector2(0, 4.0)
+	# THE LAST LANTERN (T5): there is only ever ONE
+	elif special_type == "hung_lantern":
+		if is_instance_valid(_lantern):
+			(_lantern as Node2D).queue_free()      # the old light goes out
+		var ln = WEAPON_PROJECTILE_SCRIPT.new()
+		ln.kind = "hung_lantern"
+		var lnc = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+		ln.damage = lnc[0]
+		ln.is_crit = lnc[1]
+		ln.element = Inventory.element_of(active_weapon_id)
+		ln.on_hit_status = special.get("status", {})
+		ln.source = self
+		get_parent().add_child(ln)
+		ln.global_position = global_position + aim_dir * 78.0 + Vector2(0, -22.0)
+		_lantern = ln
+	# ASPHODEL KISS (T5): it sticks, it swells, it blooms once
+	elif special_type == "kiss_mark":
+		var kcr2 = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+		launch_projectile(special, aim_dir, kcr2[0], kcr2[1])
+	# THE GRANITE WAY (T5): four stones rising one after another, away from you
+	elif special_type == "granite_step":
+		var steps: int = maxi(1, int(special.get("steps", 4)))
+		var lane := Vector2(signf(aim_dir.x) if aim_dir.x != 0.0 else 1.0, 0.0)
+		for i in range(steps):
+			var gs2 = WEAPON_PROJECTILE_SCRIPT.new()
+			gs2.kind = "granite_step"
+			var gsc = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+			gs2.damage = gsc[0]
+			gs2.is_crit = gsc[1]
+			gs2._step_delay = 0.10 * float(i)     # the STAGGER is the road
+			gs2.element = Inventory.element_of(active_weapon_id)
+			gs2.on_hit_status = special.get("status", {})
+			gs2.source = self
+			get_parent().add_child(gs2)
+			gs2.global_position = global_position + lane * (62.0 + 52.0 * float(i)) \
+				+ Vector2(0, 10.0)
 	# CLOUDCOUNTER (T5): bank a cloud, bank another, then spend the sky
 	elif special_type == "banked_cloud":
 		var need: int = maxi(2, int(special.get("clouds", 3)))
@@ -5997,6 +6071,7 @@ var _ghost_bows: Array = []
 var _twelfth_count := 0     # Twelfth Pillar: the beat the player is counting
 var _still_for := 0.0       # The Still Mountain: how long you have not moved
 var _clouds: Array = []     # Cloudcounter: the sky you have banked so far
+var _lantern: Node = null   # The Last Lantern: there is only ever ONE
 
 func fire_with_ghosts(special: Dictionary, stats: Dictionary) -> void:
 	animate_bow(stats)                 # the real shot, unchanged
