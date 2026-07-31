@@ -6,7 +6,11 @@ var _draft_armed := ""   # the villager warned about, awaiting a second click
 func _ready() -> void:
 	visible = false
 	add_to_group("esc_window")
-	$Panel/CloseButton.pressed.connect(close)
+	# null-safe like the player's HUD access: a bare-script instance (tests,
+	# tools) has no Panel, and reaching through it threw on frame one
+	var cb := get_node_or_null("Panel/CloseButton")
+	if cb != null:
+		cb.pressed.connect(close)
 
 func open_for_building(building: Node) -> void:
 	current_building = building
