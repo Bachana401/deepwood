@@ -6703,7 +6703,14 @@ func _shaft(dir: Vector2, dmg: int, special: Dictionary, from := Vector2.INF):
 	var cr = roll_crit(dmg)
 	arrow.setup(dir, cr[0], stats_knockback_min(), stats_knockback_max(), 4)
 	arrow.is_crit = cr[1]
-	arrow.enemy_statuses = special.get("status", {})
+	# enemy_statuses is a LIST of status dicts; handing it the raw status
+	# Dictionary threw "Invalid assignment" on every shaft of every shaped
+	# volley with a status rider -- and the status silently never applied.
+	# Found by the dispatch audit's error spew (the audit itself said ALL
+	# PASS: it checks spawns, not statuses).
+	var wst_s: Dictionary = special.get("status", {})
+	arrow.enemy_statuses = [] if wst_s.is_empty() else [{"kind": str(wst_s.get("kind", "burn")),
+		"dur": float(wst_s.get("dur", 3.0)), "mag": float(wst_s.get("mag", 4.0))}]
 	arrow.girth = grade_projectile_girth()
 	get_parent().add_child(arrow)
 	arrow.global_position = (global_position + dir * 26.0) if from == Vector2.INF \
