@@ -22,7 +22,7 @@ var _label: Label = null   # kept so a merged spill can update its number
 # never the gold. (And if your bag is full at that moment it simply waits on
 # the bottom rather than vanishing into nothing -- the same courtesy the
 # spilled piles already get on land.)
-enum { FALL, REST, DROWN }
+enum { FALL, REST, DROWN, SUNK }
 var _state := FALL
 var _vel := Vector2.ZERO
 var _bob_tween: Tween = null
@@ -35,7 +35,7 @@ const TOSS_UP := 210.0
 const TOSS_SIDE := 95.0
 const SINK_SPEED := 34.0       # slow. Watching it go is the point.
 const SINK_DRAG := 6.0
-const DROWN_DEPTH := 96.0      # past this it is out of the pool, and yours
+const BOTTOMLESS := 900.0      # sank this far and found no floor: there isn't one
 
 # When this pickup spawns exactly on top of the player (the death-drop case
 # -- their body sits frozen right there for the whole death countdown),
@@ -95,17 +95,39 @@ func _physics_process(delta: float) -> void:
 			if _enter_water_if_wet():
 				return
 		DROWN:
+			# IT GOES TO THE BOTTOM. Not to some arbitrary depth and out of
+			# existence -- it sinks until it lands on the floor of the pool and
+			# then it LIES THERE, in the water, where you can see it and go and
+			# get it. A coin at the bottom of a pond is a thing in the world.
 			_sunk += SINK_SPEED * delta
 			_wobble += delta * 2.4
 			# sinking is not falling: it drifts, it turns, it takes its time
 			global_position.y += SINK_SPEED * delta
 			global_position.x += sin(_wobble) * SINK_DRAG * delta
 			rotation += delta * 0.8
-			modulate.a = clampf(1.0 - _sunk / (DROWN_DEPTH * 1.15), 0.25, 1.0)
+			modulate.a = 0.82                       # dimmed by the water, not fading
 			if randf() < delta * 6.0:
 				_bubble()
-			if _sunk >= DROWN_DEPTH:
-				_claim_from_the_deep()
+			if is_nan(_water_surface()):
+				_claim_from_the_deep()              # drifted out of the pool
+				return
+			var bed := _ground_below()
+			if not is_nan(bed) and global_position.y >= bed:
+				global_position.y = bed
+				_state = SUNK
+				rotation = randf_range(-0.5, 0.5)   # it settles however it lands
+				_puff_silt()
+			elif _sunk > BOTTOMLESS:
+				_claim_from_the_deep()              # no floor at all: it is gone
+		SUNK:
+			# resting on the bed. It still sways with the water, and it is still
+			# yours to collect -- the pickup area never stopped working.
+			_wobble += delta * 1.1
+			position.x += sin(_wobble) * 3.0 * delta
+			if randf() < delta * 0.7:
+				_bubble()
+			if is_nan(_water_surface()):
+				_claim_from_the_deep()              # the pool drained or moved
 
 # the surface of any fish_water this coin is currently over, or NAN
 func _water_surface() -> float:
@@ -150,14 +172,38 @@ func _claim_from_the_deep() -> void:
 	# it just means the coin rests on the bottom until there is room for it
 	if "inventory" in p and p.inventory != null \
 			and not p.inventory.can_accept("coin_gold"):
-		_sunk = DROWN_DEPTH * 0.98            # hold at the bottom and retry
-		return
+		return                                # no room: wait, and try again
 	if p.has_method("add_currency"):
 		p.add_currency(amount)
 	var notif = get_node_or_null("../CanvasLayer/NotificationStack")
 	if notif:
 		notif.show_notification("The water gives up %d currency" % amount)
 	queue_free()
+
+# it lands on the bed and lifts a little cloud of silt. Small thing; it is the
+# difference between arriving and simply stopping.
+func _puff_silt() -> void:
+	var host := get_parent()
+	if host == null or not is_instance_valid(host):
+		return
+	for i in range(5):
+		var s := Polygon2D.new()
+		var r: float = randf_range(2.5, 5.5)
+		var pts := PackedVector2Array()
+		for k in range(7):
+			var a: float = TAU * float(k) / 7.0
+			pts.append(Vector2(cos(a), sin(a)) * r)
+		s.polygon = pts
+		s.color = Color(0.52, 0.48, 0.40, 0.45)
+		s.z_index = 11
+		host.add_child(s)
+		s.global_position = global_position + Vector2(randf_range(-8, 8), 4)
+		var tw := s.create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(s, "global_position", s.global_position
+			+ Vector2(randf_range(-14, 14), randf_range(-10, -3)), 0.8)
+		tw.tween_property(s, "modulate:a", 0.0, 0.8)
+		tw.chain().tween_callback(s.queue_free)
 
 func _splash() -> void:
 	var host := get_parent()
