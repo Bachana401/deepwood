@@ -483,6 +483,59 @@ func _ready() -> void:
 		% regressions.size(), regressions.is_empty(),
 		"\n        " + "\n        ".join(regressions))
 
+	# --- 2b. THE MONARCH FLOOR (dev, 2026-07-30) ------------------------------
+	# "all i know is that last tier weapons and items should be giga op, all of
+	# them." Not the best ones. ALL of them.
+	#
+	# The proving sweep measured tier 8 at 40 -> 1640 dps, and my instinct was
+	# to pull the ceiling down to the middle. That is exactly backwards for a
+	# top tier: a Monarch you are disappointed to find is a worse failure than
+	# one that is too strong, because the tier's whole job is to be the payoff.
+	# So the ceiling stands and the FLOOR rises to meet it.
+	#
+	# 0.55 of the tier's own median is deliberately generous -- it still allows
+	# a Monarch to be half as bursty as the wildest one in the tier, which is
+	# room for a slow heavy weapon or a utility one. What it forbids is a
+	# Monarch that is merely FINE.
+	# WITHIN ITS OWN FAMILY. The first cut of this compared every Monarch to one
+	# tier-wide median and flagged five weapons -- three scepters, a totem and a
+	# whip. Every single one a SUMMONER, whose damage is dealt by a minion over
+	# a horizon this model does not watch. That is the exact mistake the family
+	# split upstream already exists to prevent ("against swords, all nine whips
+	# read as the weakest weapons at their tier"), and I walked into it by
+	# ignoring the answer the file had already written down.
+	var MONARCH_FLOOR := 0.55
+	var fam_vals := {}
+	for id4 in rows:
+		var rr: Dictionary = rows[id4]
+		if int(rr["tier"]) != 8 or PAYS_ELSEWHERE.has(str(rr["behavior"])):
+			continue
+		var f: String = str(rr["fam"])
+		if not fam_vals.has(f):
+			fam_vals[f] = []
+		fam_vals[f].append(float(rr["eff"]))
+	var fam_med := {}
+	for f in fam_vals:
+		var v: Array = fam_vals[f]
+		v.sort()
+		fam_med[f] = float(v[v.size() / 2])
+	var weak_crowns := []
+	for id4 in rows:
+		var r4: Dictionary = rows[id4]
+		if int(r4["tier"]) != 8 or PAYS_ELSEWHERE.has(str(r4["behavior"])):
+			continue
+		var med4: float = float(fam_med.get(str(r4["fam"]), 0.0))
+		if med4 <= 0.0:
+			continue
+		if float(r4["eff"]) < med4 * MONARCH_FLOOR:
+			weak_crowns.append("%s (%s, %s) %.0f dps < %.0f (0.55 x %s-crown median %.0f)"
+				% [r4["name"], r4["fam"], r4["behavior"], r4["eff"],
+					med4 * MONARCH_FLOOR, r4["fam"], med4])
+	weak_crowns.sort()
+	check("every Monarch is giga -- none below 0.55x the crown median (%d weak)"
+		% weak_crowns.size(), weak_crowns.is_empty(),
+		"\n        " + "\n        ".join(weak_crowns))
+
 	# --- 3. nor may it be so weak it is a trap pick ---
 	var duds := []
 	for id in rows:
