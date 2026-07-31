@@ -852,6 +852,11 @@ var last_hurt_at := -100.0   # Lark's Reply: the 2s answering window
 var _sting_count := 0        # Stinger: every fourth shaft is the sting
 var _last_melee_at := -100.0 # Heron Lance: the pause before the strike
 var _hay_hits := 0           # Haymaker's Pike: two jabs, then the haymaker
+var _mill_stacks := 0        # Mill Sickle: the grindstone's tempo
+var _stave_count := 0        # Barrel Stave: every fifth blow booms
+var _tanner_id := 0          # Tanner's Long Knife: the one hide being worked
+var _tanner_stacks := 0
+var _empire := {}            # Evening's Empire: subjects struck these 4s
 var monarch_long_dark_ready_at := 0.0
 var monarch_dread_accum := 0.0
 var monarch_nova_accum := 0.0
@@ -4233,6 +4238,19 @@ func _clear_bobber() -> void:
 # A direct shape query answers where the hitbox is NOW rather than where the
 # engine last looked. Safe here because perform_attack is only ever called from
 # _physics_process (player.gd:3802), so the space is live.
+# how many living foes stand within reach of the WIELDER -- the vesper's swarm
+func _foes_within(reach: float) -> int:
+	var n := 0
+	for gname in ["course_enemy", "dungeon_combatant", "siege_enemy"]:
+		for e in get_tree().get_nodes_in_group(gname):
+			if not (e is Node2D) or not is_instance_valid(e):
+				continue
+			if "is_dead" in e and e.is_dead:
+				continue
+			if global_position.distance_to((e as Node2D).global_position) <= reach:
+				n += 1
+	return n
+
 # the nearest OTHER living foe within reach of a struck body -- the gate's
 # queue, the prong's second point, the winter's neighbour
 func _nearest_foe_near(struck: Node2D, reach: float) -> Node2D:
@@ -5216,6 +5234,67 @@ func perform_attack() -> void:
 					# HAYMAKER'S PIKE: two honest jabs, then the HAYMAKER
 					if _hay_hits >= 2:
 						dealt = int(round(dealt * 1.8))
+				# ---- THE PLAIN-ARC SOULS (2026-07-31): seventeen knives,
+				# cudgels and sickles, each reading its own fact ----
+				"mongrel":
+					# MONGREL KNIFE: a mongrel fights dirtiest CORNERED
+					if health < int(round(float(get_max_health()) * 0.4)):
+						dealt = int(round(dealt * 1.5))
+				"bone":
+					# BONEPICK: made for what is nearly carrion
+					if "health" in target and "max_health" in target \
+							and float(target.health) < float(target.max_health) * 0.3:
+						dealt = int(round(dealt * 1.55))
+				"scales":
+					# WATCHMAN'S JUSTICE evens the scales: pays against any
+					# body standing HEALTHIER than you
+					if "health" in target and "max_health" in target \
+							and float(target.health) / maxf(1.0, float(target.max_health)) \
+							> float(health) / maxf(1.0, float(get_max_health())):
+						dealt = int(round(dealt * 1.4))
+				"adder":
+					# ADDERFANG: the FIRST bite is the adder's -- a body it
+					# has never bitten pays half again
+					if not target.has_meta("adder_bit"):
+						dealt = int(round(dealt * 1.45))
+				"tanner":
+					# TANNER'S LONG KNIFE works ONE hide: consecutive blows
+					# on the same body deepen, and switching wastes the work
+					if _tanner_id == target.get_instance_id():
+						dealt = int(round(dealt * (1.0 + 0.08 * float(mini(_tanner_stacks, 5)))))
+						_tanner_stacks += 1
+					else:
+						_tanner_id = target.get_instance_id()
+						_tanner_stacks = 1
+				"mill":
+					# MILL SICKLE grinds on TEMPO: keep the rhythm (a blow
+					# within 1.2s of the last) and the stone turns faster
+					if now_s - _last_melee_at <= 1.2:
+						dealt = int(round(dealt * (1.0 + 0.08 * float(mini(_mill_stacks, 5)))))
+						_mill_stacks += 1
+					else:
+						_mill_stacks = 1
+				"pale":
+					# PALEFANG drinks from the cold: +30% into the slowed
+					if "status_slow_until" in target \
+							and float(target.status_slow_until) > now_s:
+						dealt = int(round(dealt * 1.3))
+				"coldiron":
+					# COLD IRON EDGE: the old ward against the UNNATURAL --
+					# elites and the crowned pay two-fifths more
+					if "boss_id" in target or ("is_elite" in target and target.is_elite):
+						dealt = int(round(dealt * 1.4))
+				"vesper":
+					# VESPER STING: the evening midge stings best in a SWARM
+					if _foes_within(150.0) >= 3:
+						dealt = int(round(dealt * 1.45))
+				"empire":
+					# EVENING'S EMPIRE grows by SUBJECTS: every distinct body
+					# struck in the last 4s widens the court
+					for k in _empire.keys():
+						if now_s - float(_empire[k]) > 4.0:
+							_empire.erase(k)
+					dealt = int(round(dealt * (1.0 + 0.12 * float(mini(_empire.size(), 5)))))
 			_last_melee_at = now_s
 			_last_swing_target = target
 			_last_swing_damage = dealt
@@ -5288,6 +5367,80 @@ func perform_attack() -> void:
 								chilled.apply_status("slow", 2.0, 0.4)
 					"hay":
 						_hay_hits = 0 if _hay_hits >= 2 else _hay_hits + 1
+					# ---- the arc souls that act after the landing ----
+					"oak":
+						# OAK CUDGEL: heavy wood RATTLES -- double the send,
+						# and the body walks away dazed
+						if target.has_method("apply_knockback"):
+							target.apply_knockback(knockback_sign_toward(target), 260.0)
+						if target.has_method("apply_status"):
+							target.apply_status("slow", 0.5, 0.35)
+					"stave":
+						# BARREL STAVE remembers the barrel: every FIFTH blow
+						# BOOMS, paying everything near the strike
+						_stave_count += 1
+						if _stave_count % 5 == 0:
+							var boom := maxi(1, int(round(float(dealt) * 0.6)))
+							for gname2 in ["course_enemy", "dungeon_combatant", "siege_enemy"]:
+								for e2 in get_tree().get_nodes_in_group(gname2):
+									if e2 == target or not (e2 is Node2D) or not is_instance_valid(e2):
+										continue
+									if not e2.has_method("take_damage"):
+										continue
+									if "is_dead" in e2 and e2.is_dead:
+										continue
+									if target.global_position.distance_to((e2 as Node2D).global_position) > 70.0:
+										continue
+									e2.take_damage(boom)
+									FloatingText.spawn(get_parent(), (e2 as Node2D).global_position
+										+ Vector2(0, -22.0), boom, false)
+					"rust":
+						# RUSTFANG corrodes what it bites: the body's OWN blows
+						# soften, three bites deep at most
+						if "damage" in target:
+							var rust_n := int(target.get_meta("rust_stacks", 0))
+							if rust_n < 3:
+								target.set_meta("rust_stacks", rust_n + 1)
+								target.damage = maxi(1, int(round(float(target.damage) * 0.88)))
+					"poker":
+						# HEARTH POKER stirs the embers: a burning body's fire
+						# is poked onto the nearest neighbour
+						if "status_burn_until" in target \
+								and float(target.status_burn_until) > _now():
+							var kindled := _nearest_foe_near(target, 90.0)
+							if kindled != null and kindled.has_method("apply_status"):
+								kindled.apply_status("burn", 2.5, 1.0)
+					"lantern":
+						# LANTERNBLADE: a kill leaves the LIGHT standing --
+						# a small watch-fire burning where they fell
+						if "is_dead" in target and target.is_dead:
+							var wf = (load("res://weapon_projectile.gd") as GDScript).new()
+							wf.kind = "watch_fire"
+							wf.damage = maxi(1, int(round(float(dealt) * 0.3)))
+							wf.source = self
+							wf.global_position = target.global_position
+							get_parent().call_deferred("add_child", wf)
+					"sexton":
+						# SEXTON'S EDGE: the gravedigger is OWED for each
+						# burial -- two health back per body it buries
+						if "is_dead" in target and target.is_dead:
+							health = mini(get_max_health(), health + 2)
+							update_health_display()
+					"curse":
+						# CURSEWRIGHT'S KNIFE: if the bite ENDS a poisoned
+						# body, the curse leaps to the nearest living foe
+						if "is_dead" in target and target.is_dead \
+								and "status_poison_until" in target \
+								and float(target.status_poison_until) > _now():
+							var heir := _nearest_foe_near(target, 140.0)
+							if heir != null and heir.has_method("apply_status"):
+								heir.apply_status("poison", 4.0, 1.2)
+					"adder":
+						# the adder REMEMBERS every body it has bitten
+						target.set_meta("adder_bit", true)
+					"empire":
+						# the court gains a subject
+						_empire[target.get_instance_id()] = _now()
 	# THE CARVE (2026-07-30). `cleave` was one of three verbs that produced
 	# nothing whatsoever when you swung at empty air -- ten weapons whose whole
 	# identity is "it cuts through everything" and which, on a miss, were
