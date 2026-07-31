@@ -59,9 +59,19 @@ func _ready() -> void:
 	if p == null or not is_instance_valid(p):
 		say("ABORTED: arena has no puppet"); get_tree().quit(0); return
 
+	# EYES_IDS=wpn_a,wpn_b photographs a handful -- same filter the proving
+	# sweep grew, for the same reason: a batch of new souls should not cost
+	# a whole-tier shoot to look at
+	var only_ids: PackedStringArray = []
+	var env_ids := OS.get_environment("EYES_IDS")
+	if env_ids != "":
+		only_ids = env_ids.split(",")
 	var shot := 0
 	for row in WeaponRoster.ROWS:
-		if int(row[3]) < min_tier:
+		if only_ids.size() > 0:
+			if not only_ids.has(str(row[0])):
+				continue
+		elif int(row[3]) < min_tier:
 			continue
 		var id := str(row[0])
 		var def: Dictionary = WeaponRoster.get_def(id)
@@ -81,7 +91,14 @@ func _ready() -> void:
 		_shot("T%d_%s_a_flight" % [int(row[3]), id])
 		# AFTERMATH: the projectile is usually gone. What is left is the trail,
 		# and whether anything is left AT ALL is the Meowmere law's whole test.
-		await get_tree().create_timer(0.45, true).timeout
+		# THE SLOW BEAT (2026-07-31): a mortar's flight alone is ~1.1s, a fuse
+		# adds 0.55 more, a pool is laid AFTER the landing -- shooting their
+		# aftermath at 0.67s photographed every slow verb mid-flight, before
+		# its soul had happened. Slow families wait for their moment.
+		var after_wait := 0.45
+		if str(row[4]) in ["lob", "lob_a", "sunspill", "tallowdrip", "boulder"]:
+			after_wait = 1.5
+		await get_tree().create_timer(after_wait, true).timeout
 		_shot("T%d_%s_b_after" % [int(row[3]), id])
 		shot += 1
 		await get_tree().create_timer(0.25, true).timeout
