@@ -69,7 +69,11 @@ func _ready() -> void:
 	# melee walker actually instances a player (and it just timed out).
 	for engine_path in ["res://weapon_projectile.gd", "res://weapon_fx.gd",
 			"res://companion.gd", "res://embedded_stack.gd",
-			"res://player.gd", "res://weapon_roster.gd"]:
+			"res://player.gd", "res://weapon_roster.gd",
+			# main.gd and the proving ground join the list the day main gained a
+			# weapon-testing hotkey: nothing in the kit loads main.gd, so it
+			# could have failed to parse and every audit would still be green.
+			"res://main.gd", "res://training_arena.gd"]:
 		var scr = load(engine_path)
 		check("engine compiles: " + engine_path.get_file(),
 			scr != null and scr is GDScript and (scr as GDScript).can_instantiate(),

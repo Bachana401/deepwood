@@ -1276,6 +1276,23 @@ func _unhandled_input(e: InputEvent) -> void:
 	# the full map is ADMIN kit (dev call, 2026-07-30): launch --dev to use it
 	if e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_M and GameState.dev_mode:
 		_open_village_map()
+	# THE PROVING GROUND on P: three dummies at staged distances and a readout
+	# of what the wielded weapon actually does. Admin kit, same as the map --
+	# it exists so a weapon can be APPROVED by being watched, which is the one
+	# thing none of the headless probes can do.
+	if e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_P and GameState.dev_mode:
+		_toggle_proving_ground()
+
+const TRAINING_ARENA = preload("res://training_arena.gd")
+var _arena: Node2D = null
+
+func _toggle_proving_ground() -> void:
+	if _arena != null and is_instance_valid(_arena):
+		_arena.queue_free()
+		_arena = null
+		return
+	_arena = TRAINING_ARENA.new()
+	add_child(_arena)
 
 func _open_village_map() -> void:
 	if _world_map == null:
