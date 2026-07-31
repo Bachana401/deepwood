@@ -5196,6 +5196,10 @@ func perform_attack() -> void:
 			# wielder, the hour, or the body on the point -- and prices it.
 			# The facts that act AFTER the blow live below, past the landing.
 			var now_s := _now()
+			# the fist-pump procs SAY so (polish 2026-07-31) -- the game
+			# already shouts FINISHER!, and a haymaker you cannot see land
+			# is just a number
+			var proc_word := ""
 			match srider:
 				"vigil":
 					# VIGIL UNBROKEN: while your own health is whole
@@ -5220,6 +5224,7 @@ func perform_attack() -> void:
 					# the strike is the strike
 					if now_s - _last_melee_at >= 0.7:
 						dealt = int(round(dealt * 1.65))
+						proc_word = "PATIENCE!"
 				"lamp":
 					# LAMPLIGHTER'S REACH: a lit target is easy to hit
 					if "status_burn_until" in target \
@@ -5234,6 +5239,7 @@ func perform_attack() -> void:
 					# HAYMAKER'S PIKE: two honest jabs, then the HAYMAKER
 					if _hay_hits >= 2:
 						dealt = int(round(dealt * 1.8))
+						proc_word = "HAYMAKER!"
 				# ---- THE PLAIN-ARC SOULS (2026-07-31): seventeen knives,
 				# cudgels and sickles, each reading its own fact ----
 				"mongrel":
@@ -5322,6 +5328,10 @@ func perform_attack() -> void:
 			# the spear souls that act AFTER the landing (gated on a blow that
 			# actually connected -- an absorbed hit zeroes _last_swing_damage)
 			if srider != "" and _last_swing_damage > 0:
+				if proc_word != "":
+					FloatingText.spawn_word(get_parent(),
+						target.global_position + Vector2(0, -46.0),
+						proc_word, Color(1.0, 0.84, 0.38))
 				match srider:
 					"fence":
 						# FENCE PIKE: a fence HOLDS. The struck body stands
@@ -5380,6 +5390,9 @@ func perform_attack() -> void:
 						# BOOMS, paying everything near the strike
 						_stave_count += 1
 						if _stave_count % 5 == 0:
+							FloatingText.spawn_word(get_parent(),
+								target.global_position + Vector2(0, -46.0),
+								"BOOM!", Color(0.9, 0.72, 0.42))
 							var boom := maxi(1, int(round(float(dealt) * 0.6)))
 							for gname2 in ["course_enemy", "dungeon_combatant", "siege_enemy"]:
 								for e2 in get_tree().get_nodes_in_group(gname2):
@@ -8473,6 +8486,9 @@ func spawn_arrow(stats: Dictionary, aim_dir: Vector2) -> void:
 			if _sting_count % 4 == 0:
 				base_dmg = int(round(float(base_dmg) * 1.5))
 				arrow_statuses = arrow_statuses + [{"kind": "poison", "dur": 3.0, "mag": 1.0}]
+				FloatingText.spawn_word(get_parent(),
+					global_position + Vector2(0, -52.0),
+					"STING!", Color(0.55, 0.9, 0.35))
 	# skill-granted multishot on a PLAIN bow (no authored spread) used to spawn
 	# every arrow at the identical position/direction/speed -- permanent
 	# lockstep, one invisible fat arrow into one target. The whole Ranger spec

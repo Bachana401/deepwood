@@ -5882,14 +5882,18 @@ func _build_bog_pool() -> void:
 	slick.polygon = pts
 	slick.color = Color(0.23, 0.20, 0.12, 0.85)
 	visual.add_child(slick)
-	# a thin wet sheen ring just inside the rim, barely lighter
+	# a thin wet sheen ring just inside the rim -- POLISH 2026-07-31: the
+	# first cut was barely lighter than the slick and the whole pool vanished
+	# on the night stage (EYES frames). The sheen now reads as WET -- a cool
+	# moonlit glint, still matte, still a hole in the light, but a hole with
+	# an edge you can see from across the arena.
 	var sheen := Polygon2D.new()
 	var pts2 := PackedVector2Array()
 	for i in range(12):
 		var a2: float = TAU * float(i) / 12.0
 		pts2.append(Vector2(cos(a2) * 38.0, sin(a2) * 9.0 + 5.0))
 	sheen.polygon = pts2
-	sheen.color = Color(0.34, 0.31, 0.18, 0.55)
+	sheen.color = Color(0.45, 0.52, 0.48, 0.6)
 	visual.add_child(sheen)
 	# blisters: small dark domes that read as slow bubbles from a distance
 	for b in range(4):
@@ -9561,16 +9565,22 @@ func _tick_worldcut(delta: float) -> void:
 	# TERRA BLADE law): the cut runs out, and a beat later the lane CLOSES on
 	# everything still standing in it, at half pay. Once, flag-gated, never by
 	# the clock -- this weapon has been framerate-dependent before.
-	if visual:
-		visual.scale = Vector2(1.0, maxf(0.05, 1.0 - _wc_t * 3.2))
-		visual.modulate.a = 1.0 - _wc_t * 1.8
 	if _wc_t >= 0.22 and not _wc_second:
 		_wc_second = true
 		_world_cut(0.5)
-		if visual:
-			# the line flares back to a blade for a beat as the world closes
-			visual.scale.y = 0.6
-			visual.modulate.a = 0.9
+	if visual:
+		if _wc_second and _wc_t < 0.38:
+			# THE CLOSE READS (polish 2026-07-31): the first cut of this flare
+			# lasted one frame -- set, then overwritten by the fade the very
+			# next tick, invisible at any framerate. The closing stroke now
+			# HOLDS the line as a re-lit blade for 0.16s, pinching shut as the
+			# stroke pays, so the second bite has a second picture.
+			var close_f: float = (_wc_t - 0.22) / 0.16
+			visual.scale = Vector2(1.0, lerpf(0.6, 0.08, close_f))
+			visual.modulate.a = lerpf(0.9, 0.35, close_f)
+		else:
+			visual.scale = Vector2(1.0, maxf(0.05, 1.0 - _wc_t * 3.2))
+			visual.modulate.a = 1.0 - _wc_t * 1.8
 	if _wc_t >= 0.55:
 		done = true
 		queue_free()
