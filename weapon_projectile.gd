@@ -3009,9 +3009,9 @@ func _build_horizon_line() -> void:
 	# One tier BELOW Heaven, Bent, so four filaments and a shorter bundle. The
 	# ladder lives in the count and the length -- never in making it uglier.
 	_art_filament_beam(118.0, [
-		Color(1.00, 0.90, 0.62),        # low sun at the point
-		Color(1.00, 0.98, 0.86),        # to a pale bar of daylight
-		Color(0.86, 0.94, 1.00)], 4)
+		Color(1.00, 0.56, 0.10),        # hard low sun at the point
+		Color(1.00, 0.88, 0.36),        # to a HOT bar of daylight
+		Color(0.94, 1.00, 1.00)], 4)
 
 func _build_sky_star() -> void:
 	var m := _add_mat()
@@ -3969,9 +3969,9 @@ func _build_bent_ray() -> void:
 	# Sorrow, so it gets a shorter bundle and one fewer filament -- the ladder
 	# is kept in the COUNT and the LENGTH, never by making it uglier.
 	_art_filament_beam(138.0, [
-		Color(1.0, 0.86, 0.42),         # gold at the hand
-		Color(1.0, 0.97, 0.80),         # to daylight
-		Color(0.80, 0.94, 1.0)], 5)
+		Color(1.00, 0.70, 0.06),        # hard gold at the hand
+		Color(1.00, 0.94, 0.48),        # to burning daylight
+		Color(0.88, 1.00, 1.00)], 5)
 
 # PILLAR OF THE SKY: a standing column of daylight. Reuses the standing-zone
 # tick wholesale -- only the shape and the numbers differ.
@@ -5773,10 +5773,12 @@ func _build_griefbeam() -> void:
 	# as three stacked diamonds 46px long, well under one player-height. Rebuilt
 	# to the measured law: a bundle at 3.3 PL, mourning-violet at the hand and
 	# burning out white at the tip.
+	# SATURATED, not moody. Photographed, the cool violet-to-blue version was a
+	# scratch on a black sky. Grief still has to be SEEN.
 	_art_filament_beam(158.0, [
-		Color(0.55, 0.36, 0.86),        # violet, at the hand
-		Color(0.42, 0.62, 0.98),        # into blue
-		Color(0.62, 0.92, 1.0)], 6)     # and cold light before the burn-out
+		Color(1.00, 0.24, 0.86),        # hot magenta at the hand
+		Color(0.66, 0.34, 1.00),        # electric violet
+		Color(0.70, 0.98, 1.00)], 6)    # white-blue before the burn-out
 
 # REGICIDE's thrown spear: a slim crown-gold lance, point-first
 func _build_crownspear() -> void:
@@ -10753,6 +10755,22 @@ func _art_filament_beam(length: float, colours: Array, count: int = 5,
 	var into: Node2D = host if host != null else visual
 	var m := _add_mat()
 	var back: float = -length * 0.20            # a little tail behind the hand
+	# THE BLOOM BEHIND IT (2026-07-30, from the EYES walker). Photographed next
+	# to The Last Word's blade ring, the filament bundle read as a SCRATCH: the
+	# geometry was right and correctly sized, and it still vanished, because
+	# Deepwood's sky is near-black and thin cool lines have nothing to sit
+	# against. This file already said so in the _art_rim note -- "any
+	# dark-coloured projectile silhouettes into the background no matter how
+	# well it is modelled" -- and I built five beams in cool blues anyway.
+	# A soft wide glow under the filaments gives the bundle PRESENCE.
+	var glow_col: Color = colours[0] if not colours.is_empty() else Color(0.9, 0.95, 1.0)
+	var bloom := Polygon2D.new()
+	bloom.polygon = PackedVector2Array([
+		Vector2(back, 0.0), Vector2(length * 0.45, -length * 0.085),
+		Vector2(length, 0.0), Vector2(length * 0.45, length * 0.085)])
+	bloom.color = Color(glow_col.r, glow_col.g, glow_col.b, 0.30)
+	bloom.material = m
+	into.add_child(bloom)
 	# the spindle: zero width at both ends, full at ~45% along
 	var spindle := Curve.new()
 	spindle.add_point(Vector2(0.0, 0.0))
@@ -10772,12 +10790,14 @@ func _art_filament_beam(length: float, colours: Array, count: int = 5,
 			Vector2(back, 0.0).rotated(ang),
 			Vector2(reach * 0.45, 0.0).rotated(ang),
 			Vector2(reach, 0.0).rotated(ang)])
-		fil.width = maxf(1.6, length * 0.045 * (1.0 - absf(t) * 0.45))
+		fil.width = maxf(2.2, length * 0.058 * (1.0 - absf(t) * 0.45))
 		fil.width_curve = spindle
 		fil.joint_mode = Line2D.LINE_JOINT_ROUND
 		fil.begin_cap_mode = Line2D.LINE_CAP_ROUND
 		fil.end_cap_mode = Line2D.LINE_CAP_ROUND
-		fil.gradient = _length_gradient(colours, 0.55 + 0.40 * (1.0 - absf(t)))
+		# alpha floor lifted 0.55 -> 0.82: an outer filament at half alpha over
+		# a black sky is not a faint filament, it is an absent one
+		fil.gradient = _length_gradient(colours, 0.82 + 0.18 * (1.0 - absf(t)))
 		fil.material = m
 		into.add_child(fil)
 	# THE SPINE: one near-opaque white hairline straight down the axis. Without

@@ -2294,22 +2294,22 @@ func post_budget() -> int:
 # mark it paints, and only the apex earns the full rainbow. If every weapon
 # owns the screen then none of them do.
 const WHIP_TAG_COLOURS := {
-	"":          [Color(0.98, 0.94, 0.80), Color(0.84, 0.76, 0.54)],
-	"knock":     [Color(1.00, 0.84, 0.46), Color(0.74, 0.46, 0.20)],
+	"":          [Color(0.98, 0.94, 0.80), Color(1.00, 0.92, 0.60)],
+	"knock":     [Color(1.00, 0.84, 0.46), Color(1.00, 0.60, 0.16)],
 	# the five that had NO rider at all until the minion probe named them: they
 	# were the only whips whose behaviour profiles came back identical, because
 	# numbers were all that told them apart
-	"lesson":    [Color(0.98, 0.96, 0.86), Color(0.72, 0.68, 0.52)],
-	"bend":      [Color(0.86, 0.98, 0.80), Color(0.46, 0.74, 0.42)],
-	"iron":      [Color(0.86, 0.90, 0.96), Color(0.44, 0.50, 0.60)],
-	"psalm":     [Color(1.00, 0.92, 0.78), Color(0.86, 0.46, 0.30)],
-	"toll":      [Color(1.00, 0.94, 0.66), Color(0.88, 0.66, 0.20)],
-	"detonate":  [Color(1.00, 0.88, 0.48), Color(1.00, 0.40, 0.16)],
-	"chill":     [Color(0.84, 0.97, 1.00), Color(0.40, 0.66, 1.00)],
-	"storm":     [Color(1.00, 1.00, 1.00), Color(0.60, 0.46, 1.00)],
-	"coin":      [Color(1.00, 0.95, 0.56), Color(1.00, 0.72, 0.14)],
-	"mend":      [Color(0.82, 1.00, 0.84), Color(0.30, 0.82, 0.48)],
-	"propagate": [Color(0.88, 1.00, 0.70), Color(0.36, 0.72, 0.32)],
+	"lesson":    [Color(0.98, 0.96, 0.86), Color(1.00, 0.96, 0.68)],
+	"bend":      [Color(0.86, 0.98, 0.80), Color(0.44, 1.00, 0.40)],
+	"iron":      [Color(0.86, 0.90, 0.96), Color(0.60, 0.78, 1.00)],
+	"psalm":     [Color(1.00, 0.92, 0.78), Color(1.00, 0.44, 0.16)],
+	"toll":      [Color(1.00, 0.94, 0.66), Color(1.00, 0.74, 0.10)],
+	"detonate":  [Color(1.00, 0.88, 0.48), Color(1.00, 0.34, 0.06)],
+	"chill":     [Color(0.84, 0.97, 1.00), Color(0.32, 0.74, 1.00)],
+	"storm":     [Color(1.00, 1.00, 1.00), Color(0.62, 0.40, 1.00)],
+	"coin":      [Color(1.00, 0.95, 0.56), Color(1.00, 0.78, 0.06)],
+	"mend":      [Color(0.82, 1.00, 0.84), Color(0.22, 1.00, 0.52)],
+	"propagate": [Color(0.88, 1.00, 0.70), Color(0.40, 1.00, 0.28)],
 }
 # pastel, HIGH brightness, LOW saturation -- the reference is nothing like a
 # saturated rainbow, and copying a saturated one is what made earlier attempts
