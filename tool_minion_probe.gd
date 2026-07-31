@@ -100,9 +100,8 @@ func _ready() -> void:
 		p.wield_weapon(id)
 		p.mana = p.get_max_mana()
 		p.health = p.get_max_health()
-		var aim: Vector2 = p.get_aim_direction()
-		if aim.length() < 0.01:
-			aim = Vector2.RIGHT
+		p.set_test_aim(Vector2.RIGHT)
+		var aim := Vector2.RIGHT
 		var marks := []
 		var t0 := Time.get_ticks_msec() / 1000.0
 		for r in RINGS:

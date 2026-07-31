@@ -75,9 +75,10 @@ func _ready() -> void:
 
 	# three marks along the real aim, same placement law the sweep uses: a
 	# target off the aim vector makes a healthy weapon look dead
-	var aim: Vector2 = p.get_aim_direction()
-	if aim.length() < 0.01:
-		aim = Vector2.RIGHT
+	# THE TEST OWNS THE AIM. Flat and to the right, always -- never the real
+	# cursor, which headless makes nonsense and windowed steals from the dev.
+	p.set_test_aim(Vector2.RIGHT)
+	var aim := Vector2.RIGHT
 	for r in [70.0, 170.0, 290.0]:
 		var m := Mark.new()
 		m.add_to_group("course_enemy")

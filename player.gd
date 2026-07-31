@@ -3019,7 +3019,26 @@ func update_weapon_guard(has_art := false) -> void:
 	weapon_guard.position = Vector2(active_stats.icon_size.x * 0.16, (active_stats.icon_size.y - guard_height) / 2.0)
 	weapon_guard.visible = true
 
+# A TEST MAY TAKE THE AIM (dev, 2026-07-30: "my mouse and your test doesn't
+# align, can u test completely without me?").
+#
+# Every probe I built today read the REAL CURSOR to decide where the player was
+# pointing. Headless that meant a nonsense vector (up and to the left) which
+# made healthy weapons read as dead three separate times; windowed it meant my
+# screenshot walker was fighting the dev for their own mouse, firing wherever
+# their hand happened to be and missing the targets I had just placed.
+#
+# With this set, the player aims where the TEST says and the cursor is
+# irrelevant. Nothing in the game sets it -- it is empty in every real session
+# and costs one comparison per call.
+var aim_override := Vector2.ZERO
+
+func set_test_aim(dir: Vector2) -> void:
+	aim_override = Vector2.ZERO if dir.length() < 0.01 else dir.normalized()
+
 func get_aim_direction() -> Vector2:
+	if aim_override != Vector2.ZERO:
+		return aim_override
 	var to_mouse = aim_world_point() - global_position
 	if to_mouse.length() < 1.0:
 		return Vector2(facing_direction, 0)
@@ -3029,6 +3048,8 @@ func get_aim_direction() -> Vector2:
 # mouse worth trusting, so the touch layer auto-aims (nearest enemy, facing
 # side preferred). Everywhere else this is exactly get_global_mouse_position().
 func aim_world_point() -> Vector2:
+	if aim_override != Vector2.ZERO:
+		return global_position + aim_override * 260.0
 	if TouchControls.active:
 		return TouchControls.aim_point_for(self)
 	return get_global_mouse_position()

@@ -87,9 +87,8 @@ func _ready() -> void:
 					p.wield_weapon(id)
 					p.mana = p.get_max_mana()
 					p.health = p.get_max_health()
-					var aim: Vector2 = p.get_aim_direction()
-					if aim.length() < 0.01:
-						aim = Vector2.RIGHT
+					p.set_test_aim(Vector2.RIGHT)
+					var aim := Vector2.RIGHT
 					var dummy := Counter.new()
 					dummy.add_to_group("course_enemy")
 					stage.add_child(dummy)

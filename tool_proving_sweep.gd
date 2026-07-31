@@ -12,12 +12,18 @@ extends Node
 # FLAGS the ones that do not fit, which is the only part anyone should have to
 # read.
 #
-# PLACEMENT, which is the whole difficulty and cost me three wrong answers
-# today: headless has no mouse, so get_aim_direction() returns roughly
-# (-0.40,-0.92) -- up and to the left. Targets must sit ALONG THAT VECTOR at
-# true distance or aim-following weapons fire into empty space and read as
-# dead. The near ring is deliberately at 45px, inside melee's own reach, so a
-# sword is judged where a sword can actually swing.
+# PLACEMENT. This used to READ THE REAL CURSOR to find the aim, and that single
+# choice cost three wrong answers headless -- with no mouse the vector points up
+# and to the left, so every aim-following weapon fired into empty space and read
+# as dead -- and windowed it fought the dev for their own mouse, firing wherever
+# their hand happened to be while missing the marks it had just placed.
+#
+# THE TEST NOW OWNS THE AIM (player.set_test_aim): flat and to the right, marks
+# laid on that same line. Nothing here depends on where anybody is pointing, so
+# the dev can use their PC while this runs.
+#
+# The near ring sits at 45px, inside melee's own reach, so a sword is judged
+# where a sword can actually swing.
 
 const RINGS := [45.0, 150.0, 280.0]
 const WATCH := 2.4           # seconds of firing per weapon
@@ -86,9 +92,8 @@ func _ready() -> void:
 		p.health = p.get_max_health()
 		var mana_before: float = float(p.mana)
 
-		var aim: Vector2 = p.get_aim_direction()
-		if aim.length() < 0.01:
-			aim = Vector2.RIGHT
+		p.set_test_aim(Vector2.RIGHT)
+		var aim := Vector2.RIGHT
 		var marks := []
 		for r in RINGS:
 			var m := Mark.new()
