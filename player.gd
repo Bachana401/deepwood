@@ -2296,6 +2296,14 @@ func post_budget() -> int:
 const WHIP_TAG_COLOURS := {
 	"":          [Color(0.98, 0.94, 0.80), Color(0.84, 0.76, 0.54)],
 	"knock":     [Color(1.00, 0.84, 0.46), Color(0.74, 0.46, 0.20)],
+	# the five that had NO rider at all until the minion probe named them: they
+	# were the only whips whose behaviour profiles came back identical, because
+	# numbers were all that told them apart
+	"lesson":    [Color(0.98, 0.96, 0.86), Color(0.72, 0.68, 0.52)],
+	"bend":      [Color(0.86, 0.98, 0.80), Color(0.46, 0.74, 0.42)],
+	"iron":      [Color(0.86, 0.90, 0.96), Color(0.44, 0.50, 0.60)],
+	"psalm":     [Color(1.00, 0.92, 0.78), Color(0.86, 0.46, 0.30)],
+	"toll":      [Color(1.00, 0.94, 0.66), Color(0.88, 0.66, 0.20)],
 	"detonate":  [Color(1.00, 0.88, 0.48), Color(1.00, 0.40, 0.16)],
 	"chill":     [Color(0.84, 0.97, 1.00), Color(0.40, 0.66, 1.00)],
 	"storm":     [Color(1.00, 1.00, 1.00), Color(0.60, 0.46, 1.00)],
@@ -2456,6 +2464,59 @@ func whip_crack(stats, special: Dictionary) -> void:
 		terms)
 	# --- the per-whip riders that act at TAG time ---
 	match rider:
+		"lesson":
+			# FIRST LESSON: a lesson is not given to one pupil. Painting a mark
+			# paints the nearest OTHER foe too, at no extra cost -- the starter
+			# whip's whole trick, and the reason it stops being a stat block.
+			var pupil: Node2D = null
+			var pd := 190.0
+			for gname in ["course_enemy", "dungeon_combatant", "siege_enemy"]:
+				for e2 in get_tree().get_nodes_in_group(gname):
+					if e2 == struck or not (e2 is Node2D) or not is_instance_valid(e2):
+						continue
+					if "is_dead" in e2 and e2.is_dead:
+						continue
+					var d2: float = struck.global_position.distance_to((e2 as Node2D).global_position)
+					if d2 < pd:
+						pd = d2
+						pupil = e2
+			if pupil != null:
+				BOND_MARK_SCRIPT.paint(pupil,
+					4.0 + float(special.get("tag_dur", 0.0)), terms)
+		"bend":
+			# THE WILLOW WORD: a willow BENDS things toward it. The mark is
+			# drawn a step closer instead of being shoved away -- the opposite
+			# of the Drover's herding, and the only pull in the whip rack.
+			if struck.has_method("apply_knockback"):
+				struck.apply_knockback(-1 if aim.x >= 0.0 else 1, 150.0)
+		"iron":
+			# A WORD OF IRON: iron HOLDS. The mark is briefly nailed in place --
+			# short on purpose, since a tier-3 whip should not be a stun engine.
+			if struck.has_method("apply_status"):
+				struck.apply_status("freeze", 0.65, 0.0)
+		"psalm":
+			# SUNDERING PSALM: the psalm cracks OUTWARD from the mark. Everything
+			# crowded around what you tagged shares the word.
+			for gname2 in ["course_enemy", "dungeon_combatant", "siege_enemy"]:
+				for e3 in get_tree().get_nodes_in_group(gname2):
+					if e3 == struck or not (e3 is Node2D) or not is_instance_valid(e3):
+						continue
+					if "is_dead" in e3 and e3.is_dead or not e3.has_method("take_damage"):
+						continue
+					if struck.global_position.distance_to((e3 as Node2D).global_position) <= 120.0:
+						e3.take_damage(maxi(1, int(round(float(dmg) * 0.45))))
+		"toll":
+			# MORNING BELL: a bell is heard TWICE -- the strike, and the sound
+			# arriving after it. The second toll lands a beat later on the same
+			# body, so the rhythm of this whip is call and answer.
+			var bell_target := struck
+			var bell_pay: int = maxi(1, int(round(float(dmg) * 0.6)))
+			get_tree().create_timer(0.55).timeout.connect(
+				func():
+					if is_instance_valid(bell_target) and bell_target.has_method("take_damage"):
+						if not ("is_dead" in bell_target and bell_target.is_dead):
+							bell_target.take_damage(bell_pay)
+							SfxSynth.play_at(self, bell_target.global_position, "chime", -8.0, 0.6))
 		"chill":
 			# THE COLD REIN: the mark goes cold the moment it is painted
 			if struck.has_method("apply_status"):
