@@ -16,6 +16,29 @@ extends Area2D
 # the one dial for how far everything flies -- see the note in _ready()
 const REACH_BONUS := 1.20
 
+# THE HITBOX IS THE PICTURE. Every kind here is drawn at a size I chose, in a
+# _build_ function, and its box is that size rather than the 36x20 default --
+# so what the player can SEE is what the weapon can HIT. Anything not listed
+# keeps the default, which is fine for a small bolt and a lie for a long one:
+# when a new verb draws something big, it belongs in this table.
+const DRAWN_HITBOX := {
+	# the filament beams, at their authored lengths
+	"grief_beam":    Vector2(158, 30),
+	"bent_ray":      Vector2(138, 28),
+	"horizon_line":  Vector2(118, 26),
+	# the bars, which are drawn either side of the origin
+	"dawn_line":     Vector2(150, 28),
+	"sky_ladder":    Vector2(110, 26),
+	"border_line":   Vector2(122, 30),
+	# and the big single shapes
+	"requiem_note":  Vector2(46, 46),
+	"sunder_point":  Vector2(40, 20),
+	"walking_summit": Vector2(36, 62),
+	"lark_song":     Vector2(26, 24),
+	"magma_crawl":   Vector2(36, 22),
+	"sky_star":      Vector2(26, 26),
+}
+
 var kind := "slash"
 var girth := 1.0            # scales the HITBOX (and, gently, the drawing)
 var _draw_girth := 1.0      # what the eye gets: see the note in _ready()
@@ -127,6 +150,23 @@ func _ready() -> void:
 		shape.size = Vector2(44, 44) * girth
 	elif kind == "courtier":
 		shape.size = Vector2(40, 40) * girth
+	elif DRAWN_HITBOX.has(kind):
+		# EVERY PART OF IT DEALS DAMAGE (dev, 2026-07-30: "projectiles all parts
+		# should deal damage, some parts deal some don't especially top tier
+		# weapons projectiles should be op").
+		#
+		# The default box is 36x20 no matter how big the thing is DRAWN. The
+		# Crown's Sorrow paints a bundle 158px long and damaged in the middle
+		# 36 of it -- four fifths of what the player can see was decoration.
+		# That is the "theatre, not dps" rule broken in the one place I never
+		# thought to check, because I was measuring hits and never once
+		# compared a hitbox to the picture sitting on top of it.
+		#
+		# These are the kinds whose art I authored at a known size, so the box
+		# can simply BE that size. The box runs along +x and the whole Area2D is
+		# rotated to the aim, so a long beam's box is long in the right
+		# direction without any extra work.
+		shape.size = DRAWN_HITBOX[kind] * girth
 	cs.shape = shape
 	add_child(cs)
 	body_entered.connect(_on_body_entered)
