@@ -75,7 +75,8 @@ func _ready() -> void:
 			# could have failed to parse and every audit would still be green.
 			"res://main.gd", "res://training_arena.gd",
 			"res://tool_proving_sweep.gd", "res://tool_eyes_weapons.gd",
-			"res://tool_minion_probe.gd", "res://weapon_arena.gd"]:
+			"res://tool_minion_probe.gd", "res://weapon_arena.gd",
+			"res://tool_hitbox_audit.gd"]:
 		var scr = load(engine_path)
 		check("engine compiles: " + engine_path.get_file(),
 			scr != null and scr is GDScript and (scr as GDScript).can_instantiate(),

@@ -37,7 +37,19 @@ const DRAWN_HITBOX := {
 	"lark_song":     Vector2(26, 24),
 	"magma_crawl":   Vector2(36, 22),
 	"sky_star":      Vector2(26, 26),
+	# found by tool_hitbox_audit rather than by hand, which is the point of it:
+	# THE LAST WORD's blade ring stands 116px tall and could only ever hit 20 of
+	# that, on the roster's flagship weapon. Frost Writ draws a 160px glyph line
+	# and hit 36 of it.
+	"zenith_storm":  Vector2(40, 116),
+	"writ_glyph":    Vector2(160, 24),
+	"thunderhead":   Vector2(131, 51),
 }
+# ZONES ARE DEDUCTED FROM THAT LIST, not fixed by it. salt_ring, rain_cloud,
+# coven_ring, rift_bloom, asphodel_post and dusk_rip all draw far past their
+# box and all deal damage through a RADIUS in their own tick, never through the
+# Area2D -- so widening the box would change nothing at all and would only make
+# the audit look tidier. The audit reports them; a human decides they are fine.
 
 var kind := "slash"
 var girth := 1.0            # scales the HITBOX (and, gently, the drawing)

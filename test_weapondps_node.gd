@@ -121,7 +121,13 @@ const HITS_PER_USE := {
 	# --- the eleven wands freed from the shared ice dart (2026-07-30) ---
 	"chalkline":   1.2, # a static stroke; a body crosses it about once
 	"tallowdrip":  2.4, # the splat + ~2 ticks; a T1 puddle is SHORT by design
-	"stubmisfire": 2.5, # RANDOM 2-4 sparks (or 1 fat x3); measured 3-4 up close
+	"stubmisfire": 1.5, # RANDOM 2-4 sparks (or 1 fat x3) thrown in a WIDE FAN.
+	                    # 2.5 counted every spark, which only happens against a
+	                    # crowd: test_realhits puts ONE dummy on the line and
+	                    # measures 1, because the rest of the fan flies past it.
+	                    # Same error as `ink` -- a spread weapon's spread cannot
+	                    # be credited by a single-target yardstick, so the number
+	                    # here has to be what one body actually feels.
 	"brookflow":   1.8, # the band re-soaks every 0.4s at 0.6x while it passes
 	"sporepatch":  3.0, # the stick, then ~8 ticks at 0.25x if they hold ground
 	# MEASURED 1 against a STATIONARY dummy, and that is the honest number to
