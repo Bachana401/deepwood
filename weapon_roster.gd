@@ -208,7 +208,7 @@ const ROWS = [
 	["wpn_worldtoll",    "Worldtoll Maul",       "melee", 5, "worldtoll", 36, 1.1,  {"knockup": true}],
 	["wpn_quietwheel",   "Wheel of Quiet",       "melee", 5, "quietwheel", 21, 0.8,  {"dwell": 2.8}],
 	["wpn_serpentsermon","Serpent's Sermon",     "melee", 5, "serpentsermon", 22, 0.85, {"status": "poison_w"}],
-	["wpn_finalverdict", "Final Verdict",        "spear", 5, "thrust",    29, 0.8,  {"plain": true}],
+	["wpn_finalverdict", "Final Verdict",        "spear", 5, "verdict",   25, 0.8,  {}],
 	["wpn_skyquill",     "Sky of Quills",        "spear", 5, "skyquills", 18, 0.9, {"count": 5}],
 	["wpn_eventide",     "Eventide",             "bow",   5, "eventide",  15, 0.55, {"count": 3}],
 	["wpn_lastlark",     "The Last Lark",        "bow",   5, "rapid",     11, 0.16, {"plain": true}],
@@ -376,7 +376,7 @@ const ROWS = [
 	["wpn_seawallblade", "Seawall",              "melee", 5, "seawall",   21, 0.55, {"p_damage": 19}],
 	["wpn_pilgrimlash",  "Pilgrim's Scourge",    "melee", 5, "pilgrimscourge", 21, 0.83, {}],
 	["wpn_omenblade",    "Omen of Iron",         "melee", 5, "ironomen",  19, 0.58, {"bounces": 5}],
-	["wpn_borderpike",   "Border of the Realm",  "spear", 5, "thrust",    28, 0.78, {"plain": true}],
+	["wpn_borderpike",   "Border of the Realm",  "spear", 5, "borderline", 18, 0.78, {}],
 	["wpn_stormherd",    "Stormherd",            "spear", 5, "stormherd", 17, 0.88, {"count": 5}],
 	["wpn_moonreach",    "Moonreach",            "spear", 5, "thrust",    23, 0.58, {"status": "slow_w", "plain": true}],
 	["wpn_kestrelbow",   "Kestrel's Court",      "bow",   5, "kestrelcourt", 14, 0.54, {"count": 3}],
@@ -391,7 +391,7 @@ const ROWS = [
 	["wpn_beaconpost",   "Beacon of the Deep",   "wand",  5, "deepbeacon", 13, 1.18, {"dur": 22}],
 	["wpn_emberhymn",    "Emberhymn",            "wand",  5, "emberhymn", 30, 0.82, {"aoe": 130, "status": "burn_w"}],
 	["wpn_graniteway",   "The Granite Way",      "staff", 5, "staff",     20, 0.44, {"plain": true}],
-	["wpn_cloudcounter", "Cloudcounter",         "staff", 5, "staff",     18, 0.38, {"plain": true}],
+	["wpn_cloudcounter", "Cloudcounter",         "staff", 5, "cloudcount", 11, 0.38, {"clouds": 3}],
 	["wpn_nightmortar",  "Midnight Post",        "bow",   5, "midnightpost", 27, 0.95, {"aoe": 105}],
 	["wpn_saintwheel",   "Saint's Reward",       "melee", 5, "saintsreward", 22, 0.8,  {"dwell": 3.0}],
 	# ---------------- WAVE 3 - TIER 6 (22) ----------------
@@ -1068,6 +1068,30 @@ static func _special_for(behavior: String, tier: int, dmg: int, ex: Dictionary) 
 			# metronome: ordinary shots, and every ninth is a RULING
 			s = {"type": "commandment", "damage": dmg, "speed": spd + 300.0,
 				"range": rng + 200.0, "every": 9}
+		"verdict":
+			# FINAL VERDICT reads the TARGET, and is the deliberate mirror of
+			# Grief Made Sharp, which reads the player. One gets crueller as
+			# YOU fail; this one gets crueller as THEY do. A verdict is passed
+			# on the accused, not on the judge.
+			s = {"type": "verdict_point",
+				"damage": maxi(1, int(round(float(dmg) * 0.55))),
+				"speed": spd + 120.0, "range": rng - 40.0}
+		"borderline":
+			# BORDER OF THE REALM draws a LINE and the line is the weapon. Not
+			# a point that stands (Worldspike) -- a span, standing across the
+			# lane, hurting and shoving back whatever tries to cross it.
+			s = {"type": "border_line",
+				"damage": maxi(1, int(round(float(dmg) * 0.5))),
+				"speed": spd + 60.0, "range": rng - 90.0}
+		"cloudcount":
+			# CLOUDCOUNTER accumulates instead of firing. Every cast puts one
+			# more cloud over your head and does nothing else; on the third the
+			# sky opens. An ACCUMULATOR, not a metronome -- the Twelfth Pillar
+			# counts your swings whether you like it or not, this one you can
+			# choose to bank and spend.
+			s = {"type": "banked_cloud",
+				"damage": maxi(1, int(round(float(dmg) * 0.8))),
+				"clouds": int(ex.get("clouds", 3))}
 		"requiem":
 			# REQUIEM EDGE sings a DESCENDING chord: three cuts leave the blade
 			# at once but at different speeds, so they string out into a
@@ -1541,6 +1565,9 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"edict":      return "The law REACHES: a jointed arm of light unfolds the length of the hall, cutting everything along it and blooming where it touches -- and stone does not stop a sentence."
 		"heavenstring": return "Every shaft trails a THREAD, and when it lands the thread goes taut: what you hit comes to you, whether it meant to or not."
 		"choirstring": return "Each shaft that lands plants a NOTE, humming where it stuck. Fill a room with notes and the room sings -- and singing hurts."
+		"verdict":     return "It reads the ACCUSED. The thrust lands harder the worse shape they are already in -- a formality against the healthy, and something else entirely against the nearly-finished."
+		"borderline":  return "Draws a LINE across the lane and leaves it there. Whatever tries to cross is hurt and shoved back to the side it came from. The realm ends here."
+		"cloudcount":  return "Casting does nothing. Casting AGAIN does nothing. On the third the sky you have been gathering opens over whatever you are pointing at."
 		"requiem":     return "Three cuts leave the blade at once and arrive one after another, each one falling lower and growing louder than the last. Not a fan. A CADENCE."
 		"sorrowfang":  return "The poison does not spread -- it TRAVELS. The fang bites, leaves its sorrow in the wound, and leaps to the next nearest body. Three bites, each weaker, none of them where you aimed."
 		"griefsharp":  return "It knows how badly you are doing. Every swing throws shards of the grief off the edge -- ONE while you are whole, and as many as four when you are nearly gone."

@@ -4767,6 +4767,13 @@ func perform_attack() -> void:
 			sp.direction = get_aim_direction()
 			get_parent().add_child(sp)
 			sp.global_position = global_position + sp.direction * 26.0
+		elif special_type == "verdict_point" or special_type == "border_line":
+			# FINAL VERDICT and BORDER OF THE REALM: both spears, both launched
+			# the same way -- what they do lives entirely in the projectile.
+			play_sfx(SFX_SPEAR)
+			animate_spear(stats)
+			var vcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("spear"))))
+			launch_projectile(special, get_aim_direction(), vcr[0], vcr[1])
 		elif special_type == "world_stake":
 			# WORLDSPIKE (T6): the thrust drives a stake, and the stake STAYS.
 			# This lives in the SPEAR chain, not the melee one -- I put it in
@@ -5098,6 +5105,46 @@ func perform_attack() -> void:
 			or special_type == "bent_ray":
 		var wcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
 		launch_projectile(special, aim_dir, wcr[0], wcr[1])
+	# CLOUDCOUNTER (T5): bank a cloud, bank another, then spend the sky
+	elif special_type == "banked_cloud":
+		var need: int = maxi(2, int(special.get("clouds", 3)))
+		# prune any clouds that have already been spent or wandered off
+		var kept: Array = []
+		for c in _clouds:
+			if is_instance_valid(c):
+				kept.append(c)
+		_clouds = kept
+		if _clouds.size() < need:
+			var cl = WEAPON_PROJECTILE_SCRIPT.new()
+			cl.kind = "banked_cloud"
+			cl.damage = 0                     # a banked cloud hurts NOTHING
+			cl.element = Inventory.element_of(active_weapon_id)
+			cl.source = self
+			get_parent().add_child(cl)
+			cl.global_position = global_position \
+				+ Vector2(randf_range(-40.0, 40.0), -62.0)
+			_clouds.append(cl)
+			SfxSynth.play_at(self, global_position, "chime", -16.0, 0.7)
+		else:
+			# THE SKY OPENS. Every banked cloud is spent at once, over the mark.
+			var mark: Vector2 = aim_world_point()
+			for c in _clouds:
+				if not is_instance_valid(c):
+					continue
+				var dcr = roll_crit(int(round(float(special.get("damage", 10)) * skill_damage_mult("melee"))))
+				var st = WEAPON_PROJECTILE_SCRIPT.new()
+				st.kind = "sky_star"
+				st.damage = dcr[0]
+				st.is_crit = dcr[1]
+				st.speed = 1050.0
+				st.aoe_radius = 52.0
+				st.element = Inventory.element_of(active_weapon_id)
+				st.on_hit_status = special.get("status", {})
+				st.source = self
+				get_parent().add_child(st)
+				st.set_star_target(mark + Vector2(randf_range(-52.0, 52.0), 0.0))
+				(c as Node2D).queue_free()
+			_clouds.clear()
 	# REQUIEM EDGE (T6): three cuts in a cadence, not a fan
 	elif special_type == "requiem_note":
 		var notes: int = maxi(1, int(special.get("notes", 3)))
@@ -5949,6 +5996,7 @@ var _ghost_idle := 0.0
 var _ghost_bows: Array = []
 var _twelfth_count := 0     # Twelfth Pillar: the beat the player is counting
 var _still_for := 0.0       # The Still Mountain: how long you have not moved
+var _clouds: Array = []     # Cloudcounter: the sky you have banked so far
 
 func fire_with_ghosts(special: Dictionary, stats: Dictionary) -> void:
 	animate_bow(stats)                 # the real shot, unchanged

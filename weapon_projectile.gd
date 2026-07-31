@@ -469,6 +469,22 @@ func _ready() -> void:
 			monitoring = false
 			pierce = true
 			_build_lingering_arc()
+		"verdict_point":
+			# FINAL VERDICT (T5): it reads the accused on contact.
+			_build_verdict_point()
+		"border_line":
+			# BORDER OF THE REALM (T5): a span that stands across the lane.
+			_build_border_line()
+			_zone_max = 3.6
+			_zone_r = 62.0
+		"banked_cloud":
+			# CLOUDCOUNTER (T5): the third cast opens the sky. NOT `rain_cloud`
+			# -- that kind already belongs to the Tome of Rains, and taking it
+			# would have broken THAT weapon rather than this one. The engine
+			# only caught it because two _build_ functions collided by name;
+			# had I picked a different function name it would have shipped.
+			monitoring = false
+			_build_banked_cloud()
 		"requiem_note":
 			# REQUIEM EDGE (T6): a cut that falls and grows as it goes.
 			pierce = true
@@ -929,6 +945,25 @@ func _physics_process(delta: float) -> void:
 		return
 	if kind == "still_mountain":
 		_tick_anvil(delta)
+		return
+	if kind == "border_line":
+		# it flies out, then it STANDS: the same two-phase life as the stake,
+		# but what stands is a span rather than a point
+		if not _stake_planted:
+			global_position += direction * speed * delta
+			traveled += speed * delta
+			if traveled >= max_distance:
+				_stake_planted = true
+				if visual != null:
+					visual.rotation = -direction.angle()   # the span goes UPRIGHT
+			return
+		_tick_standing_zone(delta)
+		return
+	if kind == "banked_cloud":
+		# it drifts up to where it will hang, then simply waits to be spent
+		_zone_t += delta
+		if _zone_t < 0.5:
+			global_position += Vector2(0, -46.0 * delta)
 		return
 	if kind == "requiem_note":
 		# it FALLS and it GROWS. A requiem gets lower and louder, and both of
@@ -1587,6 +1622,18 @@ func _on_body_entered(body: Node2D) -> void:
 	if "is_dead" in body and body.is_dead:
 		return
 	hit_bodies.append(body)
+	# FINAL VERDICT: the sentence is read off the ACCUSED. Up to 2.2x against
+	# something nearly finished, and barely a formality against the healthy.
+	# Deliberately the mirror of Grief Made Sharp, which reads the player.
+	if kind == "verdict_point":
+		done = true
+		var frac := 1.0
+		if "health" in body and "max_health" in body and float(body.max_health) > 0.0:
+			frac = clampf(float(body.health) / float(body.max_health), 0.0, 1.0)
+		body.take_damage(maxi(1, int(round(float(damage) * (1.0 + (1.0 - frac) * 1.2)))))
+		_apply_status_to(body)
+		queue_free()
+		return
 	# SORROWFANG: bite, leave the poison in the wound, and go find the next one
 	if kind == "sorrow_fang":
 		done = true
@@ -2283,6 +2330,62 @@ func set_star_target(p: Vector2) -> void:
 	# spawn ABOVE the frame, not at the hand. The jitter is what stops a volley
 	# reading as one thick column.
 	global_position = p + Vector2(randf_range(-86.0, 86.0), -430.0)
+
+# A VERDICT: a narrow point with a seal riding behind it. Sober, not showy --
+# the drama is in what it reads on arrival, not in the flight.
+func _build_verdict_point() -> void:
+	var m := _add_mat()
+	var outline := PackedVector2Array([
+		Vector2(19, 0), Vector2(0, -4.0), Vector2(-13, 0), Vector2(0, 4.0)])
+	var body := Polygon2D.new()
+	body.polygon = outline
+	body.color = Color(0.74, 0.70, 0.56, 0.96)
+	visual.add_child(body)
+	_art_rim(outline, Color(1.0, 0.92, 0.62), 1.5)
+	var seal := Polygon2D.new()
+	seal.polygon = _circle(5.0, 8)
+	seal.color = Color(0.86, 0.28, 0.26, 0.72)
+	seal.material = m
+	seal.position = Vector2(-11, 0)
+	visual.add_child(seal)
+
+# A BORDER: an upright span, posted at both ends. It has to read as a THING
+# standing in the lane, not as a beam that happens to be vertical.
+func _build_border_line() -> void:
+	var m := _add_mat()
+	_art_filament_bar(58.0, [
+		Color(0.96, 0.88, 0.60),
+		Color(0.78, 0.42, 0.28)], 4, 4.0)
+	for s in [-1.0, 1.0]:
+		var post := Polygon2D.new()
+		post.polygon = PackedVector2Array([
+			Vector2(s * 58.0 - 3.0, -8.0), Vector2(s * 58.0 + 3.0, -8.0),
+			Vector2(s * 58.0 + 3.0, 8.0), Vector2(s * 58.0 - 3.0, 8.0)])
+		post.color = Color(0.52, 0.40, 0.30, 1.0)
+		visual.add_child(post)
+		var cap := Polygon2D.new()
+		cap.polygon = _circle(4.0, 8)
+		cap.color = Color(1.0, 0.86, 0.50, 0.5)
+		cap.material = m
+		cap.position = Vector2(s * 58.0, -9.0)
+		visual.add_child(cap)
+
+# A CLOUD, banked over your head. Deliberately dull while it waits -- the whole
+# weapon is the difference between the waiting and the spending.
+func _build_banked_cloud() -> void:
+	var m := _add_mat()
+	for i in range(4):
+		var puff := Polygon2D.new()
+		puff.polygon = _circle(randf_range(9.0, 15.0), 10)
+		puff.color = Color(0.42, 0.46, 0.58, 0.85)
+		puff.position = Vector2(randf_range(-16.0, 16.0), randf_range(-4.0, 4.0))
+		visual.add_child(puff)
+	var lit := Polygon2D.new()
+	lit.polygon = _circle(9.0, 10)
+	lit.color = Color(0.72, 0.80, 1.0, 0.35)
+	lit.material = m
+	lit.position = Vector2(-6, -6)
+	visual.add_child(lit)
 
 # A NOTE: a narrow crescent, hollow, lit along its inner curve. It has to be
 # thin, because it GROWS as it falls and a fat one would end up a wall.

@@ -83,6 +83,11 @@ const HITS_PER_USE := {
 	# ticking" -- true of the rungs, but each rung carries 0.24 of the row, so
 	# the model read 230 dps and hauled the whole T6 median up by four points.
 	# The number here is TOTAL DAMAGE PER USE AS A MULTIPLE OF ROW DAMAGE.
+	"verdict":     1.5,   # the thrust, plus a point that reads the target and
+	                      # pays 1.0x-2.2x depending on how hurt they already are
+	"borderline":  2.0,   # the thrust, plus a span that stands and ticks
+	"cloudcount":  1.6,   # two casts bank nothing at all, the third spends
+	                      # three stars at 0.8 -- averaged across the cycle
 	"requiem":     2.3,   # the swing, plus three piercing notes at 0.42 each
 	"sorrowfang":  2.2,   # the swing, plus a chain of 3 bites at 0.62 falling
 	                      # 0.7x each (0.62 + 0.43 + 0.30 = 1.35 of the row)
