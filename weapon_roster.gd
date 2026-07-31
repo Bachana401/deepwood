@@ -1922,7 +1922,7 @@ static func _desc_for(behavior: String, ex: Dictionary) -> String:
 		"staff":
 			# the extend is the FAMILY; the slam is the weapon. Same shape as the
 			# whips, whose card names their tag rather than the crack.
-			var slam := {
+			var slam: String = {
 				"spring": " Green wood gives back: every body the slam catches returns a little life to you.",
 				"splash": " The slam leaves WATER underfoot, and what stands in it goes slow.",
 				"shove":  " It PUNTS. Everything the slam touches leaves hard and does not come back soon.",

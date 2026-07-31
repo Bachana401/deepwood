@@ -84,10 +84,19 @@ func _ready() -> void:
 			"res://tool_proving_sweep.gd", "res://tool_eyes_weapons.gd",
 			"res://tool_minion_probe.gd", "res://weapon_arena.gd",
 			"res://tool_hitbox_audit.gd"]:
-		var scr = load(engine_path)
-		check("engine compiles: " + engine_path.get_file(),
-			scr != null and scr is GDScript and (scr as GDScript).can_instantiate(),
-			"script failed to load or instantiate")
+		# ...and this check has to be REAL. The first version asked load() plus
+		# can_instantiate(), and on 2026-07-31 it printed PASS for a
+		# weapon_roster.gd carrying a hard parse error: a script Godot already
+		# pulled in at startup comes back from the cache as a live GDScript
+		# object whose can_instantiate() still answers true. Two things close
+		# that hole -- CACHE_MODE_IGNORE forces a genuine re-parse instead of
+		# handing back the cached husk, and a method list proves the parse
+		# actually produced a script, because a failed compile has no methods.
+		var scr := ResourceLoader.load(engine_path, "Script", ResourceLoader.CACHE_MODE_IGNORE)
+		var parsed: bool = scr != null and scr is GDScript \
+			and (scr as GDScript).get_script_method_list().size() > 0
+		check("engine compiles: " + engine_path.get_file(), parsed,
+			"script failed to parse (no methods came back)")
 
 	var p := FxProbe.new()
 	add_child(p)
@@ -321,8 +330,8 @@ func _ready() -> void:
 	# 106 -> 105 for the same reason: a rung that gains a verb leaves the chain.
 	# The `broken` list stayed EMPTY, which is the part that actually mattered --
 	# nothing downstream was forging FROM Daybreak Edge.
-	check("every chained rung forges from kin plus materials (54 links)",
-		chained == 54 and broken.is_empty(),
+	check("every chained rung forges from kin plus materials (57 links)",
+		chained == 57 and broken.is_empty(),
 		"chained=%d; broken: %s" % [chained, ", ".join(broken)])
 	# ---- THE CULMINATION (Zenith-kin): the melee crown forges from its three
 	# famous T7 ancestors -- the same blades whose tinted ghosts its zenith

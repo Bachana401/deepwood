@@ -44,6 +44,17 @@ const DRAWN_HITBOX := {
 	"zenith_storm":  Vector2(40, 116),
 	"writ_glyph":    Vector2(160, 24),
 	"thunderhead":   Vector2(131, 51),
+	# SECOND PASS (2026-07-31). The audit's ten "<-- check" rows were read one
+	# by one instead of being widened on sight, and six of them turned out to
+	# be radius weapons like the zones below -- ground_thorn, anvil_drop,
+	# still_mountain and quiet_wheel pay through a distance test in their own
+	# tick, and warden_post/midnight_post are sentries whose BODY was never
+	# meant to hurt anything. These four are the real ones: each moves, each
+	# pays through the Area2D, and each was hitting a fraction of itself.
+	"kneeling_stone": Vector2(44, 44),   # a 46px boulder that hit 20px of itself
+	"wake_scythe":    Vector2(38, 40),   # the disc's top and bottom missed
+	"moon_lantern":   Vector2(32, 54),
+	"world_edge":     Vector2(18, 44),   # BASE size -- the tick grows it, see below
 }
 # ZONES ARE DEDUCTED FROM THAT LIST, not fixed by it. salt_ring, rain_cloud,
 # coven_ring, rift_bloom, asphodel_post and dusk_rip all draw far past their
@@ -114,6 +125,10 @@ var returning := false      # boomerang/lash: on the way back
 var done := false
 var hit_bodies: Array = []
 var visual: Node2D = null
+# the box itself, kept so a kind whose ART GROWS mid-flight can grow its reach
+# with it (world_edge). Without the handle the picture swells to 2.7x and the
+# damage stays the size it was at the hilt.
+var _hitbox: CollisionShape2D = null
 var spin_speed := 0.0
 var rope: Line2D = null     # hook: drawn back to the thrower
 
@@ -180,6 +195,7 @@ func _ready() -> void:
 		# direction without any extra work.
 		shape.size = DRAWN_HITBOX[kind] * girth
 	cs.shape = shape
+	_hitbox = cs
 	add_child(cs)
 	body_entered.connect(_on_body_entered)
 	visual = Node2D.new()
@@ -1427,6 +1443,12 @@ func _physics_process(delta: float) -> void:
 		var grow: float = 1.0 + 1.7 * clampf(traveled / maxf(1.0, max_distance), 0.0, 1.0)
 		if visual:
 			visual.scale = Vector2.ONE * _draw_girth * grow
+		# and the REACH grows with the picture. This is the whole promise of the
+		# weapon -- "a sliver at the hilt, a horizon at the end" -- and until now
+		# only the drawing kept it; the box stayed hilt-sized for the whole
+		# flight, so the horizon was paint.
+		if _hitbox:
+			_hitbox.scale = Vector2.ONE * grow
 	if kind == "rising_wheel":
 		_tick_rising_wheel(delta)
 		return
