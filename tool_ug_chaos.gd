@@ -100,19 +100,40 @@ func _ready() -> void:
 		# the unstick sweep runs on a 1s cadence, and the settle window above can
 		# close in two frames when nothing poured -- so force one sweep NOW and
 		# judge the MECHANISM, not the race against its timer
+		# let straggler grains land FIRST, then sweep -- a grain solidifying into a
+		# mob's cell in the post-sweep gap was the 1-in-9 I4 flake (round 4)
+		for extra in range(2):
+			if get_tree().get_nodes_in_group("ug_fallsand").is_empty():
+				break
+			for i2 in range(40):
+				await get_tree().process_frame
+				if get_tree().get_nodes_in_group("ug_fallsand").is_empty():
+					break
 		ug._unstick_cd = 0.0
 		for i in range(3):
 			await get_tree().process_frame
+		# The game's actual guarantee is "the 1s sweep frees them", not "nothing is
+		# ever buried for an instant": on wet seeds the settle loop can hit its
+		# 140-frame cap with the flow queue still busy, and a QUENCH can solidify
+		# a mob's cell in the gap after the forced sweep. So judge the guarantee:
+		# a mob still buried after a SECOND sweep is a real failure.
 		var buried := 0
-		for e in get_tree().get_nodes_in_group("course_enemy"):
-			if is_instance_valid(e) and e.get_parent() == ug \
-					and ug._solid_kind(ug._cell_at(e.global_position)):
-				buried += 1
-				var bc: Vector2i = ug._cell_at(e.global_position)
-				say("  [I4 dbg] mob at %s cell=%s kind=%d  queued_for_deletion=%s  in_group=%s"
-					% [str(e.global_position), str(bc), ug._cell_kind(bc),
-					   str(e.is_queued_for_deletion()), str(e.is_in_group("course_enemy"))])
-		flag("I4 burst %d: %d mobs left inside rock after a sweep" % [burst, buried], buried == 0)
+		for attempt in range(2):
+			buried = 0
+			for e in get_tree().get_nodes_in_group("course_enemy"):
+				if is_instance_valid(e) and e.get_parent() == ug \
+						and ug._solid_kind(ug._cell_at(e.global_position)):
+					buried += 1
+			if buried == 0:
+				break
+			for i2 in range(45):
+				await get_tree().process_frame
+				if ug._wq_list.is_empty():
+					break
+			ug._unstick_cd = 0.0
+			for i2 in range(3):
+				await get_tree().process_frame
+		flag("I4 burst %d: %d mobs still inside rock after TWO sweeps" % [burst, buried], buried == 0)
 	# ── I5: the save survives the whole mess ──
 	var edits_n: int = ug._edits.size()
 	var lv_n: int = ug._lv.size()

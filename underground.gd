@@ -613,8 +613,10 @@ func _build_sinkholes() -> void:
 			if absi(dcell.x - top.x) < 14 and absi(dcell.y - top.y) < 10:
 				near_door = true
 				break
-		if near_door or _in_span(_road_flood, top.y - 1, top.x):
-			continue
+		if near_door or _in_span(_road_flood, top.y - 1, top.x) \
+				or _in_span(_road_flood, top.y - 1, top.x - 1) \
+				or _in_span(_road_flood, top.y - 1, top.x + 1):
+			continue                                # wade paint spreads: probe all 3 mouth columns
 		# not under a MINECART LINE either: rails floating across a pit read as a
 		# broken trestle, and a capped hole under a rail collapses pointlessly
 		# beneath a rider who never touches it
@@ -645,7 +647,26 @@ func _build_sinkholes() -> void:
 					crosses = true
 			if crosses:
 				break
-		# ...nor through an EARLIER hole's pocket (the local list, always current)
+		# ...nor may the POCKET (8 wide, wider than the probed shaft) clip a road
+		# pass or a lake at its own depth (round-4 finding 5: the 3-column probe
+		# guarded the shaft but the pocket's outer columns could still pierce a
+		# crossing bed or a lake shell)
+		if not crosses:
+			for dy2 in range(depth - 1, depth + 7):
+				var py := top.y + dy2
+				for px in range(top.x - 5, top.x + 5):
+					if _in_span(_road_air, py, px) or _in_span(_road_rock, py, px) \
+							or _in_span(_water_rows, py, px) or _in_span(_lava_rows, py, px) \
+							or _in_span(_lake_air, py, px) or _in_span(_lake_rock, py, px):
+						crosses = true
+						break
+				if crosses:
+					break
+		# ...nor through an EARLIER hole's pocket (the local list, always current;
+		# NOTE the deliberate fragility this masks: wet pockets append to
+		# _water_rows mid-loop UNSORTED, so the _in_span probe above can miss
+		# them -- false negatives only, and every possible miss is caught by
+		# this pocket_floors check, whose span is a superset. Keep it that way.)
 		if not crosses:
 			for pf in pocket_floors:
 				if absi(int(pf[0]) - top.y) < depth + 8 and top.x + 1 >= int(pf[1]) and top.x - 1 <= int(pf[2]):
@@ -687,6 +708,15 @@ func _build_sinkholes() -> void:
 			_hole_caps[Vector2i(top.x, top.y)] = true
 			_hole_caps[Vector2i(top.x + 1, top.y)] = true
 		var bottom := Vector2i(top.x, by + 3)
+		# THE DEEP FORGIVES NOTHING BUT LOCKS NOBODY IN (round-4 design note): from
+		# Fungal Hollow down, the biome's rock outranks the starter pickaxe -- a
+		# pick-less player who fell into a deep pocket had no way out but quit-to-
+		# menu. Those shafts now carry a rope some earlier delver left behind:
+		# the fall still costs you, but the way back up exists. Shallow holes
+		# (tier-0 rock) stay true traps -- you dig yourself out.
+		if int(BIOMES[_biome_of(top.y)].tier) >= 1:
+			for dy2 in range(1, depth + 3):   # from BELOW the mouth: a rope cell in the cap row would grab walkers passing over
+				_ropes[Vector2i(top.x, top.y + dy2)] = true
 		placed_hole = true
 		_holes.append({"top": top, "bottom": bottom, "depth": depth, "wet": wet, "chest": chest})
 		var key := _chunk_of_cell(bottom)
@@ -2145,6 +2175,7 @@ func _start_sand_fall(cell: Vector2i) -> void:
 	# a sand column hung frozen in the air when the column toppled -- the exact
 	# "water like glass" class the flow automaton exists to kill)
 	_disturb(cell)
+	_drop_unsupported_torches(cell)
 	var g := Node2D.new()
 	g.z_index = 9
 	add_child(g)
@@ -2360,6 +2391,18 @@ func _pay(cost: Dictionary, what: String) -> bool:
 		inv.remove_item(mat, int(cost[mat]))
 	return true
 
+# A placed torch whose support was mined or toppled away must not come back
+# floating when the chunk restreams (round-4 finding 8). Called with the cell
+# just REMOVED; any owned torch that leaned on it and has nothing left loses
+# its ledger entry -- the visible node lingers until restream, the regen doesn't.
+func _drop_unsupported_torches(removed: Vector2i) -> void:
+	for t in [removed + Vector2i(0, -1), removed + Vector2i(-1, 0), removed + Vector2i(1, 0)]:
+		if not _own_torches.has(t):
+			continue
+		if not _solid_kind(t + Vector2i(0, 1)) and not _solid_kind(t + Vector2i(-1, 0)) \
+				and not _solid_kind(t + Vector2i(1, 0)):
+			_own_torches.erase(t)
+
 # hand a live-placed node to the chunk that owns it, so it streams out normally
 func _attach(n: Node, cell: Vector2i) -> void:
 	var ch := _chunk_of_cell(cell)
@@ -2386,6 +2429,13 @@ func _rope_tick(delta: float) -> bool:
 	if not _on_rope:
 		_on_rope = true
 		_rope_y = _player.global_position.y
+	# THE ROPE FORGIVES THE FALL, like water does (round-4 finding 3): the player
+	# is never on-floor while hanging, so the pre-grab apex survived the whole
+	# descent and a rope-climb down a shaft charged the FULL fall damage from the
+	# mouth on the final drop -- same price as free-falling, which defeats the
+	# rope's entire purpose. Holding on re-anchors the apex here.
+	if "fall_apex_y" in _player:
+		_player.fall_apex_y = _player.global_position.y
 	var up := Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP)
 	var down := Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN)
 	if up:
@@ -3785,6 +3835,7 @@ func _break(cell: Vector2i, pick_tier: int, player: Node) -> bool:
 		for d in [Vector2i(0, 1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(1, 0)]:
 			_reface(cell + d)
 		_topple_sand(cell)              # anything loose resting on this now falls
+		_drop_unsupported_torches(cell)
 		_disturb(cell)                  # ...and any water beside it starts moving
 		if player != null and "inventory" in player and player.inventory != null:
 			var drop_id: String = ORE_DROP[bi] if is_ore else "stone"
@@ -3857,37 +3908,54 @@ func _load_save() -> void:
 	if typeof(flags) == TYPE_DICTIONARY:
 		for k in flags.keys():
 			_flags[String(k)] = true
+	# BOTH liquid dicts are parsed BEFORE either is applied, because each one's
+	# heal needs the OTHER'S saved truth (round-4 finding 1, a deterministic
+	# save-corruption: the old heal skipped water wherever the GENERATED kind was
+	# LAVA -- but a drained lava basin the player refilled with water is exactly
+	# that, so the poured water evaporated on every cave re-entry. The generated
+	# kind says what a cell was BORN as; the saved ledgers say what is actually
+	# there. Trust the ledgers, heal only true conflicts.)
+	var wparsed := {}
 	var wsave = data.get("water", {})
 	if typeof(wsave) == TYPE_DICTIONARY:
 		for k in wsave.keys():
 			var wp: PackedStringArray = String(k).split(",")
 			if wp.size() == 2:
-				var wcell := Vector2i(int(wp[0]), int(wp[1]))
-				# HEAL, don't trust: a level recorded inside solid rock (a save
-				# written by an older bug, or rock added after the save) would be
-				# unreachable forever -- the wake queue refuses solid cells. The
-				# edits are already loaded above, so solidity here is the truth.
-				if int(wsave[k]) > 0 and (_solid_kind(wcell) or _cell_kind(wcell) == LAVA):
-					continue
-				_lv[wcell] = int(wsave[k])
-				# WAKE what we load (review finding 7): leaving the cave mid-drain
-				# saved the water in whatever half-poured shape it held, and on
-				# return it hung there inert -- the queue starts empty and nothing
-				# else would ever disturb it. Settled cells cost one no-op visit;
-				# unsettled ones resume the pour. The frame budget bounds the rest.
-				if int(wsave[k]) > 0:
-					_wake(wcell)
+				wparsed[Vector2i(int(wp[0]), int(wp[1]))] = int(wsave[k])
+	var lparsed := {}
 	var lsave = data.get("lava", {})
 	if typeof(lsave) == TYPE_DICTIONARY:
 		for k in lsave.keys():
 			var lp: PackedStringArray = String(k).split(",")
 			if lp.size() == 2:
-				var lcell := Vector2i(int(lp[0]), int(lp[1]))
-				if int(lsave[k]) > 0 and (_solid_kind(lcell) or _cell_kind(lcell) == WATER):
-					continue                       # heal phantom lava the same way
-				_ll[lcell] = int(lsave[k])
-				if int(lsave[k]) > 0:
-					_wake(lcell)
+				lparsed[Vector2i(int(lp[0]), int(lp[1]))] = int(lsave[k])
+	for wcell in wparsed.keys():
+		var wv: int = wparsed[wcell]
+		# rock heal: a level inside solid is unreachable forever (queue refuses)
+		if wv > 0 and _solid_kind(wcell):
+			continue
+		# dual-liquid heal: what does LAVA say about this cell? A saved entry is
+		# the live truth (0 = drained, water welcome); no entry falls back to the
+		# generated kind (born-LAVA with no diff = still full of lava).
+		var lava_there: int = lparsed[wcell] if lparsed.has(wcell) \
+			else (WLEVELS if _cell_kind(wcell) == LAVA else 0)
+		if wv > 0 and lava_there > 0:
+			continue
+		_lv[wcell] = wv
+		# WAKE what we load (review finding 7): a mid-drain save resumes pouring
+		if wv > 0:
+			_wake(wcell)
+	for lcell in lparsed.keys():
+		var lv2: int = lparsed[lcell]
+		if lv2 > 0 and _solid_kind(lcell):
+			continue
+		var water_there: int = wparsed[lcell] if wparsed.has(lcell) \
+			else (WLEVELS if _cell_kind(lcell) == WATER else 0)
+		if lv2 > 0 and water_there > 0:
+			continue
+		_ll[lcell] = lv2
+		if lv2 > 0:
+			_wake(lcell)
 	for k in data.get("ropes", []):
 		var rp: PackedStringArray = String(k).split(",")
 		if rp.size() == 2:

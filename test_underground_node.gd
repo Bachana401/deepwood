@@ -32,7 +32,7 @@ func check(label: String, ok: bool) -> void:
 # another session) stopped it booting, the run reported "ALL PASS (27 passed)"
 # and exited 0 -- a green light over a third of a suite. Never again: the count
 # itself is now an assertion.
-const EXPECTED_CHECKS := 106
+const EXPECTED_CHECKS := 111
 
 func _ready() -> void:
 	_test_generator()
@@ -765,6 +765,56 @@ func _test_in_engine() -> void:
 
 		check("...and lands in the pocket, not inside rock",
 			not ug._solid_kind(ug._cell_at(p.global_position)))
+
+	# ── A CAPPED HOLE COLLAPSES UNDER A REAL STANDING PLAYER ──
+	# The trigger path, physically: stand on the sand, the cap gives way, you go
+	# down with it. (The open-mouth fall above proves the shaft; this proves the
+	# TRAP.)
+	var trap := {}
+	for h in ug._holes:
+		if ug._hole_caps.has(Vector2i(int(h.top.x), int(h.top.y))) and not bool(h.wet):
+			trap = h
+			break
+	check("a capped dry sinkhole exists to step on", not trap.is_empty())
+	if not trap.is_empty():
+		var tmouth := Vector2i(int(trap.top.x), int(trap.top.y))
+		p.global_position = ug._map.to_global(ug._map.map_to_local(tmouth - Vector2i(0, 3)))
+		p.velocity = Vector2.ZERO
+		if "_last_ground_pos" in p:
+			p._last_ground_pos = p.global_position
+		if "fall_apex_y" in p:
+			p.fall_apex_y = p.global_position.y
+		var ty0: float = p.global_position.y
+		ug._cap_cd = 0.0                       # the 0.2s cadence fires next frame
+		for i in range(170):
+			await get_tree().physics_frame
+		check("standing on a cap drops you through it (%.0f px)" % (p.global_position.y - ty0),
+			p.global_position.y - ty0 > float(trap.depth) * UG.TILE * 0.5)
+
+	# ── A FLOODED POCKET BREAKS THE FALL ──
+	var wet_hole := {}
+	for h in ug._holes:
+		if bool(h.wet) and not ug._hole_caps.has(Vector2i(int(h.top.x), int(h.top.y))):
+			wet_hole = h
+			break
+	check("an open flooded sinkhole exists to dive into", not wet_hole.is_empty())
+	if not wet_hole.is_empty():
+		var wmouth := Vector2i(int(wet_hole.top.x), int(wet_hole.top.y))
+		p.global_position = ug._map.to_global(ug._map.map_to_local(wmouth - Vector2i(0, 3)))
+		p.velocity = Vector2.ZERO
+		if "_last_ground_pos" in p:
+			p._last_ground_pos = p.global_position
+		if "fall_apex_y" in p:
+			p.fall_apex_y = p.global_position.y
+		var hp0: int = int(p.health) if "health" in p else 0
+		for i in range(170):
+			await get_tree().physics_frame
+		var in_water: bool = ug._wlevel(ug._cell_at(p.global_position + Vector2(0, 19))) >= 1 \
+			or ug._wlevel(ug._cell_at(p.global_position)) >= 1
+		check("the dive ends IN the pocket's water", in_water)
+		if "health" in p:
+			check("...and the water breaks the fall (hp %d -> %d)" % [hp0, int(p.health)],
+				int(p.health) >= hp0)
 
 	# ── THE POWDER KEGS ──
 	# Somewhere solid, well away from the road, so the crater is measurable.
