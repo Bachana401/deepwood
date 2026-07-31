@@ -13,6 +13,9 @@ extends Area2D
 # way the player's arrows find them (collision_mask 4 + take_damage check).
 # All visuals are procedural polygons, self-cleaning on despawn.
 
+# the one dial for how far everything flies -- see the note in _ready()
+const REACH_BONUS := 1.20
+
 var kind := "slash"
 var girth := 1.0            # scales the HITBOX (and, gently, the drawing)
 var _draw_girth := 1.0      # what the eye gets: see the note in _ready()
@@ -700,6 +703,13 @@ func _ready() -> void:
 		"soul_stream":
 			_build_soulwispshot()
 			pierce = false
+	# EVERY PROJECTILE REACHES 20% FURTHER (dev, 2026-07-30: "some of weapons
+	# projectiles are too short -- increase every projectile distance travelled
+	# by 20%"). Done in ONE place rather than in 350 roster rows and ~146 build
+	# functions: whatever range a weapon asked for, it gets a fifth more of it.
+	# Applied AFTER the match, so a kind that sets its own max_distance in its
+	# case is scaled too and nothing can quietly opt out.
+	max_distance *= REACH_BONUS
 	if spin_speed == 0.0:
 		rotation = direction.angle()
 	_enrich_visual()
@@ -3551,6 +3561,17 @@ func _tick_brazier(delta: float) -> void:
 			global_position = source.global_position \
 				+ Vector2(cos(_orbit_t * 9.0 * side), sin(_orbit_t * 9.0 * side)) * r
 			if _orbit_t >= BRAZ_WHIRL:
+				# RE-AIM ON RELEASE. `direction` was captured when the whirl
+				# STARTED, so the throne flew at wherever you were pointing a
+				# second ago -- you wind up, move the cursor onto the thing you
+				# actually want, and it sails off at the old spot. That is the
+				# "directions are off" the dev reported. A wind-up weapon must
+				# read the aim at the moment it LETS GO, not when it begins.
+				if source != null and is_instance_valid(source) \
+						and source.has_method("get_aim_direction"):
+					var fresh: Vector2 = source.get_aim_direction()
+					if fresh.length() > 0.01:
+						direction = fresh.normalized()
 				_behave_state = 1
 				hit_bodies.clear()
 				traveled = 0.0
@@ -9265,7 +9286,10 @@ func _build_world_cut() -> void:
 		Vector2(WC_LEN, 22.0), Vector2(-40, 7.0)])
 	core.color = Color(1.0, 0.98, 0.9, 0.92)
 	core.material = m
-	core.rotation = direction.angle()
+	# NO per-child rotation: line ~704 already rotates the whole projectile to
+	# the aim, so doing it again here drew the cut at DOUBLE the aim angle --
+	# aim at 45 degrees and the world was cut at 90. That is the "direction is
+	# off" the dev reported.
 	visual.add_child(core)
 	var wide := Polygon2D.new()
 	wide.polygon = PackedVector2Array([
@@ -9273,7 +9297,6 @@ func _build_world_cut() -> void:
 		Vector2(WC_LEN, 50.0), Vector2(-40, 20.0)])
 	wide.color = Color(0.7, 0.86, 1.0, 0.34)
 	wide.material = m
-	wide.rotation = direction.angle()
 	visual.add_child(wide)
 
 # --- THE PATIENT KNIFE / A KINGDOM, TURNING: swarms on the storm engine --
