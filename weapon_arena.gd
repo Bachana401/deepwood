@@ -96,12 +96,34 @@ func _ready() -> void:
 # the game's own night blue, not a void: a projectile has to be judged against
 # the background it will actually be seen on
 func _backdrop() -> void:
+	# ON A CANVASLAYER, not in the world -- and this is the answer to the
+	# "leftover village strip" that survived three wrong diagnoses.
+	#
+	# Dumping the tree AT THE MOMENT OF CAPTURE showed no village at all: just
+	# GameState, DragState, TouchControls, the driver and this arena. The strip
+	# was never in the scene. It was STALE FRAMEBUFFER -- a world-space
+	# ColorRect follows world coordinates, so the top of the viewport was simply
+	# never overdrawn, and those pixels still held whatever the village had left
+	# there before the swap. It never changed between weapons while the arena
+	# band below it updated every shot, which was the clue I kept ignoring.
+	#
+	# A CanvasLayer backdrop is in SCREEN space and covers the viewport whatever
+	# the camera does, so every pixel of every frame is drawn by this scene.
+	var layer := CanvasLayer.new()
+	layer.layer = -100
+	add_child(layer)
+	# SIZED EXPLICITLY, not by anchors: a ColorRect parented straight to a
+	# CanvasLayer has no Control above it to anchor against, so anchor_right=1.0
+	# resolves to nothing and the rect covers zero pixels. That is why the first
+	# CanvasLayer attempt changed nothing at all.
 	var sky := ColorRect.new()
 	sky.color = Color(0.09, 0.11, 0.20, 1.0)
-	sky.size = Vector2(2400, 1400)
-	sky.position = Vector2(-600, -700)
-	sky.z_index = -100
-	add_child(sky)
+	var vp: Vector2 = Vector2(1920, 1080)
+	if is_inside_tree() and get_viewport() != null:
+		vp = get_viewport().get_visible_rect().size
+	sky.position = Vector2(-80, -80)
+	sky.size = vp + Vector2(160, 160)
+	layer.add_child(sky)
 
 func _floor() -> void:
 	var ground := StaticBody2D.new()

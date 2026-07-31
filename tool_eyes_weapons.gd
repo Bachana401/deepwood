@@ -28,6 +28,7 @@ const ARENA := preload("res://weapon_arena.gd")
 
 var shot_dir := "user://eyes_weapons"
 var min_tier := 6
+var _dumped := false
 
 func say(t: String) -> void: printerr(t)
 
@@ -89,6 +90,23 @@ func _ready() -> void:
 	get_tree().quit(0)
 
 func _shot(name: String) -> void:
+	# AT THE MOMENT OF CAPTURE, not at takeover. Three theories about the
+	# leftover village strip have been wrong, and every one was tested against
+	# the tree as it stood when the arena was built -- half a minute and many
+	# frames before the picture was actually taken. What is on screen is decided
+	# HERE.
+	if OS.has_environment("ARENA_DUMP") and not _dumped:
+		_dumped = true
+		printerr("\n=== TREE AT SHOT TIME (%s) ===" % name)
+		for n in get_tree().root.get_children():
+			printerr("  %-26s %-20s" % [n.name, n.get_class()])
+			for c in n.get_children():
+				printerr("      %-22s %-20s vis=%s" % [c.name, c.get_class(),
+					str(c.visible) if c is CanvasItem else "-"])
+		printerr("  current_scene: %s" % (
+			"null" if get_tree().current_scene == null
+			else get_tree().current_scene.name))
+		printerr("  viewport size: %s\n" % str(get_viewport().get_visible_rect().size))
 	RenderingServer.force_draw(false)
 	var img := get_viewport().get_texture().get_image()
 	if img == null:
