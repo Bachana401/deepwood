@@ -46,7 +46,11 @@ const ROLE_DEFS = {
 	"Barracks": [
 		{"title": "Warchief", "slots": 2, "required_stat": "Warchief", "leadership": true},
 		{"title": "Warrior", "slots": 10, "required_stat": "Warrior"},
-		{"title": "Recruit", "slots": 20, "required_stat": "", "is_enrollment": true, "requires_sex": "Male", "grants_stat": "Warrior"},
+		# ANYONE MAY TRAIN (dev call 2026-07-30). This was Male-only, which quietly
+		# capped the warrior corps at roughly half the birth rate and made the
+		# Government's schooling policy a lie for every daughter born -- "send the
+		# children to the Barracks" could never apply to half of them.
+		{"title": "Recruit", "slots": 20, "required_stat": "", "is_enrollment": true, "grants_stat": "Warrior"},
 	],
 	# The remaining buildings each match one of GameState.REGULAR_STATS with
 	# their WORKER role, so every School graduate has a real matching building

@@ -62,6 +62,8 @@ func refresh() -> void:
 		add_dock_section(list)
 	if current_building.role_key == "Builderhouse":
 		add_stores_section(list)
+	if current_building.role_key == "Government":
+		add_schooling_section(list)
 	add_relocate_section(list)
 
 # THE MARKET STALL (numbers pass 2026-07-20): gear could never be SOLD --
@@ -795,6 +797,66 @@ func add_stores_section(list: VBoxContainer) -> void:
 		none_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6, 1))
 		none_label.text = "  (no wood, stone or iron in your pack to donate)"
 		list.add_child(none_label)
+
+# WHAT BECOMES OF THE CHILDREN (dev design 2026-07-30). The hinge of the whole
+# population loop, and the only part of it nobody can do for you -- until the
+# Chancellor arrives and does it better. Ten children: you say how many learn a
+# trade and how many take a spear.
+func add_schooling_section(list: VBoxContainer) -> void:
+	var header = Label.new()
+	header.add_theme_font_size_override("font_size", 14)
+	header.add_theme_color_override("font_color", Color(0.85, 0.80, 0.55, 1))
+	header.text = "The children — what becomes of them"
+	list.add_child(header)
+
+	if GameState.schooling_is_delegated():
+		var done = Label.new()
+		done.add_theme_font_size_override("font_size", 12)
+		done.add_theme_color_override("font_color", Color(0.6, 0.9, 0.65, 1))
+		done.autowrap_mode = TextServer.AUTOWRAP_WORD
+		done.custom_minimum_size = Vector2(300, 0)
+		done.text = "  ★ The Chancellor decides this now — children go where the town is short, reading the wall against the waves coming. Your dial is retired.\n     Right now they are sending them to the %s." % \
+			("drill yard" if GameState.chancellor_wants_warriors() else "School")
+		list.add_child(done)
+		return
+
+	var line = Label.new()
+	line.add_theme_font_size_override("font_size", 12)
+	line.add_theme_color_override("font_color", Color(0.85, 0.85, 0.8, 1))
+	var s: int = GameState.school_share
+	line.text = "  Of every %d children:   %d to the School   ·   %d to the Barracks" % [
+		GameState.SCHOOL_SHARE_MAX, s, GameState.SCHOOL_SHARE_MAX - s]
+	list.add_child(line)
+
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	for n in range(GameState.SCHOOL_SHARE_MAX + 1):
+		var b = Button.new()
+		b.text = str(n)
+		b.custom_minimum_size = Vector2(30, 26)
+		b.disabled = (n == s)
+		b.pressed.connect(_on_set_school_share.bind(n))
+		row.add_child(b)
+	list.add_child(row)
+
+	var hint = Label.new()
+	hint.add_theme_font_size_override("font_size", 11)
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD
+	hint.custom_minimum_size = Vector2(300, 0)
+	hint.add_theme_color_override("font_color", Color(0.72, 0.70, 0.62, 1))
+	hint.text = "  A schooled child comes out with a trade and takes a job; one sent to the yard comes out a warrior and holds the wall. Seat a Chancellor here and they take this decision off your hands for good."
+	list.add_child(hint)
+
+func _on_set_school_share(n: int) -> void:
+	GameState.school_share = clampi(n, 0, GameState.SCHOOL_SHARE_MAX)
+	var notif = get_tree().get_first_node_in_group("notification_stack")
+	if notif:
+		notif.show_notification("📜 Decree: %d of every %d children to the School, %d to the Barracks." % [
+			GameState.school_share, GameState.SCHOOL_SHARE_MAX,
+			GameState.SCHOOL_SHARE_MAX - GameState.school_share])
+	GameState.log_event("village", "A decree set the schooling: %d in %d to the School." % [
+		GameState.school_share, GameState.SCHOOL_SHARE_MAX])
+	refresh()
 
 func _on_donate_store(item_id: String) -> void:
 	var player = get_tree().get_first_node_in_group("player")

@@ -5342,8 +5342,12 @@ func apply_leadership_automation() -> void:
 	if physicians > 0:
 		auto_heal_villagers(physicians)             # Chief Physician: heal the hurt
 	# THE OPEN DOORS (power): the Principal's hall takes every child, past its desks
-	if seated_leaders("School") > 0:
-		auto_enroll_children(maxi(1, seated_leaders("School")))  # Principal: school the kids
+	# THE CHILDREN ARE PLACED by whichever hall has someone to place them: the
+	# Principal schools them, and a Warchief takes them into the yard. Gating this
+	# on the Principal alone meant a town with a drill yard and no schoolmaster
+	# never trained anybody automatically, which broke half the population loop.
+	if seated_leaders("School") > 0 or seated_leaders("Barracks") > 0:
+		auto_enroll_children(maxi(1, seated_leaders("School") + seated_leaders("Barracks")))
 	# Grammar (5.1): a staffed Worker crew rebuilds on its own -- delegated,
 	# at half the leaders' pace; Master Builder/Foreman run it every tick
 	# (THE STANDING CREW rides inside auto_repair_one: with the Master Builder in a
@@ -5528,8 +5532,67 @@ func auto_heal_villagers(physicians: int) -> void:
 		if hp < VILLAGER_MAX_HP:
 			villager_hp[id] = VILLAGER_MAX_HP if whole else minf(VILLAGER_MAX_HP, hp + amount)
 
+# ===================== THE SCHOOLING POLICY (dev design 2026-07-30) =====================
+# What becomes of the children -- the hinge the whole population loop turns on.
+# A kid grows up, is sent to the School or to the Barracks, comes out an adult
+# with a trade or a warrior on the wall, gets housed, pairs, and has children of
+# their own. This is the one decision in that cycle nobody else can make for you.
+#
+# BY HAND, CRUDELY: you write a number out of ten at the Government. 4 means four
+# children in every ten go to the School and six to the drill yard. It is a blunt
+# instrument on purpose -- it is what you have before you have anyone better.
+#
+# THEN THE CHANCELLOR TAKES IT OVER: once that chair is filled, they stop asking
+# you and send children where the town actually needs them, reading the wall
+# against the waves that are coming. Same ladder as every other chore -- you do it
+# badly by hand, then a rescued figure does it better than you could.
+const SCHOOL_SHARE_MAX := 10
+var school_share := 10            # of every ten children; 10 = all to the School
+var _kid_intake := 0              # position in the current block of ten
+
+# Is the Chancellor deciding this instead of the player's dial?
+func schooling_is_delegated() -> bool:
+	return seated_leaders("Government") > 0
+
+# The Chancellor's read: can the town hold what is coming? If the wall is short
+# of the tier now landing, the next children train; otherwise they learn a trade.
+# Self-balancing without a dial -- a siege that costs defenders pulls the next
+# cohort into the yard on its own.
+const CHANCELLOR_DEFENSE_MARGIN := 1.25
+
+func chancellor_wants_warriors() -> bool:
+	var tier := float(current_siege_tier())
+	if tier <= 0.0:
+		return false
+	return village_defense_power() < tier * CHANCELLOR_DEFENSE_MARGIN
+
+# Where does the NEXT child go? Returns "School" or "Barracks". Falls back to
+# whichever hall actually stands, so a policy can never strand a child nowhere.
+func next_schooling_destination() -> String:
+	var school_ok := is_building_operational("School")
+	var yard_ok := is_building_operational("Barracks")
+	if not school_ok and not yard_ok:
+		return ""
+	var want_yard := false
+	if schooling_is_delegated():
+		want_yard = chancellor_wants_warriors()
+	else:
+		# the player's dial: the first `school_share` of every ten go to school
+		want_yard = _kid_intake >= school_share
+	if want_yard and not yard_ok:
+		want_yard = false
+	if not want_yard and not school_ok:
+		want_yard = true
+	return "Barracks" if want_yard else "School"
+
+func _advance_intake() -> void:
+	_kid_intake = (_kid_intake + 1) % SCHOOL_SHARE_MAX
+
 func auto_enroll_children(principals: int) -> void:
-	if not is_building_operational("School"):
+	# EITHER hall will do now: a child is schooled OR trained, per the policy above.
+	# (This used to feed the School alone, so half the population loop -- children
+	# becoming warriors -- simply had no automatic path at all.)
+	if not is_building_operational("School") and not is_building_operational("Barracks"):
 		return
 	# the Principal's automation obeys the same Student cap the assign UI
 	# enforces by hand (audit fix: it used to over-enroll past the slots)
@@ -5542,24 +5605,45 @@ func auto_enroll_children(principals: int) -> void:
 	# nobody away -- no child waits for a desk. cap 0 means "no ceiling" below.
 	if has_building_power("School"):
 		cap = 0
-	var budget = AUTO_ENROLL_PER_PRINCIPAL * principals
-	# count only the SCHOOL's own trainees against the Student cap:
-	# school_enrollments is shared with the Barracks (each entry tagged by
-	# role_key), so a busy drill yard used to eat the School's seats and the
-	# Principal stopped enrolling kids entirely
+	var yard_cap := 0
+	for rd2 in BuildingRoles.get_roles("Barracks"):
+		if str(rd2.get("title", "")) == "Recruit":
+			yard_cap = role_capacity("Barracks", rd2)
+			break
+	var budget = AUTO_ENROLL_PER_PRINCIPAL * maxi(1, principals)
+	# count each hall's own trainees against its own ceiling: school_enrollments is
+	# shared (every entry tagged by role_key), so a busy drill yard used to eat the
+	# School's seats and the Principal stopped enrolling kids entirely
 	var students := 0
+	var recruits := 0
 	for e in school_enrollments.values():
-		if str(e.get("role_key", "School")) == "School":
+		if str(e.get("role_key", "School")) == "Barracks":
+			recruits += 1
+		else:
 			students += 1
 	for v in rescued_villagers:
 		if budget <= 0:
 			return
-		if cap > 0 and students >= cap:
+		if not v.get("is_kid", false) or str(v.get("role_key", "")) != "" or school_enrollments.has(v.get("id")):
+			continue
+		var dest := next_schooling_destination()
+		if dest == "":
 			return
-		if v.get("is_kid", false) and str(v.get("role_key", "")) == "" and not school_enrollments.has(v.get("id")):
+		# a full hall doesn't turn the child away -- it sends them to the other one
+		if dest == "School" and cap > 0 and students >= cap:
+			dest = "Barracks" if is_building_operational("Barracks") else ""
+		elif dest == "Barracks" and yard_cap > 0 and recruits >= yard_cap:
+			dest = "School" if is_building_operational("School") else ""
+		if dest == "":
+			return
+		if dest == "Barracks":
+			enroll_villager(str(v.get("id")), "Barracks", "Recruit", "Warrior")
+			recruits += 1
+		else:
 			enroll_villager(str(v.get("id")), "School", "Student", "random")
-			budget -= 1
 			students += 1
+		_advance_intake()
+		budget -= 1
 
 # Builderhouse: advance the single most-ruined building one construction stage
 # each tick, for free -- the crew slowly rebuilds Deepwood on its own.
@@ -6410,6 +6494,8 @@ func reset_for_new_game() -> void:
 	building_districts = {}
 	building_plots = {}
 	building_x = {}
+	school_share = SCHOOL_SHARE_MAX   # a new town schools everyone until told otherwise
+	_kid_intake = 0
 	moving_building = ""
 	pregnancies = {}
 	school_enrollments = {}
@@ -6652,6 +6738,8 @@ func save_game(player: Node) -> void:
 		"building_districts": building_districts,
 		"building_plots": building_plots,
 		"building_x": building_x,
+		"school_share": school_share,
+		"_kid_intake": _kid_intake,
 		"pregnancies": pregnancies,
 		"school_enrollments": school_enrollments,
 		"highest_unlocked_level": highest_unlocked_level,
@@ -6899,6 +6987,10 @@ func load_game() -> Dictionary:
 		if parsed.has("building_x") and parsed["building_x"] is Dictionary:
 			for k in parsed["building_x"].keys():
 				building_x[str(k)] = float(parsed["building_x"][k])
+		# an older save never chose a schooling policy: default to all-School, which
+		# is exactly what the game did before the dial existed
+		school_share = clampi(int(parsed.get("school_share", SCHOOL_SHARE_MAX)), 0, SCHOOL_SHARE_MAX)
+		_kid_intake = clampi(int(parsed.get("_kid_intake", 0)), 0, SCHOOL_SHARE_MAX - 1)
 		if parsed.has("pregnancies"):
 			pregnancies = parsed["pregnancies"]
 		if parsed.has("school_enrollments"):

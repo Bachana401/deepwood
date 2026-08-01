@@ -81,6 +81,7 @@ test_rubble_node
 test_save_node
 test_saveload_node
 test_savespawn_node
+test_schooling_node
 test_selfsuf_node
 test_shadowcourt_node
 test_shrine_node
