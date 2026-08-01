@@ -154,6 +154,27 @@ func _ready() -> void:
 	check("a Mine worked ON the vein really hauls more stone",
 		seam > plain, "vein=%d plain=%d over 10 days" % [seam, plain])
 
+	# ---- EVERY PLOT IS ACTUALLY REACHABLE (the check the arithmetic can't make) ----
+	# A plot whose building physically cannot fit on it is decoration. Ask the LIVE
+	# placer, with the real clearance rules -- this caught three plots buried under
+	# the starter ruins and one under a surface chest that reserves its ground.
+	var unbuildable := []
+	var main_scene := get_tree().current_scene
+	for plot5 in GameState.SPECIAL_PLOTS:
+		var bn5 := str(plot5["building"])
+		var bdef: Dictionary = main_scene.building_def(bn5) if main_scene.has_method("building_def") else {}
+		if bdef.is_empty():
+			continue
+		var bw: float = float(bdef.get("width", 100.0)) * float(bdef.get("scale", 2.0)) * 1.3
+		if not GameState.can_place_building(get_tree(), bw, float(plot5["x"])):
+			unbuildable.append("%s @%.0f" % [bn5, float(plot5["x"])])
+	check("every plot's building can actually STAND on it in a fresh village",
+		unbuildable.is_empty(), str(unbuildable))
+	# ...and the builders must never pave the special ground with cottages
+	var cott_x: float = GameState._next_cottage_x()
+	check("the auto-raised cottage row steps AROUND the plots",
+		GameState.plot_at(cott_x).is_empty(), "cottage would land at %.0f" % cott_x)
+
 	# ---- the ground is VISIBLE, and the layout reads it ----
 	var markers := get_tree().get_nodes_in_group("special_plot")
 	check("every plot is drawn on the ground (a plot you can't see is a guess)",

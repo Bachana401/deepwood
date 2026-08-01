@@ -1256,17 +1256,20 @@ const PLOT_RADIUS := 260.0      # how near the centre a building must stand to w
 const SPECIAL_PLOTS := [
 	{"id": "muster", "x": 7000.0, "building": "Barracks", "name": "The Muster Yard",
 		"desc": "the old parade ground — boots have packed this earth flat for a century"},
-	{"id": "square", "x": 11500.0, "building": "Marketplace", "name": "The Old Market Square",
+	{"id": "square", "x": 13200.0, "building": "Marketplace", "name": "The Old Market Square",
 		"desc": "the fallen city traded here; the cobbles remember every cart"},
-	{"id": "soil", "x": 14600.0, "building": "Farm", "name": "The Black Soil",
+	{"id": "soil", "x": 15800.0, "building": "Farm", "name": "The Black Soil",
 		"desc": "river silt, dark and deep — anything sown here comes up thick"},
-	{"id": "spring", "x": 15450.0, "building": "Fishing Dock", "name": "The Spring",
+	{"id": "spring", "x": 16650.0, "building": "Fishing Dock", "name": "The Spring",
 		"desc": "cold water rising from the rock, and it never freezes over"},
-	{"id": "quarry", "x": 16800.0, "building": "Builderhouse", "name": "The Quarry Shelf",
+	# ...and these two clear the surface chest that sits at x=18700 (it is a
+	# village_structure and really does reserve its ground -- found by probing the
+	# live placer, not by reading the numbers)
+	{"id": "quarry", "x": 17300.0, "building": "Builderhouse", "name": "The Quarry Shelf",
 		"desc": "cut stone lies here already, half-dressed and waiting"},
-	{"id": "vein", "x": 17700.0, "building": "Mine", "name": "The Ore Vein",
+	{"id": "vein", "x": 18200.0, "building": "Mine", "name": "The Ore Vein",
 		"desc": "a black seam breaks the surface — the rock is generous this deep"},
-	{"id": "stones", "x": 19000.0, "building": "Shrine", "name": "The Sorrow-Touched Stones",
+	{"id": "stones", "x": 20200.0, "building": "Shrine", "name": "The Sorrow-Touched Stones",
 		"desc": "standing stones the dark never managed to foul"},
 ]
 
@@ -5057,12 +5060,23 @@ func _next_cottage_x() -> float:
 	var best := -INF
 	for p in extra_cottage_positions:
 		best = maxf(best, float(p))
+	var x := 6000.0
 	if best > -INF:
-		return best + AUTO_COTTAGE_SPACING
-	var scene = get_tree().current_scene
-	if scene != null and "village_right_edge" in scene:
-		return float(scene.village_right_edge) + 240.0
-	return 6000.0
+		x = best + AUTO_COTTAGE_SPACING
+	else:
+		var scene = get_tree().current_scene
+		if scene != null and "village_right_edge" in scene:
+			x = float(scene.village_right_edge) + 240.0
+	# NEVER PAVE THE SPECIAL GROUND (Phase 3): the cottage row marches east from
+	# the end of the village, which runs straight over the outskirts plots -- the
+	# builders would have quietly built houses on the Ore Vein and left the Mine
+	# nowhere to stand. Step past any plot we land on.
+	for _guard in range(SPECIAL_PLOTS.size() + 1):
+		var on := plot_at(x)
+		if on.is_empty():
+			break
+		x = float(on["x"]) + PLOT_RADIUS + AUTO_COTTAGE_SPACING
+	return x
 
 # THE BUILDERS RAISE HOMES THEMSELVES (Master Builder / Foreman). Only ever when
 # the town actually NEEDS one -- a couple is waiting and no home stands empty --
