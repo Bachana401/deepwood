@@ -1226,6 +1226,81 @@ const ADJACENCY_PAIRS := [
 	{"a": "Hospital",    "b": "Shrine",       "bonus": 0.15, "why": "healing and mercy keep one threshold"},
 ]
 
+# ========================= SPECIAL PLOTS (roadmap Phase 3) =========================
+# The third spatial rule, and the first where the MAP ITSELF has an opinion.
+# Adjacency is relative (who is beside you) and districts are zones (a broad
+# region). A plot is one EXACT patch of ground that suits exactly one building:
+# the seam the Mine wants, the soil the Farm wants, the spring the boats want.
+#
+# The seed already existed, inverted: the Fishing Dock carried its own water
+# (dock_water_half() is derived from the dock's own width, so it painted a pond
+# wherever you dropped it). Here the ground comes first and the building comes
+# to it.
+#
+# THREE RULES THIS OBEYS:
+#  1. PURELY ADDITIVE. The Dock still works anywhere; on a real spring it works
+#     BETTER. Nothing that worked before is worth less now -- the same rule that
+#     kept adjacency penalty-free and district boundaries absolute.
+#  2. PLOT AGREES WITH DISTRICT. Every plot sits inside the quarter its building
+#     already belongs to, so the two rules never fight. Three spatial demands
+#     pulling against each other would stop being a puzzle and start being
+#     unsolvable; ADJACENCY stays the one thing you trade away.
+#  3. THE ROW REWARDS PLANNING. The Black Soil and the Spring are set ~850 apart,
+#     as are the Quarry Shelf and the Ore Vein -- close enough that a careful
+#     player can stand BOTH buildings on their own ground AND keep them
+#     neighbours. Those two "perfect corners" are earned, not given. The Mine's
+#     forge pairing and the Shrine's ward pairing stay genuinely impossible to
+#     combine with their plots, and that is the point.
+const PLOT_BONUS := 0.15        # richer than a quarter: a plot is one spot, and far away
+const PLOT_RADIUS := 260.0      # how near the centre a building must stand to work it
+const SPECIAL_PLOTS := [
+	{"id": "muster", "x": 7000.0, "building": "Barracks", "name": "The Muster Yard",
+		"desc": "the old parade ground — boots have packed this earth flat for a century"},
+	{"id": "square", "x": 11500.0, "building": "Marketplace", "name": "The Old Market Square",
+		"desc": "the fallen city traded here; the cobbles remember every cart"},
+	{"id": "soil", "x": 14600.0, "building": "Farm", "name": "The Black Soil",
+		"desc": "river silt, dark and deep — anything sown here comes up thick"},
+	{"id": "spring", "x": 15450.0, "building": "Fishing Dock", "name": "The Spring",
+		"desc": "cold water rising from the rock, and it never freezes over"},
+	{"id": "quarry", "x": 16800.0, "building": "Builderhouse", "name": "The Quarry Shelf",
+		"desc": "cut stone lies here already, half-dressed and waiting"},
+	{"id": "vein", "x": 17700.0, "building": "Mine", "name": "The Ore Vein",
+		"desc": "a black seam breaks the surface — the rock is generous this deep"},
+	{"id": "stones", "x": 19000.0, "building": "Shrine", "name": "The Sorrow-Touched Stones",
+		"desc": "standing stones the dark never managed to foul"},
+]
+
+# The plot that suits this building, if any ({} when it has none).
+func plot_for_building(name: String) -> Dictionary:
+	for plot in SPECIAL_PLOTS:
+		if str(plot["building"]) == name:
+			return plot
+	return {}
+
+# The plot whose ground this x sits on, if any.
+func plot_at(x: float) -> Dictionary:
+	for plot in SPECIAL_PLOTS:
+		if absf(x - float(plot["x"])) <= PLOT_RADIUS:
+			return plot
+	return {}
+
+# name -> plot id it is standing on (""), cached with the rest of the layout so
+# the away ticks still know the town while the surface scene is unloaded.
+var building_plots: Dictionary = {}
+
+func building_plot(name: String) -> String:
+	return str(building_plots.get(name, ""))
+
+# Standing on the ground that suits it?
+func on_home_plot(name: String) -> bool:
+	var plot := plot_for_building(name)
+	return not plot.is_empty() and building_plot(name) == str(plot["id"])
+
+func plot_bonus(name: String) -> float:
+	if not is_building_operational(name):
+		return 0.0
+	return PLOT_BONUS if on_home_plot(name) else 0.0
+
 # ============================ DISTRICTS (roadmap Phase 2) ============================
 # The second spatial axis. Adjacency asks WHO you stand next to; a district asks
 # WHERE ON THE MAP you stand. The road runs west (the gate the sieges come from)
@@ -1322,15 +1397,20 @@ func refresh_layout() -> void:
 	row.sort_custom(func(p, q): return float(p["x"]) < float(q["x"]))
 	var nb := {}
 	var dist := {}
+	var plots := {}
 	for i in range(row.size()):
 		var bn := str(row[i]["name"])
+		var bx := float(row[i]["x"])
 		nb[bn] = [
 			str(row[i - 1]["name"]) if i > 0 else "",
 			str(row[i + 1]["name"]) if i < row.size() - 1 else "",
 		]
-		dist[bn] = district_at(float(row[i]["x"]))
+		dist[bn] = district_at(bx)
+		var plot := plot_at(bx)
+		plots[bn] = str(plot["id"]) if not plot.is_empty() else ""
 	building_neighbors = nb
 	building_districts = dist
+	building_plots = plots
 
 # The synergies LIVE for one building right now: [{partner, bonus, why}, ...].
 # Both halves must stand and work -- a rubble Blacksmith forges nothing for the
@@ -1363,7 +1443,7 @@ func adjacency_bonus(name: String) -> float:
 # genuinely runs richer than a scattered one.
 func building_output_multiplier(name: String) -> float:
 	return 1.0 + (building_level(name) - 1) * BUILDING_OUTPUT_PER_LEVEL \
-		+ adjacency_bonus(name) + district_bonus(name)
+		+ adjacency_bonus(name) + district_bonus(name) + plot_bonus(name)
 
 # --- DELETED BUILDINGS (dev 2026-07-22 building menu: "player can delete these
 # ruins... game always double checks"). A building the player razes for good is
@@ -6136,6 +6216,7 @@ func reset_for_new_game() -> void:
 	building_positions = {}
 	building_neighbors = {}   # the row is re-read when the village generates
 	building_districts = {}
+	building_plots = {}
 	moving_building = ""
 	pregnancies = {}
 	school_enrollments = {}
@@ -6376,6 +6457,7 @@ func save_game(player: Node) -> void:
 		"building_positions": building_positions,
 		"building_neighbors": building_neighbors,
 		"building_districts": building_districts,
+		"building_plots": building_plots,
 		"pregnancies": pregnancies,
 		"school_enrollments": school_enrollments,
 		"highest_unlocked_level": highest_unlocked_level,
@@ -6615,6 +6697,10 @@ func load_game() -> Dictionary:
 		if parsed.has("building_districts") and parsed["building_districts"] is Dictionary:
 			for k in parsed["building_districts"].keys():
 				building_districts[str(k)] = str(parsed["building_districts"][k])
+		building_plots = {}
+		if parsed.has("building_plots") and parsed["building_plots"] is Dictionary:
+			for k in parsed["building_plots"].keys():
+				building_plots[str(k)] = str(parsed["building_plots"][k])
 		if parsed.has("pregnancies"):
 			pregnancies = parsed["pregnancies"]
 		if parsed.has("school_enrollments"):

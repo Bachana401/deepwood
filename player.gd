@@ -1808,6 +1808,9 @@ func try_plant_building() -> void:
 	GameState.refresh_layout()
 	if stack:
 		stack.show_notification("🏗 The %s stands on its new ground." % name)
+		if GameState.on_home_plot(name):
+			stack.show_notification("⛏ %s — the ground itself favours this." % \
+				str(GameState.plot_for_building(name).get("name", "")))
 		if GameState.in_home_district(name):
 			stack.show_notification("🗺 %s — the %s belongs here." % [
 				str(GameState.DISTRICT_LABEL.get(GameState.building_district(name), "")), name])

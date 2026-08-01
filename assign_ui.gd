@@ -283,6 +283,25 @@ func add_upgrade_section(list: VBoxContainer) -> void:
 				int(round(GameState.DISTRICT_BONUS * 100.0))]
 		list.add_child(dl)
 
+	# ---- SPECIAL PLOT: the one patch of ground that suits this building ----
+	var myplot: Dictionary = GameState.plot_for_building(b.building_name)
+	if not myplot.is_empty():
+		var gl = Label.new()
+		gl.add_theme_font_size_override("font_size", 11)
+		gl.autowrap_mode = TextServer.AUTOWRAP_WORD
+		gl.custom_minimum_size = Vector2(300, 0)
+		if GameState.on_home_plot(b.building_name):
+			gl.add_theme_color_override("font_color", Color(0.6, 0.9, 0.65, 1))
+			gl.text = "  ⛏ Standing on %s — %s.  →  +%d%% output" % [
+				str(myplot["name"]), str(myplot["desc"]),
+				int(round(GameState.PLOT_BONUS * 100.0))]
+		else:
+			gl.add_theme_color_override("font_color", Color(0.66, 0.66, 0.7, 1))
+			gl.text = "  ⛏ %s lies east along the road — %s. Stand the %s on it for +%d%%." % [
+				str(myplot["name"]), str(myplot["desc"]), b.building_name,
+				int(round(GameState.PLOT_BONUS * 100.0))]
+		list.add_child(gl)
+
 	# ---- ADJACENCY SYNERGY: what this building's NEIGHBOURS are worth ----
 	var links: Array = GameState.adjacency_links(b.building_name)
 	var syn = Label.new()

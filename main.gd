@@ -142,6 +142,7 @@ const FARM_PEN_SCRIPT = preload("res://farm_pen.gd")
 const FARM_PEN_WIDTH = 420.0     # fenced pasture placed right after the Farm
 const DOCK_BRIDGE_SCRIPT = preload("res://dock_bridge.gd")
 const STANDING_TORCH_SCRIPT = preload("res://standing_torch.gd")
+const SPECIAL_PLOT_SCRIPT = preload("res://special_plot.gd")
 # Each building carries a "scale" -- its base size is multiplied by it so the
 # village reads big on a full-screen display. Grandest civic buildings are
 # largest; utility buildings x2. Buildings are then placed edge-to-edge (see
@@ -473,9 +474,24 @@ func generate_village() -> void:
 			$Village.add_child(pen)
 			cursor += FARM_PEN_WIDTH + VILLAGE_GAP
 	village_right_edge = cursor
-	# the row is settled -- cache who neighbours whom (adjacency synergy). Deferred
+	spawn_special_plots()
+	# the row is settled -- cache the layout (neighbours, quarters, plots). Deferred
 	# so every body is really in the tree before we read the group.
 	GameState.refresh_layout.call_deferred()
+
+# THE GROUND ITSELF (roadmap Phase 3): seven patches that suit one building each.
+# Drawn where they are so the player can SEE them and plan around them -- a plot
+# you cannot see is a guessing game, not a decision.
+func spawn_special_plots() -> void:
+	for plot in GameState.SPECIAL_PLOTS:
+		var marker = SPECIAL_PLOT_SCRIPT.new()
+		marker.plot_id = str(plot["id"])
+		marker.plot_name = str(plot["name"])
+		marker.plot_desc = str(plot["desc"])
+		marker.for_building = str(plot["building"])
+		marker.half_width = GameState.PLOT_RADIUS
+		marker.position = Vector2(float(plot["x"]), VILLAGE_Y)
+		$Village.add_child(marker)
 
 # A village building's blueprint def by name (for the build menu + placer).
 func building_def(bname: String) -> Dictionary:

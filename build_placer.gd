@@ -244,6 +244,9 @@ func _try_place(x: float) -> void:
 	var links: Array = GameState.adjacency_links(build_name)
 	if stack:
 		stack.show_notification("🏗 The %s is raised on its new ground." % build_name)
+		if GameState.on_home_plot(build_name):
+			stack.show_notification("⛏ %s — the ground itself favours this." % \
+				str(GameState.plot_for_building(build_name).get("name", "")))
 		if GameState.in_home_district(build_name):
 			stack.show_notification("🗺 %s — the %s belongs here." % [
 				str(GameState.DISTRICT_LABEL.get(GameState.building_district(build_name), "")), build_name])
