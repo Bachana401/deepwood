@@ -143,6 +143,8 @@ const FARM_PEN_WIDTH = 420.0     # fenced pasture placed right after the Farm
 const DOCK_BRIDGE_SCRIPT = preload("res://dock_bridge.gd")
 const STANDING_TORCH_SCRIPT = preload("res://standing_torch.gd")
 const SPECIAL_PLOT_SCRIPT = preload("res://special_plot.gd")
+const VILLAGE_PRESENCE_SCRIPT = preload("res://village_presence.gd")
+const SYNERGY_LANTERNS_SCRIPT = preload("res://synergy_lanterns.gd")
 # Each building carries a "scale" -- its base size is multiplied by it so the
 # village reads big on a full-screen display. Grandest civic buildings are
 # largest; utility buildings x2. Buildings are then placed edge-to-edge (see
@@ -475,6 +477,7 @@ func generate_village() -> void:
 			cursor += FARM_PEN_WIDTH + VILLAGE_GAP
 	village_right_edge = cursor
 	spawn_special_plots()
+	spawn_presence_layer()
 	# the row is settled -- cache the layout (neighbours, quarters, plots). Deferred
 	# so every body is really in the tree before we read the group.
 	GameState.refresh_layout.call_deferred()
@@ -482,6 +485,18 @@ func generate_village() -> void:
 # THE GROUND ITSELF (roadmap Phase 3): seven patches that suit one building each.
 # Drawn where they are so the player can SEE them and plan around them -- a plot
 # you cannot see is a guessing game, not a decision.
+# THE INVISIBLE MADE VISIBLE (dev 2026-07-30). Two read-only draw layers that
+# show what the town is already doing: the stores yard and the aura pools on the
+# ground, and the lantern ropes strung between working neighbour pairs overhead.
+# Neither touches state -- deleting either changes nothing but the view.
+func spawn_presence_layer() -> void:
+	var ground = VILLAGE_PRESENCE_SCRIPT.new()
+	ground.position = Vector2(0.0, VILLAGE_Y)
+	$Village.add_child(ground)
+	var overhead = SYNERGY_LANTERNS_SCRIPT.new()
+	overhead.position = Vector2(0.0, VILLAGE_Y)
+	$Village.add_child(overhead)
+
 func spawn_special_plots() -> void:
 	for plot in GameState.SPECIAL_PLOTS:
 		var marker = SPECIAL_PLOT_SCRIPT.new()

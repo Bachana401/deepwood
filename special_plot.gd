@@ -37,7 +37,13 @@ const KIND_MARK := {
 }
 
 func _ready() -> void:
-	z_index = -4          # under the buildings and the villagers, on the ground
+	# ⚠ ABOVE THE EARTH, OR IT IS NOT THERE AT ALL. The terrain body draws at z 0
+	# with its grass cap at z 1, so the -4 this used to sit at buried every plot
+	# behind the ground itself -- seven painted patches that no player could ever
+	# see (caught by the EYES walker 2026-07-30; the unit test only ever asserted
+	# the marker NODES existed). 2 clears the cap and still passes under the
+	# building bodies (frame z 3, door 4) and the player.
+	z_index = 2
 	add_to_group("special_plot")
 	_build_label()
 
