@@ -1226,6 +1226,82 @@ const ADJACENCY_PAIRS := [
 	{"a": "Hospital",    "b": "Shrine",       "bonus": 0.15, "why": "healing and mercy keep one threshold"},
 ]
 
+# ============================ AURAS (roadmap Phase 4) ============================
+# The last spatial rule, and the only one that points OUTWARD. Phases 1-3 all
+# change what a building produces for itself (adjacency, quarter, plot all fold
+# into building_output_multiplier). An aura changes life for everything AROUND
+# it -- so for the first time, where you put a building decides who benefits.
+#
+# MEASURED AGAINST HOMES AND WORKPLACES, not wandering bodies. A villager's NPC
+# avatar only exists while the surface scene is loaded, and it walks about all
+# day; their COTTAGE and their JOB stand still and survive into the deep. So an
+# aura asks "is this person's home or work inside the circle?" -- which is
+# stable, saves correctly, keeps working while the player is away, and (the real
+# prize) finally makes COTTAGE PLACEMENT part of the puzzle: a home built in the
+# Bar's light is a happier home for as long as it stands.
+#
+# Only three buildings carry one, and each rides a system that is ALREADY
+# spatial -- no aura was invented to give a building something to do.
+const AURAS := {
+	"Bar": {"radius": 1600.0, "name": "The Sound of It",
+		"desc": "music carries down the row — anyone living or working in earshot is gladder for it"},
+	"Shrine": {"radius": 1400.0, "name": "Hallowed Ground",
+		"desc": "despair cannot take root within sight of the stones"},
+	"Hospital": {"radius": 1500.0, "name": "The Ward's Shadow",
+		"desc": "the hurt mend faster near the ward, without ever being carried in"},
+}
+const AURA_BAR_MORALE := 0.8       # added to personal morale target, in range
+const AURA_WARD_REGEN := 2.5       # extra HP/hour for the wounded, in range
+
+# Where each building stands, cached with the rest of the layout (the surface
+# scene is unloaded in the deep, and auras must still resolve).
+var building_x: Dictionary = {}
+
+# The fixed places a villager's life is anchored to: their cottage, and the
+# building they work at. Empty for a homeless, jobless soul -- no aura reaches
+# someone with nowhere to be, which is its own quiet argument for housing them.
+func villager_places(v: Dictionary) -> Array:
+	var out := []
+	var vid := str(v.get("id", ""))
+	var hid := villager_home_id(vid)
+	if hid == "":
+		# a child sleeps under its parents' roof
+		for pid in v.get("parents", []):
+			hid = villager_home_id(str(pid))
+			if hid != "":
+				break
+	if hid != "":
+		var idx := extra_cottage_ids.find(hid)
+		if idx >= 0 and idx < extra_cottage_positions.size():
+			out.append(float(extra_cottage_positions[idx]))
+	var rk := str(v.get("role_key", ""))
+	if rk != "" and building_x.has(rk):
+		out.append(float(building_x[rk]))
+	return out
+
+# Is this villager's life lived inside the named building's aura?
+func in_aura(building: String, v: Dictionary) -> bool:
+	if not AURAS.has(building) or not is_building_operational(building):
+		return false
+	if not building_x.has(building):
+		return false
+	var bx := float(building_x[building])
+	var r := float(AURAS[building]["radius"])
+	for px in villager_places(v):
+		if absf(float(px) - bx) <= r:
+			return true
+	return false
+
+# How many souls a building's aura actually reaches (for the E-panel readout).
+func aura_reach(building: String) -> int:
+	if not AURAS.has(building):
+		return 0
+	var n := 0
+	for v in rescued_villagers:
+		if in_aura(building, v):
+			n += 1
+	return n
+
 # ========================= SPECIAL PLOTS (roadmap Phase 3) =========================
 # The third spatial rule, and the first where the MAP ITSELF has an opinion.
 # Adjacency is relative (who is beside you) and districts are zones (a broad
@@ -1401,9 +1477,11 @@ func refresh_layout() -> void:
 	var nb := {}
 	var dist := {}
 	var plots := {}
+	var xs := {}
 	for i in range(row.size()):
 		var bn := str(row[i]["name"])
 		var bx := float(row[i]["x"])
+		xs[bn] = bx
 		nb[bn] = [
 			str(row[i - 1]["name"]) if i > 0 else "",
 			str(row[i + 1]["name"]) if i < row.size() - 1 else "",
@@ -1414,6 +1492,7 @@ func refresh_layout() -> void:
 	building_neighbors = nb
 	building_districts = dist
 	building_plots = plots
+	building_x = xs
 
 # The synergies LIVE for one building right now: [{partner, bonus, why}, ...].
 # Both halves must stand and work -- a rubble Blacksmith forges nothing for the
@@ -3612,6 +3691,10 @@ func personal_morale_target(v: Dictionary) -> float:
 				t -= WIDOW_MORALE_HIT * (mourn_left / WIDOW_MOURN_HOURS)
 	t += 1.4 if is_building_operational("Blacksmith") else 0.0   # an armed town sleeps better
 	t += 1.0 if is_building_operational("Bar") else 0.0          # somewhere to laugh
+	# ...and MORE if you live or work in earshot of it (Phase 4 aura): the town-wide
+	# lift above is having a Bar at all; this is having it at the end of your street.
+	if in_aura("Bar", v):
+		t += AURA_BAR_MORALE
 	# the Dock's PREMIUM food (5.7): fish on the table lifts every spirit --
 	# the quality-food edge, slack on top like the boons (never gate-required)
 	if has_food() and is_building_operational("Fishing Dock") and count_workers("Fishing Dock") > 0:
@@ -3850,6 +3933,16 @@ func tick_rot(_hours_passed: float) -> void:
 				or has_building_power("Shrine"):
 			villager_rot.erase(id)
 			continue
+		# HALLOWED GROUND (Phase 4 aura): the same mercy, but EARNED BY PLACEMENT
+		# rather than by level. The Shrine's light reaches the homes and workplaces
+		# around it, so despair cannot open its window there -- not a slower clock,
+		# no clock. Stand it where the fragile live, not off in a corner. The
+		# level-4 power above is this same protection extended to everyone.
+		if in_aura("Shrine", v):
+			if villager_rot.has(id):
+				villager_rot.erase(id)
+				log_event("people", "%s was pulled back — the Shrine's light reaches their door." % str(v.get("name", "?")))
+			continue
 		var m := get_personal_morale(v)
 		if m <= 0.05:
 			if not villager_rot.has(id):
@@ -4019,7 +4112,13 @@ func tick_morale_effects(hours_passed: float) -> void:
 				continue
 			# passive regen is a low trickle now (base 3); doctors still nudge it up, but
 			# the REAL, fast recovery is the Hospital (the Sick Road)
-			villager_hp[id] = minf(VILLAGER_MAX_HP, hp + hours_passed * DESPAIR_HP_REGEN_PER_HOUR * (1.0 + 0.5 * float(doctors)))
+			var regen := DESPAIR_HP_REGEN_PER_HOUR * (1.0 + 0.5 * float(doctors))
+			# THE WARD'S SHADOW (Phase 4 aura): living or working within sight of the
+			# ward mends you faster without ever being carried in -- the Sick Road
+			# still exists for the badly hurt, this just means proximity is care.
+			if in_aura("Hospital", v):
+				regen += AURA_WARD_REGEN
+			villager_hp[id] = minf(VILLAGER_MAX_HP, hp + hours_passed * regen)
 	# 10: two SEPARATE fates. An empty larder / withered body KILLS -- a death,
 	# with death-shock and a grave. A broken hope CORRUPTS -- that is tick_rot's
 	# morale-zero window above, never this HP path.
@@ -6231,6 +6330,7 @@ func reset_for_new_game() -> void:
 	building_neighbors = {}   # the row is re-read when the village generates
 	building_districts = {}
 	building_plots = {}
+	building_x = {}
 	moving_building = ""
 	pregnancies = {}
 	school_enrollments = {}
@@ -6472,6 +6572,7 @@ func save_game(player: Node) -> void:
 		"building_neighbors": building_neighbors,
 		"building_districts": building_districts,
 		"building_plots": building_plots,
+		"building_x": building_x,
 		"pregnancies": pregnancies,
 		"school_enrollments": school_enrollments,
 		"highest_unlocked_level": highest_unlocked_level,
@@ -6715,6 +6816,10 @@ func load_game() -> Dictionary:
 		if parsed.has("building_plots") and parsed["building_plots"] is Dictionary:
 			for k in parsed["building_plots"].keys():
 				building_plots[str(k)] = str(parsed["building_plots"][k])
+		building_x = {}
+		if parsed.has("building_x") and parsed["building_x"] is Dictionary:
+			for k in parsed["building_x"].keys():
+				building_x[str(k)] = float(parsed["building_x"][k])
 		if parsed.has("pregnancies"):
 			pregnancies = parsed["pregnancies"]
 		if parsed.has("school_enrollments"):

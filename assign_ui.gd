@@ -283,6 +283,25 @@ func add_upgrade_section(list: VBoxContainer) -> void:
 				int(round(GameState.DISTRICT_BONUS * 100.0))]
 		list.add_child(dl)
 
+	# ---- AURA: what this building does for everything AROUND it ----
+	if GameState.AURAS.has(b.building_name):
+		var aura: Dictionary = GameState.AURAS[b.building_name]
+		var al = Label.new()
+		al.add_theme_font_size_override("font_size", 11)
+		al.autowrap_mode = TextServer.AUTOWRAP_WORD
+		al.custom_minimum_size = Vector2(300, 0)
+		var reached: int = GameState.aura_reach(b.building_name)
+		if reached > 0:
+			al.add_theme_color_override("font_color", Color(0.6, 0.9, 0.65, 1))
+			al.text = "  ◎ %s — %s.  Reaching %d %s right now." % [
+				str(aura.get("name", "")), str(aura.get("desc", "")),
+				reached, "soul" if reached == 1 else "souls"]
+		else:
+			al.add_theme_color_override("font_color", Color(0.66, 0.66, 0.7, 1))
+			al.text = "  ◎ %s — %s.  Nobody lives or works in range yet: build homes nearer, or move it to them." % [
+				str(aura.get("name", "")), str(aura.get("desc", ""))]
+		list.add_child(al)
+
 	# ---- SPECIAL PLOT: the one patch of ground that suits this building ----
 	var myplot: Dictionary = GameState.plot_for_building(b.building_name)
 	if not myplot.is_empty():

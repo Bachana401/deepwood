@@ -5,6 +5,7 @@ test_arena_node
 test_arrival_node
 test_arrivalreload_node
 test_audit_node
+test_auras_node
 test_autoladder_node
 test_autorepair_node
 test_autostaff_node
