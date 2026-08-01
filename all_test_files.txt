@@ -55,6 +55,7 @@ test_jump_node
 test_ladder_node
 test_lantern_node
 test_lights_node
+test_lodging_node
 test_log_node
 test_matingdepth_node
 test_mech2_node

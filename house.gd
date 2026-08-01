@@ -125,11 +125,18 @@ func interact() -> void:
 	var notif = get_node_or_null("../../CanvasLayer/NotificationStack")
 	# 5.8: an occupied home is occupied for LIFE -- only death frees it
 	if GameState.cottage_homes.has(house_id):
-		var home: Dictionary = GameState.cottage_homes[house_id]
+		# a cottage may hold ONE person waiting for company (the lodger model) --
+		# reading both slots blindly announced a villager living with "someone"
+		var occ: Array = GameState.cottage_occupant_ids(house_id)
 		if notif:
-			notif.show_notification("%s — %s and %s live here." % [house_name,
-				GameState.villager_name(str(home.get("a", ""))),
-				GameState.villager_name(str(home.get("b", "")))])
+			if occ.size() >= 2:
+				notif.show_notification("%s — %s and %s live here." % [house_name,
+					GameState.villager_name(str(occ[0])), GameState.villager_name(str(occ[1]))])
+			elif occ.size() == 1:
+				notif.show_notification("%s — %s lives here alone, and would not mind company." % [
+					house_name, GameState.villager_name(str(occ[0]))])
+			else:
+				notif.show_notification("%s — empty." % house_name)
 		return
 	if GameState.mating_houses.has(house_id):
 		var pairing = GameState.mating_houses[house_id]

@@ -5170,6 +5170,108 @@ func donate_to_stores(player: Node, item_id: String) -> int:
 	play_sfx(SFX_YES, 1.0)
 	return held
 
+# ===================== LODGING (dev design 2026-07-30) =====================
+# A cottage may hold ONE person waiting for someone to share it with. That is the
+# shape the dev asked for: an adult coming out of the School is given a roof
+# FIRST -- an empty cottage, or one that already holds a single of the opposite
+# sex -- and it is MOVING IN that makes the match, rather than a matchmaker
+# pairing two strangers in the street. Then they start a family and the cycle turns.
+#
+# cottage_homes entries stay {a, b}; a lodger is simply an entry whose other slot
+# is "". Everything that reads it already copes: villager_home_id matches either
+# slot, and update_cottage_families skips any home whose second name comes back
+# "someone", so a lone occupant can never conceive with nobody.
+func cottage_occupant_ids(hid: String) -> Array:
+	var out := []
+	if not cottage_homes.has(hid):
+		return out
+	var h: Dictionary = cottage_homes[hid]
+	for k in ["a", "b"]:
+		var v := str(h.get(k, ""))
+		if v != "":
+			out.append(v)
+	return out
+
+func cottage_is_pair(hid: String) -> bool:
+	return cottage_occupant_ids(hid).size() >= 2
+
+# The one person living here alone, or "" if the cottage is empty or already full.
+func cottage_lone_occupant(hid: String) -> String:
+	var occ := cottage_occupant_ids(hid)
+	return str(occ[0]) if occ.size() == 1 else ""
+
+# Is this adult looking for a roof and someone to share it with?
+func _seeking_home(v: Dictionary) -> bool:
+	if v.get("is_kid", false) or v.get("unbreakable", false) or v.get("shadow", false):
+		return false
+	var vid := str(v.get("id", ""))
+	if vid == "" or school_enrollments.has(vid):
+		return false          # still in training -- not an adult out of the hall yet
+	if is_villager_paired(vid) or villager_home_id(vid) != "":
+		return false
+	# 5.8: a widow(er) is not looking again until the mourning has passed
+	if v.has("widowed_at_hours") and game_hours < float(v["widowed_at_hours"]) + WIDOW_MOURN_HOURS:
+		return false
+	return true
+
+# THE ROOF FIRST. Every adult with nowhere to live gets a door: preferably one
+# with a single of the opposite sex already behind it, because that completes a
+# household; failing that an empty cottage, where they wait for company.
+func house_unpaired_adults() -> void:
+	for v in rescued_villagers:
+		if not _seeking_home(v):
+			continue
+		var vid := str(v.get("id", ""))
+		var sex := str(v.get("sex", ""))
+		var moved := false
+		for cid in extra_cottage_ids:
+			var hid := str(cid)
+			if mating_houses.has(hid):
+				continue
+			var lone := cottage_lone_occupant(hid)
+			if lone == "":
+				continue
+			var other: Dictionary = find_villager_by_id(lone)
+			if other.is_empty() or str(other.get("sex", "")) == sex:
+				continue          # a housemate of the same sex makes no household
+			var h: Dictionary = cottage_homes[hid]
+			if str(h.get("a", "")) == "":
+				h["a"] = vid
+			else:
+				h["b"] = vid
+			cottage_homes[hid] = h
+			log_event("people", "%s moved in with %s." % [
+				str(v.get("name", "?")), str(other.get("name", "?"))])
+			moved = true
+			break
+		if moved:
+			continue
+		var free := free_cottage_ids()
+		if free.is_empty():
+			continue              # nowhere to put them -- the builders will see to it
+		cottage_homes[str(free[0])] = {"a": vid, "b": ""}
+		log_event("people", "%s took a cottage, and waits for company." % str(v.get("name", "?")))
+
+# ...and once two of them share a roof, they make a family of it.
+func pair_housemates() -> void:
+	for cid in extra_cottage_ids:
+		var hid := str(cid)
+		if mating_houses.has(hid) or not cottage_is_pair(hid):
+			continue
+		var occ := cottage_occupant_ids(hid)
+		var a: Dictionary = find_villager_by_id(str(occ[0]))
+		var b: Dictionary = find_villager_by_id(str(occ[1]))
+		if a.is_empty() or b.is_empty():
+			continue
+		if is_villager_paired(str(a.get("id", ""))) or is_villager_paired(str(b.get("id", ""))):
+			continue
+		if str(a.get("sex", "")) == str(b.get("sex", "")):
+			continue
+		var a_male := str(a.get("sex", "")) == "Male"
+		start_pairing(hid,
+			str(a.get("id", "")) if a_male else str(b.get("id", "")),
+			str(b.get("id", "")) if a_male else str(a.get("id", "")))
+
 func free_cottage_ids() -> Array:
 	var out := []
 	for cid in extra_cottage_ids:
@@ -5239,6 +5341,13 @@ func auto_pair_couples() -> void:
 	# THE MATCHMAKER'S ROUND (Bar power): a grown Bar makes its own matches
 	if seated_leaders("Bar") <= 0 and not has_building_power("Bar"):
 		return
+	# THE ROOF FIRST, then the match (dev design 2026-07-30). An adult out of the
+	# School is given a door before anything else -- ideally one with a single of
+	# the opposite sex behind it -- and sharing that roof is what makes the couple.
+	house_unpaired_adults()
+	pair_housemates()
+	# ...and the old road still works for anyone left over: two unattached adults
+	# matched straight into a standing empty cottage.
 	for hid in free_cottage_ids():
 		var parents := find_available_parents()
 		if str(parents.male_id) == "" or str(parents.female_id) == "":
