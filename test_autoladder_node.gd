@@ -248,32 +248,66 @@ func _ready() -> void:
 
 	# ---- BUILDING POWERS (dev law 2026-07-29: behaviour, not stats) ----
 	# At BUILDING_POWER_LEVEL each building wakes a NAMED power that changes what
-	# it DOES. Batch 1's through-line: the building stops needing its leader.
-	# Every power must be provably absent below the threshold and present at it.
+	# it DOES -- but ONLY with its leader in the chair (dev call 2026-07-30: "leader
+	# loses its value"). As first built, ten powers did the seated leader's own job,
+	# so gold spent on a level bought past the rarest content in the game and past
+	# the automation ladder's rescue-depth pacing. A power is now the leader's
+	# MASTERWORK: it needs the hall AND the person.
 	var lvl_all := func(n: int) -> void:
 		for bn in GameState.BUILDING_POWERS.keys():
 			GameState.building_levels[bn] = n
 			GameState.building_stage[bn] = GameState.TOTAL_BUILD_STAGES
 			GameState.building_health[bn] = 100
+	# seat whoever each power answers to: the named leader, or (the Shrine alone,
+	# which crowns no VIP) its keepers at their posts
+	var seat_all := func() -> void:
+		GameState.rescued_villagers = []
+		for bn in GameState.BUILDING_POWERS.keys():
+			var post := ""
+			for rd in BuildingRoles.get_roles(bn):
+				if rd.get("leadership", false):
+					post = str(rd.get("title", ""))
+					break
+			if post != "":
+				GameState.rescued_villagers.append({"id": "pw_%s" % bn, "name": "Chief %s" % bn,
+					"sex": "Male", "is_kid": false, "stat_name": post, "stat_value": 6,
+					"role_key": bn, "role_title": post})
+			else:
+				GameState.rescued_villagers.append({"id": "pw_%s" % bn, "name": "Keeper %s" % bn,
+					"sex": "Female", "is_kid": false, "stat_name": "Hospital", "stat_value": 4,
+					"role_key": bn, "role_title": "Lightkeeper"})
+	seat_all.call()
 	lvl_all.call(GameState.BUILDING_POWER_LEVEL - 1)
 	var dormant := []
 	for bn in GameState.BUILDING_POWERS.keys():
 		if GameState.has_building_power(bn):
 			dormant.append(bn)
-	check("no power wakes BELOW the milestone level", dormant.is_empty(), str(dormant))
+	check("no power wakes BELOW the milestone level, even fully staffed", dormant.is_empty(), str(dormant))
 	lvl_all.call(GameState.BUILDING_POWER_LEVEL)
 	var asleep := []
 	for bn in GameState.BUILDING_POWERS.keys():
 		if not GameState.has_building_power(bn):
 			asleep.append(bn)
-	check("every declared power wakes AT the milestone level", asleep.is_empty(), str(asleep))
+	check("every declared power wakes at the milestone WITH its leader seated", asleep.is_empty(), str(asleep))
+	# ...AND THE RULE ITSELF: an empty chair wakes nothing, however grand the hall
+	GameState.rescued_villagers = []
+	var leaderless := []
+	for bn in GameState.BUILDING_POWERS.keys():
+		if GameState.has_building_power(bn):
+			leaderless.append(bn)
+	check("NO power wakes on level alone — an empty chair wakes nothing (the leader keeps its value)",
+		leaderless.is_empty(), str(leaderless))
+	seat_all.call()
 	check("each power is NAMED (identity, not a stat line)",
 		GameState.building_power_name("Blacksmith") == "The Night Forge")
 
 	# THE STANDING WATCH: an off-shift warrior must count full once it wakes
+	# (the Warchief must be in the chair now, or the power sleeps)
 	GameState.rescued_villagers = [{"id": "sw1", "name": "Nightguard", "sex": "Male",
 		"is_kid": false, "stat_name": "Warrior", "stat_value": 4,
-		"role_key": "Barracks", "role_title": "Warrior"}]
+		"role_key": "Barracks", "role_title": "Warrior"},
+		{"id": "sw_ldr", "name": "Warchief", "sex": "Female", "is_kid": false,
+		"stat_name": "Warchief", "stat_value": 7, "role_key": "Barracks", "role_title": "Warchief"}]
 	GameState.ensure_adventurers()
 	for aid in GameState.adventurers.keys():
 		GameState.adventurers[aid]["station"] = "house"
@@ -289,49 +323,73 @@ func _ready() -> void:
 		check("THE STANDING WATCH: on-shift already full, power costs nothing",
 			is_equal_approx(def_after, def_before), "%.2f -> %.2f" % [def_before, def_after])
 
-	# THE NIGHT FORGE: arms are made with NO Forgemaster seated
-	GameState.rescued_villagers = []
+	# THE NIGHT FORGE (re-scoped 2026-07-30): the Forgemaster's own bench, doubled.
+	# It used to arm the town with NO Forgemaster -- which is exactly what made the
+	# leader worthless. The master must be seated; level 4 is what he does with it.
 	for b in ["Blacksmith", "Barracks"]:
 		GameState.building_stage[b] = GameState.TOTAL_BUILD_STAGES
 		GameState.building_health[b] = 100
-	GameState.building_levels["Blacksmith"] = GameState.BUILDING_POWER_LEVEL - 1
-	GameState.barracks_arms = 0
-	GameState.village_stockpile["iron_shard"] = 999
-	GameState.apply_leadership_automation()
-	var arms_dormant: int = GameState.barracks_arms
+	var forge := func(lvl: int) -> int:
+		GameState.building_levels["Blacksmith"] = lvl
+		GameState.rescued_villagers = [{"id": "fm", "name": "Hilda", "sex": "Female",
+			"is_kid": false, "stat_name": "Forgemaster", "stat_value": 6,
+			"role_key": "Blacksmith", "role_title": "Forgemaster"}]
+		GameState.barracks_arms = 0
+		GameState.village_stockpile["iron_shard"] = 999
+		GameState.apply_leadership_automation()
+		return GameState.barracks_arms
+	var arms_plain: int = forge.call(GameState.BUILDING_POWER_LEVEL - 1)
+	var arms_woken: int = forge.call(GameState.BUILDING_POWER_LEVEL)
+	check("THE NIGHT FORGE: the Forgemaster's bench turns out MORE once the hall is grand",
+		arms_woken > arms_plain, "plain=%d woken=%d" % [arms_plain, arms_woken])
+	GameState.rescued_villagers = []
 	GameState.building_levels["Blacksmith"] = GameState.BUILDING_POWER_LEVEL
 	GameState.barracks_arms = 0
 	GameState.village_stockpile["iron_shard"] = 999
 	GameState.apply_leadership_automation()
-	check("THE NIGHT FORGE: a grown forge arms the town with no Forgemaster",
-		arms_dormant == 0 and GameState.barracks_arms > 0,
-		"dormant=%d woken=%d" % [arms_dormant, GameState.barracks_arms])
+	check("...and forges NOTHING with the chair empty, however grand the hall",
+		GameState.barracks_arms == 0, str(GameState.barracks_arms))
 
-	# THE STANDING ORDER: idle souls get work with NO Chancellor
-	var idle := func(lvl: int) -> int:
+	# THE STANDING ORDER (re-scoped): the Chancellor corrects the seating already
+	# done -- a trained hand in the wrong trade is moved to work that fits. It used
+	# to staff the town with NO Chancellor at all.
+	var mismatch := func(lvl: int) -> bool:
 		GameState.building_levels["Government"] = lvl
-		GameState.rescued_villagers = []
-		for i in range(4):
-			GameState.rescued_villagers.append({"id": "idle_%d" % i, "name": "Idle%d" % i,
-				"sex": "Male", "is_kid": false, "stat_name": "Farm", "stat_value": 3,
-				"role_key": "", "role_title": ""})
+		for bb in ["Government", "Farm", "Mine"]:
+			GameState.building_stage[bb] = GameState.TOTAL_BUILD_STAGES
+			GameState.building_health[bb] = 100
+		GameState.rescued_villagers = [
+			{"id": "ch", "name": "Alaric", "sex": "Male", "is_kid": false,
+				"stat_name": "Chancellor", "stat_value": 9,
+				"role_key": "Government", "role_title": "Chancellor"},
+			# a trained farmer shovelling in the Mine: employed, but wrongly
+			{"id": "wrong", "name": "Misplaced", "sex": "Male", "is_kid": false,
+				"stat_name": "Farm", "stat_value": 4, "role_key": "Mine", "role_title": "Miner"}]
 		GameState.apply_leadership_automation()
-		var n := 0
 		for v in GameState.rescued_villagers:
-			if str(v.get("role_key", "")) == "": n += 1
-		return n
-	var idle_dormant: int = idle.call(GameState.BUILDING_POWER_LEVEL - 1)
-	var idle_woken: int = idle.call(GameState.BUILDING_POWER_LEVEL)
-	check("THE STANDING ORDER: a grown Government staffs the town with no Chancellor",
-		idle_woken < idle_dormant, "idle %d -> %d" % [idle_dormant, idle_woken])
+			if str(v.get("id", "")) == "wrong":
+				return str(v.get("role_key", "")) == "Farm"
+		return false
+	check("THE STANDING ORDER: below the milestone the misplaced stay misplaced",
+		not mismatch.call(GameState.BUILDING_POWER_LEVEL - 1))
+	check("THE STANDING ORDER: a grown Government moves them to work that fits",
+		mismatch.call(GameState.BUILDING_POWER_LEVEL))
 
 	# THE STANDING HARVEST: an empty larder must not kill a grown Farm's town
 	var starve := func(lvl: int) -> float:
 		GameState.building_levels["Farm"] = lvl
 		GameState.building_stage["Farm"] = GameState.TOTAL_BUILD_STAGES
 		GameState.building_health["Farm"] = 100
-		GameState.rescued_villagers = [{"id": "hungry", "name": "Hungry", "sex": "Male",
-			"is_kid": false, "stat_name": "", "stat_value": 3, "role_key": "", "role_title": ""}]
+		# the Harvestmaster must be seated (the power is HERS now) -- so the town has
+		# to out-eat her fields for the larder to empty at all, which is exactly when
+		# the reserve is meant to matter. Enough mouths to run the deficit.
+		GameState.rescued_villagers = [{"id": "hm", "name": "Maeve", "sex": "Female",
+			"is_kid": false, "stat_name": "Harvestmaster", "stat_value": 5,
+			"role_key": "Farm", "role_title": "Harvestmaster"}]
+		for hi in range(30):
+			GameState.rescued_villagers.append({"id": "hungry_%d" % hi, "name": "Hungry%d" % hi,
+				"sex": "Male", "is_kid": false, "stat_name": "", "stat_value": 3,
+				"role_key": "", "role_title": ""})
 		GameState.village_food = 0.0
 		GameState._harvest_reserve_cd = 0.0
 		GameState.tick_food(1.0)
@@ -346,6 +404,9 @@ func _ready() -> void:
 		GameState.building_levels["Hospital"] = lvl
 		GameState.building_stage["Hospital"] = GameState.TOTAL_BUILD_STAGES
 		GameState.building_health["Hospital"] = 100
+		GameState.rescued_villagers = [{"id": "cp", "name": "Vesna", "sex": "Female",
+			"is_kid": false, "stat_name": "Chief Physician", "stat_value": 6,
+			"role_key": "Hospital", "role_title": "Chief Physician"}]
 		GameState.villager_hp = {"hurt": 1.0}
 		GameState.auto_heal_villagers(1)
 		return float(GameState.villager_hp["hurt"])
@@ -355,28 +416,38 @@ func _ready() -> void:
 		hp_woken >= GameState.VILLAGER_MAX_HP and hp_dormant < GameState.VILLAGER_MAX_HP,
 		"dormant=%.0f woken=%.0f" % [hp_dormant, hp_woken])
 
-	# THE MATCHMAKER'S ROUND: a grown Bar matches with no Publican seated
+	# THE MATCHMAKER'S ROUND: with the Publican in a grand hall, a match is made AND
+	# a home is raised for it, with no Master Builder needed to order the work
+	# (the power needs its OWN leader now -- it just no longer needs anyone else's)
 	var matched := func(lvl: int) -> int:
 		GameState.building_levels["Bar"] = lvl
 		for b in ["Bar", "Builderhouse"]:
 			GameState.building_stage[b] = GameState.TOTAL_BUILD_STAGES
 			GameState.building_health[b] = 100
 		GameState.building_levels["Builderhouse"] = 1
+		# NO free cottage on purpose: pairing alone needs one, so what the power adds
+		# is RAISING the home for the couple that would otherwise wait forever --
+		# and doing it without a Master Builder to order the work.
 		GameState.cottage_homes = {}
 		GameState.mating_houses = {}
-		GameState.extra_cottage_ids = ["mm_house"]
-		GameState.extra_cottage_positions = [6000.0]
-		GameState.extra_cottages = 1
+		GameState.extra_cottage_ids = []
+		GameState.extra_cottage_positions = []
+		GameState.extra_cottages = 0
+		GameState.village_stockpile = {"wood": 99, "stone": 99, "iron_shard": 0}
 		GameState.rescued_villagers = [
 			{"id": "mm_m", "name": "M", "sex": "Male", "is_kid": false, "stat_name": "",
 				"stat_value": 3, "role_key": "", "role_title": ""},
 			{"id": "mm_f", "name": "F", "sex": "Female", "is_kid": false, "stat_name": "",
-				"stat_value": 3, "role_key": "", "role_title": ""}]
-		GameState.auto_pair_couples()
+				"stat_value": 3, "role_key": "", "role_title": ""},
+			{"id": "mm_pub", "name": "Fenn", "sex": "Male", "is_kid": false, "stat_name": "Publican",
+				"stat_value": 5, "role_key": "Bar", "role_title": "Publican"}]
+		# the full pass, not auto_pair_couples alone: RAISING the home is the half
+		# the power adds, and that happens in apply_leadership_automation
+		GameState.apply_leadership_automation()
 		return GameState.mating_houses.size() + GameState.cottage_homes.size()
 	var mm_dormant: int = matched.call(GameState.BUILDING_POWER_LEVEL - 1)
 	var mm_woken: int = matched.call(GameState.BUILDING_POWER_LEVEL)
-	check("THE MATCHMAKER'S ROUND: a grown Bar makes matches with no Publican",
+	check("THE MATCHMAKER'S ROUND: the Publican's grown Bar RAISES the home the couple lacked",
 		mm_dormant == 0 and mm_woken > 0, "dormant=%d woken=%d" % [mm_dormant, mm_woken])
 
 	# THE UNBROKEN LIGHT: despair takes root in nobody while the light holds
@@ -387,7 +458,11 @@ func _ready() -> void:
 		GameState.villager_rot = {}
 		GameState.rescued_villagers = [{"id": "sad", "name": "Sad", "sex": "Male",
 			"is_kid": false, "stat_name": "", "stat_value": 3, "role_key": "",
-			"role_title": "", "morale": 0.0}]
+			"role_title": "", "morale": 0.0},
+			# the Shrine crowns no VIP: its KEEPERS at their posts hold the light
+			{"id": "lk", "name": "Keeper", "sex": "Female", "is_kid": false,
+				"stat_name": "Hospital", "stat_value": 4,
+				"role_key": "Shrine", "role_title": "Lightkeeper"}]
 		GameState.tick_rot(1.0)
 		return GameState.villager_rot.size()
 	var rot_dormant: int = rooted.call(GameState.BUILDING_POWER_LEVEL - 1)
@@ -400,6 +475,9 @@ func _ready() -> void:
 		GameState.building_levels["Science Lab"] = lvl
 		GameState.building_stage["Science Lab"] = GameState.TOTAL_BUILD_STAGES
 		GameState.building_health["Science Lab"] = 100
+		GameState.rescued_villagers = [{"id": "lr", "name": "Wrenna", "sex": "Female",
+			"is_kid": false, "stat_name": "Lead Researcher", "stat_value": 7,
+			"role_key": "Science Lab", "role_title": "Lead Researcher"}]
 		GameState.researched_materials = []
 		GameState.auto_research(1)
 		return GameState.researched_materials.size()
@@ -415,7 +493,11 @@ func _ready() -> void:
 	GameState.morale_death_shock = 0.0
 	GameState.rescued_villagers = [{"id": "bleak", "name": "Bleak", "sex": "Male",
 		"is_kid": false, "stat_name": "", "stat_value": 3, "role_key": "",
-		"role_title": "", "morale": 0.0}]
+		"role_title": "", "morale": 0.0},
+		# the keeper is seated (the power is hers) but just as bleak, so the reading
+		# reflects THE FLOOR rather than one cheerful outlier lifting the average
+		{"id": "tk", "name": "Bess", "sex": "Female", "is_kid": false, "stat_name": "Tavernkeeper",
+			"stat_value": 5, "role_key": "Tavern", "role_title": "Tavernkeeper", "morale": 0.0}]
 	GameState.building_levels["Tavern"] = GameState.BUILDING_POWER_LEVEL - 1
 	var mood_dormant: int = GameState.village_morale()
 	GameState.building_levels["Tavern"] = GameState.BUILDING_POWER_LEVEL

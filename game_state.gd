@@ -1133,10 +1133,15 @@ func building_level(name: String) -> int:
 # building stops needing to be managed.
 const BUILDING_POWER_LEVEL := 4
 const BUILDING_POWERS := {
-	"Blacksmith":   {"name": "The Night Forge", "desc": "The forge runs unattended — arms are made even with no Forgemaster seated."},
-	"School":       {"name": "The Open Doors", "desc": "Children enrol themselves — no Principal needed to school the town."},
-	"Government":   {"name": "The Standing Order", "desc": "The town staffs itself — every idle soul is put to work without a Chancellor."},
-	"Builderhouse": {"name": "The Standing Crew", "desc": "The crew rebuilds on its own — ruins are repaired with no Master Builder."},
+	# THE FOUR RE-SCOPED (dev call 2026-07-30: "leader loses its value"). These four
+	# used to read "...with no Forgemaster / no Principal / no Chancellor / no Master
+	# Builder" -- they replaced the very person they belonged to. Now a power needs
+	# its leader IN the chair (has_building_power), so each had to become something
+	# that leader could never do alone, or level 4 would have bought nothing at all.
+	"Blacksmith":   {"name": "The Night Forge", "desc": "The fires never bank — the forge turns out twice the arms a day-shift could."},
+	"School":       {"name": "The Open Doors", "desc": "No child waits for a seat — the hall takes them all in, past every desk it has."},
+	"Government":   {"name": "The Standing Order", "desc": "Nobody works a trade they weren't trained for — the wrongly-placed are moved to work that fits."},
+	"Builderhouse": {"name": "The Standing Crew", "desc": "The crew scavenges what it needs — repairs cost the village stores nothing."},
 	"Barracks":     {"name": "The Standing Watch", "desc": "The watch overlaps — every warrior holds the wall at full worth, on shift or not."},
 	"Farm":         {"name": "The Standing Harvest", "desc": "The Farm holds a reserve back, and opens it rather than let Deepwood starve."},
 	"Fishing Dock": {"name": "The Long Haul", "desc": "The boats work past the shallows — a deep catch comes in daily, unbidden."},
@@ -1192,10 +1197,30 @@ const TIDE_TABLE_CRATES := ["crate_driftwood", "crate_pearlbound"]
 const TIDE_TABLE_DAYS := 3.0        # a sealed crate about this often
 var _tide_table_accum := 0.0
 
-# Has this building grown into its named power?
+# A power is its LEADER'S MASTERWORK, not a replacement for them (dev call
+# 2026-07-30: "leader loses its value"). As first built, ten of the fifteen powers
+# did the seated leader's own job -- the Standing Order staffed the town "without a
+# Chancellor", the Open Doors schooled children "no Principal needed" -- so gold
+# spent on a level bought past the rarest content in the game (one named VIP per
+# post, each pulled from a specific depth) AND past the automation ladder's whole
+# pacing, which is measured in rescue depths: Publican 20, Principal 45, Master
+# Builder 55, Chancellor 95.
+# Now the building must be GRAND ENOUGH (level 4) *and* have the right person in
+# the chair. The power is what that person can finally do with a hall this size.
 func has_building_power(name: String) -> bool:
 	return BUILDING_POWERS.has(name) and is_building_operational(name) \
-		and building_level(name) >= BUILDING_POWER_LEVEL
+		and building_level(name) >= BUILDING_POWER_LEVEL \
+		and building_power_staffed(name)
+
+# Who has to be in the chair for the power to wake. Every building crowns itself
+# with a named leadership post -- except the SHRINE, whose Lightkeepers are
+# Hospital-trained keepers rather than a rescued VIP. There, the keepers at their
+# posts are the ones holding the light, so they answer for it.
+func building_power_staffed(name: String) -> bool:
+	for rd in BuildingRoles.get_roles(name):
+		if rd.get("leadership", false):
+			return seated_leaders(name) > 0
+	return count_workers(name) > 0
 
 # The power's display name, or "" if this building has none / hasn't grown into it.
 func building_power_name(name: String) -> String:
@@ -5293,9 +5318,12 @@ func seated_leaders(role_key: String) -> int:
 
 func apply_leadership_automation() -> void:
 	var player = get_tree().get_first_node_in_group("player")
-	# THE STANDING ORDER (power): a grown Government runs its own rolls
-	if seated_leaders("Government") > 0 or has_building_power("Government"):
+	if seated_leaders("Government") > 0:
 		auto_staff_villagers()                      # Chancellor: staff the town
+	# THE STANDING ORDER (power): with a Chancellor in a hall this grand, nobody is
+	# left in a trade they weren't trained for -- the wrongly-placed get moved.
+	if has_building_power("Government"):
+		reseat_mismatched_workers()
 	if player and player.has_method("add_currency") and (seated_leaders("Bank") > 0 or (is_building_operational("Bank") and count_workers("Bank") > 0)):
 		# 5.6: interest is the Bank's FUNCTION -- any staffed Financist grows
 		# the treasury (half rate); the Treasurer leader runs it at full, and
@@ -5313,14 +5341,15 @@ func apply_leadership_automation() -> void:
 	var physicians = seated_leaders("Hospital")
 	if physicians > 0:
 		auto_heal_villagers(physicians)             # Chief Physician: heal the hurt
-	# THE OPEN DOORS (power): a grown School takes children in by itself
-	if seated_leaders("School") > 0 or has_building_power("School"):
+	# THE OPEN DOORS (power): the Principal's hall takes every child, past its desks
+	if seated_leaders("School") > 0:
 		auto_enroll_children(maxi(1, seated_leaders("School")))  # Principal: school the kids
 	# Grammar (5.1): a staffed Worker crew rebuilds on its own -- delegated,
 	# at half the leaders' pace; Master Builder/Foreman run it every tick
-	# THE STANDING CREW (power): a grown Builderhouse rebuilds at full pace with
-	# nobody in charge -- the crew knows the work now
-	if seated_leaders("Builderhouse") > 0 or has_building_power("Builderhouse"):
+	# (THE STANDING CREW rides inside auto_repair_one: with the Master Builder in a
+	# hall this grand the crew scavenges its own materials, so a repair costs the
+	# village stores nothing.)
+	if seated_leaders("Builderhouse") > 0:
 		auto_repair_one()                           # leaders: rebuild the ruins
 	elif count_workers("Builderhouse") > 0:
 		_builder_half_tick = not _builder_half_tick
@@ -5336,9 +5365,7 @@ func apply_leadership_automation() -> void:
 	auto_pair_couples()
 	if seated_leaders("Marketplace") > 0:
 		auto_sell_village_surplus()                 # Merchant Prince: stores -> treasury
-	# THE NIGHT FORGE (power): a grown forge no longer waits on its master
-	if (forgemaster_supplying() or (has_building_power("Blacksmith") and is_building_operational("Barracks"))) \
-			and barracks_arms < BARRACKS_ARMS_CAP:
+	if forgemaster_supplying() and barracks_arms < BARRACKS_ARMS_CAP:
 		# THE CHAIN: every arm is forged FROM village iron (Mine -> Forge ->
 		# armory) -- an empty ore store means a cold forge, however grand the
 		# Forgemaster. Seat miners to feed him.
@@ -5350,6 +5377,11 @@ func apply_leadership_automation() -> void:
 		# The two compose -- hands add to the bench, the ground scales it.
 		var bench: int = FORGE_ARMS_PER_TICK + int(floor(
 			SMITH_ARMS_PER_HEAD * float(count_leader_holders("Blacksmith", "Blacksmith"))))
+		# THE NIGHT FORGE (power): the fires never bank. With the Forgemaster in a
+		# hall this grand the bench runs a night shift too -- twice the arms a day
+		# could turn out. Still spends village iron: the chain always binds.
+		if has_building_power("Blacksmith"):
+			bench *= 2
 		var per_tick: int = int(round(float(bench) * building_output_multiplier("Blacksmith")))
 		var forged: int = mini(per_tick,
 			mini(int(village_stockpile["iron_shard"]) / FORGE_IRON_PER_ARM, BARRACKS_ARMS_CAP - barracks_arms))
@@ -5366,6 +5398,34 @@ func auto_staff_villagers() -> void:
 			continue
 		if not try_auto_place(v, true):
 			try_auto_place(v, false)
+
+# THE STANDING ORDER (Government power). The Chancellor alone SEATS the idle;
+# with a hall this grand behind them they also correct the seating already done --
+# a trained fisher shovelling in a mine is moved to work that fits. This is a real
+# gain the leader cannot make alone: villager_needs scores "right_job" separately
+# from "work", so a mismatched soul is quietly losing morale every hour they stay.
+# Leadership seats and trainees are never touched.
+func reseat_mismatched_workers() -> void:
+	for v in rescued_villagers:
+		if v.get("is_kid", false) or school_enrollments.has(v.get("id")):
+			continue
+		var stat := str(v.get("stat_name", ""))
+		var rk := str(v.get("role_key", ""))
+		if stat == "" or rk == "":
+			continue
+		var needs: Dictionary = villager_needs(v)
+		if bool(needs.get("right_job", true)):
+			continue                      # already where they belong
+		var was := rk
+		var was_title := str(v.get("role_title", ""))   # read BEFORE clearing, or the
+		v["role_key"] = ""                              # restore below puts them back
+		v["role_title"] = ""                            # in the job with no title
+		if try_auto_place(v, true):
+			log_event("village", "%s was moved from the %s to work that suits their training." % [
+				str(v.get("name", "?")), was])
+		else:
+			v["role_key"] = was           # nowhere better to put them: leave it be
+			v["role_title"] = was_title
 
 func try_auto_place(v: Dictionary, require_stat_match: bool) -> bool:
 	for bkey in BuildingRoles.ROLE_DEFS.keys():
@@ -5478,6 +5538,10 @@ func auto_enroll_children(principals: int) -> void:
 		if str(rd.get("title", "")) == "Student":
 			cap = role_capacity("School", rd)
 			break
+	# THE OPEN DOORS (power): a hall this grand, with its Principal in it, turns
+	# nobody away -- no child waits for a desk. cap 0 means "no ceiling" below.
+	if has_building_power("School"):
+		cap = 0
 	var budget = AUTO_ENROLL_PER_PRINCIPAL * principals
 	# count only the SCHOOL's own trainees against the Student cap:
 	# school_enrollments is shared with the Barracks (each entry tagged by
@@ -5520,6 +5584,14 @@ func auto_repair_one() -> void:
 			worst = bn
 	if worst == "" or worst_stage >= TOTAL_BUILD_STAGES:
 		return
+	# THE STANDING CREW (power): with the Master Builder in a hall this grand the
+	# crew scavenges its own timber and stone off the ruin it is standing in, so a
+	# stage costs the village stores nothing. This is the one thing the leader
+	# could never do alone -- and it is what level 4 buys.
+	if has_building_power("Builderhouse"):
+		building_stage[worst] = worst_stage + 1
+		_finish_repair_stage(worst)
+		return
 	# THE CHAIN: a stage costs real timber and stone from the village stores --
 	# the crew no longer conjures repairs from nothing (City Machine pillar A).
 	# Feed the stores with Mine crews and the builders' own timber runs.
@@ -5534,10 +5606,17 @@ func auto_repair_one() -> void:
 	village_stockpile["wood"] = int(village_stockpile["wood"]) - REPAIR_STAGE_WOOD
 	village_stockpile["stone"] = int(village_stockpile["stone"]) - REPAIR_STAGE_STONE
 	building_stage[worst] = worst_stage + 1
-	if int(building_stage[worst]) >= TOTAL_BUILD_STAGES:
+	_finish_repair_stage(worst)
+
+# The tail every repair path shares: bank the finished hall and refresh its body.
+func _finish_repair_stage(worst: String) -> void:
+	if int(building_stage.get(worst, 0)) >= TOTAL_BUILD_STAGES:
 		building_health[worst] = BUILDING_MAX_HEALTH
 		log_event("village", "The builders finished the %s — it stands again." % worst)
-	for node in get_tree().get_nodes_in_group("building"):
+	var t := get_tree()
+	if t == null:
+		return
+	for node in t.get_nodes_in_group("building"):
 		if "role_key" in node and str(node.role_key) == worst and node.has_method("refresh_visual"):
 			node.refresh_visual()
 

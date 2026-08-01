@@ -258,8 +258,25 @@ func add_upgrade_section(list: VBoxContainer) -> void:
 			pl.text = "  ★ %s — awake.\n     %s" % [str(pw.get("name", "")), str(pw.get("desc", ""))]
 		else:
 			pl.add_theme_color_override("font_color", Color(0.62, 0.66, 0.78, 1))
-			pl.text = "  ☆ %s — wakes at level %d.\n     %s" % [
-				str(pw.get("name", "")), GameState.BUILDING_POWER_LEVEL, str(pw.get("desc", ""))]
+			# NAME THE MISSING HALF. A power needs the hall AND the person, so a
+			# level-4 building with an empty chair would otherwise read as broken.
+			var lvl_ok: bool = b.building_level >= GameState.BUILDING_POWER_LEVEL
+			var who_ok: bool = GameState.building_power_staffed(b.building_name)
+			var leader_title := ""
+			for rd2 in b.get_roles():
+				if rd2.get("leadership", false):
+					leader_title = str(rd2.get("title", ""))
+					break
+			var need := ""
+			if not lvl_ok and not who_ok:
+				need = "needs level %d and %s in the chair" % [GameState.BUILDING_POWER_LEVEL,
+					("a " + leader_title) if leader_title != "" else "its keepers at their posts"]
+			elif not lvl_ok:
+				need = "wakes at level %d" % GameState.BUILDING_POWER_LEVEL
+			else:
+				need = "the hall is grand enough — it wants %s" % \
+					(("a " + leader_title + " seated") if leader_title != "" else "its keepers at their posts")
+			pl.text = "  ☆ %s — %s.\n     %s" % [str(pw.get("name", "")), need, str(pw.get("desc", ""))]
 		list.add_child(pl)
 
 	# ---- DISTRICT: which quarter of the road it stands in, and whether that suits ----
