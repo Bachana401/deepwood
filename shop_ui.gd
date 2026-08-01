@@ -14,13 +14,17 @@ var player: Node2D = null
 func _ready() -> void:
 	add_to_group("esc_window")
 	player = get_tree().get_first_node_in_group("player")
-	_connect_option($DashOption, "dash")
-	_connect_option($DoubleJumpOption, "double_jump")
-	_connect_option($SpearOption, "spear")
-	_connect_option($BowOption, "bow")
+	# null-safe like assign_ui (f6b819b): a bare-script instance has none of
+	# these children, and reaching through $ threw on frame one
+	_connect_option(get_node_or_null("DashOption"), "dash")
+	_connect_option(get_node_or_null("DoubleJumpOption"), "double_jump")
+	_connect_option(get_node_or_null("SpearOption"), "spear")
+	_connect_option(get_node_or_null("BowOption"), "bow")
 	# The classic screen-nuke Magic Wand is an ADMIN/test item (it deletes every
 	# enemy incl. bosses) -- it is NOT for sale in the real game. Hidden here.
-	$MagicWandOption.visible = false
+	var mw := get_node_or_null("MagicWandOption")
+	if mw != null:
+		mw.visible = false
 	# a visible way OUT (audit fix, same as wanderer_ui): this panel had neither
 	# a close button nor a toggle key -- ESC via the pause sweep was the sole,
 	# undiscoverable exit, while the Panel ate every click under its 300x200
@@ -84,6 +88,8 @@ func esc_close() -> void:
 	visible = false
 
 func _connect_option(label: Label, item: String) -> void:
+	if label == null:
+		return
 	label.mouse_entered.connect(_on_hover_start.bind(item))
 	label.mouse_exited.connect(_on_hover_end.bind(item))
 	label.gui_input.connect(_on_option_gui_input.bind(item))
