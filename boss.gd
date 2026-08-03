@@ -2267,7 +2267,16 @@ func _build_wizard_ground_aura() -> void:
 	spr.position = Vector2(0, body.y / 2.0)   # bottom pinned to his feet
 	spr.modulate = Color(1.0, 0.55, 0.45, 0.9)
 	add_child(spr)
-	move_child(spr, rig.get_index())   # behind the body, above the world
+	# THE RIG MAY NOT EXIST. build_rig() only runs inside configure_from_def's
+	# `if has_node("CollisionShape2D")` branch, i.e. only for a boss instantiated
+	# from boss.tscn. A boss built straight off the script (BS.new(), which the
+	# mechanics tests do by the dozen) has no rig, and rig.get_index() threw
+	# "Cannot call method 'get_index' on a null value" from _ready -- which
+	# ABORTED configure_from_def half-way and left the boss silently
+	# mis-configured. tick_afterimage_trap and _drive_anim already guard on
+	# `rig == null`; this was the one place that didn't.
+	if rig != null and is_instance_valid(rig):
+		move_child(spr, rig.get_index())   # behind the body, above the world
 	spr.play("burn")
 	ground_aura = spr
 	# slow breathing pulse -- the fire swells and settles forever

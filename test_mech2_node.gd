@@ -15,6 +15,39 @@ func check(name: String, ok: bool, detail: String = "") -> void:
 		fails += 1
 		printerr("FAIL  ", name, "   ", detail)
 
+# THE SILENT KILLER OF THIS WHOLE FILE (found 2026-08-03).
+#
+# Every check below measures a mechanic driven by _physics_process. If anything
+# pops a DIALOGUE mid-run -- a story beat, or simply the player being hit hard --
+# dialogue_box.gd pauses the entire tree in its _ready(). The cruelty is that
+# `await get_tree().physics_frame` STILL RESOLVES while the tree is paused, so
+# every loop below spins its full count and measures absolutely nothing, and the
+# mechanic reports a FAILURE it never had a chance to demonstrate.
+#
+# That is exactly how this file went red: a live gravewarden left standing next
+# to the player beat him from 160 HP to 32, knocked him airborne (so is_on_floor()
+# never came back true, hence "landed=false"), and the resulting dialogue paused
+# the tree for the remaining four mechanics.
+#
+# So: re-assert a running tree before every section, and never leave a hostile
+# boss alive once its own section is done.
+func keep_running() -> void:
+	for n in get_tree().get_nodes_in_group("dialogue_box"):
+		if n.has_method("finish"):
+			n.finish()
+	for n in get_tree().get_nodes_in_group("choice_prompt"):
+		if n.has_method("finish"):
+			n.finish()
+	if get_tree().paused:
+		get_tree().paused = false
+
+# A fixture has served its purpose -- get it out of the arena before it starts
+# fighting the player and corrupting the next measurement.
+func retire(b: Node) -> void:
+	if b != null and is_instance_valid(b):
+		b.set_physics_process(false)
+		b.queue_free()
+
 func _ready() -> void:
 	var p: Node = null
 	for i in range(1200):
@@ -64,8 +97,10 @@ func _ready() -> void:
 	dw.facing_direction = 1
 	dw.take_damage(80)
 	check("dread_ward: flanking it WORKS", dw.health < h0, "%d -> %d" % [h0, dw.health])
+	retire(dw)   # or it spends the rest of this file mauling the player
 
 	# ---------------- SKYFALL ----------------
+	keep_running()
 	var sk = BS.new()
 	sk.boss_id = "stormcaller"
 	host.add_child(sk)
@@ -107,8 +142,10 @@ func _ready() -> void:
 	check("skyfall: being AIRBORNE near it is punished", p.health < ahp,
 		"%d -> %d" % [ahp, p.health])
 	check("skyfall: the punish is survivable", not p.is_dead and p.health > 0)
+	retire(sk)
 
 	# ---------------- MIRROR ----------------
+	keep_running()   # the skyfall punish above may well have popped a dialogue
 	# The trap this nearly shipped as: nothing was in a findable group, so the
 	# mechanic would have looked implemented and silently reflected nothing.
 	var arrow_scene := load("res://arrow.tscn")   # arrows need their HitArea child -- .gd.new() makes a bare node
@@ -152,8 +189,10 @@ func _ready() -> void:
 	check("mirror: the shot is turned around and is now HOSTILE",
 		is_instance_valid(a) and a.is_in_group("hostile_projectile")
 		and not a.is_in_group("player_projectile"))
+	retire(mi)
 
 	# ---------------- COVENANT ----------------
+	keep_running()
 	var c1 = BS.new(); c1.boss_id = "twin_despair"
 	var c2 = BS.new(); c2.boss_id = "twin_despair"
 	host.add_child(c1); host.add_child(c2)
@@ -179,8 +218,10 @@ func _ready() -> void:
 		await get_tree().physics_frame
 	check("covenant: PRESSURING the twin stops the healing (counter-play)",
 		c2.health == held, "%d -> %d" % [held, c2.health])
+	retire(c1); retire(c2)
 
 	# ---------------- FALSE TWIN ----------------
+	keep_running()
 	# Real boss.tscn from here on, and the flags are NOT set by hand: that is the
 	# point. A mechanic can only be trusted if the boss's own passive list turns
 	# it on -- "soulbind" sat in three passive lists for weeks with nothing
@@ -207,10 +248,19 @@ func _ready() -> void:
 		real.true_shadow != null and fake != null and fake.true_shadow == null)
 	# the whole point: swinging at a fake buys you nothing
 	var rhp: int = real.health
-	fake.take_damage(200)
-	check("false_twin: hurting a copy does NOT hurt the real one", real.health == rhp,
-		"%d -> %d" % [rhp, real.health])
-	check("false_twin: but the copy itself is killable", fake.health < fake.max_health)
+	if fake == null:
+		# A FAILED ASSERTION MUST FAIL, NOT HANG. This used to be a bare
+		# fake.take_damage(200): when the split didn't happen, `fake` was null,
+		# the null-deref aborted _ready() before it could reach get_tree().quit(),
+		# and the process idled at the menu forever -- so the suite reported a
+		# 900-second TIMEOUT and buried the seven real failures above it.
+		check("false_twin: hurting a copy does NOT hurt the real one", false, "no copy exists")
+		check("false_twin: but the copy itself is killable", false, "no copy exists")
+	else:
+		fake.take_damage(200)
+		check("false_twin: hurting a copy does NOT hurt the real one", real.health == rhp,
+			"%d -> %d" % [rhp, real.health])
+		check("false_twin: but the copy itself is killable", fake.health < fake.max_health)
 	# clear the floor -> it binds new fakes rather than staying alone
 	for t in real._twins:
 		if is_instance_valid(t):
