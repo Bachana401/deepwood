@@ -51,7 +51,8 @@ Don't build toward these without asking first — flagged in the project's own d
 ## Risk flags
 
 - ~~**Uncommitted work (as of 2026-07-13):** 10 modified files + untracked `admin_panel.gd`, `morale_meter.gd`, `village_life.gd`~~ — **RESOLVED long since;** all of it is on master. (Left struck through as the standing reminder that this file's "current state" claims age badly.)
-- **Abandoned worktrees still on disk (2026-08-03).** `.claude/worktrees/bestiary` and `.claude/worktrees/gifted-murdock-786925`. Neither branch has a commit master lacks, but `gifted-murdock` held a whole session of finished, uncommitted fixes that were nearly lost — they have now been landed (see the log entry below). `bestiary` still holds one untracked tool, `tool_eyes_projectiles.gd` (148 lines), not brought over. Nothing is deleted; both worktrees are left in place for the dev to clear.
+- ~~**Abandoned worktrees on disk (2026-08-03).**~~ **CLEARED 2026-08-03.** `.claude/worktrees/bestiary` and `.claude/worktrees/gifted-murdock-786925` are removed and pruned; `.claude/worktrees` is empty. Everything of value was landed first — `gifted-murdock`'s whole session of finished fixes (see the log entry below), and `bestiary`'s untracked `tool_eyes_projectiles.gd`, which existed nowhere else and was committed on its own (`4f89191`) before deletion. Three branch pointers remain — `claude/bestiary`, `claude/gifted-murdock-786925`, `terraria-underground` — all fully contained in master (0 commits master lacks), kept as harmless history.
+- **The standing lesson from that clean-up:** a worktree branch pointing at master's own commit is invisible to `git log` and `git status` from the repo root. Before any bug hunt, run `git worktree list` and `git -C <each> status --short` — a session's last uncommitted hour lives there and nothing else will show it to you.
 
 ---
 
