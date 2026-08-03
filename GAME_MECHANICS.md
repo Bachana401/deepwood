@@ -1,6 +1,8 @@
 # DEEPWOOD — Mechanics Reference
 
-_What the code actually does, as of 2026-07-17 (HEAD `1d719bd`). Every number here was read out of the source, not from design docs._
+_What the code actually does. Every number here was read out of the source, not from design docs._
+
+_Base pass 2026-07-17 (HEAD `1d719bd`). **§8.7–8.12 (the City Machine — supply chain, placement, auras, building powers, the automation ladder, the population loop) added 2026-08-03**, read out of `game_state.gd` at HEAD `7869d0b`._
 
 **How this differs from the other docs:** `GAME_BIBLE.md` and `VILLAGE_SYSTEMS.md` describe the *intended* design (much of it still 📋 planned). This file describes only **what is built and running**. Where a system is partially wired, it says so.
 
@@ -343,7 +345,10 @@ Enemies ~25% chance, bosses 100%.
 |---|---|
 | Max health | `400` |
 | Build stages | `3` (`TOTAL_BUILD_STAGES`) |
-| Output per level | `+25%` per level above 1 (`BUILDING_OUTPUT_PER_LEVEL = 0.25`) |
+| Output per level | `+5%` per level above 1 (`BUILDING_OUTPUT_PER_LEVEL = 0.05`) |
+| Named power at | level `4` (`BUILDING_POWER_LEVEL`) — see §8.10 |
+
+> The per-level trickle is deliberately **small**. Levels are not bought for the percentage; they are bought for the **named power** that wakes at level 4. See §8.10.
 
 Buildings have a health/ruin state, a repair requirement (gold + materials), and an upgrade path. `STARTING_BUILDINGS` defines which exist at the start of a real (non-dev) game.
 
@@ -359,7 +364,9 @@ Every building's roles are defined in `building_roles.gd`. A role entry carries:
 
 1. **Leadership** (the top role of every building) — a unique named post (Chancellor, Harvestmaster, Harbormaster, Forgemaster, Warchief, Principal, Chief Physician, Lead Researcher…). Each requires a `required_stat` **equal to its own title**. These stats are deliberately **absent from `REGULAR_STATS`**, so **School can never graduate a leader** — a leader is *always* a rescued VIP (`VillagerQuests.IMPORTANT_FIGURES`, the boss-level "important NPC" rescues). Code keys off the `leadership` flag, not the title.
 2. **Worker** — requires a matching profession stat (Farmer needs `Farm`).
-3. **Enrollment** (`is_enrollment`) — taking the slot doesn't assign a worker, it **starts a graduation timer** (`GameState.enroll_villager`). School's *Student* (`requires_kid`, `grants_stat: "random"`); Barracks' *Recruit* (`requires_sex: "Male"`, `grants_stat: "Warrior"`).
+3. **Enrollment** (`is_enrollment`) — taking the slot doesn't assign a worker, it **starts a graduation timer** (`GameState.enroll_villager`). School's *Student* (`requires_kid`, `grants_stat: "random"`); Barracks' *Recruit* (open to **any** adult, `grants_stat: "Warrior"`).
+
+> **Recruit was Male-only until 2026-07-30.** That quietly capped the warrior corps at roughly half the birth rate and made the Government's schooling policy (§8.12) a lie for every daughter born — "send the children to the Barracks" could never apply to half of them. `requires_sex` still exists as a field; nothing uses it now.
 
 Example — Government: Chancellor ×1 (leadership), Party ×10 (open). School: Principal ×2, Teachers ×10, Student ×20.
 
@@ -395,7 +402,16 @@ INCOME_ROLES = { Farm: Farmer, Hospital: Doctors, Fishing Dock: Fisherman,
 | School | graduation speed |
 | Barracks | recruit training speed |
 
-*Not yet mapped:* couple mating speed, material generation speed.
+**Leader powers** (`LEADER_POWERS`, dev law 2026-07-29). Four leaders were *pure stat* — Harvestmaster `+60%` food, Harbormaster `+60%`, Pitmaster `+50%` ore, Warchief `+15%` training — while every other leader already **did** something (the Chancellor staffs, the Publican pairs, the Master Builder builds). Their flat percentages shrank to connective tissue and each gained a **named behaviour**, deliberately chosen not to overlap the building power sitting alongside it:
+
+| Leader | Power | What it does |
+|---|---|---|
+| **Harvestmaster** (Farm) | *The Full Table* | works the fields alone — the Farm feeds Deepwood with **no farmhands seated** (`MASTER_ALONE_CREW = 2`) |
+| **Harbormaster** (Fishing Dock) | *The Tide Table* | the boats land a sealed crate from deep water roughly every `3` days (`TIDE_TABLE_*`) |
+| **Pitmaster** (Mine) | *The Sounding* | the crew cuts ore **matched to the deepest floor you have reached** — iron → resin (15) → ember crystal (35) → void essence (60) |
+| **Warchief** (Barracks) | *The Muster* | the horn calls **every able adult** to the wall, not only the trained |
+
+`has_leader_power()` requires the named title seated **and** the building operational. Compare §8.10: a *building* power is that leader's masterwork, never a replacement for them.
 
 ### 8.5 Villager lifecycle
 
@@ -417,6 +433,155 @@ Barracks always grants `Warrior` regardless of input.
 `GameState.village_morale()` drives `village_life.gd`:
 - Ambient critters scale with morale (`morale/100 × 7` targets).
 - At peak (10/10) a **celebration** fires — an **event**, not a permanent state: `CELEBRATION_DURATION = 20.0s`, tracked on the rising edge (`was_at_peak`).
+
+---
+
+### 8.7 The supply chain — the village's own stores
+
+*(The City Machine, pillar A. Before this, buildings each produced gold in isolation and repairs were conjured out of nothing.)*
+
+The town keeps its **own** stockpile, separate from the player's bag:
+
+```
+village_stockpile = { wood, stone, iron_shard }
+```
+
+| Who fills it | What, per day |
+|---|---|
+| **Mine** crews | `+1` stone and `+1` iron_shard **per miner** (`MINE_VILLAGE_*_PER_MINER`) — *on top of* the player's unchanged personal haul |
+| **Builderhouse** workers | `+1` wood per builder (`WOOD_PER_BUILDER_PER_DAY`), plus quarried stone at half the crew size |
+| **The player** | `donate_to_stores()` — hand over what you're carrying at the Builderhouse panel |
+
+| Who spends it | What, per unit |
+|---|---|
+| **Builderhouse** repair crew | `2` wood + `1` stone per repair stage (`REPAIR_STAGE_*`) |
+| **Blacksmith** smiths | `1` iron_shard per armory arm (`FORGE_IRON_PER_ARM`) |
+| **Builderhouse** auto-cottages | `8` wood + `4` stone per cottage (`AUTO_COTTAGE_*`) |
+
+**Science Lab is the tech rung:** `research_yield_multiplier()` = `+15%` per seated Lead Researcher (`RESEARCH_YIELD_PER_SEAT`), multiplying **every** store yield. The Lab finally feeds the machine instead of only identifying loot.
+
+> **Fractional banking (`_store_accum`).** Yields accrue as floats and only land as whole units when they cross 1.0. Without it every multiplier vanished at small scale — one miner hauling 1 stone/day × a 1.20 adjacency bonus rounds straight back to `1`, so a well-placed early Mine gained *literally nothing* and the whole synergy layer stayed invisible until the crews got big. Now the 0.2 accrues and lands as a whole stone on the fifth day.
+
+**The treasury (the Bank slice).** A staffed Bank banks `TREASURY_TAX_SHARE = 25%` of the tax take into `village_treasury`, and **payday draws from that purse before the player's pocket** (`tick_wages`). A fully-funded payday sets `_bank_paid_full_payroll` — the first rung of the city funding itself.
+
+### 8.8 Placement — where you build matters
+
+The village is a **1-D strip**, so all three placement rules read off a single x coordinate. They are **positive-only** (nothing is ever penalised for standing in the wrong place) and they **stack**, folding into one term:
+
+```gdscript
+func building_output_multiplier(name) -> float:
+    return 1.0 + (building_level(name) - 1) * BUILDING_OUTPUT_PER_LEVEL
+        + adjacency_bonus(name) + district_bonus(name) + plot_bonus(name)
+```
+
+`refresh_layout()` caches `building_neighbors`, `building_districts`, `building_plots` and `building_x` — **all four must resolve while the surface scene is unloaded** (the player is in the deep and the town still runs).
+
+**Phase 1 — Adjacency** (`ADJACENCY_PAIRS`, 8 pairs, capped at `ADJACENCY_BONUS_CAP = 0.30`). "Adjacent" means the **immediate left/right neighbour**, not a radius.
+
+| Pair | Bonus | Why |
+|---|---|---|
+| Mine ↔ Blacksmith | `+20%` | ore goes straight from the seam to the forge |
+| Bank ↔ Marketplace | `+20%` | the counting house sits beside the carts |
+| Mine ↔ Builderhouse | `+15%` | stone lands at the masons' door |
+| Blacksmith ↔ Barracks | `+15%` | arms carried straight to the drill yard |
+| Farm ↔ Fishing Dock | `+15%` | one larder, filled from field and water both |
+| Science Lab ↔ School | `+15%` | the lab's findings are taught the same day |
+| Bar ↔ Tavern | `+15%` | a bed waits directly above the music |
+| Hospital ↔ Shrine | `+15%` | healing and mercy keep one threshold |
+
+**Phase 2 — Districts** (`DISTRICT_HOME`, `+DISTRICT_BONUS = 10%` for standing in your own quarter). Measured **east of the west gate**, so the quarters move with the wall:
+
+| Quarter | Range | Home to |
+|---|---|---|
+| **Gatefront** — the war quarter | gate → `+4500` | Barracks, Blacksmith, Hospital |
+| **The Heart** — the civic quarter | `+4500` → `+9500` | Government, Bank, Marketplace, School, Science Lab, Bar, Tavern |
+| **Outskirts** — the working land | beyond `+9500` | Farm, Fishing Dock, Mine, Builderhouse, Shrine |
+
+**Phase 3 — Special plots** (`SPECIAL_PLOTS`, 7 of them, `+PLOT_BONUS = 15%` within `PLOT_RADIUS = 260px` of the centre). Richer than a quarter because a plot is **one spot** and often far from anywhere convenient: The Muster Yard (Barracks), The Old Market Square (Marketplace), The Black Soil (Farm), The Spring (Fishing Dock), The Quarry Shelf (Builderhouse), The Ore Vein (Mine), The Sorrow-Touched Stones (Shrine). Painted into the world by `special_plot.gd`.
+
+> **Two lessons paid for in bugs.** (1) Four of the seven plots were **unbuildable** — the live placer rejected the ground — and arithmetic never showed it; only *probing the placer* did. (2) All seven were **invisible** at `z_index = -4`, behind the terrain, and only a screenshot found it. Terrain earth sits at `z 0`, the grass cap at `z 1`; anything the player must see goes **above**.
+
+### 8.9 Auras — the rule that points outward
+
+Phases 1–3 all change what a building produces **for itself**. An aura changes life for everything **around** it — so for the first time, where you build decides *who benefits*.
+
+| Building | Aura | Radius | Effect |
+|---|---|---|---|
+| **Bar** | *The Sound of It* | `1600` | `+0.8` personal morale target (`AURA_BAR_MORALE`) |
+| **Shrine** | *Hallowed Ground* | `1400` | despair cannot take root in range |
+| **Hospital** | *The Ward's Shadow* | `1500` | `+2.5` HP/hour for the wounded (`AURA_WARD_REGEN`) |
+
+**Auras are measured against homes and workplaces, never wandering bodies.** A villager's NPC avatar only exists while the surface is loaded and it walks about all day; their **cottage** and their **job** stand still and survive into the deep. So an aura asks *"is this person's home or work inside the circle?"* (`villager_places()`) — stable, saves correctly, keeps working while the player is away, and (the real prize) makes **cottage placement** part of the puzzle. A home built in the Bar's light is a happier home for as long as it stands. Nobody homeless and jobless is reached by any aura — which is its own quiet argument for housing them.
+
+Only three buildings carry one, and each rides a system that was **already spatial**. No aura was invented to give a building something to do.
+
+### 8.10 Building powers — what a level is actually for
+
+At `BUILDING_POWER_LEVEL = 4` every building wakes a **named power** that changes what it *does*. The numeric ladder (§8.1) shrank to `+5%` to make room for this: *"stats should not be important at all — transfer their importance to unique behaviour."*
+
+```gdscript
+has_building_power(name) := BUILDING_POWERS.has(name)
+    and is_building_operational(name)
+    and building_level(name) >= 4
+    and building_power_staffed(name)      # <-- the leader must be IN the chair
+```
+
+> **⚠ THE LEADER GATE (dev call 2026-07-30: "leader loses its value").** Four powers originally read *"…with no Forgemaster / no Principal / no Chancellor / no Master Builder"* — they **replaced the very person they belonged to**, making the hardest rescues in the game redundant the moment you paid for an upgrade. Now a power **requires its leader seated**, and those four had to be re-scoped into something that leader could never do alone, or level 4 would have bought nothing at all. `building_power_staffed()` reads `seated_leaders() > 0`, except the **Shrine**, whose Lightkeepers are Hospital-trained keepers rather than a rescued VIP — there, the keepers at their posts answer for it.
+
+| Building | Power | What it does |
+|---|---|---|
+| Blacksmith | The Night Forge | twice the arms a day-shift could turn out |
+| School | The Open Doors | no child waits for a seat — intake past every desk |
+| Government | The Standing Order | the wrongly-placed are moved to work that fits |
+| Builderhouse | The Standing Crew | repairs cost the village stores **nothing** |
+| Barracks | The Standing Watch | every warrior holds the wall at full worth, on shift or not |
+| Farm | The Standing Harvest | a held-back reserve opens rather than let Deepwood starve |
+| Fishing Dock | The Long Haul | a deep catch comes in daily, unbidden |
+| Mine | The Deep Seam | ore the shallow workings never reach (`DEEP_SEAM_MATERIALS`) |
+| Hospital | The Ward That Never Sleeps | whoever is carried in leaves whole — no trickle |
+| Bar | The Matchmaker's Round | matches made unbidden, and a home raised for the waiting couple |
+| Tavern | The Long Night | grief burns off twice as fast; morale floors at `25` |
+| Shrine | The Unbroken Light | despair can no longer take root in anyone |
+| Bank | The Ledger That Pays | payday never touches your purse again |
+| Marketplace | The Caravan Road | traders come far more often, and never stop |
+| Science Lab | The Whisper Network | every material known on sight, nothing waits to be identified |
+
+### 8.11 The automation ladder 🔒 *(standing law)*
+
+> **Every chore the player does by hand early must eventually be taken over by a building.** The player starts hands-on and deliberately annoyed; by roughly character level 80 the village should run itself.
+
+| Chore | By hand (early) | Taken over by | Unlocked at depth |
+|---|---|---|---|
+| Pairing a couple | E on a cottage | the Bar's **Publican** (Fenn Merriman) | **20** |
+| Selling surplus | hand-sell each stack | the Marketplace's **Merchant Prince** | **25** |
+| Paying wages | out of your own purse | the Bank's **Treasurer** | **35** |
+| Schooling a child | the assign UI, one at a time | the School's **Principal** (`auto_enroll_children`) | **45 / 50** |
+| Raising a cottage | the B build menu | the Builderhouse's **Master Builder** | **55** |
+| Deciding who trains | the Government dial | the **Chancellor** | **95** |
+
+The **rescue depths pace the ladder on their own** — no separate unlock system. The family loop runs itself by the deep 50s; the last chore leaves your hands at 95.
+
+### 8.12 The population loop — how the town grows without you
+
+The closed cycle, in order:
+
+```
+couple in a cottage → child born → schooling policy routes them
+    → School (a trade) or Barracks (a warrior)
+    → graduate is given a ROOF → moving in makes the match → child
+```
+
+**Schooling policy (§ the hinge).** By hand you write a number out of ten at the Government: `school_share = 4` sends four children in every ten to the School and six to the drill yard (`_kid_intake` walks the block of ten). It is a blunt instrument on purpose — it is what you have before you have anyone better. Once the **Chancellor** is seated, `schooling_is_delegated()` flips and they stop asking you: `chancellor_wants_warriors()` compares `village_defense_power()` against `current_siege_tier() × CHANCELLOR_DEFENSE_MARGIN (1.25)`, so **a siege that costs defenders pulls the next cohort into the yard on its own**. `next_schooling_destination()` falls back to whichever hall actually stands, so a policy can never strand a child nowhere.
+
+**Lodging — the roof comes first.** A cottage may hold **one** person waiting for someone to share it with:
+
+- An adult with nowhere to live takes an **empty** cottage, or one already holding a **single of the opposite sex** (`house_unpaired_adults`).
+- **Moving in is what makes the couple** (`pair_housemates`) — there is no separate matchmaking step.
+- A same-sex arrival takes their own cottage instead; a lone occupant can **never** conceive; children and villagers still in training are never housed as adults.
+- The Publican's round runs `house_unpaired_adults()` **then** `pair_housemates()` — house them, *then* match them.
+- Helpers: `cottage_occupant_ids()`, `cottage_is_pair()`, `cottage_lone_occupant()`. A lone occupant reads at the door as *"lives here alone, and would not mind company."*
+
+**Once housed, occupancy is for life** — only death frees a cottage (`cottage_homes`).
 
 ---
 

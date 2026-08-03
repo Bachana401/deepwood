@@ -1,5 +1,7 @@
 # Deepwood — Village Systems & Endgame Design
 
+> ⚠️ **THE CITY MACHINE IS NOT IN THIS FILE.** Everything built 2026-07-29 → 2026-08-03 — the village supply chain and treasury, the three placement rules (adjacency / districts / special plots), auras, the level-4 named building powers and their **leader gate**, the automation ladder, and the closed population loop (schooling policy + lodging) — is documented in **[`GAME_MECHANICS.md` §8.7–8.12](GAME_MECHANICS.md)**. That file describes what actually runs; this one is older intent. Where they disagree, **the code and `GAME_MECHANICS.md` win**.
+>
 > ⚠️ **SUPERSEDED by [`GAME_BIBLE.md`](GAME_BIBLE.md) (2026-07-15) — where this file disagrees, the Bible wins.** The finale (§8 here) was updated: the Ten hero-hostages resist the Harvest and fight beside the player, and victory ends with the **Shadow Army** reviving all fallen villagers (Bible §8–9). "Necromancer" is renamed **Shadow Monarch** throughout. This file remains as deep-design reference for the village machine.
 
 > **Purpose.** The master plan for Deepwood's living-village: the survival needs, the
