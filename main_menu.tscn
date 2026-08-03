@@ -1,8 +1,8 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://reol4ci4s7im"]
 
-[ext_resource type="Script" path="res://main_menu.gd" id="1_menu"]
+[ext_resource type="Script" uid="uid://bq8iayy6drhue" path="res://main_menu.gd" id="1_menu"]
 
-[node name="MainMenu" type="Control"]
+[node name="MainMenu" type="Control" unique_id=20354395]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -11,7 +11,7 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_menu")
 
-[node name="BackgroundTop" type="ColorRect" parent="."]
+[node name="BackgroundTop" type="ColorRect" parent="." unique_id=2029674495]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -20,8 +20,9 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.08, 0.14, 0.16, 1)
 
-[node name="BackgroundBottom" type="ColorRect" parent="."]
+[node name="BackgroundBottom" type="ColorRect" parent="." unique_id=1128316521]
 layout_mode = 1
+anchors_preset = -1
 anchor_top = 0.55
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -29,8 +30,9 @@ grow_horizontal = 2
 grow_vertical = 0
 color = Color(0.1, 0.22, 0.14, 1)
 
-[node name="Title" type="Label" parent="."]
+[node name="Title" type="Label" parent="." unique_id=2119010045]
 layout_mode = 1
+anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
 offset_left = -300.0
@@ -41,11 +43,12 @@ theme_override_colors/font_color = Color(0.85, 0.95, 0.7, 1)
 theme_override_colors/font_outline_color = Color(0.05, 0.08, 0.05, 1)
 theme_override_constants/outline_size = 10
 theme_override_font_sizes/font_size = 56
-horizontal_alignment = 1
 text = "DEEPWOOD"
+horizontal_alignment = 1
 
-[node name="Subtitle" type="Label" parent="."]
+[node name="Subtitle" type="Label" parent="." unique_id=1912205381]
 layout_mode = 1
+anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
 offset_left = -320.0
@@ -54,25 +57,27 @@ offset_right = 320.0
 offset_bottom = 190.0
 theme_override_colors/font_color = Color(0.75, 0.8, 0.7, 0.8)
 theme_override_font_sizes/font_size = 16
-horizontal_alignment = 1
 text = "the last village, and everything beneath it"
+horizontal_alignment = 1
 
-[node name="DeepestLevelLabel" type="Label" parent="."]
+[node name="DeepestLevelLabel" type="Label" parent="." unique_id=41636369]
+visible = false
 layout_mode = 1
+anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
 offset_left = -200.0
 offset_top = 188.0
 offset_right = 200.0
 offset_bottom = 210.0
-visible = false
 theme_override_colors/font_color = Color(0.9, 0.75, 0.3, 1)
 theme_override_font_sizes/font_size = 15
-horizontal_alignment = 1
 text = "Best Wave: 0"
+horizontal_alignment = 1
 
-[node name="VBox" type="VBoxContainer" parent="."]
+[node name="VBox" type="VBoxContainer" parent="." unique_id=294710604]
 layout_mode = 1
+anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
@@ -83,55 +88,56 @@ offset_right = 90.0
 offset_bottom = 180.0
 theme_override_constants/separation = 14
 
-[node name="StartButton" type="Button" parent="VBox"]
-layout_mode = 2
+[node name="StartButton" type="Button" parent="VBox" unique_id=333001816]
 custom_minimum_size = Vector2(180, 40)
+layout_mode = 2
 text = "Start Game"
 
-[node name="ContinueButton" type="Button" parent="VBox"]
-layout_mode = 2
-custom_minimum_size = Vector2(180, 40)
+[node name="ContinueButton" type="Button" parent="VBox" unique_id=1194369225]
 visible = false
+custom_minimum_size = Vector2(180, 40)
+layout_mode = 2
 text = "Continue"
 
-[node name="NewGameButton" type="Button" parent="VBox"]
-layout_mode = 2
-custom_minimum_size = Vector2(180, 40)
+[node name="NewGameButton" type="Button" parent="VBox" unique_id=167829070]
 visible = false
+custom_minimum_size = Vector2(180, 40)
+layout_mode = 2
 text = "New Game"
 
-[node name="HowToPlayButton" type="Button" parent="VBox"]
-layout_mode = 2
+[node name="HowToPlayButton" type="Button" parent="VBox" unique_id=1170050765]
 custom_minimum_size = Vector2(180, 40)
+layout_mode = 2
 text = "How to Play"
 
-[node name="QuitButton" type="Button" parent="VBox"]
-layout_mode = 2
+[node name="QuitButton" type="Button" parent="VBox" unique_id=507881324]
 custom_minimum_size = Vector2(180, 40)
+layout_mode = 2
 text = "Quit"
 
-[node name="HowToPlayPanel" type="Panel" parent="."]
+[node name="HowToPlayPanel" type="Panel" parent="." unique_id=778430748]
 visible = false
+layout_mode = 0
 anchor_left = 0.5
-anchor_right = 0.5
 anchor_top = 0.5
+anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -180.0
 offset_top = -230.0
 offset_right = 180.0
 offset_bottom = 230.0
 
-[node name="TitleLabel" type="Label" parent="HowToPlayPanel"]
+[node name="TitleLabel" type="Label" parent="HowToPlayPanel" unique_id=376838993]
 layout_mode = 0
 offset_left = 16.0
 offset_top = 12.0
 offset_right = 344.0
 offset_bottom = 40.0
 theme_override_font_sizes/font_size = 22
-horizontal_alignment = 1
 text = "How to Play"
+horizontal_alignment = 1
 
-[node name="ControlsLabel" type="Label" parent="HowToPlayPanel"]
+[node name="ControlsLabel" type="Label" parent="HowToPlayPanel" unique_id=363988076]
 layout_mode = 0
 offset_left = 16.0
 offset_top = 48.0
@@ -151,7 +157,7 @@ Dungeon: walk into the red zone, press F
 Pause: Esc"
 autowrap_mode = 3
 
-[node name="CloseButton" type="Button" parent="HowToPlayPanel"]
+[node name="CloseButton" type="Button" parent="HowToPlayPanel" unique_id=1271133843]
 layout_mode = 0
 offset_left = 16.0
 offset_top = 420.0
@@ -159,28 +165,29 @@ offset_right = 150.0
 offset_bottom = 452.0
 text = "Close"
 
-[node name="DifficultyPanel" type="Panel" parent="."]
+[node name="DifficultyPanel" type="Panel" parent="." unique_id=962034135]
 visible = false
+layout_mode = 0
 anchor_left = 0.5
-anchor_right = 0.5
 anchor_top = 0.5
+anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -160.0
 offset_top = -145.0
 offset_right = 160.0
 offset_bottom = 145.0
 
-[node name="TitleLabel" type="Label" parent="DifficultyPanel"]
+[node name="TitleLabel" type="Label" parent="DifficultyPanel" unique_id=1000023853]
 layout_mode = 0
 offset_left = 16.0
 offset_top = 12.0
 offset_right = 304.0
 offset_bottom = 40.0
 theme_override_font_sizes/font_size = 22
-horizontal_alignment = 1
 text = "Choose Difficulty"
+horizontal_alignment = 1
 
-[node name="EasyButton" type="Button" parent="DifficultyPanel"]
+[node name="EasyButton" type="Button" parent="DifficultyPanel" unique_id=1835422675]
 layout_mode = 0
 offset_left = 16.0
 offset_top = 50.0
@@ -188,7 +195,7 @@ offset_right = 106.0
 offset_bottom = 86.0
 text = "Easy"
 
-[node name="MediumButton" type="Button" parent="DifficultyPanel"]
+[node name="MediumButton" type="Button" parent="DifficultyPanel" unique_id=92627654]
 layout_mode = 0
 offset_left = 115.0
 offset_top = 50.0
@@ -196,7 +203,7 @@ offset_right = 205.0
 offset_bottom = 86.0
 text = "Medium"
 
-[node name="HardButton" type="Button" parent="DifficultyPanel"]
+[node name="HardButton" type="Button" parent="DifficultyPanel" unique_id=780276968]
 layout_mode = 0
 offset_left = 214.0
 offset_top = 50.0
@@ -204,18 +211,18 @@ offset_right = 304.0
 offset_bottom = 86.0
 text = "Hard"
 
-[node name="DescriptionLabel" type="Label" parent="DifficultyPanel"]
+[node name="DescriptionLabel" type="Label" parent="DifficultyPanel" unique_id=1090035164]
 layout_mode = 0
 offset_left = 16.0
 offset_top = 100.0
 offset_right = 304.0
 offset_bottom = 234.0
-theme_override_font_sizes/font_size = 13
 theme_override_colors/font_color = Color(0.85, 0.85, 0.85, 1)
-autowrap_mode = 3
+theme_override_font_sizes/font_size = 13
 text = "Hover an option above to see what it means. This cannot be changed later."
+autowrap_mode = 3
 
-[node name="CancelButton" type="Button" parent="DifficultyPanel"]
+[node name="CancelButton" type="Button" parent="DifficultyPanel" unique_id=210433602]
 layout_mode = 0
 offset_left = 16.0
 offset_top = 246.0
@@ -223,36 +230,36 @@ offset_right = 150.0
 offset_bottom = 278.0
 text = "Cancel"
 
-[node name="ProloguePanel" type="Panel" parent="."]
+[node name="ProloguePanel" type="Panel" parent="." unique_id=938436846]
 visible = false
+layout_mode = 0
 anchor_left = 0.5
-anchor_right = 0.5
 anchor_top = 0.5
+anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -190.0
 offset_top = -175.0
 offset_right = 190.0
 offset_bottom = 175.0
 
-[node name="TitleLabel" type="Label" parent="ProloguePanel"]
+[node name="TitleLabel" type="Label" parent="ProloguePanel" unique_id=1702481814]
 layout_mode = 0
 offset_left = 16.0
 offset_top = 12.0
 offset_right = 364.0
 offset_bottom = 40.0
 theme_override_font_sizes/font_size = 22
-horizontal_alignment = 1
 text = "Deepwood"
+horizontal_alignment = 1
 
-[node name="StoryLabel" type="Label" parent="ProloguePanel"]
+[node name="StoryLabel" type="Label" parent="ProloguePanel" unique_id=2079580210]
 layout_mode = 0
 offset_left = 16.0
 offset_top = 48.0
 offset_right = 364.0
 offset_bottom = 300.0
-theme_override_font_sizes/font_size = 13
 theme_override_colors/font_color = Color(0.88, 0.88, 0.88, 1)
-autowrap_mode = 3
+theme_override_font_sizes/font_size = 13
 text = "You arrive at Deepwood -- once a thriving village, now nearly silent.
 
 The few survivors left are barely alive: trapped somewhere between living and dead by whatever took the rest. One of them begs you for help.
@@ -260,8 +267,9 @@ The few survivors left are barely alive: trapped somewhere between living and de
 You've fought this enemy before, but only ever in small numbers. As you push further, it becomes clear this was no isolated raid.
 
 Rescue who you can. Rebuild what's left. Find where this began -- and end it."
+autowrap_mode = 3
 
-[node name="BeginButton" type="Button" parent="ProloguePanel"]
+[node name="BeginButton" type="Button" parent="ProloguePanel" unique_id=1702741848]
 layout_mode = 0
 offset_left = 16.0
 offset_top = 308.0
