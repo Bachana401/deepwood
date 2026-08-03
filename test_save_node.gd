@@ -44,6 +44,18 @@ func _ready() -> void:
 	GameState.equipment["pants"] = "pants_bulwark"
 	GameState.building_levels["Farm"] = 4
 	GameState.rescued_villagers = [{"id": "sv1", "name": "Roundtrip", "sex": "Female", "is_kid": false, "role_key": "Farm"}]
+	# THE SLOW CLOCKS (2026-08-03): hours already waited toward something the
+	# village is owed. None of these were saved, so every LOAD restarted the wait.
+	# The family cycle is the one that bites -- 59 of its 60 hours thrown away
+	# means the town is always one reload short of a child, forever, and nothing
+	# on screen ever explains why.
+	GameState._family_cycle_accum = 59.0
+	GameState._mine_accum = 20.0
+	GameState._wood_accum = 18.0
+	GameState._deep_catch_accum = 12.0
+	GameState._tide_table_accum = 50.0
+	GameState._doctor_decay_accum = 7.0
+	GameState._store_accum = {"wood": 0.75, "stone": 0.5, "iron_shard": 0.25}
 	GameState.save_game(p)
 	check("save file written", GameState.has_save())
 
@@ -75,6 +87,20 @@ func _ready() -> void:
 		p.inventory.get_count("gloves_iron") == pre_gloves + 1)
 	check("building level round-trips", int(GameState.building_levels.get("Farm", 0)) == 4,
 		str(GameState.building_levels))
+	check("the family cycle keeps the hours it already waited",
+		absf(GameState._family_cycle_accum - 59.0) < 0.01,
+		"got %.2f -- a reload used to reset the wait to zero" % GameState._family_cycle_accum)
+	check("the daily yields keep theirs too",
+		absf(GameState._mine_accum - 20.0) < 0.01 and absf(GameState._wood_accum - 18.0) < 0.01
+		and absf(GameState._deep_catch_accum - 12.0) < 0.01,
+		"mine=%.1f wood=%.1f catch=%.1f" % [GameState._mine_accum, GameState._wood_accum, GameState._deep_catch_accum])
+	check("...and the Tide Table's longer count",
+		absf(GameState._tide_table_accum - 50.0) < 0.01, "got %.1f" % GameState._tide_table_accum)
+	check("...and the Doctor's price forgiveness",
+		absf(GameState._doctor_decay_accum - 7.0) < 0.01, "got %.1f" % GameState._doctor_decay_accum)
+	check("the store's fractional banking survives (small crews earn in fractions)",
+		absf(float(GameState._store_accum.get("wood", 0.0)) - 0.75) < 0.01,
+		str(GameState._store_accum))
 	check("villagers round-trip", GameState.rescued_villagers.size() == 1
 		and GameState.rescued_villagers[0].get("name", "") == "Roundtrip",
 		str(GameState.rescued_villagers))

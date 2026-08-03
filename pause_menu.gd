@@ -39,6 +39,14 @@ func close_open_windows() -> bool:
 	var closed := false
 	for w in get_tree().get_nodes_in_group("esc_window"):
 		if w.has_method("esc_is_open") and w.esc_is_open():
+			# guard BOTH halves. This checked only esc_is_open, so a member that
+			# joined the group with just that half (underground.gd and world_map.gd
+			# both did) reported itself open and then took a call to a method that
+			# did not exist. underground_pause.gd has always guarded here; this
+			# side never did.
+			if not w.has_method("esc_close"):
+				push_warning("esc_window member %s has no esc_close()" % w.name)
+				continue
 			w.esc_close()
 			closed = true
 	return closed

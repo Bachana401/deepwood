@@ -212,3 +212,10 @@ func _live_name(n: Node) -> String:
 # the ui_blocks_world_input contract (player.gd)
 func esc_is_open() -> bool:
 	return visible
+
+# ...and the OTHER half of the esc_window contract. Joining that group is a promise
+# of BOTH esc_is_open() and esc_close(); this half was missing, so pause_menu's
+# close_open_windows() saw the chart reporting itself open and then had nothing to
+# call -- ESC closed every other window in the game but left the map hanging there.
+func esc_close() -> void:
+	close_map()

@@ -8,6 +8,13 @@ extends Node
 
 var issues := 0
 
+# Equipment slots the game deliberately stopped filling (see the note on
+# dungeon_interior.GEAR_ARMOR_IDS: armour went Terraria-exact and these two
+# slots retired). Their pieces are bag curios kept for old saves, so "nothing
+# grants them" is the intended state, not a hole to plug -- and reporting four
+# of them every run was burying the one relic that WAS a real hole.
+const RETIRED_SLOTS := ["gloves", "boots"]
+
 func note(section: String, msg: String) -> void:
 	issues += 1
 	printerr("  [%s] %s" % [section, msg])
@@ -101,18 +108,29 @@ func _ready() -> void:
 		var desc := str(d.get("unique_desc", "")).to_lower()
 		if desc != "" and not (d.has("unique_effect") or d.has("special") \
 				or d.has("passive") or not d.get("swing_slash", {}).is_empty()):
-			for promise in ["chance to", "on hit", "every ", "heals", "steal", "explode",
+			for promise in ["chance to", "on hit", "heals", "steal", "explode",
 					"chain", "pierce", "summon", "revive", "stun", "freeze", "burn", "poison"]:
 				if desc.contains(promise):
 					note("item", "'%s' text promises '%s' but nothing implements it" % [id, promise])
 					break
+			# "EVERY" IS ONLY A PROMISE WHEN SOMETHING RECURS (2026-08-03). A bare
+			# "every " matched flavour prose and cried wolf over the Mourner's
+			# Locket -- "EVERY survived Weeping Hour hangs inside it" describes what
+			# the keepsake MEANS, not a periodic effect, and its stats are declared
+			# in equip_effect like any relic's. Require a cadence after the word:
+			# every 5th hit, every kill, every 8 seconds. That is a mechanic.
+			var re_every := RegEx.new()
+			re_every.compile("every\\s+(\\d|[a-z]+\\s+)?(hit|kill|shot|swing|strike|attack|second|sec\\b)")
+			if re_every.search(desc) != null:
+				note("item", "'%s' text promises a recurring effect but nothing implements it" % id)
 
 	# ---- 4b. every villager quest must have a spawnable giver AND target ----
 	# Bram and Sena had full quest defs -- dialogue, rewards, the game's only
 	# reunite bond -- and neither spawned anywhere: two dead quests nobody could
-	# ever see. A quest def id must be a hand-placed main.tscn villager or an
-	# IMPORTANT_FIGURES dungeon rescue, and a reunite target must be spawnable
-	# too, or the chain is broken at the far end instead.
+	# ever see. A quest def id must be a hand-placed main.tscn villager, an
+	# IMPORTANT_FIGURES dungeon rescue, or SEEDED STRAIGHT ONTO THE ROSTER by
+	# new_game(), and a reunite target must be spawnable too, or the chain is
+	# broken at the far end instead.
 	printerr("\n== villager quests whose giver or target can never spawn ==")
 	var spawnable := {}
 	for lv in VillagerQuests.IMPORTANT_FIGURES.keys():
@@ -124,6 +142,25 @@ func _ready() -> void:
 		for m in re_v.search_all(scene.get_as_text()):
 			spawnable[m.get_string(1)] = true
 		scene.close()
+	# THE THIRD DOOR (2026-08-03). This audit knew only about hand-placed scene
+	# villagers and dungeon rescues, so it cried wolf over the STARTING SIX --
+	# doctor_maren, farmer_tam and farmer_ada are appended to rescued_villagers in
+	# new_game(), and main.gd gives every roster villager a walk-up avatar. It
+	# reported Ada Brook's bond as unreachable when it is attemptable on day one,
+	# and hers awards the Soul Split Wand -- the one item the finale needs. An
+	# audit that flags the reachable is worse than no audit; you stop believing it.
+	# Matched on the ROSTER SHAPE ("id" followed by "name"), not on "id" alone:
+	# game_state.gd also names special plots that way (quarry, vein, soil...), and
+	# sweeping those into `spawnable` would quietly excuse a genuinely dead quest
+	# that happened to share one of their ids. This way it admits the three seeded
+	# villagers and nothing else.
+	var gs := FileAccess.open("res://game_state.gd", FileAccess.READ)
+	if gs != null:
+		var re_id := RegEx.new()
+		re_id.compile("\"id\":\\s*\"([a-z_0-9]+)\",\\s*\"name\":")
+		for m in re_id.search_all(gs.get_as_text()):
+			spawnable[m.get_string(1)] = true
+		gs.close()
 	for qid in VillagerQuests.QUEST_DEFS.keys():
 		if not spawnable.has(qid):
 			note("quest", "'%s' has a quest def but no spawn anywhere -- the quest can never activate" % qid)
@@ -183,6 +220,9 @@ func _ready() -> void:
 		# this a craft-only item read as "nothing grants" -- a blind spot that
 		# false-flagged the event-boss re-summon tokens. 2026-07-28)
 		if Inventory.CRAFT_RECIPES.has(id):
+			continue
+		# a RETIRED slot's pieces are unreachable on purpose, not by omission
+		if str(d.get("slot", "")) in RETIRED_SLOTS:
 			continue
 		if not src.contains('"%s"' % id):
 			var cat := str(d.get("category", "misc"))

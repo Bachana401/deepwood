@@ -6708,6 +6708,10 @@ func reset_for_new_game() -> void:
 	seen_chronicle_100 = false
 	maera_stabilized_this_siege = false
 	_deep_catch_accum = 0.0
+	# the Dock's other clock, missed here for as long as it has existed: now that
+	# it is SAVED, a leftover value would carry a previous life's tide count into
+	# a brand-new village (reset audit, 2026-08-03)
+	_tide_table_accum = 0.0
 	morale_admin_offset = 0
 	if TEST_POPULATE_VILLAGE:
 		test_populate_village()
@@ -6920,6 +6924,19 @@ func save_game(player: Node) -> void:
 		"village_lost": village_lost,
 		"has_whisperstone": has_whisperstone,
 		"sieges_seen": sieges_seen,
+		# THE LAST THREE SLOW CLOCKS (2026-08-03). Every other in-game-hour counter
+		# is written above (family_cycle/doctor_decay/mine/deep_catch, saved when
+		# the same bug was caught in them); these three were missed, so a Continue
+		# threw their progress away and restarted the wait. The Lumberyard's day of
+		# timber and the Dock's Tide Table were each losing up to a full cycle, and
+		# the store banks its small crews' output in FRACTIONS -- a village earning
+		# 0.9 wood a day banked nothing at all across a quit.
+		# Deliberately NOT here: _gold_accum and _treasury_accum (sub-coin
+		# fractions, genuinely noise) and _autosave_accum (real seconds, not game
+		# time).
+		"wood_accum": _wood_accum,
+		"tide_table_accum": _tide_table_accum,
+		"store_accum": _store_accum,
 	}
 	# ATOMIC-ish (global hunt 2026-07-28): open(WRITE) TRUNCATES at once, so
 	# a crash mid-serialize used to leave a zero-byte save -- the whole world
@@ -7205,6 +7222,17 @@ func load_game() -> Dictionary:
 		_gold_accum = 0.0
 		_peril_band = -1
 		_tower_bell_armed = true
+		# ...but the SLOW clocks are RESTORED, not cleared (see save_game). The
+		# other four are read further up with their neighbours; these are the three
+		# that were never written at all. An older save carries none of these keys
+		# and starts them at 0.0, which is exactly how it behaved before, so no
+		# migration is needed.
+		_wood_accum = float(parsed.get("wood_accum", 0.0))
+		_tide_table_accum = float(parsed.get("tide_table_accum", 0.0))
+		var saved_store = parsed.get("store_accum", {})
+		if saved_store is Dictionary:
+			for k in _store_accum.keys():
+				_store_accum[k] = float(saved_store.get(k, 0.0))
 		# start the village-clock baseline at the loaded time so the first
 		# tick after loading doesn't see a giant false "hours passed".
 		village_last_hours_elapsed = game_hours

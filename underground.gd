@@ -2504,6 +2504,15 @@ func _map_h() -> int: return int(DEPTH / MAP_SCALE)
 func esc_is_open() -> bool:
 	return _mapview != null and _mapview.visible
 
+# The other half of the esc_window contract. Without it the chart reported itself
+# open and then offered no way to shut it: underground_pause guards on
+# has_method("esc_close") and so silently skipped the map, and pause_menu does NOT
+# guard -- it would have called a method that isn't there. Either way ESC, the one
+# key every other window in the game answers to, did nothing here.
+func esc_close() -> void:
+	if _mapview != null and is_instance_valid(_mapview):
+		_mapview.visible = false
+
 func _toggle_map() -> void:
 	if _mapview != null and _mapview.visible:
 		_mapview.visible = false

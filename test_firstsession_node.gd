@@ -33,6 +33,14 @@ func _unpause() -> void:
 		for n in get_tree().root.find_children("*", "", true, false):
 			if n.has_method("finish") and n.has_method("show_line"):
 				n.finish(); break
+	# AND THEN INSIST. The loop above only ASKS -- it dismisses a dialogue and
+	# hopes that lifted the pause. If anything else owns the pause, or a dialogue
+	# arrives later, every wait get_tree().physics_frame below still RESOLVES
+	# while no _physics_process runs, so the checks measure nothing and report
+	# failures the code never had a chance to earn. That is exactly how
+	# test_mech2_node called four working mechanics broken (2026-08-03).
+	if get_tree().paused:
+		get_tree().paused = false
 
 func _ready() -> void:
 	var p: Node = await _await_player()

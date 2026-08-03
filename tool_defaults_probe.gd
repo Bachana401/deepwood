@@ -39,7 +39,13 @@ class Counter extends StaticBody2D:
 	func apply_status(_k: String, _d: float, _m: float) -> void: pass
 	func apply_knockback(_s: float, _f: float) -> void: pass
 
-const WANTED := ["arc", "rapid", "fire", "shot", "staff", "volley"]
+# "volley" was RETIRED (weapon_roster.gd): all six of its owners were re-scoped to
+# shapes of their own, the case was deleted, and tool_deadverb_audit called it --
+# the third verb to empty out that way, after "seeker" and "jab_volley". This list
+# kept asking for it, so the probe dutifully reported "volley -> MEAN 0.0 hits per
+# use" every run: a whole class apparently connecting with nothing. It was reading
+# an empty sample, not a broken weapon. The header always said FIVE; now it is.
+const WANTED := ["arc", "rapid", "fire", "shot", "staff"]
 # REAL separations. The short end matters most: at a 45px floor, Mongrel Knife
 # and Barrel Stave connected at NO distance and no staff connected at all, which
 # is the harness bottoming out rather than the weapons missing. A melee arc that

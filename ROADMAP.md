@@ -42,14 +42,16 @@ Don't build toward these without asking first — flagged in the project's own d
 
 ## Process notes
 
-- This director session runs from `C:\Users\bacho\Documents\lazy`, not the deepwood repo itself — so background agents spawned here get **no git-worktree isolation**; they edit the live deepwood tree directly, same as any manual session. Mitigation: keep concurrent agents to 2-3 max, verify no file-scope overlap with active sessions before spawning, and prefer relaying a task into an existing session (via cross-session message) over forking a new agent when that session already owns the relevant files.
+- ~~This director session runs from `C:\Users\bacho\Documents\lazy`~~ — **obsolete since the 2026-07-28 consolidation:** `Documents\deepwood` is the one project home, and `lazy` was renamed to `clicker-prototype` (it never was a Deepwood folder). Open every session from the repo itself.
+- **Run the audits the way each one is written.** Most are Node tools driven by the `MONARCH_TEST` hook, but `tool_art_audit.gd` `extends SceneTree` and must be run as `--script res://tool_art_audit.gd`. Under the hook it attaches nothing, the menu idles, and the run looks like a hang until the timeout — a false alarm that costs seven minutes each time.
 - The developer's 3 other sessions (weapons/armor/item-sets, enemy/boss design, code debugging) stay manually-driven — reserved for taste-heavy/iterative work. This director session handles well-scoped mechanical tasks + cross-session coordination + the standing backlog/decision log.
 
 ---
 
 ## Risk flags
 
-- **Uncommitted work (as of 2026-07-13):** 10 modified files (`boss.gd`, `game_state.gd`, `main.gd`, `player.gd`, `dungeon_interior.gd`, `equipment_ui.gd`, `inventory.gd`, `npc.gd`, `pause_menu.gd`, `main.tscn`, `project.godot`) plus new untracked `admin_panel.gd`, `morale_meter.gd`, `village_life.gd` (+ `.uid` files) — sitting on top of the last commit `"Safety checkpoint before file reorganization"`. Looks like an in-progress village-life/morale system. Not committing anything without you asking — flagging so it doesn't silently grow past the point where a clean commit is easy to write.
+- ~~**Uncommitted work (as of 2026-07-13):** 10 modified files + untracked `admin_panel.gd`, `morale_meter.gd`, `village_life.gd`~~ — **RESOLVED long since;** all of it is on master. (Left struck through as the standing reminder that this file's "current state" claims age badly.)
+- **Abandoned worktrees still on disk (2026-08-03).** `.claude/worktrees/bestiary` and `.claude/worktrees/gifted-murdock-786925`. Neither branch has a commit master lacks, but `gifted-murdock` held a whole session of finished, uncommitted fixes that were nearly lost — they have now been landed (see the log entry below). `bestiary` still holds one untracked tool, `tool_eyes_projectiles.gd` (148 lines), not brought over. Nothing is deleted; both worktrees are left in place for the dev to clear.
 
 ---
 
@@ -61,5 +63,12 @@ As of 2026-07-13: sessions in flight on weapons/armor/item sets, enemy models/bo
 
 ## Director's log
 
+- **2026-08-03 — PM role re-affirmed as standing, and a full repair pass.** Ran the whole standing kit (10 audits + all 119 registered suites) and fixed what it found, changing no design:
+  - **ESC did nothing over either fullscreen map.** `underground.gd` and `world_map.gd` joined `esc_window` with only half its contract, and `pause_menu.close_open_windows()` called the missing half unguarded — so the sweep threw mid-loop, the pause menu never opened, and the chart stayed stranded. Both halves implemented, and the sweep now skips (and warns about) a half-implemented member instead of dying on it.
+  - **The Standing Star could not be found by anyone.** A finished legendary companion relic in no drop pool and no recipe; added to the boss gear-relic pool, where `_gear_in_depth` puts it at a legendary's depth.
+  - **Three slow clocks were never saved** — the Lumberyard's timber day, the Dock's Tide Table, and the store's fractional banking. A Continue threw their progress away. Now saved, restored, and reset on New Game (that last one caught by the reset audit *after* the fix — the audit earning its keep).
+  - **The EYES bestiary tool filmed at midnight.** It set `day_night_cycle.time_of_day`, which that node re-derives from the master clock every frame; it drives `GameState.game_hours` now.
+  - **Audit accuracy:** the gap audit cried wolf over the starting six (it knew only two of the three spawn sources), over flavour prose containing "every", and over the retired gloves/boots slots; the wiring audit called every test/EYES handle dead bookkeeping. 4 gap + 5 wiring false alarms gone. Gap, save, reset and promise audits all read **0**; wiring is down to **7**, all of them true dead group joins left in place deliberately (`speech_text`, `training_dummy`, `ug_rope`, `ug_door`, `ug_elite`, `ug_hazard`, `dungeon_manager`) — inert, and deleting them buys nothing a reader doesn't already get from this line.
+  - **Rescued a stranded session.** Most of the above was independently found and fixed weeks ago inside `.claude/worktrees/gifted-murdock-786925` and never committed. Landed, after trimming a double-save it introduced (four of its seven clocks were already persisted under other key names) and tightening one over-broad regex.
 - **2026-07-13** — Role established at developer's request (director/PM for Deepwood specifically, not the unrelated "lazy" clicker prototype). Did first full briefing: reviewed GAME_OVERVIEW.md, PROJECT_SNAPSHOT.md, REVIEW_3DAYS.md, git log/status, and memory. Created this file.
 - **2026-07-13** — Spawned background agent for the How-to-Play panel fix (done, uncommitted). Discovered building-repair and siege/defense were already built, corrected the backlog. Relayed the wand-admin-label + reset-potion-as-item task to the weapons/armor session (owns inventory.gd right now). Identified the "Code debugging" session as the actual author of village_life.gd/morale_meter.gd/admin_panel.gd (title is stale). A user-started background task is renaming the stale `BestWaveLabel` node, running independently.

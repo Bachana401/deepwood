@@ -78,6 +78,14 @@ func _ready() -> void:
 		# add_to_group, something is using it.
 		if all.count('"%s"' % g) > 1:
 			continue
+		# A GROUP THE HARNESS READS IS NOT DEAD (2026-08-03). Game sources exclude
+		# test_/tool_ files by design, so a group joined purely to give the suites
+		# or the EYES tools a handle on something -- material_pickup, special_plot,
+		# village_presence -- read as dead bookkeeping on every single run. Five of
+		# the twelve findings here were that, and a standing list of known-benign
+		# entries is exactly how a real one gets skimmed past.
+		if _harness_reads(g):
+			continue
 		note("group", "'%s' is joined, but its name appears nowhere else -- dead bookkeeping" % g)
 
 	# ---------- 2. has_method probes ----------
@@ -350,6 +358,29 @@ func _scene_groups() -> Array:
 		f = dir.get_next()
 	dir.list_dir_end()
 	return found
+
+# Does a test suite or a dev tool look this group up? Read on demand rather than
+# folded into `files`, so every OTHER pass keeps scanning game code only.
+func _harness_reads(group_name: String) -> bool:
+	var dir := DirAccess.open("res://")
+	if dir == null:
+		return false
+	var needle := '"%s"' % group_name
+	var hit := false
+	dir.list_dir_begin()
+	var f := dir.get_next()
+	while f != "":
+		if f.ends_with(".gd") and (f.begins_with("tool_") or f.begins_with("test_")):
+			var fh := FileAccess.open("res://" + f, FileAccess.READ)
+			if fh != null:
+				if fh.get_as_text().contains(needle):
+					hit = true
+				fh.close()
+		if hit:
+			break
+		f = dir.get_next()
+	dir.list_dir_end()
+	return hit
 
 func _load_sources() -> void:
 	var dir := DirAccess.open("res://")

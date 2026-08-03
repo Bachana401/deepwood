@@ -2450,7 +2450,14 @@ const GEAR_RELIC_IDS = ["relic_vigor", "relic_swiftness", "relic_greed", "relic_
 	"relic_phoenix", "relic_thorns", "relic_aegis", "relic_vampire", "relic_juggernaut",
 	"relic_blink", "relic_reaper", "relic_ward", "relic_steward", "relic_gorgon",
 	"rune_sanctuary", "rune_stoneguise", "rune_riddlestaff",
-	"relic_kennelbrand"]   # the Summoner's slot relic (batch 4)
+	"relic_kennelbrand",   # the Summoner's slot relic (batch 4)
+	# THE STANDING STAR had no way in at all (gap audit 2026-08-03). It is a
+	# finished legendary -- its spectral blade is built, graded and screenshot-
+	# tested -- but it sat in no drop pool and, unlike the two mythics it stands
+	# below, had no craft recipe either. Its peers here are exactly what it is:
+	# standalone relics found in the deep, so _gear_in_depth's grade floor puts it
+	# where a legendary belongs instead of inventing a new source for one item.
+	"relic_guardian"]
 # The common/uncommon weapon rack. Without this tier every one of these existed,
 # was balanced, appeared in the catalogue -- and could never be found by anyone,
 # because the class-weapon pool below starts at rare. These are what the first

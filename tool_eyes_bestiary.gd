@@ -36,9 +36,11 @@ func _ready() -> void:
 	# A signature filmed at midnight from the 0.6 world zoom is unjudgeable -- the
 	# first pass came back as dark thumbnails. Force midday and lean the camera in
 	# so a ring, a heap and a gas cloud are actually readable on film.
-	var dn := get_tree().get_first_node_in_group("day_night_cycle")
-	if dn != null and "time_of_day" in dn:
-		dn.time_of_day = 11.0
+	# day_night_cycle re-derives time_of_day from the master clock inside its own
+	# _process, so assigning it here was overwritten before the next frame drew --
+	# every "midday" shoot still came back filmed at midnight. Drive the clock
+	# instead: a run starts at START_TIME_OF_DAY (22:00), so +13h lands at 11:00.
+	GameState.game_hours = 13.0
 	var cam := p.get_node_or_null("Camera2D")
 	if cam != null:
 		cam.zoom = Vector2(1.6, 1.6)
