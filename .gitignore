@@ -15,6 +15,13 @@ pl_openapi.json
 .mcp.json
 .claude/settings.local.json
 
+# Export SECRETS. export_presets.cfg is safe to version (it is just settings),
+# but Godot writes keystore paths and PASSWORDS into this sibling file the
+# moment a release keystore is configured. It does not exist yet only because
+# debug builds use the auto keystore — ignore it now, before the first real
+# signing quietly commits a password.
+export_credentials.cfg
+
 # EYES walker logs + screenshots: local test output, never source
 eyes_out/
 
