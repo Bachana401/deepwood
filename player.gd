@@ -6745,16 +6745,19 @@ func call_the_kings_rain(special: Dictionary) -> void:
 		var cr = roll_crit(base)
 		var spawn: Vector2 = aim_pt + Vector2(randf_range(-72.0, 72.0), -560.0)
 		var dir: Vector2 = (aim_pt - spawn).normalized().rotated(deg_to_rad(randf_range(-7.0, 7.0)))
-		launch_projectile({
+		var shaft := launch_projectile({
 			"type": "javelin_volley", "speed": 1150.0, "range": 900.0,
 			"status": special.get("status", {}),
 		}, dir, cr[0], cr[1])
-		# place it up in the sky rather than at the player's hands
-		var kids := get_parent().get_children()
-		if not kids.is_empty():
-			var last = kids[kids.size() - 1]
-			if last is Node2D:
-				(last as Node2D).global_position = spawn
+		# Place it up in the sky rather than at the player's hands. This MUST be
+		# the shaft launch_projectile just made: taking the parent's last child
+		# on faith moved whatever node happened to be added most recently, and
+		# the real arrow stayed in the player's hands -- carrying `dir`, which
+		# points DOWN from the sky toward the mark. The king's rain fired itself
+		# through the floor instead of falling on the target (seen on film,
+		# tool_eyes_projectiles, 2026-08-03).
+		if shaft is Node2D:
+			(shaft as Node2D).global_position = spawn
 
 # the ceiling answers: a small dust knock so the player SEES why the volley
 # was thin, instead of wondering whether the weapon is broken
@@ -6787,7 +6790,12 @@ func launch_swing_slash(cfg: Dictionary, dir: Vector2, stats: Dictionary) -> voi
 # Spawns a weapon_projectile.gd configured from a weapon's "special" dict.
 # The special's type maps onto the projectile's kind ("flying_slash" flies as
 # a "slash", each javelin of a volley as a "javelin").
-func launch_projectile(cfg: Dictionary, dir: Vector2, dmg: int, is_crit: bool = false) -> void:
+# Returns the shaft it made. Callers that need to PLACE the projectile (the
+# King's Rain drops its arrows out of the sky) used to reach into
+# get_parent().get_children() and take the last one on faith -- which is only
+# the new shaft until anything else parents a node in the same breath, and then
+# the caller moved a stranger and left the real arrow at the player's hands.
+func launch_projectile(cfg: Dictionary, dir: Vector2, dmg: int, is_crit: bool = false) -> Node:
 	var p = WEAPON_PROJECTILE_SCRIPT.new()
 	p.is_crit = is_crit
 	var kind = str(cfg.get("type", "slash"))
@@ -6832,6 +6840,7 @@ func launch_projectile(cfg: Dictionary, dir: Vector2, dmg: int, is_crit: bool = 
 	p.from_wand = str(active_def.get("weapon_type", "")) == "wand"
 	p.position = global_position + dir * 34.0
 	get_parent().add_child(p)
+	return p
 
 # Stormlance: no thrust -- conjure a fan of spectral javelins and let fly.
 func throw_javelin_volley(special: Dictionary) -> void:
@@ -7916,7 +7925,15 @@ func call_a_marcher(at: Vector2, dealt: int, mark: Node2D = null) -> void:
 		# stagger them down the road so they arrive as a column, not a rank
 		m.position = at \
 			+ Vector2((700.0 + 150.0 * float(n)) * side, -20.0 - 14.0 * float(n))
-		get_parent().add_child(m)
+		# DEFERRED ON PURPOSE. A marcher is a WeaponProjectile, i.e. an Area2D
+		# whose _ready() turns monitoring on -- and the usual caller is a landed
+		# arrow, so this runs inside a collision callback, mid physics-query
+		# flush, where the engine REFUSES that change ("Can't change this state
+		# while flushing queries"). The procession then walked in unable to
+		# detect anything. Adding next idle frame lets _ready run outside the
+		# flush, with the position already set so it still arrives from
+		# off-camera.
+		get_parent().add_child.call_deferred(m)
 		alive += 1
 
 # Charge-style uniques wind up on every SWING, hit or miss. Whiffing still

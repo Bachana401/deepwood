@@ -274,7 +274,12 @@ func break_arrow() -> void:
 	set_physics_process(false)
 	visible = false
 	$CollisionShape2D.set_deferred("disabled", true)
-	$HitArea.monitoring = false
+	# ...and this one must be deferred for the SAME reason as the line above it:
+	# break_arrow() runs from a collision callback, i.e. mid physics-query flush,
+	# where the engine refuses a direct monitoring change ("Can't change this
+	# state while flushing queries"). It errored on every arrow that broke --
+	# loudest under Night Parade, which breaks a great many.
+	$HitArea.set_deferred("monitoring", false)
 	var sfx = $SFXPlayer
 	sfx.reparent(get_parent())
 	sfx.global_position = global_position
