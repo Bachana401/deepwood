@@ -93,7 +93,60 @@ func _ready() -> void:
 			printerr("  unique_effect '%s' has unique_value 0 on '%s'" % [d["unique_effect"], id])
 			zeroed += 1
 	printerr("  total: %d" % zeroed)
+	_audit_hollow_payoffs()
 	get_tree().quit(0)
+
+# ---- PAYOFFS THAT DRAW BUT DO NOT PAY ----
+# The costliest recurring bug in this codebase, found SEVEN times in one day
+# (2026-08-04): a verb's deferred payoff calls _nova_burst_TINTED, which draws a
+# ring and has no damage loop, instead of its twin _nova_burst, which pays. The
+# two are one identifier apart. It hit direportent, the gallows drop, novaburst,
+# storm_debt, skycharges, thunderhead, twinburst, lodestar, cometfall and
+# worldtoll -- every one of them a weapon whose declared damage in
+# test_weapondps_node counts a nova that never happened.
+#
+# Nothing else can catch it: no audit reads intent, the DPS table only DECLARES
+# its multipliers, and a suite that never measures the payoff stays green.
+#
+# The rule: a function whose ONLY visible outcome is a decorative burst is a
+# promise that pays nothing. If the flourish is genuinely on top of damage the
+# same function already deals, it is fine -- so this only reports functions with
+# no damaging call at all.
+const DAMAGING := ["take_damage", "_rake_overlapping", "_nova_burst(", "_deal("]
+
+func _audit_hollow_payoffs() -> void:
+	printerr("\n== decorative bursts standing in for a payoff ==")
+	var hollow := 0
+	for fname in ["weapon_projectile.gd", "player.gd"]:
+		var fh := FileAccess.open("res://" + fname, FileAccess.READ)
+		if fh == null:
+			continue
+		var lines := fh.get_as_text().split("\n")
+		fh.close()
+		var cur := ""
+		var body := ""
+		var start := 0
+		var i := 0
+		for line in lines:
+			i += 1
+			if line.begins_with("func "):
+				# the helper's own definition contains its own name, of course
+				if cur != "" and cur != "_nova_burst_tinted" \
+						and body.contains("_nova_burst_tinted("):
+					var pays := false
+					for d in DAMAGING:
+						if body.contains(d):
+							pays = true
+							break
+					if not pays:
+						printerr("  [payoff] %s:%d %s draws a burst and deals NOTHING"
+							% [fname, start, cur])
+						hollow += 1
+				cur = line.split("(")[0].replace("func ", "")
+				body = ""
+				start = i
+			body += line + "\n"
+	printerr("  total: %d" % hollow)
 
 # Fields the attack code acts on without ever looking at special.type.
 const GENERIC_SPECIAL_KEYS = ["count", "spread_deg", "homing", "pierce", "aoe", "status"]

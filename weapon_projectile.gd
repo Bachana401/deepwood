@@ -1449,7 +1449,7 @@ func _physics_process(delta: float) -> void:
 		global_position += direction * speed * delta
 		traveled += speed * delta
 		if traveled >= max_distance:
-			_nova_burst_tinted(global_position, Color(0.92, 0.66, 0.32))
+			_nova_burst(global_position, Color(0.92, 0.66, 0.32))
 			_rock_smoke(global_position)
 			done = true
 			queue_free()
@@ -6956,7 +6956,7 @@ func _tick_comet(delta: float) -> void:
 		_comet_land()
 
 func _comet_land() -> void:
-	_nova_burst_tinted(global_position, Color(1.0, 0.66, 0.3))
+	_nova_burst(global_position, Color(1.0, 0.66, 0.3))
 	_rock_smoke(global_position)
 	# the crater keeps burning: a standing patch of fire, the reason you lob
 	# it AHEAD of something rather than at it
@@ -7390,7 +7390,7 @@ func _tick_lodestar(delta: float) -> void:
 			(e as Node2D).global_position += to_star.normalized() * 92.0 * delta
 	if _lode_t >= LODE_LIFE:
 		# and then the star goes out, all at once, on the crowd it gathered
-		_nova_burst_tinted(global_position, Color(0.72, 0.86, 1.0))
+		_nova_burst(global_position, Color(0.72, 0.86, 1.0))
 		done = true
 		queue_free()
 
@@ -8532,7 +8532,7 @@ func _tick_twin(delta: float) -> void:
 	if _twin_side > 0.0 and _twin_t > 0.05:
 		var beat: float = fmod(_twin_t, TWIN_WIND)
 		if beat < delta:
-			_nova_burst_tinted(global_position, Color(0.86, 0.6, 1.0))
+			_nova_burst(global_position, Color(0.86, 0.6, 1.0))
 	if traveled >= max_distance:
 		done = true
 		queue_free()
@@ -9938,7 +9938,7 @@ func _strike_bolt(idx: int) -> void:
 	var tw := bolt.create_tween()
 	tw.tween_property(bolt, "modulate:a", 0.0, 0.24)
 	tw.tween_callback(bolt.queue_free)
-	_nova_burst_tinted(at + Vector2(0, 30.0), Color(0.8, 0.9, 1.0))
+	_nova_burst(at + Vector2(0, 30.0), Color(0.8, 0.9, 1.0))
 
 func _build_sky_charge() -> void:
 	pass    # the storm is the bolts; the caster node is invisible
