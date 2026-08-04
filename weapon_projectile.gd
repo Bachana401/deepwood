@@ -4319,7 +4319,17 @@ func _tick_rising_wheel(delta: float) -> void:
 	_rehit_t += delta
 	if _rehit_t >= 0.28:
 		_rehit_t = 0.0
-		hit_bodies.clear()      # each turn of the wheel bites again
+		# EACH TURN OF THE WHEEL BITES AGAIN -- and clearing hit_bodies alone
+		# never made that true. body_entered fires ONCE, on entry; a body that
+		# is already inside and stays there never re-triggers it, so emptying
+		# the list gave nothing to re-enter and the wheel bit exactly once.
+		# Measured 2026-08-04: 1 bite, against a card that says "biting each
+		# pass" and a balance table that declares "~7 bites over its 2.1s climb"
+		# (risingwheel 3.0). This is the same fault the comment on the pierce
+		# family fifty lines up describes -- "all three could touch a given body
+		# exactly once, so a piercing stream was worth one hit" -- and it takes
+		# the same cure, which clears the list AND re-cuts what is still inside.
+		_rake_overlapping()
 	# anything it passes gets carried UP with it
 	for group_name in HOSTILE_GROUPS:
 		for e in get_tree().get_nodes_in_group(group_name):
