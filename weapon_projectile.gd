@@ -6215,6 +6215,50 @@ func _build_griefbeam() -> void:
 		Color(1.00, 0.24, 0.86),        # hot magenta at the hand
 		Color(0.66, 0.34, 1.00),        # electric violet
 		Color(0.70, 0.98, 1.00)], 9)    # white-blue before the burn-out
+	_build_grief_tail()
+
+# THE TAIL (2026-08-04). Filmed and measured, this lance had no trail worth the
+# name: _art_filament_beam reaches only length * 0.20 behind the hand, so the
+# whole trail was 32 world px -- 19 SCREEN px at the real 0.6 zoom -- against a
+# law of 190-430. The bundle in front was never the problem; the weapon was
+# built to 3.3 player heights when the law's TRAIL clause alone starts at 4.
+#
+# Lengthening the beam itself was the wrong lever. This weapon's identity is
+# RATE -- "there are a great many tears" -- so scaling every lance 2.3x turns a
+# pour of narrow lances into a wall of light and costs the weapon the only thing
+# that makes it itself. So: same head, real tail. 230 world px behind the hand
+# (139 screen px), 388 behind the head, and NARROW -- 22 world px at the root
+# closing to a point.
+#
+# Drawn as a static tapering wedge rather than a live trail node, which is the
+# pattern this file already chose for the same problem on the crown-spear: "a
+# long tapering additive wedge reads as fire at speed without costing a
+# per-frame trail node." Nine of these are alive at once; nine trail nodes are
+# not worth it. Vertex colours carry the hot->dim falloff the law asks for, so
+# the tail dies out instead of ending on a hard edge.
+func _build_grief_tail() -> void:
+	var m := _add_mat()
+	var soft := Polygon2D.new()
+	soft.polygon = PackedVector2Array([
+		Vector2(-26.0, -11.0), Vector2(-124.0, -6.0), Vector2(-230.0, 0.0),
+		Vector2(-124.0, 6.0), Vector2(-26.0, 11.0)])
+	soft.vertex_colors = PackedColorArray([
+		Color(1.00, 0.24, 0.86, 0.38), Color(0.72, 0.32, 1.00, 0.20),
+		Color(0.62, 0.40, 1.00, 0.0),
+		Color(0.72, 0.32, 1.00, 0.20), Color(1.00, 0.24, 0.86, 0.38)])
+	soft.material = m
+	visual.add_child(soft)
+	# the hot filament inside it, shorter and thinner, so the tail has a core
+	var hot := Polygon2D.new()
+	hot.polygon = PackedVector2Array([
+		Vector2(-24.0, -4.2), Vector2(-96.0, -2.0), Vector2(-158.0, 0.0),
+		Vector2(-96.0, 2.0), Vector2(-24.0, 4.2)])
+	hot.vertex_colors = PackedColorArray([
+		Color(1.00, 0.62, 0.98, 0.62), Color(0.86, 0.56, 1.00, 0.30),
+		Color(0.80, 0.70, 1.00, 0.0),
+		Color(0.86, 0.56, 1.00, 0.30), Color(1.00, 0.62, 0.98, 0.62)])
+	hot.material = m
+	visual.add_child(hot)
 
 # REGICIDE's thrown spear: a slim crown-gold lance, point-first
 func _build_crownspear() -> void:
