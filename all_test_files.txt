@@ -42,6 +42,7 @@ test_finale_node
 test_firstsession_node
 test_fishing_node
 test_fullarc_node
+test_gallows_node
 test_gather_node
 test_god_node
 test_gorgon_node

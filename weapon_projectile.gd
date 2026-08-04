@@ -6773,8 +6773,15 @@ func _tick_late_thunder(delta: float) -> void:
 		_hush_ring.modulate.a = 0.16 + 0.5 * frac
 	if _hush_t < HUSH_DELAY:
 		return
-	# ...and then the sound catches up
-	_nova_burst_tinted(global_position, Color(0.78, 0.88, 1.0))
+	# ...AND THEN THE SOUND CATCHES UP -- AND IT NOW HITS. This called
+	# _nova_burst_tinted, which draws the ring and pays NOTHING, so every verb
+	# that banks on a DELAYED payoff collected nothing: the gallows drop (0.8x),
+	# Novaburst's two echoes (0.65x) and Storm-Debt's accruing beats (0.6 ->
+	# 1.14). All three set `damage` deliberately, with balance comments, and
+	# test_weapondps counts them ("novaburst: 2.2 -- the hit plus two delayed
+	# 0.6x novas"). Same root cause as the Dire Portent: two helpers one
+	# identifier apart, one of which cannot pay.
+	_nova_burst(global_position, Color(0.78, 0.88, 1.0))
 	done = true
 	queue_free()
 
@@ -8803,14 +8810,49 @@ func _hang_them(who: Node2D) -> void:
 		return
 	if who.has_method("apply_status"):
 		who.apply_status("freeze", 1.1, 1.0)     # they stop, because they are up
+	# ...AND NOW THEY ACTUALLY GO UP (2026-08-04). The card's whole identity is
+	# the contrast it draws: "It does not knock them back. It takes them UP,
+	# holds them there swinging, and then the floor comes back." Nothing here
+	# ever moved the body. It was a stun with scenery: the enemy stood on the
+	# ground, frozen, while an unattached rope swung in the air above its head.
+	#
+	# A one-shot velocity (the squall rider's `velocity.y = -190`) gives a HOP,
+	# not a hang -- enemy.gd applies gravity BEFORE its frozen gate and says so:
+	# "frozen OR petrified: rooted, can't act (still falls with gravity)". So the
+	# fall has to be held off for the length of the hold, and released at the
+	# end, which is the "floor comes back".
+	var hung_y: float = who.global_position.y
+	var lift := 44.0
+	var hold := 0.66
+	var lift_in := 0.14
+	var drop_dur := 0.18
+	var hang := who.create_tween()
+	hang.tween_property(who, "global_position:y", hung_y - lift, lift_in) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	hang.tween_interval(hold)
+	hang.tween_property(who, "global_position:y", hung_y, drop_dur) \
+		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	# gravity keeps accumulating in velocity.y the whole time it is off the
+	# floor, so without this the body fights the tween every physics step and
+	# then SNAPS when the tween lets go. Held at zero for the whole swing.
+	if "velocity" in who:
+		hang.parallel().tween_method(
+			func(_t: float) -> void:
+				if is_instance_valid(who):
+					who.velocity.y = 0.0,
+			0.0, 1.0, lift_in + hold + drop_dur)
 	var m := CanvasItemMaterial.new()
 	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	var rope := Polygon2D.new()
 	rope.polygon = PackedVector2Array([
 		Vector2(-1.6, -78.0), Vector2(1.6, -78.0), Vector2(1.6, -14.0), Vector2(-1.6, -14.0)])
 	rope.color = Color(0.66, 0.58, 0.4, 0.9)
-	host.add_child(rope)
-	rope.global_position = (who as Node2D).global_position
+	# HUNG FROM THEM, NOT FROM THE AIR. The rope used to be parented to the host
+	# at the victim's position, so the moment the body actually moves the rope
+	# stays behind and the noose swings over nothing. As a child of the body it
+	# rides up with them and comes down with them.
+	who.add_child(rope)
+	rope.position = Vector2.ZERO
 	var noose := Polygon2D.new()
 	var pts := PackedVector2Array()
 	for i in range(10):
@@ -8827,15 +8869,27 @@ func _hang_them(who: Node2D) -> void:
 	tw.tween_property(rope, "rotation", 0.0, 0.26)
 	tw.tween_property(rope, "modulate:a", 0.0, 0.2)
 	tw.tween_callback(rope.queue_free)
-	# and then the floor comes back: the drop is the second half of the blow
-	var drop = (load("res://weapon_projectile.gd") as GDScript).new()
-	drop.kind = "late_thunder"
-	drop.damage = maxi(1, int(round(float(damage) * 0.8)))
-	drop.element = element
-	drop.on_hit_status = on_hit_status
-	drop.source = source
-	host.add_child(drop)
-	drop.global_position = (who as Node2D).global_position
+	# AND THEN THE FLOOR COMES BACK -- when they actually land, not on the same
+	# frame as the swing. This used to spawn immediately, overlapping the victim,
+	# so the "late" thunder resolved on the very next physics frame and the
+	# card's three beats (up, hold, drop) collapsed into one. It is fired from
+	# the landing now. Values are captured because this projectile is long gone
+	# by the time the hour comes round.
+	var owed: int = maxi(1, int(round(float(damage) * 0.8)))
+	var elem := element
+	var status := on_hit_status
+	var src := source
+	hang.tween_callback(func() -> void:
+		if not is_instance_valid(host) or not is_instance_valid(who):
+			return
+		var drop = (load("res://weapon_projectile.gd") as GDScript).new()
+		drop.kind = "late_thunder"
+		drop.damage = owed
+		drop.element = elem
+		drop.on_hit_status = status
+		drop.source = src
+		host.add_child(drop)
+		drop.global_position = (who as Node2D).global_position)
 
 # --- PILGRIM'S SCOURGE: every strike plants a WAYMARK you can walk back to
 func _plant_waymark(at: Vector2) -> void:
