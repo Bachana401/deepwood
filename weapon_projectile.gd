@@ -6184,6 +6184,20 @@ func _is_dead_node(n: Node) -> bool:
 
 # a marcher: a hooded shade carrying a small lantern -- the parade reads as
 # PEOPLE, which is what ties it to the rescue story
+# one closed additive outline, the lit edge that separates a black robe from
+# whatever is behind it
+func _marcher_rim(into: Node2D, outline: PackedVector2Array, w: float,
+		mat: CanvasItemMaterial) -> void:
+	var rim := Line2D.new()
+	var loop := PackedVector2Array(outline)
+	loop.append(outline[0])
+	rim.points = loop
+	rim.width = w
+	rim.default_color = Color(1.0, 0.80, 0.46, 0.62)
+	rim.material = mat
+	rim.joint_mode = Line2D.LINE_JOINT_ROUND
+	into.add_child(rim)
+
 # THE LIGHT WEARS THE FIGURE'S SHAPE (2026-08-04). Filmed at the real 0.6 zoom
 # the procession read as white blobs with dark specks in them, and none of the
 # three causes was size alone:
@@ -6209,50 +6223,70 @@ func _build_marcher() -> void:
 	var pivot := Node2D.new()
 	visual.add_child(pivot)
 
-	# ---- the silhouette: hood over flared robe, 62 world px tall (37.5 screen,
-	# the same height as the walker's 60px scale bar -- a marcher is a PERSON)
+	# ---- the silhouette: a HOODED HEAD sitting on a flared robe, 64 world px
+	# tall (38.7 screen -- a marcher is a person, measured against the walker's
+	# 60px scale bar).
+	#
+	# GIVING IT A NECK, AND WHY NOT WITH A NOTCH. The first cut ran hood into
+	# robe as one outline and read as a CONE. The obvious fix -- pinch the
+	# outline at the neck -- cannot work at this size: the old hood-to-shoulder
+	# step was 6 world px per side, i.e. 3.6 SCREEN px, under the ~8px floor
+	# where detail stops existing. Any notch small enough to be anatomically
+	# right is too small to see.
+	# What DOES read at 38 screen px is TWO NESTED LIT OUTLINES: a closed hood
+	# shape overlapping a separate shoulder shape, each carrying its own rim. The
+	# eye gets a head distinct from a body from the two rims, not from the
+	# geometry between them -- and the shoulders standing 9.5 world px (5.7
+	# screen) proud of the hood base do the rest.
+	var robe := PackedVector2Array([
+		Vector2(-15, -26), Vector2(15, -26), Vector2(16, -6), Vector2(20, 16),
+		Vector2(-20, 16), Vector2(-16, -6)])
+	var hood := PackedVector2Array([
+		Vector2(0, -48), Vector2(10, -38), Vector2(9, -30), Vector2(5.5, -22),
+		Vector2(-5.5, -22), Vector2(-9, -30), Vector2(-10, -38)])
+	# the whole outline, used only for the corona so the glow stays figure-shaped
 	var body := PackedVector2Array([
-		Vector2(0, -46), Vector2(6, -38), Vector2(7.5, -30), Vector2(13.5, -24),
+		Vector2(0, -48), Vector2(10, -38), Vector2(9, -30), Vector2(15, -26),
 		Vector2(16, -6), Vector2(20, 16),
-		Vector2(-20, 16), Vector2(-16, -6), Vector2(-13.5, -24),
-		Vector2(-7.5, -30), Vector2(-6, -38)])
-	# THE TAPER IS THE CUE: 40 world px at the hem under a 15 px hood is a
-	# 25 px (15 screen px) flare, and that is what reads as a robed figure at
-	# any distance this game is played at.
+		Vector2(-20, 16), Vector2(-16, -6), Vector2(-15, -26),
+		Vector2(-9, -30), Vector2(-10, -38)])
+	# THE TAPER IS STILL THE CUE: 40 world px at the hem under a 20 px hood is a
+	# 20 px (12 screen px) flare, and that is what reads as a robed figure at any
+	# distance this game is played at.
 	var cloak := Polygon2D.new()
-	cloak.polygon = body
+	cloak.polygon = robe
 	cloak.color = Color(0.10, 0.10, 0.14, 0.97)
 	pivot.add_child(cloak)
 	# a value break across the shoulders, so the mass is not one flat blot
 	var mantle := Polygon2D.new()
 	mantle.polygon = PackedVector2Array([
-		Vector2(0, -31), Vector2(13.5, -24), Vector2(11, -8), Vector2(-11, -8), Vector2(-13.5, -24)])
+		Vector2(0, -29), Vector2(15, -26), Vector2(12, -8), Vector2(-12, -8), Vector2(-15, -26)])
 	mantle.color = Color(0.17, 0.16, 0.23, 0.95)
 	pivot.add_child(mantle)
-	# THE RIM. Drawn here rather than via _art_rim because that helper defaults
+	# the hood is DARKER than the robe and drawn over it: a value step at the
+	# neck as well as an outline step
+	var cowl := Polygon2D.new()
+	cowl.polygon = hood
+	cowl.color = Color(0.05, 0.05, 0.08, 1.0)
+	pivot.add_child(cowl)
+	# THE RIMS. Drawn here rather than via _art_rim because that helper defaults
 	# to width 2.0 -- 1.2 SCREEN px, an edge nobody can see. At 5 world px it is
 	# a 3 px lip, and in a cave it is the ONLY thing separating a black robe from
-	# lit rock.
-	var rim := Line2D.new()
-	var loop := PackedVector2Array(body)
-	loop.append(body[0])
-	rim.points = loop
-	rim.width = 5.0
-	rim.default_color = Color(1.0, 0.80, 0.46, 0.62)
-	rim.material = m
-	rim.joint_mode = Line2D.LINE_JOINT_ROUND
-	pivot.add_child(rim)
+	# lit rock. The hood gets its own, slightly thinner, so the head reads as a
+	# closed shape rather than as the top of a cone.
+	_marcher_rim(pivot, robe, 5.0, m)
+	_marcher_rim(pivot, hood, 3.6, m)
 	# the corona is the FIGURE'S OWN SHAPE, spilled outward -- not a disc. A disc
 	# is what merged nine marchers into one cloud.
 	var corona := Polygon2D.new()
 	var spill := PackedVector2Array()
 	for p in body:
-		spill.append(p * 1.30)
+		spill.append(p * 1.28)
 	corona.polygon = spill
 	corona.color = Color(1.0, 0.74, 0.40, 0.13)
 	corona.material = m
 	pivot.add_child(corona)
-	pivot.move_child(corona, 0)      # behind the body
+	pivot.move_child(corona, 0)      # behind everything
 
 	# ---- the lantern, held out ahead on a short arm ----
 	var arm := Node2D.new()
