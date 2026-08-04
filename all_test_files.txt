@@ -24,6 +24,7 @@ test_construction_node
 test_corruption_node
 test_cottageids_node
 test_craft_node
+test_crownbows_node
 test_deep_node
 test_deepreach_node
 test_dispatch_node
