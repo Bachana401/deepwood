@@ -1,0 +1,66 @@
+DEEPWOOD -- AUDIO PROVENANCE
+============================
+Written 2026-08-04. Kept beside the files themselves, the way
+art/fonts/OFL-PixelifySans.txt sits beside the font it covers.
+
+WHY THIS FILE EXISTS
+--------------------
+Everything in this folder is exported INTO the shipping build -- the Android
+preset's exclude_filter is only "pl_work/*", so these files go out to every
+player. That makes their licence a shipping question, not a housekeeping one.
+Without a record, the question gets re-asked by every audit and cannot be
+answered by anyone except the developer from memory.
+
+
+THE MUSIC (3 files, 9.1 MB -- about a quarter of the whole tracked project)
+--------------------------------------------------------------------------
+    healthy_village_theme.mp3    5.14 MB
+    cave_theme.ogg               3.06 MB
+    ground_theme.ogg             0.91 MB
+
+Added in commit 2ece4e9, "Music: three dev-supplied themes, split
+surface/underground + healthy village".
+
+STATUS: the developer confirmed on 2026-08-04 that these tracks were
+downloaded by him and that he had checked they are free to use.
+
+NOT YET RECORDED -- please fill in:
+    source (site / artist / URL) : ______________________________________
+    licence (e.g. CC0, CC-BY, Pixabay Content Licence, purchased) : ______
+    attribution required?        : ______________________________________
+    date obtained                : ______________________________________
+
+Two of those blanks matter beyond bookkeeping. Several common "free" music
+licences (CC-BY and most asset-store terms) require CREDIT somewhere in the
+game or its store listing, and Deepwood currently credits nothing. And a store
+submission may ask you to assert rights over every asset in the package.
+
+The files carry NO embedded metadata that could answer this independently --
+checked 2026-08-04: no ID3v1 or ID3v2 tag on the mp3, no vorbis comments on
+either ogg, only encoder strings (LAME 3.100, libVorbis 20100325). That is
+completely normal for royalty-free downloads and is not evidence of anything
+either way; it simply means the files cannot tell us what the developer knows.
+
+
+THE SOUND EFFECTS (13 .wav files)
+---------------------------------
+    arrow_deflect, bow_shot, dash, enemy_death, explosion, hit, jump,
+    player_death, player_hurt, purchase, purchase_denied, spear_thrust,
+    sword_swing
+
+STATUS: not recorded. These predate the 2026-07-28 audio pass and their
+provenance has never been written down anywhere in the repo.
+
+Note that they are NOT covered by sfx_synth.gd. That file synthesizes chiptune
+one-shots procedurally at runtime -- "rather than shipping more wav files" --
+and is therefore licence-free by construction, but it was added later and did
+not replace these thirteen.
+
+    source / licence : ______________________________________________
+
+
+HOW TO CLOSE THIS OUT
+---------------------
+Fill in the blanks above and delete this section. If any track turns out to
+need attribution, the credit belongs in the game (pause menu / How to Play) as
+well as here -- a licence file inside the repo is not visible to a player.
