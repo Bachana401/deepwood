@@ -135,6 +135,60 @@ func _ready() -> void:
 		"took %d on the hit, %d total -- the drop paid %d"
 			% [after_hit, foe.taken, foe.taken - after_hit])
 
+	# --- THE DROP MUST SURVIVE THE VICTIM ---
+	# This verb damages FIRST and hangs SECOND, so a head that kills outright is
+	# the common case on trash. The swing tween is bound to the victim and dies
+	# with it; the drop must not be. (Adversarial review, 2026-08-04: it WAS,
+	# so a lethal hit silently deleted the entire second beat of the blow. The
+	# first version of this test could not see it -- its foe never died.)
+	# CLEAR THE LANE FIRST. The head does not pierce, so with the earlier foe
+	# still standing at +150 it never reaches a target at +230 -- and that foe
+	# SURVIVES, so its drop spawns and satisfies the check below for entirely
+	# the wrong reason. (Caught by negative-testing this very assertion: with
+	# the bug restored it still passed.) Also clear any thunder still in flight
+	# from the first scenario, or a leftover would answer for the new one.
+	if is_instance_valid(foe):
+		foe.queue_free()
+	for n in get_tree().get_nodes_in_group("player_projectile"):
+		if is_instance_valid(n):
+			n.queue_free()
+	for i in range(20):
+		keep_running()
+		await get_tree().process_frame
+	var doomed := _make_foe(host, p.global_position + Vector2(230.0, -10.0))
+	for i in range(30):
+		keep_running()
+		await get_tree().process_frame
+	var head2 = PROJ.new()
+	head2.kind = "gallows_head"
+	head2.damage = 100
+	head2.direction = Vector2.RIGHT
+	head2.speed = 900.0
+	head2.max_distance = 700.0
+	head2.source = p
+	host.add_child(head2)
+	head2.global_position = p.global_position + Vector2(40.0, 0.0)
+	for i in range(120):
+		keep_running()
+		await get_tree().process_frame
+		if doomed.hits > 0:
+			break
+	# they die to the head, exactly as trash does
+	doomed.queue_free()
+	var saw_drop := false
+	var t2 := 0.0
+	while t2 < 2.2:
+		keep_running()
+		await get_tree().process_frame
+		t2 += get_process_delta_time()
+		for n in get_tree().get_nodes_in_group("player_projectile"):
+			if is_instance_valid(n) and n.get("kind") == "late_thunder":
+				saw_drop = true
+		if saw_drop:
+			break
+	check("the drop still falls when the head KILLS them (it is bound to the world, not the corpse)",
+		saw_drop, "no late_thunder ever spawned after the victim was freed")
+
 	# --- AND THE TIMED PAYOFF ITSELF ---
 	# The check above does NOT cover it, and that is worth stating: the gallows
 	# drop spawns ON the victim, so it resolves through the immediate contact

@@ -115,7 +115,16 @@ func _ready() -> void:
 	# version of this test relied on a village mob happening to wander into
 	# range: it passed alone and failed under sweep load (2026-08-04). A guard
 	# whose result depends on who is nearby is not a guard.
+	# TWO OF THEM, AND THE SECOND IS NOT OPTIONAL. call_a_marcher spawns its
+	# three at aim +700, -850 and +1000, and each searches for prey within 900px
+	# of ITSELF -- so the one at +1000 cannot see a single body standing on the
+	# aim point, takes the prey == null branch and frees itself on its first tick
+	# (a marcher starts at modulate.a = 0.0). The count then reads 2, and whether
+	# it read 3 depended on an ambient village mob wandering into range: this
+	# test passed five consecutive runs on that luck before a sweep caught it.
+	# A body at +900 puts the far marcher 100px from prey.
 	var prey := _make_hostile(host, p.global_position + Vector2(260.0, 0.0))
+	var prey_far := _make_hostile(host, p.global_position + Vector2(1160.0, 0.0))
 	var before_march := host.get_children().duplicate()
 	p.call_a_marcher(aim, 20, null)
 	# The add is DEFERRED on purpose (that is the fix), so POLL for it rather
@@ -144,6 +153,8 @@ func _ready() -> void:
 			m.queue_free()
 	if is_instance_valid(prey):
 		prey.queue_free()
+	if is_instance_valid(prey_far):
+		prey_far.queue_free()
 
 	# ...AND THE SPAWN MUST STAY DEFERRED. The check above cannot carry this on
 	# its own and it is worth being honest about why: calling call_a_marcher
