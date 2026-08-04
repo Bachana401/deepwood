@@ -278,11 +278,53 @@ func _carve_ground_skin() -> void:
 	# crust now), so the cut read as a hole in the earth you could obviously
 	# fall into, and you cannot. The deep fill is still shortened, because the
 	# tiles would otherwise be drawn over the top of the underworld.
+	var fill_tex: Texture2D = null
+	var fill_at := Vector2.ZERO
 	for child in ground.get_children():
 		if not (child is Sprite2D) or not child.region_enabled:
 			continue
 		if child.region_rect.size.y > 300.0:
+			fill_tex = (child as Sprite2D).texture
+			fill_at = (child as Sprite2D).position
 			child.region_rect.size.y = 165.0 - child.position.y
+	# ...AND THEN PUT THE EARTH BACK EVERYWHERE THERE IS NO CAVE (2026-08-04).
+	# The cut above is right and must stay: TUNNEL_TOP_Y is 210, so a full-depth
+	# fill would bury the descent. But the cut is GLOBAL and the tunnel is not --
+	# it exists only around the mouth, while the village stands at x ~6000. So
+	# everywhere else the surface camera was looking at 300+ world px of the
+	# rock BACKDROP (a flat Color(0.085,0.075,0.1) at z -90), which is the black
+	# band filling the bottom ~29% of every surface frame. It is not a void, but
+	# a featureless one-colour rectangle reads as dead space, not as ground.
+	# Measured: the surface camera at 0.6 zoom sees to about y=470, the earth
+	# stopped at y=165.
+	# So: re-lay the deep fill in the two spans that flank the cave, and leave
+	# the mouth dark -- darkness AT the cave mouth is the one place it reads as
+	# intended rather than as unfinished.
+	if fill_tex == null:
+		return
+	var deep_top := 165.0
+	var deep_bottom := 520.0        # past what the surface camera can see
+	var keep_dark_l := MOUTH_X - 620.0
+	var keep_dark_r := DESCENT_X + 900.0
+	var main_left: float = float(main.WORLD_LEFT)
+	var main_right: float = float(main.WORLD_RIGHT)
+	for span in [[main_left, keep_dark_l], [keep_dark_r, main_right]]:
+		var w: float = span[1] - span[0]
+		if w <= 0.0:
+			continue
+		var deep := Sprite2D.new()
+		deep.texture = fill_tex
+		deep.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+		deep.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		deep.centered = false
+		deep.region_enabled = true
+		deep.region_rect = Rect2(0, 0, w, deep_bottom - deep_top)
+		deep.position = Vector2(span[0], deep_top)
+		# ABOVE the rock backdrop (-90) so it is what the surface sees, and well
+		# BELOW every underdark feature and the player (z 0) so nothing down
+		# there can be occluded by it.
+		deep.z_index = -85
+		ground.add_child(deep)
 
 func _plan_bands(rng: RandomNumberGenerator) -> void:
 	for b in range(BANDS):

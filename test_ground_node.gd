@@ -68,15 +68,32 @@ func _ready() -> void:
 		absf(grass_top - ground_y) < 1.0,
 		"grass at %.1f, buildings stand at %.1f -> %.1f px of float" % [grass_top, ground_y, grass_top - ground_y])
 
-	# --- no gap between the grass strip and the earth beneath it ---
-	var lower: Sprite2D = strips[0]
-	for s in strips:
-		if s.position.y > lower.position.y:
-			lower = s
-	var surf_bottom: float = surf.position.y + surf.region_rect.size.y * surf.scale.y
-	check("earth starts where the grass ends (no seam)",
-		lower.position.y <= surf_bottom + 0.5,
-		"grass ends %.1f, earth starts %.1f" % [surf_bottom, lower.position.y])
+	# --- NO GAP ANYWHERE DOWN THE COLUMN ---
+	# This used to compare the grass against whichever strip sat LOWEST, which
+	# only tested what it meant while there were exactly two. There are more now
+	# (the deep fill is re-laid either side of the cave mouth, see
+	# underdark._carve_ground_skin), and "lowest" became the deep one -- so the
+	# check reported a seam at the join between two strips that touch exactly.
+	# Walk the column instead and assert every consecutive pair meets: that is
+	# the actual invariant, it still catches the original bug (earth not
+	# reaching the grass), and it cannot be fooled by adding more strips.
+	var column := strips.duplicate()
+	column.sort_custom(func(a, b): return a.position.y < b.position.y)
+	var worst_gap := 0.0
+	var gap_where := ""
+	for i in range(column.size() - 1):
+		var upper: Sprite2D = column[i]
+		var below: Sprite2D = column[i + 1]
+		# strips laid side by side (same top) are spans, not a gap in the column
+		if absf(below.position.y - upper.position.y) < 0.5:
+			continue
+		var upper_bottom: float = upper.position.y + upper.region_rect.size.y * upper.scale.y
+		var gap: float = below.position.y - upper_bottom
+		if gap > worst_gap:
+			worst_gap = gap
+			gap_where = "%.1f -> %.1f" % [upper_bottom, below.position.y]
+	check("the ground column is continuous, grass to deepest (no seam)",
+		worst_gap <= 0.5, "worst gap %.1fpx at %s" % [worst_gap, gap_where])
 
 	# --- every building's base is on the grass ---
 	var n := 0
