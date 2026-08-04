@@ -817,6 +817,13 @@ const NO_ENRICH := {
 	"sun_pool": true, "watch_fire": true, "cinder_shelf": true, "iron_spike": true,
 	"asphodel_post": true, "storm_cloud": true, "colonnade": true, "sky_pillar": true,
 	"grief_beam": true, "dawn_line": true, "world_cut": true, "bent_ray": true,
+	# THE PROCESSION WAS BEING SEARCHLIT (2026-08-04). A marcher is hand-authored
+	# as a near-black hooded shade -- and _enrich_visual was hanging a warm-WHITE
+	# additive halo, a white core and a full trail behind it (a marcher inherits
+	# the default speed of 500, which clears the speed > 60 gate). Nine of those
+	# at once merged into a bank of white fog with dark specks in it. The generic
+	# enrichment was fighting the art it was drawn over.
+	"marcher": true,
 	# sunder_wave belongs here beside its sibling grief_beam and never was.
 	# _enrich_visual hangs a halo + hot core + 34-point trail on `visual`, and
 	# _tick_sunder deliberately never moves global_position (the front travels as
@@ -6177,30 +6184,127 @@ func _is_dead_node(n: Node) -> bool:
 
 # a marcher: a hooded shade carrying a small lantern -- the parade reads as
 # PEOPLE, which is what ties it to the rescue story
+# THE LIGHT WEARS THE FIGURE'S SHAPE (2026-08-04). Filmed at the real 0.6 zoom
+# the procession read as white blobs with dark specks in them, and none of the
+# three causes was size alone:
+#   * the generic halo/core/trail (now excluded, see NO_ENRICH) drowned it
+#   * the silhouette was a PAWN -- 18 world px across the shoulders narrowing to
+#     14 at the hem. A robe flares. Narrowing downward reads as a bottle or a
+#     bolt, never as a person.
+#   * the lantern -- the one thing the card names -- was 5 x 7 world px, which is
+#     3 x 4 SCREEN px. The lantern-carrying shade carried a lantern nobody could
+#     see.
+#
+# THE RULE THIS IS BUILT ON: dark things get a light edge, light things get a
+# dark frame. Deepwood is played on a pale day sky AND in a lit cave, and no
+# single trick survives both -- additive light is worthless against a bright
+# sky, and a dark mass is worthless against lit rock. So the figure carries the
+# day as a near-black mass, and the RIM carries the cave. The art gets better in
+# the dark, which is what a shade should do.
 func _build_marcher() -> void:
+	var m := _add_mat()
+	# pivot under `visual`, because _tick_marcher writes visual.scale.x to face
+	# the prey and visual.position.y for the walking bob -- the gait below must
+	# ride on its own node or it would fight those every frame
+	var pivot := Node2D.new()
+	visual.add_child(pivot)
+
+	# ---- the silhouette: hood over flared robe, 62 world px tall (37.5 screen,
+	# the same height as the walker's 60px scale bar -- a marcher is a PERSON)
+	var body := PackedVector2Array([
+		Vector2(0, -46), Vector2(6, -38), Vector2(7.5, -30), Vector2(13.5, -24),
+		Vector2(16, -6), Vector2(20, 16),
+		Vector2(-20, 16), Vector2(-16, -6), Vector2(-13.5, -24),
+		Vector2(-7.5, -30), Vector2(-6, -38)])
+	# THE TAPER IS THE CUE: 40 world px at the hem under a 15 px hood is a
+	# 25 px (15 screen px) flare, and that is what reads as a robed figure at
+	# any distance this game is played at.
 	var cloak := Polygon2D.new()
-	cloak.polygon = PackedVector2Array([
-		Vector2(0, -26), Vector2(9, -12), Vector2(7, 14), Vector2(-7, 14), Vector2(-9, -12)])
-	cloak.color = Color(0.13, 0.12, 0.2, 0.88)
-	visual.add_child(cloak)
-	var hood := Polygon2D.new()
-	hood.polygon = PackedVector2Array([
-		Vector2(0, -30), Vector2(7, -22), Vector2(4, -14), Vector2(-4, -14), Vector2(-7, -22)])
-	hood.color = Color(0.07, 0.07, 0.12, 0.95)
-	visual.add_child(hood)
-	var lantern := Polygon2D.new()
-	lantern.polygon = PackedVector2Array([
-		Vector2(11, -4), Vector2(16, -4), Vector2(16, 3), Vector2(11, 3)])
-	lantern.color = Color(1.0, 0.82, 0.42, 0.95)
-	visual.add_child(lantern)
-	var glow := Polygon2D.new()
-	glow.polygon = _circle(15.0, 10)
-	glow.color = Color(1.0, 0.78, 0.36, 0.3)
-	glow.position = Vector2(13.5, 0)
-	var m := CanvasItemMaterial.new()
-	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-	glow.material = m
-	visual.add_child(glow)
+	cloak.polygon = body
+	cloak.color = Color(0.10, 0.10, 0.14, 0.97)
+	pivot.add_child(cloak)
+	# a value break across the shoulders, so the mass is not one flat blot
+	var mantle := Polygon2D.new()
+	mantle.polygon = PackedVector2Array([
+		Vector2(0, -31), Vector2(13.5, -24), Vector2(11, -8), Vector2(-11, -8), Vector2(-13.5, -24)])
+	mantle.color = Color(0.17, 0.16, 0.23, 0.95)
+	pivot.add_child(mantle)
+	# THE RIM. Drawn here rather than via _art_rim because that helper defaults
+	# to width 2.0 -- 1.2 SCREEN px, an edge nobody can see. At 5 world px it is
+	# a 3 px lip, and in a cave it is the ONLY thing separating a black robe from
+	# lit rock.
+	var rim := Line2D.new()
+	var loop := PackedVector2Array(body)
+	loop.append(body[0])
+	rim.points = loop
+	rim.width = 5.0
+	rim.default_color = Color(1.0, 0.80, 0.46, 0.62)
+	rim.material = m
+	rim.joint_mode = Line2D.LINE_JOINT_ROUND
+	pivot.add_child(rim)
+	# the corona is the FIGURE'S OWN SHAPE, spilled outward -- not a disc. A disc
+	# is what merged nine marchers into one cloud.
+	var corona := Polygon2D.new()
+	var spill := PackedVector2Array()
+	for p in body:
+		spill.append(p * 1.30)
+	corona.polygon = spill
+	corona.color = Color(1.0, 0.74, 0.40, 0.13)
+	corona.material = m
+	pivot.add_child(corona)
+	pivot.move_child(corona, 0)      # behind the body
+
+	# ---- the lantern, held out ahead on a short arm ----
+	var arm := Node2D.new()
+	arm.position = Vector2(0, -22)
+	pivot.add_child(arm)
+	var pole := Polygon2D.new()
+	pole.polygon = PackedVector2Array([
+		Vector2(2, -2), Vector2(24, 4), Vector2(24, 8), Vector2(2, 2)])
+	pole.color = Color(0.09, 0.08, 0.11, 1.0)
+	arm.add_child(pole)
+	# AN AIR GAP of 14 world px (8.5 screen) between cloak and lamp: without it
+	# the lamp merges into the body and stops reading as CARRIED.
+	# The housing is opaque and dark on purpose -- gold on a lit mountain is
+	# ~1.3:1 and vanishes; the same gold framed in near-black cannot be missed
+	# on either background.
+	var housing := Polygon2D.new()
+	housing.polygon = PackedVector2Array([
+		Vector2(22, -4), Vector2(39, -4), Vector2(39, 17), Vector2(22, 17)])
+	housing.color = Color(0.06, 0.06, 0.09, 1.0)
+	arm.add_child(housing)
+	var flame := Polygon2D.new()
+	flame.polygon = PackedVector2Array([
+		Vector2(25, -1), Vector2(36, -1), Vector2(36, 14), Vector2(25, 14)])
+	flame.color = Color(1.0, 0.84, 0.46, 1.0)
+	arm.add_child(flame)
+	var lampglow := Polygon2D.new()
+	lampglow.polygon = _circle(19.0, 12)
+	lampglow.position = Vector2(30.5, 6.5)
+	lampglow.color = Color(1.0, 0.78, 0.38, 0.26)
+	lampglow.material = m
+	arm.add_child(lampglow)
+	# the light it CASTS on the road ahead -- the figure's own body blocks it,
+	# which is the cheapest way to say "this thing is carrying a light source"
+	var castwedge := Polygon2D.new()
+	castwedge.polygon = PackedVector2Array([
+		Vector2(28, 10), Vector2(94, 30), Vector2(94, 44), Vector2(28, 20)])
+	castwedge.vertex_colors = PackedColorArray([
+		Color(1.0, 0.80, 0.42, 0.18), Color(1.0, 0.78, 0.40, 0.0),
+		Color(1.0, 0.78, 0.40, 0.0), Color(1.0, 0.80, 0.42, 0.18)])
+	castwedge.material = m
+	arm.add_child(castwedge)
+
+	# ---- the gait. Each marcher gets its OWN period so nine of them never fall
+	# into step -- a column that sways in unison reads as one object.
+	var period: float = randf_range(0.46, 0.58)
+	pivot.rotation = randf_range(-0.085, 0.085)
+	var sway := pivot.create_tween().set_loops()
+	sway.tween_property(pivot, "rotation", 0.085, period).set_trans(Tween.TRANS_SINE)
+	sway.tween_property(pivot, "rotation", -0.085, period).set_trans(Tween.TRANS_SINE)
+	var swing := arm.create_tween().set_loops()
+	swing.tween_property(arm, "rotation", 0.22, period * 1.15).set_trans(Tween.TRANS_SINE)
+	swing.tween_property(arm, "rotation", -0.10, period * 1.15).set_trans(Tween.TRANS_SINE)
 
 # THE CROWN'S SORROW's lance: a narrow spindle of pale light with a white
 # core -- small, fast, and there are always several in the air
