@@ -76,6 +76,7 @@ test_phase_node
 test_pickaxetiers_node
 test_placetorch_node
 test_plots_node
+test_portent_node
 test_profile_node
 test_proving_node
 test_realhits_node

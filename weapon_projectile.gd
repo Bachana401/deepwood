@@ -4364,7 +4364,13 @@ func _build_rising_wheel() -> void:
 # NOVA TONGUE: the tip detonates at full extension -- damage plus a real
 # star-burst, so the turn of the lash IS the payoff rather than dead time
 const NOVA_R := 108.0
-func _nova_burst(at: Vector2) -> void:
+# The DAMAGING nova. Its twin _nova_burst_tinted is decoration only -- it draws
+# the same shape and pays nothing -- and the two are one identifier apart, which
+# is how the Dire Portent came to fall for zero (see _tick_portent). `tint` is
+# optional so the single existing caller is untouched; a verb that needs both
+# the damage and its own colour now asks for it here instead of reaching for the
+# helper that cannot pay.
+func _nova_burst(at: Vector2, tint: Color = Color(1.0, 0.86, 0.5)) -> void:
 	var host := get_parent()
 	if host == null:
 		return
@@ -4393,7 +4399,7 @@ func _nova_burst(at: Vector2) -> void:
 		var a := TAU * float(i) / 12.0
 		pts.append(Vector2(cos(a), sin(a)) * (34.0 if i % 2 == 0 else 13.0))
 	star.polygon = pts
-	star.color = Color(1.0, 0.86, 0.5, 0.95)
+	star.color = Color(tint.r, tint.g, tint.b, 0.95)
 	star.material = m
 	star.z_index = 45
 	host.add_child(star)
@@ -7954,8 +7960,14 @@ func _tick_portent(delta: float) -> void:
 		_port_sign.scale = Vector2.ONE * (1.0 + 0.5 * frac)
 	if _port_t < PORT_WARN:
 		return
-	# and the hour comes
-	_nova_burst_tinted(global_position, Color(0.72, 0.5, 0.86))
+	# AND THE HOUR COMES -- AND IT NOW LANDS. This called _nova_burst_tinted,
+	# which draws the ring and pays NOTHING, so the entire verb of a Tier-6 bow
+	# was a particle: the card says "The shaft does not kill" and withholds 65%
+	# of the damage up front on the promise of this moment, and this moment did
+	# not exist. The DPS model had it too -- test_weapondps_node scores
+	# direportent as "a 0.35x prick, then the omen falls for a 0.8x nova", so
+	# the balance table has been counting damage nothing ever dealt.
+	_nova_burst(global_position, Color(0.72, 0.5, 0.86))
 	done = true
 	queue_free()
 
