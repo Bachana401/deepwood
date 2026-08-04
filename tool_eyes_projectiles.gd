@@ -75,6 +75,12 @@ func _ready() -> void:
 	_stand_targets([170.0, 260.0, 350.0, 460.0])
 	await _settle(0.4)
 
+	# ---- CONTROL: a COMMON bow, filmed first, same frame and same zoom ----
+	# "crown fx pay FULL price per projectile; spectacle scales with tier" is not
+	# checkable against nothing -- with only tier-8 takes on the reel every one of
+	# them looks expensive. This is the floor to measure that claim from.
+	await _film("wpn_huntingbow", "p0_control", [0.2, 0.5, 0.9], 1.0)
+
 	# ---- #6 THE CROWN'S SORROW: a POUR of narrow lances (identity = rate) ----
 	await _film("wpn_crownsorrow", "p1_sorrow", [0.25, 0.7, 1.3], 1.5)
 
@@ -97,6 +103,7 @@ func _ready() -> void:
 # crown session's own hard-won rule: driving a weapon by calling its function
 # bypasses the player's per-frame loop and films a lie.
 func _film(item_id: String, tag: String, at: Array, hold: float) -> void:
+	await _clear_the_field()
 	var p := player
 	p.global_position = Vector2(6000.0, -80.0)
 	if "velocity" in p: p.velocity = Vector2.ZERO
@@ -119,6 +126,20 @@ func _film(item_id: String, tag: String, at: Array, hold: float) -> void:
 	await _settle(hold)
 	await _shot("%s_after" % tag)
 	await _settle(0.5)
+
+# EVERY TAKE STARTS ON AN EMPTY FIELD (2026-08-04). Night Parade's procession
+# walks in from 700px off-camera and comfortably outlives its own take: the
+# marchers were still crossing frame during THE MOUNTAIN THAT KNEELS, and a
+# reviewer cannot tell a boulder's trail from a column of lanterns. Weapon #10's
+# film was unjudgeable for that reason alone -- the harness, not the weapon.
+# Both projectile scripts join "player_projectile", so one sweep clears shafts,
+# lanterns and marchers alike.
+func _clear_the_field() -> void:
+	for n in get_tree().get_nodes_in_group("player_projectile"):
+		if is_instance_valid(n):
+			n.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
 
 func _stand_targets(offsets: Array) -> void:
 	var scene := get_tree().current_scene
