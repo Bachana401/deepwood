@@ -33,6 +33,19 @@ func keep_running() -> void:
 			break
 	get_tree().paused = false
 
+# A body the procession will actually walk to: course_enemy is one of
+# WeaponProjectile.HOSTILE_GROUPS, which is what _nearest_hostile_node searches.
+func _make_hostile(host: Node, pos: Vector2) -> Node2D:
+	var d := Node2D.new()
+	var s := GDScript.new()
+	s.source_code = "extends Node2D\nvar hits := 0\nvar is_dead := false\nfunc take_damage(a: int) -> bool:\n\thits += a\n\treturn true\n"
+	s.reload()
+	d.set_script(s)
+	d.add_to_group("course_enemy")
+	host.add_child(d)
+	d.global_position = pos
+	return d
+
 # children of `host` that were not there before, narrowed to one projectile kind
 func _new_of_kind(host: Node, before: Array, kind: String) -> Array:
 	var out := []
@@ -95,12 +108,26 @@ func _ready() -> void:
 	# ---------------- 2. NIGHT PARADE ----------------
 	p.inventory.add_item("wpn_nightparade", 1)
 	check("Night Parade can be wielded", p.wield_weapon("wpn_nightparade"))
+	# STAND SOMETHING FOR THEM TO MARCH AT. Without a hostile inside 900px,
+	# _tick_marcher takes the prey == null branch, and because _build_marcher
+	# starts a marcher at modulate.a = 0.0 that branch frees it on its FIRST
+	# tick -- so the procession vanished before it could be counted. The first
+	# version of this test relied on a village mob happening to wander into
+	# range: it passed alone and failed under sweep load (2026-08-04). A guard
+	# whose result depends on who is nearby is not a guard.
+	var prey := _make_hostile(host, p.global_position + Vector2(260.0, 0.0))
 	var before_march := host.get_children().duplicate()
 	p.call_a_marcher(aim, 20, null)
-	# the add is DEFERRED on purpose (that is the fix) -- give it the idle frame
-	for i in range(4):
+	# The add is DEFERRED on purpose (that is the fix), so POLL for it rather
+	# than guessing a frame count -- and keep_running() throughout, because a
+	# story beat pausing the tree would otherwise stall the idle flush.
+	var marchers := []
+	for i in range(40):
+		keep_running()
 		await get_tree().process_frame
-	var marchers := _new_of_kind(host, before_march, "marcher")
+		marchers = _new_of_kind(host, before_march, "marcher")
+		if marchers.size() >= p.MARCHERS_PER_ARROW:
+			break
 	check("a landed arrow calls the procession in",
 		marchers.size() == p.MARCHERS_PER_ARROW,
 		"got %d, expected %d" % [marchers.size(), p.MARCHERS_PER_ARROW])
@@ -115,6 +142,8 @@ func _ready() -> void:
 	for m in marchers:
 		if is_instance_valid(m):
 			m.queue_free()
+	if is_instance_valid(prey):
+		prey.queue_free()
 
 	# ...AND THE SPAWN MUST STAY DEFERRED. The check above cannot carry this on
 	# its own and it is worth being honest about why: calling call_a_marcher

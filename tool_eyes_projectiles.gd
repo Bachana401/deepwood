@@ -147,7 +147,13 @@ func _stand_targets(offsets: Array) -> void:
 		var foe := Dummy.new()
 		foe.add_to_group("course_enemy")
 		scene.add_child(foe)
-		foe.global_position = player.global_position + Vector2(float(dx), 20.0)
+		# STAND them on the floor, do not bury them (dev, watching the film
+		# 2026-08-04). At +20 the body -- a 30x60 rect drawn from -30 to +30 --
+		# had its bottom third under the ground line, which both looked wrong and
+		# spoiled the only in-frame SCALE BAR the reviewer has: a target of known
+		# height is how world px get measured off a screenshot, and a partly
+		# buried one measures short.
+		foe.global_position = player.global_position + Vector2(float(dx), 0.0)
 
 func _shot(name: String) -> void:
 	await RenderingServer.frame_post_draw

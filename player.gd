@@ -7799,6 +7799,50 @@ func spawn_shock_ring(center: Vector2, radius: float, col: Color = Color(1.0, 0.
 	t.parallel().tween_property(ring, "modulate:a", 0.0, 0.28)
 	t.tween_callback(ring.queue_free)
 
+# THE SAME SHOCK, BUT LYING ON THE FLOOR (2026-08-04). spawn_shock_ring draws a
+# TRUE circle centred on whatever it is given -- and a struck body's centre floats
+# well above the ground, so a quake read as a hoop hanging in open sky, reaching
+# as far above the horizon as below it. A review of the projectile film called it
+# "a floating bubble", and it was the single most visually dominant thing on
+# screen for Grief Wears a Crown.
+#
+# This is its ground-anchored twin: it drops a ray to find the floor under the
+# strike and draws the ring THERE, squashed hard on Y so it reads as a disc lying
+# on the ground seen edge-on -- the most legible "this is a plane viewed from the
+# side" primitive there is. spawn_shock_ring itself is untouched; it has fifteen
+# other callers (novas, fear auras, bells) that genuinely do want a circle.
+func spawn_ground_quake(center: Vector2, radius: float, col: Color = Color(0.75, 0.6, 0.4, 0.8)) -> void:
+	# A quake is paid out from a HIT, which resolves inside the physics flush.
+	# Building next idle frame keeps this off that knife-edge -- see the Night
+	# Parade marcher that spawned blind for what happens otherwise.
+	_ground_quake_now.call_deferred(center, radius, col)
+
+func _ground_quake_now(center: Vector2, radius: float, col: Color) -> void:
+	var floor_y: float = center.y
+	var space := get_world_2d().direct_space_state
+	if space != null:
+		var q := PhysicsRayQueryParameters2D.create(center, center + Vector2(0, 320.0))
+		q.collision_mask = 1
+		q.exclude = [self]
+		var hit := space.intersect_ray(q)
+		if hit:
+			floor_y = float(hit.position.y)
+	var ring = Line2D.new()
+	var pts = _circle_points(radius, 40)
+	pts.append(pts[0])
+	ring.points = pts
+	ring.width = 7.0
+	ring.default_color = col
+	ring.z_index = 44
+	get_parent().add_child(ring)
+	ring.global_position = Vector2(center.x, floor_y)
+	# 0.22 on Y: wide and flat, a floor rather than a bubble
+	ring.scale = Vector2(0.15, 0.033)
+	var t = ring.create_tween()
+	t.tween_property(ring, "scale", Vector2(1.0, 0.22), 0.30).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	t.parallel().tween_property(ring, "modulate:a", 0.0, 0.30)
+	t.tween_callback(ring.queue_free)
+
 # The unique effect of the active Excellent weapon, fired on each melee hit.
 # Guards against a unique that launches a projectile whose hit re-triggers the
 # same unique, which would launch another projectile, forever.

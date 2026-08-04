@@ -115,7 +115,17 @@ static func _run_hit_fx(p: Node, target: Node2D, dealt: int, crit: bool, fx: Dic
 				_deal(o, int(round(dealt * float(fx.get("pct", 0.4)))))
 				if o.has_method("apply_knockback"):
 					o.apply_knockback(signf(o.global_position.x - target.global_position.x), 120.0)
-			if p.has_method("spawn_shock_ring"):
+			# THE GROUND ANSWERS -- so draw it on the ground. This used to hang a
+			# true circle on the struck body's CENTRE, which floats well clear of
+			# the floor: at crown radius that is a ~300px hoop with half of itself
+			# in open sky. All five weapons carrying this rider (Nova Tongue,
+			# Pillar of the Sky, Staff That Measures the Sky, Anvil of Endings,
+			# Grief Wears a Crown) mean the same thing by "quake", so all five get
+			# the floor-anchored disc. Falls back where the twin is absent, which
+			# keeps the test double in test_weaponfx_node green.
+			if p.has_method("spawn_ground_quake"):
+				p.spawn_ground_quake(target.global_position, qr, Color(0.75, 0.6, 0.4, 0.8))
+			elif p.has_method("spawn_shock_ring"):
 				p.spawn_shock_ring(target.global_position, qr, Color(0.75, 0.6, 0.4, 0.8))
 		"splinter":
 			# the hit bursts into shards that nick everything close

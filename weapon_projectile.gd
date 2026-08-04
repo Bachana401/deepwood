@@ -817,6 +817,14 @@ const NO_ENRICH := {
 	"sun_pool": true, "watch_fire": true, "cinder_shelf": true, "iron_spike": true,
 	"asphodel_post": true, "storm_cloud": true, "colonnade": true, "sky_pillar": true,
 	"grief_beam": true, "dawn_line": true, "world_cut": true, "bent_ray": true,
+	# sunder_wave belongs here beside its sibling grief_beam and never was.
+	# _enrich_visual hangs a halo + hot core + 34-point trail on `visual`, and
+	# _tick_sunder deliberately never moves global_position (the front travels as
+	# child offsets, so the hit band stays honest) -- so all 34 trail points piled
+	# up on one spot and the halo sat at the wielder's chest for the whole cast.
+	# That parked orange blob was half of why this weapon read as "something
+	# floating in the air" rather than as anything to do with the ground.
+	"sunder_wave": true,
 	"seawall": true, "brazier_flail": true, "chain_maul": true, "gallows_head": true,
 	"pilgrim_lash": true, "hook": true,
 }
@@ -4737,9 +4745,38 @@ func _build_anvil() -> void:
 # --- GRIEF WEARS A CROWN: the ground carries the blow ------------------
 const SUNDER_SPEED := 1400.0
 const SUNDER_BAND := 42.0        # how thick the front is
+# THE FRONT LIVES ON THE FLOOR (2026-08-04). It used to ride at the projectile's
+# spawn Y -- the wielder's CHEST -- so a blow whose whole card is "it runs out
+# THROUGH the ground" crossed the room through open air. Each side now probes
+# for the floor under itself every frame and sits the art on it, exactly the way
+# _tick_boulder finds ground. The node's own global_position is NEVER moved, so
+# the hit band below is byte-identical: this is a look-and-position change, not
+# a mechanic one.
+const SUNDER_EJECTA_GAP := 0.045   # seconds between chips thrown out of a crest
+const SUNDER_PROBE_UP := 220.0     # how far above the last floor to start the ray
+const SUNDER_PROBE_DOWN := 420.0   # ...and how far below to keep looking
 var _wave_r := 0.0
-var _wave_left: Polygon2D = null
-var _wave_right: Polygon2D = null
+var _wave_left: Node2D = null
+var _wave_right: Node2D = null
+var _floor_left := 0.0             # last known floor Y per side, so slopes are
+var _floor_right := 0.0            # followed rather than jumped
+var _ejecta_t := 0.0
+
+# The ground probe. Searches from ABOVE the last known floor so a rising slope is
+# picked up, and keeps the previous answer when the ray finds nothing (a gap in
+# the world should not fling the front to y=0).
+func _sunder_floor(at_x: float, last_y: float) -> float:
+	var space := get_world_2d().direct_space_state
+	if space == null:
+		return last_y
+	var from := Vector2(at_x, last_y - SUNDER_PROBE_UP)
+	var q := PhysicsRayQueryParameters2D.create(from, Vector2(at_x, last_y + SUNDER_PROBE_DOWN))
+	q.collision_mask = 1
+	q.exclude = [self]
+	var hit := space.intersect_ray(q)
+	if hit:
+		return float(hit.position.y)
+	return last_y
 
 func _tick_sunder(delta: float) -> void:
 	_wave_r += SUNDER_SPEED * delta * (1.0 + 0.35 * float(_grief_pass))
@@ -4759,11 +4796,31 @@ func _tick_sunder(delta: float) -> void:
 		queue_free()
 		return
 	var fade: float = 1.0 - (_wave_r / max_distance)
-	for w in [_wave_left, _wave_right]:
-		if w != null and is_instance_valid(w):
-			w.position.x = _wave_r * (-1.0 if w == _wave_left else 1.0)
-			w.scale = Vector2(1.0, lerpf(0.5, 1.5, 1.0 - fade))
-			w.modulate.a = fade
+	var grow: float = lerpf(0.75, 1.25, 1.0 - fade)
+	_ejecta_t += delta
+	var throw_now: bool = _ejecta_t >= SUNDER_EJECTA_GAP
+	if throw_now:
+		_ejecta_t = 0.0
+	for side in [-1.0, 1.0]:
+		var w: Node2D = _wave_left if side < 0.0 else _wave_right
+		if w == null or not is_instance_valid(w):
+			continue
+		# find the floor under THIS side and sit the crest on it
+		var wx: float = global_position.x + _wave_r * side
+		var last_y: float = _floor_left if side < 0.0 else _floor_right
+		var fy: float = _sunder_floor(wx, last_y)
+		if side < 0.0:
+			_floor_left = fy
+		else:
+			_floor_right = fy
+		# the rig is top_level, so this is world space and no aim tilt reaches it
+		w.global_position = Vector2(wx, fy)
+		w.scale = Vector2(1.0, grow)
+		# it does not fade to nothing at range -- a front of broken rock is still
+		# rock at 520px. It thins, it does not evaporate.
+		w.modulate.a = clampf(fade + 0.3, 0.0, 1.0)
+		if throw_now:
+			_sunder_ejecta(Vector2(wx, fy), side)
 	# each body is taken ONCE, as the front reaches it -- a wave passes
 	for group_name in HOSTILE_GROUPS:
 		for e in get_tree().get_nodes_in_group(group_name):
@@ -4796,24 +4853,104 @@ const GRIEF_PASSES := 3
 var _grief_pass := 0
 
 # two crescents of displaced force running away from the blow
+# A CREST OF BROKEN GROUND, not a crescent in the air. Each side is a rig whose
+# ORIGIN IS THE FLOOR LINE: everything is authored around y=0 so _tick_sunder can
+# drop it straight onto whatever the raycast finds. Parented to the projectile
+# itself rather than to `visual`, because `visual` carries the girth scale and a
+# ground feature must not inherit it.
+#
+# Sizes are chosen for the REAL 0.6 world zoom -- the review that sent this back
+# rejected anything under ~8 screen px as invisible, so nothing load-bearing here
+# is smaller than 26 world px (16 screen px).
 func _build_sunder() -> void:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	for side in [-1.0, 1.0]:
-		var c := Polygon2D.new()
-		var pts := PackedVector2Array()
-		for i in range(9):
-			var a := lerpf(-1.15, 1.15, float(i) / 8.0)
-			pts.append(Vector2(cos(a) * 16.0 * float(side), sin(a) * 30.0))
-		for i in range(9):
-			var a2 := lerpf(1.15, -1.15, float(i) / 8.0)
-			pts.append(Vector2(cos(a2) * 3.0 * float(side), sin(a2) * 26.0))
-		c.polygon = pts
-		c.color = Color(1.0, 0.74, 0.36, 0.85)
-		var m := CanvasItemMaterial.new()
-		m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
-		c.material = m
-		visual.add_child(c)
-		if side < 0.0: _wave_left = c
-		else: _wave_right = c
+		var rig := Node2D.new()
+		# TOP LEVEL, because the projectile ROTATES. _ready() ends with
+		# `rotation = direction.angle()` for every kind, so a child rig inherits
+		# the aim tilt and the "ground line" tips over with it -- the two crests
+		# drifted off the floor in OPPOSITE directions, by _wave_r * sin(aim),
+		# which is 15 world px per side at the walker's shallow aim and far worse
+		# on a steep one. Ground is a property of the WORLD, not of how the blow
+		# was aimed, so this rig opts out of the parent transform entirely and is
+		# placed in global coordinates.
+		rig.top_level = true
+		add_child(rig)
+
+		# 1. THE SLAB: a wedge of ground heaved up and tipped in the direction of
+		# travel. Sits ON the line, biting a little below it, so the eye reads
+		# "something has come UP out of the floor".
+		var slab := Polygon2D.new()
+		slab.polygon = PackedVector2Array([
+			Vector2(-30.0 * side, 8.0),      # buried heel, behind
+			Vector2(-6.0 * side, -34.0),     # the peak
+			Vector2(20.0 * side, -12.0),     # the tipped face, leading
+			Vector2(30.0 * side, 10.0),      # ...back into the dirt ahead
+		])
+		slab.color = Color(0.46, 0.38, 0.31, 1.0)   # lit rock, never matte black
+		rig.add_child(slab)
+
+		# 2. THE SEAM: the hot line where the rock has parted. Additive, short and
+		# bright, hugging the floor -- this is the "stone is no argument" part.
+		var seam := Polygon2D.new()
+		seam.polygon = PackedVector2Array([
+			Vector2(-34.0 * side, 3.0), Vector2(-4.0 * side, -30.0),
+			Vector2(6.0 * side, -28.0), Vector2(-24.0 * side, 5.0),
+		])
+		seam.color = Color(1.0, 0.72, 0.34, 0.95)
+		seam.material = m
+		rig.add_child(seam)
+
+		# 3. THE DUST: a plume STANDING on the floor line. A vertical column is
+		# the cheapest unambiguous "this happened at ground level" cue there is.
+		var dust := Polygon2D.new()
+		dust.polygon = PackedVector2Array([
+			Vector2(-18.0 * side, 2.0), Vector2(-9.0 * side, -46.0),
+			Vector2(9.0 * side, -44.0), Vector2(16.0 * side, 2.0),
+		])
+		dust.color = Color(0.78, 0.68, 0.55, 0.34)
+		dust.material = m
+		rig.add_child(dust)
+
+		if side < 0.0:
+			_wave_left = rig
+		else:
+			_wave_right = rig
+	# seed both floors from where the blow actually landed, so the first frame is
+	# already on the ground instead of snapping down onto it
+	var seeded := _sunder_floor(global_position.x, global_position.y)
+	_floor_left = seeded
+	_floor_right = seeded
+
+# Rock thrown UP out of the front. The ground proves it is ground by throwing
+# material: chips arc up and outward and fall back. Deliberately few and LARGE --
+# a 13px pebble is 8 screen px at this zoom and simply is not there.
+func _sunder_ejecta(at: Vector2, side: float) -> void:
+	var host := get_parent()
+	if host == null:
+		return
+	for i in range(2):
+		var chip := Polygon2D.new()
+		var s: float = randf_range(9.0, 14.0)     # 18-28 world px across
+		chip.polygon = PackedVector2Array([
+			Vector2(-s, 0.0), Vector2(-s * 0.2, -s), Vector2(s, -s * 0.3), Vector2(s * 0.3, s * 0.6),
+		])
+		chip.color = Color(0.52, 0.43, 0.34, 1.0)
+		chip.z_index = 44
+		host.add_child(chip)
+		chip.global_position = at + Vector2(randf_range(-14.0, 14.0), -4.0)
+		var up: float = randf_range(46.0, 82.0)
+		var out: float = randf_range(18.0, 54.0) * side
+		var tw := chip.create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(chip, "position",
+			chip.position + Vector2(out * 0.5, -up), 0.16).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.tween_property(chip, "rotation", randf_range(-2.6, 2.6), 0.42)
+		tw.chain().tween_property(chip, "position",
+			chip.position + Vector2(out, 14.0), 0.26).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tw.parallel().tween_property(chip, "modulate:a", 0.0, 0.26)
+		tw.chain().tween_callback(chip.queue_free)
 
 # --- THE MOUNTAIN THAT KNEELS: damage is the boulder's own speed --------
 var _roll_life := 0.0
