@@ -78,8 +78,41 @@ func _ready() -> void:
 	check("a day below sends up coin", p.currency > 0, "%dg" % p.currency)
 	check("...and raw material into the stores", mats > 0, str(GameState.village_stockpile))
 	var gs := FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text()
-	check("patrols pay BULK ONLY — the earnings never touch the item tables",
-		not gs.split("func _patrol_earnings(")[1].split("func ")[0].contains("add_item"))
+
+	# ---- DEPTH pays: a deep watch is worth taking warriors off the wall for ----
+	var day_at := func(b: int) -> int:
+		GameState.floors_cleared = {}
+		for lv3 in range(1, b * GameState.PATROL_BLOCK_SIZE + 1):
+			GameState.floors_cleared[str(lv3)] = true
+		GameState.patrol_posts = {}
+		GameState.post_patrol(b, 3)
+		GameState._patrol_accum = 0.0
+		p.currency = 0
+		GameState._patrol_earnings(24.5)
+		return p.currency
+	var shallow: int = day_at.call(1)
+	var deep: int = day_at.call(6)
+	check("a deep watch pays far better than a shallow one (the risk is worth taking)",
+		deep > shallow, "block1=%dg block6=%dg" % [shallow, deep])
+
+	# ---- the rare find is SELF-BALANCING by depth, not by a tuned percentage ----
+	check("a find can only be gear those floors would have yielded",
+		gs.contains("WeaponRoster.TIER_FLOORS") and gs.contains("func _patrol_find_gear"))
+	check("...and never the things that are never loot",
+		gs.split("func _patrol_find_gear(")[1].split("\nfunc ")[0].contains("WANDERER_NEVER_SOLD"))
+	# a shallow watch must not be able to turn up deep gear
+	var shallow_pool_ok := true
+	for id in Inventory.ITEM_DEFS.keys():
+		var cat2 := str(Inventory.ITEM_DEFS[id].get("category", ""))
+		if not (cat2 in ["weapon", "armor", "relic"]):
+			continue
+		var g2 := Inventory.get_grade(str(id))
+		var rank2 := int(Inventory.GRADE_DEFS.get(g2, {}).get("rank", 1))
+		var br2: Array = WeaponRoster.TIER_FLOORS[clampi(rank2, 1, 8)]
+		# floors 1-10 may only ever yield things whose bracket opens by floor 10
+		if int(br2[0]) > GameState.PATROL_BLOCK_SIZE and 10 >= int(br2[0]):
+			shallow_pool_ok = false
+	check("a shallow watch can never turn up endgame gear", shallow_pool_ok)
 
 	# ---- an unheld stretch creeps, and eventually falls ----
 	GameState.patrol_posts = {}

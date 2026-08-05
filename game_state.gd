@@ -2721,24 +2721,71 @@ func _block_falls(b: int) -> void:
 		log_event("combat", "Floors %d-%d have fallen back to the dark — the road down is cut there." % [int(r[0]), int(r[1])])
 		notify("⚠ The deep took floors %d-%d back. Sweep them again to open the road." % [int(r[0]), int(r[1])])
 
-# What the patrols send home: coin and raw material, never anything more.
+# What the patrols send home. DEPTH IS THE WHOLE POINT (dev call 2026-07-30:
+# "you believe materials and gold are that important... when their village might
+# get crushed?"). He was right -- coins and timber never justified taking
+# warriors off a wall that losing means losing the run. So the deep pays:
+# earnings scale hard with how far down the watch is set, and a patrol
+# occasionally finds something on the bodies.
+const PATROL_DEPTH_BONUS := 0.35                    # per block deeper
+const PATROL_FIND_CHANCE_PER_WARRIOR_DAY := 0.012   # a find is a delight, not a supply
+
 func _patrol_earnings(hours_passed: float) -> void:
-	var posted := posted_warriors()
-	if posted <= 0:
+	if posted_warriors() <= 0:
 		return
 	_patrol_accum += hours_passed
 	while _patrol_accum >= 24.0:
 		_patrol_accum -= 24.0
 		var player = get_tree().get_first_node_in_group("player")
-		var coin := int(round(PATROL_COIN_PER_WARRIOR_DAY * float(posted)))
-		if player != null and player.has_method("add_currency") and coin > 0:
-			player.add_currency(coin)
-		var mats := PATROL_MATS_PER_WARRIOR_DAY * float(posted)
+		var coin_total := 0
+		var mat_total := 0
 		var kind: String = PATROL_MATS[randi() % PATROL_MATS.size()]
-		var got := _add_to_store(kind, mats)
-		if coin > 0 or got > 0:
+		for b in patrol_posts.keys():
+			var n := int(patrol_posts[b])
+			if n <= 0:
+				continue
+			var deep := 1.0 + PATROL_DEPTH_BONUS * float(int(b) - 1)
+			coin_total += int(round(PATROL_COIN_PER_WARRIOR_DAY * float(n) * deep))
+			mat_total += _add_to_store(kind, PATROL_MATS_PER_WARRIOR_DAY * float(n) * deep)
+			for _i in range(n):
+				if randf() < PATROL_FIND_CHANCE_PER_WARRIOR_DAY:
+					_patrol_find_gear(int(b), player)
+		if player != null and player.has_method("add_currency") and coin_total > 0:
+			player.add_currency(coin_total)
+		if coin_total > 0 or mat_total > 0:
 			log_event("economy", "The patrols sent up %d gold and %d %s from the deep." % [
-				coin, got, kind.replace("_", " ")])
+				coin_total, mat_total, kind.replace("_", " ")])
+
+# THE FIND. Rare, and SELF-BALANCING: a watch can only turn up gear the floors it
+# holds would have yielded, using the game's own TIER_FLOORS brackets. Since a
+# stretch can only be patrolled once YOU have swept it, a find is always behind
+# your own progress -- floors 1-10 send up things you would sell, and only a deep
+# watch (which costs many warriors off the wall) turns up anything you would wear.
+# No percentage to tune: the depth gate does the balancing.
+func _patrol_find_gear(b: int, player) -> void:
+	if player == null or not ("inventory" in player) or player.inventory == null:
+		return
+	var deepest := b * PATROL_BLOCK_SIZE
+	var pool := []
+	for id in Inventory.ITEM_DEFS.keys():
+		var cat := str(Inventory.ITEM_DEFS[id].get("category", ""))
+		if not (cat in ["weapon", "armor", "relic"]):
+			continue
+		if str(id) in WANDERER_NEVER_SOLD:
+			continue                       # some things are never loot
+		var g := Inventory.get_grade(str(id))
+		var rank := int(Inventory.GRADE_DEFS.get(g, {}).get("rank", 1))
+		var br: Array = WeaponRoster.TIER_FLOORS[clampi(rank, 1, 8)]
+		if deepest >= int(br[0]):
+			pool.append(str(id))
+	if pool.is_empty():
+		return
+	var pick: String = pool[randi() % pool.size()]
+	if player.inventory.add_item(pick, 1) == 0:
+		var r: Array = block_floor_range(b)
+		log_event("economy", "The patrol on floors %d-%d found something on the bodies: %s." % [
+			int(r[0]), int(r[1]), Inventory.get_display_name(pick)])
+		notify("⚔ Your patrol sends up a find: %s" % Inventory.get_display_name(pick))
 
 func village_defense_power() -> float:
 	# no Orin, no meteors: until he walks out of the dungeon the village's
