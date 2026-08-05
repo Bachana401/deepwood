@@ -2246,6 +2246,7 @@ func tick_village_clock() -> void:
 	tick_watchtower_warning()
 	tick_mine_yield(hours_passed)
 	tick_wood_gathering(hours_passed)
+	tick_patrols(hours_passed)
 	tick_self_sufficiency()   # celebrate each chore the moment it starts running itself
 	tick_village_peril()      # escalating dread as the hearth empties (pierces the fog)
 	tick_black_tide_omen()    # the fog-piercing warning of a coming Black Tide
@@ -2597,14 +2598,163 @@ func orin_arrived() -> bool:
 	# how deep some earlier life of this install once went.
 	return dev_mode or highest_unlocked_level >= ORIN_ARRIVAL_DEPTH
 
+# ======================= THE PATROLS (dev design 2026-07-30) =======================
+# The town's first reach OUTWARD. Warriors are posted into the deep to hold
+# stretches you have already swept, instead of standing on the wall waiting for a
+# siege -- which is the only thing they have ever done.
+#
+# BY BLOCK OF TEN FLOORS, not one by one: ten posts to think about instead of a
+# hundred, matching the Deep Shrine cadence that already exists. A block only
+# opens for posting once you have personally cleared every floor in it.
+#
+# THE COST IS THE POINT: a posted warrior is NOT on the wall (see
+# village_defense_power). You cannot hold the deep and the gate with the same
+# soldier, so warrior count finally means something beyond the siege clock.
+#
+# WHAT THEY BRING BACK: coins and materials, and nothing else, ever. No gear, no
+# relics, no blueprints, no people. The player stays the only source of anything
+# that matters -- warriors produce BULK, the player produces MEANING. (A mid-game
+# upgrade may later add a fraction-of-a-percent gear chance; deliberately a
+# delight, never a strategy.)
+#
+# AND IF YOU DON'T PATROL: evil seeps back. A block's creep climbs, and when it
+# tops out those ten floors REVERT to uncleared -- the monsters are genuinely
+# back for you too -- and the road down through them is cut. Waystones still
+# reach past a fallen block, so it isolates rather than strands.
+const PATROL_BLOCK_SIZE := 10
+const PATROL_BLOCKS := 10                      # floors 1..100
+const CREEP_BASE_PER_HOUR := 0.0030            # a swept block sours this fast...
+const CREEP_DEPTH_PER_HOUR := 0.0011           # ...plus this much per block deep
+const PATROL_SUPPRESS_PER_WARRIOR := 0.011     # each posted warrior pushes back
+const PATROL_COIN_PER_WARRIOR_DAY := 3.0
+const PATROL_MATS_PER_WARRIOR_DAY := 0.9
+const PATROL_MATS := ["stone", "iron_shard", "wood"]
+
+var patrol_posts: Dictionary = {}     # block (1..10) -> warriors posted
+var block_creep: Dictionary = {}      # block (1..10) -> 0.0..1.0
+var _patrol_accum := 0.0
+
+func block_of_floor(level: int) -> int:
+	return clampi(int((level - 1) / PATROL_BLOCK_SIZE) + 1, 1, PATROL_BLOCKS)
+
+func block_floor_range(b: int) -> Array:
+	var lo := (b - 1) * PATROL_BLOCK_SIZE + 1
+	return [lo, lo + PATROL_BLOCK_SIZE - 1]
+
+# A block may only be patrolled once YOU have swept every floor in it.
+func block_is_cleared(b: int) -> bool:
+	var r := block_floor_range(b)
+	for lv in range(int(r[0]), int(r[1]) + 1):
+		if not floor_is_cleared(lv):
+			return false
+	return true
+
+func block_creep_of(b: int) -> float:
+	return clampf(float(block_creep.get(b, 0.0)), 0.0, 1.0)
+
+func patrol_at(b: int) -> int:
+	return int(patrol_posts.get(b, 0))
+
+func posted_warriors() -> int:
+	var n := 0
+	for b in patrol_posts.keys():
+		n += int(patrol_posts[b])
+	return n
+
+# Warriors not already in the deep -- the pool you may post from.
+func warriors_available_to_post() -> int:
+	return maxi(0, warrior_count() - posted_warriors())
+
+func post_patrol(b: int, n: int) -> bool:
+	if b < 1 or b > PATROL_BLOCKS or not block_is_cleared(b):
+		return false
+	var want := maxi(0, n)
+	var others := posted_warriors() - patrol_at(b)
+	if want + others > warrior_count():
+		want = maxi(0, warrior_count() - others)
+	patrol_posts[b] = want
+	if want <= 0:
+		patrol_posts.erase(b)
+	return true
+
+# A block in enemy hands cuts the road: you cannot WALK past it. (Waystones still
+# reach a woken shrine beyond it -- the network is what a fallen block makes
+# valuable.) Returns 0 when the way down is clear.
+func first_fallen_block() -> int:
+	for b in range(1, PATROL_BLOCKS + 1):
+		if block_creep_of(b) >= 1.0:
+			return b
+	return 0
+
+func floor_is_road_blocked(level: int) -> bool:
+	var fallen := first_fallen_block()
+	return fallen > 0 and block_of_floor(level) > fallen
+
+func tick_patrols(hours_passed: float) -> void:
+	if hours_passed <= 0.0:
+		return
+	for b in range(1, PATROL_BLOCKS + 1):
+		if not block_is_cleared(b):
+			block_creep.erase(b)          # nothing to hold: it was never swept
+			continue
+		var posted := patrol_at(b)
+		var rise := (CREEP_BASE_PER_HOUR + CREEP_DEPTH_PER_HOUR * float(b - 1)) * hours_passed
+		var held := PATROL_SUPPRESS_PER_WARRIOR * float(posted) * hours_passed
+		var creep := clampf(block_creep_of(b) + rise - held, 0.0, 1.0)
+		block_creep[b] = creep
+		if creep >= 1.0:
+			_block_falls(b)
+	_patrol_earnings(hours_passed)
+
+# The deep takes a stretch back: those ten floors are wild again, and anyone
+# posted there is driven home.
+func _block_falls(b: int) -> void:
+	var r := block_floor_range(b)
+	var lost := 0
+	for lv in range(int(r[0]), int(r[1]) + 1):
+		if floors_cleared.has(str(lv)):
+			floors_cleared.erase(str(lv))
+			lost += 1
+	block_creep[b] = 0.0
+	patrol_posts.erase(b)
+	if lost > 0:
+		log_event("combat", "Floors %d-%d have fallen back to the dark — the road down is cut there." % [int(r[0]), int(r[1])])
+		notify("⚠ The deep took floors %d-%d back. Sweep them again to open the road." % [int(r[0]), int(r[1])])
+
+# What the patrols send home: coin and raw material, never anything more.
+func _patrol_earnings(hours_passed: float) -> void:
+	var posted := posted_warriors()
+	if posted <= 0:
+		return
+	_patrol_accum += hours_passed
+	while _patrol_accum >= 24.0:
+		_patrol_accum -= 24.0
+		var player = get_tree().get_first_node_in_group("player")
+		var coin := int(round(PATROL_COIN_PER_WARRIOR_DAY * float(posted)))
+		if player != null and player.has_method("add_currency") and coin > 0:
+			player.add_currency(coin)
+		var mats := PATROL_MATS_PER_WARRIOR_DAY * float(posted)
+		var kind: String = PATROL_MATS[randi() % PATROL_MATS.size()]
+		var got := _add_to_store(kind, mats)
+		if coin > 0 or got > 0:
+			log_event("economy", "The patrols sent up %d gold and %d %s from the deep." % [
+				coin, got, kind.replace("_", " ")])
+
 func village_defense_power() -> float:
 	# no Orin, no meteors: until he walks out of the dungeon the village's
 	# nightly defense is the adventurers and whatever warriors it has raised
 	var power = SIEGE_DEF_WIZARD if orin_arrived() else 0.0
+	# THE PATROLS ARE NOT HERE (dev design 2026-07-30). Every warrior posted into
+	# the deep is a warrior off this wall -- that trade IS the decision the patrol
+	# system exists to pose. Counted off the top so it bites siege math directly.
+	var away := posted_warriors()
 	for v in rescued_villagers:
 		if v.get("role_title", "") == "Recruit":
 			continue   # still in training -- doesn't fight yet (matches warrior_count)
 		if v.get("stat_name", "") == "Warrior" or v.get("role_key", "") == "Barracks":
+			if away > 0:
+				away -= 1
+				continue          # this one is holding a stretch of the deep tonight
 			# 7.3: the on-shift holds the wall at full worth; the off-shift
 			# scrambles from their bunks at half
 			# THE STANDING WATCH (power): a grown Barracks overlaps its shifts, so
@@ -6604,6 +6754,9 @@ func reset_for_new_game() -> void:
 	building_plots = {}
 	building_x = {}
 	school_share = SCHOOL_SHARE_MAX   # a new town schools everyone until told otherwise
+	patrol_posts = {}                 # nobody is in the deep at the start of a run
+	block_creep = {}
+	_patrol_accum = 0.0
 	_kid_intake = 0
 	moving_building = ""
 	pregnancies = {}
@@ -6852,6 +7005,8 @@ func save_game(player: Node) -> void:
 		"building_plots": building_plots,
 		"building_x": building_x,
 		"school_share": school_share,
+		"patrol_posts": patrol_posts,
+		"block_creep": block_creep,
 		"_kid_intake": _kid_intake,
 		"pregnancies": pregnancies,
 		"school_enrollments": school_enrollments,
@@ -7116,6 +7271,16 @@ func load_game() -> Dictionary:
 		# an older save never chose a schooling policy: default to all-School, which
 		# is exactly what the game did before the dial existed
 		school_share = clampi(int(parsed.get("school_share", SCHOOL_SHARE_MAX)), 0, SCHOOL_SHARE_MAX)
+		# the patrols (int keys survive JSON as strings, so rebuild them as ints or
+		# every block lookup silently misses and the deep quietly stops creeping)
+		patrol_posts = {}
+		if parsed.has("patrol_posts") and parsed["patrol_posts"] is Dictionary:
+			for k in parsed["patrol_posts"].keys():
+				patrol_posts[int(str(k))] = int(parsed["patrol_posts"][k])
+		block_creep = {}
+		if parsed.has("block_creep") and parsed["block_creep"] is Dictionary:
+			for k2 in parsed["block_creep"].keys():
+				block_creep[int(str(k2))] = clampf(float(parsed["block_creep"][k2]), 0.0, 1.0)
 		_kid_intake = clampi(int(parsed.get("_kid_intake", 0)), 0, SCHOOL_SHARE_MAX - 1)
 		if parsed.has("pregnancies"):
 			pregnancies = parsed["pregnancies"]

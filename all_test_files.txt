@@ -70,6 +70,7 @@ test_morale_node
 test_newmobs_node
 test_npcai_node
 test_opening_ui_node
+test_patrols_node
 test_peril_node
 test_petrify_node
 test_phase2_node

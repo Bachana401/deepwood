@@ -56,6 +56,7 @@ func refresh() -> void:
 		add_ward_section(list)
 	if current_building.role_key == "Barracks":
 		add_armory_section(list)
+		add_patrol_section(list)
 	if current_building.role_key == "Marketplace":
 		add_market_stall_section(list)
 	if current_building.role_key == "Fishing Dock":
@@ -869,6 +870,85 @@ func _on_donate_store(item_id: String) -> void:
 			notif.show_notification("Gave %d %s to the village stores." % [given, Inventory.get_display_name(item_id)])
 		else:
 			notif.show_notification("Nothing to give.")
+	refresh()
+
+# THE PATROLS (dev design 2026-07-30): the town's first reach OUTWARD. Warriors
+# posted into stretches of the deep you have already swept -- holding them clear,
+# sending up coin and material, and NOT standing on the wall while they do it.
+func add_patrol_section(list: VBoxContainer) -> void:
+	var header = Label.new()
+	header.add_theme_font_size_override("font_size", 14)
+	header.add_theme_color_override("font_color", Color(0.75, 0.68, 0.9, 1))
+	header.text = "Patrols — hold the deep, or lose it"
+	list.add_child(header)
+
+	var sum = Label.new()
+	sum.add_theme_font_size_override("font_size", 12)
+	sum.add_theme_color_override("font_color", Color(0.82, 0.85, 0.82, 1))
+	sum.text = "  %d of %d warriors are below.   %d hold the wall." % [
+		GameState.posted_warriors(), GameState.warrior_count(),
+		GameState.warriors_available_to_post()]
+	list.add_child(sum)
+
+	var any := false
+	for b in range(1, GameState.PATROL_BLOCKS + 1):
+		if not GameState.block_is_cleared(b):
+			continue
+		any = true
+		var r: Array = GameState.block_floor_range(b)
+		var creep: float = GameState.block_creep_of(b)
+		var posted: int = GameState.patrol_at(b)
+		var row = HBoxContainer.new()
+		row.add_theme_constant_override("separation", 6)
+		var lbl = Label.new()
+		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.custom_minimum_size = Vector2(190, 0)
+		# creep read as a word, not a number: it is a threat, not a statistic
+		var mood := "quiet"
+		var tint := Color(0.6, 0.85, 0.65, 1)
+		if creep >= 0.75:
+			mood = "OVERRUN SOON"; tint = Color(1.0, 0.45, 0.4, 1)
+		elif creep >= 0.4:
+			mood = "stirring"; tint = Color(0.95, 0.8, 0.4, 1)
+		elif creep >= 0.15:
+			mood = "restless"; tint = Color(0.85, 0.85, 0.6, 1)
+		lbl.add_theme_color_override("font_color", tint)
+		lbl.text = "  Floors %d-%d — %s  (%d posted)" % [int(r[0]), int(r[1]), mood, posted]
+		row.add_child(lbl)
+		var less = Button.new()
+		less.text = "−"
+		less.custom_minimum_size = Vector2(28, 24)
+		less.disabled = posted <= 0
+		less.pressed.connect(_on_patrol_change.bind(b, -1))
+		row.add_child(less)
+		var more = Button.new()
+		more.text = "+"
+		more.custom_minimum_size = Vector2(28, 24)
+		more.disabled = GameState.warriors_available_to_post() <= 0
+		more.pressed.connect(_on_patrol_change.bind(b, 1))
+		row.add_child(more)
+		list.add_child(row)
+
+	if not any:
+		var none = Label.new()
+		none.add_theme_font_size_override("font_size", 11)
+		none.autowrap_mode = TextServer.AUTOWRAP_WORD
+		none.custom_minimum_size = Vector2(300, 0)
+		none.add_theme_color_override("font_color", Color(0.7, 0.68, 0.62, 1))
+		none.text = "  Nothing below is yours to hold yet. Sweep every floor of a ten-floor stretch and your warriors can be posted there."
+		list.add_child(none)
+		return
+
+	var note = Label.new()
+	note.add_theme_font_size_override("font_size", 11)
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD
+	note.custom_minimum_size = Vector2(300, 0)
+	note.add_theme_color_override("font_color", Color(0.72, 0.70, 0.62, 1))
+	note.text = "  A posted warrior is not on the wall. They send up coin and material — never gear. Leave a stretch unheld and the dark creeps back into it; let it fill and those floors are wild again, and the road down through them is cut."
+	list.add_child(note)
+
+func _on_patrol_change(b: int, delta: int) -> void:
+	GameState.post_patrol(b, GameState.patrol_at(b) + delta)
 	refresh()
 
 func _on_deposit_arm(item_id: String) -> void:
