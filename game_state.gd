@@ -6578,6 +6578,22 @@ func auto_repair_one() -> void:
 			worst_stage = st
 			worst = bn
 	if worst == "" or worst_stage >= TOTAL_BUILD_STAGES:
+		# NOTHING IS IN RUINS -- but something may still be WOUNDED, and until now
+		# nothing in the game could mend it. A building only loses a stage when its
+		# health reaches zero, and health is only restored by finishing that last
+		# stage, so a hall knocked down to a fraction and left STANDING had no route
+		# back to full: not the crew, not the player, nothing but an admin command.
+		#
+		# That went unnoticed because nothing used to leave a building alive and hurt.
+		# Sieges either razed a hall or missed it. Then fire arrived, and then the
+		# Hollow Sun -- whose damage is floored at 15% precisely SO it never destroys
+		# anything, which meant it could never be repaired either. The mercy floor was
+		# quietly making its own damage permanent.
+		#
+		# Worse, the scar cost nothing: is_building_operational reads the STAGE and
+		# never the health, so a hall at 15% still produced, still taxed, still counted
+		# for the finale. A wound that neither heals nor hurts is not a wound.
+		_auto_mend_one()
 		return
 	# THE STANDING CREW (power): with the Master Builder in a hall this grand the
 	# crew scavenges its own timber and stone off the ruin it is standing in, so a
@@ -6602,6 +6618,44 @@ func auto_repair_one() -> void:
 	village_stockpile["stone"] = int(village_stockpile["stone"]) - REPAIR_STAGE_STONE
 	building_stage[worst] = worst_stage + 1
 	_finish_repair_stage(worst)
+
+# MENDING A HALL THAT STILL STANDS. The crew's second job, and the counterpart to
+# the stage rebuild above: patch the most badly hurt standing building back toward
+# whole. Costs the same stores a rebuild stage does, because timber is timber.
+#
+# Deliberately SLOW (MEND_PER_PASS of 400) so a fight or a fire leaves a mark the
+# player watches heal over the following days rather than a scratch gone by the next
+# tick -- the damage should be felt, just not be permanent.
+const MEND_PER_PASS := 45                 # health restored per repair pass
+const MEND_WOOD := 1                      # cheaper than a full stage: patching, not raising
+const MEND_STONE := 1
+
+func _auto_mend_one() -> void:
+	var hurt := ""
+	var lowest := BUILDING_MAX_HEALTH
+	for bn in STARTING_BUILDINGS:
+		if not is_building_operational(bn):
+			continue
+		if get_tree() != null and get_tree().get_first_node_in_group("building_role_" + bn) == null:
+			continue
+		var hp := int(building_health.get(bn, BUILDING_MAX_HEALTH))
+		if hp < lowest:
+			lowest = hp
+			hurt = bn
+	if hurt == "" or lowest >= BUILDING_MAX_HEALTH:
+		return
+	# the Master Builder's crew scavenges its own materials, exactly as it does for
+	# a rebuild stage -- the same power, applied to the same job
+	if not has_building_power("Builderhouse"):
+		if int(village_stockpile["wood"]) < MEND_WOOD or int(village_stockpile["stone"]) < MEND_STONE:
+			return
+		village_stockpile["wood"] = int(village_stockpile["wood"]) - MEND_WOOD
+		village_stockpile["stone"] = int(village_stockpile["stone"]) - MEND_STONE
+	var mended: int = mini(BUILDING_MAX_HEALTH, lowest + MEND_PER_PASS)
+	building_health[hurt] = mended
+	if mended >= BUILDING_MAX_HEALTH:
+		log_event("village", "The builders have made the %s whole again." % hurt)
+	_resync_building_node(hurt)
 
 # The tail every repair path shares: bank the finished hall and refresh its body.
 func _finish_repair_stage(worst: String) -> void:
