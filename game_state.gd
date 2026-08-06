@@ -6885,6 +6885,24 @@ func _auto_mend_one() -> void:
 	for bn in STARTING_BUILDINGS:
 		if not is_building_operational(bn):
 			continue
+		# NOBODY PATCHES A WALL THAT IS STILL ON FIRE. This mend picks the most badly
+		# hurt standing hall -- which, during a blaze, is always the hall that is
+		# burning. QA measured the result: one hall alight at half health over six
+		# in-game hours nets -26.00/hr with no crew, +9.31 with ONE hand, and +26.57
+		# with four. A single Builderhouse worker turned fire from a cost into a GAIN
+		# and the building came out of the blaze healthier than it went in.
+		#
+		# The two run on different schedules and neither could see the other: the burn
+		# is billed per in-game hour inside tick_village_clock, the mend fires every
+		# twenty REAL seconds from apply_leadership_automation. Mend 135 health per
+		# real minute against a burn of 62.4.
+		#
+		# This is the same shape as the douse-roll bug the clamp already fixed once --
+		# a system that silently switches itself off the moment the crew is staffed.
+		# Fighting the fire is what the crew does while it burns (_fire_suppression);
+		# mending is what they do afterwards.
+		if building_is_burning(bn):
+			continue
 		if get_tree() != null and get_tree().get_first_node_in_group("building_role_" + bn) == null:
 			continue
 		var hp := int(building_health.get(bn, BUILDING_MAX_HEALTH))
