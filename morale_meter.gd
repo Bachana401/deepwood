@@ -133,6 +133,13 @@ func _refresh_glance() -> void:
 	var rotting: int = GameState.villager_rot.size()
 	if rotting > 0:
 		lines.append("⚠ %d SLIPPING — mend their lives now" % rotting)
+	# THE SICKNESS: the town's own emergency. Loud here, because an outbreak you
+	# cannot see is just a silent tax on a town you thought was running itself.
+	var ill: int = GameState.sick_count()
+	if ill > 0:
+		var ward_note := "the ward is holding it" if (GameState.is_building_operational("Hospital") \
+			and GameState.count_workers("Hospital") > 0) else "NO WARD — staff the Hospital"
+		lines.append("🤒 %d SICK — %s" % [ill, ward_note])
 	var missing_bp: int = GameState.STARTING_BUILDINGS.size() - GameState.blueprints.size()
 	if missing_bp > 0:
 		lines.append("📜 %d blueprint%s still lost below" % [missing_bp, "" if missing_bp == 1 else "s"])

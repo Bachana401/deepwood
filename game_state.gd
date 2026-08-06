@@ -2247,6 +2247,7 @@ func tick_village_clock() -> void:
 	tick_mine_yield(hours_passed)
 	tick_wood_gathering(hours_passed)
 	tick_patrols(hours_passed)
+	tick_sickness(hours_passed)
 	tick_self_sufficiency()   # celebrate each chore the moment it starts running itself
 	tick_village_peril()      # escalating dread as the hearth empties (pierces the fog)
 	tick_black_tide_omen()    # the fog-piercing warning of a coming Black Tide
@@ -4216,6 +4217,169 @@ func on_wall_broken(flank: String) -> void:
 	for v in rescued_villagers:
 		v["morale"] = clampf(get_personal_morale(v) - WALL_BREAK_MORALE_HIT, 0.0, 10.0)
 	log_event("combat", "The %s rampart has fallen — the horde is in the streets!" % flank)
+
+# ======================= THE SICKNESS (dev design 2026-08-06) =======================
+# THE TOWN'S OWN PROBLEM. Everything else the village produces, it produces FOR
+# you; this it produces AT you. The answer to "what is there to do once it runs
+# itself": a grown town does not become quiet, it becomes consequential.
+#
+# IT SCALES WITH SIZE AND TIGHTNESS. A hamlet never sickens -- below
+# OUTBREAK_MIN_POP there is nobody to catch it from. A city of eighty living
+# shoulder to shoulder catches it constantly. So the reward for growing is not
+# idleness; it is that your town can now hurt.
+#
+# IT SPREADS HOUSE TO HOUSE, by the same homes-and-workplaces the auras read
+# (villager_places). Cottages packed in a row pass it along fast; a town spread
+# down the road resists it. That gives your cottage placement a SECOND meaning
+# and makes where you set the Hospital the most consequential thing you ever
+# placed -- its ward aura is the only standing defence.
+#
+# IT IS NOT CORRUPTION. Despair turns people into demons (tick_rot); this is
+# physical, it is contagious, and it kills. The Ten and the pledged are exempt
+# here as they are from every other loss path.
+#
+# AND IT CANNOT BE FULLY AUTOMATED AWAY, which is the point: a ward dampens it,
+# but an outbreak in a big town outruns a ward, and the news pierces the away-fog
+# so you know to come home. That is the player's job -- not a chore, an emergency.
+const OUTBREAK_MIN_POP := 12                  # a hamlet has nobody to catch it from
+const OUTBREAK_CHANCE_PER_DAY := 0.05         # ...at the threshold; grows with the town
+const OUTBREAK_CHANCE_PER_SOUL := 0.0016
+const SICK_SPREAD_RADIUS := 900.0             # how near a home must be to catch it
+const SICK_SPREAD_CHANCE_PER_DAY := 0.22
+const SICK_DRAIN_PER_HOUR := 2.4              # outruns the passive regen on purpose
+const SICK_CURE_CHANCE_PER_DAY := 0.10        # they can throw it off unaided...
+const SICK_WARD_CURE_BONUS := 0.55            # ...far better under the ward's shadow
+const SICK_WARD_DRAIN_RELIEF := 0.55          # and it costs them less while there
+
+var sick: Dictionary = {}                     # villager id -> game_hours they fell ill
+var _sick_accum := 0.0
+
+func sick_count() -> int:
+	return sick.size()
+
+func villager_is_sick(vid: String) -> bool:
+	return sick.has(vid)
+
+# The pledged, the legends and the untraceable are never taken by plague -- the
+# same exemption every other loss path carries.
+func _can_sicken(v: Dictionary) -> bool:
+	if v.get("unbreakable", false) or v.get("shadow", false):
+		return false
+	var vid := str(v.get("id", ""))
+	return vid != "" and not sick.has(vid)
+
+# Do these two lives touch? Home or work within reach of home or work.
+func _lives_touch(a: Dictionary, b: Dictionary, r: float) -> bool:
+	for pa in villager_places(a):
+		for pb in villager_places(b):
+			if absf(float(pa) - float(pb)) <= r:
+				return true
+	return false
+
+func tick_sickness(hours_passed: float) -> void:
+	if hours_passed <= 0.0 or not CORRUPTION_ENABLED:
+		return
+	_sick_accum += hours_passed
+	# the hourly half: it costs the sick their strength, ward or no ward
+	var ward := is_building_operational("Hospital") and count_workers("Hospital") > 0
+	for vid in sick.keys():
+		var v: Dictionary = find_villager_by_id(str(vid))
+		if v.is_empty():
+			sick.erase(vid)
+			continue
+		var drain := SICK_DRAIN_PER_HOUR * hours_passed
+		if in_aura("Hospital", v):
+			drain *= (1.0 - SICK_WARD_DRAIN_RELIEF)
+		villager_hp[str(vid)] = get_villager_hp(str(vid)) - drain
+	_reap_the_sick()
+	while _sick_accum >= 24.0:
+		_sick_accum -= 24.0
+		_sickness_day(ward)
+
+func _sickness_day(ward: bool) -> void:
+	# ---- who throws it off ----
+	for vid in sick.keys():
+		var v: Dictionary = find_villager_by_id(str(vid))
+		if v.is_empty():
+			sick.erase(vid)
+			continue
+		var cure := SICK_CURE_CHANCE_PER_DAY
+		if in_aura("Hospital", v):
+			cure += SICK_WARD_CURE_BONUS
+		elif ward:
+			cure += SICK_WARD_CURE_BONUS * 0.35   # a staffed ward helps even at range
+		if randf() < cure:
+			sick.erase(vid)
+			log_event("people", "%s has thrown off the sickness." % str(v.get("name", "?")))
+	# ---- who catches it ----
+	if not sick.is_empty():
+		var fresh := []
+		for vid2 in sick.keys():
+			var carrier: Dictionary = find_villager_by_id(str(vid2))
+			if carrier.is_empty():
+				continue
+			for other in rescued_villagers:
+				if not _can_sicken(other):
+					continue
+				if str(other.get("id", "")) in fresh:
+					continue
+				if not _lives_touch(carrier, other, SICK_SPREAD_RADIUS):
+					continue
+				var chance := SICK_SPREAD_CHANCE_PER_DAY
+				if in_aura("Hospital", other):
+					chance *= 0.4          # the ward's shadow shelters its neighbours
+				if randf() < chance:
+					fresh.append(str(other.get("id", "")))
+		for nid in fresh:
+			sick[nid] = game_hours
+		if not fresh.is_empty():
+			log_event("people", "The sickness spread to %d more in the night." % fresh.size())
+			notify_urgent("🤒 The sickness spreads — %d more are down." % fresh.size())
+	# ---- or a new one begins ----
+	elif rescued_villagers.size() >= OUTBREAK_MIN_POP:
+		var odds := OUTBREAK_CHANCE_PER_DAY \
+			+ OUTBREAK_CHANCE_PER_SOUL * float(rescued_villagers.size() - OUTBREAK_MIN_POP)
+		if randf() < odds:
+			_begin_outbreak()
+
+func _begin_outbreak() -> void:
+	var pool := []
+	for v in rescued_villagers:
+		if _can_sicken(v):
+			pool.append(str(v.get("id", "")))
+	if pool.is_empty():
+		return
+	var first: String = pool[randi() % pool.size()]
+	sick[first] = game_hours
+	log_event("people", "%s has fallen ill — and it does not look like grief." % villager_name(first))
+	# PIERCES THE AWAY-FOG on purpose: an outbreak you cannot hear about is just a
+	# silent tax. This is the town asking you to come home.
+	notify_urgent("🤒 Sickness in Deepwood — %s is down. It will spread." % villager_name(first))
+
+# The sickness can finish someone, but only after long neglect: the drain is slow
+# enough that coming home and getting a ward standing always saves them.
+func _reap_the_sick() -> void:
+	var taken := []
+	for vid in sick.keys():
+		if get_villager_hp(str(vid)) <= 0.0:
+			taken.append(str(vid))
+	for vid2 in taken:
+		sick.erase(vid2)
+		var v: Dictionary = find_villager_by_id(vid2)
+		if v.is_empty():
+			continue
+		if v.get("unbreakable", false):
+			villager_hp[vid2] = 1.0        # a legend sickens to the brink, never past
+			continue
+		# the same road every other death walks: clear the body's HP, take them off
+		# the roster by id, and let the town feel it (register_villager_deaths is
+		# what carries the grief into morale)
+		var gone := str(v.get("name", "?"))
+		villager_hp.erase(vid2)
+		remove_villager_by_id(vid2)
+		register_villager_deaths(1)
+		log_event("people", "%s was taken by the sickness. Deepwood grieves." % gone)
+		notify_urgent("✝ %s was taken by the sickness." % gone)
 
 func get_villager_hp(id: String) -> float:
 	return float(villager_hp.get(id, VILLAGER_MAX_HP))
@@ -6801,6 +6965,8 @@ func reset_for_new_game() -> void:
 	building_plots = {}
 	building_x = {}
 	school_share = SCHOOL_SHARE_MAX   # a new town schools everyone until told otherwise
+	sick = {}                         # a new town is a well town
+	_sick_accum = 0.0
 	patrol_posts = {}                 # nobody is in the deep at the start of a run
 	block_creep = {}
 	_patrol_accum = 0.0
@@ -7053,6 +7219,7 @@ func save_game(player: Node) -> void:
 		"building_x": building_x,
 		"school_share": school_share,
 		"patrol_posts": patrol_posts,
+		"sick": sick,
 		"block_creep": block_creep,
 		"_kid_intake": _kid_intake,
 		"pregnancies": pregnancies,
@@ -7324,6 +7491,11 @@ func load_game() -> Dictionary:
 		if parsed.has("patrol_posts") and parsed["patrol_posts"] is Dictionary:
 			for k in parsed["patrol_posts"].keys():
 				patrol_posts[int(str(k))] = int(parsed["patrol_posts"][k])
+		# who is ill (an older save knows nothing of the sickness: a well town)
+		sick = {}
+		if parsed.has("sick") and parsed["sick"] is Dictionary:
+			for ks in parsed["sick"].keys():
+				sick[str(ks)] = float(parsed["sick"][ks])
 		block_creep = {}
 		if parsed.has("block_creep") and parsed["block_creep"] is Dictionary:
 			for k2 in parsed["block_creep"].keys():

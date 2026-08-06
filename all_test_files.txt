@@ -91,6 +91,7 @@ test_schooling_node
 test_selfsuf_node
 test_shadowcourt_node
 test_shrine_node
+test_sickness_node
 test_sickroad_node
 test_sig_node
 test_skilltree_node
