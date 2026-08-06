@@ -2792,9 +2792,57 @@ func floor_is_road_blocked(level: int) -> bool:
 	var fallen := first_fallen_block()
 	return fallen > 0 and block_of_floor(level) > fallen
 
+# ============ THE MUSTER RUNS ITSELF (automation ladder, floor 65) ============
+# THE LADDER HAD A FORTY-FLOOR HOLE. The standing law is that every manual chore
+# eventually gets handed to a building or a leader, so a hands-on early game becomes
+# a near-automatic town. Measured against the real rescue depths, nothing new was
+# automated between floor 56 and floor 95: Foreman (60), Warchief (65/70) and four
+# Lead Researchers (75-90) are all SECOND HOLDERS of seats already filled. They
+# raise numbers; they retire no chore.
+#
+# Meanwhile posting warriors to patrol blocks stayed fully manual to the end of the
+# game -- a chore the player redoes every session, with no automation anywhere.
+#
+# So the Warchief takes it. It is exactly what a war leader is for, it lands in the
+# middle of the dead stretch, and it retires a real chore rather than inflating a
+# stat. What it does NOT do is decide how much to risk: it holds what you have swept
+# and never posts more than HOLD-strength, so the choice of whether to garrison the
+# deep at the cost of your wall stays yours. It relieves the bookkeeping, not the
+# decision -- which is the difference between automation and being played for.
+func warchief_holds_the_deep() -> bool:
+	return count_leader_holders("Barracks", "Warchief") > 0
+
+# The smallest garrison that actually holds a block: enough suppression to out-pace
+# that block's creep, rounded up, and never more.
+func garrison_needed(b: int) -> int:
+	if PATROL_SUPPRESS_PER_WARRIOR <= 0.0:
+		return 0
+	var rise := CREEP_BASE_PER_HOUR + CREEP_DEPTH_PER_HOUR * float(b - 1)
+	return maxi(1, int(ceil(rise / PATROL_SUPPRESS_PER_WARRIOR)))
+
+# Posts the minimum watch on every swept block, SHALLOWEST FIRST -- the shallow
+# blocks are the ones whose loss actually cuts the road home, and a deep block held
+# beyond a cut road is worth nothing. Never touches a block the player has already
+# garrisoned by hand at or above strength, and never empties the wall: it stops
+# while warriors remain to post and leaves whatever it cannot cover.
+func _warchief_posts_the_watch() -> void:
+	if not warchief_holds_the_deep():
+		return
+	for b in range(1, PATROL_BLOCKS + 1):
+		if not block_is_cleared(b):
+			continue
+		var need := garrison_needed(b)
+		if patrol_at(b) >= need:
+			continue                       # already held, by them or by you
+		var spare := warriors_available_to_post()
+		if spare <= 0:
+			return                         # the wall keeps the rest
+		post_patrol(b, patrol_at(b) + mini(need - patrol_at(b), spare))
+
 func tick_patrols(hours_passed: float) -> void:
 	if hours_passed <= 0.0:
 		return
+	_warchief_posts_the_watch()
 	for b in range(1, PATROL_BLOCKS + 1):
 		if not block_is_cleared(b):
 			block_creep.erase(b)          # nothing to hold: it was never swept
@@ -6712,6 +6760,14 @@ func chore_domains() -> Array:
 			"key": "wages", "label": "Payroll",
 			"handled": _bank_paid_full_payroll,
 			"freed": "🏦 The Bank met the whole payroll from the town's own purse — your gold is yours again.",
+		},
+		{
+			# THE FORTY-FLOOR HOLE. Nothing new was automated between floor 56 and the
+			# Chancellor at 95 -- and posting the watch was still a manual chore at the
+			# end of the game, which the ladder law does not allow.
+			"key": "watch", "label": "The watch",
+			"handled": warchief_holds_the_deep(),
+			"freed": "⚔ The Warchief musters the watch himself now — the cleared deep stays yours without you posting a soul.",
 		},
 		{
 			"key": "family", "label": "Homes & families",

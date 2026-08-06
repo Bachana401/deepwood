@@ -154,6 +154,65 @@ func _ready() -> void:
 	check("the Barracks is where you post them",
 		FileAccess.open("res://assign_ui.gd", FileAccess.READ).get_as_text().contains("add_patrol_section"))
 
+	# ======== THE MUSTER RUNS ITSELF (automation ladder, floor 65) ========
+	# The ladder law says every manual chore is eventually handed to a leader. It had
+	# a FORTY-FLOOR HOLE: nothing new was automated between floor 56 and the Chancellor
+	# at 95, because Foreman/Warchief/Lead Researcher are all second holders of seats
+	# already filled -- they raise numbers and retire no chore. Meanwhile posting the
+	# watch stayed manual to the end of the game. The Warchief takes it.
+	GameState.floors_cleared = {}
+	for lv2 in range(1, 101):
+		GameState.floors_cleared[str(lv2)] = true
+	GameState.rescued_villagers = []
+	for i9 in range(30):
+		GameState.rescued_villagers.append({"id": "wc%d" % i9, "name": "Wc%d" % i9, "sex": "Male",
+			"is_kid": false, "stat_name": "Warrior", "stat_value": 5,
+			"role_key": "Barracks", "role_title": ""})
+	GameState.patrol_posts = {}
+	GameState.block_creep = {}
+	GameState.tick_patrols(1.0)
+	check("with no Warchief the watch is the player's job, as it always was",
+		GameState.posted_warriors() == 0, "%d posted" % GameState.posted_warriors())
+
+	GameState.rescued_villagers[0]["role_title"] = "Warchief"
+	check("a seated Warchief holds the deep", GameState.warchief_holds_the_deep())
+	GameState.patrol_posts = {}
+	GameState.block_creep = {}
+	GameState.tick_patrols(1.0)
+	check("...and musters the watch across every swept block without you",
+		GameState.posted_warriors() > 0 and GameState.patrol_posts.size() == GameState.PATROL_BLOCKS,
+		"%d warriors over %d blocks" % [GameState.posted_warriors(), GameState.patrol_posts.size()])
+	# THE POINT: it must actually HOLD. A muster that still loses blocks automated
+	# nothing -- it just spends the wall for you.
+	var fell := 0
+	for _d9 in range(120):
+		GameState.tick_patrols(24.0)
+		if GameState.first_fallen_block() > 0:
+			fell += 1
+	check("the road stays open for months without a single order from you",
+		fell == 0 and GameState.first_fallen_block() == 0, "%d days with a fallen block" % fell)
+	# ...and it must not empty the wall. It posts the MINIMUM that holds, never more,
+	# so the real decision -- how much of your defence to spend on the deep -- is
+	# still the player's. This relieves the bookkeeping, not the choice.
+	check("...and most of the corps is still standing at home",
+		GameState.warriors_available_to_post() > GameState.posted_warriors(),
+		"%d home vs %d posted" % [GameState.warriors_available_to_post(), GameState.posted_warriors()])
+	check("it never posts more than a block needs",
+		GameState.patrol_at(1) <= GameState.garrison_needed(1) + 1,
+		"block 1 has %d, needs %d" % [GameState.patrol_at(1), GameState.garrison_needed(1)])
+	# a garrison YOU set by hand is never thinned back to the minimum
+	GameState.patrol_posts = {}
+	GameState.post_patrol(3, 6)
+	GameState.tick_patrols(1.0)
+	check("a watch you set by hand is left exactly as you set it",
+		GameState.patrol_at(3) == 6, "%d" % GameState.patrol_at(3))
+	# and the ladder reads it as a chore retired
+	var watch_handled := false
+	for dom in GameState.chore_domains():
+		if str(dom.get("key", "")) == "watch":
+			watch_handled = bool(dom.get("handled", false))
+	check("the automation ladder counts the watch as handed over", watch_handled)
+
 	# ---- restore ----
 	GameState.rescued_villagers = s_roster
 	GameState.floors_cleared = s_cleared
