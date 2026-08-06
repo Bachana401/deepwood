@@ -33,6 +33,21 @@ const SFX_FIRE_ALARM: String = "fire_alarm"
 const SFX_FIRE_DOUSED: String = "fire_doused"
 const SFX_ECLIPSE: String = "eclipse"
 
+# --- THE RAZING PAIR (audio pass 2026-08-06, second half) ---
+# The eclipse recipe above says the sun went out. What it does NOT cover is what
+# comes down the ladder afterwards: the Hollow Sun spawns ON THE GROUND, among the
+# halls the player raised by hand, and its meteors and pillars now take chunks out
+# of them. That was the most dramatic beat in the game and the only one with no
+# sound and no line at all -- a hall took a meteor and nothing said so.
+#
+# These two are a PAIR and are designed against each other: the loudest, lowest,
+# broadest, dirtiest thing in the village set, and the quietest, narrowest,
+# cleanest. One is the town being used as a floor; the other is the town being put
+# back. They are the only two recipes here fired from a FIGHT rather than from the
+# town clock, which is why the impact is positional (see play_village_at).
+const SFX_RAZE_HIT: String = "raze_hit"
+const SFX_MEND_DONE: String = "mend_done"
+
 static func _wav(samples: PackedFloat32Array) -> AudioStreamWAV:
 	var s := AudioStreamWAV.new()
 	s.format = AudioStreamWAV.FORMAT_16_BITS
@@ -96,6 +111,7 @@ const RECIPES: Array = [
 	"crack", "pop", "thump", "whoosh", "chime", "tear",
 	"patrol_out", "patrol_home", "patrol_find", "patrol_lost",
 	"outbreak", "fire_alarm", "fire_doused", "eclipse",
+	"raze_hit", "mend_done",
 ]
 
 static func has_recipe(recipe: String) -> bool:
@@ -343,6 +359,99 @@ static func _bank(recipe: String) -> AudioStreamWAV:
 			out = _add_tone(out, 2.85, 36.71, 0.40, 0.18, 2.2)
 			out = _norm(out, 0.96)
 
+		"raze_hit":
+			# SOMETHING MEANT FOR YOU LANDED ON THE TOWN INSTEAD. A meteor or an
+			# erupting pillar taking a piece out of a hall the player raised.
+			#
+			# The design brief was "distinct from fire_alarm" and the two are near
+			# opposites on purpose. `fire_alarm` is BRIGHT and HIGH -- a swung bell
+			# at 880/622 with two dozen sparks over it -- because it is a warning,
+			# and a warning has to carry across a town. This is not a warning, it
+			# is a RESULT, so it is low, blunt and over almost before it starts.
+			# Nothing in it rings. Nothing in it repeats a pattern. It is mass
+			# arriving.
+			#
+			# It also has to be distinct from `thump`, which is the closest thing
+			# already in the file (a low sine and a click of onset, 0.22s). `thump`
+			# is the EARTH answering -- one material, no aftermath. This one has
+			# three materials in it and that is the whole difference:
+			#   1. THE BLOW (0-0.045)   -- hard noise, no pitch. The strike itself.
+			#   2. THE MASS (0-0.16)    -- a sub sweeping 104Hz -> 58Hz, written as
+			#      the INTEGRAL of the sweep so the phase stays continuous and the
+			#      slide cannot tick (the same trick fire_doused's steam uses).
+			#   3. THE TIMBER (0-0.12)  -- a narrow-duty square falling 196 -> 124.
+			#      A beam giving. Square, not sine, because wood CRACKS and a sine
+			#      only sags -- and it is the voice `thump` has not got.
+			#   4. THE RUBBLE (0.05-0.26) -- nine dry grains scattering after. The
+			#      aftermath is what makes it a building and not a floor.
+			#
+			# SHORT AND STACKABLE BY REQUIREMENT. It fires once per impact and a
+			# meteor storm lands six of them inside half a second, so: the whole
+			# thing is 0.30s, the sub -- the only part that could ever turn to mud
+			# -- is done in 0.16s so no more than about three ever overlap, and all
+			# the LONG energy is in noise grains, which layer into a collapse
+			# rather than into a drone. See VILLAGE_MIX for the 50ms gate that
+			# turns "one strike hit four buildings" into one sound while leaving a
+			# rolling barrage audible as a barrage.
+			n = int(RATE * 0.30)
+			out.resize(n)
+			for i in range(n):
+				var ph7: float = float(i) / float(RATE)
+				var v7: float = 0.0
+				if ph7 < 0.045:
+					v7 += (randf() * 2.0 - 1.0) * pow(1.0 - ph7 / 0.045, 1.6) * 0.85
+				if ph7 < 0.16:
+					var me: float = pow(1.0 - ph7 / 0.16, 2.0)
+					v7 += sin(TAU * (104.0 * ph7 - 143.75 * ph7 * ph7)) * me * 0.60
+				if ph7 < 0.12:
+					var we: float = pow(1.0 - ph7 / 0.12, 2.6)
+					v7 += _sq(196.0 * ph7 - 300.0 * ph7 * ph7, 0.38) * we * 0.20
+				out[i] = v7
+			for _c4 in range(9):
+				out = _add_tone(out, randf_range(0.05, 0.26),
+					randf_range(900.0, 3400.0), 0.008, 0.20, 3.5)
+			out = _norm(out, 0.82)
+
+		"mend_done":
+			# THE CREW FINISHED. The far pole from `raze_hit`, and written as its
+			# negative in every axis the ear reads: quiet not loud, mid not low,
+			# tonal not noisy, patient not instant, and it RESOLVES.
+			#
+			# 1. TWO MALLET TAPS (0.00, 0.115) -- the last peg going home. A short
+			#    wooden body at 330Hz easing down, with a grain of contact noise on
+			#    the very front of each. Domestic: this is a hand and a tool, not
+			#    an event. It is also the only noise in the recipe, and there are
+			#    twelve milliseconds of it.
+			# 2. A FOURTH THAT CLOSES (0.28 -> 0.42) -- D5 falling to G4, with G3
+			#    underneath so it sits in a room instead of in the air. Chosen
+			#    against `patrol_out`, which climbs a fourth and LEAVES IT HANGING
+			#    because an order has been given and not yet answered. This is the
+			#    same interval walked the other way and landed on: the thing that
+			#    was owed has been paid. A player who has heard the gate open a
+			#    dozen times gets that for free.
+			#
+			# No fanfare and none wanted -- `fire_doused` already learned that the
+			# good news is only ever "it is still standing". Normalized to 0.55 and
+			# mixed at -13, the softest entry in the whole set: a repair finishing
+			# is a thing you notice, not a thing that interrupts you.
+			n = int(RATE * 0.86)
+			out.resize(n)
+			for i in range(n):
+				var ph8: float = float(i) / float(RATE)
+				var tap: float = 0.0
+				for k in range(2):
+					var d8: float = ph8 - 0.115 * float(k)
+					if d8 < 0.0 or d8 >= 0.06:
+						continue
+					var te: float = pow(1.0 - d8 / 0.06, 3.2)
+					tap += sin(TAU * (330.0 * d8 - 380.0 * d8 * d8)) * te * 0.30
+					tap += (randf() * 2.0 - 1.0) * pow(1.0 - d8 / 0.06, 9.0) * 0.10
+				out[i] = tap
+			out = _add_tone(out, 0.28, 587.33, 0.20, 0.20, 1.9, 0.06)
+			out = _add_tone(out, 0.42, 392.00, 0.36, 0.26, 1.2, 0.06)
+			out = _add_tone(out, 0.42, 196.00, 0.40, 0.14, 1.4)
+			out = _norm(out, 0.55)
+
 		_:
 			# NOT A RECIPE -- and this used to be the quietest bug in the game.
 			# A misspelled name cost nothing at runtime: it arrived here, got
@@ -415,23 +524,65 @@ const VILLAGE_MIX: Dictionary = {
 	"fire_alarm": [-5.0, 2.0],     # the loudest thing the village is allowed
 	"fire_doused": [-10.0, 2.0],
 	"eclipse": [-3.0, 10.0],       # loudest in the game, and it may not stutter
+	# THE ONE GAP MEASURED IN FRAMES, NOT SECONDS. Every other entry here is
+	# throttled because the town clock resolves a whole day in one frame and twenty
+	# alarm bells at once say nothing. This one is throttled for the opposite
+	# reason: one strike legitimately hits several buildings in the SAME frame, and
+	# the player should hear one impact, not four. 50ms collapses a same-frame
+	# volley to a single crash while still passing every meteor of a storm (they
+	# are spaced 0.06s in boss.gd's do_meteors) -- so a pillar volley reads as one
+	# blow and a meteor storm reads as a barrage, which is what they look like.
+	# -6.0 is deliberately ONE dB under fire_alarm and level with the loudest
+	# combat one-shots in the game (the tear, the big chime). It has to cut through
+	# a boss fight, and it must still not out-shout the bell -- the alarm is the
+	# village's loudest voice by standing rule, and this is a fight sound that
+	# repeats.
+	"raze_hit": [-6.0, 0.05],
+	"mend_done": [-13.0, 1.5],     # softest in the set; a repair does not interrupt
 }
 
 static var _last_played: Dictionary = {}
 
-static func play_village(host: Node, recipe: String, volume_db: float = NAN,
-		min_gap: float = NAN, pitch: float = 1.0) -> void:
-	if host == null or not host.is_inside_tree():
-		return
+# The gate both village entry points share. Resolves [volume, gap] out of
+# VILLAGE_MIX (unless the caller overrode either), stamps the clock, and answers
+# with the volume to play at -- or NAN when this recipe is still inside its gap.
+# Kept as one function so the stamp cannot be forgotten on one of the two paths.
+static func _village_gate(recipe: String, volume_db: float, min_gap: float) -> float:
 	var mix: Array = VILLAGE_MIX.get(recipe, [-8.0, 1.5])
 	var vol: float = float(mix[0]) if is_nan(volume_db) else volume_db
 	var gap: float = float(mix[1]) if is_nan(min_gap) else min_gap
 	var now: float = float(Time.get_ticks_msec()) / 1000.0
 	var prev: float = float(_last_played.get(recipe, -9999.0))
 	if now - prev < gap:
-		return
+		return NAN
 	_last_played[recipe] = now
+	return vol
+
+static func play_village(host: Node, recipe: String, volume_db: float = NAN,
+		min_gap: float = NAN, pitch: float = 1.0) -> void:
+	if host == null or not host.is_inside_tree():
+		return
+	var vol: float = _village_gate(recipe, volume_db, min_gap)
+	if is_nan(vol):
+		return
 	play_ui(host, recipe, vol, pitch)
+
+# SAME MIX, SAME THROTTLE, BUT IT SOUNDS FROM WHERE IT HAPPENED.
+# Every other village event is reported to a player who may be a hundred floors
+# down -- there is no place in the world for it to come from, so play_village goes
+# through play_ui. The razing is the exception: the player is STANDING IN IT, and
+# an impact on the hall behind you and an impact on the hall across the square are
+# not the same information. So this one is positional, and still shares the mix
+# table and the gap so the tuning stays in this file and the trigger stays a
+# one-liner in someone else's.
+static func play_village_at(host: Node, at: Vector2, recipe: String,
+		volume_db: float = NAN, min_gap: float = NAN, pitch: float = 1.0) -> void:
+	if host == null or not host.is_inside_tree():
+		return
+	var vol: float = _village_gate(recipe, volume_db, min_gap)
+	if is_nan(vol):
+		return
+	play_at(host, at, recipe, vol, pitch)
 
 # Did this recipe sound in the last `within` seconds? Lets a call site stand
 # down when a better sound already covered the same beat -- the patrol's rare
