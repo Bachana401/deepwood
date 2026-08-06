@@ -41,6 +41,8 @@ func _ready() -> void:
 	var s_plague: Dictionary = GameState.plague_ids.duplicate(true)
 	var s_depth: int = GameState.deepest_level_reached
 	var s_deaths: int = GameState.run_villager_deaths
+	var s_immune: Dictionary = GameState.plague_immune_until.duplicate(true)
+	var s_gh: float = GameState.game_hours
 
 	GameState.sick = {}
 	GameState.villager_hp = {}
@@ -92,6 +94,30 @@ func _ready() -> void:
 		if n < 8: packed += 1
 		else: far += 1
 	check("it spreads through homes packed together", packed > 1, "%d in the row" % packed)
+	# ============ WHERE THEY SLEEP DECIDES IT (dev ruling 2026-08-06) ============
+	# The spread used to read home OR workplace, which put everyone rostered to the
+	# same hall at DISTANCE ZERO -- so in a staffed town every soul touched every
+	# other, and spacing the cottage row 27x further apart changed the contact graph
+	# by exactly nothing. Three systems' headers claimed the opposite. This pins the
+	# fix: distance is measured between HOMES, and a shared bench is a separate,
+	# much weaker vector that must never flatten the map again.
+	var near_pair: Dictionary = GameState.find_villager_by_id("s0")
+	var far_pair: Dictionary = GameState.find_villager_by_id("s15")
+	near_pair["role_key"] = "Farm"
+	far_pair["role_key"] = "Farm"          # same bench, homes a very long way apart
+	check("two souls at the same bench but far-apart homes do NOT count as neighbours",
+		not GameState._lives_touch(near_pair, far_pair, GameState.SICK_SPREAD_RADIUS))
+	check("...though sharing that bench is still recognised as its own vector",
+		GameState._share_a_workplace(near_pair, far_pair))
+	check("...and it is much weaker than living next door",
+		GameState.WORKMATE_INFECT_PER_DAY < GameState.SICK_SPREAD_CHANCE_PER_DAY * 0.5,
+		"%.3f vs %.3f" % [GameState.WORKMATE_INFECT_PER_DAY, GameState.SICK_SPREAD_CHANCE_PER_DAY])
+	var s1v: Dictionary = GameState.find_villager_by_id("s1")
+	s1v["role_key"] = ""
+	near_pair["role_key"] = ""
+	far_pair["role_key"] = ""
+	check("neighbours on the same row still touch, employment or not",
+		GameState._lives_touch(near_pair, s1v, GameState.SICK_SPREAD_RADIUS))
 	check("...and does NOT reach homes far down the road (placement decides)",
 		far == 0, "%d caught it across town" % far)
 
@@ -223,6 +249,55 @@ func _ready() -> void:
 	check("a plague death is one funeral, not two",
 		GameState.run_villager_deaths == 1, str(GameState.run_villager_deaths))
 
+	# ============ IMMUNITY: AN OUTBREAK MUST BE ABLE TO END ============
+	# Balance measured a single plague case into a cared-for town of eighty and it
+	# killed 73 of them; a staffed ward on the cottage row still lost 55. The cause
+	# was not the drain or the spread -- there was no such thing as having HAD it, so
+	# a cured villager was re-infected that same night and re-rolled until a roll
+	# killed them. This pins the fix, and the property that matters most: the
+	# outbreak RUNS OUT OF PEOPLE and stops.
+	GameState.plague_immune_until = {}
+	GameState.sick = {}
+	GameState.plague_ids = {}
+	GameState.rescued_villagers = []
+	GameState.cottage_homes = {}
+	GameState.extra_cottage_ids = []
+	GameState.extra_cottage_positions = []
+	for i5 in range(20):
+		var iid := "im%d" % i5
+		GameState.rescued_villagers.append(soul(iid))
+		GameState.extra_cottage_ids.append("ic%d" % i5)
+		GameState.extra_cottage_positions.append(6000.0 + float(i5) * 100.0)
+		GameState.cottage_homes["ic%d" % i5] = {"a": iid, "b": ""}
+		GameState.villager_hp[iid] = 100.0
+	var recovered: Dictionary = GameState.find_villager_by_id("im0")
+	check("a fresh villager is not immune", not GameState.villager_is_immune("im0"))
+	GameState._grant_immunity("im0")
+	check("...but is the moment they throw it off", GameState.villager_is_immune("im0"))
+	check("...so the sickness cannot take them again", not GameState._can_sicken(recovered))
+	GameState.game_hours += GameState.IMMUNITY_DAYS * 24.0 + 1.0
+	check("...and it wears off, so a later outbreak still finds them",
+		not GameState.villager_is_immune("im0") and GameState._can_sicken(recovered))
+
+	# THE PROPERTY THAT MAKES IT SAFE: with immunity the pool shrinks with every
+	# recovery, so the sickness runs out of fuel. Without it the town never clears.
+	GameState.plague_immune_until = {}
+	GameState.sick = {"im0": GameState.game_hours}
+	GameState.plague_ids = {}
+	GameState._sick_accum = 0.0
+	var ended_on := -1
+	for day in range(400):
+		GameState._sickness_day(false)
+		for hid2 in GameState.sick.keys():
+			GameState.villager_hp[str(hid2)] = 100.0   # nobody dies; measure the BURN-OUT
+		if GameState.sick.is_empty():
+			ended_on = day
+			break
+	check("an outbreak BURNS OUT instead of running forever", ended_on >= 0,
+		"still %d ill after 400 days" % GameState.sick_count())
+	check("...and it does not end instantly either (it is still a real event)",
+		ended_on < 0 or ended_on > 1, "ended on day %d" % ended_on)
+
 	# ---- but never a legend ----
 	GameState.rescued_villagers = [{"id": "legend", "name": "Maera", "sex": "Female",
 		"is_kid": false, "stat_name": "", "stat_value": 9, "role_key": "", "role_title": "",
@@ -262,6 +337,8 @@ func _ready() -> void:
 	GameState.plague_ids = s_plague
 	GameState.deepest_level_reached = s_depth
 	GameState.run_villager_deaths = s_deaths
+	GameState.plague_immune_until = s_immune
+	GameState.game_hours = s_gh
 
 	printerr("test_sickness : RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

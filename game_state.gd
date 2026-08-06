@@ -4519,6 +4519,9 @@ const OUTBREAK_CHANCE_PER_DAY := 0.05         # ...at the threshold; grows with 
 const OUTBREAK_CHANCE_PER_SOUL := 0.0016
 const SICK_SPREAD_RADIUS := 900.0             # how near a home must be to catch it
 const SICK_SPREAD_CHANCE_PER_DAY := 0.22
+# a shared bench, for two souls whose homes are nowhere near each other. A fifth of
+# the house-to-house rate: real, but never enough to make the layout stop mattering.
+const WORKMATE_INFECT_PER_DAY := 0.045
 const SICK_CURE_CHANCE_PER_DAY := 0.10        # they can throw it off unaided...
 const SICK_WARD_CURE_BONUS := 0.55            # ...far better under the ward's shadow
 const SICK_WARD_DRAIN_RELIEF := 0.55          # and it costs them less while there
@@ -4532,6 +4535,38 @@ const PLAGUE_SHARE_ONCE_DEEP := 0.35          # ...and this share of outbreaks t
 const PLAGUE_DRAIN_PER_HOUR := 0.6            # ~7 in-game days from full strength to gone
 const PLAGUE_SPREAD_MULT := 1.7               # it runs through a packed row
 const PLAGUE_CURE_MULT := 0.4                 # and will not be shaken off unaided
+# ============ IMMUNITY: THE THING THAT LETS AN OUTBREAK END ============
+# Without this the plague is a settlement-ender, and not for the reason you would
+# guess. Balance measured a single case into a cared-for town of eighty: 73 of 80
+# dead. A staffed Hospital standing directly on the cottage row still lost 55.
+#
+# The cause is not the drain and not the spread -- it is that a cured villager was
+# re-infected the same night by a saturated town, and re-rolled, and re-rolled,
+# until one of the rolls killed them. Per-case survival was already fine: inside the
+# ward aura a case runs 543 hours, which is 22.6 daily cure rolls, so the odds of
+# never being cured are about one in a thousand. It killed them anyway, because
+# there was no such thing as having HAD it.
+#
+# So the cure rate was almost irrelevant while re-infection was unbounded. Measured:
+# raising the cure alone gets 80 dead down to 66.7; immunity alone gets it to 63.5;
+# the two TOGETHER give 7.8. Neither lever works without the other -- and it is
+# immunity that finally makes the Hospital worth building, which is what this whole
+# system's header always claimed it was for.
+#
+# It is also what answers "what happens if I cannot beat it?": every recovery
+# permanently shrinks the pool the sickness can burn through, so it runs out of fuel
+# and stops. The outbreak ALWAYS ends. What an unprepared town pays is a toll, not
+# the settlement -- which is the standing rule that a village death is a wound and
+# never a game over.
+const IMMUNITY_DAYS := 14.0
+var plague_immune_until: Dictionary = {}      # villager id -> game_hours it wears off
+
+func villager_is_immune(vid: String) -> bool:
+	return game_hours < float(plague_immune_until.get(vid, -1.0))
+
+# Stamped on RECOVERY, never on infection: you earn it by living through it.
+func _grant_immunity(vid: String) -> void:
+	plague_immune_until[vid] = game_hours + IMMUNITY_DAYS * 24.0
 
 var sick: Dictionary = {}                     # villager id -> game_hours they fell ill
 var plague_ids: Dictionary = {}               # ...and which of them carry the VIRULENT strain
@@ -4559,15 +4594,60 @@ func _can_sicken(v: Dictionary) -> bool:
 	if v.get("unbreakable", false) or v.get("shadow", false):
 		return false
 	var vid := str(v.get("id", ""))
-	return vid != "" and not sick.has(vid)
+	if vid == "" or sick.has(vid):
+		return false
+	return not villager_is_immune(vid)      # they have had it, and it is done with them
 
-# Do these two lives touch? Home or work within reach of home or work.
+# WHERE THEY SLEEP, NOT WHERE THEY WORK (dev ruling 2026-08-06).
+#
+# This used to read villager_places(), which returns the cottage AND the workplace
+# -- so everyone rostered to the same hall stood at DISTANCE ZERO from each other,
+# and Balance measured the consequence: in a staffed town of eighty, every soul
+# touches all seventy-nine others, and spacing the cottage row twenty-seven times
+# further apart changes the contact graph by exactly nothing. The town was one
+# fully-connected blob no matter how it was laid out.
+#
+# That quietly falsified three systems at once: this system's own header ("cottages
+# packed in a row pass it along fast; a town spread down the road resists it"), the
+# claim that where you set the Hospital is the most consequential placement you make
+# (its aura radius was competing against a graph with no distance in it), and the
+# spatial half of the settlement design generally.
+#
+# Homes only restores it: contacts per soul 79.0 -> 22.9, and saturation slows from
+# two in-game days to seven. Workmates still pass it along -- see WORKMATE_INFECT
+# in _sickness_day -- but as a small flat chance rather than a zero-distance edge
+# that flattens the whole map.
 func _lives_touch(a: Dictionary, b: Dictionary, r: float) -> bool:
-	for pa in villager_places(a):
-		for pb in villager_places(b):
-			if absf(float(pa) - float(pb)) <= r:
-				return true
-	return false
+	var ha: float = _home_x(a)
+	var hb: float = _home_x(b)
+	if is_inf(ha) or is_inf(hb):
+		return false                    # one of them sleeps nowhere: no contact
+	return absf(ha - hb) <= r
+
+# The x of the roof this villager sleeps under; INF when they have none. A child
+# sleeps under its parents' roof, exactly as villager_places reads it.
+# (INF rather than null on purpose: a function that can return either breaks type
+# inference at every call site, and untyped inference is a hard compile error here.)
+func _home_x(v: Dictionary) -> float:
+	var hid := villager_home_id(str(v.get("id", "")))
+	if hid == "":
+		for pid in v.get("parents", []):
+			hid = villager_home_id(str(pid))
+			if hid != "":
+				break
+	if hid == "":
+		return INF
+	var idx := extra_cottage_ids.find(hid)
+	if idx < 0 or idx >= extra_cottage_positions.size():
+		return INF
+	return float(extra_cottage_positions[idx])
+
+# Do they stand at the same bench all day? Kept deliberately separate from the
+# distance test above: sharing a workplace is a REAL vector, but it must not be
+# allowed to collapse the geometry the placement puzzle is built on.
+func _share_a_workplace(a: Dictionary, b: Dictionary) -> bool:
+	var ra := str(a.get("role_key", ""))
+	return ra != "" and ra == str(b.get("role_key", ""))
 
 func tick_sickness(hours_passed: float) -> void:
 	# NOT gated on CORRUPTION_ENABLED. The header above this system argues at length
@@ -4624,6 +4704,7 @@ func _sickness_day(ward: bool) -> void:
 		if randf() < cure:
 			sick.erase(vid)
 			plague_ids.erase(vid)
+			_grant_immunity(str(vid))
 			log_event("people", "%s has thrown off the sickness." % str(v.get("name", "?")))
 	# ---- who catches it ----
 	if not sick.is_empty():
@@ -4642,9 +4723,16 @@ func _sickness_day(ward: bool) -> void:
 					continue
 				if str(other.get("id", "")) in fresh:
 					continue
-				if not _lives_touch(carrier, other, SICK_SPREAD_RADIUS):
+				# HOMES decide the geometry; a shared bench is a separate, weaker
+				# vector. Standing at the same workbench all day genuinely passes it
+				# along, but as a small flat chance -- never as a zero-distance edge,
+				# which is what used to make every staffed town one connected blob
+				# regardless of how the cottages were laid out.
+				var near: bool = _lives_touch(carrier, other, SICK_SPREAD_RADIUS)
+				var workmate: bool = _share_a_workplace(carrier, other)
+				if not near and not workmate:
 					continue
-				var chance := SICK_SPREAD_CHANCE_PER_DAY
+				var chance := SICK_SPREAD_CHANCE_PER_DAY if near else WORKMATE_INFECT_PER_DAY
 				if carrier_plague:
 					chance *= PLAGUE_SPREAD_MULT
 				if in_aura("Hospital", other):
@@ -7320,6 +7408,7 @@ func reset_for_new_game() -> void:
 	school_share = SCHOOL_SHARE_MAX   # a new town schools everyone until told otherwise
 	sick = {}                         # a new town is a well town
 	plague_ids = {}                   # ...and has never met the virulent strain
+	plague_immune_until = {}          # ...and nobody has lived through one yet
 	burning = {}                      # ...and nothing is alight
 	eclipse_at_hours = -1.0           # the sky has not yet gone wrong this run
 	eclipses_seen = 0
@@ -7581,6 +7670,7 @@ func save_game(player: Node) -> void:
 		"patrol_posts": patrol_posts,
 		"sick": sick,
 		"plague_ids": plague_ids,
+		"plague_immune_until": plague_immune_until,
 		"burning": burning,
 		# THE DAY-CLOCKS MUST TRAVEL WITH THEM. sick/burning survived a save but their
 		# accumulators did not, so every Continue reset the countdown to the next daily
@@ -7868,6 +7958,12 @@ func load_game() -> Dictionary:
 				sick[str(ks)] = float(parsed["sick"][ks])
 		# which of them carry the virulent strain (an older save: none -- every case
 		# it recorded predates the split and was, by definition, the harmless one)
+		# who has HAD it -- the thing that lets an outbreak burn out instead of
+		# re-rolling the same souls until it kills them
+		plague_immune_until = {}
+		if parsed.has("plague_immune_until") and parsed["plague_immune_until"] is Dictionary:
+			for ki in parsed["plague_immune_until"].keys():
+				plague_immune_until[str(ki)] = float(parsed["plague_immune_until"][ki])
 		plague_ids = {}
 		if parsed.has("plague_ids") and parsed["plague_ids"] is Dictionary:
 			for kp in parsed["plague_ids"].keys():
