@@ -944,7 +944,7 @@ func add_patrol_section(list: VBoxContainer) -> void:
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD
 	note.custom_minimum_size = Vector2(300, 0)
 	note.add_theme_color_override("font_color", Color(0.72, 0.70, 0.62, 1))
-	note.text = "  A posted warrior is not on the wall. They send up coin and material — never gear. Leave a stretch unheld and the dark creeps back into it; let it fill and those floors are wild again, and the road down through them is cut."
+	note.text = "  A posted warrior is not on the wall. They send up coin and material, and now and then something off a body. Leave a stretch unheld and the dark creeps back into it; let it fill and those floors are wild again, and the road down through them is cut."
 	list.add_child(note)
 
 func _on_patrol_change(b: int, delta: int) -> void:
