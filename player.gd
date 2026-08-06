@@ -113,6 +113,11 @@ const CURRENCY_PICKUP_SCRIPT = preload("res://currency_pickup.gd")
 # Special-attack projectiles (flying slashes, javelins, fireballs, the hook,
 # the boomerang...) -- launched by perform_attack from a weapon's "special".
 const WEAPON_PROJECTILE_SCRIPT = preload("res://weapon_projectile.gd")
+# The improvised hand -- the numbers a plain inventory item fights with when
+# it's held and swung. Preloaded rather than class_name'd on purpose (a global
+# class registry entry is hijackable by a stray backup copy; see the repo's
+# class_name lesson). See improvised_hold.gd for the damage rationale.
+const IMPROVISED = preload("res://improvised_hold.gd")
 
 # 40 slots (8 rows of 5). The catalog keeps growing (30+ weapons, 20+ relics),
 # and the test backfill drops a big pile of showpiece gear in at once, so the
@@ -279,6 +284,11 @@ var chest_visual: Polygon2D = null
 var pants_visual: Polygon2D = null
 var weapon_guard: ColorRect = null
 var weapon_sprite: Sprite2D = null   # item-art overhaul: the held weapon's real sprite (art/items/<id>.png), else hidden and the ColorRect bar shows
+# THE IMPROVISED HAND: the procedural symbol of a NON-weapon item held in the
+# hand (a log, a stone, a fish). Painted by Inventory.paint_icon -- the very
+# same symbol its inventory slot draws, so bag and hand match with no new art.
+var improvised_icon: ColorRect = null
+var is_improvised := false           # the thing in hand is an item, not a weapon
 
 # Pixel-art body = an AnimatedSprite2D assembled from PNGs in art/. Drop
 # numbered frames (from 1) to fill each state:
@@ -610,6 +620,16 @@ func build_weapon_guard() -> void:
 	weapon_sprite.visible = false
 	weapon_sprite.z_index = 1        # in front of the (transparent) bar
 	$WeaponIcon.add_child(weapon_sprite)
+	# THE IMPROVISED HAND's canvas. Its OWN ColorRect, never $WeaponIcon itself:
+	# Inventory.paint_icon frees every child of the node it paints, and both the
+	# crossguard and the real weapon sprite live under $WeaponIcon -- painting
+	# straight onto it would delete them permanently on the first held log.
+	improvised_icon = ColorRect.new()
+	improvised_icon.color = Color(0, 0, 0, 0)
+	improvised_icon.visible = false
+	improvised_icon.z_index = 1
+	improvised_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	$WeaponIcon.add_child(improvised_icon)
 
 # Shows the wielded weapon's real sprite when one exists (art/items/<id>.png),
 # and blanks the fallback ColorRect bar + crossguard so they don't show through
@@ -2982,12 +3002,19 @@ func _on_spear_tip_hit(body: Node2D) -> void:
 func wield_weapon(item_id: String) -> bool:
 	var def = Inventory.get_item_def(item_id)
 	if def.get("category", "") != "weapon":
-		return false
+		# ANYTHING ELSE GOES IN THE HAND (dev 2026-08-06). Delegating here rather
+		# than at each call site means every existing route into the hand --
+		# the hotbar keys, the bag's right-click, and main.gd's re-wield after a
+		# scene change -- carries a held log across for free.
+		return wield_improvised(item_id)
 	# sizing (blade length, swing arc, reach) is derived from the weapon's swing
 	# speed rather than authored -- see Inventory.weapon_stats_for
 	var stats = Inventory.weapon_stats_for(item_id)
 	if stats.is_empty():
 		return false
+	is_improvised = false
+	if improvised_icon:
+		improvised_icon.visible = false
 	active_weapon_id = item_id
 	active_def = def
 	active_stats = stats
@@ -3016,10 +3043,118 @@ func wield_weapon(item_id: String) -> bool:
 	on_equipment_changed()
 	return true
 
-# Hotbar select: index 0-9 = inventory slots 1-10. Wields a weapon; DRINKS a
-# consumable (audit fix: the keys used to silently do nothing on a potion slot
-# even though the hotbar happily displayed it -- the TAB bag's right-click was
-# the only way to use one). Anything else (or empty) does nothing.
+# ---------------------------------------------------------------------------
+# THE IMPROVISED HAND (dev, 2026-08-06: "PLAYER SHOULD BE ABLE TO HOLD ANY ITEM
+# IN HAND ... WHEN PLAYER CLICKS MOUSE HE JUST SWINGS THAT ITEM").
+#
+# Puts a plain inventory item -- a log, a stone, a fish, somebody's boot -- in
+# the hand. From there the ENTIRE existing melee path carries it: the same
+# 120-degree arc from animate_sword, the same swing trail, the same combo
+# string, the same AttackArea hitbox and the same crit/lifesteal/on-hit skills.
+# Nothing about a real weapon changes; this only fills in the four things the
+# melee path reads (id, type, stats, def) with improvised values.
+#
+# The def it wields under is a STAND-IN (IMPROVISED.def_for), not the item's own
+# def. That is the safety property: with no "special", no "unique_effect" and no
+# "tool_type", every branch of perform_attack's special dispatch is dead and the
+# click lands on the plain swing -- so a fish can never fire a weapon's verb,
+# and a log can never chop a tree the way the axe does.
+func wield_improvised(item_id: String) -> bool:
+	if not IMPROVISED.can_hold(item_id):
+		return false
+	var stats: Dictionary = IMPROVISED.stats_for(item_id)
+	active_weapon_id = item_id
+	active_def = IMPROVISED.def_for(item_id)
+	active_stats = stats
+	active_weapon_type = "melee"
+	is_improvised = true
+	reset_combo()             # a string belongs to what started it
+	WeaponFx.on_wield(self)   # rhythm counters and ramps belong to a wield too
+	$AttackArea/CollisionShape2D.shape.size = stats.area_size
+	if weapon_anim_tween:
+		# same reason as the weapon path: a killed tween skips its callbacks, so
+		# clear by hand what they would have cleared
+		weapon_anim_tween.kill()
+		$SpearTipArea.monitoring = false
+		is_attacking = false
+	$WeaponIcon.size = stats.icon_size
+	$WeaponIcon.color = stats.icon_color
+	$WeaponIcon.rotation_degrees = 0.0
+	$WeaponIcon.scale = Vector2.ONE
+	$WeaponIcon.pivot_offset = Vector2(0.0, stats.icon_size.y / 2.0)
+	# NOT update_weapon_sprite(): that path exists for DIAGONALLY-authored blade
+	# art and rotates the texture 45 degrees so the edge lands along the aim
+	# axis. A coin, a helm or an ember crystal is authored upright, and tipping
+	# it onto its corner would look like a bug. paint_icon draws both kinds
+	# correctly -- real art upright when it exists, the procedural symbol when it
+	# doesn't -- which is exactly what the bag slot shows.
+	if weapon_sprite:
+		weapon_sprite.visible = false
+	update_improvised_icon()
+	if weapon_guard:
+		weapon_guard.visible = false   # a log has no crossguard
+	update_weapon_visual(stats.icon_offset)
+	# dropping a set weapon for a rock BREAKS the set -- re-sync exactly as the
+	# weapon path does
+	on_equipment_changed()
+	return true
+
+# Draws the held item in the hand. There is no new art here and none is needed:
+# Inventory.paint_icon already resolves every item to a picture -- its real
+# sprite at art/items/<id>.png if one exists, its procedural symbol otherwise --
+# and this paints the SAME picture the bag slot shows. Bag and hand match, which
+# is the standing item-visual rule. (Art generation is frozen until 2026-08-14
+# regardless, and this feature needed none of it.)
+func update_improvised_icon() -> void:
+	if improvised_icon == null:
+		return
+	if not is_improvised or active_stats.is_empty():
+		improvised_icon.visible = false
+		return
+	# fills the whole WeaponIcon rect: its pivot is the grip (left-middle), so a
+	# symbol drawn across the rect sits half a hold-length out along the aim
+	improvised_icon.position = Vector2.ZERO
+	improvised_icon.size = active_stats.icon_size
+	Inventory.paint_icon(improvised_icon, active_weapon_id)
+	improvised_icon.visible = true
+
+# Empties the hand. Only the improvised path needs this today: an item can be
+# SPENT while you are holding it (wood into a wall, a coin into a shop), and a
+# hand that keeps swinging a log the player no longer owns is a bug. Weapons are
+# single-stack and blocked from being trashed while wielded (see DragState), so
+# they never reach here.
+func unwield() -> void:
+	active_weapon_id = ""
+	active_weapon_type = ""
+	active_stats = {}
+	active_def = {}
+	is_improvised = false
+	reset_combo()
+	if improvised_icon:
+		improvised_icon.visible = false
+	if weapon_sprite:
+		weapon_sprite.visible = false
+	if weapon_guard:
+		weapon_guard.visible = false
+	$WeaponIcon.visible = false
+	$BowVisual.visible = false
+	$WeaponTip.visible = false
+	on_equipment_changed()
+
+# The held item left the bag -- empty the hand. Cheap: it only walks the slots
+# while something improvised is actually held.
+func drop_improvised_if_spent() -> void:
+	if not is_improvised:
+		return
+	if inventory != null and inventory.get_count(active_weapon_id) > 0:
+		return
+	unwield()
+
+# Hotbar select: index 0-9 = inventory slots 1-10. DRINKS a consumable (audit
+# fix: the keys used to silently do nothing on a potion slot even though the
+# hotbar happily displayed it -- the TAB bag's right-click was the only way to
+# use one), wields a weapon, and HOLDS anything else (dev 2026-08-06: a bag
+# item is a thing you can pick up and swing). Only an empty slot does nothing.
 func select_hotbar_slot(index: int) -> void:
 	if index >= inventory.slots.size():
 		return
@@ -3029,14 +3164,14 @@ func select_hotbar_slot(index: int) -> void:
 	if Inventory.get_category(slot.item_id) == "consumable":
 		use_item(slot.item_id)
 		return
-	if Inventory.get_category(slot.item_id) != "weapon":
-		return
 	if slot.item_id == active_weapon_id:
 		return
+	var improvising: bool = Inventory.get_category(slot.item_id) != "weapon"
 	if wield_weapon(slot.item_id):
 		var stack = get_tree().get_first_node_in_group("notification_stack")
 		if stack:
-			stack.show_notification("Wielding " + Inventory.name_bbcode(slot.item_id))
+			stack.show_notification(("Holding " if improvising else "Wielding ")
+				+ Inventory.name_bbcode(slot.item_id))
 
 # Shows/sizes the crossguard for bladed melee weapons (melee/spear), hides it
 # for bow and wand. The guard is a child of WeaponIcon, so it swings/aims with
@@ -3900,6 +4035,9 @@ func _physics_process(delta: float) -> void:
 		direction = -direction                # disorient: your controls betray you
 	if direction:
 		facing_direction = sign(direction)
+	# a held ITEM is a stack like any other: spend the last log on a wall and the
+	# hand empties instead of going on swinging something you no longer own
+	drop_improvised_if_spent()
 	if has_weapon() and not is_attacking:
 		update_weapon_visual(active_stats.icon_offset)
 	update_combo_label()

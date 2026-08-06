@@ -55,6 +55,7 @@ test_hifix_node
 test_hollowsun_node
 test_hood_node
 test_icons_node
+test_improvised_node
 test_items_node
 test_jump_node
 test_ladder_node
