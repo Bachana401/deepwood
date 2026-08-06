@@ -44,7 +44,11 @@ func _ready() -> void:
 		"dodge_chance", "lifesteal", "crit_chance", "thorns"]
 	for k in keys:
 		var v: float = GameState.get_bonus_total(k)
-		check("get_bonus_total('%s') works on a fresh game (%.2f)" % [k, v], true)
+		# asserted the literal `true` -- so it only ever proved "the call returned".
+		# A NAN out of here poisons every stat it touches and compares false against
+		# everything, which is exactly the kind of silent wrong this file exists for.
+		check("get_bonus_total('%s') is a real number on a fresh game (%.2f)" % [k, v],
+			is_finite(v))
 
 	# --- 2) a malformed/old save cannot leave a slot missing either ---
 	GameState.load_equipment({"helmet": "helm_iron"})   # ancient save shape
@@ -68,6 +72,17 @@ func _ready() -> void:
 	for retired in GameState.RETIRED_SLOTS:
 		check("retired slot '%s' stays retired" % retired,
 			not GameState.equipment.has(retired), str(GameState.equipment.keys()))
+
+	# --- 4) the registry guard is itself registered ---
+	# test_registry_node.gd is what stops an unlisted test from vanishing silently.
+	# It can only do that job if IT is listed, and dropping one line from
+	# all_test_files.txt is exactly how this project has lost coverage twice. This
+	# check means the guard cannot be disarmed without a SECOND test going red.
+	var reg := FileAccess.open("res://all_test_files.txt", FileAccess.READ)
+	check("the registry drift guard is still registered (it is what catches the rest)",
+		reg != null and reg.get_as_text().contains("test_registry_node"))
+	if reg != null:
+		reg.close()
 
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

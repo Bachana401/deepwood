@@ -20,8 +20,21 @@ func _frames(n: int) -> void:
 func _ready() -> void:
 	# ---- static registry checks (no scene needed) ----
 	var ids: Array = EventBoss.ids()
-	check("twelve events exist (ten hidden + the capstone + the Hollow Sun)", ids.size() == 12, str(ids.size()))
+	# House rule: size assertions come off live constants, never magic numbers. These
+	# read 11 -> 12 and 22 -> 24 the day the Hollow Sun landed, which is the tell:
+	# the number was pinning the roster's SIZE rather than its SHAPE. The shape is
+	# what the design actually promises -- the hunt is ten, and everything past the
+	# ten is item-only (Nihil's rite, the Master's Horn, the Hollow Signet).
 	check("ten bosses make up the hunt", EventBoss.hunt_ids().size() == 10, str(EventBoss.hunt_ids().size()))
+	var beyond_hunt := 0
+	for id2 in ids:
+		if not (id2 in EventBoss.hunt_ids()):
+			beyond_hunt += 1
+			if not EventBoss.is_item_only(str(id2)):
+				check("everything beyond the hunt is item-summoned only (%s is not)" % str(id2), false)
+	check("the registry is the hunt plus its item-summoned bosses, and nothing stray",
+		ids.size() == EventBoss.hunt_ids().size() + beyond_hunt and beyond_hunt >= 2,
+		"%d total, %d in the hunt, %d beyond" % [ids.size(), EventBoss.hunt_ids().size(), beyond_hunt])
 
 	var by_diff := {"medium": 0, "hard": 0, "very_hard": 0, "expert": 0, "master": 0, "eclipse": 0}
 	for id in ids:
@@ -48,7 +61,9 @@ func _ready() -> void:
 	for id in ids:
 		for w in EventBoss.get_event(str(id)).get("weapons", []):
 			weps[w] = true
-	check("exactly 24 exclusive event weapons (12 bosses x 2)", weps.size() == 24, str(weps.size()))
+	# two per boss is the RULE (the 50/50 pair); the total is just its consequence
+	check("every event carries exactly its own pair of exclusive weapons (2 each, none shared)",
+		weps.size() == ids.size() * 2, "%d weapons across %d events" % [weps.size(), ids.size()])
 
 	# every re-summon token + the two rite items have a valid recipe of real items
 	var summon_items := ["duskmoon_effigy", "hunters_horn"]
@@ -116,11 +131,16 @@ func _ready() -> void:
 	for w in ev_g.get("weapons", []):
 		wep_count += pl.inventory.get_count(w)
 	check("award grants exactly ONE of the two 50/50 weapons", wep_count == 1, str(wep_count))
+	# the loop below passes vacuously if "extras" is empty or the key is gone, so
+	# the table has to be pinned as non-empty FIRST -- otherwise a refactor that
+	# dropped every guaranteed extra would leave this check green.
+	var g_extras: Array = ev_g.get("extras", [])
+	check("a hunt HAS guaranteed extras to grant", g_extras.size() > 0, str(ev_g.keys()))
 	var extras_ok := true
-	for e in ev_g.get("extras", []):
+	for e in g_extras:
 		if pl.inventory.get_count(e) < 1:
 			extras_ok = false
-	check("award grants ALL guaranteed extras (relic + armour + material)", extras_ok, str(ev_g.get("extras", [])))
+	check("award grants ALL guaranteed extras (relic + armour + material)", extras_ok, str(g_extras))
 	check("the toast names what was granted", granted.size() >= 1 + ev_g.get("extras", []).size() - 0, str(granted))
 
 	# ---- live trigger -> director + boss -> kill -> loot -> once-per-run ----
@@ -164,11 +184,14 @@ func _ready() -> void:
 	var ev_s: Dictionary = EventBoss.get_event("sable_hound")
 	for w in ev_s.get("weapons", []):
 		got += pl.inventory.get_count(w)
+	var s_extras: Array = ev_s.get("extras", [])
 	var got_extras := true
-	for e in ev_s.get("extras", []):
+	for e in s_extras:
 		if pl.inventory.get_count(e) < 1:
 			got_extras = false
-	check("the kill pays one weapon + every extra", got == 1 and got_extras, "weapon %d, extras %s" % [got, got_extras])
+	# same trap as above: an empty extras list would make got_extras vacuously true
+	check("the kill pays one weapon + every extra", got == 1 and got_extras and s_extras.size() > 0,
+		"weapon %d, extras %s of %d" % [got, got_extras, s_extras.size()])
 	check("the event is now marked killed", GameState.event_state.get("sable_hound", "") == "killed")
 
 	# and never fires again this run
@@ -209,7 +232,8 @@ func _ready() -> void:
 
 	# ---- Chronicle: a slain boss reveals its name + trigger; the rest stay ??? ----
 	var hunt: Array = GameState.hidden_hunt_entries()
-	check("the Chronicle lists all twelve", hunt.size() == 12, str(hunt.size()))
+	check("the Chronicle lists every event in the registry", hunt.size() == ids.size(),
+		"%d listed of %d" % [hunt.size(), ids.size()])
 	check("ten of the hunt now read as slain", GameState.hidden_hunt_slain_count() == 10,
 		str(GameState.hidden_hunt_slain_count()))
 	var tally_ok := false

@@ -84,7 +84,9 @@ test_plots_node
 test_portent_node
 test_profile_node
 test_proving_node
+test_realclock_node
 test_realhits_node
+test_registry_node
 test_risingwheel_node
 test_rubble_node
 test_save_node

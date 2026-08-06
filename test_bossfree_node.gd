@@ -40,10 +40,15 @@ func _ready() -> void:
 		"void_sovereign", "hollow_choir", "ashen_penitent", "gaoler", "sablefang",
 		"effigy", "mourncaller"]
 	var started := 0
+	# Track the bosses BY INSTANCE ID, never by reference: a freed object compares
+	# equal to null in GDScript, so `b != null and not is_instance_valid(b)` can
+	# never fire and a "did it really free?" check written that way is dead code.
+	var freed_ids: Array = []
 	for bid in ids:
 		var b = BSCN.instantiate()
 		b.boss_id = bid
 		host.add_child(b)
+		freed_ids.append(b.get_instance_id())
 		b.player = p
 		b.global_position = Vector2(1520.0, -100.0)
 		await get_tree().process_frame
@@ -62,7 +67,20 @@ func _ready() -> void:
 	# If any resumes unguarded, the process dies here and never reaches RESULT.
 	for i in range(90):
 		await get_tree().process_frame
-	check("no coroutine resumed on a freed boss (survived the timers)", true)
+	# Reaching this line at all is the evidence -- an unguarded resume kills the
+	# process outright. But the line asserted the literal `true`, which also passed
+	# in the case that would make the whole test worthless: the bosses never being
+	# freed in the first place, so no coroutine was ever resumed on a dead object.
+	# That is the real thing to pin, and it must be pinned by instance id.
+	var still_alive := 0
+	for iid in freed_ids:
+		if instance_from_id(int(iid)) != null:
+			still_alive += 1
+	check("every boss really was freed mid-telegraph (by instance id, not by == null)",
+		still_alive == 0, "%d of %d still alive" % [still_alive, freed_ids.size()])
+	check("no coroutine resumed on a freed boss (the process survived the timers)",
+		freed_ids.size() == ids.size() and started >= ids.size(),
+		"%d bosses, %d coroutines" % [freed_ids.size(), started])
 
 	if is_instance_valid(host):
 		host.queue_free()

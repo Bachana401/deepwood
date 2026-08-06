@@ -71,7 +71,14 @@ func _ready() -> void:
 	if GameState.has_method("apply_save_to_player"):
 		GameState.apply_save_to_player(p)
 
-	check("gold survives to the coin", true)   # currency applies on scene reload; key checked below
+	# Currency reaches the purse on the scene reload, not here -- so this asserts
+	# what load_game() genuinely owes at this point: the flags a quit-in-progress
+	# left set are CLEARED. (It used to assert the literal `true` under the note
+	# "key checked below", which made it a slot that could never fail.)
+	check("a quit inside a dungeon / mid-Harvest does not leak into the loaded run",
+		not GameState.in_dungeon and not GameState.harvest_at_home and not GameState.feast_glow,
+		"in_dungeon=%s harvest_at_home=%s feast_glow=%s" % [str(GameState.in_dungeon),
+			str(GameState.harvest_at_home), str(GameState.feast_glow)])
 	# reads what save_game just WROTE -- under MONARCH_TEST that is the
 	# sidecar, never the dev's real file (which lines 32-39 back up anyway)
 	var raw := FileAccess.open(GameState.active_save_path(), FileAccess.READ)
@@ -146,7 +153,18 @@ func _ready() -> void:
 		w.close()
 	else:
 		DirAccess.remove_absolute(GameState.SAVE_PATH)
-	check("the dev's real save was restored byte-for-byte", true)
+	# ...and PROVE it. This used to assert the literal `true`, which is the one
+	# thing a restore check must never do: the whole point is that a suite run can
+	# never cost the dev their save, and "we ran the restore code" is not that.
+	if had_save:
+		var vf := FileAccess.open(GameState.SAVE_PATH, FileAccess.READ)
+		var restored: PackedByteArray = PackedByteArray() if vf == null else vf.get_buffer(vf.get_length())
+		if vf != null: vf.close()
+		check("the dev's real save was restored byte-for-byte",
+			restored == backup, "%d bytes back of %d" % [restored.size(), backup.size()])
+	else:
+		check("no save existed, and none was left behind",
+			not FileAccess.file_exists(GameState.SAVE_PATH))
 
 	printerr("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

@@ -292,11 +292,100 @@ func _ready() -> void:
 		pl.wield_weapon(keep_weapon)
 
 	# ---- the audio pass (2026-07-28): silence was a bug, and stays fixed ----
+	# This block had two holes, both of the "test that cannot fail" family.
+	#
+	# It walked a HARDCODED list of six names while the roster grew to fourteen, so
+	# the eight village sounds were never touched -- the same static-list drift that
+	# all_test_files.txt has. Walk SfxSynth.RECIPES and it cannot happen again.
 	var silent := []
-	for r in ["crack", "pop", "thump", "whoosh", "chime", "tear"]:
-		if SfxSynth._bank(r).data.size() <= 0:
-			silent.append(r)
-	check("every SFX recipe synthesizes real samples", silent.is_empty(), ", ".join(silent))
+	for r in SfxSynth.RECIPES:
+		if SfxSynth._bank(str(r)).data.size() <= 0:
+			silent.append(str(r))
+	check("every SFX recipe on the roster synthesizes real samples",
+		silent.is_empty() and SfxSynth.RECIPES.size() > 0,
+		"%d recipes, silent: %s" % [SfxSynth.RECIPES.size(), ", ".join(silent)])
+
+	# ...and worse, `_bank(r).data.size() > 0` STRUCTURALLY CANNOT catch the bug
+	# this block exists to catch. An unknown recipe falls through _bank's `match`
+	# to the default arm, which returns a short buffer of silence -- so a name that
+	# does not exist passes the size check. "thud" was written for "thump" at two
+	# real call sites and both landed mute with this test green. Pin the trap in
+	# place so nobody rewrites the check back into it.
+	check("a recipe that does NOT exist still yields a non-empty buffer — "
+		+ "which is exactly why sample count can never be an existence test",
+		SfxSynth._bank("definitely_not_a_recipe").data.size() > 0
+		and not SfxSynth.has_recipe("definitely_not_a_recipe"))
+
+	# THE CHECK THAT ACTUALLY CATCHES IT: read the call sites back and hold every
+	# literal recipe name against the roster. A bare string is what ~45 sites pass
+	# and nothing in GDScript checks one; a name built from an SFX_* constant is
+	# safe by construction (the compiler catches those), so only literals matter.
+	# Scanned repo-wide rather than from a hand-kept file list, because a
+	# hand-kept list of files to check drifts exactly the way the recipe list did.
+	var bad_names: Array = []
+	var scanned := 0
+	var matched := 0
+	var rx := RegEx.new()
+	rx.compile('SfxSynth\\.play_(?:at|ui|village)\\([^\n]*?"([a-z_0-9]+)"')
+	var dir: DirAccess = DirAccess.open("res://")
+	if dir != null:
+		dir.list_dir_begin()
+		var fn: String = dir.get_next()
+		while fn != "":
+			# root only: the dev's parallel sessions keep sibling worktrees under
+			# .claude/, and a recursive walk would audit another department's tree.
+			# Drivers and tools are skipped -- they may pass junk names on purpose.
+			if not dir.current_is_dir() and fn.ends_with(".gd") \
+					and not fn.begins_with("test_") and not fn.begins_with("tool_"):
+				var fh: FileAccess = FileAccess.open("res://" + fn, FileAccess.READ)
+				if fh != null:
+					scanned += 1
+					for line in fh.get_as_text().split("\n"):
+						if not line.contains("SfxSynth.play_"):
+							continue
+						var mm: RegExMatch = rx.search(line)
+						if mm == null:
+							continue
+						matched += 1
+						if not SfxSynth.has_recipe(mm.get_string(1)):
+							bad_names.append("%s -> %s" % [fn, mm.get_string(1)])
+					fh.close()
+			fn = dir.get_next()
+		dir.list_dir_end()
+	# A sweep that matched NOTHING reports "no bad names" and looks identical to a
+	# clean repo -- the same shape of lie this whole block was written to remove.
+	# Pin both ends: files were opened, AND the pattern actually found call sites.
+	check("the call-site sweep actually read the game scripts and matched real calls",
+		scanned > 20 and matched >= 20, "%d files scanned, %d literal call sites matched"
+			% [scanned, matched])
+	check("every SFX call site names a recipe that exists (a typo plays silence and says nothing)",
+		bad_names.is_empty(), str(bad_names))
+
+	# ROSTER DRIFT, the other direction: the list and the `match` must stay in step.
+	# A recipe added to only one of the two places is either a name that plays
+	# silence, or a sound nothing on the roster can ever ask for.
+	var synth_src: String = FileAccess.open("res://sfx_synth.gd", FileAccess.READ).get_as_text()
+	var bank_body: String = synth_src.split("static func _bank(")[1].split("\nstatic func ")[0]
+	var arms := {}
+	var arm_rx := RegEx.new()
+	arm_rx.compile('^\t\t"([a-z_0-9]+)":')
+	for bl in bank_body.split("\n"):
+		var am: RegExMatch = arm_rx.search(bl)
+		if am != null:
+			arms[am.get_string(1)] = true
+	var no_arm := []
+	for rec in SfxSynth.RECIPES:
+		if not arms.has(str(rec)):
+			no_arm.append(str(rec))
+	var no_entry := []
+	for a in arms.keys():
+		if not SfxSynth.has_recipe(str(a)):
+			no_entry.append(str(a))
+	check("every recipe on the roster has a real synth arm (or it plays silence)",
+		no_arm.is_empty(), str(no_arm))
+	check("every synth arm is on the roster (or nothing can ever ask for it)",
+		no_entry.is_empty() and arms.size() == SfxSynth.RECIPES.size(),
+		"%d arms vs %d recipes, orphans: %s" % [arms.size(), SfxSynth.RECIPES.size(), str(no_entry)])
 	var players_before := 0
 	for c in get_tree().root.get_children():
 		if c is AudioStreamPlayer2D:

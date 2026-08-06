@@ -549,7 +549,11 @@ func _test_in_engine() -> void:
 				beyond += ug._wlevel(Vector2i(x2 + k, deep.y + 1))
 			check("...and runs on past the old wall line (%d units beyond)" % beyond, beyond > 0)
 		else:
-			check("the dig stopped inside rock, so there was nowhere to run to", true)
+			# was `check(..., true)`: a "not applicable" note that scored as a PASS.
+			# The terrain won't let us watch the water run on -- but the invariant
+			# that DOES hold here is that no water ended up inside solid rock.
+			check("the dig stopped inside rock, and no water was left in the stone (%d units)"
+				% ug._wlevel(Vector2i(x2, deep.y)), ug._wlevel(Vector2i(x2, deep.y)) == 0)
 		check("the lake is not bottomless -- it gave up water to do it (%d at centre)"
 			% ug._wlevel(deep), ug._wlevel(deep) <= inside_before)
 
