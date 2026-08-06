@@ -2917,9 +2917,36 @@ func _warchief_posts_the_watch() -> void:
 			return                         # the wall keeps the rest
 		post_patrol(b, patrol_at(b) + mini(need - patrol_at(b), spare))
 
+# THE LEDGER CANNOT OUTLIVE THE CORPS. patrol_posts is a count per block, not a list
+# of names, so nothing linked a posting to the warrior standing it -- and when a
+# warrior died (plague, siege, the Harvest) the post they held stayed on the books
+# forever. The town then paid earnings for bodies it no longer had, held blocks with
+# ghosts, and subtracted phantom defenders from its own wall.
+#
+# Trimmed from the DEEPEST block first: if the company has shrunk, the shallow blocks
+# are the ones whose loss actually cuts the road home, so those are the last to be
+# abandoned. Same reasoning the Warchief posts by.
+func _trim_patrols_to_corps() -> void:
+	var over := posted_warriors() - warrior_count()
+	if over <= 0:
+		return
+	for b in range(PATROL_BLOCKS, 0, -1):
+		if over <= 0:
+			break
+		var here := patrol_at(b)
+		if here <= 0:
+			continue
+		var take: int = mini(here, over)
+		over -= take
+		if here - take <= 0:
+			patrol_posts.erase(b)
+		else:
+			patrol_posts[b] = here - take
+
 func tick_patrols(hours_passed: float) -> void:
 	if hours_passed <= 0.0:
 		return
+	_trim_patrols_to_corps()
 	_warchief_posts_the_watch()
 	for b in range(1, PATROL_BLOCKS + 1):
 		if not block_is_cleared(b):
@@ -3132,12 +3159,29 @@ func on_duty_shift() -> String:
 func warrior_on_duty(v: Dictionary) -> bool:
 	return warrior_shift(str(v.get("id", ""))) == on_duty_shift()
 
+# THE BODIES THAT ACTUALLY STAND ON THE WALL. siege_manager spawns
+# min(on_duty_warrior_count(), MAX_SOLDIERS) soldiers for a live siege, so this is
+# not an abstract figure -- it is who turns up and fights.
+#
+# It used to count every on-shift warrior including the ones posted in the deep.
+# village_defense_power() had always subtracted them from the defence NUMBER, so the
+# two halves of the same system disagreed: the maths said your wall was thinner while
+# the screen showed the full company holding it. The whole cost of the patrol system
+# is "every warrior sent below is a warrior off this wall", and half of it was fiction.
 func on_duty_warrior_count() -> int:
+	var away := posted_warriors()
 	var n := 0
 	for v in rescued_villagers:
 		if v.get("role_title", "") == "Recruit":
 			continue
-		if (v.get("stat_name", "") == "Warrior" or v.get("role_key", "") == "Barracks") and warrior_on_duty(v):
+		if not (v.get("stat_name", "") == "Warrior" or v.get("role_key", "") == "Barracks"):
+			continue
+		# spend the posted count off the top, exactly as village_defense_power does,
+		# so the bodies on screen and the number in the maths can never diverge again
+		if away > 0:
+			away -= 1
+			continue
+		if warrior_on_duty(v):
 			n += 1
 	return n
 
@@ -6368,8 +6412,13 @@ func arm_value_of(item_id: String) -> int:
 	return grade_rank(item_id)
 
 # Warriors actually equipped from the armory (can't arm more than you have).
+# Warriors carrying issued arms -- and only the ones actually HERE. This feeds
+# ARMED_WARRIOR_BONUS straight into village_defense_power, which already subtracts
+# the posted corps from its own count; reading warrior_count() here handed that
+# bonus back for every warrior standing in the deep, so posting a watch cost you a
+# body on the wall and refunded you its equipment.
 func armed_warriors() -> int:
-	return min(warrior_count(), barracks_arms)
+	return min(maxi(0, warrior_count() - posted_warriors()), barracks_arms)
 
 # Is a Forgemaster keeping the armory supplied automatically?
 func forgemaster_supplying() -> bool:

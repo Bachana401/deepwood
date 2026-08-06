@@ -87,6 +87,55 @@ func _ready() -> void:
 	check("every warrior sent below is a warrior off the wall",
 		wall_thin < wall_full, "%.2f -> %.2f" % [wall_full, wall_thin])
 
+	# ======== THE WALL AND THE LEDGER MUST AGREE ========
+	# village_defense_power() had always subtracted the posted corps, so the check
+	# above passed -- but two other halves of the same system did not, and the suite
+	# only ever measured the one that worked.
+	GameState.rescued_villagers = []
+	for iw in range(20):
+		GameState.rescued_villagers.append(warrior("k%d" % iw))
+	GameState.floors_cleared = {}
+	for lvw in range(1, 21):
+		GameState.floors_cleared[str(lvw)] = true
+	GameState.barracks_arms = 20
+	GameState.patrol_posts = {}
+	var duty_home: int = GameState.on_duty_warrior_count()
+	var armed_home: int = GameState.armed_warriors()
+	GameState.post_patrol(1, 4)
+	GameState.post_patrol(2, 6)
+	# siege_manager spawns min(on_duty_warrior_count(), MAX_SOLDIERS) BODIES for a
+	# live siege -- so this is not bookkeeping, it is who turns up and swings.
+	check("a warrior in the deep does not also stand on the wall in the live siege",
+		GameState.on_duty_warrior_count() < duty_home,
+		"%d -> %d on duty with 10 posted" % [duty_home, GameState.on_duty_warrior_count()])
+	# ...and does not leave their issued arms behind to keep paying ARMED_WARRIOR_BONUS
+	check("...nor leave their arms on the wall behind them",
+		GameState.armed_warriors() == armed_home - 10,
+		"%d -> %d armed" % [armed_home, GameState.armed_warriors()])
+
+	# THE LEDGER CANNOT OUTLIVE THE CORPS. patrol_posts is a count, not a roster, so
+	# a posted warrior who dies (plague, siege, the Harvest) left their post standing
+	# forever -- the town earning for bodies it did not have and holding blocks with
+	# ghosts.
+	for _kill in range(14):
+		GameState.rescued_villagers.pop_back()
+	check("the corps really did shrink below the watch", GameState.warrior_count() < 10,
+		"%d left, %d posted" % [GameState.warrior_count(), GameState.posted_warriors()])
+	GameState.tick_patrols(0.1)
+	check("a watch can never outnumber the warriors still alive to stand it",
+		GameState.posted_warriors() <= GameState.warrior_count(),
+		"%d posted vs %d alive" % [GameState.posted_warriors(), GameState.warrior_count()])
+	check("...and it is the DEEPEST stretch abandoned first, not the road home",
+		GameState.patrol_at(1) >= GameState.patrol_at(2),
+		"block1=%d block2=%d" % [GameState.patrol_at(1), GameState.patrol_at(2)])
+	# hand the next section back the state it expects: three warriors, all posted on
+	# block 1, exactly as the wall-cost check above left things before this block
+	# existed. (Clearing the posts here and not re-posting them is what made the
+	# earnings checks below report 0 gold -- the earnings were fine; the fixture wasn't.)
+	GameState.rescued_villagers = [warrior("w1"), warrior("w2"), warrior("w3")]
+	GameState.patrol_posts = {}
+	GameState.post_patrol(1, 3)
+
 	# ---- what they send up: bulk, and rarely something off a body ----
 	# The old heading read "bulk, NEVER gear" and captured bag_before to prove it --
 	# then never asserted on it. _patrol_find_gear had since made the claim false, so
