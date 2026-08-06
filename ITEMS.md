@@ -12,8 +12,13 @@
 > md will be fully re-synced when the weapon-dial batches land.
 
 ## The grade ladder (6 tiers) — `GRADE_DEFS`
-Every equippable carries a grade; a wielded weapon's grade also passively buffs
-*everything* (`GRADE_PASSIVES`) — so a higher-grade weapon lifts your whole kit.
+Every equippable carries a grade.
+
+> **⚠ Corrected 2026-08-06.** A wielded weapon's grade used to passively buff
+> *everything* via `GRADE_PASSIVES`. **That rule was retired on 2026-07-30** and
+> every entry in that map is now empty — the ladder also runs to 8 grades
+> (…ascended, monarch), not 6. The line the code draws instead: **weapons do
+> things, armour gives stats.** See `GAME_MECHANICS.md` §5.3.
 
 | # | Grade | Colour | Passive bundle (wielded weapon) |
 |---|---|---|---|
@@ -204,8 +209,29 @@ legendary/mythic loot-only tier.
 ---
 
 ## Crafting recipes — `CRAFT_RECIPES`
-`food_stew` = 2 herb + 1 raw_meat · `food_feast` = 3 raw_meat + 1 herb ·
-`food_sage` = 3 herb + 1 slime · `potion_reset` = 2 void_essence + 5 slime.
+
+**⚠ The four food/potion recipes below are no longer the whole table.** `CRAFT_RECIPES`
+has since grown weapon upgrade chains, combined relics, and the entire event-boss
+summoning layer. Read the constant for the current list; the families are:
+
+- **Food & utility** — `food_stew` = 2 herb + 1 raw_meat · `food_feast` = 3 raw_meat + 1 herb ·
+  `food_sage` = 3 herb + 1 slime · `potion_reset` = 2 void_essence + 5 slime · `potion_tears`.
+- **Weapon upgrade chains** — each rung consumes the rung below it plus a binder
+  (e.g. the `wpn_shepherdstaff → paleobelisk → graniteway → stillmountain` line),
+  and **The Last Word** can be forged from the three T7 melee blades whose ghosts
+  its zenith verb frees.
+- **Combined relics** — `relic_unbroken` (ward + aegis + phoenix) and `relic_wayfarer`
+  (wings + feather + blink) fold three lesser relics into one with every power
+  intact; the prize is the **freed slots**.
+- **Event-boss re-summon tokens** — ten of them, one per hidden boss: spend that
+  boss's trophy plus a binder to wake it again on demand.
+- **The three rites.** `duskmoon_effigy` (Nihil's first rite — three other bosses'
+  trophies) · `hunters_horn` (**the capstone** — a trophy of all ten hidden bosses
+  + 2 ancient_relic) · **`hollow_signet`** (2 mat_unmade + 2 mat_crownshard +
+  1 mat_sableichor + 4 void_essence + 3 ancient_relic — costed like the Horn
+  because it stands beside it, but out of **deep materials rather than trophies**;
+  nothing drops it, so this recipe is the only way to reach The Hollow Sun).
+
 **HP/Mana potions are deliberately NOT craftable — drop-only.**
 
 ## Notes & observations for review

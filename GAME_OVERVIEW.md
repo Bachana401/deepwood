@@ -38,6 +38,8 @@ The secret spine: **you are the Shadow Monarch**, sealed and amnesiac. The belov
 - **Rescues are Sorrow-Crystals**: hostages hang frozen inside a breathing crystal that drains their hope. The crystal's guard must die first; then shatter it (E). Payout: the freed person (stats HIDDEN until they thaw at home — every rescue is a wrapped gift), plus **Sorrowshards** (1; 2 from strong souls).
 - Who's down there: 21 named leadership VIPs at fixed floors (the only source of leadership stats), 9 of the 12 adventurers (floors 7–78), and **the Ten** in Trophy Vaults (floors 52–97).
 - Floor access is per-run (`highest_unlocked_level`); clearing a floor unlocks the next. The lifetime record only feeds the menu label and the Monarch meta-unlock.
+- **The eclipse** is the rarest hour in the sky: a small flat chance per in-game day, never twice inside a week, always opening at dawn so contact/totality/release land on the daylight. The world drops to black silhouette lit by one burning red ring. It is announced through the away-fog, and it is **not** the ordinary twice-daily dusk crossing that Nihil's Duskmoon rite answers to — the two are separate flags on purpose.
+- **The Hollow Sun** is what the eclipse is for: raise the crafted **Hollow Signet** during a true one and an apex boss comes down **into your village**. It stands outside the ten-boss hunt, it is repeatable by design because calling it risks everything you built, and its ground attacks damage the buildings it is fighting among — floored so it can wound a hall to the brink but never level one.
 
 ## 5. The village — one connected machine
 
@@ -55,7 +57,7 @@ The 15 roster buildings, what each actually does in code:
 | **Barracks** | Defense: drafts Warriors (one-way, deletes other stats, can't corrupt); the corps splits into DAWN/DUSK 12h watches; armed by `barracks_arms` (Blacksmith). HEROES (0.5% births) train only here and emerge adult, triple-strength, with a personal named power. |
 | **Mine** | The delegated pickaxe: each staffed Miner hauls 2 stone + 1 iron shard into your bag daily — the Blacksmith/Builderhouse supply line. |
 | **Blacksmith** | Arms the Barracks (deposit gear as arms; Forgemaster auto-supplies) + the depth-35 Forge vendor + village armor-morale (+1.4 to every spirit while it stands). |
-| **Builderhouse** | Repairs: a staffed Worker crew rebuilds the most-ruined building on its own at half pace; Master Builder/Foreman run it every tick. |
+| **Builderhouse** | Repairs: a staffed Worker crew rebuilds the most-ruined building on its own at half pace, and when nothing is in ruins it **mends the most battered hall that is still standing** — the only route back to full health after a fire or the Hollow Sun. The crew is also what fights a fire. Master Builder/Foreman run it every tick, and the Master Builder's power scavenges the materials so both jobs cost the stores nothing. |
 | **Science Lab** | Research: identifying materials (needed to spend them in the skill tree) requires a staffed Scientist; Lead Researchers auto-research. |
 | **Marketplace** | The Wanderer's Post: rotating treasure-sellers whose stay length (6–24h) and markdown (up to −25%) are set by village morale; stock rarity escalates with visits; a staffed Merchant adds a slot and haggles 10% off. Pure gold sink. |
 | **Bank** | Interest on your gold (staffed Financist half-rate, Treasurer full, Dorian ×2), payroll efficiency (wages ×0.85), death insurance. |
@@ -64,6 +66,15 @@ The 15 roster buildings, what each actually does in code:
 | **Shrine** | Corruption's only mercy (service at depth 30): a put-down demon that was once a villager is cleansed BACK for 3 Sorrowshards by staffed Lightkeepers (Hospital stat). Seraphel: they return steadier. |
 
 **Standalone structures:** two **ramparts** (west gatehouse + east wall past the cottage row — sieges hit BOTH), the **Watchtower** (3 paid tiers: none→1h→2h→24h warning; until tier 1 there is NO siege countdown anywhere), **cottages** (5 + up to 15 raised at the staked plot, 8 wood + 6 stone each), and the **escape ward** at the west world-edge.
+
+**Where you build matters, and a hall's *condition* is part of it.** Output folds adjacency, district and special-plot bonuses into one positive-only term — then multiplies the lot by how battered the building is. A hall at 40% health does about 40% of its work (floored, so a wreck still contributes and nothing can soft-lock the finale gate), and the Builderhouse crew mends it back slowly out of the village stores.
+
+**The town reaches into the deep, and produces its own emergencies:**
+
+- **Patrols.** Sweep all ten floors of a block and you may post warriors to hold it; they send home coin, materials and the occasional find, scaled hard by depth. A posted warrior is worth **zero** on the wall, which is the whole decision. Let a block's creep fill and those ten floors revert to uncleared — **and the road down through them is cut**, reachable only by a woken Waystone. At rescue depth 65 the **Warchief** takes the posting over: minimum garrison per block, shallowest first, never overriding a watch you set by hand and never emptying the wall.
+- **Sickness, in two strains.** The early **illness cannot kill** — it stops a body mending and sours the town's mood, and that is its whole cost. The **plague** is gated behind real depth and is the one that reaps: it drains, spreads harder and resists an unaided recovery. Both spread **house to house** (a shared workplace is a separate, much weaker vector), so cottage spacing and the Hospital's position are real decisions. Surviving it grants long **immunity**, which is what lets an outbreak burn through its fuel and end; without it a single case could take a whole town.
+- **Fire** spreads along the same neighbour map the placement synergies read — the tightest, best-paying row is also the one that burns whole. The Builderhouse crew fights it; a big blaze outruns a small crew.
+- Both emergencies pierce the away-fog. A grown town does not get quiet; it gets consequential.
 
 ## 6. The people
 

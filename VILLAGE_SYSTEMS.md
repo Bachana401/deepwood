@@ -155,7 +155,9 @@ Each entry: **what it serves → the chore you do by hand → what automates it 
 - Transformation happens **only at morale 0**.
 - **Domino by proximity:** witnessing a nearby transformation costs a villager **−2 morale** (e.g., a 5 → 3). So a healthy town shrugs off one loss; a broadly miserable town is a **powder keg** that chains.
 
-> ⏸ **2026-07-13: temporarily DISABLED** (developer call, during testing) via `GameState.CORRUPTION_ENABLED = false` — villager HP floors at 1 (sick but alive), nobody dies or turns. Flip the flag to reactivate.
+> ⏸ **2026-07-13: temporarily DISABLED** (developer call, during testing) via `GameState.CORRUPTION_ENABLED = false` — villager HP floors at 1 (sick but alive), nobody dies or turns.
+>
+> ✅ **RE-ENABLED 2026-07-19 and live since** (`CORRUPTION_ENABLED = true`), once every support system it needed had shipped: needs, personal morale, nurses and the Village Log. The v2 shape — two fates, the rot window, the infection firewall, the witness waves — is canon in `GAME_BIBLE.md` §10. **Note the flag no longer reaches the sickness** (§12.9): that tick used to gate itself on this switch, so flipping it here to test corruption silently turned off the disease as well.
 
 **Built — v1 (commit `e9359a9`) ✅**
 - Neglect (empty larder or rock-bottom morale) drains a villager's HP past a grace window; at 0 they **turn demonic** instead of dying — a reskinned `siege_enemy` spawns at their avatar (wall nulled) and hunts the town from within. Purged from the roster; toast on each turning.
@@ -329,8 +331,9 @@ The village is a **1-D strip**, so all three rules read off one x coordinate. Th
 
 ```gdscript
 building_output_multiplier(name) =
-    1 + (building_level(name) - 1) * BUILDING_OUTPUT_PER_LEVEL
-      + adjacency_bonus(name) + district_bonus(name) + plot_bonus(name)
+    (1 + (building_level(name) - 1) * BUILDING_OUTPUT_PER_LEVEL
+       + adjacency_bonus(name) + district_bonus(name) + plot_bonus(name))
+    * building_condition(name)          # §12.11 — how battered the hall is
 ```
 
 **Why positive-only, always.** A penalty layer would retro-fine every town laid down before the rule existed — the player is punished for a decision they were never offered. The same reasoning fixes district boundaries in **absolute** distance from the west gate (`DISTRICT_GATEFRONT_DEPTH` / `DISTRICT_HEART_DEPTH`) instead of as fractions of the row: fractional thirds would redraw themselves every time the town grew eastward and quietly move a building out of the quarter it was paying for.
@@ -410,7 +413,16 @@ The dev's shape, and it is deliberately not a matchmaking screen:
 - **Hold it or lose it.** Creep on a swept block rises at `CREEP_BASE_PER_HOUR` + `CREEP_DEPTH_PER_HOUR` per block deeper and is pushed back at `PATROL_SUPPRESS_PER_WARRIOR` per posted warrior. At 1.0 the block **falls** (`_block_falls`): those ten floors are erased from `floors_cleared` — genuinely wild again, for you too — everyone posted there is driven home, and the road down through them is cut. **Waystones still reach a woken shrine beyond a fallen block**, so it isolates rather than strands; the shrine network is what a fallen block makes valuable.
 - **What comes home: coin and materials, and depth is the whole point.** `PATROL_COIN_PER_WARRIOR_DAY` and `PATROL_MATS_PER_WARRIOR_DAY`, paid once per in-game day, scaled by `PATROL_DEPTH_BONUS` per block deeper. Dev, 2026-07-30: *"you believe materials and gold are that important… when their village might get crushed?"* Correct — shallow coin never justified taking a soldier off a wall whose loss ends the run, so the deep has to pay.
 - **The find is self-balancing with no percentage to tune.** `_patrol_find_gear` draws only from what the floors it holds would have yielded, using the game's own `WeaponRoster.TIER_FLOORS` brackets. Since a stretch can only be patrolled once you swept it, a find is always **behind your own progress**: floors 1–10 send up things you would sell; only a deep watch — which costs many warriors off the wall — turns up anything you would wear.
-- **The standing rule:** warriors produce **bulk**, the player produces **meaning**. Never relics, never blueprints, never rescued people.
+- **The standing rule:** warriors produce **bulk**, the player produces **meaning**. Never blueprints, never rescued people. *(A find does turn up gear, including relics — the older absolute "coin and materials and nothing else, ever" did not survive `_patrol_find_gear` and has been retired in the code, the panel text and here. What holds is the measured claim: a find is a **delight, never a strategy** — roughly one per 6.9 in-game days at twelve posted, and depth-gated to the floors the watch actually walks.)*
+- **A fallen block genuinely cuts the road** — `level_select_ui` refuses the descent and names the stretch, and only a woken Waystone reaches past. The gate is derived from `floors_cleared` (the shallowest unswept block with something deeper still swept), because the first version looked for a block sitting at creep 1.0 and `_block_falls` zeroes that creep in the very next statement: the condition could not survive the instant that creates it.
+
+**THE WARCHIEF TAKES THE WATCH 🔒 built — Law I's answer to this system.** Posting warriors block by block was, until 2026-08-06, a chore the player redid every session with no heir anywhere — and it sat squarely in the ladder's dead stretch, where nothing new was automated between floor 56 and floor 95 (Foreman at 60, Warchief at 65/70 and four Lead Researchers at 75–90 are all **second holders** of seats already filled; they raise numbers and retire no chore).
+
+- `_warchief_posts_the_watch()` runs at the top of `tick_patrols` the moment any **Warchief** holds a Barracks seat (rescue depth **65**).
+- It posts `garrison_needed(b)` — the smallest garrison whose suppression out-paces that block's creep, rounded up — and **never more**.
+- **Shallowest block first**, because a shallow block is the one whose loss cuts the road, and a deep block held beyond a cut road is worth nothing.
+- **It never touches a watch you set by hand** at or above strength, and it **never empties the wall**: it stops the moment no warrior is spare and leaves what it cannot cover.
+- What it does *not* do is decide how much to risk. It relieves the **bookkeeping**, not the decision — which is the difference between automation and being played for.
 
 ### 12.8 Fire — the second face of adjacency 🔒 built
 
@@ -419,18 +431,40 @@ Every placement rule up to here was pure upside, which meant the optimal economi
 - Scales with the town: nothing below `FIRE_MIN_BUILDINGS`, then `FIRE_CHANCE_PER_DAY` per standing hall, multiplied by `FIRE_HEARTH_MULT` for the buildings that carry a real flame (`FIRE_HEARTHS` — Blacksmith, Tavern, Bar, Barracks). **One ignition at a time:** a town does not combust at once.
 - Burns the hall it is in at `FIRE_DAMAGE_PER_HOUR`, jumps to an **immediate neighbour** at `FIRE_SPREAD_CHANCE_PER_DAY`, and can also simply burn itself out (`FIRE_OUT_CHANCE_PER_DAY`).
 - **Fighting it is the Builderhouse's job** — every hand suppresses at `FIRE_CREW_SUPPRESS`, cutting the damage *and* raising the chance it goes out. This finally gives that crew something urgent to do. But a big blaze outruns a small crew, so it is the player's emergency too.
-- Unfought, `_fire_guts()` knocks the building **back down its build stages** to be raised again — costly, never unrecoverable.
+- Unfought, `_fire_guts()` knocks the building **back down its build stages** to be raised again — costly, never unrecoverable. Short of that, what the blaze leaves behind now costs the hall real output and can be mended back to whole (§12.11).
 
-### 12.9 The Sickness — the town's own problem 🔒 built
+### 12.9 The Sickness — the town's own problem 🔒 built *(two strains, 2026-08-06)*
 
 *Everything else the village produces, it produces **for** you. This it produces **at** you. It is the answer to "what is there to do once it runs itself" (Law I's own consequence): a grown town does not become quiet, it becomes consequential.*
 
-- **It is not corruption.** §7's demon transformation is a **morale** failure that produces a monster. This is physical, contagious, and it simply kills. They meet only in the death-shock they both feed.
+- **It is not corruption.** §7's demon transformation is a **morale** failure that produces a monster. This is physical and contagious. They meet only in the death-shock they both feed. The tick is deliberately **not** gated on `CORRUPTION_ENABLED` — it used to be, which meant anyone flipping the corruption kill-switch to test something silently disabled the disease too.
 - **It scales with size and tightness.** Below `OUTBREAK_MIN_POP` there is nobody to catch it from; past that, the daily odds climb per soul (`OUTBREAK_CHANCE_PER_DAY` + `OUTBREAK_CHANCE_PER_SOUL`). **The reward for growing is that your town can now hurt.**
-- **It spreads house to house**, along the very same homes-and-workplaces the auras read (`_lives_touch`, within `SICK_SPREAD_RADIUS`). Cottages packed in a row pass it along fast; a town spread down the road resists it. Cottage placement gets a **second** meaning, and **where you set the Hospital becomes the most consequential placement in the game.**
-- **The ward is the only standing defence:** inside *The Ward's Shadow* the drain is cut (`SICK_WARD_DRAIN_RELIEF`), recovery odds jump (`SICK_WARD_CURE_BONUS`), and neighbours in range catch it far less often. A staffed Hospital helps even at range, at a fraction of the strength. Untreated, `SICK_DRAIN_PER_HOUR` is set to **outrun the passive village mend on purpose**, and `_reap_the_sick()` can finish someone — walking the same death road as every other loss, so the town grieves properly.
+
+**TWO STRAINS 🔒 (dev ruling).** The same system, with early-game manners and late-game teeth.
+
+- **THE ILLNESS cannot kill.** It carries no drain at all. What it does is **stop a body mending** and **drag the town's mood down** — and that is its entire cost. The reasoning is the pacing: where this first appears the player has no staffed Hospital, no doctors and no leader to answer it with, so a strain that took people then would punish being *early* rather than pose a problem to solve. An illness that freezes healing and sours the town is an annoyance you notice and work around. That is what it should be at that stage.
+- **THE PLAGUE is the real thing**, and it is gated to `PLAGUE_MIN_DEPTH` on purpose — it only exists once the player is deep enough to have the tools to fight it properly. It drains (`PLAGUE_DRAIN_PER_HOUR`), it runs through a packed row harder (`PLAGUE_SPREAD_MULT`), it will not be shrugged off unaided (`PLAGUE_CURE_MULT`), and ignored long enough it takes people. Only it reaps.
+- **The strain travels with the carrier**, so an outbreak can never quietly escalate into the late one. The two are written to read differently — the illness domestic and household-scale, the plague institutional and ritual — and the morale panel counts them separately, because a town with three colds and a town with three plague cases used to look identical and the one worth coming home for was the invisible one.
+- The "does not mend" half is **regen suppression**, not a drain tuned to cancel the regen: doctors multiply the regen and the ward aura adds to it, so any fixed cancelling number would let a well-staffed town heal straight through the illness while an unstaffed one slowly died of it.
+
+**IMMUNITY — the thing that lets an outbreak END** (`IMMUNITY_DAYS`, stamped on **recovery**, never on infection: you earn it by living through it).
+
+- Without it the plague was a settlement-ender, and not for the reason you would guess. Balance measured one case into a cared-for town of eighty: **73 of 80 dead**, and a staffed Hospital standing on the cottage row still lost 55. Per-case survival was already fine — the cause was that a cured villager was re-infected the same night and re-rolled until a roll killed them. **There was no such thing as having had it.**
+- Cure rate and immunity are useless apart: raising the cure alone gets 80 dead to 66.7, immunity alone to 63.5, **the two together to 7.8**. It is immunity that finally makes the Hospital worth building — which is what this system's design always claimed it was for.
+- It is also the answer to *"what if I cannot beat it?"* Every recovery permanently shrinks the pool the sickness can burn through, so it runs out of fuel and **always ends**. What an unprepared town pays is a toll, not the settlement — the standing rule that a village death is a wound and never a game over.
+- 🔒 **The principle, worth more than the number: IMMUNITY MUST OUTLAST THE OUTBREAK.** The first window tried was 14 days against outbreaks that run ~36; it handed the survivors back as fuel before the thing could starve and ended **0 of 10** trials over 1200 days. Not slow — permanently endemic, precisely the failure immunity exists to prevent. The shipped window is the first one that is reliably clean, and nothing improves past it: the outbreak's own length is the floor.
+
+**THE CONTACT GRAPH — homes only 🔒 (dev ruling).** `_lives_touch()` compares the **x of the roof each of them sleeps under**, nothing else; a child is measured at its parents' door, and a villager with no home touches nobody.
+
+- It used to read `villager_places()` — cottage **and** workplace — which put everyone rostered to the same hall at **distance zero**. Balance measured a staffed town of eighty: every soul touched all seventy-nine others, and spacing the cottage row twenty-seven times further apart changed the graph by **exactly nothing**. The town was one fully-connected blob however it was laid out.
+- That quietly falsified three things at once: this system's own claim that a spread-out town resists it; the claim that where you set the Hospital is the most consequential placement you make (its aura radius was competing against a graph with no distance in it); and the spatial half of §12.1–12.2 generally.
+- Homes-only restores all three: **contacts per soul 79.0 → 22.9**, saturation slowing from two in-game days to seven. Cottage placement gets a second meaning, and the Hospital's spot is a real decision again.
+- **A shared bench is a separate, weaker vector** (`WORKMATE_INFECT_PER_DAY`) — standing at the same workbench all day genuinely passes it along, but as a small flat chance rather than a zero-distance edge that flattens the whole map.
+
+- **The ward is the only standing defence:** inside *The Ward's Shadow* the drain is cut (`SICK_WARD_DRAIN_RELIEF`), recovery odds jump (`SICK_WARD_CURE_BONUS`), and neighbours in range catch it far less often. A staffed Hospital helps even at range, at a fraction of the strength.
+- **The day's cure rolls come before the reaper.** Reaping first buried a villager whose HP crossed zero inside a time chunk without ever offering them the cure roll that chunk owed them — worst on the paths that advance the clock in a lump, where the ward's recovery never fired at all.
 - **It cannot be automated away, and that is the design.** A ward dampens it; an outbreak in a big town outruns a ward; and the news **pierces the away-fog** so the player knows to come home. Not a chore — an emergency.
-- **Exemptions:** the unbreakable (the Ten) and the pledged shadows, as with every other loss path — a legend sickens to the brink and never past. **Warriors are not exempt**, unlike corruption: plague does not care that you can fight.
+- **Exemptions:** the unbreakable (the Ten), the pledged shadows, and anyone still immune — a legend sickens to the brink and never past. **Warriors are not exempt**, unlike corruption: the plague does not care that you can fight.
 
 ### 12.10 The Eclipse — the sky's rarest hour 🔒 built
 
@@ -439,9 +473,24 @@ Not a village system, but it lands *in the village*, so it belongs beside them.
 - The moon takes the sun **whole**: the world drops to black silhouette lit by one burning red ring (`eclipse_progress()` — 0 at first contact, 1 at totality, 0 as it lets go). Deliberately a **ring**, not a red filter: the tint goes deep red-*dark* so everything reads as outline lit **by** the eclipse.
 - **Never to be confused with the daily dusk crossing** that Nihil's older Duskmoon rite reads (`_sun_moon_both_up`). A true eclipse keeps its own flag, `is_true_eclipse()`.
 - **Rare, recurring, never missable:** a flat `ECLIPSE_CHANCE_PER_DAY`, never within `ECLIPSE_COOLDOWN_DAYS` of the last, holding for `ECLIPSE_DURATION_HOURS`. It **always begins at dawn** (`ECLIPSE_START_HOUR`) — rolled at midnight and started on the spot it would be a red night with no sun to take — so the span lands exactly on the daylight: contact at dawn, totality at noon, release at dusk. It is announced **through the away-fog**, because nobody can be asked to be ready for a thing they were never told about.
-- **What it gates:** raising the **Hollow Signet** during a true eclipse calls **The Hollow Sun** (`evt_hollowsun`) — the hardest fight in the game, standing outside the ten-boss hunt, and **the only boss fought in your own streets**, so every trick it owns is one your town is standing inside. Because calling it endangers everything you have built, it is **repeatable by design**.
-- 🟡 **Open:** nothing currently grants the Hollow Signet — no drop, no recipe, no vendor. Until that exists the fight is unreachable in honest play.
+- **The sky it happens in was invisible until the same day.** The sun and moon used to lag the camera by 88% of however far the player had walked, so nobody had ever seen either from their own town at any hour; and the ordinary arc peaked *above the frame*, which put totality — the one moment the whole feature exists for — just past the top edge of the screen. The sky is camera-anchored now and the arc rides lower, and the eclipse pair is pulled further down while it runs. Static analysis and the test suite both called the feature finished; only a screenshot found it.
+- **What it gates:** raising the **Hollow Signet** during a true eclipse calls **The Hollow Sun** (`evt_hollowsun`) — the hardest fight in the game, standing **outside** the ten-boss hunt (so the Hunter's Horn capstone is never gated behind a 3%-a-day sky), and **the only boss fought in your own streets**. Because calling it endangers everything you have built, it is **repeatable by design**.
+- **And it really does endanger it.** The Hollow Sun is flagged `razes_buildings`, and its **ground** attacks — meteors and pillars — damage whatever hall is standing where they land (`_raze_ground_at`, within `BOSS_RAZE_RADIUS` of the impact). The dev's stated stake for this fight was *"he spawns on the ground, you're endangering your whole village"*; until that flag existed every boss in the game could only ever hurt the **player**, so the stake was decorative and the Hollow Sun could stand in the middle of Deepwood all day without scratching a wall.
+- **It wounds, never levels.** The damage is floored at a share of full health and is deliberately **not** scaled by the boss's damage multiplier — a floor-100 curve would flatten a hall in one volley and turn the fight into *watch your town die while you are busy not dying*. A building can be brought to the brink by this fight and finished only by neglect afterwards. (That mercy floor is exactly why §12.11 had to exist: for a while it made its own damage permanent.)
+- **The Signet is crafted** (`Inventory.CRAFT_RECIPES`), out of deep materials rather than boss trophies — the Hunter's Horn is the reward for knowing every secret, the Signet is the reward for going far enough down. Nothing drops it; the recipe is the only source, and until it existed the whole eclipse chain was a dead end.
+
+### 12.11 Condition and mending — a wound that finally counts 🔒 built
+
+*The last term in §12.1's formula, and the counterpart to §12.8. Everything else in this section is placement and investment; this one asks what state the building is actually in.*
+
+- **A battered hall works badly.** `is_building_operational()` reads the build **stage** and never the health, so a hall beaten down to a fraction produced at full rate, taxed normally and counted for the finale gate. Fire could gut a building and the Hollow Sun could stand on the town smashing it, and the only cost was a cosmetic scar. **A wound that neither heals nor hurts is not a wound.**
+- **Scaled, never a cliff.** `building_condition()` runs from a floor (`CONDITION_FLOOR`) up to whole, so a hall at 40% health does roughly 40% of its work and *keeps doing it*. That floor is not softness — it is what guarantees this can never soft-lock a save, strand the finale gate behind a building nobody can repair, or turn a bad fight into an unrecoverable one.
+- **The crew can mend a hall that still stands** (`_auto_mend_one`, the fall-through when nothing is in ruins). It costs the village stores — the same Mine → stone → Builderhouse chain as everything else (§12.4) — and the **Master Builder's** power scavenges those materials just as it does for a rebuild stage.
+- **Deliberately slow.** A fight or a fire should leave a mark the player watches heal over the following days, not a scratch gone by the next tick. The damage is meant to be felt; it is not meant to be permanent.
+- **The hole this closed.** A building only loses a stage when its health reaches **zero**, and health was only restored by *finishing* that last stage — so a hall knocked to a fraction and left standing had no route back to whole by any means in the game. It went unnoticed for as long as nothing left a building alive and hurt: sieges either razed a hall or missed it entirely. Fire and the Hollow Sun both do, and the Hollow Sun's damage floor made its scars unrepairable by construction.
 
 ---
 
 *Living document — update as decisions in §9 are made. §12 added 2026-08-06 and verified against the code; §§1–11 remain the original intent, annotated where shipped behaviour overtook them. Original code restore point: commit `2c65fb0`.*
+
+*Revised later the same day (HEAD `d6c7b9e`): §12.9 rewritten for the **two strains**, **immunity**, and the **homes-only contact graph**; the **Warchief's watch** added to §12.7 alongside the road-cut and the retired "never gear" absolute; **§12.11 condition and mending** added and threaded into §12.1's formula and §12.8; §12.10 corrected — the **Hollow Signet is craftable** and the Hollow Sun **damages buildings**; §7's disabled-corruption banner corrected.*
