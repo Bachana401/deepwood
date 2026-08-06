@@ -2719,8 +2719,8 @@ func _block_falls(b: int) -> void:
 	block_creep[b] = 0.0
 	patrol_posts.erase(b)
 	if lost > 0:
-		log_event("combat", "Floors %d-%d have fallen back to the dark — the road down is cut there." % [int(r[0]), int(r[1])])
-		notify("⚠ The deep took floors %d-%d back. Sweep them again to open the road." % [int(r[0]), int(r[1])])
+		log_event("combat", "Floors %d-%d have gone back to the dark. Nothing of ours walks past them now." % [int(r[0]), int(r[1])])
+		notify("⚠ The deep took floors %d-%d back. The road down ends there." % [int(r[0]), int(r[1])])
 
 # What the patrols send home. DEPTH IS THE WHOLE POINT (dev call 2026-07-30:
 # "you believe materials and gold are that important... when their village might
@@ -2754,7 +2754,7 @@ func _patrol_earnings(hours_passed: float) -> void:
 		if player != null and player.has_method("add_currency") and coin_total > 0:
 			player.add_currency(coin_total)
 		if coin_total > 0 or mat_total > 0:
-			log_event("economy", "The patrols sent up %d gold and %d %s from the deep." % [
+			log_event("economy", "The patrols traded a night in the dark for %d gold and %d %s." % [
 				coin_total, mat_total, kind.replace("_", " ")])
 
 # THE FIND. Rare, and SELF-BALANCING: a watch can only turn up gear the floors it
@@ -2784,9 +2784,9 @@ func _patrol_find_gear(b: int, player) -> void:
 	var pick: String = pool[randi() % pool.size()]
 	if player.inventory.add_item(pick, 1) == 0:
 		var r: Array = block_floor_range(b)
-		log_event("economy", "The patrol on floors %d-%d found something on the bodies: %s." % [
+		log_event("economy", "The watch on floors %d-%d came home carrying %s. Nobody asked whose it was." % [
 			int(r[0]), int(r[1]), Inventory.get_display_name(pick)])
-		notify("⚔ Your patrol sends up a find: %s" % Inventory.get_display_name(pick))
+		notify("⚔ Your patrol brings something up out of the dark: %s" % Inventory.get_display_name(pick))
 
 func village_defense_power() -> float:
 	# no Orin, no meteors: until he walks out of the dungeon the village's
@@ -4310,7 +4310,7 @@ func _sickness_day(ward: bool) -> void:
 			cure += SICK_WARD_CURE_BONUS * 0.35   # a staffed ward helps even at range
 		if randf() < cure:
 			sick.erase(vid)
-			log_event("people", "%s has thrown off the sickness." % str(v.get("name", "?")))
+			log_event("people", "%s came through the fever. Thin, and standing." % str(v.get("name", "?")))
 	# ---- who catches it ----
 	if not sick.is_empty():
 		var fresh := []
@@ -4333,8 +4333,8 @@ func _sickness_day(ward: bool) -> void:
 		for nid in fresh:
 			sick[nid] = game_hours
 		if not fresh.is_empty():
-			log_event("people", "The sickness spread to %d more in the night." % fresh.size())
-			notify_urgent("🤒 The sickness spreads — %d more are down." % fresh.size())
+			log_event("people", "Another %d woke shivering. Nobody can say who carried it." % fresh.size())
+			notify_urgent("🤒 It went house to house in the night — %d more down." % fresh.size())
 	# ---- or a new one begins ----
 	elif rescued_villagers.size() >= OUTBREAK_MIN_POP:
 		var odds := OUTBREAK_CHANCE_PER_DAY \
@@ -4351,10 +4351,10 @@ func _begin_outbreak() -> void:
 		return
 	var first: String = pool[randi() % pool.size()]
 	sick[first] = game_hours
-	log_event("people", "%s has fallen ill — and it does not look like grief." % villager_name(first))
+	log_event("people", "%s has taken to their bed, and it is not grief that keeps them there." % villager_name(first))
 	# PIERCES THE AWAY-FOG on purpose: an outbreak you cannot hear about is just a
 	# silent tax. This is the town asking you to come home.
-	notify_urgent("🤒 Sickness in Deepwood — %s is down. It will spread." % villager_name(first))
+	notify_urgent("🤒 Sickness in Deepwood — %s is down with fever. It never stops at one." % villager_name(first))
 
 # The sickness can finish someone, but only after long neglect: the drain is slow
 # enough that coming home and getting a ward standing always saves them.
@@ -4378,8 +4378,8 @@ func _reap_the_sick() -> void:
 		villager_hp.erase(vid2)
 		remove_villager_by_id(vid2)
 		register_villager_deaths(1)
-		log_event("people", "%s was taken by the sickness. Deepwood grieves." % gone)
-		notify_urgent("✝ %s was taken by the sickness." % gone)
+		log_event("people", "%s did not come through it. Not every grave here was dug by the dark." % gone)
+		notify_urgent("✝ %s is gone. The fever, not the deep." % gone)
 
 func get_villager_hp(id: String) -> float:
 	return float(villager_hp.get(id, VILLAGER_MAX_HP))
