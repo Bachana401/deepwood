@@ -254,8 +254,12 @@ func _bulk_transfer(src: Inventory, dst: Inventory, keep_wielded: bool, matching
 	# an admin box (bug hunt 2026-07-28)
 	var vault: bool = current_chest != null and "ui_title" in current_chest and str(current_chest.ui_title) != ""
 	for s in stacks:
-		# never strand the weapon in your hand inside a box
-		if keep_wielded and player and s.id == str(player.active_weapon_id):
+		# never strand the weapon in your hand inside a box -- but a HELD ITEM (a
+		# log, a stone) is an ordinary stack, and the hand empties itself when it
+		# runs out. Without the exemption, holding one log made "Deposit All"
+		# silently leave all 99 wood in the bag with no explanation.
+		if keep_wielded and player and s.id == str(player.active_weapon_id) \
+				and not ("is_improvised" in player and player.is_improvised):
 			continue
 		if matching_only and dst.get_count(s.id) <= 0:
 			continue

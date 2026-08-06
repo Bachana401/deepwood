@@ -187,6 +187,14 @@ func _would_strip_wielded(inv, item_id: String) -> bool:
 	var pl = get_tree().get_first_node_in_group("player")
 	if pl == null or not ("active_weapon_id" in pl) or not ("inventory" in pl):
 		return false
+	# An IMPROVISED hold (a log, a stone) is a stack like any other -- the player
+	# may stow or bin it freely, and player.drop_improvised_if_spent() empties the
+	# hand the moment the count hits zero, so nothing can go stale. Only a real
+	# WEAPON must stay out of the box: stripping ITS bag copy would leave a phantom
+	# wielded weapon. Without this bail-out, holding wood meant wood could not be
+	# put in a chest -- "You can't stow the weapon in your hands."
+	if "is_improvised" in pl and pl.is_improvised:
+		return false
 	return inv == pl.inventory and item_id != "" and item_id == str(pl.active_weapon_id)
 
 func start_or_continue_split(inventory: Inventory, index: int) -> void:
