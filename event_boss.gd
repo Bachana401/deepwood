@@ -177,7 +177,21 @@ static func scaling_for(id: String) -> Dictionary:
 	var ups: int = int(GameState.event_rematch_level.get(id, 0))
 	if ups <= 0:
 		return DIFF.get(base, DIFF["medium"])
-	var idx: int = mini(REMATCH_LADDER.find(base) + ups, REMATCH_LADDER.size() - 1)
+	# A TIER THAT STANDS OFF THE LADDER has nothing above it to climb to. Eclipse is
+	# the only one, and it sits above Master rather than on the rungs -- so find()
+	# returned -1 and -1 + ups landed on index 0, "medium". Every RE-SUMMONED Hollow
+	# Sun was therefore staged at hp x2.2 / dmg x1.0 instead of x14.0 / x2.15: the
+	# hardest fight in Deepwood came back as the easiest one in it.
+	#
+	# That is not a corner case. The dev made this fight recurring precisely because
+	# staking a whole village on one roll of the sky would be unfair -- so the rematch
+	# IS the path most players take, and the first kill quietly disarmed it forever.
+	var start: int = REMATCH_LADDER.find(base)
+	if start < 0:
+		var top: Dictionary = DIFF.get(base, DIFF["medium"]).duplicate()
+		top["label"] = str(top.get("label", "?")) + " · Rematch %d" % ups
+		return top
+	var idx: int = mini(start + ups, REMATCH_LADDER.size() - 1)
 	var d: Dictionary = DIFF.get(REMATCH_LADDER[maxi(idx, 0)], DIFF["medium"]).duplicate()
 	d["label"] = str(d.get("label", "?")) + " · Rematch %d" % ups
 	return d

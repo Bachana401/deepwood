@@ -481,13 +481,71 @@ func _ready() -> void:
 			float(tier.get("hp", 0.0)), float(tier.get("dmg", 0.0))])
 
 	# ============================================================
-	# 7b. THE VILLAGE, AFTER: dangerous, but never destructive
+	# 7b. THE VILLAGE, AFTER: it really is the stake, and it survives anyway
 	# ============================================================
+	# THE STAKE HAD TO BE MADE REAL. The dev's line for this fight is "he spawns on
+	# the ground, you're endangering your whole village + progress" -- but every boss
+	# in this game could only ever damage the PLAYER, so the Hollow Sun could stand in
+	# the middle of Deepwood indefinitely without scratching a wall, and the stake was
+	# decoration. Its ground impacts now land on whatever is standing there.
+	#
+	# NOTE this assertion used to read "not one building was harmed" and it PASSED --
+	# not because the town was safe, but because the boss's meteors happened never to
+	# fall near a building in the observation window. A green that depends on where an
+	# AI wandered is not a green. So drive the impact deliberately instead of hoping.
 	await _frames(4)
-	check("not one building was harmed by the fight",
-		_village_intact(v_health, v_stage) == "" and GameState.count_ruined_buildings() == v_ruined,
-		_village_intact(v_health, v_stage) + " ruined %d -> %d"
-			% [v_ruined, GameState.count_ruined_buildings()])
+	# Stand a hall up on purpose. Most of a fresh village is unbuilt ruins sitting at
+	# health 0, and the one that survives the fight is not guaranteed to have room
+	# left above the floor -- so pick a building, raise it, and test that. The boss
+	# from the fight is dead by now (tracked by instance id), so drive the impact
+	# from its own class rather than from a corpse.
+	var raze_floor: int = int(GameState.BUILDING_MAX_HEALTH * BS.BOSS_RAZE_FLOOR)
+	var vict: Node = null
+	for bn in get_tree().get_nodes_in_group("building"):
+		if is_instance_valid(bn) and "health" in bn and "role_key" in bn:
+			vict = bn
+			break
+	check("a building is standing to test against", vict != null)
+	if vict != null:
+		GameState.building_stage[str(vict.role_key)] = GameState.TOTAL_BUILD_STAGES
+		GameState.building_health[str(vict.role_key)] = GameState.BUILDING_MAX_HEALTH
+		if vict.has_method("sync_from_state"):
+			vict.sync_from_state()
+		var razer = BS.new()
+		razer.boss_id = "evt_hollowsun"
+		add_child(razer)
+		razer.global_position = vict.global_position
+		await _frames(2)
+		var raze_hp0: int = int(vict.health)
+		razer._raze_ground_at(vict.global_position.x)
+		check("the Hollow Sun BREAKS the town it is standing in",
+			int(vict.health) < raze_hp0, "%d -> %d" % [raze_hp0, int(vict.health)])
+		# ...and cannot finish one on its own: the floor holds no matter how long it
+		# stands there, so the fight can wound the village but never delete it
+		for _hit in range(40):
+			razer._raze_ground_at(vict.global_position.x)
+		check("...but can NEVER raze one by itself -- the floor holds",
+			int(vict.health) >= raze_floor
+			and int(GameState.building_stage.get(str(vict.role_key), 0)) >= GameState.TOTAL_BUILD_STAGES,
+			"hp %d, floor %d, stage %d" % [int(vict.health), raze_floor,
+				int(GameState.building_stage.get(str(vict.role_key), 0))])
+		check("...and the damage is NOT scaled by the floor-100 curve (no instant flattening)",
+			BS.BOSS_RAZE_DAMAGE * 4 < GameState.BUILDING_MAX_HEALTH,
+			"%d x4 vs %d" % [BS.BOSS_RAZE_DAMAGE, GameState.BUILDING_MAX_HEALTH])
+		# an ORDINARY boss must never do this -- the flag is the whole gate
+		var plain = BS.new()
+		plain.boss_id = "gravewarden"
+		add_child(plain)
+		await _frames(2)
+		var plain_hp0: int = int(vict.health)
+		plain._raze_ground_at(vict.global_position.x)
+		check("an ordinary boss still cannot touch a building (the flag is the gate)",
+			int(vict.health) == plain_hp0, "%d -> %d" % [plain_hp0, int(vict.health)])
+		razer.queue_free()
+		plain.queue_free()
+	check("no building was ERASED by the fight",
+		GameState.count_ruined_buildings() == v_ruined,
+		"ruined %d -> %d" % [v_ruined, GameState.count_ruined_buildings()])
 	check("every building still stands in the scene",
 		get_tree().get_nodes_in_group("building").size() == v_nodes,
 		"%d -> %d" % [v_nodes, get_tree().get_nodes_in_group("building").size()])

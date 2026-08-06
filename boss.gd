@@ -936,6 +936,13 @@ const BOSSES = {
 		"body": Vector2(200, 290), "hp": 1700, "speed": 100.0, "shape": "titan", "apex": true,
 		"abilities": ["black_sun", "meteors", "pillars", "beam", "judgment", "teleport"],
 		"passives": ["phase", "sidestep"],
+		# IT FIGHTS IN YOUR TOWN, SO IT BREAKS YOUR TOWN. The dev's stated stake for
+		# this fight is "he spawns on the ground, you're endangering your whole
+		# village + progress" -- but every boss in this game could only ever hurt the
+		# player, so that stake was decorative: the Hollow Sun could stand in the
+		# middle of Deepwood all day without scratching a wall. This flag makes its
+		# GROUND attacks (meteors, pillars) land on whatever is standing there.
+		"razes_buildings": true,
 	},
 	"evt_huntsman": {
 		"profile": "pursuer", "name": "The Master of the Hunt",
@@ -3365,6 +3372,7 @@ func do_pillars() -> void:
 	shake_camera(7.0, 0.3)
 	for x in xs:
 		erupt_pillar(Vector2(x, ground_y), magic_color)
+		_raze_ground_at(float(x))
 		if player != null and is_instance_valid(player) and absf(player.global_position.x - x) < PILLAR_HALF_WIDTH:
 			deal_player_damage(PILLAR_DAMAGE)
 			var away = sign(player.global_position.x - x)
@@ -3442,6 +3450,7 @@ func do_meteors() -> void:
 	shake_camera(6.0, 0.5)
 	for x in xs:
 		spawn_arrow(Vector2(x, ground_y - METEOR_HEIGHT), Vector2.DOWN, METEOR_DAMAGE, METEOR_HEIGHT + 150.0)
+		_raze_ground_at(float(x))
 		await get_tree().create_timer(0.06).timeout
 		if is_dead:
 			return
@@ -4246,6 +4255,37 @@ func spawn_ring_telegraph(center: Vector2, radius: float, color: Color, duration
 	var t = ring.create_tween()
 	t.tween_property(ring, "modulate:a", 0.0, duration)
 	t.tween_callback(ring.queue_free)
+
+# WHAT IS STANDING THERE WHEN THE SKY COMES DOWN.
+#
+# Only bosses flagged "razes_buildings" do this, and only their GROUND impacts --
+# a meteor crater or an erupting pillar, not a beam aimed at the player. Buildings
+# already own the whole damage road (take_damage handles the flash, the debris, the
+# stage knock-back and the GameState write), so this just points it at them.
+#
+# Deliberately NOT scaled by damage_multiplier. A floor-100 curve would flatten a
+# hall in a single volley and turn the fight into "watch your town die while you
+# are busy not dying"; the stake should be that you cannot ignore the town, not
+# that the town is already gone. It also never razes on its own -- BUILDING_RAZE_CAP
+# stops each hit at a fraction of full health, so a building can be brought to the
+# brink by this fight but only finished by neglect afterwards.
+const BOSS_RAZE_DAMAGE = 34
+const BOSS_RAZE_RADIUS = 190.0
+const BOSS_RAZE_FLOOR = 0.15        # never below this share of a building's max
+
+func _raze_ground_at(x: float) -> void:
+	if not bool(BOSSES.get(boss_id, {}).get("razes_buildings", false)):
+		return
+	for node in get_tree().get_nodes_in_group("building"):
+		if not is_instance_valid(node) or not node.has_method("take_damage"):
+			continue
+		if absf(node.global_position.x - x) > BOSS_RAZE_RADIUS:
+			continue
+		var hp: int = int(node.health) if "health" in node else 0
+		var floor_hp: int = int(GameState.BUILDING_MAX_HEALTH * BOSS_RAZE_FLOOR)
+		if hp <= floor_hp:
+			continue
+		node.take_damage(mini(BOSS_RAZE_DAMAGE, hp - floor_hp))
 
 func spawn_shockwave(radius: float, color: Color) -> void:
 	var ring = Polygon2D.new()
