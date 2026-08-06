@@ -220,6 +220,18 @@ What the player is actually *doing and worrying about* at every stage. This is t
 - **The Wukong roads** ✅ (2026-07-28, dev: "add wukong elements, don't copy 1-1"): twelve SIDE-ROAD nodes drawn as jade detour cards — Sword: Somersault Cut + The Immovable Pillar; Archer: The Golden Gaze + Cloud Step; Mage: Stillness + The Plucked Hair (plus the older Riftweaving/Telepathy roads); Monarch: The Splitting Dark + The Sky Is His Road. Three relic-runes join the pool: Circle of Sanctuary, Stone Guise, The Riddle Staff.
 - **Tree guards** ✅: `test_skilltree_node` proves all four trees as graphs — every prereq resolves and points up, every effect key is READ by game code, forks are matched pairs, no grid collisions, every node root-reachable.
 
+### 4.5 THE ECLIPSE — the hour the sun goes out ✅ built (2026-08-06)
+
+*The rarest event in the sky, and the gate on the hardest fight in the game.*
+
+- **What it is.** The moon takes the sun **whole** and the world drops to black silhouette lit by one burning red ring. Deliberately **not** a red filter over a normal day: the global tint goes deep red-*dark*, so everything reads as outline lit **by** the eclipse, and the moon rides onto the sun so what survives is the corona. `eclipse_progress()` is the one number the sky draws from — 0 at first contact, 1 at totality, 0 again as it lets go.
+- **It is NOT the dusk crossing.** Sun and moon share the sky twice a day, every day; that ordinary crossing is what Nihil's older Duskmoon rite reads (`_sun_moon_both_up`). A **true** eclipse is a far rarer thing and is kept behind its own flag (`is_true_eclipse()`) precisely so the two can never be confused.
+- **Rare, recurring, and never missable** 🔒 (dev call). Each day carries a flat `ECLIPSE_CHANCE_PER_DAY`, and never within `ECLIPSE_COOLDOWN_DAYS` of the last one — so it cannot fall twice in a row, and it cannot be farmed by idling. It holds for `ECLIPSE_DURATION_HOURS`: long enough to waystone home, **not** long enough to go and fetch what you should already have been carrying. Caught in the deep without the Signet, you have lost *this* one and nothing more — another will come. That is what keeps a once-a-campaign spectacle from becoming a once-a-campaign punishment.
+- **It always begins at dawn.** The roll picks the *day*; the sky picks the hour (`ECLIPSE_START_HOUR`). An eclipse rolled at midnight and started on the spot would be a red *night* — no sun to take, no ring, nothing to look at. Snapped to sunrise, the span lands exactly on the daylight: first contact at dawn, totality at noon, the sun let go at dusk.
+- **It pierces the away-fog** (§5.9) on purpose, announced the moment it begins wherever the player is standing. Nobody can be asked to be ready for a thing they were never told about.
+- **What it is FOR — The Hollow Sun.** Raising the **Hollow Signet** during a true eclipse calls `evt_hollowsun`: an apex event boss that stands **outside** the ten-boss hunt (§4.2) and is the only boss in the game fought **in your own streets**, so every trick it owns is one your town is standing inside. Difficulty is mechanics, never one-shots (forever rule) — its damage sits barely past the Master of the Hunt's, its health half again. It pays the **Eclipse set**, the top of the item ladder: Ringbreaker, Corona Edge, the Hollow Crown, Eclipsed Plate, Ringlight. And because calling it endangers the whole village, it is **repeatable by design** — dev, 2026-08-06: *"you're endangering your whole village + progress… it would be very unfair to give 1 chance."*
+- 🟡 Open (§12): **how the player obtains the Hollow Signet.** The item exists and its use is wired; as of 2026-08-06 nothing drops, crafts or sells it, so the fight is unreachable in honest play. Flagged to Mechanics.
+
 ---
 
 ## 5. The Village — the living machine
@@ -228,6 +240,25 @@ What the player is actually *doing and worrying about* at every stage. This is t
 > A building serves a **NEED** → employs **STAFF** (daily wages) → skilled staff need **KNOWLEDGE** (School) → the building runs an automatic **SERVICE** → destroyed/unstaffed/unpaid, the service **STOPS** → **CONSEQUENCE** → **MORALE** moves.
 
 **Three stages of every task:** do-it-yourself (early) → delegated (staffed, slower) → automated (staffed + upgraded + wages paid). **Automation costs wages; can't pay → workers quit → back to manual.** Two layers: building-level automation (farmers farm, nurses heal) and **management-level automation (Government)** — the mid→late building that scales automation of the *player's own chores*.
+
+### 5.1a THE AUTOMATION LADDER 🔒 *(standing law — the dev's own rule)*
+
+> **Every chore the player does by hand early must eventually be taken over by a building or a leader.** The player starts hands-on and deliberately annoyed; by roughly **character level 80** Deepwood should be a nearly self-running city.
+
+This is not an aspiration, it is the acceptance test on every manual verb in the game: **if you add a chore, you owe it an heir.** A chore with no successor is a design bug, not a difficulty choice — and a system that never stops demanding the player's hands is the thing this law exists to forbid.
+
+The ladder is **paced by rescue depth**, not by a separate unlock track — the person who takes a chore off you is a hostage lying at a fixed floor, so pushing deeper *is* how you buy your own time back:
+
+| Chore | By hand (early) | Taken over by | Rescue depth |
+|---|---|---|---|
+| Pairing a couple | E on a cottage | the Bar's **Publican** (Fenn Merriman) | **20** |
+| Selling surplus | hand-sell each stack | the Marketplace's **Merchant Prince** | **25** |
+| Paying wages | out of your own purse | the Bank's **Treasurer** | **35** |
+| Schooling a child | one at a time in the assign panel | the School's **Principal** (`auto_enroll_children`) | **45 / 50** |
+| Raising a cottage | the B build menu | the Builderhouse's **Master Builder** | **55** |
+| Deciding who trains | the Government dial (§5.14) | the **Chancellor** | **95** |
+
+So the family loop runs itself by the deep 50s and the last decision leaves your hands at 95. **What replaces the chores is not idleness** — a town that runs itself starts generating emergencies of its own (§5.16). That is the answer to "what is there to do once it works."
 
 ### 5.2 The building roster (16) — status mixed ✅/🔨/📋
 | Building | Serves | Falls → breaks |
@@ -282,6 +313,8 @@ One profession stat per building (Farmer, Fisher, Doctor/Nurse, Smith, Builder, 
 | **Mating-depression** | cottage pairing | long-single adults sadden: the −2 loneliness DEEPENS toward −3.5 over ~5 days single, pairing lifts it | ✅ (`single_since_hours`, `personal_morale_target`) |
 
 **Potions rule** ✅ built: HP/mana potions drop **only** from pre-boss waves and boss fights — the player enters every boss stocked, and can't potion-spam normal floors.
+
+**Beyond the needs:** a town can also simply be *struck*. Outbreaks and fires are not unmet needs — they are emergencies a village generates **by being large**, and they are the reason a self-running city still wants its Monarch home (§5.16).
 
 ### 5.5a The Doctor — the early-game lifeline ✅ built
 
@@ -446,6 +479,121 @@ The canonical list of **everything the player can do to/with an NPC** — the sp
 
 *Village audit complete: all five gaps (§12 #13–17) resolved; the village half of the design is hole-free pending the numbers pass.*
 
+### 5.11 Where you build — the three placement rules ✅ built (adjacency, districts, plots)
+
+Deepwood is a **1-D strip**, so every spatial rule reads off a single x coordinate: readable at a glance, no grid to puzzle over. All three rules are **positive-only** — a plain row is never fined, so no town laid down before these existed is retroactively punished — and they **stack**, folding into the one term every producer in the chain multiplies by:
+
+```
+building_output_multiplier(name) =
+    1 + (level − 1) × BUILDING_OUTPUT_PER_LEVEL
+      + adjacency_bonus + district_bonus + plot_bonus
+```
+
+`refresh_layout()` reads the layout off the standing bodies and **caches** it — `building_neighbors`, `building_districts`, `building_plots`, `building_x`. All four must resolve while the surface scene is *unloaded*: the player is in the deep and the town keeps running on the last known row (buildings cannot move while you are away, so it stays true).
+
+**1 — Adjacency: who you stand beside.** "Adjacent" means the **immediate left/right neighbour**, not a radius. Eight pairs (`ADJACENCY_PAIRS`), each a link of the Building Web (§5.7) made physical, capped at `ADJACENCY_BONUS_CAP` so a lucky cluster of six can't run away with the economy. Physical adjacency counts every building **body** — a ruin standing between two halls really does separate them, and raising or moving it is how you fix that — but a synergy only *fires* when both halves are operational.
+
+| Pair | Why it pays |
+|---|---|
+| **Mine ↔ Blacksmith** (largest) | ore goes straight from the seam to the forge |
+| **Bank ↔ Marketplace** (largest) | the counting house sits beside the carts |
+| Mine ↔ Builderhouse | stone lands at the masons' door |
+| Blacksmith ↔ Barracks | arms are carried straight to the drill yard |
+| Farm ↔ Fishing Dock | one larder, filled from field and water both |
+| Science Lab ↔ School | the lab's findings are taught the same day |
+| Bar ↔ Tavern | a bed waits directly above the music |
+| Hospital ↔ Shrine | healing and mercy keep one threshold |
+
+**2 — Districts: where on the map you stand.** The road runs west (the gate the sieges come from) to east (open working land), giving three natural quarters, each paying `DISTRICT_BONUS` to the buildings that belong in it (`DISTRICT_HOME`):
+
+- **Gatefront** — the war quarter, the exposed ground the waves reach first: **Barracks, Blacksmith, Hospital.**
+- **The Heart** — the civic quarter: **Government, Bank, Marketplace, School, Science Lab, Bar, Tavern.**
+- **Outskirts** — the working land: **Farm, Fishing Dock, Mine, Builderhouse, Shrine.**
+
+Boundaries are **absolute distances east of the west gate** (`DISTRICT_GATEFRONT_DEPTH`, `DISTRICT_HEART_DEPTH`), never fractions of the row. Fractional thirds would silently redraw every boundary each time the town grew eastward — quietly moving a building out of its quarter and taking away a bonus the player never spent. **Only moving a building changes its district.**
+
+**3 — Special plots: where the map has an opinion.** Seven fixed patches of ground (`SPECIAL_PLOTS`), each suiting exactly one building, granting `PLOT_BONUS` within `PLOT_RADIUS` of the centre — **richer than a quarter**, because a plot is one exact spot and often nowhere convenient: The Muster Yard (Barracks) · The Old Market Square (Marketplace) · The Black Soil (Farm) · The Spring (Fishing Dock) · The Quarry Shelf (Builderhouse) · The Ore Vein (Mine) · The Sorrow-Touched Stones (Shrine). They are **painted into the world** (`special_plot.gd`, each with its own idiom — a seam of ore, furrows, ripples, cut blocks, standing stones): a plot the player cannot see is a guessing game, not a decision.
+
+Three rules the plots obey:
+1. **Purely additive.** The Dock still works anywhere; on a real spring it works *better*.
+2. **Plot agrees with district.** Every plot lies inside the quarter its building already belongs to, so two of the three rules can never fight. Three spatial demands pulling against each other stops being a puzzle and starts being unsolvable — **adjacency is the one thing you trade away.**
+3. **The row rewards planning.** The Black Soil and the Spring are set close enough (as are the Quarry Shelf and the Ore Vein) that a careful player can stand *both* buildings on their own ground **and** keep them neighbours. Those two perfect corners are earned. The Mine's forge pairing and the Shrine's ward pairing stay genuinely impossible to combine with their plots, and that is the point.
+
+### 5.12 Auras — the rule that points outward ✅ built
+
+Placement rules 1–3 change what a building produces **for itself**. An aura changes life for everything **around** it — so for the first time, where you build decides *who benefits*.
+
+| Building | Aura | Effect in range |
+|---|---|---|
+| **Bar** | *The Sound of It* | `+AURA_BAR_MORALE` to personal morale target — music carries down the row |
+| **Hospital** | *The Ward's Shadow* | `+AURA_WARD_REGEN` HP/hour to the wounded, without ever being carried in; also blunts the sickness (§5.16) |
+| **Shrine** | *Hallowed Ground* | despair cannot take root within sight of the stones |
+
+**Auras are measured against homes and workplaces, never wandering bodies** 🔒. A villager's NPC avatar only exists while the surface is loaded and it walks about all day; their **cottage** and their **job** stand still and survive into the deep. So an aura asks *"is this person's home or work inside the circle?"* (`villager_places`, `in_aura`) — which is stable, saves correctly, keeps working while the player is away, and (the real prize) finally makes **cottage placement part of the puzzle**: a home built in the Bar's light is a happier home for as long as it stands. Nobody homeless and jobless is reached by any aura, which is its own quiet argument for housing them.
+
+Only three buildings carry one, and each rides a system that was **already spatial**. No aura was invented to give a building something to do.
+
+### 5.13 Building levels and the named powers ✅ built — **THE LEADER GATE** 🔒
+
+> **A building power REQUIRES its leader seated.** *(Standing law, dev call 2026-07-30: "leader loses its value.")* A power that works without the person it belongs to has deleted the rarest content in the game — one named VIP per post, each lying at a specific depth — and walked straight past the automation ladder's pacing (§5.1a), which is measured in exactly those rescue depths.
+
+- **A level is not bought for the percentage.** Per-level output shrank to `BUILDING_OUTPUT_PER_LEVEL` — connective tissue only — under the dev's law *"stats should not be important at all; transfer their importance to unique behaviour."* At `BUILDING_POWER_LEVEL` every building instead wakes a **NAMED power** that changes what it *does*.
+- **The gate is threefold:** the hall must be operational, at level 4 or above, **and** have the right person in the chair (`has_building_power` → `building_power_staffed`). The one exception is the **Shrine**, whose Lightkeepers are Hospital-trained keepers rather than a rescued VIP — there the keepers at their posts answer for it.
+- **A power is that leader's masterwork, never their replacement.** Four powers originally read *"…with no Forgemaster / no Principal / no Chancellor / no Master Builder."* Under the law they had to be re-scoped into something that leader **could never do alone**, or level 4 would have bought nothing at all.
+- The fifteen powers: **The Night Forge** (Blacksmith) · **The Open Doors** (School) · **The Standing Order** (Government) · **The Standing Crew** (Builderhouse) · **The Standing Watch** (Barracks) · **The Standing Harvest** (Farm) · **The Long Haul** (Fishing Dock) · **The Deep Seam** (Mine) · **The Ward That Never Sleeps** (Hospital) · **The Matchmaker's Round** (Bar) · **The Long Night** (Tavern) · **The Unbroken Light** (Shrine) · **The Ledger That Pays** (Bank) · **The Caravan Road** (Marketplace) · **The Whisper Network** (Science Lab). Exact behaviours: `BUILDING_POWERS`, tabulated in `GAME_MECHANICS.md` §8.10.
+- **Leaders carry their own named powers too** (`LEADER_POWERS`), deliberately chosen not to overlap the building power beside them: the Harvestmaster's *The Full Table* works the fields with no farmhands seated; the Harbormaster's *The Tide Table* lands a sealed crate from deep water; the Pitmaster's *The Sounding* cuts ore matched to the deepest floor **you** have reached; the Warchief's *The Muster* calls every able adult to the wall.
+
+### 5.14 The population loop, closed ✅ built (schooling policy + lodging)
+
+The cycle, in order — and it now closes without the player in it:
+
+```
+couple in a cottage → child born → the schooling policy routes them
+    → School (a trade) or Barracks (a warrior)
+    → the graduate is given a ROOF → moving in makes the match → child
+```
+
+**The schooling policy — the hinge.** What becomes of the children is the one decision in that cycle nobody can make for you, and it is deliberately crude by hand: at the Government you write a number out of ten (`school_share`, capped by `SCHOOL_SHARE_MAX`). Four means four children in every ten learn a trade and six take a spear; `_kid_intake` walks the block of ten so the ratio is honoured child by child. It is a blunt instrument on purpose — it is what you have before you have anyone better.
+
+**Then the Chancellor takes it over** (§5.1a, depth 95). Once that chair is filled `schooling_is_delegated()` flips and the dial is retired: `chancellor_wants_warriors()` weighs `village_defense_power()` against `current_siege_tier() × CHANCELLOR_DEFENSE_MARGIN`, so **a siege that costs defenders pulls the next cohort into the drill yard on its own** — self-balancing, with no dial to tend. Either way `next_schooling_destination()` falls back to whichever hall actually stands, so a policy can never strand a child nowhere, and a full hall sends the child to the other one rather than turning them away.
+
+**Lodging — the roof comes first** 🔒 *(dev design 2026-07-30, and it supersedes §4's "player picks a Male and a Female and pairs them")*. There is no matchmaker pairing two strangers in the street:
+
+- A cottage may hold **one** person waiting for someone to share it with.
+- An adult with nowhere to live takes an **empty** cottage, or one already holding a **single of the opposite sex** (`house_unpaired_adults`).
+- **Moving in is what makes the couple** (`pair_housemates`) — there is no separate matchmaking step. The Publican's round runs the two in that order: house them, *then* match them.
+- A same-sex arrival takes their own cottage instead; a lone occupant can **never** conceive; children and anyone still in training are never housed as adults; a widow(er) is not looking again until the mourning has passed (§5.8).
+- Helpers `cottage_occupant_ids()` / `cottage_is_pair()` / `cottage_lone_occupant()` back the door text — a lone occupant reads as *"lives here alone, and would not mind company."*
+- **Once housed, occupancy is for life** (§5.8): only death frees a cottage. Housing therefore stays the hard brake on the flywheel — and the Master Builder raises new cottages only when a couple is actually waiting and no home stands empty, out of the village stores (§5.7), never on spec.
+
+### 5.15 The Patrols — the town reaches into the deep ✅ built (2026-07-30)
+
+*The village's first move **outward**. Until now warriors did exactly one thing: stand on the wall and wait.*
+
+- **By blocks of ten floors**, not floor by floor (`PATROL_BLOCK_SIZE`, `PATROL_BLOCKS`) — ten posts to think about instead of a hundred, matching the Deep Shrine cadence that already exists. A block opens for posting only once **you** have personally swept every floor in it.
+- **The cost IS the decision.** A posted warrior is **not on the wall**: `village_defense_power()` counts the posted straight off the top before any shift or armoury bonus. You cannot hold the deep and the gate with the same soldier — which is the first time warrior *count* has meant anything beyond the siege clock.
+- **Hold it or lose it.** An unpatrolled swept block **sours**: creep climbs at `CREEP_BASE_PER_HOUR` plus `CREEP_DEPTH_PER_HOUR` per block deeper, and each posted warrior pushes back at `PATROL_SUPPRESS_PER_WARRIOR`. Let creep fill and those ten floors **revert to uncleared** — the monsters are genuinely back for you too, everyone posted there is driven home, and the road down through them is cut. Waystones still reach a woken shrine beyond a fallen block, so it **isolates rather than strands** — which is exactly what makes the shrine network valuable.
+- **What they send home: coin and materials** (`PATROL_COIN_PER_WARRIOR_DAY`, `PATROL_MATS_PER_WARRIOR_DAY`, paid out once per in-game day), and **depth is the whole point** — earnings scale by `PATROL_DEPTH_BONUS` per block deeper. Dev, 2026-07-30: *"you believe materials and gold are that important… when their village might get crushed?"* He was right: shallow coin and timber never justified taking a warrior off a wall that losing means losing the run, so the deep has to pay.
+- **The find.** A patrol occasionally turns something up on the bodies (`PATROL_FIND_CHANCE_PER_WARRIOR_DAY` — a delight, never a supply line). It is **self-balancing with no percentage to tune**: `_patrol_find_gear` draws only from what the floors it holds would have yielded, using the game's own `WeaponRoster.TIER_FLOORS` brackets — and since a stretch can only be patrolled once **you** swept it, a find is always behind your own progress. Floors 1–10 send up things you would sell; only a deep watch, which costs many warriors off the wall, turns up anything you would wear.
+- **The standing rule it must never break:** warriors produce **bulk**, the player produces **meaning**. No relics, no blueprints, no rescued people — ever.
+
+### 5.16 The town's own emergencies — sickness and fire ✅ built (2026-08-06)
+
+*Everything else the village produces, it produces **for** you. These two it produces **at** you — and they are the answer to "what is there to do once it runs itself." A grown town does not become quiet; it becomes consequential.*
+
+**THE SICKNESS.** Physical, contagious, and it kills — **it is not corruption** (§10). Despair turns people into demons; this simply takes them.
+- **It scales with size and tightness.** Below `OUTBREAK_MIN_POP` there is nobody to catch it from and a hamlet never sickens; past that the daily odds climb per soul (`OUTBREAK_CHANCE_PER_DAY` + `OUTBREAK_CHANCE_PER_SOUL`). **The reward for growing is not idleness — it is that your town can now hurt.**
+- **It spreads house to house**, along the very same homes-and-workplaces the auras read (`villager_places`, within `SICK_SPREAD_RADIUS`). Cottages packed in a row pass it along fast; a town spread down the road resists it. That gives cottage placement a **second** meaning and makes **where you put the Hospital the most consequential placement in the game** — its ward aura is the only standing defence.
+- **What the ward does:** inside *The Ward's Shadow* the drain is cut (`SICK_WARD_DRAIN_RELIEF`), the odds of throwing it off jump (`SICK_WARD_CURE_BONUS`), and neighbours in range catch it far less. A staffed Hospital helps even at range, at a fraction of the strength. Untended, the sick drain at `SICK_DRAIN_PER_HOUR` — set to **outrun the passive village mend on purpose** — and can die (`_reap_the_sick`), which then carries the ordinary death-shock into morale (§10).
+- **It cannot be fully automated away, and that is the point.** A ward dampens an outbreak; a big town outruns a ward. The news **pierces the away-fog** so you know to come home. That is the player's job — not a chore, an emergency.
+- **Exempt:** the Ten and the pledged shadows, as they are from every other loss path (a legend sickens to the brink, never past). Warriors are **not** exempt — unlike corruption, plague does not care that you can fight.
+
+**FIRE — the second face of adjacency.** Every placement rule so far was pure upside, so the optimal economic layout was also the only sane one and the "puzzle" had one answer. **Fire spreads along the same neighbour map the synergies use** (`building_neighbors`) — so the tight, perfectly-paired row that earns the most is now also the row that burns whole. That is the tension the placement layer was missing.
+- **It scales with the town** (`FIRE_MIN_BUILDINGS`, then `FIRE_CHANCE_PER_DAY` per standing hall), and the buildings that carry a real flame start most of them — `FIRE_HEARTHS` (Blacksmith, Tavern, Bar, Barracks) at `FIRE_HEARTH_MULT`. **One at a time:** a town does not combust at once.
+- **It eats the hall it is in** at `FIRE_DAMAGE_PER_HOUR` and jumps to an immediate neighbour at `FIRE_SPREAD_CHANCE_PER_DAY`. Left alone it **guts** the building (`_fire_guts`) — knocked back down its build stages, to be raised again. Costly; never unrecoverable.
+- **Fighting it is the Builderhouse's job**, which finally gives that crew something *urgent* to do: every hand suppresses at `FIRE_CREW_SUPPRESS`, reducing the burn and raising the chance the blaze goes out (`FIRE_OUT_CHANCE_PER_DAY`). But a big blaze outruns a small crew, so it is your emergency too.
+- Both emergencies are shouted at the top of the morale panel — how many are burning and whether anyone is fighting it, how many are ill and whether a ward is holding it — because a disaster you cannot see is just a silent tax on a town you thought was running itself.
+
 ---
 
 ## 6. The Hidden Passive — the Shadow Monarch stirring ✅ v1 / 🔨
@@ -499,6 +647,7 @@ Sieges come **out of the Deepwood** — the same wild the player can't fight the
 - **The player** — the strongest single defender when home… but usually *not* home (the squeeze, §7.4).
 - **Day/night shifts** ✅: warriors split into two 12h shifts — the on-shift mans the wall, the off-shift **sleeps and is healed at the Hospital** (no passive regen, §4.1). Night sieges therefore hit the *tired/other* shift, and a **mid-siege shift change** is a deliberate vulnerability window. Manual wall-assignment early → **Government automates** it (§5.1).
 - **The Hospital is the recovery half of defense** (§5.2): wounded warriors **stay wounded until healed**, so a siege's cost lingers into your readiness for the *next* one. No Hospital → your warrior pool bleeds down permanently, siege after siege.
+- **Every warrior posted into the deep is a warrior off this wall** (§5.15). Patrol strength is subtracted from `village_defense_power()` before anything else, so holding the deep and holding the gate are the same budget spent twice. That trade is the whole reason the patrol system exists.
 
 ### 7.4 Home vs away — the squeeze, made mechanical ✅ built (auto-resolve + the Log)
 
@@ -609,6 +758,7 @@ A quest-reward novelty weapon, *deliberately useless* everywhere, that becomes t
 - **A destroyed wall costs morale — but modestly:** each wall side fully broken is a morale hit to the village, *not too much* on its own (a bad omen, not a catastrophe); the real morale damage is the **deaths** that a breached wall then lets happen.
 - **Children corrupt far more easily than adults:** they scare easier and feel harder, so a child's morale drains faster under neglect/shock and they hit 0 (corrupt) sooner. Raising kids is powerful (§5.4) but they are the **fragile** hearts a careless siege breaks first.
 - **Warriors cannot corrupt** — they don't break, they **die in battle.** A Barracks Warrior is exempt from the corruption path entirely; their failure state is a soldier's death (which then death-shocks the town, above).
+- **Corruption is not sickness** (§5.16). Despair is a morale failure that produces a *demon*; the sickness is physical, contagious, spreads by proximity of homes rather than by morale, and simply kills. They share only the death-shock they both feed. Warriors are exempt from the first and **not** from the second.
 - 🟡 Open (§12): exact infection radius + "already low" threshold + spread rate; the per-death morale hit and its outward-falloff; the corrupted-presence drain rate; the wall-break morale cost; how much faster children drain — all numbers-pass; the mechanic shapes are decided.
 - **Shrine redemption** ✅ built: from depth 30, a put-down demon that was once a villager is cleansed back by staffed Lightkeepers for 3 Sorrowshards (Seraphel: they return steadier).
 - ✅ `CORRUPTION_ENABLED = true` since 2026-07-19 — every support system it needed (needs, personal morale, nurses, the Log) shipped first.
@@ -659,6 +809,8 @@ A quest-reward novelty weapon, *deliberately useless* everywhere, that becomes t
 - **Change protocol:** developer decides → this book is edited first → then code. A feature not in this book is not in the game.
 - **Build order after this book is signed off** stays vertical-slice: finish needs/hospital/wages (§5.5) → Barracks shifts (§7) → Government automation (§5.1) → Shrine + corruption refinements (§10) → economy depth (§5.6) → the Ten (§8) → the Finale (§9) → post-game (§11).
 - **Execution guardrails** (from VILLAGE_SYSTEMS §11, still binding): extend existing systems (`game_state.gd` morale, `npc.gd` villagers, `building.gd`), never fork parallel ones; never rewrite the save format (extend additively); headless-verify every change; don't touch dungeon balance or the L100 curves unless the task says so.
+
+***Amended 2026-08-06 — THE CITY MACHINE.*** *Recorded after the fact under the change protocol; every item was dev-directed in-session and is verified against `game_state.gd` / `assign_ui.gd` / `special_plot.gd` / `event_boss.gd`. Two **standing laws** written down as law rather than intent: the **automation ladder** (§5.1a — every manual chore owes an heir; hands-on start, near self-running city by ~level 80, paced by rescue depth) and the **leader gate** (§5.13 — a building power requires its leader seated). New canon: the three **placement rules** (§5.11 — adjacency, districts, special plots, all positive-only and stacking through `building_output_multiplier`); **auras** (§5.12 — the first outward-pointing rule, measured off homes and workplaces, never wandering bodies); **building levels → named powers** (§5.13 — the numeric ladder shrunk deliberately to make room); the **closed population loop** (§5.14 — the `school_share` dial, the Chancellor who retires it, and roof-before-match lodging); **the Patrols** (§5.15 — the town's first reach outward, paid for in wall strength, with block creep that can take ten floors back); **sickness and fire** (§5.16 — the town's own emergencies, the first things a grown village produces *at* you, and fire as the second face of adjacency); and **THE ECLIPSE** (§4.5 — the rare recurring sky event and the gate on The Hollow Sun, the hardest fight in the game, fought in your own streets).*
 
 *Living document. Last full revision: 2026-07-15. **Amended 2026-07-28** (the Terraria arc, recorded after the fact under the change protocol — every item below was dev-directed in-session): itemization rebuilt at scale (§4.3 — the 350-weapon census, the 8-tier ladder, Terraria-exact 3-slot armor + 12 relic slots, flagship riders, the Forge's daily imports, the procedural-chiptune audio pass); the Wukong roads + tree guards (§4.4); every boss's named phase two, depth-scaled restlessness, and the eleven hidden event bosses (§4.2); the Shadow Monarch stage table's stale 🔨 marks cleared (§6 — all seven powers long built; only the true-form art stays dev-gated); and the NUMBERS PASS closed (§12.5 — S1–S13 stand guard; death-shock and child rations tuned to this book's own stated shapes, the §12.1/#8/#11 items closed).*
 

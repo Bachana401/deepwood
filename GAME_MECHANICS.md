@@ -2,7 +2,7 @@
 
 _What the code actually does. Every number here was read out of the source, not from design docs._
 
-_Base pass 2026-07-17 (HEAD `1d719bd`). **§8.7–8.12 (the City Machine — supply chain, placement, auras, building powers, the automation ladder, the population loop) added 2026-08-03**, read out of `game_state.gd` at HEAD `7869d0b`._
+_Base pass 2026-07-17 (HEAD `1d719bd`). **§8.7–8.12 (the City Machine — supply chain, placement, auras, building powers, the automation ladder, the population loop) added 2026-08-03**, read out of `game_state.gd` at HEAD `7869d0b`. **§8.13–8.15 (the patrols, the sickness, fire) and §10.1 (the eclipse) added 2026-08-06**, read out of `game_state.gd` / `assign_ui.gd` / `event_boss.gd` while Mechanics was mid-edit — the constants and behaviour are current; treat only exact numbers as needing a re-check if that session moved them._
 
 **How this differs from the other docs:** `GAME_BIBLE.md` and `VILLAGE_SYSTEMS.md` describe the *intended* design (much of it still 📋 planned). This file describes only **what is built and running**. Where a system is partially wired, it says so.
 
@@ -583,6 +583,67 @@ couple in a cottage → child born → schooling policy routes them
 
 **Once housed, occupancy is for life** — only death frees a cottage (`cottage_homes`).
 
+### 8.13 The patrols — the town posted into the deep
+
+Warriors are posted **by block of ten floors** (`PATROL_BLOCK_SIZE = 10`, `PATROL_BLOCKS = 10`, so floors 1–100). A block can only be posted once the player has personally cleared **every** floor in it (`block_is_cleared`).
+
+| Property | Value |
+|---|---|
+| Creep per hour, base | `CREEP_BASE_PER_HOUR = 0.0030` |
+| ...plus, per block deeper | `CREEP_DEPTH_PER_HOUR = 0.0011` |
+| Pushed back per posted warrior/hour | `PATROL_SUPPRESS_PER_WARRIOR = 0.011` |
+| Coin per warrior per day | `PATROL_COIN_PER_WARRIOR_DAY = 3.0` |
+| Material per warrior per day | `PATROL_MATS_PER_WARRIOR_DAY = 0.9` (`PATROL_MATS` = stone / iron_shard / wood, one kind picked per payout day) |
+| Depth multiplier | `1 + PATROL_DEPTH_BONUS (0.35) × (block − 1)` — block 10 pays **4.15×** block 1 |
+| Gear find | `PATROL_FIND_CHANCE_PER_WARRIOR_DAY = 0.012`, rolled per posted warrior per day |
+
+- Earnings settle **once per in-game day** (`_patrol_earnings`, `_patrol_accum`); materials go through the same fractional store banking as everything else (`_add_to_store`).
+- **`village_defense_power()` subtracts `posted_warriors()` off the top**, before shift worth, `ARMED_WARRIOR_BONUS`, `WARCHIEF_DEFENSE` or the Muster militia. A posted warrior is worth exactly 0 on the wall.
+- At creep `>= 1.0` the block falls (`_block_falls`): every floor in it is erased from `floors_cleared`, the posts are cleared, creep resets to 0. Since `shrine_revealed()` derives from `floors_cleared`, a fallen block also **darkens the Deep Shrine inside it** — shrines *beyond* it stay lit, which is what makes the network the answer to a fallen block.
+- **The find is depth-gated, not percentage-tuned** (`_patrol_find_gear`): the pool is every weapon/armor/relic whose grade rank opens at or before `block × PATROL_BLOCK_SIZE` under `WeaponRoster.TIER_FLOORS`, minus `WANDERER_NEVER_SOLD`.
+- Player-facing control: `assign_ui.add_patrol_section()` — one row per cleared block, ± buttons, creep shown as a **word** (quiet / restless / stirring / OVERRUN SOON at 0.15 / 0.4 / 0.75), never a number.
+
+> ⚠ `floor_is_road_blocked()` / `first_fallen_block()` are defined and tested but **not read by any game code** — nothing currently enforces the "the road down is cut" promise the UI text makes. Flagged to Mechanics 2026-08-06.
+
+### 8.14 The sickness
+
+Physical, contagious, lethal — and distinct from corruption (§8.6 / the rot). Ticked from `tick_sickness`, itself gated on `CORRUPTION_ENABLED`.
+
+| Property | Value |
+|---|---|
+| Population floor for any outbreak | `OUTBREAK_MIN_POP = 12` |
+| Daily outbreak chance at that floor | `OUTBREAK_CHANCE_PER_DAY = 0.05` |
+| ...plus per soul above it | `OUTBREAK_CHANCE_PER_SOUL = 0.0016` |
+| Spread reach (home/work to home/work) | `SICK_SPREAD_RADIUS = 900.0` |
+| Daily spread chance per touching pair | `SICK_SPREAD_CHANCE_PER_DAY = 0.22` (×0.4 for a target inside the ward aura) |
+| HP drain | `SICK_DRAIN_PER_HOUR = 2.4` (×`1 − SICK_WARD_DRAIN_RELIEF (0.55)` inside the ward aura) |
+| Daily unaided recovery | `SICK_CURE_CHANCE_PER_DAY = 0.10` |
+| ...inside the ward aura | `+SICK_WARD_CURE_BONUS = 0.55`; a staffed Hospital at range adds `0.55 × 0.35` |
+
+- Proximity is `_lives_touch()` — every pair drawn from `villager_places()`, i.e. **cottage and workplace**, the same anchors the auras use. No avatar positions are involved, so it runs correctly while the surface is unloaded.
+- `_can_sicken()` excludes only `unbreakable` (the Ten) and `shadow` (the pledged). **Warriors are not excluded** — unlike `tick_rot`, which exempts them.
+- `_reap_the_sick()` runs every tick: at 0 HP the villager is removed by id and `register_villager_deaths(1)` carries the grief into morale. An `unbreakable` is floored at 1.0 HP instead.
+- Both the outbreak and each spread event raise an **urgent** notification, which crosses the away-fog by design.
+
+### 8.15 Fire
+
+Spreads along `building_neighbors` — the *same* map §8.8's synergies read, which is the entire point: the tightest, best-paying row is also the most flammable one. Ticked from `tick_fire`.
+
+| Property | Value |
+|---|---|
+| Standing buildings before anything can ignite | `FIRE_MIN_BUILDINGS = 5` |
+| Daily ignition chance per standing hall | `FIRE_CHANCE_PER_DAY = 0.018` |
+| ...multiplier for a hearth building | `FIRE_HEARTH_MULT = 3.0` — `FIRE_HEARTHS` = Blacksmith, Tavern, Bar, Barracks |
+| Daily jump to an immediate neighbour | `FIRE_SPREAD_CHANCE_PER_DAY = 0.30` |
+| Damage | `FIRE_DAMAGE_PER_HOUR = 26.0`, scaled by `1 − suppression` |
+| Suppression per Builderhouse hand | `FIRE_CREW_SUPPRESS = 0.22` (workers + seated leaders; damage reduction clamped at 0.9) |
+| Daily chance it goes out | `FIRE_OUT_CHANCE_PER_DAY = 0.18` **+ suppression** |
+
+- **At most one new ignition per day**, and only when nothing is already alight — a town does not combust at once.
+- `_fire_guts()` (health hits 0): the building drops **one build stage** and its health resets; at stage 0 it is rubble again. `refresh_visual()` is pushed to the live node so it reads as burned in front of you.
+- A building that is no longer operational is dropped from `burning` — there is nothing left to burn.
+- Surfaced in the morale panel with the crew count, or `NOBODY IS FIGHTING IT`.
+
 ---
 
 ## 9. Defense / siege
@@ -610,6 +671,26 @@ Warriors (Barracks graduates) and the Wizard contribute defense value against sc
 **Critical architecture note:** the master clock is owned by the **`GameState` autoload**, *not* by `main.tscn`'s day/night node. This means time passes in **every** scene — village and dungeon alike. The day/night visual merely *mirrors* `game_hours`. Villager timers (mating, school, pregnancy) and the siege schedule all read the autoload clock, so **nothing freezes when the player teleports into a dungeon**.
 
 Time-skip debug keys (`[` `]` `\`) move the clock, and because everything reads the same clock, they correctly accelerate **and rewind** mating, school, pregnancy and sieges together. `last_tick` measures *in-game* hours elapsed (which can be **negative** on a rewind), not real seconds.
+
+### 10.1 The eclipse
+
+The rare sky event, and the gate on The Hollow Sun (`event_boss.gd`, `evt_hollowsun`). Ticked from `tick_eclipse`.
+
+| Property | Value |
+|---|---|
+| Chance per day | `ECLIPSE_CHANCE_PER_DAY = 0.03`, rolled once per in-game day |
+| Cooldown after one ends | `ECLIPSE_COOLDOWN_DAYS = 7.0` — no roll at all inside it |
+| Duration | `ECLIPSE_DURATION_HOURS = 12.0` (~5 real minutes) |
+| Start hour | `ECLIPSE_START_HOUR = 6.0` — the roll picks the **day**, `hours_until_time_of_day()` snaps it to dawn |
+
+- Expect roughly one every forty-odd in-game days. Contact at dawn, totality at noon, release at dusk — the 12h span is exactly the daylight.
+- `eclipse_progress()` = `sin(t × PI)` over the span: 0 → 1 → 0. `day_night_cycle.gd` is its only consumer, tinting the world red-dark and riding the moon onto the sun.
+- `eclipse_is_active()` / `eclipse_is_pending()` / `hours_since_eclipse()` (returns `1e9` when there has never been one, so a fresh or legacy save is free to roll immediately) / `eclipses_seen`.
+- **`is_true_eclipse()` is a deliberately separate gate from `_sun_moon_both_up()`.** The latter is the ordinary dusk/dawn crossing that Nihil's Duskmoon Effigy reads and happens twice daily; `summon_event_boss(..., require_eclipse, require_true_eclipse)` keeps them as two independent flags so they can never be conflated.
+- Onset raises an **urgent** notification and a Village Log line — it crosses the away-fog on purpose.
+- Persisted as `eclipse_at_hours` + `eclipses_seen`; `_eclipse_announced` is restored from `eclipse_is_active()` on load so an eclipse already in progress is not announced twice.
+
+> ⚠ `hollow_signet` is defined in `ITEM_DEFS` with a working `use_effect`, but appears in **no drop table and no `CRAFT_RECIPES` entry** — unlike `duskmoon_effigy` and `hunters_horn`, which both have recipes. The player has no way to obtain it. Flagged to Mechanics 2026-08-06.
 
 ---
 
