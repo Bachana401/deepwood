@@ -2762,11 +2762,17 @@ func orin_arrived() -> bool:
 # village_defense_power). You cannot hold the deep and the gate with the same
 # soldier, so warrior count finally means something beyond the siege clock.
 #
-# WHAT THEY BRING BACK: coins and materials, and nothing else, ever. No gear, no
-# relics, no blueprints, no people. The player stays the only source of anything
-# that matters -- warriors produce BULK, the player produces MEANING. (A mid-game
-# upgrade may later add a fraction-of-a-percent gear chance; deliberately a
-# delight, never a strategy.)
+# WHAT THEY BRING BACK: coins and materials in bulk, and -- rarely -- something off
+# a body. No blueprints, no people. The player stays the only source of anything
+# that matters: warriors produce BULK, the player produces MEANING.
+#
+# This paragraph used to read "and nothing else, ever. No gear, no relics" and then,
+# two lines later, predict the very feature that falsified it. _patrol_find_gear
+# arrived and hands out weapons, armour and relics; the absolute never survived it
+# and the player-facing string in assign_ui was wrong for as long as the comment
+# was. It IS still a delight and never a strategy -- Balance measured one find per
+# 6.9 in-game days at twelve posted, depth-gated exactly to the floors the watch
+# actually walks -- which is the claim worth keeping. The "ever" was not.
 #
 # AND IF YOU DON'T PATROL: evil seeps back. A block's creep climbs, and when it
 # tops out those ten floors REVERT to uncleared -- the monsters are genuinely

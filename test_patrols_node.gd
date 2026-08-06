@@ -14,6 +14,27 @@ func check(n: String, ok: bool, d := "") -> void:
 	if ok: printerr("PASS  ", n)
 	else: fails += 1; printerr("FAIL  ", n, "   ", d)
 
+# How much is actually IN the bag. Not slots.size() -- that is the fixed slot count
+# (55 before and 55 after), so a check written against it can never move.
+func _bag_total(p: Node) -> int:
+	var n := 0
+	for slot in p.inventory.slots:
+		if slot != null:
+			n += int(slot.count)
+	return n
+
+# The highest grade rank the bag holds, 0 if it holds nothing graded.
+func _best_rank(p: Node) -> int:
+	var best := 0
+	for slot in p.inventory.slots:
+		if slot == null:
+			continue
+		var g := Inventory.get_grade(str(slot.item_id))
+		if g == "":
+			continue
+		best = maxi(best, int(Inventory.GRADE_DEFS.get(g, {}).get("rank", 1)))
+	return best
+
 func warrior(id: String) -> Dictionary:
 	return {"id": id, "name": id, "sex": "Male", "is_kid": false, "stat_name": "Warrior",
 		"stat_value": 4, "role_key": "Barracks", "role_title": "Warrior"}
@@ -66,17 +87,49 @@ func _ready() -> void:
 	check("every warrior sent below is a warrior off the wall",
 		wall_thin < wall_full, "%.2f -> %.2f" % [wall_full, wall_thin])
 
-	# ---- what they send up: bulk, never gear ----
+	# ---- what they send up: bulk, and rarely something off a body ----
+	# The old heading read "bulk, NEVER gear" and captured bag_before to prove it --
+	# then never asserted on it. _patrol_find_gear had since made the claim false, so
+	# the dead capture was the only trace of a rule that no longer existed, and
+	# nothing in the suite guarded patrol drops in EITHER direction.
 	GameState.village_stockpile = {"wood": 0, "stone": 0, "iron_shard": 0}
 	GameState._store_accum = {"wood": 0.0, "stone": 0.0, "iron_shard": 0.0}
 	GameState._patrol_accum = 0.0
 	p.currency = 0
-	var bag_before: int = p.inventory.slots.size()
 	GameState._patrol_earnings(24.5)
 	var mats: int = int(GameState.village_stockpile["wood"]) + int(GameState.village_stockpile["stone"]) \
 		+ int(GameState.village_stockpile["iron_shard"])
 	check("a day below sends up coin", p.currency > 0, "%dg" % p.currency)
 	check("...and raw material into the stores", mats > 0, str(GameState.village_stockpile))
+
+	# ---- A FIND IS REAL, AND IT IS DEPTH-GATED ----
+	# Nothing guarded this in either direction: the suite neither proved a find can
+	# happen nor that it cannot outrun the floors that earned it. Driven directly
+	# rather than waited for -- at one find per ~6.9 in-game days, observing the
+	# random roll would be an unexercised negative, which is the whole failure mode
+	# this suite spent a session cataloguing.
+	# NOTE slots.size() is the FIXED slot COUNT, not how much is in the bag -- it is
+	# 55 before and 55 after, so a check written against it can never move. Count the
+	# items themselves.
+	var shallow_bag: int = _bag_total(p)
+	GameState._patrol_find_gear(1, p)          # the top ten floors
+	check("a patrol find actually reaches the player's bag",
+		_bag_total(p) > shallow_bag,
+		"%d -> %d items" % [shallow_bag, _bag_total(p)])
+	# what block 1 can turn up must not out-reach floor 10
+	var worst_rank := 0
+	var deep_rank := 0
+	worst_rank = _best_rank(p)
+	var br1: Array = WeaponRoster.TIER_FLOORS[clampi(worst_rank, 1, 8)]
+	check("...and nothing it turns up out-reaches the floors that earned it",
+		worst_rank == 0 or int(br1[0]) <= GameState.PATROL_BLOCK_SIZE,
+		"grade rank %d starts at floor %d, block 1 ends at %d"
+			% [worst_rank, int(br1[0]), GameState.PATROL_BLOCK_SIZE])
+	# and the deep genuinely pays better than the shallows
+	GameState._patrol_find_gear(GameState.PATROL_BLOCKS, p)
+	deep_rank = _best_rank(p)
+	check("the deepest block can reach grades the shallowest never could",
+		deep_rank >= worst_rank, "deep rank %d vs shallow rank %d" % [deep_rank, worst_rank])
 	var gs := FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text()
 
 	# ---- DEPTH pays: a deep watch is worth taking warriors off the wall for ----
