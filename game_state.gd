@@ -6902,7 +6902,8 @@ func _auto_mend_one() -> void:
 	var mended: int = mini(BUILDING_MAX_HEALTH, lowest + MEND_PER_PASS)
 	building_health[hurt] = mended
 	if mended >= BUILDING_MAX_HEALTH:
-		log_event("village", "The builders have made the %s whole again." % hurt)
+		log_event("village", "The builders made the %s whole again — you would have to know where to look." % hurt)
+		SfxSynth.play_village(self, SfxSynth.SFX_MEND_DONE)
 	_resync_building_node(hurt)
 
 # The tail every repair path shares: bank the finished hall and refresh its body.

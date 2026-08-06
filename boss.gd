@@ -4272,6 +4272,10 @@ func spawn_ring_telegraph(center: Vector2, radius: float, color: Color, duration
 const BOSS_RAZE_DAMAGE = 34
 const BOSS_RAZE_RADIUS = 190.0
 const BOSS_RAZE_FLOOR = 0.15        # never below this share of a building's max
+# One line per building per fight. A volley lands several impacts on the same hall
+# within a second or two, and the town log is not a damage meter -- the first blow is
+# the news, and the moment it drops to its bones is the second and last.
+var _razed_told: Dictionary = {}
 
 func _raze_ground_at(x: float) -> void:
 	if not bool(BOSSES.get(boss_id, {}).get("razes_buildings", false)):
@@ -4286,6 +4290,23 @@ func _raze_ground_at(x: float) -> void:
 		if hp <= floor_hp:
 			continue
 		node.take_damage(mini(BOSS_RAZE_DAMAGE, hp - floor_hp))
+		SfxSynth.play_village_at(self, node.global_position, SfxSynth.SFX_RAZE_HIT)
+		var bname: String = str(node.building_name) if "building_name" in node else ""
+		if bname == "":
+			continue
+		# FIRST BLOW: the news. Log only -- the player is in the hardest fight in the
+		# game and a toast here would be shouting over the thing trying to kill them.
+		if not _razed_told.has(bname):
+			_razed_told[bname] = true
+			GameState.log_event("village", "The %s took a blow meant for you. Nothing out there aims at houses — they only stand where it lands." % bname)
+		# THE BONES: the one moment worth interrupting for, because it is where the
+		# damage stops and the consequence starts (a hall at the floor still opens in
+		# the morning and is worth very little when it does -- building_condition).
+		var left: int = int(node.health) if "health" in node else 0
+		if left <= floor_hp and not _razed_told.has(bname + "|floor"):
+			_razed_told[bname + "|floor"] = true
+			GameState.log_event("village", "The %s is down to its bones. It still opens in the morning, and it is not worth much when it does." % bname)
+			GameState.notify_urgent("☀ The %s is down to its bones — standing, and not much more than that." % bname)
 
 func spawn_shockwave(radius: float, color: Color) -> void:
 	var ring = Polygon2D.new()
