@@ -57,7 +57,13 @@ func _ready() -> void:
 		printerr("test_wavesides : RESULT: 1 FAILURES  (FAILs=1)")
 		get_tree().quit(1)
 		return
-	check("siege_manager + both walls present in the village", true)
+	# was `check(..., true)`: unreachable-if-false, since the guard above returns.
+	# Assert the thing the wave-split test actually depends on instead -- that the
+	# two ramparts really are on OPPOSITE sides and both joined the wall group.
+	check("siege_manager + both walls present, west of east, both in the wall group",
+		west_wall.global_position.x < east_wall.global_position.x
+		and west_wall.is_in_group("village_wall") and east_wall.is_in_group("village_wall"),
+		"west=%.0f east=%.0f" % [west_wall.global_position.x, east_wall.global_position.x])
 
 	var s_depth: int = GameState.highest_unlocked_level
 	var s_live: bool = GameState.live_siege_active

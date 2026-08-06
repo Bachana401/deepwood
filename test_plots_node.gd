@@ -185,9 +185,22 @@ func _ready() -> void:
 		if m.is_in_group("village_structure"):
 			not_structures = false
 	check("...and no marker reserves the ground against building on it", not_structures)
+	# This asked only "is building_plots a Dictionary?" -- and it is declared
+	# `var building_plots: Dictionary = {}`, so that could never be anything else:
+	# a check that was true before refresh_layout() ever ran. The claim in its own
+	# name is that refresh READS THE GROUND, so read the ground independently and
+	# demand the same answer. The hand-forced {"Mine": "vein"} above (set with no
+	# Mine anywhere near the vein) must be gone by the time this passes.
 	GameState.refresh_layout()
-	check("refresh reads which building works which ground",
-		GameState.building_plots != null and typeof(GameState.building_plots) == TYPE_DICTIONARY)
+	var expected := {}
+	for b in get_tree().get_nodes_in_group("building"):
+		if not is_instance_valid(b) or not ("building_name" in b):
+			continue
+		var pl: Dictionary = GameState.plot_at(b.global_position.x)
+		expected[str(b.building_name)] = str(pl["id"]) if not pl.is_empty() else ""
+	check("refresh reads which building works which ground (recomputed from where the buildings actually stand)",
+		GameState.building_plots == expected,
+		"cached %s vs ground %s" % [str(GameState.building_plots), str(expected)])
 	var gs := FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text()
 	check("plot claims survive the save", gs.contains('"building_plots": building_plots'))
 	check("the E-panel names the ground and what it wants",

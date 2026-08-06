@@ -388,7 +388,10 @@ func _ready() -> void:
 		"twinfangs=%.2f warhammer=%.2f" % [fast_cc, slow_cc])
 	check("a heavy weapon crits HARDER", slow_cd > fast_cd,
 		"warhammer=%.2f twinfangs=%.2f" % [slow_cd, fast_cd])
-	check("crit character applies only to melee", true)
+	# (this line used to be `check("crit character applies only to melee", true)` --
+	# a section heading wearing an assertion's clothes. The bow check below is the
+	# claim; the heading is now a comment, where a heading belongs.)
+	# ---- crit character applies only to melee ----
 	p.wield_weapon("wpn_bow")
 	check("a bow gets no melee crit bias",
 		p.weapon_crit_chance_bonus() == 0.0 and p.weapon_crit_damage_bonus() == 0.0)

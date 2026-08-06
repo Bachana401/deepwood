@@ -191,7 +191,14 @@ func _ready() -> void:
 	r._free()
 	check("freeing a chained adventurer joins the roster",
 		GameState.adventurer_state("adv_jorun").get("rescued", false))
-	check("adventurers survive the save round-trip (key present both ways)", true)  # tool_save_audit enforces
+	# This asserted the literal `true` with the note "tool_save_audit enforces" --
+	# but tool_save_audit is a hand-run tool, so nothing in the suite enforced it
+	# at all. Read the save code both ways instead: written, and read back.
+	var gsav := FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text()
+	check("adventurers survive the save round-trip (written AND read back)",
+		gsav.contains('"adventurers": adventurers')
+		and gsav.contains('parsed.has("adventurers")')
+		and gsav.contains('adventurers = parsed["adventurers"]'))
 
 	# ---------------- HERO newborns ----------------
 	check("the hero chance is one in two hundred", abs(GameState.HERO_BIRTH_CHANCE - 0.005) < 0.0001)
