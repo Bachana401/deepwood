@@ -4570,7 +4570,13 @@ func _lives_touch(a: Dictionary, b: Dictionary, r: float) -> bool:
 	return false
 
 func tick_sickness(hours_passed: float) -> void:
-	if hours_passed <= 0.0 or not CORRUPTION_ENABLED:
+	# NOT gated on CORRUPTION_ENABLED. The header above this system argues at length
+	# that sickness is not corruption -- despair turns people into demons, this is
+	# physical and contagious -- and then the tick turned itself off with the
+	# corruption kill-switch anyway. No live effect today (the flag is true), but the
+	# next person to flip it to test something would have silently disabled the
+	# plague too and never known.
+	if hours_passed <= 0.0:
 		return
 	_sick_accum += hours_passed
 	# THE HOURLY HALF, and only the PLAGUE has one. The ordinary illness costs no HP

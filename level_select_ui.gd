@@ -103,6 +103,21 @@ func _on_level_selected(level: int) -> void:
 		if stack:
 			stack.show_notification("⛔ The village is TURNING behind you. There is nothing below anymore — the fight is HERE.")
 		return
+	# A FALLEN BLOCK CUTS THE ROAD. This was promised in two places -- the patrol
+	# panel tells the player a lost block cuts the way down, and game_state has
+	# carried floor_is_road_blocked() to answer it -- but NOTHING anywhere read that
+	# function except its own test. The way down stayed wide open, so losing a block
+	# cost the player nothing and the warning was a lie. (A woken Waystone shrine
+	# still reaches past it; that is what makes the network worth building.)
+	if GameState.floor_is_road_blocked(level):
+		var blocked_stack = get_tree().get_first_node_in_group("notification_stack")
+		if blocked_stack:
+			var fallen: int = GameState.first_fallen_block()
+			var r: Array = GameState.block_floor_range(fallen)
+			blocked_stack.show_notification(
+				"⛔ The road is cut at floors %d-%d. Take them back, or reach past by Waystone."
+				% [int(r[0]), int(r[1])])
+		return
 	close()
 	var player = get_tree().get_first_node_in_group("player")
 	if not player:
