@@ -11,7 +11,7 @@ goes. This is how far it goes.
 
 ## 0. THE TAXONOMY
 
-Five distinct ways a green test can mean nothing. Naming them matters more than the
+Six distinct ways a green test can mean nothing. Naming them matters more than the
 individual fixes, because the fixes are done and the next one is not.
 
 | # | Name | Shape | Caught by |
@@ -21,10 +21,13 @@ individual fixes, because the fixes are done and the next one is not.
 | 3 | **Unexercised negative** | Asserts nothing bad happened, with nothing forcing the bad thing to have had its chance. | eyeballs; §1.6 |
 | 4 | **Never reached by the clock** | Tests a sub-tick by hand that, in play, runs alongside twenty-four others that can undo it. | `test_realclock_node.gd` |
 | 5 | **Asserted by a test, called by nothing** | Pins a function no shipping code calls — a promise the UI makes and the game does not keep. | the sweep in §3.1 / §3.3 |
+| 6 | **Exit 0 with nothing run** | The autoloads never instantiate, the driver is never attached, and the process still exits 0. Every test reports ok having run none of them. | `tool_run_suite.sh` (§7.1) |
 
-Varieties 3 and 5 are new to this document. Variety 3 came from the lead's own
-`test_hollowsun_node` rewrite and is, I suspect, the most common of the five in any
-suite that observes a live AI.
+Varieties 3, 5 and 6 are new to this document. Variety 3 came from the lead's own
+`test_hollowsun_node` rewrite and is, I suspect, the most common of the six in any suite
+that observes a live AI. Variety 6 is the worst of them — it is the whole suite at once —
+and it was found by accident, from a command left running since the first minute of this
+session (§7.1).
 
 ---
 
@@ -423,6 +426,46 @@ bash tool_run_suite.sh sickness     # substring filter
 SUITE_LOGS=/some/dir bash tool_run_suite.sh
 ```
 
+### 7.1 Variety 6 — the whole suite passing with nothing run
+
+Found by accident, and it is the most complete lie the harness can tell. The very first
+command of this session was a single smoke test on a **fresh worktree with no `.godot`
+import cache**. It appeared to hang; I moved on and imported explicitly. It finally
+reported hours later, and this is the chain in its log:
+
+```
+ERROR: Cannot open file 'res://.godot/imported/PixelifySans.ttf-….fontdata'
+SCRIPT ERROR: Parse Error: Could not preload resource file "res://art/fonts/PixelifySans.ttf"
+SCRIPT ERROR: Parse Error: Cannot infer the type of "GAME_FONT" constant …
+ERROR: Failed to load script "res://mobile/touch_controls.gd" with error "Parse error"
+ERROR: Failed to instantiate an autoload, script 'res://mobile/touch_controls.gd' …
+SCRIPT ERROR: Invalid call. Nonexistent function 'has_save'            in base 'Nil'
+SCRIPT ERROR: Invalid access to property 'deepest_level_reached'       on base 'Nil'
+SCRIPT ERROR: Invalid call. Nonexistent function 'reset_for_new_game'  in base 'Nil'
+EXIT=0
+```
+
+Read it in order. An **unimported font** makes a `preload` fail; the failed preload makes
+`const GAME_FONT` untyped, which is **house rule 1 — variant inference is a hard error
+here** — triggered by a missing resource rather than by anything anyone wrote. That script
+is an **autoload**, so every autoload dies with it and `GameState` becomes `Nil`.
+`main_menu.gd:52` calls `GameState.reset_for_new_game()` and throws **before it can attach
+the test driver**. Nothing runs. **And the process exits 0.**
+
+A runner that trusts the exit code reports `ok` for all 130 tests having executed none of
+them. Mine did. Two changes:
+
+- **A pass is a *reported* pass.** Exit 0 now also requires a `RESULT:` line in the log —
+  every driver ends by printing one. Without it the run is classed `CRASH`, not `ok`, and
+  the first parse/autoload/`Nil` lines are printed. *(Verified against the real log above:
+  the predicate correctly rejects it and prints the three lines that explain why.)*
+- **The runner imports first if `.godot` is absent**, so that state cannot be what gets
+  measured.
+
+This is also the honest answer to why "it looked like a hang": a cold tree spends a very
+long time before it fails, so the first symptom is indistinguishable from a slow test — the
+same confusion the project already documents for parse errors, one level further out.
+
 **Timing.** A full run is **~17.5 minutes** for 129 tests (measured end-to-end from log
 timestamps). Median test ≈ 4 s. The distribution is extremely lopsided:
 
@@ -436,7 +479,9 @@ timestamps). Median test ≈ 4 s. The distribution is extremely lopsided:
 
 If the run ever needs to be faster, `test_realhits_node` is the whole conversation.
 
-**Order dependence: none — but it is not parallel-safe, and that is not the same thing.**
+### 7.2 Order dependence
+
+**None — but it is not parallel-safe, and that is not the same thing.**
 
 - Each test is **its own Godot process**, so no in-process state survives between tests.
   Order genuinely does not matter.
@@ -445,9 +490,10 @@ If the run ever needs to be faster, `test_realhits_node` is the whole conversati
   tests running concurrently would clobber each other's save. **Keep the runner serial**
   until §3.2 is fixed and the sidecar is made per-process.
 - The `.godot` import cache is also shared; a first run on a fresh checkout must
-  `--import` once before anything will pass.
+  `--import` once before anything will pass -- the runner now does this itself (§7.1),
+  because the state it prevents reports as a green suite, not as an error.
 
-**What it knows that a bare loop does not:**
+### 7.3 What it knows that a bare loop does not
 
 1. A **parse error is not a timeout.** A test that does not compile attaches nothing, the
    menu idles, and it looks like a six-minute hang. The runner caps each test and, on a
