@@ -24,9 +24,17 @@ const SUN_MOON_OVERLAP_HOURS = SUN_MOON_OVERLAP_SECONDS * HOURS_PER_SECOND
 # player actually travels -- that "lag" is what reads as distant/parallax
 # instead of being glued to the screen like a HUD element.
 const PARALLAX_FACTOR = 0.12
-const ARC_SWING_X = 300.0
-const SKY_HORIZON_Y = -540.0
-const SKY_PEAK_Y = -760.0
+# Widened with the arc lowering below: the sun used to cross only ~270 screen px,
+# which read as a lamp nudging sideways rather than a day passing.
+const ARC_SWING_X = 700.0
+# LOWERED so noon is actually in frame. Measured constraints: the view top sits near
+# world y -630, the mountain peaks top out near -380, and the HUD banner covers the
+# top ~233 world px -- so anything above about -590 is behind the banner at screen
+# centre. That leaves a genuinely narrow usable band, which is why the arc had to
+# come DOWN rather than just be re-centred. Noon at -760 was above the frame even at
+# world origin, so the sun was off screen for the middle 70% of every day.
+const SKY_HORIZON_Y = -430.0
+const SKY_PEAK_Y = -600.0
 
 const DAY_COLOR = Color(1.0, 1.0, 1.0, 1.0)
 const NIGHT_COLOR = Color(0.16, 0.18, 0.34, 1.0)
@@ -436,10 +444,30 @@ func get_moon_progress() -> float:
 func is_sun_moon_overlap() -> bool:
 	return get_sun_progress() >= 0.0 and get_moon_progress() >= 0.0
 
+# THE SKY IS AT INFINITY (dev ruling 2026-08-06). It does not slide against the
+# mountains; parallax belongs to the ridgelines, which already have it.
+#
+# This used to return player.x * PARALLAX_FACTOR (0.12) while the camera sat at
+# player.x, so the sun fell behind by 88% of however far the player had walked.
+# Scenes measured the result rather than estimating it: about 3,000 screen pixels
+# off the left edge at the west gate, and 7,250 at the Bar -- six screen-widths.
+# It scales linearly with x, so it got worse the further east the town grew.
+#
+# NOT a smaller factor. Any value below 1.0 leaves a drift that grows without
+# bound, so 0.5 or 0.8 only moves the failure further out instead of removing it,
+# and the village row already runs past 20,000.
+#
+# Net effect of the old behaviour: nobody had ever seen the sun or moon from their
+# own town, at any hour. The day/night cycle drives sieges, the lantern night and
+# the CanvasModulate that governs how the whole world reads -- and the player could
+# only tell the time from a clock string in the HUD.
 func get_parallax_anchor_x() -> float:
+	var cam := get_viewport().get_camera_2d() if get_viewport() != null else null
+	if cam != null:
+		return cam.get_screen_center_position().x
 	var player = get_node_or_null("../Player")
 	if player:
-		return player.global_position.x * PARALLAX_FACTOR
+		return player.global_position.x
 	return 0.0
 
 func arc_position(progress: float, anchor_x: float) -> Vector2:
@@ -576,25 +604,24 @@ func _update_eclipse_ring(ecl: float, sun_progress: float, anchor_x: float) -> v
 		return
 	if _ring_layer == null:
 		_build_eclipse_ring()
-	# THE RING IS PLACED IN SCREEN SPACE, NOT PROJECTED FROM THE WORLD SUN.
+	# THE RING SITS ON THE REAL SUN.
 	#
-	# This is not a shortcut, it is the only thing that works. The sky's parallax
-	# anchor is player.x * PARALLAX_FACTOR (0.12) while the camera sits at player.x,
-	# so the sun falls behind the camera by 88% of however far you have walked. Near
-	# world origin -- which is where the prologue happens, and the only place anyone
-	# had ever looked at the sky -- it lines up fine. Out in the village at x ~ 5600
-	# the sun is nearly three thousand screen pixels off the left edge.
+	# It did not always. When the sky still lagged the camera by 88% of however far
+	# the player had walked, the sun was thousands of pixels off screen out at the
+	# village -- the one place this event exists for -- so the ring had to be anchored
+	# to the screen instead, and simply drawn where a sun ought to be.
 	#
-	# So a ring projected from the sun's world position would be invisible in the one
-	# place this event exists for: your town, with the Hollow Sun standing in it.
-	# Anchoring to the screen means the eclipse is overhead wherever you are, which
-	# is also simply what an eclipse is.
-	#
-	# (The underlying sun/moon sprites still ride the parallax arc as always -- this
-	# overlay is the spectacle, and it is drawn on top of them.)
+	# Now that the sky is camera-anchored and the arc has been lowered into frame, the
+	# sun is reliably on screen at every daylight hour, so the ring can go back to
+	# where it belongs: projected from the sun's own world position, dead concentric
+	# with it. Before this, with both fixes in, the two were drawn a hundred pixels
+	# apart and you could see the true sun peeking out above the corona.
 	var vp: Vector2 = get_viewport().get_visible_rect().size
-	var screen := Vector2(lerpf(vp.x * 0.20, vp.x * 0.80, clampf(sun_progress, 0.0, 1.0)),
-		vp.y * RING_SCREEN_Y)
+	var cam0 := get_viewport().get_camera_2d() if get_viewport() != null else null
+	var screen := Vector2(vp.x * 0.5, vp.y * RING_SCREEN_Y)
+	if cam0 != null:
+		var world := _eclipse_sky_pos(arc_position(sun_progress, anchor_x), ecl)
+		screen = (world - cam0.get_screen_center_position()) * cam0.zoom + vp * 0.5
 	_ring_layer.visible = true
 	# scale off the viewport, not the camera zoom: the ring is a fixed share of the
 	# screen so it reads the same on a phone and on a desktop window
@@ -612,12 +639,19 @@ func _update_eclipse_ring(ecl: float, sun_progress: float, anchor_x: float) -> v
 	_ring_core.scale = Vector2(rs, rs)
 	_ring_core.color = Color(0.03, 0.015, 0.02, clampf(ecl * 1.6, 0.0, 1.0))
 
-# 120 clears the top edge by more than the sun's outer glow (radius 44 x 1.6 scale
-# = 71), so the whole corona lands inside the frame rather than half-cropped.
-const ECLIPSE_VIEW_MARGIN = 120.0     # how far below the view's top edge to hang it
-const ECLIPSE_SKY_Y_FALLBACK = -570.0 # if there is no camera to measure against
+# Sized off the CORONA, not the sun: the outer ring reaches RING_CORE_RADIUS x the
+# widest RING_LAYERS scale (34 x 3.4 = 116 screen px), so the pair has to hang at
+# least that far below the top edge or the ring is cropped at totality. Expressed in
+# WORLD units, hence the divide by zoom at the call site.
+const ECLIPSE_VIEW_MARGIN = 240.0     # how far below the view's top edge to hang it
+const ECLIPSE_SKY_Y_FALLBACK = -450.0 # if there is no camera to measure against
 
 func _eclipse_sky_pos(pos: Vector2, ecl: float) -> Vector2:
+	# STILL NEEDED, for a different reason than before. The arc has since been lowered
+	# so the ordinary sun is in frame all day -- but the eclipse CORONA is far bigger
+	# than the sun disc, and at noon a sun sitting comfortably in frame still had the
+	# top of its ring cut off by the edge of the screen. The margin below is sized off
+	# the corona's outer radius rather than the sun's, so the whole thing fits.
 	if ecl <= 0.0:
 		return pos
 	var target_y := ECLIPSE_SKY_Y_FALLBACK
