@@ -143,23 +143,56 @@ Worth writing down so nobody plans around a fantasy.
 ## 6. THE STANDING BACKLOG
 
 Per department. The lead keeps this current; employees pull from it.
+Last revised after the first full wave, 2026-08-06.
 
-**Mechanics** (lead) — the eclipse + the Hollow Sun; shortage & unrest exceptions;
-mid-game raid-loot upgrade; trade caravans.
+### For the dev only — the two that are rulings, not tasks
 
-**Audio** — the new systems are silent: patrols leaving and returning, an outbreak
-starting, a building catching fire, the eclipse beginning. All need one-shots.
+1. **The automation ladder is paced by DEPTH, and depth runs out before level 80
+   does.** The last chore lands at floor 95, and clearing all 99 floors carries a
+   player only to about level 55 — so "automatic by level 80" is structurally
+   unreachable, not merely under-filled. The Warchief now fills the old 56–95 hole,
+   but the pacing question is the dev's.
+2. **A maxed village out-earns delving at every floor of the ladder**, inverting
+   right where the player finishes paying for it (95.0 g/real-min passive vs 90.4
+   delving at floor 80). Measured. Whether that is the intended payoff or a bug is
+   a design call.
 
-**Writing** — event flavour for the new systems; sickness and fire notifications
-read like status lines, not like a village in trouble.
+### Mechanics (lead)
+- shortage & unrest exceptions; trade caravans; the mid-game raid-loot upgrade
+- the birth flywheel doubles a town 80 → 176 in 10 in-game days (Balance §2); the
+  recorded design target is 70–80 by floor 60
 
-**Docs** — `VILLAGE_SYSTEMS.md` and `GAME_BIBLE.md` describe none of adjacency,
-districts, special plots, auras, schooling, lodging, patrols, sickness, fire or
-the eclipse. The Bible is the source of truth and is currently out of date.
+### QA
+- `tick_fire` has no real-clock coverage, and it burns building health in the same
+  pass as the auto-repair — **the same shape as the sickness bug**. QA named this
+  as where they would look next.
+- `tick_food` → `tick_morale_effects`, and the population loop across both clock
+  surfaces, are still untested under the real clock
+- 134 source-text `.contains()` assertions remain (weak, not unfalsifiable) — replace
+  opportunistically, never in a mass sweep
 
-**QA** — the `test_arrival_node` launch transient (73-byte log, exit 1, never
-reproduced) is characterised but unexplained.
+### Balance
+- measure `BOSS_RAZE_DAMAGE` per real fight (needs a combat harness they do not have)
+- fire is measured nowhere
+- validate the two-strain sickness now that immunity and the homes-only graph landed
 
-**Scenes** — aura pools are too faint to see in play.
+### Scenes
+- the Bar's beacon can read as a small sun now that a real sun exists
+- aura reach is drawn for homes but `in_aura` counts workplaces too
+- the muster ground saturates: a watch of 8 and a watch of 30 look alike
 
-**Graphics** — frozen until 2026-08-14. Planning only.
+### Writing
+- the Hollow Sun smashing the village is silent in the log
+- `_reap_the_sick`'s death lines are strain-blind in the log (toast now names it)
+
+### Audio
+- the Hollow Sun's village-razing impacts have no sound
+- QA holds a roster-drift test for `SfxSynth.RECIPES` vs the `match` arms
+
+### Docs
+- `GAME_MECHANICS.md:693` says `hollow_signet` has no craft recipe. It does now.
+- the eclipse, immunity, the two strains, the Warchief automation and the condition
+  term all postdate the last docs pass
+
+### Graphics
+- **FROZEN until 2026-08-14.** Planning only.
