@@ -5,7 +5,10 @@ extends CanvasLayer
 # build-all, populate, god mode, kill, heal, gold, time-skips, level unlock.
 # (The T super-dash stays a movement key; G still places a torch.)
 
-var panel: Panel
+# `frame` is the visible window and owns visibility; `panel` is the SCROLLING
+# content inside it, which every section still lays out with absolute positions.
+var frame: Panel
+var panel: Control
 var morale_label: Label
 var god_button: Button
 
@@ -14,6 +17,12 @@ const PAD := 14.0
 const BW := 44.0    # small button width
 const BH := 26.0
 const GAP := 6.0
+# The window fits inside the 648-high base UI viewport with room to spare; the
+# content is taller than that on purpose and scrolls. Only CONTENT_H needs raising
+# when a section is added, and getting it wrong now costs a scrollbar that stops
+# early rather than a button nobody can click.
+const FRAME_H := 600.0
+const CONTENT_H := 900.0
 
 func _ready() -> void:
 	layer = 70
@@ -24,31 +33,31 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	add_to_group("esc_window")
 	_build()
-	panel.visible = false
+	frame.visible = false
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("admin_panel"):
 		# P always opens the console (dev request: instant visual testing of
 		# upgrades without relaunching with --dev)
-		panel.visible = not panel.visible
-		if panel.visible:
+		frame.visible = not frame.visible
+		if frame.visible:
 			refresh()
 		get_viewport().set_input_as_handled()
 
 func close() -> void:
-	panel.visible = false
+	frame.visible = false
 
 # The esc_window contract: pause_menu's ESC sweep calls these on every member.
 # The panel JOINED the group since day one but never implemented the protocol,
 # so ESC silently did nothing to it -- the comment claimed otherwise.
 func esc_is_open() -> bool:
-	return panel != null and panel.visible
+	return frame != null and frame.visible
 
 func esc_close() -> void:
 	close()
 
 func _process(_delta: float) -> void:
-	if panel.visible:
+	if frame != null and frame.visible:
 		refresh()
 
 func refresh() -> void:
@@ -74,18 +83,36 @@ func _notify(msg: String) -> void:
 
 # --- layout ---
 func _build() -> void:
-	panel = Panel.new()
-	panel.anchor_left = 0.5
-	panel.anchor_right = 0.5
-	panel.anchor_top = 0.5
-	panel.anchor_bottom = 0.5
-	panel.offset_left = -W / 2.0
-	panel.offset_right = W / 2.0
-	# grown to fit the WARP section (2026-07-30); the panel is laid out by a
-	# running `y`, so anything added mid-list pushes the tail off the bottom
-	panel.offset_top = -378.0
-	panel.offset_bottom = 378.0
-	add_child(panel)
+	# IT SCROLLS NOW, and it had to. The console grew by hand-editing a fixed height
+	# every time a section was added, and it had already outgrown the screen: at 756px
+	# in a 648px viewport, the MORALE header ran off the top and the Test Arena button
+	# and Close ran off the bottom, unreachable. Adding THE ECLIPSE section would have
+	# pushed it to 848 and made it worse. A scrolling body means a new section can
+	# never again silently shove the tail out of reach, so nobody has to remember to
+	# grow a magic number.
+	frame = Panel.new()
+	frame.anchor_left = 0.5
+	frame.anchor_right = 0.5
+	frame.anchor_top = 0.5
+	frame.anchor_bottom = 0.5
+	frame.offset_left = -W / 2.0 - 6.0
+	frame.offset_right = W / 2.0 + 6.0
+	frame.offset_top = -FRAME_H / 2.0
+	frame.offset_bottom = FRAME_H / 2.0
+	add_child(frame)
+
+	var scroll := ScrollContainer.new()
+	scroll.position = Vector2(4.0, 4.0)
+	scroll.size = Vector2(W + 4.0, FRAME_H - 8.0)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	frame.add_child(scroll)
+
+	# the content host. Every section below still lays itself out with absolute
+	# positions against a running `y`, exactly as before -- only now the tail of
+	# that column scrolls into view instead of falling off the world.
+	panel = Control.new()
+	panel.custom_minimum_size = Vector2(W, CONTENT_H)
+	scroll.add_child(panel)
 
 	var title = Label.new()
 	title.position = Vector2(PAD, 10)
@@ -179,6 +206,32 @@ func _build() -> void:
 	warp_label = _text("", y)
 	y += 22.0
 	_btn("WARP DOWN", PAD, y, W - PAD * 2.0, BH, _warp_go)
+	y += BH + 12.0
+
+	# --- The eclipse (dev ask 2026-08-06: "i want to be able somehow to test
+	# eclipse happening and it's boss"). In the real game this is a 3%-a-day roll
+	# with a seven-day floor between them -- you could idle for an hour of real time
+	# and never see one, which makes it untestable by playing. These force it.
+	y = _section("THE ECLIPSE  (3%/day in the real game)", y)
+	# every row must fit inside W - PAD*2 = 312px, or a button hangs off the panel
+	_btn("START ECLIPSE", PAD, y, 152, BH, _force_eclipse)
+	_btn("Jump to TOTALITY", PAD + 158, y, 154, BH, func():
+		_force_eclipse()
+		GameState.game_hours = GameState.eclipse_at_hours + GameState.ECLIPSE_DURATION_HOURS * 0.5
+		var dn2 = get_tree().get_first_node_in_group("day_night_cycle")
+		if dn2 and dn2.has_method("update_visuals"):
+			dn2.update_visuals()
+		_notify("Admin: totality — the ring is at its widest."))
+	y += BH + GAP
+	_btn("End", PAD, y, 56, BH, func():
+		GameState.eclipse_at_hours = -1.0
+		_notify("Admin: the sun is let go."))
+	_btn("+3 Signets", PAD + 62, y, 104, BH, func():
+		var pl = _player()
+		if pl and pl.inventory:
+			pl.inventory.add_item("hollow_signet", 3)
+			_notify("Admin: 3x Hollow Signet. Raise one during a TRUE eclipse."))
+	_btn("SUMMON BOSS", PAD + 172, y, 140, BH, _summon_hollowsun)
 	y += BH + 12.0
 
 	# --- Test arena ---
@@ -400,6 +453,42 @@ func _full_heal() -> void:
 		pl.update_health_display()
 	if pl.has_method("update_mana_display"):
 		pl.update_mana_display()
+
+# ==========================================================================
+# THE ECLIPSE, ON DEMAND.
+# ==========================================================================
+
+# Open one HERE AND NOW rather than waiting on the roll. Note it does NOT jump
+# game_hours forward to reach the next dawn: tick_village_clock plays out an entire
+# skipped span in a single tick, so a jump of a few hundred hours arrives with the
+# town already burned down and starving -- which then looks like the eclipse did it.
+# The clock is left alone and the eclipse window is moved onto the clock instead.
+func _force_eclipse() -> void:
+	# CLAMPED AT ZERO, and that is not paranoia. eclipse_is_active() treats a
+	# NEGATIVE eclipse_at_hours as "there has never been one" -- so on a fresh save,
+	# where game_hours is still ~0, backdating by a hundredth of an hour produced
+	# -0.01 and the button silently did nothing. It failed in exactly the situation
+	# a tester reaches for it: a new game, five seconds after pressing P.
+	GameState.eclipse_at_hours = maxf(0.0, GameState.game_hours - 0.01)
+	GameState._eclipse_announced = true      # the panel is the announcement
+	var dn = get_tree().get_first_node_in_group("day_night_cycle")
+	if dn and dn.has_method("update_visuals"):
+		dn.update_visuals()
+	_notify("Admin: the moon takes the sun. Raise the Hollow Signet.")
+
+# Straight to the fight, skipping the ring and the item. Uses the real summon path
+# so the director, the arena bound and the payout are the ones the game actually
+# runs -- a boss stood up by hand here would prove nothing about the real one.
+func _summon_hollowsun() -> void:
+	_force_eclipse()
+	GameState._summon_pending = false
+	for d in get_tree().get_nodes_in_group("event_boss_director"):
+		d.queue_free()
+	var reason: String = GameState.summon_event_boss("hollowsun", 3.0, false, true)
+	if reason != "":
+		_notify("Admin: refused — " + reason)
+	else:
+		_notify("Admin: THE HOLLOW SUN is coming. It fights in your village.")
 
 func _skip_time(hours: float) -> void:
 	GameState.skip_hours(hours)
