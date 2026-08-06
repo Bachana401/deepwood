@@ -73,15 +73,34 @@ paid for.
 
 An employee is done when **all** of these are true, and says so explicitly:
 
-- the full suite passes (`MONARCH_TEST` harness — QA owns the runner)
+- the full suite passes (`MONARCH_TEST` harness — QA owns the runner). The env var
+  must be the **full `res://` path** (`MONARCH_TEST=res://test_foo_node.gd`); a bare
+  name silently fails an existence check, the menu idles, and the run looks like a
+  six-minute timeout
 - any new test is registered in `all_test_files.txt`
 - no file outside the department's territory was edited (patches handed over instead)
 - the commit contains only that department's files
+- **findings are COMMITTED TO A FILE, not just reported.** Write
+  `<DEPT>_FINDINGS.md` in your worktree and commit it. Markdown is nobody's
+  territory, so it never conflicts.
 - the report states what was **not** done and why
 
-"It compiles" is not done. "The tests I wrote pass" is not done.
+### Why findings must be a file (learned 2026-08-06, the hard way)
 
----
+The first wave of departments delivered excellent findings **as prose to the dev's
+screen** — and the lead could not act on a single one of them, because the lead
+never sees that screen. A measured, correct, well-argued finding that lives only in
+a session transcript is, operationally, a finding that does not exist.
+
+So: anything you want the lead to ACT on goes in the file. That means every patch
+you want applied to someone else's territory (exact file, function, current value,
+proposed value, and the measurement that justifies it), every bug you found and did
+not fix, and every measured all-clear — a "this is fine and here is the number" is
+worth as much as a proposed change, because it tells the lead where not to spend
+effort.
+
+Your closing message to the dev is a summary for a human. The file is the work
+order. They are not the same document and the file is the one that matters.
 
 ## 4. HOW WORK FLOWS
 

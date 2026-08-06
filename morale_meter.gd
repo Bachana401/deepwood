@@ -144,7 +144,18 @@ func _refresh_glance() -> void:
 	if ill > 0:
 		var ward_note := "the ward is holding it" if (GameState.is_building_operational("Hospital") \
 			and GameState.count_workers("Hospital") > 0) else "NO WARD — staff the Hospital"
-		lines.append("🤒 %d SICK — %s" % [ill, ward_note])
+		# THE TWO STRAINS MUST READ DIFFERENTLY. The model has told them apart since
+		# the split -- village_morale weighs a plague case far heavier than a cold --
+		# but this panel showed one number, so a town with three colds and a town with
+		# three plague cases looked identical. One cannot kill anyone; the other can,
+		# and is depth-gated so it only ever arrives while the player is far from home.
+		# The whole design of an outbreak is the town asking you to come back, and the
+		# one strain worth coming back for was the invisible one.
+		var plagued: int = GameState.plague_count()
+		if plagued > 0:
+			lines.append("☠ %d PLAGUE, %d sick — %s" % [plagued, ill - plagued, ward_note])
+		else:
+			lines.append("🤒 %d SICK — %s" % [ill, ward_note])
 	var missing_bp: int = GameState.STARTING_BUILDINGS.size() - GameState.blueprints.size()
 	if missing_bp > 0:
 		lines.append("📜 %d blueprint%s still lost below" % [missing_bp, "" if missing_bp == 1 else "s"])

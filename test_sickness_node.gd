@@ -319,8 +319,20 @@ func _ready() -> void:
 		gs.contains('"sick_accum": _sick_accum') and gs.contains('"fire_accum": _fire_accum'))
 	check("an outbreak pierces the away-fog (you must be able to come home)",
 		gs.split("func _begin_outbreak(")[1].split("\nfunc ")[0].contains("notify_urgent"))
-	check("the glance panel shows the emergency",
-		FileAccess.open("res://morale_meter.gd", FileAccess.READ).get_as_text().contains("SICK"))
+	var mm := FileAccess.open("res://morale_meter.gd", FileAccess.READ).get_as_text()
+	check("the glance panel shows the emergency", mm.contains("SICK"))
+	# ...and tells the two strains APART. The model has weighed them differently since
+	# the split, but the panel showed one number -- so three colds and three plague
+	# cases read identically, and the only strain worth coming home for was the
+	# invisible one. villager_has_plague/plague_count existed and nothing displayed it.
+	check("...and a PLAGUE reads differently from a cold",
+		mm.contains("PLAGUE") and mm.contains("plague_count()"))
+	# the harness must not inherit this machine's real high-water mark, either:
+	# plague_is_possible() is a depth check, and deepest_level.dat was being read into
+	# every test process -- permanently true here, permanently false on a fresh
+	# checkout, so the plague was silently on for one person and off for everyone else
+	check("the deepest-level record is sidecarred under test, like every other save",
+		gs.contains("func deepest_level_path()") and gs.contains("deepest_level_test.dat"))
 	check("sickness is NOT corruption — it has its own ledger",
 		gs.contains("func tick_sickness") and gs.contains("func tick_rot"))
 

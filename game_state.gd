@@ -14,6 +14,25 @@ func active_save_path() -> String:
 	return SAVE_PATH
 const DEEPEST_LEVEL_PATH = "user://deepest_level.dat"
 
+# THE SAME SIDECAR RULE, AND IT WAS MISSING HERE. active_save_path() above sends
+# every save byte to a test file under MONARCH_TEST -- this one had no such branch,
+# so the dev's real high-water mark was read into EVERY test process.
+#
+# That is not a tidiness problem, it silently forks the game's behaviour by machine.
+# plague_is_possible() is `deepest_level_reached >= PLAGUE_MIN_DEPTH`, and on this
+# machine the file reads 100, so the plague is permanently ON in every test here and
+# permanently OFF on a fresh checkout, on CI, or for a second developer. Any test
+# that does not set the depth by hand quietly measures a different game in the two
+# places. A clean clone does NOT catch it either: user:// resolves by project name,
+# not by checkout, so every clone on this machine reads the same file.
+#
+# reset_for_new_game deliberately does NOT zero deepest_level_reached -- it is a
+# lifetime high-score that outlives a run -- so the sidecar is the whole fix.
+func deepest_level_path() -> String:
+	if OS.has_environment("MONARCH_TEST"):
+		return "user://deepest_level_test.dat"
+	return DEEPEST_LEVEL_PATH
+
 var pending_load = false
 # Deepest dungeon level ever reached in a single run -- a high-score style
 # stat, distinct from highest_unlocked_level below (which is the permanent
@@ -7462,15 +7481,16 @@ func graduate_villager(villager_id: String) -> void:
 				log_event("people", "%s finished school — a %s now." % [villager.get("name", "?"), granted_stat])
 
 func load_deepest_level() -> void:
-	if FileAccess.file_exists(DEEPEST_LEVEL_PATH):
-		var file = FileAccess.open(DEEPEST_LEVEL_PATH, FileAccess.READ)
+	var path := deepest_level_path()
+	if FileAccess.file_exists(path):
+		var file = FileAccess.open(path, FileAccess.READ)
 		deepest_level_reached = file.get_32()
 		file.close()
 
 func record_level_reached(level: int) -> void:
 	if level > deepest_level_reached:
 		deepest_level_reached = level
-		var file = FileAccess.open(DEEPEST_LEVEL_PATH, FileAccess.WRITE)
+		var file = FileAccess.open(deepest_level_path(), FileAccess.WRITE)
 		file.store_32(deepest_level_reached)
 		file.close()
 
