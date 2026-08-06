@@ -4266,7 +4266,7 @@ func spawn_ring_telegraph(center: Vector2, radius: float, color: Color, duration
 # Deliberately NOT scaled by damage_multiplier. A floor-100 curve would flatten a
 # hall in a single volley and turn the fight into "watch your town die while you
 # are busy not dying"; the stake should be that you cannot ignore the town, not
-# that the town is already gone. It also never razes on its own -- BUILDING_RAZE_CAP
+# that the town is already gone. It also never razes on its own -- BOSS_RAZE_FLOOR
 # stops each hit at a fraction of full health, so a building can be brought to the
 # brink by this fight but only finished by neglect afterwards.
 const BOSS_RAZE_DAMAGE = 34

@@ -23,7 +23,13 @@ const SUN_MOON_OVERLAP_HOURS = SUN_MOON_OVERLAP_SECONDS * HOURS_PER_SECOND
 # sun/moon live in world space and only drift a small fraction of how far the
 # player actually travels -- that "lag" is what reads as distant/parallax
 # instead of being glued to the screen like a HUD element.
-const PARALLAX_FACTOR = 0.12
+# DEAD, AND KEPT ONLY AS A HEADSTONE. Nothing reads this any more -- see
+# get_parallax_anchor_x, which is camera-anchored now. It is left declared because
+# the comment below it is the whole explanation of a bug that hid for the life of
+# the project, and a reader who finds the constant gone has no way back to it.
+# Do NOT wire it into anything: any factor below 1.0 puts the sun off screen again,
+# further out the more the town grows east.
+const PARALLAX_FACTOR = 0.12   # unused; see get_parallax_anchor_x
 # Widened with the arc lowering below: the sun used to cross only ~270 screen px,
 # which read as a lamp nudging sideways rather than a day passing.
 const ARC_SWING_X = 700.0

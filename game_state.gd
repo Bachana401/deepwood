@@ -6871,7 +6871,8 @@ func auto_repair_one() -> void:
 # the stage rebuild above: patch the most badly hurt standing building back toward
 # whole. Costs the same stores a rebuild stage does, because timber is timber.
 #
-# Deliberately SLOW (MEND_PER_PASS of 400) so a fight or a fire leaves a mark the
+# Deliberately SLOW -- MEND_PER_PASS is a fraction of BUILDING_MAX_HEALTH, so a full
+# mend takes several passes -- and a fight or a fire leaves a mark the
 # player watches heal over the following days rather than a scratch gone by the next
 # tick -- the damage should be felt, just not be permanent.
 const MEND_PER_PASS := 45                 # health restored per repair pass
