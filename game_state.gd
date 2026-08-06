@@ -2564,6 +2564,16 @@ func summon_event_boss(id: String, delay: float, require_eclipse: bool, require_
 	# whole. Kept as its own flag so the two can never be confused.
 	if require_true_eclipse and not is_true_eclipse():
 		return "The ring is cold. The moon has not taken the sun."
+	# ...AND IT MUST BE RAISED WHERE IT COSTS SOMETHING. The gate above is a pure
+	# clock check that never asked where the player was standing, so the Signet could
+	# be raised at the bottom of the deep -- and a Hollow Sun summoned down there is a
+	# 23,800-HP boss with none of its stake, because the whole point of the fight is
+	# that it happens on top of the town you built. Its razing is village-gated now,
+	# which without this would leave the underground version simply DEFANGED: all of
+	# the difficulty, none of the risk, and the same exclusive loot at the end.
+	# Refuse it outright rather than stage a hollow version of the hardest fight.
+	if require_true_eclipse and in_dungeon:
+		return "Not here. It must be raised under open sky, on ground worth losing."
 	var p = get_tree().get_first_node_in_group("player")
 	if p == null or not is_instance_valid(p):
 		return "Nothing answers."

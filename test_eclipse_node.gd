@@ -113,6 +113,22 @@ func _ready() -> void:
 	GameState.eclipse_at_hours = -1.0
 	check("on any ordinary day, it does not", not GameState.is_true_eclipse())
 
+	# ...AND IT MUST BE RAISED WHERE IT COSTS SOMETHING. The eclipse gate is a pure
+	# clock check, so the Signet could be raised at the bottom of the deep -- and the
+	# whole stake of this fight is that it lands on the town you built. Now that the
+	# razing is village-gated, an underground summon would be the hardest boss in the
+	# game with none of its risk and the same exclusive loot. Measured by a worker:
+	# a razes_buildings boss standing in a dungeon wrote 34 damage straight into
+	# GameState.building_health from the bottom of a floor.
+	var was_deep: bool = GameState.in_dungeon
+	GameState.in_dungeon = true
+	GameState.eclipse_at_hours = GameState.game_hours - 0.01
+	var deep_refused: String = GameState.summon_event_boss("hollowsun", 0.0, false, true)
+	check("the Signet is refused in the deep, even under a true eclipse",
+		deep_refused != "", deep_refused)
+	GameState.in_dungeon = was_deep
+	GameState.eclipse_at_hours = -1.0
+
 	# the Signet is refused OUT of the hour, and the item is NOT spent
 	var refused: String = GameState.summon_event_boss("hollowsun", 0.0, false, true)
 	check("raising the Signet under an ordinary sky is refused", refused != "", refused)
