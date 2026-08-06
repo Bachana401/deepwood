@@ -41,7 +41,7 @@ func _ready() -> void:
 	GameState.cottage_homes = {}
 	GameState.pregnancies = {}
 	for b in GameState.STARTING_BUILDINGS:
-		GameState.building_health[b] = 100
+		GameState.building_health[b] = GameState.BUILDING_MAX_HEALTH
 		GameState.building_stage[b] = GameState.TOTAL_BUILD_STAGES
 	# an unhoused, employed adult + a partner to pair with; pop padded to target
 	var A := {"id": "md_a", "name": "Solo", "sex": "Male", "is_kid": false,

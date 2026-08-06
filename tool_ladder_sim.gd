@@ -79,7 +79,7 @@ func paint_at(floor: int) -> void:
 	for b in GameState.STARTING_BUILDINGS:
 		var up: bool = hall_floor(b) <= floor
 		GameState.building_stage[b] = GameState.TOTAL_BUILD_STAGES if up else 0
-		GameState.building_health[b] = 100 if up else 0
+		GameState.building_health[b] = GameState.BUILDING_MAX_HEALTH if up else 0
 		if not up:
 			continue
 		# a crew of ordinary hands, hired from the town

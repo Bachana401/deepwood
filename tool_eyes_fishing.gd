@@ -29,7 +29,7 @@ func _ready() -> void:
 	# ---- raise a whole, staffed Dock and let the tick hand over the rod ----
 	var scene = get_tree().current_scene
 	GameState.building_stage["Fishing Dock"] = GameState.TOTAL_BUILD_STAGES
-	GameState.building_health["Fishing Dock"] = 10000.0
+	GameState.building_health["Fishing Dock"] = GameState.BUILDING_MAX_HEALTH
 	GameState.removed_buildings.erase("Fishing Dock")
 	GameState.rescued_villagers.append({"name": "Eyes Fisher", "role_key": "Fishing Dock", "role_title": "Fisherman"})
 	GameState.game_hours = 30.0

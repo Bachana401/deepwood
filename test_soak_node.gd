@@ -41,7 +41,7 @@ func _ready() -> void:
 	GameState.village_food = 100000.0
 	for b in ["Farm", "Tavern", "Hospital", "Barracks", "Government"]:
 		GameState.building_stage[b] = GameState.TOTAL_BUILD_STAGES
-		GameState.building_health[b] = 100
+		GameState.building_health[b] = GameState.BUILDING_MAX_HEALTH
 	for i in range(8):
 		GameState.rescue_villager({"id": "soak_%d" % i, "name": "Soul %d" % i,
 			"sex": "Male" if i % 2 == 0 else "Female", "is_kid": i >= 6,

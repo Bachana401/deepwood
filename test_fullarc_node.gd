@@ -56,7 +56,7 @@ func _ready() -> void:
 
 	# a raised building can be staffed by exactly the right person
 	GameState.building_stage["Blacksmith"] = GameState.TOTAL_BUILD_STAGES
-	GameState.building_health["Blacksmith"] = 100
+	GameState.building_health["Blacksmith"] = GameState.BUILDING_MAX_HEALTH
 	check("a rebuilt building is operational", GameState.is_building_operational("Blacksmith"))
 	check("the rescued smith can take the post",
 		GameState.assign_villager_to_role("arc_smith", "Blacksmith", "Blacksmith"))
@@ -135,7 +135,7 @@ func _ready() -> void:
 		not GameState.finale_gate_missing().is_empty())
 	for b in GameState.STARTING_BUILDINGS:          # a perfect town, by hand
 		GameState.building_stage[b] = GameState.TOTAL_BUILD_STAGES
-		GameState.building_health[b] = 100
+		GameState.building_health[b] = GameState.BUILDING_MAX_HEALTH
 	for t in TheTen.ids():
 		GameState.free_one_of_the_ten(t)
 	check("all Ten walk free", GameState.all_ten_freed())

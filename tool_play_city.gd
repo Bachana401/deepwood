@@ -41,7 +41,7 @@ func _ready() -> void:
 	# --- the buildings, raised and GROWN PAST THE POWER THRESHOLD ---
 	for bn in GameState.STARTING_BUILDINGS + ["Mine", "Shrine"]:
 		GameState.building_stage[bn] = GameState.TOTAL_BUILD_STAGES
-		GameState.building_health[bn] = 100
+		GameState.building_health[bn] = GameState.BUILDING_MAX_HEALTH
 		GameState.building_levels[bn] = GameState.BUILDING_POWER_LEVEL
 
 	# --- the people: the named VIPs the deep gives up by floor 42, then townsfolk ---

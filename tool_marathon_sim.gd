@@ -290,7 +290,7 @@ func grow_village(floor: int) -> void:
 	if floor >= 24: online.append("Science Lab")
 	for b in online:
 		GameState.building_stage[b] = GameState.TOTAL_BUILD_STAGES
-		GameState.building_health[b] = 100
+		GameState.building_health[b] = GameState.BUILDING_MAX_HEALTH
 	# re-staff food-first and PROPORTIONALLY, so the town is fed (a cared-for town,
 	# per balance_sim S4): Fishing gives slime, the Mine gives iron.
 	for v in GameState.rescued_villagers:

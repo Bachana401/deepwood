@@ -211,7 +211,7 @@ func paint_town(halls: Array = [], crew_div: int = 1) -> void:
 	var up: Array = halls if not halls.is_empty() else GameState.STARTING_BUILDINGS
 	for b in GameState.STARTING_BUILDINGS:
 		GameState.building_stage[b] = GameState.TOTAL_BUILD_STAGES if b in up else 0
-		GameState.building_health[b] = 100 if b in up else 0
+		GameState.building_health[b] = GameState.BUILDING_MAX_HEALTH if b in up else 0
 	# leaders first (the automation ladder only runs with seats filled)
 	for b in LEADER_OF.keys():
 		if not (b in up):
@@ -521,7 +521,7 @@ func _ready() -> void:
 	say("\n============ E1: THE SPATIAL PUZZLE'S CEILING ============")
 	for b in names:
 		GameState.building_stage[b] = GameState.TOTAL_BUILD_STAGES
-		GameState.building_health[b] = 100
+		GameState.building_health[b] = GameState.BUILDING_MAX_HEALTH
 		GameState.building_levels[b] = 1
 	var theoretical: float = 1.0 + GameState.ADJACENCY_BONUS_CAP + GameState.DISTRICT_BONUS + GameState.PLOT_BONUS
 	var theoretical6: float = theoretical + 5.0 * GameState.BUILDING_OUTPUT_PER_LEVEL

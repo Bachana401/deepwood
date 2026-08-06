@@ -481,3 +481,335 @@ the word and it moves.
   see fail.
 - **Did not mass-convert the 134 source-text assertions** (§1.8). Deliberate; the reasoning
   is there.
+
+---
+---
+
+# QA FINDINGS — 2026-08-06, second pass: FIRE UNDER THE REAL CLOCK
+
+**Department:** QA · **Branch:** `master` · **Base:** `d6c7b9e`
+**Suite:** 130 registered, 130 run, green. `test_realclock_node.gd` grew from 11
+assertions to 23; no new file, no new registry line.
+
+Last pass ended with a prediction: *`tick_fire` burns building health in the same pass
+the Builderhouse auto-repair heals it — the same shape as the sickness bug.* This is that
+measurement. **The prediction was right, and the real answer is worse than the shape
+suggested**, because the two halves are not even in the same function.
+
+---
+
+## 9. THE FIRE IS A NET HEAL IN ANY STAFFED TOWN — Mechanics' queue
+
+### 9.1 What was measured
+
+`_process` runs **two** things per frame, not one:
+
+```gdscript
+if income_timer >= INCOME_INTERVAL_SECONDS:      # 20 REAL seconds
+    income_timer -= INCOME_INTERVAL_SECONDS
+    generate_passive_income()
+    apply_leadership_automation()               # <- the crew's MEND lives here
+tick_village_clock()                            # <- the fire's BURN lives here
+```
+
+The burn is billed per **in-game hour**. The mend is billed per **real second**. Nothing
+in the suite had ever driven both, so `run_clock_full()` was added to
+`test_realclock_node.gd` (and `run_frame()` to `tool_peril_sim.gd`) to drive the whole
+frame the way `_process` does.
+
+Measured, one hall alight at half health, 6 in-game hours, identical windows
+(`tool_peril_sim.gd`, section F4):
+
+| Builderhouse hands | burn after suppression | end health (from 200) | net per in-game hour |
+|---|---|---|---|
+| 0 | 26.0/hr | 44.0 | **-26.00** |
+| 1 | 20.3/hr | 255.9 | **+9.31** |
+| 2 | 14.6/hr | 246.8 | **+7.80** |
+| 4 | 3.1/hr | 359.4 | **+26.57** |
+| 8 | 2.6/hr | 318.8 | **+19.79** |
+
+**A single hand on the crew flips fire from a cost into a gain.** The hall does not merely
+survive the blaze; it comes out of it healthier than it went in.
+
+### 9.2 Why — the arithmetic, in the unit that decides it
+
+An in-game hour is 25 real seconds (`HOURS_PER_SECOND = 0.04`), so the honest comparison
+is per real minute:
+
+* fire: `FIRE_DAMAGE_PER_HOUR 26.0` -> **62.4 health per real minute**
+* mend: `MEND_PER_PASS 45` every `INCOME_INTERVAL_SECONDS 20` -> **135.0 health per real minute**
+
+The repair beats an **unsuppressed** blaze **2.2 to 1 before a drop of water is thrown**,
+and `_auto_mend_one` picks the *most badly hurt standing hall* — which, during a fire, is
+always the hall that is on fire. Each hand then also subtracts `FIRE_CREW_SUPPRESS 0.22`
+from the burn, so the gap widens with every worker seated.
+
+This is the same failure the douse-roll clamp already had to fix once: **a system that
+switches itself off the moment the crew is staffed.** The clamp fixed the daily roll; the
+hourly half still has it.
+
+### 9.3 The patch — `game_state.gd`, `_auto_mend_one()` (currently line 6832)
+
+Two lines. No crew patches a roof that is still alight:
+
+```gdscript
+ func _auto_mend_one() -> void:
+ 	var hurt := ""
+ 	var lowest := BUILDING_MAX_HEALTH
+ 	for bn in STARTING_BUILDINGS:
+ 		if not is_building_operational(bn):
+ 			continue
++		# NOT WHILE IT BURNS. _auto_mend_one always targets the most badly hurt
++		# standing hall, which during a fire is the hall that is on fire -- and the
++		# mend (45 per pass, every 20 real seconds = 135/real-min) is worth more than
++		# twice the burn (26/in-game-hour = 62.4/real-min). One Builderhouse hand
++		# turned a blaze into +9.31 health an in-game hour. Measured: QA_FINDINGS 9.1.
++		if building_is_burning(bn):
++			continue
+ 		if get_tree() != null and get_tree().get_first_node_in_group("building_role_" + bn) == null:
+ 			continue
+```
+
+`building_is_burning()` already exists (`game_state.gd:4498`) and is already read by
+`morale_meter.gd`, so nothing new is introduced.
+
+**The design question that comes with it (the lead's, not QA's):** the crew's water alone
+already makes fire survivable — 4 hands stretch a hall's life from 15.5 in-game hours to
+128.3 (6.5 real minutes -> 53.4). With the guard applied, that is what fire costs a staffed
+town, which reads as the intent of the code's own comment (*"a big blaze outruns a small
+crew, so it is your emergency too"*). QA is not proposing a number change.
+
+### 9.4 The second-order number, for Balance
+
+Even with the guard, **the aftermath is nearly free**: 135 health of mending per real
+minute puts a hall gutted down to 5% back at full in well under three real minutes, for
+`MEND_WOOD 1` + `MEND_STONE 1` per pass. The scar the `building_condition()` term was
+added to make matter is erased faster than the player can walk to it. That is a tuning
+call, not a bug, and it is stated here so nobody has to measure it twice.
+
+---
+
+## 10. WHAT THE REAL CLOCK SAYS IS **CORRECT** ABOUT FIRE — measured all-clear
+
+Everything else in `tick_fire` survived the wiring audit. Do not spend effort here.
+
+* **The burn is real and nothing hands it back.** A hall alight lost exactly
+  `FIRE_DAMAGE_PER_HOUR x hours` across 24 quarter-hour clock steps (400 -> 244.0 over 6
+  in-game hours, predicted 244.0). Its unlit neighbour, same window, lost nothing.
+* **The live node hears about it while it burns**, not only when the hall falls —
+  `_resync_building_health` fires every hour and the node's cached `health` tracked
+  GameState to within 1. (This was a real bug last round; it is fixed, and now guarded
+  under the clock rather than only under a hand-called `tick_fire`.)
+* **A blaze bills by the HOUR, not by the tick.** 40 ticks with zero in-game time in them
+  cost the hall nothing; one step with time in it did. If this ever inverts, every fire in
+  the game runs at frame rate.
+* **The daily roll rides the same clock as the burn.** 24 quarter-hour steps advanced
+  `_fire_accum` by exactly 6.000 in-game hours — the spread/douse roll cannot fire 60 times
+  a second.
+* **Gutting works through the clock**, knocks the hall back one stage, never below zero,
+  and puts the fire out; the identically-wounded hall beside it that was not alight kept
+  its stage.
+* **The hamlet gate holds.** 4 standing halls, 400 trials, up to 4,000 in-game days each:
+  never once caught. `FIRE_MIN_BUILDINGS` is real.
+* **The suppression clamp holds.** 6 hands and 8 hands both cap at 2.6 health/hour
+  (`0.9`), so a large crew makes fire survivable rather than impossible.
+
+### 10.1 Fire's shipped feel, measured for the first time (`tool_peril_sim.gd`)
+
+`STUDIO.md`'s Balance backlog says "fire is measured nowhere". It is now:
+
+| how often a town catches | mean in-game days | real hours of play |
+|---|---|---|
+| 4 halls, no hearth | never | never |
+| 6 plain halls | 9.1 | 1.5 |
+| 6 halls, one Blacksmith | 7.1 | 1.2 |
+| full town, every hearth standing | 3.0 | **0.5** |
+
+**A finished town catches fire every half hour of play.** Whether that is the intended
+drumbeat is the dev's call; it is stated here because until today it was unmeasured.
+
+And what one fire takes with it, in a row of eight halls each standing next to the next
+(300 trials each):
+
+| hands | mean in-game days alight | mean halls that ever caught | worst seen |
+|---|---|---|---|
+| 0 | 43.1 | 4.72 | 8 of 8 |
+| 1 | 4.7 | 2.31 | 8 of 8 |
+| 2 | 2.2 | 1.67 | 7 of 8 |
+| 4 | 1.4 | 1.32 | 5 of 8 |
+
+The design claim — *the row that earns most is the row that burns whole* — is true, and
+an unfought fire really can take all eight. One Builderhouse hand cuts a 43-day blaze to
+under 5 days. The crew's **water** is doing exactly its job; it is only the **hammer**
+(section 9) that is broken.
+
+---
+
+## 11. TWO MEASUREMENT BUGS IN THE SIM TOOLING — fixed, QA's own
+
+### 11.1 Every headless sim seeded a battered town — **all economy figures were ~half**
+
+`BUILDING_MAX_HEALTH` is **400**. Thirty seeding sites across twelve `test_*.gd` and
+`tool_*.gd` files wrote `building_health[b] = 100`. That was harmless until
+`building_condition()` landed and began multiplying `building_output_multiplier()`:
+
+```
+condition(100/400) = 0.35 + 0.65 x 0.25 = 0.5125
+```
+
+**Every simulated economy figure produced by this studio's tooling since the condition
+term landed was scaled by 0.5125** — anything routed through
+`building_output_multiplier()` was reported at just over half its true value.
+
+That includes the numbers behind `STUDIO.md`'s standing ruling *"a maxed village
+out-earns delving at every floor (95.0 g/real-min passive vs 90.4 delving at floor 80)"*.
+The village half of that comparison was measured on a town that read as battered. **The
+gap is wider than the ruling says, not narrower** — the ruling's direction is safe, its
+magnitude is not. Re-running `tool_balance_sim.gd` / `tool_econ_sim.gd` is now worth doing.
+
+Fixed at all 30 sites: `= 100` -> `= GameState.BUILDING_MAX_HEALTH` (plus one
+`tool_eyes_fishing.gd` site that seeded `10000.0`, above max). Sites that deliberately
+seed `0` for "this hall does not stand" were left alone.
+
+### 11.2 `tool_peril_sim.gd` did not resolve at all
+
+It read `GameState.SICK_DRAIN_PER_HOUR` in eight places. That constant was deleted by the
+two-strain split: the ordinary illness now costs **no HP at all** (it suppresses the
+passive regen), and only the plague drains, via `PLAGUE_DRAIN_PER_HOUR`. The file
+therefore did not compile, which in this harness presents as **the menu idling and a
+six-minute timeout** — house rule 1, paid for again.
+
+Its sickness half was also dead science: every sweep in it tuned a constant that no longer
+exists, and `tool_plague_sim.gd` already owns the two-strain measurement. So the file was
+**retargeted at fire**, the one system the Balance backlog says is measured nowhere. It now
+drives the whole frame (sections 9 and 10.1) and carries **one deliberate FAILING check** —
+`F4: a fire in a STAFFED town still costs that town health`. Tools are not in
+`all_test_files.txt`, so the red lives where it can be honest without breaking the suite.
+It turns green the day 9.3 is applied.
+
+### 11.3 A harness bug the fire measurement found in itself — worth knowing
+
+`wage_accum_hours` is a member that survives every other reset, so a payroll left
+part-counted by an earlier block lands inside a later measurement window — and **an unpaid
+worker walks out mid-window** (`tick_wages`, `game_state.gd:6054`). The first run of the
+fire sim read the one-hand row as a *completely unfought* fire, because that single hand
+had quit in the first in-game hour. A crew that quits is indistinguishable from a crew that
+never worked, and which it is depends on which block ran first.
+
+`quiet_town()` in `test_realclock_node.gd` and `quiet()` in `tool_peril_sim.gd` now both
+zero `wage_accum_hours` and fill `village_treasury`. **Any future village measurement must
+do the same**, or it is secretly a wage test. This also removes a latent flake from the
+existing patrol and mine blocks, whose 25-hour windows always crossed a payday.
+
+---
+
+## 12. THE DEAD-ACCESSOR SWEEP — variety 5, verified
+
+All eight candidates from last round's unverified list, checked for non-test callers
+across `*.gd` and `*.tscn`. **All eight have zero product callers.** They are not equally
+interesting, and the difference is the point:
+
+| accessor | defined | verdict |
+|---|---|---|
+| `restore_building` | `game_state.gd:1639` | **Dead, and a test proves the wrong path** — 12.1 |
+| `go_to_level` | `dungeon_interior.gd:1538` | **Dead, and has DRIFTED from the live path** — 12.2 |
+| `doctor_alive` | `game_state.gd:7487` | **Dead gate; the rule it names is enforced elsewhere** — 12.3 |
+| `build_legacy_strip` | `underdark.gd:178` | Deliberate, documented test-only affordance — 12.4 |
+| `live_count` | `underdark.gd:989` | **Fully dead — not even a test calls it.** Safe to delete. |
+| `live_count` | `wilderness.gd:218` | Dead in product; a test-only handle. Harmless. |
+| `any_live_mob` | `wilderness.gd:226` | Dead in product; a test-only handle. Harmless. |
+| `get_weapon_stats` | `player.gd:170` | Dead one-line wrapper over `active_stats`, which the product reads directly. Harmless. |
+| `all_loot_ids` | `event_boss.gd:237` | Test-only **aggregator over live data**. Keep — it cannot go stale, and the four tests using it assert real invariants. |
+
+### 12.1 `restore_building` — the real re-place path is somewhere else
+
+`build_placer.gd:222` does the erase inline:
+
+```gdscript
+GameState.removed_buildings.erase(build_name)
+```
+
+...so re-placing a razed building **does** work — but it works without ever touching
+`GameState.restore_building()`, whose entire body is that one line.
+`test_buildmenu_node.gd:29,42` calls the dead one. **The test exercises a path the game
+never takes**, which is precisely the shape the road-cut gate had.
+
+*Patch (build_placer.gd is not QA's):* line 222 becomes
+`GameState.restore_building(build_name)`. One line, and the test starts meaning something.
+Or delete `restore_building` and have the test call `removed_buildings.erase()` — either
+is fine, but the two must not stay forked.
+
+### 12.2 `go_to_level` — a dead duplicate that has since drifted
+
+Floor-to-floor movement was removed; `dungeon_interior.gd:1530` says so in its own words
+(*"floors are reached only by their doors"*). The live entry sequence is inside `_ready()`
+at lines 464-474 and does **seven** things:
+
+```gdscript
+GameState.quest_event("reach_level", "", current_level)
+_ensure_ambient()
+build_level_visuals(current_level)
+place_player_at_entry(false)
+update_level_label()
+setup_exit_button()
+spawn_level_combat()
+# ...plus the deep-shrine re-placement
+```
+
+`go_to_level()` does **three** of them. `test_cleared_node.gd:92` descends with it — so
+that test builds its floor by a path that has already drifted from the real one (no quest
+event, no ambient, no level label, no shrine). It has not produced a false green yet, but
+this is exactly how one gets manufactured.
+
+*Recommendation:* delete `go_to_level`; QA reworks `test_cleared_node` onto the live
+sequence. Not done this pass — see section 13.
+
+### 12.3 `doctor_alive` — the named rule is real, this function is not what keeps it
+
+The design line is *"if she dies in a siege, the service dies with her."* That **is**
+enforced — but by `npc.gd:913`, which returns false when `find_villager_data()` comes back
+empty, not by `doctor_alive()`. Nothing in the product calls `doctor_alive()`.
+
+And `test_adventurer_node.gd:264` "proves" the rule with
+`check("the heal service dies with her (doctor_alive reads the roster)", GameState.has_method("doctor_alive"))`
+— a **variety-2 assertion** (cannot fail) about a **variety-5 function** (nothing calls
+it). The one real use is line 482, which reads it to verify an old-save migration; that use
+is legitimate.
+
+*Patch:* either have `try_doctor_heal()` gate on `doctor_alive()` (making house rule 7 true
+of it), or delete it and rewrite the line-264 assertion against the real gate. QA did not
+touch it — see section 13.
+
+### 12.4 `build_legacy_strip` — honest, but three tests prove a world nobody walks
+
+`underdark.gd:168` says it plainly: the legacy deep is no longer built, the cave mouth
+routes to `underground.tscn`, and the strip is "kept for the suites that prove the layout's
+contracts". `test_deepreach_node`, `test_doorloop_node` and `test_underdark_node` all build
+it first. That is not a lie — but it is **three tests' worth of green spent on a layout no
+player can reach**, and it should be a conscious choice rather than an inherited one. The
+lead's call; QA changed nothing.
+
+---
+
+## 13. WHAT I DID NOT DO
+
+- **Did not fix a single product bug.** 9.3, 12.1, 12.2 and 12.3 are written as exact
+  patches for the file's owner. `game_state.gd` and `building.gd` were being edited by the
+  lead during this pass and were never touched.
+- **Did not make the suite red.** The fire finding is *pinned* in
+  `test_realclock_node.gd` as an assertion of what is measurably true today, with the
+  branch that should replace it written directly beneath it. When 9.3 lands, that pinned
+  check fails — **that failure is the signal**, and the file says so at the failure site.
+  The honest red lives in `tool_peril_sim.gd`, which the suite does not run.
+- **Did not rework `test_cleared_node` off `go_to_level`** (12.2) or rewrite the
+  `doctor_alive` assertion (12.3). Both are QA's files and both are worth doing, but both
+  are only worth doing *after* the lead decides whether the dead function is deleted or
+  wired — otherwise the test gets rewritten twice.
+- **Did not re-run `tool_balance_sim` / `tool_econ_sim` with the corrected health seed**
+  (11.1). The fix is in; the corrected economy figures are a Balance job and a long run.
+- **Did not test `tick_food` -> `tick_morale_effects`, or the population loop across both
+  clock surfaces.** Still the largest remaining real-clock gap, and still where QA would
+  look next — with one addition now proven worth checking: **any two sub-ticks that write
+  the same dictionary from different schedules.** Fire/mend is the second one found this
+  way. The next candidate is `tick_food`'s production against `auto_sell_village_surplus`,
+  which move `village_stockpile` from opposite sides of the same frame.

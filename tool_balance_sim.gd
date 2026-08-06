@@ -75,7 +75,7 @@ func staff_town(n_total: int, employed_map: Dictionary) -> void:
 func operational(names: Array) -> void:
 	for b in names:
 		GameState.building_stage[b] = GameState.TOTAL_BUILD_STAGES
-		GameState.building_health[b] = 100
+		GameState.building_health[b] = GameState.BUILDING_MAX_HEALTH
 
 func _ready() -> void:
 	for i in range(1200):

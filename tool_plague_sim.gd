@@ -2,12 +2,12 @@ extends Node
 # ==================== THE TWO-STRAIN SICKNESS SIMULATOR ====================
 # Run:  MONARCH_TEST="res://tool_plague_sim.gd" Godot.exe --headless --path .
 #
-# ⚠ TARGETS THE TWO-STRAIN MODEL, WHICH IS NOT ON MASTER YET. It lives on
-# claude/gifted-murdock-786925 (and focused-pike-23c680). Against master's
-# single-strain code this tool will not even resolve PLAGUE_DRAIN_PER_HOUR --
-# use tool_peril_sim.gd there. Run it from a worktree at that branch:
-#     git worktree add --detach <tmp> claude/gifted-murdock-786925
-#     cp tool_plague_sim.gd <tmp>/ && cd <tmp> && Godot.exe --headless --path . --import
+# THE TWO-STRAIN MODEL IS ON MASTER (merged; this header's old warning that it
+# lived only on a branch is retired, 2026-08-06). It also means the old advice
+# here -- "use tool_peril_sim.gd instead" -- is dead: that file's sickness half
+# was written against SICK_DRAIN_PER_HOUR, which no longer exists, so it did not
+# resolve at all. This tool is now the ONLY sickness measurement; tool_peril_sim
+# has been retargeted at fire.
 #
 # WHAT CHANGED UNDER THE OLD SWEEP
 #   SICK_DRAIN_PER_HOUR is gone. The ordinary ILLNESS now costs no HP at all --
@@ -76,12 +76,12 @@ func paint(n: int, spacing: float, employed: bool, hospital: bool, doctors: int,
 	_vid = 0
 	for b in ["Farm", "Fishing Dock", "Bar", "Tavern", "Government"]:
 		GameState.building_stage[b] = GameState.TOTAL_BUILD_STAGES
-		GameState.building_health[b] = 100
+		GameState.building_health[b] = GameState.BUILDING_MAX_HEALTH
 	for b2 in GameState.STARTING_BUILDINGS:
 		if not (b2 in ["Farm", "Fishing Dock", "Bar", "Tavern", "Government", "Hospital"]):
 			GameState.building_stage[b2] = 0
 	GameState.building_stage["Hospital"] = GameState.TOTAL_BUILD_STAGES if hospital else 0
-	GameState.building_health["Hospital"] = 100 if hospital else 0
+	GameState.building_health["Hospital"] = GameState.BUILDING_MAX_HEALTH if hospital else 0
 	for i in range(n):
 		if employed:
 			GameState.rescued_villagers.append(mk("Male" if i % 2 == 0 else "Female", "Farm", "Farmer", "Farm"))

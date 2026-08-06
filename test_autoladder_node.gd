@@ -147,7 +147,7 @@ func _ready() -> void:
 	var seat := func(bname: String, title: String, n: int) -> void:
 		GameState.rescued_villagers = []
 		GameState.building_stage[bname] = GameState.TOTAL_BUILD_STAGES
-		GameState.building_health[bname] = 100
+		GameState.building_health[bname] = GameState.BUILDING_MAX_HEALTH
 		GameState.village_food = 400.0
 		for i in range(n):
 			GameState.rescued_villagers.append({
@@ -173,7 +173,7 @@ func _ready() -> void:
 	GameState.rescued_villagers = []
 	for b in ["Blacksmith", "Barracks"]:
 		GameState.building_stage[b] = GameState.TOTAL_BUILD_STAGES
-		GameState.building_health[b] = 100
+		GameState.building_health[b] = GameState.BUILDING_MAX_HEALTH
 	GameState.rescued_villagers.append({"id": "fm", "name": "Forgemaster", "sex": "Female",
 		"is_kid": false, "stat_name": "Forgemaster", "stat_value": 6,
 		"role_key": "Blacksmith", "role_title": "Forgemaster"})
@@ -237,7 +237,7 @@ func _ready() -> void:
 	# and prove it end-to-end on one of them: levelling the School must school faster
 	GameState.rescued_villagers = []
 	GameState.building_stage["School"] = GameState.TOTAL_BUILD_STAGES
-	GameState.building_health["School"] = 100
+	GameState.building_health["School"] = GameState.BUILDING_MAX_HEALTH
 	GameState.building_levels["School"] = 1
 	var sch_l1: float = GameState.get_school_graduation_speed_multiplier()
 	GameState.building_levels["School"] = 6
@@ -257,7 +257,7 @@ func _ready() -> void:
 		for bn in GameState.BUILDING_POWERS.keys():
 			GameState.building_levels[bn] = n
 			GameState.building_stage[bn] = GameState.TOTAL_BUILD_STAGES
-			GameState.building_health[bn] = 100
+			GameState.building_health[bn] = GameState.BUILDING_MAX_HEALTH
 	# seat whoever each power answers to: the named leader, or (the Shrine alone,
 	# which crowns no VIP) its keepers at their posts
 	var seat_all := func() -> void:
@@ -328,7 +328,7 @@ func _ready() -> void:
 	# leader worthless. The master must be seated; level 4 is what he does with it.
 	for b in ["Blacksmith", "Barracks"]:
 		GameState.building_stage[b] = GameState.TOTAL_BUILD_STAGES
-		GameState.building_health[b] = 100
+		GameState.building_health[b] = GameState.BUILDING_MAX_HEALTH
 	var forge := func(lvl: int) -> int:
 		GameState.building_levels["Blacksmith"] = lvl
 		GameState.rescued_villagers = [{"id": "fm", "name": "Hilda", "sex": "Female",
@@ -357,7 +357,7 @@ func _ready() -> void:
 		GameState.building_levels["Government"] = lvl
 		for bb in ["Government", "Farm", "Mine"]:
 			GameState.building_stage[bb] = GameState.TOTAL_BUILD_STAGES
-			GameState.building_health[bb] = 100
+			GameState.building_health[bb] = GameState.BUILDING_MAX_HEALTH
 		GameState.rescued_villagers = [
 			{"id": "ch", "name": "Alaric", "sex": "Male", "is_kid": false,
 				"stat_name": "Chancellor", "stat_value": 9,
@@ -379,7 +379,7 @@ func _ready() -> void:
 	var starve := func(lvl: int) -> float:
 		GameState.building_levels["Farm"] = lvl
 		GameState.building_stage["Farm"] = GameState.TOTAL_BUILD_STAGES
-		GameState.building_health["Farm"] = 100
+		GameState.building_health["Farm"] = GameState.BUILDING_MAX_HEALTH
 		# the Harvestmaster must be seated (the power is HERS now) -- so the town has
 		# to out-eat her fields for the larder to empty at all, which is exactly when
 		# the reserve is meant to matter. Enough mouths to run the deficit.
@@ -403,7 +403,7 @@ func _ready() -> void:
 	var ward := func(lvl: int) -> float:
 		GameState.building_levels["Hospital"] = lvl
 		GameState.building_stage["Hospital"] = GameState.TOTAL_BUILD_STAGES
-		GameState.building_health["Hospital"] = 100
+		GameState.building_health["Hospital"] = GameState.BUILDING_MAX_HEALTH
 		GameState.rescued_villagers = [{"id": "cp", "name": "Vesna", "sex": "Female",
 			"is_kid": false, "stat_name": "Chief Physician", "stat_value": 6,
 			"role_key": "Hospital", "role_title": "Chief Physician"}]
@@ -423,7 +423,7 @@ func _ready() -> void:
 		GameState.building_levels["Bar"] = lvl
 		for b in ["Bar", "Builderhouse"]:
 			GameState.building_stage[b] = GameState.TOTAL_BUILD_STAGES
-			GameState.building_health[b] = 100
+			GameState.building_health[b] = GameState.BUILDING_MAX_HEALTH
 		GameState.building_levels["Builderhouse"] = 1
 		# NO free cottage on purpose: pairing alone needs one, so what the power adds
 		# is RAISING the home for the couple that would otherwise wait forever --
@@ -454,7 +454,7 @@ func _ready() -> void:
 	var rooted := func(lvl: int) -> int:
 		GameState.building_levels["Shrine"] = lvl
 		GameState.building_stage["Shrine"] = GameState.TOTAL_BUILD_STAGES
-		GameState.building_health["Shrine"] = 100
+		GameState.building_health["Shrine"] = GameState.BUILDING_MAX_HEALTH
 		GameState.villager_rot = {}
 		GameState.rescued_villagers = [{"id": "sad", "name": "Sad", "sex": "Male",
 			"is_kid": false, "stat_name": "", "stat_value": 3, "role_key": "",
@@ -474,7 +474,7 @@ func _ready() -> void:
 	var known := func(lvl: int) -> int:
 		GameState.building_levels["Science Lab"] = lvl
 		GameState.building_stage["Science Lab"] = GameState.TOTAL_BUILD_STAGES
-		GameState.building_health["Science Lab"] = 100
+		GameState.building_health["Science Lab"] = GameState.BUILDING_MAX_HEALTH
 		GameState.rescued_villagers = [{"id": "lr", "name": "Wrenna", "sex": "Female",
 			"is_kid": false, "stat_name": "Lead Researcher", "stat_value": 7,
 			"role_key": "Science Lab", "role_title": "Lead Researcher"}]
@@ -488,7 +488,7 @@ func _ready() -> void:
 
 	# THE LONG NIGHT: a floor under the town's spirit
 	GameState.building_stage["Tavern"] = GameState.TOTAL_BUILD_STAGES
-	GameState.building_health["Tavern"] = 100
+	GameState.building_health["Tavern"] = GameState.BUILDING_MAX_HEALTH
 	GameState.village_food = 200.0
 	GameState.morale_death_shock = 0.0
 	GameState.rescued_villagers = [{"id": "bleak", "name": "Bleak", "sex": "Male",
@@ -530,7 +530,7 @@ func _ready() -> void:
 
 	# THE FULL TABLE: the Farm feeds with NO farmhands seated
 	GameState.building_stage["Farm"] = GameState.TOTAL_BUILD_STAGES
-	GameState.building_health["Farm"] = 100
+	GameState.building_health["Farm"] = GameState.BUILDING_MAX_HEALTH
 	GameState.building_levels["Farm"] = 1
 	GameState.rescued_villagers = []
 	var food_nobody: float = GameState.food_production_per_hour()
@@ -544,7 +544,7 @@ func _ready() -> void:
 
 	# THE MUSTER: untrained townsfolk stand to the wall
 	GameState.building_stage["Barracks"] = GameState.TOTAL_BUILD_STAGES
-	GameState.building_health["Barracks"] = 100
+	GameState.building_health["Barracks"] = GameState.BUILDING_MAX_HEALTH
 	GameState.building_levels["Barracks"] = 1
 	GameState.ensure_adventurers()
 	for aid in GameState.adventurers.keys():

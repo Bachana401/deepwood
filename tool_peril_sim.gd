@@ -1,31 +1,36 @@
 extends Node
-# ==================== THE SICKNESS & FIRE SIMULATOR ====================
+# ======================== THE FIRE SIMULATOR ========================
 # Run:  MONARCH_TEST="res://tool_peril_sim.gd" Godot.exe --headless --path .
 #
-# Sickness and fire are the two costs the village produces AT the player rather
-# than FOR them. Both were retuned by the lead after an audit found sickness
-# could not kill anyone and fire switched itself off once the Builderhouse was
-# staffed. Fresh numbers, never measured. This measures them.
+# WHAT THIS FILE USED TO BE, AND WHY IT CHANGED (QA, 2026-08-06)
+#   It was the SICKNESS & FIRE simulator, written against the single-strain
+#   sickness. That model is gone: SICK_DRAIN_PER_HOUR no longer exists, the
+#   ordinary illness costs no HP at all (it suppresses the passive regen and
+#   sours the mood), and only the PLAGUE drains, at PLAGUE_DRAIN_PER_HOUR.
+#   Every sickness reading in here was measuring a constant the game no longer
+#   has -- and worse, the file therefore did not resolve at all, so running it
+#   idled at the menu and read as a six-minute TIMEOUT rather than as an error.
+#   The sickness half now lives in tool_plague_sim.gd, written for the two-strain
+#   model. This file keeps the half nothing else measures: FIRE.
 #
-# THE QUESTIONS FROM THE BRIEF
-#   1. How long from falling ill to death with NO intervention?
-#   2. How often does a town of eighty lose someone?
-#   3. Can a fire chain through a tightly-packed row and take several buildings
-#      before a staffed crew stops it?
+# WHY FIRE NEEDS ITS OWN SIM
+#   Fire is the only system whose cost is paid by a BUILDING rather than a body,
+#   and it is fought by an automation that runs on a DIFFERENT SCHEDULE from the
+#   thing it fights. The burn is in tick_village_clock (per in-game hour); the
+#   crew's repair is in apply_leadership_automation (per INCOME_INTERVAL_SECONDS
+#   of REAL time). A measurement that drives only one of them measures half a
+#   system -- which is how the douse-roll bug survived once already: an unclamped
+#   roll put 1.06 on a randf(), so every fire went out on its first day forever
+#   and the whole system switched itself off the moment the crew was staffed.
 #
-# CRITICAL METHOD NOTE
-#   Sickness does NOT own the villager's HP by itself. tick_village_clock runs
-#   tick_sickness(h) and then tick_morale_effects(h), and the second one heals
-#   everyone who is not starving at DESPAIR_HP_REGEN_PER_HOUR. So the only
-#   honest reading of "how fast does sickness kill" comes from the WHOLE tick,
-#   not from SICK_DRAIN_PER_HOUR on its own. Both are reported below, because
-#   the difference between them is the entire finding.
-#
-# ASSUMPTIONS
-#   * Towns are painted CARED-FOR: fed, housed, paired, high morale. That is the
-#     kindest case for the sickness (no starvation drain helping it along) and
-#     the one the design cares about -- "your town can now hurt" is meant to bite
-#     a town that is otherwise doing fine.
+# METHOD
+#   * Nothing here calls a fire function with numbers it invented. The hourly
+#     half is driven through tick_village_clock(), the daily half through
+#     _fire_day(), and the crew's repair through apply_leadership_automation()
+#     on the real-time cadence _process gives it.
+#   * Every rate is reported in REAL minutes of play as well as in-game hours:
+#     "26 health an hour" means nothing until you know an in-game hour is 25
+#     real seconds.
 #   * 1 in-game day = 600 real seconds, so 1 in-game hour = 25 real seconds.
 
 var fails := 0
@@ -35,484 +40,316 @@ func check(n: String, ok: bool, d := "") -> void:
 func say(t: String) -> void: printerr(t)
 
 var p: Node = null
-const REAL_MIN_PER_GAME_DAY := 10.0
-const COTTAGE_X0 := 12000.0
+const STEP := 0.25                    # in-game hours per simulated frame
+var _income_accum := 0.0
 
-var _vid := 0
-func mk(sex: String, role: String, title: String, stat: String) -> Dictionary:
-	_vid += 1
-	return {"id": "s_%d" % _vid, "name": "S%d" % _vid, "sex": sex, "is_kid": false,
-		"stat_name": stat, "stat_value": 5, "role_key": role, "role_title": title,
-		"morale": 9.0}
+func real_min(game_hours: float) -> float:
+	return game_hours / GameState.HOURS_PER_SECOND / 60.0
 
-# A cared-for town of n souls, packed along a cottage row `spacing` apart.
-# The spacing IS the experiment for spread: SICK_SPREAD_RADIUS is 900, so a row
-# at 150 puts ~12 homes inside every carrier's reach and a row at 1200 puts none.
-func paint(n: int, spacing: float, hospital: bool, doctors: int, hosp_x: float) -> void:
-	GameState.reset_for_new_game()
-	GameState.opening_done = true
-	GameState.dev_mode = false
-	GameState.hours_until_next_siege = 999999.0
-	GameState.village_last_hours_elapsed = GameState.game_hours
+# --- the town ------------------------------------------------------------
+# Halls the village actually PLACED. auto_repair_one and _auto_mend_one both skip
+# a building with no node in the scene, so a repair measured on a GameState-only
+# town measures a crew that was never allowed to lift a hammer -- and reports a
+# clean, confident zero for it.
+func placed_halls() -> Array:
+	var out: Array = []
+	for bn in GameState.STARTING_BUILDINGS:
+		if get_tree().get_first_node_in_group("building_role_" + str(bn)) != null:
+			out.append(str(bn))
+	return out
+
+# Stand `names` up whole and flatten everything else. With `sync`, node-bearing
+# halls are refreshed too: building.gd caches stage and health at _ready, and the
+# fire's hourly resync returns early while that cached stage still reads a ruin.
+# The Monte Carlo sections pass sync=false -- they never touch a node, and
+# rebuilding every hall's geometry a thousand times over would cost minutes.
+func stand(names: Array, sync := false) -> void:
+	for bn in GameState.STARTING_BUILDINGS:
+		GameState.building_stage[bn] = 0
+		GameState.building_health[bn] = 0
+	for n in names:
+		GameState.building_stage[str(n)] = GameState.TOTAL_BUILD_STAGES
+		GameState.building_health[str(n)] = float(GameState.BUILDING_MAX_HEALTH)
+	if not sync:
+		return
+	for n2 in placed_halls():
+		var node: Node = get_tree().get_first_node_in_group("building_role_" + str(n2))
+		if node != null and node.has_method("sync_from_state"):
+			node.call("sync_from_state")
+
+func crew(hands: int) -> void:
 	GameState.rescued_villagers = []
-	GameState.cottage_homes = {}
-	GameState.mating_houses = {}
-	GameState.pregnancies = {}
-	GameState.extra_cottage_ids = []
-	GameState.extra_cottage_positions = []
-	GameState.extra_cottages = 0
-	GameState.sick = {}
-	GameState.villager_hp = {}
-	GameState.villager_rot = {}
-	GameState._sick_accum = 0.0
-	GameState.building_levels = {}
-	_vid = 0
-	for b in ["Farm", "Fishing Dock", "Bar", "Tavern", "Government"]:
-		GameState.building_stage[b] = GameState.TOTAL_BUILD_STAGES
-		GameState.building_health[b] = 100
-	for b2 in GameState.STARTING_BUILDINGS:
-		if not (b2 in ["Farm", "Fishing Dock", "Bar", "Tavern", "Government", "Hospital"]):
-			GameState.building_stage[b2] = 0
-	GameState.building_stage["Hospital"] = GameState.TOTAL_BUILD_STAGES if hospital else 0
-	GameState.building_health["Hospital"] = 100 if hospital else 0
-	for i in range(n):
-		GameState.rescued_villagers.append(mk("Male" if i % 2 == 0 else "Female", "Farm", "Farmer", "Farm"))
-	for d in range(doctors):
-		GameState.rescued_villagers.append(mk("Female", "Hospital", "Doctors", "Hospital"))
-	var vs: Array = GameState.rescued_villagers
-	var hi := 0
-	for j in range(0, vs.size() - 1, 2):
-		var hid: String = GameState.register_cottage(COTTAGE_X0 + spacing * float(hi))
-		hi += 1
-		vs[j]["partner_id"] = str(vs[j + 1]["id"])
-		vs[j + 1]["partner_id"] = str(vs[j]["id"])
-		vs[j]["paired"] = true
-		vs[j + 1]["paired"] = true
-		GameState.cottage_homes[hid] = {"a": str(vs[j]["id"]), "b": str(vs[j + 1]["id"])}
-	# the halls stand somewhere the cottage row can (or cannot) feel
-	GameState.building_x = {"Farm": COTTAGE_X0 - 3000.0, "Fishing Dock": COTTAGE_X0 - 3200.0,
-		"Bar": COTTAGE_X0 - 3400.0, "Tavern": COTTAGE_X0 - 3600.0,
-		"Government": COTTAGE_X0 - 3800.0, "Hospital": hosp_x}
-	GameState.building_districts = {}
-	GameState.building_neighbors = {}
-	GameState.building_plots = {}
-	GameState.village_food = float(n) * 60.0
+	for i in range(hands):
+		GameState.rescued_villagers.append({"id": "hand%d" % i, "name": "Hand", "sex": "Male",
+			"is_kid": false, "stat_name": "", "stat_value": 3,
+			"role_key": "Builderhouse", "role_title": "Builderhouse"})
 
-# THE LARDER IS HELD FULL. The first pass of this sim read a town wiping out and
-# blamed the sickness; the hour-by-hour trace said otherwise -- HP sat pinned at
-# 100 for nine straight days and then fell off a cliff the hour the food ran out.
-# Starvation and sickness share ONE HP pool (tick_morale_effects), so the only way
-# to measure either is to hold the other at zero.
-var keep_fed := true
-# Simulates a HIGHER SICK_DRAIN_PER_HOUR without touching the lead's constant.
-# Applied after the tick, which is arithmetically identical: the regen clamps at
-# MAX_HP either way, so the net rate is -(SICK_DRAIN + extra - REGEN) in both.
-var extra_drain := 0.0
-# Simulates the alternative patch: the sick simply do not passively regen.
-var no_regen_when_sick := false
-
-func advance(hours: float) -> void:
-	var stepped := 0.0
-	while stepped < hours:
-		var step: float = minf(1.0, hours - stepped)
-		if keep_fed:
-			GameState.village_food = maxf(GameState.village_food, float(pop()) * 40.0)
-		GameState.game_hours += step
-		var before: Dictionary = {}
-		if no_regen_when_sick:
-			for sid in GameState.sick.keys():
-				before[str(sid)] = GameState.get_villager_hp(str(sid))
+# A WHOLE FRAME, the way _process runs one: the automation on its real-time
+# cadence, then the clock. Never one without the other -- that is the point of
+# this file.
+func run_frame(hours: float) -> void:
+	GameState.village_last_hours_elapsed = GameState.game_hours
+	_income_accum = 0.0
+	var steps: int = int(round(hours / STEP))
+	var real_per_step: float = STEP / GameState.HOURS_PER_SECOND
+	for i in range(steps):
+		GameState.game_hours += STEP
+		_income_accum += real_per_step
+		if _income_accum >= GameState.INCOME_INTERVAL_SECONDS:
+			_income_accum -= GameState.INCOME_INTERVAL_SECONDS
+			GameState.apply_leadership_automation()
 		GameState.tick_village_clock()
-		if no_regen_when_sick:
-			for sid2 in before.keys():
-				if GameState.villager_hp.has(sid2):
-					var relief: float = 1.0
-					var v: Dictionary = GameState.find_villager_by_id(str(sid2))
-					if not v.is_empty() and GameState.in_aura("Hospital", v):
-						relief = 1.0 - GameState.SICK_WARD_DRAIN_RELIEF
-					GameState.villager_hp[sid2] = minf(
-						float(before[sid2]) - GameState.SICK_DRAIN_PER_HOUR * step * relief,
-						GameState.get_villager_hp(str(sid2)))
-		if extra_drain > 0.0:
-			for sid3 in GameState.sick.keys():
-				if not GameState.villager_hp.has(sid3) and not GameState.sick.has(sid3):
-					continue
-				var relief2: float = 1.0
-				var v2: Dictionary = GameState.find_villager_by_id(str(sid3))
-				if not v2.is_empty() and GameState.in_aura("Hospital", v2):
-					relief2 = 1.0 - GameState.SICK_WARD_DRAIN_RELIEF
-				GameState.villager_hp[str(sid3)] = GameState.get_villager_hp(str(sid3)) \
-					- extra_drain * step * relief2
-			GameState._reap_the_sick()
-		GameState.pregnancies = {}          # pin the roster: births would muddy the count
-		stepped += step
 
-func pop() -> int:
-	return GameState.rescued_villagers.size()
+# A quiet town: nothing but the fire may touch a building inside these windows.
+func quiet() -> void:
+	GameState.sick = {}
+	GameState.plague_ids = {}
+	GameState.villager_hp = {}
+	GameState.burning = {}
+	GameState._fire_accum = 0.0
+	GameState.hours_until_next_siege = 1000000.0
+	GameState.live_siege_active = false
+	GameState.village_food = 100000.0
+	GameState.food_empty_hours = 0.0
+	GameState.village_stockpile = {"wood": 9999, "stone": 9999, "iron_shard": 0}
+	# PAYDAY IS THE HARNESS BUG THAT ATE THE FIRST RUN OF THIS FILE. wage_accum_hours
+	# is a member that survives everything below, so a payroll left mid-count by an
+	# earlier section lands inside a later measurement window -- and an unpaid crew
+	# WALKS OUT. The one-hand row read as a completely unfought fire because its
+	# single hand had quit in the first in-game hour. Reset the counter and fill the
+	# town's own purse: a fire measurement must never be a wage measurement.
+	GameState.wage_accum_hours = 0.0
+	GameState.village_treasury = 1000000
+	GameState.building_levels = {}
+	GameState.building_districts = {}
+	GameState.building_plots = {}
+	GameState.building_neighbors = {}
 
 # ================================================================== main
 func _ready() -> void:
 	for i in range(1800):
+		if get_tree().paused: get_tree().paused = false
 		await get_tree().process_frame
 		p = get_tree().get_first_node_in_group("player")
 		if p != null: break
 	if p == null: printerr("no player"); get_tree().quit(1); return
-	for i in range(90):
-		await get_tree().process_frame
-		if not get_tree().paused: break
-		for n in get_tree().root.find_children("*", "", true, false):
-			if n.has_method("finish") and n.has_method("show_line"): n.finish(); break
-	get_tree().paused = false
+	for n in get_tree().get_nodes_in_group("dialogue_box"):
+		if n.has_method("finish") and n.has_method("show_line"): n.finish()
+	if get_tree().paused: get_tree().paused = false
 	seed(20260806)
-	# S1/S2 walk thousands of full village ticks and take minutes. PERIL_ONLY=S5
-	# runs just the parameter sweep, for iterating on a proposed number.
-	var only: String = OS.get_environment("PERIL_ONLY")
+
+	var placed: Array = placed_halls()
+	var burn_hall := ""
+	for ph in placed:
+		if str(ph) != "Builderhouse":
+			burn_hall = str(ph)
+			break
+	if burn_hall == "":
+		printerr("no placed hall to burn"); get_tree().quit(1); return
+	say("\n  the hall under the torch: %s (one of %d the village actually placed)"
+		% [burn_hall, placed.size()])
 
 	say("\n  the constants under test:")
-	say("    SICK_DRAIN_PER_HOUR         %.2f" % GameState.SICK_DRAIN_PER_HOUR)
-	say("    DESPAIR_HP_REGEN_PER_HOUR   %.2f   <- the passive heal that runs in the SAME tick" % GameState.DESPAIR_HP_REGEN_PER_HOUR)
-	say("    VILLAGER_MAX_HP             %.0f" % GameState.VILLAGER_MAX_HP)
-	say("    SICK_CURE_CHANCE_PER_DAY    %.2f" % GameState.SICK_CURE_CHANCE_PER_DAY)
-	say("    OUTBREAK_MIN_POP            %d" % GameState.OUTBREAK_MIN_POP)
-	say("    OUTBREAK_CHANCE_PER_DAY     %.3f  (+%.4f per soul over the threshold)" % [
-		GameState.OUTBREAK_CHANCE_PER_DAY, GameState.OUTBREAK_CHANCE_PER_SOUL])
-	say("    SICK_SPREAD_CHANCE_PER_DAY  %.2f within %.0f units" % [
-		GameState.SICK_SPREAD_CHANCE_PER_DAY, GameState.SICK_SPREAD_RADIUS])
+	say("    FIRE_DAMAGE_PER_HOUR        %.1f   of %d health -> a whole hall in %.1f in-game hours (%.1f real min)" % [
+		GameState.FIRE_DAMAGE_PER_HOUR, GameState.BUILDING_MAX_HEALTH,
+		float(GameState.BUILDING_MAX_HEALTH) / GameState.FIRE_DAMAGE_PER_HOUR,
+		real_min(float(GameState.BUILDING_MAX_HEALTH) / GameState.FIRE_DAMAGE_PER_HOUR)])
+	say("    FIRE_CREW_SUPPRESS          %.2f   per Builderhouse hand (clamped at 0.90)" % GameState.FIRE_CREW_SUPPRESS)
+	say("    FIRE_OUT_CHANCE_PER_DAY     %.2f   + suppression, capped at %.2f" % [
+		GameState.FIRE_OUT_CHANCE_PER_DAY, GameState.FIRE_OUT_CHANCE_CAP])
+	say("    FIRE_SPREAD_CHANCE_PER_DAY  %.2f   to each immediate neighbour" % GameState.FIRE_SPREAD_CHANCE_PER_DAY)
+	say("    FIRE_CHANCE_PER_DAY         %.3f  per standing hall over %d, x%.1f for a hearth" % [
+		GameState.FIRE_CHANCE_PER_DAY, GameState.FIRE_MIN_BUILDINGS, GameState.FIRE_HEARTH_MULT])
+	say("    MEND_PER_PASS               %d     every %.0f real seconds (the crew's OTHER job)" % [
+		GameState.MEND_PER_PASS, GameState.INCOME_INTERVAL_SECONDS])
+	say("    -> burn %.1f health per real minute  |  mend %.1f health per real minute" % [
+		GameState.FIRE_DAMAGE_PER_HOUR * GameState.HOURS_PER_SECOND * 60.0,
+		float(GameState.MEND_PER_PASS) * 60.0 / GameState.INCOME_INTERVAL_SECONDS])
 
-	# ---------- S1: ONE SOUL, ILL, NOBODY COMING ----------
-	say("\n========== S1: ONE SOUL FALLS ILL AND NOBODY COMES ==========")
-	say("  No hospital, no doctors, no ward aura, cure roll suppressed by re-")
-	say("  infecting them every day -- the absolute worst case the game allows.")
-	# (a) the drain ALONE, as the constant reads
-	paint(2, 400.0, false, 0, -99999.0)
-	var vid: String = str(GameState.rescued_villagers[0]["id"])
-	GameState.villager_hp[vid] = GameState.VILLAGER_MAX_HP
-	GameState.sick[vid] = GameState.game_hours
-	var drain_only_h := 0
-	for h in range(2000):
-		GameState.villager_hp[vid] = GameState.get_villager_hp(vid) - GameState.SICK_DRAIN_PER_HOUR
-		drain_only_h += 1
-		if GameState.get_villager_hp(vid) <= 0.0:
-			break
-	say("  the DRAIN alone (SICK_DRAIN_PER_HOUR against full HP):")
-	say("    dead in %d in-game hours = %.1f in-game days = %.0f real minutes" % [
-		drain_only_h, float(drain_only_h) / 24.0, float(drain_only_h) / 24.0 * REAL_MIN_PER_GAME_DAY])
-
-	# (b) the drain inside the REAL tick, where the passive regen also runs
-	paint(2, 400.0, false, 0, -99999.0)
-	var vid2: String = str(GameState.rescued_villagers[0]["id"])
-	GameState.villager_hp[vid2] = GameState.VILLAGER_MAX_HP
-	GameState.sick[vid2] = GameState.game_hours
-	var hours_to_death: Callable = func(xdrain: float, skip_regen: bool, ward: bool) -> float:
-		seed(20260806)
-		extra_drain = xdrain
-		no_regen_when_sick = skip_regen
-		keep_fed = true
-		paint(2, 400.0, ward, 3 if ward else 0, COTTAGE_X0 + 200.0 if ward else -99999.0)
-		var v: String = str(GameState.rescued_villagers[0]["id"])
-		GameState.villager_hp[v] = GameState.VILLAGER_MAX_HP
-		GameState.sick[v] = GameState.game_hours
-		var start: int = pop()
-		for hh in range(2400):
-			if not GameState.sick.has(v) and pop() >= start:
-				GameState.sick[v] = GameState.game_hours   # hold them ill: "no intervention"
-			advance(1.0)
-			if pop() < start:
-				return float(hh + 1)
+	# ---------- F1: HOW LONG A BURNING HALL LASTS ----------
+	say("\n========== F1: HOW LONG A BURNING HALL LASTS ==========")
+	say("  One hall alight, driven through tick_village_clock() a quarter-hour at a")
+	say("  time until the fire knocks it back down a build stage. The daily roll is")
+	say("  held off so the blaze cannot simply go out: this measures the crew's")
+	say("  WATER (_fire_suppression), never its hammer.")
+	say("  hands | burn/hr | gutted after       | in real play")
+	var gut_hours: Callable = func(hands: int) -> float:
+		quiet()
+		stand(placed, true)
+		crew(hands)
+		GameState.building_stage["Builderhouse"] = GameState.TOTAL_BUILD_STAGES if hands > 0 else 0
+		GameState.building_health["Builderhouse"] = float(GameState.BUILDING_MAX_HEALTH)
+		GameState.burning = {burn_hall: GameState.game_hours}
+		GameState.village_last_hours_elapsed = GameState.game_hours
+		var h := 0.0
+		while h < 480.0:
+			GameState.game_hours += STEP
+			GameState.tick_village_clock()
+			GameState._fire_accum = 0.0        # hold the daily roll off
+			h += STEP
+			if int(GameState.building_stage.get(burn_hall, 0)) < GameState.TOTAL_BUILD_STAGES:
+				return h
 		return -1.0
+	var gut_alone := 0.0
+	for hands in [0, 1, 2, 4, 6, 8]:
+		crew(int(hands))
+		GameState.building_stage["Builderhouse"] = GameState.TOTAL_BUILD_STAGES if int(hands) > 0 else 0
+		var fought: float = clampf(GameState._fire_suppression(), 0.0, 0.9)
+		var g: float = gut_hours.call(int(hands))
+		if int(hands) == 0:
+			gut_alone = g
+		say("   %2d   |  %5.1f  | %s | %s" % [int(hands),
+			GameState.FIRE_DAMAGE_PER_HOUR * (1.0 - fought),
+			"never (480h+)      " if g < 0.0 else "%6.1f in-game hours " % g,
+			"never" if g < 0.0 else "%.1f real minutes of watching it" % real_min(g)])
+	check("F1: a fire nobody fights really does gut a hall",
+		gut_alone > 0.0, "still standing after 480 in-game hours")
 
-	var base_h: float = hours_to_death.call(0.0, false, false)
-	extra_drain = 0.0
-	no_regen_when_sick = false
-	say("  inside the REAL tick (sickness drains, then tick_morale_effects heals),")
-	say("  with the larder held FULL so famine cannot do the killing:")
-	if base_h < 0.0:
-		say("    STILL ALIVE after 100 in-game days (1000 real minutes).")
-		say("    net HP per hour while ill: %+.2f  (sickness %.2f, passive regen %.2f)" % [
-			GameState.DESPAIR_HP_REGEN_PER_HOUR - GameState.SICK_DRAIN_PER_HOUR,
-			-GameState.SICK_DRAIN_PER_HOUR, GameState.DESPAIR_HP_REGEN_PER_HOUR])
-		say("    THE SICKNESS IS SLOWER THAN THE HEAL IT RUNS BESIDE. It removes")
-		say("    2.40 HP an hour from a pool that gains 3.00 back in the same tick.")
-	else:
-		say("    dead in %.0f in-game hours = %.1f in-game days = %.0f real minutes" % [
-			base_h, base_h / 24.0, base_h / 24.0 * REAL_MIN_PER_GAME_DAY])
-	check("S1: an untreated sickness can actually kill the villager it has",
-		base_h > 0.0, "still alive after 100 in-game days")
-
-	say("\n  --- what WOULD kill: the same experiment at other net drains ---")
-	say("  SICK_DRAIN_PER_HOUR | net vs regen | dead after (no ward) | dead after (in ward aura)")
-	for want in ([2.4, 3.0, 3.6, 4.5, 5.5, 7.0, 9.0] if only == "" else []):
-		var xd: float = maxf(0.0, float(want) - GameState.SICK_DRAIN_PER_HOUR)
-		var t_plain: float = hours_to_death.call(xd, false, false)
-		var t_ward: float = hours_to_death.call(xd, false, true)
-		say("        %5.2f%s        |   %+5.2f/h    | %s | %s" % [
-			float(want), "  (LIVE)" if is_equal_approx(float(want), GameState.SICK_DRAIN_PER_HOUR) else "        ",
-			GameState.DESPAIR_HP_REGEN_PER_HOUR - float(want),
-			"never              " if t_plain < 0.0 else "%5.0fh (%4.1f d / %3.0f min)" % [t_plain, t_plain / 24.0, t_plain / 24.0 * REAL_MIN_PER_GAME_DAY],
-			"never" if t_ward < 0.0 else "%5.0fh (%4.1f d / %3.0f min)" % [t_ward, t_ward / 24.0, t_ward / 24.0 * REAL_MIN_PER_GAME_DAY]])
-	var t_noregen: float = hours_to_death.call(0.0, true, false)
-	var t_noregen_ward: float = hours_to_death.call(0.0, true, true)
-	extra_drain = 0.0
-	no_regen_when_sick = false
-	say("  the OTHER fix -- leave the drain at %.2f but stop the sick passively healing:" % GameState.SICK_DRAIN_PER_HOUR)
-	say("        dead after %s  |  in the ward's aura: %s" % [
-		"never" if t_noregen < 0.0 else "%.0fh (%.1f days / %.0f real minutes)" % [t_noregen, t_noregen / 24.0, t_noregen / 24.0 * REAL_MIN_PER_GAME_DAY],
-		"never" if t_noregen_ward < 0.0 else "%.0fh (%.1f days / %.0f real min)" % [t_noregen_ward, t_noregen_ward / 24.0, t_noregen_ward / 24.0 * REAL_MIN_PER_GAME_DAY]])
-
-	# ---------- S2: A TOWN OF EIGHTY, LEFT ALONE ----------
-	say("\n========== S2: A TOWN OF EIGHTY, 200 IN-GAME DAYS ==========")
-	say("  Larder held FULL throughout, so every death below is the sickness and")
-	say("  nothing else. 80 souls in a tight row, 100 in-game days (1000 real min).")
-	say("  Each candidate drain is run against three towns: no ward, a staffed ward")
-	say("  too far to reach the homes, and a staffed ward the row sits inside.")
-	say("  drain | ward         | outbreaks | peak sick | ever ill | DEAD | left alive")
-	var town: Callable = func(xdrain: float, skip_regen: bool, hosp: bool, hx: float) -> Dictionary:
-		seed(20260806)
-		extra_drain = xdrain
-		no_regen_when_sick = skip_regen
-		keep_fed = true
-		paint(80, 150.0, hosp, 3 if hosp else 0, hx)
-		var start_pop: int = pop()
-		var outbreaks := 0
-		var peak := 0
-		var ever := {}
-		var was_empty := true
-		for _h in range(2400):
-			advance(1.0)
-			if GameState.sick.is_empty():
-				was_empty = true
-			elif was_empty:
-				outbreaks += 1
-				was_empty = false
-			peak = maxi(peak, GameState.sick.size())
-			for sid in GameState.sick.keys():
-				ever[str(sid)] = true
-		return {"out": outbreaks, "peak": peak, "ever": ever.size(),
-			"dead": start_pop - pop(), "left": pop(), "start": start_pop}
-	var wards: Array = [
-		{"hosp": false, "hx": -99999.0, "tag": "none        "},
-		{"hosp": true, "hx": -99999.0, "tag": "staffed, far"},
-		{"hosp": true, "hx": COTTAGE_X0 + 500.0, "tag": "staffed, near"}]
-	var wipe_out := 0
-	var live_dead := -1
-	for want2 in ([2.4, 3.6, 5.5] if only == "" else []):
-		for w in wards:
-			var xd2: float = maxf(0.0, float(want2) - GameState.SICK_DRAIN_PER_HOUR)
-			var t: Dictionary = town.call(xd2, false, bool(w["hosp"]), float(w["hx"]))
-			if is_equal_approx(float(want2), GameState.SICK_DRAIN_PER_HOUR) and not bool(w["hosp"]):
-				live_dead = int(t["dead"])
-			if int(t["left"]) <= 2:
-				wipe_out += 1
-			say("  %5.2f | %s |    %2d     |    %3d    |   %3d    | %3d  | %d of %d" % [
-				float(want2), str(w["tag"]), int(t["out"]), int(t["peak"]), int(t["ever"]),
-				int(t["dead"]), int(t["left"]), int(t["start"])])
-	say("  -- and the no-passive-regen alternative, drain left at %.2f --" % GameState.SICK_DRAIN_PER_HOUR)
-	for w2 in (wards if only == "" else []):
-		var t2: Dictionary = town.call(0.0, true, bool(w2["hosp"]), float(w2["hx"]))
-		if int(t2["left"]) <= 2:
-			wipe_out += 1
-		say("  %5.2f | %s |    %2d     |    %3d    |   %3d    | %3d  | %d of %d" % [
-			GameState.SICK_DRAIN_PER_HOUR, str(w2["tag"]), int(t2["out"]), int(t2["peak"]),
-			int(t2["ever"]), int(t2["dead"]), int(t2["left"]), int(t2["start"])])
-	extra_drain = 0.0
-	no_regen_when_sick = false
-	check("S2: as it ships, an outbreak in a town of eighty costs it somebody",
-		live_dead > 0, "%d dead in 100 in-game days with no ward at all" % live_dead)
-	check("S2: ...and no configuration of the sickness empties the town outright",
-		wipe_out == 0, "%d of the 12 towns were emptied" % wipe_out)
-
-	# ---------- S2b: does the geography actually matter? ----------
-	# The design claim is "cottages packed in a row pass it along fast; a town
-	# spread down the road resists it". _lives_touch reads home OR WORKPLACE, so
-	# this asks whether sharing a workplace defeats the spacing outright.
-	say("\n========== S2b: DOES SPACING ACTUALLY SLOW IT? ==========")
-	say("  setup                                   | souls infected on the first day of spread")
-	for cfg3 in ([
-			{"space": 150.0, "jobs": false, "tag": "row 150 apart, all at one Farm    "},
-			{"space": 4000.0, "jobs": false, "tag": "row 4000 apart, all at one Farm   "},
-			{"space": 150.0, "jobs": true, "tag": "row 150 apart, NOBODY employed    "},
-			{"space": 4000.0, "jobs": true, "tag": "row 4000 apart, NOBODY employed   "}] if only == "" else []):
-		seed(20260806)
-		var caught := 0
-		for trial2 in range(40):
-			paint(40, float(cfg3["space"]), false, 0, -99999.0)
-			if bool(cfg3["jobs"]):
-				for v3 in GameState.rescued_villagers:
-					v3["role_key"] = ""
-					v3["role_title"] = ""
-			var seedv: String = str(GameState.rescued_villagers[0]["id"])
-			GameState.sick[seedv] = GameState.game_hours
-			GameState._sick_accum = 0.0
-			advance(25.0)                       # cross exactly one sickness day
-			caught += GameState.sick.size() - 1
-		say("   %s |  %.2f caught per outbreak-day" % [str(cfg3["tag"]), float(caught) / 40.0])
-
-	# ---------- S3: WHAT THE WARD IS WORTH ----------
-	say("\n========== S3: WHAT THE WARD IS ACTUALLY BUYING ==========")
-	say("  Since the ward's whole job is to end sicknesses, the reading that")
-	say("  matters is how long one LASTS, not how hard it hurts.")
-	for cfg2 in ([
-			{"hosp": false, "docs": 0, "hx": -99999.0, "tag": "no hospital     "},
-			{"hosp": true, "docs": 3, "hx": -99999.0, "tag": "staffed, far off"},
-			{"hosp": true, "docs": 3, "hx": COTTAGE_X0 + 500.0, "tag": "staffed, in aura"}] if only == "" else []):
-		seed(20260806)
-		var spans: Array = []
-		for trial in range(120):
-			paint(4, 3000.0, bool(cfg2["hosp"]), int(cfg2["docs"]), float(cfg2["hx"]))
-			var v3: String = str(GameState.rescued_villagers[0]["id"])
-			GameState.sick[v3] = GameState.game_hours
-			var lasted := 0
-			for h4 in range(2400):
-				advance(1.0)
-				lasted += 1
-				if not GameState.sick.has(v3):
+	# ---------- F2: HOW OFTEN A TOWN CATCHES ----------
+	say("\n========== F2: HOW OFTEN A TOWN CATCHES ==========")
+	say("  _fire_day() rolled on an unburnt town until something lights. The hearths")
+	say("  (%s) carry x%.1f the odds, so the answer" % [
+		", ".join(GameState.FIRE_HEARTHS), GameState.FIRE_HEARTH_MULT])
+	say("  depends on WHICH halls stand, not only how many. 400 trials each.")
+	say("  town                                  | mean in-game days to a fire | real hours of play")
+	var days_to_fire: Callable = func(names: Array) -> float:
+		quiet()
+		crew(0)
+		stand(names)
+		var total := 0.0
+		var trials := 400
+		for t in range(trials):
+			GameState.burning = {}
+			var d := 0
+			while d < 4000:
+				d += 1
+				GameState._fire_day()
+				if not GameState.burning.is_empty():
 					break
-			spans.append(float(lasted))
-		var mean := 0.0
-		for s in spans:
-			mean += float(s)
-		mean /= float(spans.size())
-		say("   %s: an illness lasts %.1f in-game hours (%.1f days / %.0f real minutes)" % [
-			str(cfg2["tag"]), mean, mean / 24.0, mean / 24.0 * REAL_MIN_PER_GAME_DAY])
+			total += float(d)
+		return total / float(trials)
+	var towns: Array = [
+		{"tag": "4 halls, no hearth (under the gate) ", "b": ["Farm", "Bank", "Mine", "School"]},
+		{"tag": "6 plain halls, no hearth            ", "b": ["Farm", "Bank", "Mine", "School", "Government", "Hospital"]},
+		{"tag": "6 halls, one hearth (the Blacksmith)", "b": ["Farm", "Bank", "Mine", "School", "Government", "Blacksmith"]},
+		{"tag": "a full town, every hearth standing  ", "b": GameState.STARTING_BUILDINGS},
+	]
+	var hamlet_safe := true
+	for tw in towns:
+		var d2: float = days_to_fire.call(tw["b"])
+		if str(tw["tag"]).begins_with("4 halls") and d2 < 3999.0:
+			hamlet_safe = false
+		say("  %s |  %s | %s" % [str(tw["tag"]),
+			"never (4000d+)          " if d2 >= 3999.0 else "%8.1f in-game days   " % d2,
+			"never" if d2 >= 3999.0 else "%.1f hours" % (d2 * 10.0 / 60.0)])
+	check("F2: a hamlet under the threshold never burns", hamlet_safe)
 
-	# ---------- S5: THE SPREAD/CURE EQUILIBRIUM ----------
-	# S1 and S2 together say the drain alone cannot be fixed: below the passive
-	# regen nobody dies, above it EVERYBODY does. The reason is upstream -- the
-	# spread saturates the town before the cure can clear anyone, so the sickness
-	# has only two states, "everyone has it" and "everyone is dead". This sweeps
-	# the two numbers that decide that, on the REAL contact graph (_lives_touch
-	# over the real painted roster), to find a pair that settles somewhere in
-	# between. It is a MODEL of _sickness_day, not the function itself -- the
-	# constants are the lead's, so they cannot be set from here.
-	say("\n========== S5: WHY IT HAS NO MIDDLE -- THE SPREAD/CURE SWEEP ==========")
-	seed(20260806)
-	keep_fed = true
-	paint(80, 150.0, false, 0, -99999.0)
-	var roster: Array = GameState.rescued_villagers
-	var touch: Array = []                    # the real contact graph, built once
-	for i2 in range(roster.size()):
-		var rowt: Array = []
-		for j2 in range(roster.size()):
-			rowt.append(i2 != j2 and GameState._lives_touch(roster[i2], roster[j2], GameState.SICK_SPREAD_RADIUS))
-		touch.append(rowt)
-	# ...and the graph a HOMES-ONLY rule would give. villager_places() returns the
-	# cottage first and the workplace second, so dropping the workplace is exactly
-	# "does their door stand near your door". This is the graph the design line
-	# describes ("cottages packed in a row pass it along fast").
-	var homes: Array = []
-	for i2b in range(roster.size()):
-		var hx: float = -1.0e9
-		var pl: Array = GameState.villager_places(roster[i2b])
-		if not pl.is_empty():
-			hx = float(pl[0])
-		homes.append(hx)
-	var touch_home: Array = []
-	for i2c in range(roster.size()):
-		var rowh: Array = []
-		for j2c in range(roster.size()):
-			rowh.append(i2c != j2c
-				and absf(float(homes[i2c]) - float(homes[j2c])) <= GameState.SICK_SPREAD_RADIUS)
-		touch_home.append(rowh)
-	var contacts := 0
-	var contacts_home := 0
-	for i3 in range(touch.size()):
-		for j3 in range(touch.size()):
-			if bool(touch[i3][j3]): contacts += 1
-			if bool(touch_home[i3][j3]): contacts_home += 1
-	say("  the REAL contact graph (home OR workplace): every soul touches %.1f of %d others." % [
-		float(contacts) / float(roster.size()), roster.size() - 1])
-	say("  a HOMES-ONLY graph, same tight row:        every soul touches %.1f of %d others." % [
-		float(contacts_home) / float(roster.size()), roster.size() - 1])
-	say("  spread | cure | ward cure | avg %% of town ill | deaths/100 days | verdict")
-	var model: Callable = func(spread: float, cure: float, net_per_hour: float, graph: Array) -> Dictionary:
-		var n: int = roster.size()
-		var ill: Array = []
-		var hp: Array = []
-		for _i in range(n):
-			ill.append(false)
-			hp.append(GameState.VILLAGER_MAX_HP)
-		ill[0] = true
-		var ill_days := 0
-		var deaths := 0
-		var alive := n
-		for _d in range(100):
-			# ---- the hourly half: HP moves by the net rate ----
-			for i4 in range(n):
-				if ill[i4] and hp[i4] > 0.0:
-					hp[i4] -= net_per_hour * 24.0
-					if hp[i4] <= 0.0:
-						deaths += 1
-						alive -= 1
-						ill[i4] = false
-				elif hp[i4] > 0.0:
-					hp[i4] = minf(GameState.VILLAGER_MAX_HP, hp[i4] + 24.0 * 3.0)
-			# ---- who throws it off ----
-			for i5 in range(n):
-				if ill[i5] and randf() < cure:
-					ill[i5] = false
-			# ---- who catches it ----
-			var fresh: Array = []
-			for i6 in range(n):
-				if ill[i6] or hp[i6] <= 0.0:
-					continue
-				for j6 in range(n):
-					if ill[j6] and bool(graph[j6][i6]) and randf() < spread:
-						fresh.append(i6)
-						break
-			for f in fresh:
-				ill[int(f)] = true
-			var count := 0
-			for i7 in range(n):
-				if ill[i7]: count += 1
-			ill_days += count
-		return {"avg": 100.0 * float(ill_days) / float(100 * n), "dead": deaths}
-	for cfg4 in [
-			{"s": GameState.SICK_SPREAD_CHANCE_PER_DAY, "c": GameState.SICK_CURE_CHANCE_PER_DAY, "net": -0.60, "home": false, "tag": "AS IT SHIPS"},
-			{"s": GameState.SICK_SPREAD_CHANCE_PER_DAY, "c": GameState.SICK_CURE_CHANCE_PER_DAY, "net": 2.40, "home": false, "tag": "ships + no sick regen"},
-			{"s": 0.08, "c": 0.25, "net": 2.40, "home": false, "tag": "spread 0.08 cure 0.25"},
-			{"s": 0.05, "c": 0.35, "net": 2.40, "home": false, "tag": "spread 0.05 cure 0.35"},
-			{"s": 0.04, "c": 0.45, "net": 2.40, "home": false, "tag": "spread 0.04 cure 0.45"},
-			# ...and the shape the numbers above argue for: an illness that is SLOW
-			# to kill (so the daily cure roll usually beats it), carried by a spread
-			# that cannot saturate the town because it only travels door to door.
-			{"s": GameState.SICK_SPREAD_CHANCE_PER_DAY, "c": GameState.SICK_CURE_CHANCE_PER_DAY, "net": 1.20, "home": true, "tag": "HOMES-ONLY, ships' spread/cure"},
-			{"s": 0.12, "c": 0.30, "net": 1.20, "home": true, "tag": "HOMES-ONLY 0.12/0.30 drain 1.2"},
-			{"s": 0.12, "c": 0.30, "net": 0.60, "home": true, "tag": "PROPOSED  homes 0.12/0.30 drain 0.6"},
-			{"s": 0.10, "c": 0.35, "net": 1.20, "home": true, "tag": "PROPOSED  homes 0.10/0.35 drain 1.2"}]:
-		var acc_avg := 0.0
-		var acc_dead := 0.0
-		for rep in range(8):
-			var m: Dictionary = model.call(float(cfg4["s"]), float(cfg4["c"]), float(cfg4["net"]),
-				touch_home if bool(cfg4["home"]) else touch)
-			acc_avg += float(m["avg"])
-			acc_dead += float(m["dead"])
-		acc_avg /= 8.0
-		acc_dead /= 8.0
-		say("   %.2f  | %.2f |   ---     |     %5.1f%%        |     %5.1f       | %s" % [
-			float(cfg4["s"]), float(cfg4["c"]), acc_avg, acc_dead, str(cfg4["tag"])])
+	# ---------- F3: THE COST OF A TIGHT ROW ----------
+	say("\n========== F3: THE COST OF A TIGHT ROW ==========")
+	say("  Eight halls chained shoulder to shoulder (each one its neighbour's")
+	say("  neighbour), the middle one lit, then _fire_day() rolled until nothing is")
+	say("  alight. This is the design's headline claim -- the row that earns most is")
+	say("  the row that burns whole -- and the crew is the only thing shortening it.")
+	say("  hands | mean days alight | mean halls that ever caught | worst seen")
+	var row: Array = ["Farm", "Bank", "Mine", "School", "Government", "Hospital", "Tavern", "Blacksmith"]
+	var chain: Dictionary = {}
+	for i2 in range(row.size()):
+		chain[str(row[i2])] = [
+			str(row[i2 - 1]) if i2 > 0 else "",
+			str(row[i2 + 1]) if i2 < row.size() - 1 else ""]
+	var spread_ever := 0.0
+	for hands2 in [0, 1, 2, 4, 8]:
+		quiet()
+		crew(int(hands2))
+		var tot_days := 0.0
+		var tot_halls := 0.0
+		var worst := 0
+		var trials2 := 300
+		for t2 in range(trials2):
+			stand(row)
+			GameState.building_stage["Builderhouse"] = GameState.TOTAL_BUILD_STAGES if int(hands2) > 0 else 0
+			GameState.building_health["Builderhouse"] = float(GameState.BUILDING_MAX_HEALTH)
+			GameState.building_neighbors = chain
+			GameState.burning = {str(row[3]): GameState.game_hours}
+			var ever: Dictionary = {str(row[3]): true}
+			var days := 0
+			while days < 200 and not GameState.burning.is_empty():
+				days += 1
+				GameState._fire_day()
+				for b in GameState.burning.keys():
+					ever[str(b)] = true
+			tot_days += float(days)
+			tot_halls += float(ever.size())
+			worst = maxi(worst, ever.size())
+		var mean_halls: float = tot_halls / float(trials2)
+		if int(hands2) == 0:
+			spread_ever = mean_halls
+		say("   %2d   |      %5.2f       |           %5.2f            |    %d of %d" % [
+			int(hands2), tot_days / float(trials2), mean_halls, worst, row.size()])
+	check("F3: an unfought fire really does travel the row (adjacency has a downside)",
+		spread_ever > 1.0, "%.2f halls per fire" % spread_ever)
 
-	# ---------- S4: FIRE ----------
-	say("\n========== S4: FIRE ==========")
-	var gs: String = FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text()
-	var markers: Array = ["FIRE_SPREAD", "building_fires", "tick_fire", "_tick_fire",
-		"BLAZE", "FIRE_DAMAGE_PER_HOUR", "catch_fire", "burning_buildings"]
-	var seen: Array = []
-	for m in markers:
-		if gs.contains(str(m)):
-			seen.append(str(m))
-	if seen.is_empty():
-		say("  NOT PRESENT in the committed tree. game_state.gd carries no fire")
-		say("  state, no per-hour building burn, and no spread-to-neighbour step;")
-		say("  the only matches for 'fire' in the file are _fire_event(), which is")
-		say("  the hidden-event-boss trigger, not a burning building.")
-		say("  Nothing to measure. The harness above is ready for it the moment it")
-		say("  lands: paint() already stands a packed row and building_health is the")
-		say("  pool a burn would eat.")
-	else:
-		say("  found: %s -- fire has landed; extend this section." % ", ".join(seen))
-	check("S4: the fire system this sim was asked to measure exists in the tree",
-		not seen.is_empty(), "no fire state, constants or tick found in game_state.gd")
+	# ---------- F4: THE BURN AND THE REPAIR, IN THE SAME FRAME ----------
+	say("\n========== F4: THE BURN AND THE REPAIR, IN THE SAME FRAME ==========")
+	say("  Everything above is the crew's WATER. The crew has a SECOND job --")
+	say("  _auto_mend_one, which patches the most badly hurt standing hall by %d" % GameState.MEND_PER_PASS)
+	say("  health every %.0f real seconds -- and nothing stops it choosing the hall" % GameState.INCOME_INTERVAL_SECONDS)
+	say("  that is on fire. Below: one hall lit at half health, driven through WHOLE")
+	say("  frames (automation + clock), %.0f in-game hours each." % 6.0)
+	say("  hands | burn/hr | end health | net per in-game hour | verdict")
+	var start_hp: float = float(GameState.BUILDING_MAX_HEALTH) * 0.5
+	var burn_window := 6.0
+	var crewed_net := 0.0
+	for hands3 in [0, 1, 2, 4, 8]:
+		quiet()
+		stand(placed, true)
+		crew(int(hands3))
+		GameState.building_stage["Builderhouse"] = GameState.TOTAL_BUILD_STAGES if int(hands3) > 0 else 0
+		GameState.building_health["Builderhouse"] = float(GameState.BUILDING_MAX_HEALTH)
+		GameState.building_health[burn_hall] = start_hp
+		GameState.burning = {burn_hall: GameState.game_hours}
+		var fought3: float = clampf(GameState._fire_suppression(), 0.0, 0.9)
+		run_frame(burn_window)
+		var end_hp: float = float(GameState.building_health.get(burn_hall, -1.0))
+		var net: float = (end_hp - start_hp) / burn_window
+		if int(hands3) == 1:
+			crewed_net = net
+		say("   %2d   |  %5.1f  |   %6.1f   |       %+7.2f       | %s" % [
+			int(hands3), GameState.FIRE_DAMAGE_PER_HOUR * (1.0 - fought3), end_hp, net,
+			"the hall GAINS health while alight" if net > 0.0 else "the fire still costs the town"])
+	say("")
+	say("  THE FINDING. With a SINGLE hand on the crew the burning hall gains %+.2f" % crewed_net)
+	say("  health an in-game hour. The mend is worth %.1f health a real minute against" % [
+		float(GameState.MEND_PER_PASS) * 60.0 / GameState.INCOME_INTERVAL_SECONDS])
+	say("  a burn of only %.1f, so the repair outruns an UNSUPPRESSED blaze %.1f to one" % [
+		GameState.FIRE_DAMAGE_PER_HOUR * GameState.HOURS_PER_SECOND * 60.0,
+		(float(GameState.MEND_PER_PASS) * 60.0 / GameState.INCOME_INTERVAL_SECONDS)
+			/ (GameState.FIRE_DAMAGE_PER_HOUR * GameState.HOURS_PER_SECOND * 60.0)])
+	say("  before a drop of water is thrown. Same shape as the douse-roll bug the")
+	say("  clamp already had to fix: a system that switches itself off the moment the")
+	say("  crew is staffed. THE FAILING CHECK BELOW IS DELIBERATE -- it IS the")
+	say("  finding, and it is why this lives in a tool and not in the suite.")
+	check("F4: a fire in a STAFFED town still costs that town health",
+		crewed_net < 0.0,
+		"one Builderhouse hand turns a blaze into %+.2f health per in-game hour — see QA_FINDINGS.md, 2026-08-06" % crewed_net)
 
-	GameState.reset_for_new_game()
+	# ---------- F5: WHAT A SCAR ACTUALLY COSTS ----------
+	say("\n========== F5: WHAT A SCAR ACTUALLY COSTS ==========")
+	quiet()
+	stand(placed, true)
+	var whole: float = GameState.building_output_multiplier(burn_hall)
+	say("  a whole %s produces x%.3f" % [burn_hall, whole])
+	for frac in [0.75, 0.5, 0.25, 0.05]:
+		GameState.building_health[burn_hall] = float(GameState.BUILDING_MAX_HEALTH) * float(frac)
+		say("    at %3.0f%% health: x%.3f  — %.0f%% of whole (the floor is %.0f%%)" % [
+			float(frac) * 100.0, GameState.building_output_multiplier(burn_hall),
+			100.0 * GameState.building_output_multiplier(burn_hall) / whole,
+			GameState.CONDITION_FLOOR * 100.0])
+	GameState.building_health[burn_hall] = float(GameState.BUILDING_MAX_HEALTH)
+	say("  and a GUTTED hall costs a whole rebuild stage: %d wood + %d stone, plus" % [
+		GameState.REPAIR_STAGE_WOOD, GameState.REPAIR_STAGE_STONE])
+	say("  every minute it produces nothing at all while the crew raises it again.")
+
+	GameState.burning = {}
 	printerr("\ntool_peril_sim RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)

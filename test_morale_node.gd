@@ -39,7 +39,7 @@ func _ready() -> void:
 	GameState.the_ten["ten_ilo"] = {"freed": false}
 	GameState.village_food = 500.0                      # larder full
 	for b in GameState.STARTING_BUILDINGS:              # whole town operational
-		GameState.building_health[b] = 100
+		GameState.building_health[b] = GameState.BUILDING_MAX_HEALTH
 		GameState.building_stage[b] = GameState.TOTAL_BUILD_STAGES
 	# a perfect adult: employed + paired; a perfect child; pop at target
 	var roster := []
