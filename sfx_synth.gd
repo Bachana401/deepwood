@@ -12,6 +12,11 @@ extends RefCounted
 const RATE := 22050
 static var _cache: Dictionary = {}
 
+# Names already complained about, so a bad recipe scolds once and not once per
+# swing. (The `_cache` short-circuit in `_bank()` would mostly do this on its
+# own; this holds the line even if something clears the cache mid-run.)
+static var _unknown_seen: Dictionary = {}
+
 # --- THE VILLAGE SET (audio pass 2026-08-06) ---
 # Everything the town grew this month -- patrols walking into the deep, the
 # sickness, fire, and the eclipse -- shipped with a toast and no sound at all.
@@ -78,6 +83,23 @@ static func _norm(buf: PackedFloat32Array, peak: float) -> PackedFloat32Array:
 	for i in range(buf.size()):
 		buf[i] = buf[i] * g
 	return buf
+
+# THE ROSTER -- every name `_bank()` below actually answers to, in one place a
+# caller can read back. A recipe is a bare string at ~45 call sites and nothing
+# in GDScript checks one: a typo does not fail, it falls through to `_:` and
+# plays 50ms of silence, so the sound simply never happens and nothing anywhere
+# says so. It is not theoretical -- "thud" was written for "thump" on the
+# brazier throne and on the Anvil of Endings, and both landed mute.
+# Keep this list and the `match` below in step; QA can walk one against the
+# other so a recipe cannot be added in only one of the two places.
+const RECIPES: Array = [
+	"crack", "pop", "thump", "whoosh", "chime", "tear",
+	"patrol_out", "patrol_home", "patrol_find", "patrol_lost",
+	"outbreak", "fire_alarm", "fire_doused", "eclipse",
+]
+
+static func has_recipe(recipe: String) -> bool:
+	return RECIPES.has(recipe)
 
 # NOTE: must NOT be named `_get` -- that's Object's reserved property virtual
 # (_get(StringName) -> Variant); the signature clash fails the whole script's
@@ -322,6 +344,19 @@ static func _bank(recipe: String) -> AudioStreamWAV:
 			out = _norm(out, 0.96)
 
 		_:
+			# NOT A RECIPE -- and this used to be the quietest bug in the game.
+			# A misspelled name cost nothing at runtime: it arrived here, got
+			# 50ms of silence, and the effect it was written for just never
+			# made a sound. Invisible in play, invisible to a sweep, invisible
+			# to the suite (the buffer is non-empty, so even "does it
+			# synthesize samples" passes). It says so now, the first time it is
+			# asked for. The silence stays -- a shipped game must not start
+			# buzzing at a player over a developer's typo -- but the log will
+			# name the string, and `has_recipe()` above lets a test catch it
+			# before anyone has to hear it.
+			if not _unknown_seen.has(recipe):
+				_unknown_seen[recipe] = true
+				push_error("SfxSynth: no recipe named \"%s\" -- that call site is playing silence. Known recipes: %s" % [recipe, str(RECIPES)])
 			n = int(RATE * 0.05)
 			out.resize(n)
 	_cache[recipe] = _wav(out)

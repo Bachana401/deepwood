@@ -3904,7 +3904,7 @@ func _find_floor_below(dist: float) -> bool:
 
 # the moment it becomes furniture: a seat of coals, and the fire takes
 func _seat_the_throne() -> void:
-	SfxSynth.play_at(self, global_position, "thud", -8.0, 0.7)
+	SfxSynth.play_at(self, global_position, "thump", -8.0, 0.7)
 	var coals := Polygon2D.new()
 	coals.polygon = _circle(26.0, 12)
 	coals.color = Color(1.0, 0.45, 0.12, 0.3)
@@ -4667,7 +4667,7 @@ func _tick_anvil(delta: float) -> void:
 			if e.has_method("apply_knockback"):
 				e.apply_knockback(1 if e.global_position.x >= global_position.x else -1, knockback * 1.4)
 	_rock_smoke(global_position + Vector2(0, 12.0))
-	SfxSynth.play_at(self, global_position, "thud", -4.0, 0.55)
+	SfxSynth.play_at(self, global_position, "thump", -4.0, 0.55)
 	# LET IT BE SEEN. Freeing on the landing frame meant the mass arrived and
 	# vanished in the same instant -- on film there was smoke and a number but
 	# no anvil. It sits for a beat, then sinks away.
