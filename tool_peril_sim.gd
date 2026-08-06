@@ -164,6 +164,9 @@ func _ready() -> void:
 			if n.has_method("finish") and n.has_method("show_line"): n.finish(); break
 	get_tree().paused = false
 	seed(20260806)
+	# S1/S2 walk thousands of full village ticks and take minutes. PERIL_ONLY=S5
+	# runs just the parameter sweep, for iterating on a proposed number.
+	var only: String = OS.get_environment("PERIL_ONLY")
 
 	say("\n  the constants under test:")
 	say("    SICK_DRAIN_PER_HOUR         %.2f" % GameState.SICK_DRAIN_PER_HOUR)
@@ -238,7 +241,7 @@ func _ready() -> void:
 
 	say("\n  --- what WOULD kill: the same experiment at other net drains ---")
 	say("  SICK_DRAIN_PER_HOUR | net vs regen | dead after (no ward) | dead after (in ward aura)")
-	for want in [2.4, 3.0, 3.6, 4.5, 5.5, 7.0, 9.0]:
+	for want in ([2.4, 3.0, 3.6, 4.5, 5.5, 7.0, 9.0] if only == "" else []):
 		var xd: float = maxf(0.0, float(want) - GameState.SICK_DRAIN_PER_HOUR)
 		var t_plain: float = hours_to_death.call(xd, false, false)
 		var t_ward: float = hours_to_death.call(xd, false, true)
@@ -292,7 +295,7 @@ func _ready() -> void:
 		{"hosp": true, "hx": COTTAGE_X0 + 500.0, "tag": "staffed, near"}]
 	var wipe_out := 0
 	var live_dead := -1
-	for want2 in [2.4, 3.6, 5.5]:
+	for want2 in ([2.4, 3.6, 5.5] if only == "" else []):
 		for w in wards:
 			var xd2: float = maxf(0.0, float(want2) - GameState.SICK_DRAIN_PER_HOUR)
 			var t: Dictionary = town.call(xd2, false, bool(w["hosp"]), float(w["hx"]))
@@ -304,7 +307,7 @@ func _ready() -> void:
 				float(want2), str(w["tag"]), int(t["out"]), int(t["peak"]), int(t["ever"]),
 				int(t["dead"]), int(t["left"]), int(t["start"])])
 	say("  -- and the no-passive-regen alternative, drain left at %.2f --" % GameState.SICK_DRAIN_PER_HOUR)
-	for w2 in wards:
+	for w2 in (wards if only == "" else []):
 		var t2: Dictionary = town.call(0.0, true, bool(w2["hosp"]), float(w2["hx"]))
 		if int(t2["left"]) <= 2:
 			wipe_out += 1
@@ -324,11 +327,11 @@ func _ready() -> void:
 	# this asks whether sharing a workplace defeats the spacing outright.
 	say("\n========== S2b: DOES SPACING ACTUALLY SLOW IT? ==========")
 	say("  setup                                   | souls infected on the first day of spread")
-	for cfg3 in [
+	for cfg3 in ([
 			{"space": 150.0, "jobs": false, "tag": "row 150 apart, all at one Farm    "},
 			{"space": 4000.0, "jobs": false, "tag": "row 4000 apart, all at one Farm   "},
 			{"space": 150.0, "jobs": true, "tag": "row 150 apart, NOBODY employed    "},
-			{"space": 4000.0, "jobs": true, "tag": "row 4000 apart, NOBODY employed   "}]:
+			{"space": 4000.0, "jobs": true, "tag": "row 4000 apart, NOBODY employed   "}] if only == "" else []):
 		seed(20260806)
 		var caught := 0
 		for trial2 in range(40):
@@ -348,10 +351,10 @@ func _ready() -> void:
 	say("\n========== S3: WHAT THE WARD IS ACTUALLY BUYING ==========")
 	say("  Since the ward's whole job is to end sicknesses, the reading that")
 	say("  matters is how long one LASTS, not how hard it hurts.")
-	for cfg2 in [
+	for cfg2 in ([
 			{"hosp": false, "docs": 0, "hx": -99999.0, "tag": "no hospital     "},
 			{"hosp": true, "docs": 3, "hx": -99999.0, "tag": "staffed, far off"},
-			{"hosp": true, "docs": 3, "hx": COTTAGE_X0 + 500.0, "tag": "staffed, in aura"}]:
+			{"hosp": true, "docs": 3, "hx": COTTAGE_X0 + 500.0, "tag": "staffed, in aura"}] if only == "" else []):
 		seed(20260806)
 		var spans: Array = []
 		for trial in range(120):
@@ -392,14 +395,36 @@ func _ready() -> void:
 		for j2 in range(roster.size()):
 			rowt.append(i2 != j2 and GameState._lives_touch(roster[i2], roster[j2], GameState.SICK_SPREAD_RADIUS))
 		touch.append(rowt)
+	# ...and the graph a HOMES-ONLY rule would give. villager_places() returns the
+	# cottage first and the workplace second, so dropping the workplace is exactly
+	# "does their door stand near your door". This is the graph the design line
+	# describes ("cottages packed in a row pass it along fast").
+	var homes: Array = []
+	for i2b in range(roster.size()):
+		var hx: float = -1.0e9
+		var pl: Array = GameState.villager_places(roster[i2b])
+		if not pl.is_empty():
+			hx = float(pl[0])
+		homes.append(hx)
+	var touch_home: Array = []
+	for i2c in range(roster.size()):
+		var rowh: Array = []
+		for j2c in range(roster.size()):
+			rowh.append(i2c != j2c
+				and absf(float(homes[i2c]) - float(homes[j2c])) <= GameState.SICK_SPREAD_RADIUS)
+		touch_home.append(rowh)
 	var contacts := 0
+	var contacts_home := 0
 	for i3 in range(touch.size()):
 		for j3 in range(touch.size()):
 			if bool(touch[i3][j3]): contacts += 1
-	say("  the real contact graph: every soul touches %.1f others on average (of %d)." % [
+			if bool(touch_home[i3][j3]): contacts_home += 1
+	say("  the REAL contact graph (home OR workplace): every soul touches %.1f of %d others." % [
 		float(contacts) / float(roster.size()), roster.size() - 1])
+	say("  a HOMES-ONLY graph, same tight row:        every soul touches %.1f of %d others." % [
+		float(contacts_home) / float(roster.size()), roster.size() - 1])
 	say("  spread | cure | ward cure | avg %% of town ill | deaths/100 days | verdict")
-	var model: Callable = func(spread: float, cure: float, net_per_hour: float) -> Dictionary:
+	var model: Callable = func(spread: float, cure: float, net_per_hour: float, graph: Array) -> Dictionary:
 		var n: int = roster.size()
 		var ill: Array = []
 		var hp: Array = []
@@ -431,7 +456,7 @@ func _ready() -> void:
 				if ill[i6] or hp[i6] <= 0.0:
 					continue
 				for j6 in range(n):
-					if ill[j6] and bool(touch[j6][i6]) and randf() < spread:
+					if ill[j6] and bool(graph[j6][i6]) and randf() < spread:
 						fresh.append(i6)
 						break
 			for f in fresh:
@@ -442,22 +467,23 @@ func _ready() -> void:
 			ill_days += count
 		return {"avg": 100.0 * float(ill_days) / float(100 * n), "dead": deaths}
 	for cfg4 in [
-			{"s": GameState.SICK_SPREAD_CHANCE_PER_DAY, "c": GameState.SICK_CURE_CHANCE_PER_DAY, "net": -0.60, "tag": "AS IT SHIPS"},
-			{"s": GameState.SICK_SPREAD_CHANCE_PER_DAY, "c": GameState.SICK_CURE_CHANCE_PER_DAY, "net": 2.40, "tag": "ships + no sick regen"},
-			{"s": 0.08, "c": 0.25, "net": 2.40, "tag": "spread 0.08 cure 0.25"},
-			{"s": 0.05, "c": 0.35, "net": 2.40, "tag": "spread 0.05 cure 0.35"},
-			{"s": 0.04, "c": 0.45, "net": 2.40, "tag": "spread 0.04 cure 0.45"},
-			{"s": 0.03, "c": 0.45, "net": 1.20, "tag": "spread 0.03 cure 0.45, half drain"},
-			# ...and the shape the numbers above argue for: an illness that is
-			# SLOW to kill (so a daily cure roll usually beats it) carried by a
-			# spread that cannot saturate the town.
-			{"s": 0.05, "c": 0.30, "net": 0.50, "tag": "PROPOSED  0.05/0.30, net -0.50/h"},
-			{"s": 0.05, "c": 0.30, "net": 1.00, "tag": "PROPOSED  0.05/0.30, net -1.00/h"},
-			{"s": 0.08, "c": 0.30, "net": 0.50, "tag": "PROPOSED  0.08/0.30, net -0.50/h"}]:
+			{"s": GameState.SICK_SPREAD_CHANCE_PER_DAY, "c": GameState.SICK_CURE_CHANCE_PER_DAY, "net": -0.60, "home": false, "tag": "AS IT SHIPS"},
+			{"s": GameState.SICK_SPREAD_CHANCE_PER_DAY, "c": GameState.SICK_CURE_CHANCE_PER_DAY, "net": 2.40, "home": false, "tag": "ships + no sick regen"},
+			{"s": 0.08, "c": 0.25, "net": 2.40, "home": false, "tag": "spread 0.08 cure 0.25"},
+			{"s": 0.05, "c": 0.35, "net": 2.40, "home": false, "tag": "spread 0.05 cure 0.35"},
+			{"s": 0.04, "c": 0.45, "net": 2.40, "home": false, "tag": "spread 0.04 cure 0.45"},
+			# ...and the shape the numbers above argue for: an illness that is SLOW
+			# to kill (so the daily cure roll usually beats it), carried by a spread
+			# that cannot saturate the town because it only travels door to door.
+			{"s": GameState.SICK_SPREAD_CHANCE_PER_DAY, "c": GameState.SICK_CURE_CHANCE_PER_DAY, "net": 1.20, "home": true, "tag": "HOMES-ONLY, ships' spread/cure"},
+			{"s": 0.12, "c": 0.30, "net": 1.20, "home": true, "tag": "HOMES-ONLY 0.12/0.30 drain 1.2"},
+			{"s": 0.12, "c": 0.30, "net": 0.60, "home": true, "tag": "PROPOSED  homes 0.12/0.30 drain 0.6"},
+			{"s": 0.10, "c": 0.35, "net": 1.20, "home": true, "tag": "PROPOSED  homes 0.10/0.35 drain 1.2"}]:
 		var acc_avg := 0.0
 		var acc_dead := 0.0
 		for rep in range(8):
-			var m: Dictionary = model.call(float(cfg4["s"]), float(cfg4["c"]), float(cfg4["net"]))
+			var m: Dictionary = model.call(float(cfg4["s"]), float(cfg4["c"]), float(cfg4["net"]),
+				touch_home if bool(cfg4["home"]) else touch)
 			acc_avg += float(m["avg"])
 			acc_dead += float(m["dead"])
 		acc_avg /= 8.0
