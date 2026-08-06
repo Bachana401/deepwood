@@ -35,6 +35,24 @@ PER_TEST_TIMEOUT="${SUITE_TIMEOUT:-360}"
 cd "$REPO" || exit 2
 rm -rf "$LOGS"; mkdir -p "$LOGS"
 
+# PRE-FLIGHT: the import cache. On a checkout with no .godot, the very first
+# thing that happens is NOT a slow run -- it is a silent, total one:
+#
+#   art/fonts/PixelifySans.ttf is unimported -> the preload at
+#   mobile/touch_controls.gd:31 fails -> "Cannot infer the type of GAME_FONT
+#   constant" (this project's house rule 1, triggered by a missing resource,
+#   not by the code) -> the script fails to parse -> it is an AUTOLOAD, so
+#   every autoload dies with it -> GameState is Nil -> main_menu.gd:52 throws
+#   before it can attach the test driver -> AND THE PROCESS EXITS 0.
+#
+# Every test in the suite would report ok having run nothing at all. Import
+# first, once, so that cannot be the state we measure.
+if [ ! -d "$REPO/.godot" ]; then
+	echo "note  no .godot import cache — importing once before the suite (this takes a few minutes)"
+	"$GODOT" --headless --path . --import > "$LOGS/_import.log" 2>&1 \
+		|| { echo "FATAL import failed, see $LOGS/_import.log"; exit 2; }
+fi
+
 # PRE-FLIGHT: the .uid siblings. Godot writes a .gd.uid next to every script and
 # this repo tracks all of them, so a test committed without its .uid leaves every
 # clean clone with a dirty tree the moment it imports. Same shape of drift as the
@@ -78,8 +96,19 @@ while IFS= read -r raw; do
 
 	run_one "$name" "$log"; rc=$?
 
+	# A PASS IS A REPORTED PASS. Exit 0 is not evidence on its own: if the
+	# autoloads fail to instantiate, main_menu.gd throws before it can attach the
+	# driver and the process still exits 0, so a suite that trusts the exit code
+	# reports ok for every test having run none of them. Every driver ends by
+	# printing "RESULT:", so demand it in both directions, not only on failure.
 	if [ "$rc" -eq 0 ]; then
-		pass=$((pass+1)); printf 'ok    %s\n' "$name"; continue
+		if grep -q 'RESULT:' "$log"; then
+			pass=$((pass+1)); printf 'ok    %s\n' "$name"; continue
+		fi
+		crash=$((crash+1)); crashed_names="$crashed_names $name"
+		printf 'CRASH %-32s exit 0 but NO RESULT — it never reported, so it never ran\n' "$name"
+		grep -m 3 -iE 'parse error|autoload|base .Nil.' "$log" | sed 's/^/        /'
+		continue
 	fi
 
 	if [ "$rc" -eq 124 ]; then
