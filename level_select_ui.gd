@@ -114,8 +114,13 @@ func _on_level_selected(level: int) -> void:
 		if blocked_stack:
 			var fallen: int = GameState.first_fallen_block()
 			var r: Array = GameState.block_floor_range(fallen)
+			# This is the moment the Waystone network justifies itself, so the Waystone
+			# has to be NAMED -- but as a limit of the world rather than as step two of
+			# a list. "Take them back, or reach past by" is an instruction with options;
+			# "only a Waystone reaches beyond it" is the same fact told as something the
+			# player has just lost, and it lands harder for it.
 			blocked_stack.show_notification(
-				"⛔ The road is cut at floors %d-%d. Take them back, or reach past by Waystone."
+				"⛔ The stair ends at floors %d-%d. Nothing walks past that stretch — only a Waystone reaches beyond it."
 				% [int(r[0]), int(r[1])])
 		return
 	close()

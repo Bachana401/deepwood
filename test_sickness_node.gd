@@ -281,22 +281,38 @@ func _ready() -> void:
 
 	# THE PROPERTY THAT MAKES IT SAFE: with immunity the pool shrinks with every
 	# recovery, so the sickness runs out of fuel. Without it the town never clears.
-	GameState.plague_immune_until = {}
-	GameState.sick = {"im0": GameState.game_hours}
-	GameState.plague_ids = {}
-	GameState._sick_accum = 0.0
-	var ended_on := -1
-	for day in range(400):
-		GameState._sickness_day(false)
-		for hid2 in GameState.sick.keys():
-			GameState.villager_hp[str(hid2)] = 100.0   # nobody dies; measure the BURN-OUT
-		if GameState.sick.is_empty():
-			ended_on = day
-			break
-	check("an outbreak BURNS OUT instead of running forever", ended_on >= 0,
-		"still %d ill after 400 days" % GameState.sick_count())
-	check("...and it does not end instantly either (it is still a real event)",
-		ended_on < 0 or ended_on > 1, "ended on day %d" % ended_on)
+	# Run the SAME outbreak twice: once as shipped, once with immunity wiped every
+	# night. The contrast is the whole proof -- an "it burns out" assertion on its own
+	# would pass for the wrong reason the moment the last carrier happened to recover,
+	# and my first version of this check did exactly that, failing about one run in
+	# four on "it did not end instantly". That is a coin flip wearing an assertion's
+	# clothes. This is the positive control instead: without immunity it must NOT end.
+	var ended_with := -1
+	var ended_without := -1
+	for pass_i in range(2):
+		var immune_on: bool = pass_i == 0
+		GameState.plague_immune_until = {}
+		GameState.sick = {}
+		GameState.plague_ids = {}
+		GameState._sick_accum = 0.0
+		for seed_i in range(4):                       # several carriers: no single roll ends it
+			GameState.sick["im%d" % seed_i] = GameState.game_hours
+		for day in range(300):
+			GameState._sickness_day(false)
+			if not immune_on:
+				GameState.plague_immune_until = {}    # nobody ever gains immunity
+			for hid2 in GameState.sick.keys():
+				GameState.villager_hp[str(hid2)] = 100.0   # nobody dies; measure the BURN-OUT
+			if GameState.sick.is_empty():
+				if immune_on:
+					ended_with = day
+				else:
+					ended_without = day
+				break
+	check("an outbreak BURNS OUT instead of running forever", ended_with >= 0,
+		"still going after 300 days")
+	check("...BECAUSE of immunity — strip it and the same outbreak never clears",
+		ended_without < 0, "cleared on day %d without immunity" % ended_without)
 
 	# ---- but never a legend ----
 	GameState.rescued_villagers = [{"id": "legend", "name": "Maera", "sex": "Female",

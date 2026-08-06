@@ -2511,8 +2511,11 @@ func tick_eclipse(hours_passed: float) -> void:
 			eclipses_seen += 1
 			# PIERCES THE FOG on purpose: nobody can be asked to be ready for a
 			# thing they were never told about.
-			notify_urgent("🌑 THE SUN IS GOING OUT — the sky turns red over Deepwood.")
-			log_event("village", "The moon took the sun whole. The world stood in red dark.")
+			# "the ring is lit" pays off the Hollow Signet's own refusal line, "The ring
+			# is cold. The moon has not taken the sun." -- a player who tried the Signet
+			# early and was turned away now learns what they were waiting for.
+			notify_urgent("🌑 THE SUN IS GOING OUT — the ring is lit, and Deepwood is only an outline.")
+			log_event("village", "The moon took the sun whole. Deepwood lost its colours and kept its shapes.")
 			SfxSynth.play_village(self, SfxSynth.SFX_ECLIPSE)
 		return
 	# between eclipses: one roll a day, and never inside the cooldown
@@ -4509,7 +4512,7 @@ func _fire_day() -> void:
 		# make fire survivable, not impossible.
 		if randf() < minf(FIRE_OUT_CHANCE_PER_DAY + _fire_suppression(), FIRE_OUT_CHANCE_CAP):
 			burning.erase(bn)
-			log_event("village", "The fire at the %s is out." % str(bn))
+			log_event("village", "The %s is black and smoking, and still standing." % str(bn))
 			SfxSynth.play_village(self, SfxSynth.SFX_FIRE_DOUSED)
 	# ---- what catches from a neighbour: THE COST OF A TIGHT ROW ----
 	if not burning.is_empty():
@@ -4525,9 +4528,9 @@ func _fire_day() -> void:
 					caught.append(nb)
 		for c in caught:
 			burning[c] = game_hours
-			log_event("village", "The fire jumped to the %s — they are built too close." % c)
+			log_event("village", "The %s caught from its neighbour. They were raised close enough to share the heat." % c)
 		if not caught.is_empty():
-			notify_urgent("🔥 The fire is spreading — %s alight!" % ", ".join(caught))
+			notify_urgent("🔥 It jumped the gap — %s alight!" % ", ".join(caught))
 			SfxSynth.play_village(self, SfxSynth.SFX_FIRE_ALARM)
 		return
 	# ---- or a new one starts ----
@@ -4543,8 +4546,8 @@ func _fire_day() -> void:
 			odds *= FIRE_HEARTH_MULT
 		if randf() < odds:
 			burning[name] = game_hours
-			log_event("village", "Fire has broken out at the %s!" % name)
-			notify_urgent("🔥 FIRE at the %s — it will spread to whatever stands beside it." % name)
+			log_event("village", "Fire in the %s. The roof caught before anyone reached the door." % name)
+			notify_urgent("🔥 FIRE at the %s — and Deepwood is built shoulder to shoulder." % name)
 			SfxSynth.play_village(self, SfxSynth.SFX_FIRE_ALARM)
 			return                    # one at a time; a town does not combust at once
 
@@ -4555,8 +4558,8 @@ func _fire_guts(name: String) -> void:
 	building_stage[name] = maxi(0, int(building_stage.get(name, TOTAL_BUILD_STAGES)) - 1)
 	if int(building_stage[name]) <= 0:
 		building_health[name] = 0
-	log_event("village", "The %s has burned down to its frame." % name)
-	notify_urgent("🔥 The %s burned down. The builders will have to raise it again." % name)
+	log_event("village", "The %s burned down to its frame. Every hand that raised it stood and watched." % name)
+	notify_urgent("🔥 The %s is gone. It went down faster than it went up." % name)
 	_resync_building_node(name)
 
 # The live node caches its stage and health from _ready and nothing re-reads them,
@@ -4802,9 +4805,13 @@ func _sickness_day(ward: bool) -> void:
 			cure *= PLAGUE_CURE_MULT
 		if randf() < cure:
 			sick.erase(vid)
+			var was_plague: bool = plague_ids.has(vid)
 			plague_ids.erase(vid)
 			_grant_immunity(str(vid))
-			log_event("people", "%s came through the fever. Thin, and standing." % str(v.get("name", "?")))
+			if was_plague:
+				log_event("people", "%s came through the plague. Thin, and standing, and lucky." % str(v.get("name", "?")))
+			else:
+				log_event("people", "%s came through the fever. Thin, and standing." % str(v.get("name", "?")))
 	# ---- who catches it ----
 	if not sick.is_empty():
 		var fresh := []
@@ -4845,8 +4852,17 @@ func _sickness_day(ward: bool) -> void:
 		for pid in fresh_plague:
 			plague_ids[pid] = true
 		if not fresh.is_empty():
-			log_event("people", "Another %d woke shivering. Nobody can say who carried it." % fresh.size())
-			notify_urgent("🤒 It went house to house in the night — %d more down." % fresh.size())
+			# THE TWO STRAINS READ DIFFERENTLY, and by REGISTER rather than by an
+			# explanatory clause. The illness stays domestic and household-scale --
+			# beds, shivering, coming through it. The plague goes institutional and
+			# ritual: marked doors, counting, burial. Neither ever states what it does;
+			# a marked door has meant this for centuries and needs no gloss.
+			if not fresh_plague.is_empty():
+				log_event("people", "Another %d marked by morning. It is moving faster than feet." % fresh.size())
+				notify_urgent("☠ The plague has the row — %d more marked." % fresh.size())
+			else:
+				log_event("people", "Another %d woke shivering. Nobody can say who carried it." % fresh.size())
+				notify_urgent("🤒 It went house to house in the night — %d more down." % fresh.size())
 			SfxSynth.play_village(self, SfxSynth.SFX_OUTBREAK, NAN, NAN, 1.12)
 	# ---- or a new one begins ----
 	elif rescued_villagers.size() >= OUTBREAK_MIN_POP:
@@ -4877,8 +4893,8 @@ func _begin_outbreak() -> void:
 	# many words; the plague's is simply colder, and names what the town has never
 	# seen before. (Writing's rule: gesture, never instruct.)
 	if virulent:
-		log_event("people", "%s has taken to their bed, and it is not the fever this town knows." % villager_name(first))
-		notify_urgent("☠ Something is in Deepwood that the old remedies do not touch — %s is down." % villager_name(first))
+		log_event("people", "%s fell ill, and one of the old hands went quiet and started marking doors." % villager_name(first))
+		notify_urgent("☠ PLAGUE in Deepwood — %s is down, and the door is marked." % villager_name(first))
 	else:
 		log_event("people", "%s has taken to their bed, and it is not grief that keeps them there." % villager_name(first))
 		notify_urgent("🤒 Sickness in Deepwood — %s is down with fever. It never stops at one." % villager_name(first))
@@ -4920,7 +4936,8 @@ func _reap_the_sick() -> void:
 		# funerals for one body and armed the Grief-Eater a corpse early. Their prose
 		# is kept; only that line was dropped in the merge.
 		log_event("people", "%s did not come through it. Not every grave here was dug by the dark." % gone)
-		notify_urgent("✝ %s is gone. The fever, not the deep." % gone)
+		# only the PLAGUE reaps now, so the toast can name it rather than say "fever"
+		notify_urgent("✝ %s is gone. The plague, not the deep." % gone)
 
 func get_villager_hp(id: String) -> float:
 	return float(villager_hp.get(id, VILLAGER_MAX_HP))
