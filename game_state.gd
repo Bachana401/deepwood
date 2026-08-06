@@ -2842,10 +2842,28 @@ func post_patrol(b: int, n: int) -> bool:
 # A block in enemy hands cuts the road: you cannot WALK past it. (Waystones still
 # reach a woken shrine beyond it -- the network is what a fallen block makes
 # valuable.) Returns 0 when the way down is clear.
+#
+# DERIVED FROM THE FLOORS, NOT FROM THE CREEP, and that was a real defect: this used
+# to look for a block whose creep had reached 1.0 -- but _block_falls sets that
+# block's creep straight back to 0.0 in the very next statement, and tick_patrols
+# then ERASES the creep of any block that is no longer swept. So the condition this
+# tested for could not survive the instant that created it, first_fallen_block()
+# could never return anything but 0, and the road-cut gate in level_select_ui was
+# dead the day it was wired.
+#
+# The honest definition needs no stored state and survives a save for free: a block
+# is a hole in the road if it is NOT swept while something DEEPER still is -- the
+# player cleared past it and then lost it. Which is exactly what "the road is cut
+# there" means.
 func first_fallen_block() -> int:
-	for b in range(1, PATROL_BLOCKS + 1):
-		if block_creep_of(b) >= 1.0:
-			return b
+	var deepest_cleared := 0
+	for b in range(PATROL_BLOCKS, 0, -1):
+		if block_is_cleared(b):
+			deepest_cleared = b
+			break
+	for b2 in range(1, deepest_cleared):
+		if not block_is_cleared(b2):
+			return b2
 	return 0
 
 func floor_is_road_blocked(level: int) -> bool:
@@ -4503,6 +4521,15 @@ func tick_fire(hours_passed: float) -> void:
 			_fire_guts(name)
 		else:
 			building_health[name] = hp
+			# THE NODE HAS TO BE TOLD, every hour and not only when the hall finally
+			# falls. building.gd caches its health at _ready and nothing re-reads it,
+			# so an hourly burn written only into GameState left the live node holding
+			# the old value -- its health bar never moved during a fire, and the next
+			# hit from anything else (a siege, the Hollow Sun) wrote that stale number
+			# straight back over the blaze and undid it. _fire_guts already resynced;
+			# the burn that leads up to it did not, which is the half that actually
+			# runs for hours.
+			_resync_building_health(name)
 	_fire_accum += hours_passed
 	while _fire_accum >= 24.0:
 		_fire_accum -= 24.0
@@ -4573,6 +4600,18 @@ func _fire_guts(name: String) -> void:
 # refresh_visual() was not enough: it redraws from a `current_state` the node never
 # recomputed, so a gutted hall kept drawing pristine, refused to offer a repair, and
 # wrote its stale health back over the burn on the next hit.
+# The cheap counterpart to _resync_building_node, for a writer that changed only HP.
+# Fire ticks every frame, and a full sync rebuilds the hall's geometry -- doing that
+# sixty times a second for the duration of a blaze would be absurd. This moves the
+# number and the bar and nothing else.
+func _resync_building_health(name: String) -> void:
+	var t := get_tree()
+	if t == null:
+		return
+	for node in t.get_nodes_in_group("building"):
+		if "role_key" in node and str(node.role_key) == name and node.has_method("sync_health_from_state"):
+			node.sync_health_from_state()
+
 func _resync_building_node(name: String) -> void:
 	for node in get_tree().get_nodes_in_group("building"):
 		if "role_key" in node and str(node.role_key) == name and node.has_method("sync_from_state"):
@@ -4666,7 +4705,23 @@ const PLAGUE_CURE_MULT := 0.4                 # and will not be shaken off unaid
 # and stops. The outbreak ALWAYS ends. What an unprepared town pays is a toll, not
 # the settlement -- which is the standing rule that a village death is a wound and
 # never a game over.
-const IMMUNITY_DAYS := 14.0
+# 14 DAYS DID NOT WORK, and the reason is a principle worth keeping: IMMUNITY MUST
+# OUTLAST THE OUTBREAK. A typical outbreak in a packed row runs ~36 in-game days, so
+# a 14-day window hands the survivors back as fuel before the thing can starve --
+# measured, it ended 0 times in 10 trials of 1200 days. It was not slow; it was
+# permanently endemic, which is precisely the failure immunity was added to prevent.
+#
+# Measured at 20 souls on a 100px row, stamping each window ONCE (10 trials each):
+#   14 days -> ended  0/10   -- endemic
+#   30 days -> ended 10/10, mean 79 days, worst 603   -- ends, but a vicious tail
+#   60 days -> ended  9/10, mean 35 days              -- one run still going at 1200
+#   90 days -> ended 10/10, mean 38 days, worst 52    -- clean, tight tail
+#  180 days -> ended 10/10, mean 36 days, worst 54    -- no better than 90
+#
+# 90 is the first value that is reliably clean, and past it nothing improves -- the
+# outbreak's own length is the floor. NOTE the window barely changes how long an
+# outbreak lasts (~36 days either way); what it decides is whether one ever ENDS.
+const IMMUNITY_DAYS := 90.0
 var plague_immune_until: Dictionary = {}      # villager id -> game_hours it wears off
 
 func villager_is_immune(vid: String) -> bool:
@@ -6570,6 +6625,19 @@ func auto_heal_villagers(physicians: int) -> void:
 	# healing -- whoever is carried in leaves it whole.
 	var whole := has_building_power("Hospital")
 	for id in villager_hp.keys():
+		# A SICK BODY DOES NOT MEND -- and this is the SECOND place that had to learn
+		# it. The regen in tick_morale_effects was the one that made the sickness
+		# unable to kill anyone; this ward heal is a different function on a different
+		# clock surface doing the same thing, and it would have cancelled the plague
+		# drain by itself. Fixing one healer and not the other leaves the disease
+		# exactly as toothless as it was, for a subtler reason.
+		#
+		# The ward still matters enormously -- it is where the CURE roll is won
+		# (SICK_WARD_CURE_BONUS, and the aura's 3.3x stay of execution). What it must
+		# not do is quietly top a plague victim back up every tick so the drain never
+		# reaches zero.
+		if villager_is_sick(str(id)):
+			continue
 		var hp = float(villager_hp[id])
 		if hp < VILLAGER_MAX_HP:
 			villager_hp[id] = VILLAGER_MAX_HP if whole else minf(VILLAGER_MAX_HP, hp + amount)
@@ -7870,6 +7938,8 @@ func save_game(player: Node) -> void:
 		# accumulators did not, so every Continue reset the countdown to the next daily
 		# roll -- and a player who quits once a day would have the hourly damage run
 		# forever while the cure roll and the burn-out roll never came up once.
+		"eclipse_roll_accum": _eclipse_roll_accum,
+		"patrol_accum": _patrol_accum,
 		"sick_accum": _sick_accum,
 		"fire_accum": _fire_accum,
 		"eclipse_at_hours": eclipse_at_hours,
@@ -8170,12 +8240,21 @@ func load_game() -> Dictionary:
 				burning[str(kb)] = float(parsed["burning"][kb])
 		# ...and the clocks that decide when each of them next gets its daily roll
 		_sick_accum = float(parsed.get("sick_accum", 0.0))
+		_patrol_accum = float(parsed.get("patrol_accum", 0.0))
 		_fire_accum = float(parsed.get("fire_accum", 0.0))
 		# the eclipse clock (an older save has never seen one: -1 = never yet, which
 		# hours_since_eclipse reads as "long ago", so the next roll is free to fire)
 		eclipse_at_hours = float(parsed.get("eclipse_at_hours", -1.0))
 		eclipses_seen = int(parsed.get("eclipses_seen", 0))
-		_eclipse_announced = eclipse_is_active()   # don't re-announce one already up
+		# ...and the roll's own clock. Without it every relaunch threw away whatever
+		# progress the day had made toward the 3% roll, so a player who quits often
+		# would see fewer eclipses than one who does not -- the same defect the
+		# sickness and fire day-clocks had.
+		_eclipse_roll_accum = float(parsed.get("eclipse_roll_accum", 0.0))
+		# NOTE _eclipse_announced is deliberately NOT computed here: eclipse_is_active()
+		# reads game_hours, and game_hours is not restored until much further down this
+		# same function. Computing it here judged the loaded eclipse window against the
+		# OUTGOING clock. It is set once game_hours is real -- see below.
 		block_creep = {}
 		if parsed.has("block_creep") and parsed["block_creep"] is Dictionary:
 			for k2 in parsed["block_creep"].keys():
@@ -8237,7 +8316,12 @@ func load_game() -> Dictionary:
 		if parsed.has("equipment"):
 			load_equipment(parsed["equipment"])
 		game_hours = float(parsed.get("game_hours", 0.0))
-		hours_until_next_siege = float(parsed.get("hours_until_next_siege", SIEGE_FIRST_HOURS))
+		# ONLY NOW is this answerable. eclipse_is_active() compares eclipse_at_hours
+		# against game_hours, and game_hours only became real on the line above -- so
+		# this has to sit here and not up beside the rest of the eclipse state, where
+		# it was judging the restored eclipse window against the clock of whatever
+		# session happened to be running before the load.
+		_eclipse_announced = eclipse_is_active()   # don't re-announce one already up
 		hours_until_caravan = float(parsed.get("hours_until_caravan", CARAVAN_FIRST_HOURS))
 		caravans_seen = int(parsed.get("caravans_seen", 0))
 		fishing_quest = parsed.get("fishing_quest", {})

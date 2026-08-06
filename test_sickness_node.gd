@@ -297,8 +297,15 @@ func _ready() -> void:
 		GameState._sick_accum = 0.0
 		for seed_i in range(4):                       # several carriers: no single roll ends it
 			GameState.sick["im%d" % seed_i] = GameState.game_hours
-		for day in range(300):
+		for day in range(400):
 			GameState._sickness_day(false)
+			# ADVANCE THE CLOCK. _sickness_day does not touch game_hours, so a loop that
+			# only calls it holds time still -- and villager_is_immune compares against
+			# game_hours, so immunity granted on "day 0" never expires. The first version
+			# of this test therefore proved that PERMANENT immunity ends an outbreak,
+			# which is not what ships. IMMUNITY_DAYS is 14; a 300-day run at a real day
+			# per step is the only way to show the shipped window is enough.
+			GameState.game_hours += 24.0
 			if not immune_on:
 				GameState.plague_immune_until = {}    # nobody ever gains immunity
 			for hid2 in GameState.sick.keys():

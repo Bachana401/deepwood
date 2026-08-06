@@ -189,13 +189,37 @@ func _ready() -> void:
 	check("...and nobody is left posted there", GameState.patrol_at(1) == 0)
 
 	# ---- a fallen stretch cuts the road below it ----
+	# THE OLD SETUP COULD NOT HAPPEN. It poked block_creep = {1: 1.0} and asked
+	# whether the road was cut -- but _block_falls sets that block's creep straight
+	# back to 0.0, and tick_patrols erases the creep of anything no longer swept, so
+	# a creep of 1.0 cannot survive the instant that produces it. The test was pinning
+	# a state the game never reaches, and first_fallen_block() (which read creep) could
+	# never return anything but 0 -- the road-cut gate in level_select_ui was dead the
+	# day it was wired, and this check was what made that invisible.
+	#
+	# A fallen block is now DERIVED from the floors, which is what one actually leaves
+	# behind: a stretch that is no longer swept while something deeper still is.
 	GameState.floors_cleared = {}
-	for lv2 in range(1, 21):
-		GameState.floors_cleared[str(lv2)] = true
-	GameState.block_creep = {1: 1.0}
+	for lv2 in range(11, 21):
+		GameState.floors_cleared[str(lv2)] = true   # block 2 held, block 1 lost
 	check("a fallen stretch blocks the walk down past it",
-		GameState.floor_is_road_blocked(15), "block of 15 = %d" % GameState.block_of_floor(15))
-	check("...but not the floors above it", not GameState.floor_is_road_blocked(5))
+		GameState.floor_is_road_blocked(15), "first fallen = %d" % GameState.first_fallen_block())
+	check("...and it is the shallow stretch that is the hole",
+		GameState.first_fallen_block() == 1, str(GameState.first_fallen_block()))
+	check("...but the floors above it are not blocked", not GameState.floor_is_road_blocked(5))
+	# ...and the real thing that produces it agrees: let a block actually FALL
+	GameState.floors_cleared = {}
+	for lv4 in range(1, 21):
+		GameState.floors_cleared[str(lv4)] = true
+	GameState.patrol_posts = {}
+	GameState.block_creep = {1: 0.99}
+	GameState.tick_patrols(24.0)
+	check("a block that genuinely falls cuts the road for real",
+		GameState.first_fallen_block() == 1 and GameState.floor_is_road_blocked(15),
+		"first fallen = %d" % GameState.first_fallen_block())
+	GameState.floors_cleared = {}
+	for lv3 in range(1, 21):
+		GameState.floors_cleared[str(lv3)] = true
 	GameState.block_creep = {}
 	check("with the road clear nothing is blocked", not GameState.floor_is_road_blocked(15))
 

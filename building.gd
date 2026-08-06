@@ -423,6 +423,16 @@ func try_build(player: Node) -> String:
 # round trip rebuilt the scene. Worse, the next hit from anything else wrote the
 # node's stale health straight back over the fire damage, undoing the whole blaze.
 # Any outside writer must call this afterwards.
+# HP-ONLY counterpart to sync_from_state, for an outside writer that changed nothing
+# structural. Fire burns every frame; rebuilding this hall's geometry at that rate
+# would be madness, but leaving the cached health stale is how a blaze got silently
+# undone by the next thing to hit the building.
+func sync_health_from_state() -> void:
+	if build_stage < GameState.TOTAL_BUILD_STAGES:
+		return
+	health = int(GameState.building_health.get(building_name, MAX_HEALTH))
+	update_health_bar()
+
 func sync_from_state() -> void:
 	build_stage = int(GameState.building_stage.get(building_name, 0))
 	building_level = int(GameState.building_levels.get(building_name, 1))

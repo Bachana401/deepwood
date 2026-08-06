@@ -512,6 +512,13 @@ func update_visuals() -> void:
 				moon.position = arc_position(moon_progress, anchor_x)
 			update_moon_true_colors(moon, canvas_color, ecl)
 	_update_eclipse_ring(ecl, sun_progress, anchor_x)
+	# KEEP THIS LAST. It was the tail of this function until the eclipse work appended
+	# _update_eclipse_ring and a new function directly below -- the clock call ended up
+	# stranded AFTER _eclipse_sky_pos's return, where GDScript treats it as unreachable
+	# code and merely warns. The HUD clock therefore read the scene's placeholder 08:00
+	# for an entire run, from the first frame, while the real clock ran on underneath.
+	# Nothing caught it: 130 tests green twice over and a clean clone besides.
+	update_clock_label()
 
 # BRING THE ECLIPSE DOWN WHERE IT CAN BE SEEN.
 #
@@ -663,7 +670,6 @@ func _eclipse_sky_pos(pos: Vector2, ecl: float) -> Vector2:
 	# This only ever hauls the pair DOWN into view when the arc has carried it above
 	# the frame -- at dawn and dusk it already hangs low and is left exactly alone.
 	return Vector2(pos.x, lerpf(pos.y, maxf(pos.y, target_y), clampf(ecl, 0.0, 1.0)))
-	update_clock_label()
 
 # The sky the dev asked for: black silhouettes, one red ring. The tint goes deep
 # red-dark rather than "red" so the world reads as outline lit BY the eclipse,
