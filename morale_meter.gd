@@ -135,6 +135,11 @@ func _refresh_glance() -> void:
 		lines.append("⚠ %d SLIPPING — mend their lives now" % rotting)
 	# THE SICKNESS: the town's own emergency. Loud here, because an outbreak you
 	# cannot see is just a silent tax on a town you thought was running itself.
+	var alight: int = GameState.fire_count()
+	if alight > 0:
+		var crew := GameState.count_workers("Builderhouse") + GameState.seated_leaders("Builderhouse")
+		lines.append("🔥 %d BURNING — %s" % [alight,
+			("%d builders fighting it" % crew) if crew > 0 else "NOBODY IS FIGHTING IT"])
 	var ill: int = GameState.sick_count()
 	if ill > 0:
 		var ward_note := "the ward is holding it" if (GameState.is_building_operational("Hospital") \

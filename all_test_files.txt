@@ -34,11 +34,13 @@ test_dotdeath_node
 test_dragsplit_node
 test_dungeon_layout_node
 test_earlypressure_node
+test_eclipse_node
 test_economy_node
 test_emptyruins_node
 test_eventboss_node
 test_eventstorm_node
 test_finale_node
+test_fire_node
 test_firstsession_node
 test_fishing_node
 test_fullarc_node

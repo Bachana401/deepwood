@@ -925,6 +925,18 @@ const BOSSES = {
 	},
 	# --- MASTER (11th capstone): a towering gold-crowned huntsman, radiant where
 	# the others were grim. Apex, the longest sentences, every trick. ---
+	# --- ECLIPSE (the hardest thing in Deepwood): a black silhouette crowned by a
+	# ring of red light -- the shape of the sky it comes out of. Fought in your own
+	# streets, so every trick it owns is one your town is standing inside. Apex,
+	# the full sentence book. Difficulty is MECHANICS, never one-shots (forever
+	# rule): its damage is barely past the Master's, its health is half again. ---
+	"evt_hollowsun": {
+		"profile": "erratic", "name": "The Hollow Sun",
+		"color": Color(0.05, 0.04, 0.05), "eye_color": Color(1.0, 0.30, 0.16), "magic": Color(1.0, 0.22, 0.16),
+		"body": Vector2(200, 290), "hp": 1700, "speed": 100.0, "shape": "titan", "apex": true,
+		"abilities": ["black_sun", "meteors", "pillars", "beam", "judgment", "teleport"],
+		"passives": ["phase", "sidestep"],
+	},
 	"evt_huntsman": {
 		"profile": "pursuer", "name": "The Master of the Hunt",
 		"color": Color(0.5, 0.4, 0.14), "eye_color": Color(1.0, 0.92, 0.5), "magic": Color(1.0, 0.85, 0.4),
@@ -2739,6 +2751,9 @@ const BOSS_COMBOS = {
 	"evt_sablehound": [["charge", "pounce", "teleport"], ["pounce", "charge", "volley"], ["teleport", "volley", "charge"]],
 	"evt_nihil": [["black_sun", "meteors", "beam"], ["pillars", "black_sun", "teleport"], ["beam", "meteors", "pillars"]],
 	"evt_huntsman": [["judgment", "charge", "volley"], ["meteors", "judgment", "beam"], ["charge", "volley", "teleport", "judgment"]],
+	# the longest sentences in the game -- it opens with the dark it arrived in
+	"evt_hollowsun": [["black_sun", "pillars", "meteors"], ["judgment", "beam", "black_sun"],
+		["meteors", "teleport", "pillars", "judgment"], ["black_sun", "beam", "meteors", "pillars"]],
 }
 
 # The floor this boss is being fought on decides how long its sentences run.
@@ -4504,6 +4519,7 @@ const PHASE_TWO := {
 	"evt_sablehound":  "BLOOD SCENT",
 	"evt_nihil":       "THE LAST HOUR STRIKES",
 	"evt_huntsman":    "THE FINAL QUARRY",
+	"evt_hollowsun":   "THE CORONA BREAKS",
 }
 
 var phase2_active := false
@@ -4709,6 +4725,18 @@ func _apply_phase_two() -> void:
 			base_move_speed *= 1.3           # the final quarry cannot flee
 			reach_mult *= 1.2
 			phase2_cd_mult *= 0.75
+		"evt_hollowsun":
+			# THE CORONA BREAKS. The ring it wore comes apart, and everything it
+			# was holding in comes out: its sentences run back to back, its reach
+			# widens as the light spills, and it stops giving ground. This one is
+			# fought in YOUR VILLAGE, so a phase that merely made it tankier would
+			# just lengthen the time your buildings spend being stood on.
+			# (no _p2_timer: like Nihil and the Master, this phase is a set of
+			# standing multipliers, not a ticking cycle -- setting a clock nothing
+			# reads is exactly the named-but-never-read trap this project bans)
+			phase2_cd_mult *= 0.6
+			reach_mult *= 1.25
+			base_move_speed *= 1.15
 		_:
 			phase2_applied = false   # unreachable while PHASE_TWO covers all bosses
 

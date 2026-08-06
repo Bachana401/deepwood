@@ -20,15 +20,16 @@ func _frames(n: int) -> void:
 func _ready() -> void:
 	# ---- static registry checks (no scene needed) ----
 	var ids: Array = EventBoss.ids()
-	check("eleven events exist (ten hidden + the capstone)", ids.size() == 11, str(ids.size()))
+	check("twelve events exist (ten hidden + the capstone + the Hollow Sun)", ids.size() == 12, str(ids.size()))
 	check("ten bosses make up the hunt", EventBoss.hunt_ids().size() == 10, str(EventBoss.hunt_ids().size()))
 
-	var by_diff := {"medium": 0, "hard": 0, "very_hard": 0, "expert": 0, "master": 0}
+	var by_diff := {"medium": 0, "hard": 0, "very_hard": 0, "expert": 0, "master": 0, "eclipse": 0}
 	for id in ids:
 		var ev: Dictionary = EventBoss.get_event(str(id))
 		by_diff[ev.get("difficulty", "?")] = by_diff.get(ev.get("difficulty", "?"), 0) + 1
-	check("difficulty split is 3 / 3 / 3 / 1 (+1 Master capstone)",
-		by_diff["medium"] == 3 and by_diff["hard"] == 3 and by_diff["very_hard"] == 3 and by_diff["expert"] == 1 and by_diff["master"] == 1,
+	check("difficulty split is 3 / 3 / 3 / 1 (+1 Master capstone, +1 Eclipse)",
+		by_diff["medium"] == 3 and by_diff["hard"] == 3 and by_diff["very_hard"] == 3
+		and by_diff["expert"] == 1 and by_diff["master"] == 1 and by_diff["eclipse"] == 1,
 		str(by_diff))
 	check("Nihil and the Master are item-only (never ambient)",
 		EventBoss.is_item_only("nihil") and EventBoss.is_item_only("huntsman")
@@ -47,7 +48,7 @@ func _ready() -> void:
 	for id in ids:
 		for w in EventBoss.get_event(str(id)).get("weapons", []):
 			weps[w] = true
-	check("exactly 22 exclusive event weapons (11 bosses x 2)", weps.size() == 22, str(weps.size()))
+	check("exactly 24 exclusive event weapons (12 bosses x 2)", weps.size() == 24, str(weps.size()))
 
 	# every re-summon token + the two rite items have a valid recipe of real items
 	var summon_items := ["duskmoon_effigy", "hunters_horn"]
@@ -208,7 +209,7 @@ func _ready() -> void:
 
 	# ---- Chronicle: a slain boss reveals its name + trigger; the rest stay ??? ----
 	var hunt: Array = GameState.hidden_hunt_entries()
-	check("the Chronicle lists all eleven", hunt.size() == 11, str(hunt.size()))
+	check("the Chronicle lists all twelve", hunt.size() == 12, str(hunt.size()))
 	check("ten of the hunt now read as slain", GameState.hidden_hunt_slain_count() == 10,
 		str(GameState.hidden_hunt_slain_count()))
 	var tally_ok := false

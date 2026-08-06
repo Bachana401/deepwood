@@ -412,6 +412,29 @@ func try_build(player: Node) -> String:
 	return "ok"
 
 # Commit one stage of construction + play the "rising from the ground" build.
+# RE-READ THE TRUTH FROM GameState (2026-08-06). The node caches build_stage and
+# health once in _ready and every other writer of those dicts is this script, so
+# for a long time "cache once" was safe. FIRE broke that: tick_fire and _fire_guts
+# write GameState directly while this node is alive, and the node never noticed.
+# The result was a hall that GameState called a burnt-out frame while the node
+# still believed itself whole -- it drew pristine, is_ruined() said no so the
+# manage panel offered no repair section, try_build refused because the cached
+# stage was still full, and the building could not be raised again until a dungeon
+# round trip rebuilt the scene. Worse, the next hit from anything else wrote the
+# node's stale health straight back over the fire damage, undoing the whole blaze.
+# Any outside writer must call this afterwards.
+func sync_from_state() -> void:
+	build_stage = int(GameState.building_stage.get(building_name, 0))
+	building_level = int(GameState.building_levels.get(building_name, 1))
+	if build_stage >= GameState.TOTAL_BUILD_STAGES:
+		health = int(GameState.building_health.get(building_name, MAX_HEALTH))
+	else:
+		health = 0
+	current_state = compute_visual_state()
+	update_health_bar()
+	refresh_visual()
+	update_torches()
+
 func advance_build_stage() -> void:
 	build_stage += 1
 	GameState.building_stage[building_name] = build_stage

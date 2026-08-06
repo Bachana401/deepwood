@@ -2248,6 +2248,8 @@ func tick_village_clock() -> void:
 	tick_wood_gathering(hours_passed)
 	tick_patrols(hours_passed)
 	tick_sickness(hours_passed)
+	tick_fire(hours_passed)
+	tick_eclipse(hours_passed)
 	tick_self_sufficiency()   # celebrate each chore the moment it starts running itself
 	tick_village_peril()      # escalating dread as the hearth empties (pierces the fog)
 	tick_black_tide_omen()    # the fog-piercing warning of a coming Black Tide
@@ -2401,11 +2403,100 @@ func _fire_event(id: String, _p: Node) -> void:
 	dir.event_id = id
 	scene.add_child(dir)
 
+# ====================== THE ECLIPSE (dev design 2026-08-06) ======================
+# The moon takes the sun whole and the world goes to silhouette under a red ring.
+# The only hour the Hollow Signet answers, and the way the hardest fight in
+# Deepwood is called.
+#
+# NOT the dawn/dusk crossing -- that happens twice a day, every day, and is what
+# Nihil's older Duskmoon rite reads (_sun_moon_both_up). This is a rarer thing
+# entirely, and the two must never be confused.
+#
+# RARE, RECURRING, AND NEVER MISSABLE (dev call): each day carries a flat 3%
+# chance, but never within ECLIPSE_COOLDOWN_DAYS of the last one -- so it cannot
+# fall twice in a row, and it cannot be farmed by idling. Expect roughly one
+# every forty-odd days (~7 real hours), at no predictable moment. If you are
+# caught in the deep without the Signet, you have lost THIS one and nothing more:
+# another will come. That is what keeps a once-a-campaign spectacle from being a
+# once-a-campaign punishment.
+#
+# It is ANNOUNCED the moment it begins, through the away-fog, and holds for
+# ECLIPSE_DURATION_HOURS -- about five real minutes, long enough to waystone home,
+# not long enough to go and fetch what you should already be carrying.
+const ECLIPSE_CHANCE_PER_DAY := 0.03
+const ECLIPSE_COOLDOWN_DAYS := 7.0       # never twice in a row
+const ECLIPSE_DURATION_HOURS := 12.0     # ~5 real minutes of wrong sky
+const ECLIPSE_START_HOUR := 6.0          # sunrise: the span is exactly the day
+var eclipse_at_hours := -1.0             # when the CURRENT/most recent one began
+var eclipses_seen := 0
+var _eclipse_roll_accum := 0.0
+var _eclipse_announced := false
+
+func eclipse_is_active() -> bool:
+	if eclipse_at_hours < 0.0:
+		return false
+	return game_hours >= eclipse_at_hours \
+		and game_hours < eclipse_at_hours + ECLIPSE_DURATION_HOURS
+
+# Hours since the last one let go (a huge number when there has never been one).
+func hours_since_eclipse() -> float:
+	if eclipse_at_hours < 0.0:
+		return 1e9
+	return game_hours - (eclipse_at_hours + ECLIPSE_DURATION_HOURS)
+
+# 0 at first contact, 1 at totality, 0 again as it lets go -- what the sky draws.
+func eclipse_progress() -> float:
+	if not eclipse_is_active():
+		return 0.0
+	var t: float = (game_hours - eclipse_at_hours) / ECLIPSE_DURATION_HOURS
+	return sin(clampf(t, 0.0, 1.0) * PI)
+
+func tick_eclipse(hours_passed: float) -> void:
+	if hours_passed <= 0.0:
+		return
+	if eclipse_is_active():
+		if not _eclipse_announced:
+			_eclipse_announced = true
+			eclipses_seen += 1
+			# PIERCES THE FOG on purpose: nobody can be asked to be ready for a
+			# thing they were never told about.
+			notify_urgent("🌑 THE SUN IS GOING OUT — the sky turns red over Deepwood.")
+			log_event("village", "The moon took the sun whole. The world stood in red dark.")
+			SfxSynth.play_village(self, SfxSynth.SFX_ECLIPSE)
+		return
+	# between eclipses: one roll a day, and never inside the cooldown
+	if hours_since_eclipse() < ECLIPSE_COOLDOWN_DAYS * 24.0:
+		return
+	_eclipse_roll_accum += hours_passed
+	while _eclipse_roll_accum >= 24.0:
+		_eclipse_roll_accum -= 24.0
+		if randf() < ECLIPSE_CHANCE_PER_DAY:
+			# IT ALWAYS BEGINS AT DAWN. The roll picks the DAY; the sky picks the
+			# hour. An eclipse rolled at midnight and started on the spot would be
+			# a red night -- no sun to take, no ring, nothing to look at. Snapped
+			# to sunrise, the twelve hours land exactly on the daylight span:
+			# first contact at dawn, totality at noon, the sun let go at dusk.
+			eclipse_at_hours = game_hours + hours_until_time_of_day(ECLIPSE_START_HOUR)
+			_eclipse_announced = false
+			return
+
+# Hours from now until the clock next reads `target` (0 if it reads it already).
+func hours_until_time_of_day(target: float) -> float:
+	return fposmod(target - time_of_day(), 24.0)
+
+# Rolled, but the sun has not been touched yet -- we are waiting on dawn.
+func eclipse_is_pending() -> bool:
+	return eclipse_at_hours > game_hours
+
+# The gate the Hollow Signet reads: a TRUE eclipse, not the daily crossing.
+func is_true_eclipse() -> bool:
+	return eclipse_is_active()
+
 # --- Item-summoned events (Nihil's Duskmoon rite, the Master's Horn, and every
 # re-summon token). Called from player.use_item. Returns "" on success, else a
 # short reason to show WITHOUT spending the item. Bypasses the once-per-run lock
 # (that's the whole point of a token), but still only one event on stage. ---
-func summon_event_boss(id: String, delay: float, require_eclipse: bool) -> String:
+func summon_event_boss(id: String, delay: float, require_eclipse: bool, require_true_eclipse := false) -> String:
 	if EventBoss.get_event(id).is_empty():
 		return "Nothing answers."
 	if not opening_done or harvest_at_home or despair_dead:
@@ -2414,6 +2505,11 @@ func summon_event_boss(id: String, delay: float, require_eclipse: bool) -> Strin
 		return "The air is already thick — finish what you started."
 	if require_eclipse and not _sun_moon_both_up():
 		return "Nothing happens. The sky is not yet wrong."   # no explicit how-to on purpose
+	# THE TRUE ECLIPSE is a different, far rarer gate than the daily crossing
+	# above: the Signet will not answer at dusk, only when the moon has the sun
+	# whole. Kept as its own flag so the two can never be confused.
+	if require_true_eclipse and not is_true_eclipse():
+		return "The ring is cold. The moon has not taken the sun."
 	var p = get_tree().get_first_node_in_group("player")
 	if p == null or not is_instance_valid(p):
 		return "Nothing answers."
@@ -2670,12 +2766,17 @@ func post_patrol(b: int, n: int) -> bool:
 	if b < 1 or b > PATROL_BLOCKS or not block_is_cleared(b):
 		return false
 	var want := maxi(0, n)
-	var others := posted_warriors() - patrol_at(b)
+	var was: int = patrol_at(b)
+	var others := posted_warriors() - was
 	if want + others > warrior_count():
 		want = maxi(0, warrior_count() - others)
 	patrol_posts[b] = want
 	if want <= 0:
 		patrol_posts.erase(b)
+	# only when the watch GROWS: assign_ui binds +1 and -1 to this same call, so an
+	# unguarded march would also play while you were pulling the watch back home
+	if want > was:
+		SfxSynth.play_village(self, SfxSynth.SFX_PATROL_OUT)
 	return true
 
 # A block in enemy hands cuts the road: you cannot WALK past it. (Waystones still
@@ -2717,7 +2818,12 @@ func _block_falls(b: int) -> void:
 			floors_cleared.erase(str(lv))
 			lost += 1
 	block_creep[b] = 0.0
+	var watch: int = patrol_at(b)
 	patrol_posts.erase(b)
+	# read BEFORE the erase, and only if a watch was actually standing there: a
+	# block can fall with nobody posted, and that is a setback, not a bereavement
+	if watch > 0:
+		SfxSynth.play_village(self, SfxSynth.SFX_PATROL_LOST)
 	if lost > 0:
 		log_event("combat", "Floors %d-%d have fallen back to the dark — the road down is cut there." % [int(r[0]), int(r[1])])
 		notify("⚠ The deep took floors %d-%d back. Sweep them again to open the road." % [int(r[0]), int(r[1])])
@@ -2756,6 +2862,10 @@ func _patrol_earnings(hours_passed: float) -> void:
 		if coin_total > 0 or mat_total > 0:
 			log_event("economy", "The patrols sent up %d gold and %d %s from the deep." % [
 				coin_total, mat_total, kind.replace("_", " ")])
+			# a find is rolled in the loop just above and lands the same frame; it is
+			# the bigger sound, so the plain coin lift stands aside for it
+			if not SfxSynth.played_recently(SfxSynth.SFX_PATROL_FIND):
+				SfxSynth.play_village(self, SfxSynth.SFX_PATROL_HOME)
 
 # THE FIND. Rare, and SELF-BALANCING: a watch can only turn up gear the floors it
 # holds would have yielded, using the game's own TIER_FLOORS brackets. Since a
@@ -2787,6 +2897,7 @@ func _patrol_find_gear(b: int, player) -> void:
 		log_event("economy", "The patrol on floors %d-%d found something on the bodies: %s." % [
 			int(r[0]), int(r[1]), Inventory.get_display_name(pick)])
 		notify("⚔ Your patrol sends up a find: %s" % Inventory.get_display_name(pick))
+		SfxSynth.play_village(self, SfxSynth.SFX_PATROL_FIND)
 
 func village_defense_power() -> float:
 	# no Orin, no meteors: until he walks out of the dungeon the village's
@@ -3933,6 +4044,14 @@ func personal_morale_target(v: Dictionary) -> float:
 	if ten_freed("ten_ilo"):
 		t += 1.0
 	t -= morale_death_shock / 10.0                               # the town's grief weighs on everyone
+	# A SICK TOWN IS A LOW TOWN (dev ruling 2026-08-06). For the ordinary illness
+	# this IS the mechanic -- it cannot kill and it does no damage, so if the mood
+	# did not land here it would cost the player literally nothing. Capped, because
+	# a rough week should be a heavy town, not a morale wipe that tips a whole
+	# village over the despair line and starts rotting people into demons.
+	if not sick.is_empty():
+		t -= minf(SICK_MORALE_PER_CASE * float(sick_count() - plague_count())
+			+ PLAGUE_MORALE_PER_CASE * float(plague_count()), SICK_MORALE_CAP)
 	# 3b tuning (2026-07-22): a FED, free soul holds a dim ember -- miserable, yes
 	# (low income, no births, complaints, maybe below the despair line), but
 	# poverty ALONE never rots them to death. Only an EMPTY larder lifts this
@@ -4218,6 +4337,139 @@ func on_wall_broken(flank: String) -> void:
 		v["morale"] = clampf(get_personal_morale(v) - WALL_BREAK_MORALE_HIT, 0.0, 10.0)
 	log_event("combat", "The %s rampart has fallen — the horde is in the streets!" % flank)
 
+# ========================= FIRE (dev design 2026-08-06) =========================
+# THE SECOND FACE OF ADJACENCY. Every placement rule so far has been pure upside:
+# stand the Mine beside the forge and you are simply better off, so the optimal
+# economic layout was also the only sane one and the "puzzle" had one answer.
+# Fire spreads along the SAME neighbour map the synergies use -- so the tight,
+# perfectly-paired row that earns the most is now also the row that burns whole.
+# That is the tension the placement layer was missing.
+#
+# It scales with the town, like the sickness: a village of four halls rarely
+# burns, a full city has hearths and forges everywhere. The buildings that carry
+# a real flame are likelier to start it -- the smithy above all.
+#
+# FIGHTING IT IS THE BUILDERHOUSE'S JOB, which finally gives that crew something
+# urgent to do; but a big blaze outruns a small crew, so it is your emergency
+# too. Left alone a hall burns back down its build stages and must be raised
+# again -- costly, never unrecoverable.
+const FIRE_MIN_BUILDINGS := 5             # a hamlet of huts rarely goes up
+const FIRE_CHANCE_PER_DAY := 0.018        # ...per standing hall beyond that
+const FIRE_HEARTH_MULT := 3.0             # forges and hearths start most of them
+const FIRE_HEARTHS := ["Blacksmith", "Tavern", "Bar", "Barracks"]
+const FIRE_SPREAD_CHANCE_PER_DAY := 0.30  # to an IMMEDIATE neighbour
+const FIRE_DAMAGE_PER_HOUR := 26.0
+const FIRE_CREW_SUPPRESS := 0.22          # each Builderhouse hand fights it back
+const FIRE_OUT_CHANCE_PER_DAY := 0.18     # a blaze can also simply burn itself out
+const FIRE_OUT_CHANCE_CAP := 0.85         # even a full crew never guarantees it
+
+var burning: Dictionary = {}              # building name -> game_hours it caught
+var _fire_accum := 0.0
+
+func fire_count() -> int:
+	return burning.size()
+
+func building_is_burning(name: String) -> bool:
+	return burning.has(name)
+
+# How hard the town is fighting: the crew that raises buildings also saves them.
+func _fire_suppression() -> float:
+	if not is_building_operational("Builderhouse"):
+		return 0.0
+	var hands := count_workers("Builderhouse") + seated_leaders("Builderhouse")
+	return FIRE_CREW_SUPPRESS * float(hands)
+
+func tick_fire(hours_passed: float) -> void:
+	if hours_passed <= 0.0:
+		return
+	# the hourly half: a blaze eats the hall it is in, the crew fights it down
+	var fought := clampf(_fire_suppression(), 0.0, 0.9)
+	for bn in burning.keys():
+		var name := str(bn)
+		if not is_building_operational(name):
+			burning.erase(name)      # already rubble: nothing left to burn
+			continue
+		var dmg := FIRE_DAMAGE_PER_HOUR * hours_passed * (1.0 - fought)
+		var hp := float(building_health.get(name, BUILDING_MAX_HEALTH)) - dmg
+		if hp <= 0.0:
+			_fire_guts(name)
+		else:
+			building_health[name] = hp
+	_fire_accum += hours_passed
+	while _fire_accum >= 24.0:
+		_fire_accum -= 24.0
+		_fire_day()
+
+func _fire_day() -> void:
+	# ---- what goes out ----
+	for bn in burning.keys():
+		# CLAMPED, like the hourly half. Unclamped, four Builderhouse hands put
+		# 0.18 + 4x0.22 = 1.06 on the roll and randf() can never beat it -- every
+		# fire went out on its first day, forever, and the whole system quietly
+		# switched itself off the moment the crew was staffed. A big crew should
+		# make fire survivable, not impossible.
+		if randf() < minf(FIRE_OUT_CHANCE_PER_DAY + _fire_suppression(), FIRE_OUT_CHANCE_CAP):
+			burning.erase(bn)
+			log_event("village", "The fire at the %s is out." % str(bn))
+			SfxSynth.play_village(self, SfxSynth.SFX_FIRE_DOUSED)
+	# ---- what catches from a neighbour: THE COST OF A TIGHT ROW ----
+	if not burning.is_empty():
+		var caught := []
+		for bn2 in burning.keys():
+			for side in building_neighbors.get(str(bn2), []):
+				var nb := str(side)
+				if nb == "" or burning.has(nb) or nb in caught:
+					continue
+				if not is_building_operational(nb):
+					continue
+				if randf() < FIRE_SPREAD_CHANCE_PER_DAY:
+					caught.append(nb)
+		for c in caught:
+			burning[c] = game_hours
+			log_event("village", "The fire jumped to the %s — they are built too close." % c)
+		if not caught.is_empty():
+			notify_urgent("🔥 The fire is spreading — %s alight!" % ", ".join(caught))
+			SfxSynth.play_village(self, SfxSynth.SFX_FIRE_ALARM)
+		return
+	# ---- or a new one starts ----
+	var standing := []
+	for bn3 in STARTING_BUILDINGS:
+		if is_building_operational(bn3):
+			standing.append(bn3)
+	if standing.size() < FIRE_MIN_BUILDINGS:
+		return
+	for name in standing:
+		var odds := FIRE_CHANCE_PER_DAY
+		if name in FIRE_HEARTHS:
+			odds *= FIRE_HEARTH_MULT
+		if randf() < odds:
+			burning[name] = game_hours
+			log_event("village", "Fire has broken out at the %s!" % name)
+			notify_urgent("🔥 FIRE at the %s — it will spread to whatever stands beside it." % name)
+			SfxSynth.play_village(self, SfxSynth.SFX_FIRE_ALARM)
+			return                    # one at a time; a town does not combust at once
+
+# A hall the fire finished: knocked back down its stages, to be raised again.
+func _fire_guts(name: String) -> void:
+	burning.erase(name)
+	building_health[name] = BUILDING_MAX_HEALTH
+	building_stage[name] = maxi(0, int(building_stage.get(name, TOTAL_BUILD_STAGES)) - 1)
+	if int(building_stage[name]) <= 0:
+		building_health[name] = 0
+	log_event("village", "The %s has burned down to its frame." % name)
+	notify_urgent("🔥 The %s burned down. The builders will have to raise it again." % name)
+	_resync_building_node(name)
+
+# The live node caches its stage and health from _ready and nothing re-reads them,
+# so fire -- which writes GameState from the outside -- has to say so. Calling only
+# refresh_visual() was not enough: it redraws from a `current_state` the node never
+# recomputed, so a gutted hall kept drawing pristine, refused to offer a repair, and
+# wrote its stale health back over the burn on the next hit.
+func _resync_building_node(name: String) -> void:
+	for node in get_tree().get_nodes_in_group("building"):
+		if "role_key" in node and str(node.role_key) == name and node.has_method("sync_from_state"):
+			node.sync_from_state()
+
 # ======================= THE SICKNESS (dev design 2026-08-06) =======================
 # THE TOWN'S OWN PROBLEM. Everything else the village produces, it produces FOR
 # you; this it produces AT you. The answer to "what is there to do once it runs
@@ -4235,27 +4487,68 @@ func on_wall_broken(flank: String) -> void:
 # placed -- its ward aura is the only standing defence.
 #
 # IT IS NOT CORRUPTION. Despair turns people into demons (tick_rot); this is
-# physical, it is contagious, and it kills. The Ten and the pledged are exempt
-# here as they are from every other loss path.
+# physical and it is contagious. The Ten and the pledged are exempt here as they
+# are from every other loss path.
 #
 # AND IT CANNOT BE FULLY AUTOMATED AWAY, which is the point: a ward dampens it,
 # but an outbreak in a big town outruns a ward, and the news pierces the away-fog
 # so you know to come home. That is the player's job -- not a chore, an emergency.
+#
+# ====================== TWO STRAINS (dev ruling 2026-08-06) ======================
+# THE ILLNESS is the early one, and it CANNOT KILL. What it does is stop a body
+# mending and drag the whole town's mood down -- and that is the entire cost. The
+# dev's reasoning: at the point in the game where this first appears the player has
+# no staffed Hospital, no doctors and no leader to answer it with, so a plague that
+# took people then would be a punishment for being early rather than a problem to
+# solve. An illness that freezes healing and sours the town is an ANNOYANCE you
+# notice and work around. That is what it should be at that stage.
+#
+# THE PLAGUE is the real thing, and it is gated to PLAGUE_MIN_DEPTH on purpose: it
+# only ever appears once the player is deep enough to have the tools to fight it
+# properly. It drains, it spreads harder, it shrugs off an unaided recovery, and
+# ignored long enough it takes people. Same system, late-game teeth.
+#
+# NOTE the ordinary illness carries NO hp drain at all rather than a drain tuned to
+# cancel the regen. It is expressed as the regen suppression in tick_morale_effects
+# instead, because the regen is not a fixed 3/hr -- doctors multiply it and the ward
+# aura adds to it, so a fixed cancelling number would let a well-staffed town heal
+# straight through the illness while an unstaffed one slowly died of it. Suppression
+# gives the dev's stated effect ("will not regen health") under every staffing.
 const OUTBREAK_MIN_POP := 12                  # a hamlet has nobody to catch it from
 const OUTBREAK_CHANCE_PER_DAY := 0.05         # ...at the threshold; grows with the town
 const OUTBREAK_CHANCE_PER_SOUL := 0.0016
 const SICK_SPREAD_RADIUS := 900.0             # how near a home must be to catch it
 const SICK_SPREAD_CHANCE_PER_DAY := 0.22
-const SICK_DRAIN_PER_HOUR := 2.4              # outruns the passive regen on purpose
 const SICK_CURE_CHANCE_PER_DAY := 0.10        # they can throw it off unaided...
 const SICK_WARD_CURE_BONUS := 0.55            # ...far better under the ward's shadow
 const SICK_WARD_DRAIN_RELIEF := 0.55          # and it costs them less while there
+# the mood, which for the ordinary illness IS the whole mechanic
+const SICK_MORALE_PER_CASE := 0.18
+const PLAGUE_MORALE_PER_CASE := 0.5
+const SICK_MORALE_CAP := 2.5                  # a bad week, never a morale wipe
+# ---- the late strain ----
+const PLAGUE_MIN_DEPTH := 30                  # the last blueprint floor: you are established
+const PLAGUE_SHARE_ONCE_DEEP := 0.35          # ...and this share of outbreaks turn virulent
+const PLAGUE_DRAIN_PER_HOUR := 0.6            # ~7 in-game days from full strength to gone
+const PLAGUE_SPREAD_MULT := 1.7               # it runs through a packed row
+const PLAGUE_CURE_MULT := 0.4                 # and will not be shaken off unaided
 
 var sick: Dictionary = {}                     # villager id -> game_hours they fell ill
+var plague_ids: Dictionary = {}               # ...and which of them carry the VIRULENT strain
 var _sick_accum := 0.0
 
 func sick_count() -> int:
 	return sick.size()
+
+func plague_count() -> int:
+	return plague_ids.size()
+
+func villager_has_plague(vid: String) -> bool:
+	return plague_ids.has(vid)
+
+# Has the player gone deep enough for the virulent strain to exist at all?
+func plague_is_possible() -> bool:
+	return deepest_level_reached >= PLAGUE_MIN_DEPTH
 
 func villager_is_sick(vid: String) -> bool:
 	return sick.has(vid)
@@ -4280,21 +4573,31 @@ func tick_sickness(hours_passed: float) -> void:
 	if hours_passed <= 0.0 or not CORRUPTION_ENABLED:
 		return
 	_sick_accum += hours_passed
-	# the hourly half: it costs the sick their strength, ward or no ward
+	# THE HOURLY HALF, and only the PLAGUE has one. The ordinary illness costs no HP
+	# at all: its whole cost is that a sick body does not mend (the villager_is_sick
+	# guard in tick_morale_effects) and that the town's mood sours (village morale
+	# reads sick_count/plague_count). Per the dev's ruling it must never take anyone.
 	var ward := is_building_operational("Hospital") and count_workers("Hospital") > 0
 	for vid in sick.keys():
 		var v: Dictionary = find_villager_by_id(str(vid))
 		if v.is_empty():
 			sick.erase(vid)
+			plague_ids.erase(vid)
 			continue
-		var drain := SICK_DRAIN_PER_HOUR * hours_passed
+		if not plague_ids.has(vid):
+			continue
+		var drain := PLAGUE_DRAIN_PER_HOUR * hours_passed
 		if in_aura("Hospital", v):
 			drain *= (1.0 - SICK_WARD_DRAIN_RELIEF)
 		villager_hp[str(vid)] = get_villager_hp(str(vid)) - drain
-	_reap_the_sick()
+	# THE DAY ROLLS COME BEFORE THE REAPER. Reaping first meant a villager whose HP
+	# crossed zero inside a chunk was buried without ever being offered the cure roll
+	# that same chunk would have given them -- worst on the paths that advance time in
+	# a lump, where the ward's 65%-a-day recovery never got to fire at all.
 	while _sick_accum >= 24.0:
 		_sick_accum -= 24.0
 		_sickness_day(ward)
+	_reap_the_sick()
 
 func _sickness_day(ward: bool) -> void:
 	# ---- who throws it off ----
@@ -4302,22 +4605,32 @@ func _sickness_day(ward: bool) -> void:
 		var v: Dictionary = find_villager_by_id(str(vid))
 		if v.is_empty():
 			sick.erase(vid)
+			plague_ids.erase(vid)
 			continue
 		var cure := SICK_CURE_CHANCE_PER_DAY
 		if in_aura("Hospital", v):
 			cure += SICK_WARD_CURE_BONUS
 		elif ward:
 			cure += SICK_WARD_CURE_BONUS * 0.35   # a staffed ward helps even at range
+		# the virulent strain will not be shrugged off -- the ward is how you beat it
+		if plague_ids.has(vid):
+			cure *= PLAGUE_CURE_MULT
 		if randf() < cure:
 			sick.erase(vid)
+			plague_ids.erase(vid)
 			log_event("people", "%s has thrown off the sickness." % str(v.get("name", "?")))
 	# ---- who catches it ----
 	if not sick.is_empty():
 		var fresh := []
+		var fresh_plague := []
 		for vid2 in sick.keys():
 			var carrier: Dictionary = find_villager_by_id(str(vid2))
 			if carrier.is_empty():
 				continue
+			# THE STRAIN TRAVELS WITH THE CARRIER: catching it off a plague case gives
+			# you the plague, catching it off an ordinary case gives you the ordinary
+			# illness. An outbreak cannot quietly escalate into the late-game strain.
+			var carrier_plague: bool = plague_ids.has(vid2)
 			for other in rescued_villagers:
 				if not _can_sicken(other):
 					continue
@@ -4326,15 +4639,22 @@ func _sickness_day(ward: bool) -> void:
 				if not _lives_touch(carrier, other, SICK_SPREAD_RADIUS):
 					continue
 				var chance := SICK_SPREAD_CHANCE_PER_DAY
+				if carrier_plague:
+					chance *= PLAGUE_SPREAD_MULT
 				if in_aura("Hospital", other):
 					chance *= 0.4          # the ward's shadow shelters its neighbours
 				if randf() < chance:
 					fresh.append(str(other.get("id", "")))
+					if carrier_plague:
+						fresh_plague.append(str(other.get("id", "")))
 		for nid in fresh:
 			sick[nid] = game_hours
+		for pid in fresh_plague:
+			plague_ids[pid] = true
 		if not fresh.is_empty():
 			log_event("people", "The sickness spread to %d more in the night." % fresh.size())
 			notify_urgent("🤒 The sickness spreads — %d more are down." % fresh.size())
+			SfxSynth.play_village(self, SfxSynth.SFX_OUTBREAK, NAN, NAN, 1.12)
 	# ---- or a new one begins ----
 	elif rescued_villagers.size() >= OUTBREAK_MIN_POP:
 		var odds := OUTBREAK_CHANCE_PER_DAY \
@@ -4351,33 +4671,52 @@ func _begin_outbreak() -> void:
 		return
 	var first: String = pool[randi() % pool.size()]
 	sick[first] = game_hours
-	log_event("people", "%s has fallen ill — and it does not look like grief." % villager_name(first))
+	# WHICH STRAIN. Below PLAGUE_MIN_DEPTH the virulent one does not exist at all --
+	# an early town only ever gets the illness that cannot kill it. Once the player
+	# is deep enough to hold a staffed ward, a share of outbreaks turn.
+	var virulent: bool = plague_is_possible() and randf() < PLAGUE_SHARE_ONCE_DEEP
+	if virulent:
+		plague_ids[first] = true
 	# PIERCES THE AWAY-FOG on purpose: an outbreak you cannot hear about is just a
 	# silent tax. This is the town asking you to come home.
-	notify_urgent("🤒 Sickness in Deepwood — %s is down. It will spread." % villager_name(first))
+	if virulent:
+		log_event("people", "%s has fallen ill, and it is not the usual sickness." % villager_name(first))
+		notify_urgent("☠ PLAGUE in Deepwood — %s is down. This one kills." % villager_name(first))
+	else:
+		log_event("people", "%s has fallen ill — and it does not look like grief." % villager_name(first))
+		notify_urgent("🤒 Sickness in Deepwood — %s is down. It will spread." % villager_name(first))
+	SfxSynth.play_village(self, SfxSynth.SFX_OUTBREAK)
 
 # The sickness can finish someone, but only after long neglect: the drain is slow
 # enough that coming home and getting a ward standing always saves them.
 func _reap_the_sick() -> void:
 	var taken := []
 	for vid in sick.keys():
-		if get_villager_hp(str(vid)) <= 0.0:
+		# ONLY THE PLAGUE REAPS. The ordinary illness carries no drain, so nobody
+		# should ever reach this on it -- but guard on the strain rather than on the
+		# HP alone, so that a villager who happens to be at zero for some OTHER
+		# reason (a siege wound, a starving week) is never quietly recorded as a
+		# plague death while merely having a cold.
+		if plague_ids.has(vid) and get_villager_hp(str(vid)) <= 0.0:
 			taken.append(str(vid))
 	for vid2 in taken:
 		sick.erase(vid2)
+		plague_ids.erase(vid2)
 		var v: Dictionary = find_villager_by_id(vid2)
 		if v.is_empty():
 			continue
 		if v.get("unbreakable", false):
 			villager_hp[vid2] = 1.0        # a legend sickens to the brink, never past
 			continue
-		# the same road every other death walks: clear the body's HP, take them off
-		# the roster by id, and let the town feel it (register_villager_deaths is
-		# what carries the grief into morale)
+		# The same road every other death walks. remove_villager_by_id ALREADY calls
+		# register_villager_deaths(1, death_pos) itself -- the second call this used
+		# to make charged the town TWO funerals for one body: double morale shock, a
+		# doubled log line, and run_villager_deaths counting twice, which armed the
+		# Grief-Eater at two dead instead of three. Every other loss path (starvation,
+		# rot, the Harvest) calls the remover alone. So does this one now.
 		var gone := str(v.get("name", "?"))
 		villager_hp.erase(vid2)
 		remove_villager_by_id(vid2)
-		register_villager_deaths(1)
 		log_event("people", "%s was taken by the sickness. Deepwood grieves." % gone)
 		notify_urgent("✝ %s was taken by the sickness." % gone)
 
@@ -4495,6 +4834,14 @@ func tick_morale_effects(hours_passed: float) -> void:
 			# wall and recovers nothing until their relief comes
 			var is_warrior: bool = v.get("stat_name", "") == "Warrior" or v.get("role_key", "") == "Barracks"
 			if is_warrior and warrior_on_duty(v):
+				continue
+			# A SICK BODY DOES NOT MEND ITSELF. This regen runs in the SAME hourly tick
+			# as tick_sickness's drain, and at 3/hr base it comfortably outran the
+			# 2.4/hr the plague took -- so every sick villager sat pinned at full HP and
+			# the entire sickness system could never take a single life. It was a
+			# notification with no teeth. Being ill now means the trickle stops: what
+			# lifts you is throwing it off, the ward's shadow, or the Hospital itself.
+			if villager_is_sick(str(id)):
 				continue
 			# passive regen is a low trickle now (base 3); doctors still nudge it up, but
 			# the REAL, fast recovery is the Hospital (the Sick Road)
@@ -6966,6 +7313,13 @@ func reset_for_new_game() -> void:
 	building_x = {}
 	school_share = SCHOOL_SHARE_MAX   # a new town schools everyone until told otherwise
 	sick = {}                         # a new town is a well town
+	plague_ids = {}                   # ...and has never met the virulent strain
+	burning = {}                      # ...and nothing is alight
+	eclipse_at_hours = -1.0           # the sky has not yet gone wrong this run
+	eclipses_seen = 0
+	_eclipse_roll_accum = 0.0
+	_eclipse_announced = false
+	_fire_accum = 0.0
 	_sick_accum = 0.0
 	patrol_posts = {}                 # nobody is in the deep at the start of a run
 	block_creep = {}
@@ -7220,6 +7574,16 @@ func save_game(player: Node) -> void:
 		"school_share": school_share,
 		"patrol_posts": patrol_posts,
 		"sick": sick,
+		"plague_ids": plague_ids,
+		"burning": burning,
+		# THE DAY-CLOCKS MUST TRAVEL WITH THEM. sick/burning survived a save but their
+		# accumulators did not, so every Continue reset the countdown to the next daily
+		# roll -- and a player who quits once a day would have the hourly damage run
+		# forever while the cure roll and the burn-out roll never came up once.
+		"sick_accum": _sick_accum,
+		"fire_accum": _fire_accum,
+		"eclipse_at_hours": eclipse_at_hours,
+		"eclipses_seen": eclipses_seen,
 		"block_creep": block_creep,
 		"_kid_intake": _kid_intake,
 		"pregnancies": pregnancies,
@@ -7496,6 +7860,26 @@ func load_game() -> Dictionary:
 		if parsed.has("sick") and parsed["sick"] is Dictionary:
 			for ks in parsed["sick"].keys():
 				sick[str(ks)] = float(parsed["sick"][ks])
+		# which of them carry the virulent strain (an older save: none -- every case
+		# it recorded predates the split and was, by definition, the harmless one)
+		plague_ids = {}
+		if parsed.has("plague_ids") and parsed["plague_ids"] is Dictionary:
+			for kp in parsed["plague_ids"].keys():
+				if sick.has(str(kp)):
+					plague_ids[str(kp)] = true
+		# what is alight (an older save is a town that never burned)
+		burning = {}
+		if parsed.has("burning") and parsed["burning"] is Dictionary:
+			for kb in parsed["burning"].keys():
+				burning[str(kb)] = float(parsed["burning"][kb])
+		# ...and the clocks that decide when each of them next gets its daily roll
+		_sick_accum = float(parsed.get("sick_accum", 0.0))
+		_fire_accum = float(parsed.get("fire_accum", 0.0))
+		# the eclipse clock (an older save has never seen one: -1 = never yet, which
+		# hours_since_eclipse reads as "long ago", so the next roll is free to fire)
+		eclipse_at_hours = float(parsed.get("eclipse_at_hours", -1.0))
+		eclipses_seen = int(parsed.get("eclipses_seen", 0))
+		_eclipse_announced = eclipse_is_active()   # don't re-announce one already up
 		block_creep = {}
 		if parsed.has("block_creep") and parsed["block_creep"] is Dictionary:
 			for k2 in parsed["block_creep"].keys():

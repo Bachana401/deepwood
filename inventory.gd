@@ -349,6 +349,22 @@ const ITEM_DEFS = {
 	# Used at any other time, nothing happens and it is not spent. Crafted from
 	# three other bosses' trophies (frost, fire, grief) -- so the deep-secret is
 	# soft-gated behind hunting the others first. ----
+	# ---- THE ECLIPSE SET: the Hollow Sun's, the hardest thing in the game. Black
+	# and red throughout -- the silhouette and the ring. ----
+	"evt_ringbreaker": {"name": "Ringbreaker", "category": "weapon", "weapon_type": "melee", "max_stack": 1, "color": Color(1.0, 0.28, 0.18, 1.0),
+		"weapon_stats": {"damage": 48, "cooldown": 0.52, "range_offset": 58, "area_size": Vector2(84, 50), "knockback_min": 70.0, "knockback_max": 120.0, "icon_size": Vector2(70, 18), "icon_color": Color(1.0, 0.28, 0.18), "icon_offset": 22.0},
+		"unique_effect": "execute", "unique_value": 0.25, "boss_bonus": 0.7,
+		"unique_desc": "The Hollow Sun's blade: it ENDS anything under 25% outright, and bites 70% deeper into bosses."},
+	"evt_coronaedge": {"name": "Corona Edge", "category": "weapon", "weapon_type": "magic", "max_stack": 1, "color": Color(1.0, 0.45, 0.2, 1.0),
+		"weapon_stats": {"damage": 42, "cooldown": 0.44, "range_offset": 60, "area_size": Vector2(70, 70), "knockback_min": 40.0, "knockback_max": 90.0, "icon_size": Vector2(58, 24), "icon_color": Color(1.0, 0.45, 0.2), "icon_offset": 20.0},
+		"unique_effect": "burn", "unique_value": 0.35, "boss_bonus": 0.5,
+		"unique_desc": "A ring of standing fire: everything it touches keeps burning, and bosses burn half again as hard."},
+	"relic_hollowcrown": {"name": "The Hollow Crown", "category": "relic", "slot": "relic", "max_stack": 1, "color": Color(1.0, 0.25, 0.16, 1.0), "equip_effect": {"max_health": 110.0, "max_mana": 50.0}, "relic_power": "phoenix", "relic_desc": "It wore the sun as a crown and the crown was empty: rise again at half health once every 40s, and carry +110 HP, +50 Mana."},
+	"armor_eclipsed": {"name": "Eclipsed Plate", "category": "armor", "slot": "chest", "max_stack": 1, "color": Color(0.9, 0.24, 0.18, 1.0), "equip_effect": {"max_health": 95.0, "max_mana": 40.0, "damage_reduction": 0.10, "dodge_chance": 0.06}},
+	"mat_ringlight": {"name": "Ringlight", "category": "material", "max_stack": 20, "color": Color(1.0, 0.35, 0.2, 1.0), "is_ingredient": true},
+	"hollow_signet": {"name": "Hollow Signet", "category": "consumable", "max_stack": 3, "color": Color(1.0, 0.26, 0.16, 1.0),
+		"use_effect": {"summon_event": "hollowsun", "true_eclipse": true, "delay": 5.0},
+		"use_desc": "A ring of dull iron with nothing in the middle. Raise it when the moon takes the sun WHOLE — not at dusk, when they merely pass. Whatever answers will answer in your streets."},
 	"duskmoon_effigy": {"name": "Duskmoon Effigy", "category": "consumable", "max_stack": 5, "color": Color(0.5, 0.55, 0.85, 1.0),
 		"use_effect": {"summon_event": "nihil", "eclipse": true, "delay": 4.0},
 		"use_desc": "Use it while the sun and moon share the sky. Something will answer in four heartbeats."},
@@ -949,6 +965,9 @@ const ITEM_GRADES = {
 	# Expert = Ascended / Monarch
 	"evt_endbringer": "monarch", "evt_stareater": "ascended",
 	"relic_lasthour": "monarch", "armor_unmade": "ascended",
+	# Eclipse = the top of the ladder, the hardest fight in the game
+	"evt_ringbreaker": "monarch", "evt_coronaedge": "monarch",
+	"relic_hollowcrown": "monarch", "armor_eclipsed": "monarch",
 	# Master (11th capstone) = Monarch
 	"evt_huntcrown": "monarch", "evt_huntbow": "monarch", "relic_huntmaster": "monarch",
 }
@@ -1099,6 +1118,15 @@ const CRAFT_RECIPES = {
 	"hunters_horn": {"mat_debtcoin": 1, "mat_everfrost": 1, "mat_heartwood": 1, "mat_brine": 1,
 		"mat_pyreash": 1, "mat_vigilember": 1, "mat_grieftear": 1, "mat_crownshard": 1,
 		"mat_sableichor": 1, "mat_unmade": 1, "ancient_relic": 2},
+	# THE HOLLOW SIGNET. Raised during a true eclipse, it calls the Hollow Sun --
+	# the hardest fight in Deepwood, and the only one that lands in your village
+	# rather than in the deep. Costed like the Horn because it stands beside it,
+	# but out of DEEP materials rather than trophies: the Horn is the reward for
+	# knowing every secret, the Signet is the reward for going far enough down.
+	# WITHOUT THIS RECIPE THE SIGNET WAS UNOBTAINABLE and the whole eclipse chain
+	# was a dead end -- no drop table carries it either.
+	"hollow_signet": {"mat_unmade": 2, "mat_crownshard": 2, "mat_sableichor": 1,
+		"void_essence": 4, "ancient_relic": 3},
 }
 
 static func get_grade(item_id: String) -> String:
@@ -1765,6 +1793,7 @@ static func paint_icon(target: ColorRect, item_id: String) -> void:
 		"mat_pyreash", "mat_vigilember", "mat_unmade": _icon_crystal(target, w, h, col)
 		"mat_sableichor": _icon_blob(target, w, h, col)
 		"mat_huntsign": _icon_runestone(target, w, h, col)
+		"mat_ringlight": _icon_corona(target, w, h, col)
 		# --- fishing (pillar 3): the water's own shapes ---
 		"fish_silverfin", "fish_mudwhisker", "fish_lanterneel", "fish_kingsjaw", "fish_palegulper":
 			_icon_fish(target, w, h, col)
@@ -2143,6 +2172,20 @@ static func _icon_orb(t: Control, w: float, h: float, col: Color) -> void:
 	_icircle(t, Vector2(w * 0.5, h * 0.5), w * 0.24, col)                           # orb
 	_icircle(t, Vector2(w * 0.5, h * 0.5), w * 0.11, col.lightened(0.35))           # inner glow
 	_icircle(t, Vector2(w * 0.43, h * 0.43), w * 0.04, Color(1, 1, 1, 0.5))         # shine
+
+# RINGLIGHT: the eclipse in miniature. A black disc with the ring still burning
+# around it -- the only icon in the game that IS the sky it was taken from, so it
+# reads instantly in a full satchel. Note the centre is near-black on purpose: the
+# moon is the hole, not the light, exactly as the sky draws it.
+static func _icon_corona(t: Control, w: float, h: float, col: Color) -> void:
+	var c := Vector2(w * 0.5, h * 0.5)
+	_icircle(t, c, w * 0.42, Color(col.r, col.g, col.b, 0.18))               # outer flare
+	_icircle(t, c, w * 0.34, Color(col.r, col.g, col.b, 0.5))                # corona
+	_icircle(t, c, w * 0.27, col.lightened(0.35))                            # the hot ring
+	_icircle(t, c, w * 0.19, Color(0.05, 0.03, 0.05, 1.0))                   # the moon: a hole
+	var flare := col.lightened(0.5)
+	_iline(t, PackedVector2Array([Vector2(w * 0.5, h * 0.06), Vector2(w * 0.5, h * 0.2)]), maxf(1.0, w * 0.03), flare)
+	_iline(t, PackedVector2Array([Vector2(w * 0.5, h * 0.8), Vector2(w * 0.5, h * 0.94)]), maxf(1.0, w * 0.03), flare)
 
 static func _icon_runestone(t: Control, w: float, h: float, col: Color) -> void:
 	_irect(t, Vector2(w * 0.30, h * 0.20), Vector2(w * 0.40, h * 0.60), col.darkened(0.25))  # tablet edge

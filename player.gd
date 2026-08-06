@@ -1857,7 +1857,8 @@ func use_item(item_id: String) -> bool:
 	# event live). GameState returns "" on success, else a short reason.
 	var summon_id := str(eff.get("summon_event", ""))
 	if summon_id != "":
-		var reason: String = GameState.summon_event_boss(summon_id, float(eff.get("delay", 0.0)), bool(eff.get("eclipse", false)))
+		var reason: String = GameState.summon_event_boss(summon_id, float(eff.get("delay", 0.0)),
+			bool(eff.get("eclipse", false)), bool(eff.get("true_eclipse", false)))
 		if reason != "":
 			if stack:
 				stack.show_notification(reason)

@@ -450,6 +450,15 @@ func arc_position(progress: float, anchor_x: float) -> Vector2:
 func update_visuals() -> void:
 	var t = get_darkness_factor()
 	var canvas_color = DAY_COLOR.lerp(NIGHT_COLOR, t)
+	# ================== THE ECLIPSE (dev design 2026-08-06) ==================
+	# The reference the dev gave is a RING, not a red filter: a world gone to black
+	# silhouette lit by one hot red source. So the global tint goes deep red-DARK
+	# (everything reads as outline) rather than red-bright, and the moon rides onto
+	# the sun so what survives is a burning corona around a black disc.
+	var ecl: float = GameState.eclipse_progress()
+	if ecl > 0.0:
+		canvas_color = canvas_color.lerp(
+			ECLIPSE_TINT.lerp(ECLIPSE_TINT_TOTAL, ecl), clampf(ecl * 1.15, 0.0, 1.0))
 	var modulate_node = get_node_or_null("../CanvasModulate")
 	if modulate_node:
 		modulate_node.color = canvas_color
@@ -461,13 +470,204 @@ func update_visuals() -> void:
 	if sun:
 		sun.visible = sun_progress >= 0.0
 		if sun.visible:
-			sun.position = arc_position(sun_progress, anchor_x)
+			sun.position = _eclipse_sky_pos(arc_position(sun_progress, anchor_x), ecl)
+			update_sun_eclipse(sun, ecl, canvas_color)
 	if moon:
-		moon.visible = moon_progress >= 0.0
+		moon.visible = moon_progress >= 0.0 or ecl > 0.0
 		if moon.visible:
-			moon.position = arc_position(moon_progress, anchor_x)
-			update_moon_true_colors(moon, canvas_color)
+			# during totality the moon RIDES the sun -- that is the whole image
+			if ecl > 0.0 and sun_progress >= 0.0:
+				var own := arc_position(maxf(moon_progress, 0.0), anchor_x)
+				moon.position = _eclipse_sky_pos(
+					own.lerp(arc_position(sun_progress, anchor_x), clampf(ecl * 1.4, 0.0, 1.0)), ecl)
+			else:
+				moon.position = arc_position(moon_progress, anchor_x)
+			update_moon_true_colors(moon, canvas_color, ecl)
+	_update_eclipse_ring(ecl, sun_progress, anchor_x)
+
+# BRING THE ECLIPSE DOWN WHERE IT CAN BE SEEN.
+#
+# The ordinary arc peaks at SKY_PEAK_Y (-760) and the camera's view top sits near
+# -690 at the standard zoom -- so the midday sun is normally OFF SCREEN, about
+# seventy pixels above the frame. Nobody ever noticed, because on an ordinary day
+# there is nothing up there worth looking at and the sun is visible at dawn and
+# dusk when it rides the horizon.
+#
+# The eclipse peaks at noon. So the one moment the entire feature exists for -- the
+# black disc inside the burning ring -- was drawn just past the top edge of the
+# screen and could never be seen at all. Static analysis and the test suite both
+# called this feature finished; only a screenshot found it.
+#
+# Rather than lower the arc for every day of the game (which would change a sky the
+# dev has already approved), the pair is pulled down toward a visible band ONLY
+# while an eclipse is running, in proportion to how far along it is. The band is
+# measured off the live camera so it holds at any zoom or resolution.
+# ======================= THE RING (dev design 2026-08-06) =======================
+# The dev's reference is a world in black silhouette lit by ONE HOT RED RING. The
+# silhouette half is easy -- that is just the CanvasModulate going deep red-dark.
+# The ring is not, and the reason is worth writing down because it is not obvious:
+#
+#   CanvasModulate MULTIPLIES. Nothing on that canvas can ever be brighter than the
+#   modulate colour itself. With the eclipse tint at (0.20, 0.035, 0.045), a sun
+#   painted pure white still renders at (0.20, 0.035, 0.045) -- and the sky bands
+#   behind it render at (0.10, 0.02, 0.04). So the "blazing corona" came out about
+#   twice as bright as the sky it sat in: a faint smudge, invisible in play. The
+#   counter_color trick the moon uses works at night only because NIGHT_COLOR is
+#   comparatively light; at eclipse darkness it clamps and dies.
+#
+# So the ring is drawn on its OWN CanvasLayer, which CanvasModulate does not touch,
+# in screen space at the sun's projected position. Fully additive: nothing in
+# main.tscn moves, the ordinary sky is untouched, and at ecl = 0 the whole overlay
+# is transparent and costs nothing.
+# SIZE IS THE WHOLE POINT, IN BOTH DIRECTIONS. The first version drew a ring that measured
+# about seven pixels across on a 1152-wide frame -- pixel-sampling proved it was
+# there and burning at (1.0, 0.40, 0.22) against a (0.11, 0.03, 0.04) sky, roughly
+# nine times the surrounding brightness, and it still read as nothing at all. An
+# eclipse has to DOMINATE the sky it ruins. The bright band is deliberately wide
+# (core 1.0 -> hot edge 1.34) rather than a hairline, so it reads as a burning
+# ring and not as a bright outline.
+# More layers than the look strictly needs: with only four, the additive discs
+# read as hard concentric bands -- a dartboard rather than a corona. Eight closely
+# spaced steps let the falloff blend into something that looks like light.
+const RING_LAYERS = [
+	# radius scale, colour, alpha at totality  -- outermost first
+	[3.40, Color(1.0, 0.13, 0.05), 0.10],
+	[2.90, Color(1.0, 0.15, 0.06), 0.12],
+	[2.45, Color(1.0, 0.18, 0.07), 0.15],
+	[2.08, Color(1.0, 0.22, 0.08), 0.19],
+	[1.78, Color(1.0, 0.28, 0.10), 0.25],
+	[1.55, Color(1.0, 0.38, 0.14), 0.34],
+	[1.40, Color(1.0, 0.52, 0.22), 0.55],
+	[1.28, Color(1.0, 0.74, 0.40), 1.0],    # the hot inner edge
+]
+const RING_CORE_RADIUS = 34.0
+# high in the frame, where a sun belongs -- and clear of the dialogue box along the
+# bottom and the notification stack in the top right
+const RING_SCREEN_Y = 0.22
+var _ring_layer: CanvasLayer = null
+var _ring_parts: Array = []
+var _ring_core: Polygon2D = null
+
+func _build_eclipse_ring() -> void:
+	_ring_layer = CanvasLayer.new()
+	# Layer 1, NOT 0. A CanvasLayer at 0 ties with the root viewport's own canvas
+	# and loses -- the ring was being drawn behind the whole world, which looks
+	# identical to it not being drawn at all. At 1 it clears the world, and because
+	# same-layer CanvasLayers draw in tree order and DayNightCycle sits well above
+	# every UI layer in main.tscn, it still passes safely UNDER the HUD, the
+	# dialogue box and the menus.
+	_ring_layer.layer = 1
+	add_child(_ring_layer)
+	for spec in RING_LAYERS:
+		var p := Polygon2D.new()
+		build_circle(p, RING_CORE_RADIUS * float(spec[0]), Color(1, 1, 1, 0))
+		p.material = make_additive_material()
+		_ring_layer.add_child(p)
+		_ring_parts.append(p)
+	# the moon: the hole in the middle. NOT additive -- it is the absence of light.
+	_ring_core = Polygon2D.new()
+	build_circle(_ring_core, RING_CORE_RADIUS, Color(0.03, 0.015, 0.02, 0.0))
+	_ring_layer.add_child(_ring_core)
+
+func _update_eclipse_ring(ecl: float, sun_progress: float, anchor_x: float) -> void:
+	if ecl <= 0.0 or sun_progress < 0.0:
+		if _ring_layer != null:
+			_ring_layer.visible = false
+		return
+	if _ring_layer == null:
+		_build_eclipse_ring()
+	# THE RING IS PLACED IN SCREEN SPACE, NOT PROJECTED FROM THE WORLD SUN.
+	#
+	# This is not a shortcut, it is the only thing that works. The sky's parallax
+	# anchor is player.x * PARALLAX_FACTOR (0.12) while the camera sits at player.x,
+	# so the sun falls behind the camera by 88% of however far you have walked. Near
+	# world origin -- which is where the prologue happens, and the only place anyone
+	# had ever looked at the sky -- it lines up fine. Out in the village at x ~ 5600
+	# the sun is nearly three thousand screen pixels off the left edge.
+	#
+	# So a ring projected from the sun's world position would be invisible in the one
+	# place this event exists for: your town, with the Hollow Sun standing in it.
+	# Anchoring to the screen means the eclipse is overhead wherever you are, which
+	# is also simply what an eclipse is.
+	#
+	# (The underlying sun/moon sprites still ride the parallax arc as always -- this
+	# overlay is the spectacle, and it is drawn on top of them.)
+	var vp: Vector2 = get_viewport().get_visible_rect().size
+	var screen := Vector2(lerpf(vp.x * 0.20, vp.x * 0.80, clampf(sun_progress, 0.0, 1.0)),
+		vp.y * RING_SCREEN_Y)
+	_ring_layer.visible = true
+	# scale off the viewport, not the camera zoom: the ring is a fixed share of the
+	# screen so it reads the same on a phone and on a desktop window
+	var rs: float = clampf(vp.y / 648.0, 0.55, 2.0)
+	for i in range(_ring_parts.size()):
+		var part: Polygon2D = _ring_parts[i]
+		var spec: Array = RING_LAYERS[i]
+		var col: Color = spec[1]
+		part.position = screen
+		part.scale = Vector2(rs, rs)
+		# the corona SWELLS as the moon closes: at first contact it is barely a
+		# rumour, at totality it is the only light left in the world
+		part.color = Color(col.r, col.g, col.b, float(spec[2]) * pow(ecl, 1.4))
+	_ring_core.position = screen
+	_ring_core.scale = Vector2(rs, rs)
+	_ring_core.color = Color(0.03, 0.015, 0.02, clampf(ecl * 1.6, 0.0, 1.0))
+
+# 120 clears the top edge by more than the sun's outer glow (radius 44 x 1.6 scale
+# = 71), so the whole corona lands inside the frame rather than half-cropped.
+const ECLIPSE_VIEW_MARGIN = 120.0     # how far below the view's top edge to hang it
+const ECLIPSE_SKY_Y_FALLBACK = -570.0 # if there is no camera to measure against
+
+func _eclipse_sky_pos(pos: Vector2, ecl: float) -> Vector2:
+	if ecl <= 0.0:
+		return pos
+	var target_y := ECLIPSE_SKY_Y_FALLBACK
+	var cam := get_viewport().get_camera_2d() if get_viewport() != null else null
+	if cam != null and cam.zoom.y > 0.0:
+		var view_h: float = get_viewport().get_visible_rect().size.y / cam.zoom.y
+		target_y = cam.get_screen_center_position().y - view_h * 0.5 + ECLIPSE_VIEW_MARGIN
+	# maxf, not minf: y runs NEGATIVE upward, so the larger value is the lower one.
+	# This only ever hauls the pair DOWN into view when the arc has carried it above
+	# the frame -- at dawn and dusk it already hangs low and is left exactly alone.
+	return Vector2(pos.x, lerpf(pos.y, maxf(pos.y, target_y), clampf(ecl, 0.0, 1.0)))
 	update_clock_label()
+
+# The sky the dev asked for: black silhouettes, one red ring. The tint goes deep
+# red-dark rather than "red" so the world reads as outline lit BY the eclipse,
+# instead of a red sheet laid over a normal day.
+const ECLIPSE_TINT = Color(0.34, 0.10, 0.10, 1.0)
+const ECLIPSE_TINT_TOTAL = Color(0.20, 0.035, 0.045, 1.0)
+const ECLIPSE_CORONA = Color(1.0, 0.20, 0.10, 1.0)
+const ECLIPSE_CORONA_HOT = Color(1.0, 0.55, 0.22, 1.0)
+
+# Bleed the sun from its daylight gold to a burning red corona as the moon takes
+# it. Counter-coloured like the moon, so the ring stays BRIGHT while everything
+# around it goes to black -- otherwise CanvasModulate would swallow it too.
+func update_sun_eclipse(sun_container: Node2D, ecl: float, canvas_color: Color) -> void:
+	var core := SUN_COLOR.lerp(ECLIPSE_CORONA, ecl)
+	var halo := SUN_COLOR.lerp(ECLIPSE_CORONA_HOT, ecl)
+	# NOTE the node is "Disc", not "Body" -- the moon uses Body, the sun does not.
+	var disc = sun_container.get_node_or_null("Disc")
+	if disc:
+		disc.color = counter_color(core, canvas_color) if ecl > 0.0 else SUN_COLOR
+	var highlight = sun_container.get_node_or_null("Highlight")
+	if highlight:
+		highlight.color = counter_color(Color(halo.r, halo.g, halo.b, SUN_HIGHLIGHT_COLOR.a), canvas_color) \
+			if ecl > 0.0 else SUN_HIGHLIGHT_COLOR
+	for nm in ["GlowOuter", "GlowInner"]:
+		var g = sun_container.get_node_or_null(nm)
+		if g == null:
+			continue
+		var a: float = SUN_GLOW_OUTER_ALPHA if nm == "GlowOuter" else SUN_GLOW_INNER_ALPHA
+		# the corona FLARES as totality closes: this is the ring in the picture
+		var lit := Color(halo.r, halo.g, halo.b, a + a * 2.2 * ecl)
+		g.color = counter_color(lit, canvas_color) if ecl > 0.0 \
+			else Color(SUN_COLOR.r, SUN_COLOR.g, SUN_COLOR.b, a)
+	var rays = sun_container.get_node_or_null("Rays")
+	if rays:
+		for r in rays.get_children():
+			var ra := SUN_RAY_ALPHA * (1.0 + 2.0 * ecl)
+			r.color = counter_color(Color(halo.r, halo.g, halo.b, ra), canvas_color) if ecl > 0.0 \
+				else Color(SUN_COLOR.r, SUN_COLOR.g, SUN_COLOR.b, SUN_RAY_ALPHA)
 
 # CanvasModulate darkens EVERYTHING in the scene uniformly, including the
 # moon itself -- without this, the moon would get dimmed right along with
@@ -485,10 +685,31 @@ func counter_color(true_color: Color, canvas_color: Color) -> Color:
 		true_color.a
 	)
 
-func update_moon_true_colors(moon_container: Node2D, canvas_color: Color) -> void:
+func update_moon_true_colors(moon_container: Node2D, canvas_color: Color, ecl := 0.0) -> void:
 	var body = moon_container.get_node_or_null("Body")
 	var glow_outer = moon_container.get_node_or_null("GlowOuter")
 	var glow_inner = moon_container.get_node_or_null("GlowInner")
+	# THE MOON GOES BLACK. counter_color divides by the canvas tint, so under the
+	# near-black eclipse sky the ordinary path would render a blinding white moon --
+	# the exact opposite of the image. During an eclipse the moon is not a light
+	# source, it is the hole: drop it to a flat dark disc and let the sun's corona
+	# behind it be the only bright thing on screen.
+	if ecl > 0.0:
+		if body:
+			body.color = Color(0.05, 0.02, 0.03, 1.0).lerp(counter_color(MOON_COLOR, canvas_color), 1.0 - ecl)
+		for nm in ["GlowOuter", "GlowInner"]:
+			var g = moon_container.get_node_or_null(nm)
+			if g:
+				g.color = Color(g.color.r, g.color.g, g.color.b, g.color.a * (1.0 - ecl))
+		for i in range(SKY_GLOW_LAYERS.size()):
+			var sg = moon_container.get_node_or_null("SkyGlow" + str(i + 1))
+			if sg:
+				sg.color = Color(sg.color.r, sg.color.g, sg.color.b, sg.color.a * (1.0 - ecl))
+		var cr = moon_container.get_node_or_null("Craters")
+		if cr:
+			for dot in cr.get_children():
+				dot.color = Color(0.05, 0.02, 0.03, 1.0)
+		return
 	if body:
 		body.color = counter_color(MOON_COLOR, canvas_color)
 	if glow_outer:

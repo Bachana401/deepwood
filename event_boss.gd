@@ -29,6 +29,12 @@ const DIFF := {
 	"very_hard": {"hp": 4.8, "dmg": 1.5,  "floor": 72,  "label": "Very Hard", "accent": Color(1.0, 0.32, 0.46)},
 	"expert":    {"hp": 7.0, "dmg": 1.85, "floor": 100, "label": "Expert",    "accent": Color(0.3, 0.95, 1.0)},
 	"master":    {"hp": 9.5, "dmg": 2.0,  "floor": 100, "label": "Master",    "accent": Color(1.0, 0.85, 0.4)},
+	# ---- ECLIPSE: above everything. The hardest fight in Deepwood (dev call
+	# 2026-08-06). Damage still climbs only a little past Master -- the FOREVER
+	# rule holds, difficulty is mechanics and never one-shots -- but it has half
+	# again the Master's health, and unlike every other event it is fought in your
+	# own streets, so the town is on the table with you.
+	"eclipse":   {"hp": 14.0, "dmg": 2.15, "floor": 100, "label": "Eclipse",  "accent": Color(1.0, 0.22, 0.16)},
 }
 
 # id -> event. `boss_id` keys boss.gd BOSSES. `weapons` is the 50/50 pair;
@@ -121,6 +127,21 @@ const EVENTS := {
 		"hint": "sound the Hunter's Horn (forged from all ten trophies)",
 		"capstone": true,
 	},
+	# ---- ECLIPSE: the hardest thing in the game, and the only one you fight in
+	# your own streets. Called by raising the Hollow Signet to a TRUE eclipse --
+	# not the daily dusk crossing Nihil answers to, but the rare hour the moon
+	# takes the sun whole. Recurring by design (dev 2026-08-06): "he spawns on the
+	# ground, you're endangering your whole village + progress... it would be very
+	# unfair to give 1 chance". ----
+	"hollowsun": {
+		"name": "The Hollow Sun", "difficulty": "eclipse", "boss_id": "evt_hollowsun",
+		"where": "village", "banner": "it wore the sun as a crown, and the crown was empty",
+		"weapons": ["evt_ringbreaker", "evt_coronaedge"],
+		"extras": ["relic_hollowcrown", "armor_eclipsed", "mat_ringlight"],
+		"trigger": "item",   # the Hollow Signet, raised during a TRUE eclipse
+		"hint": "raise the Hollow Signet when the moon takes the sun whole",
+		"outside_hunt": true,   # not one of the ten; see hunt_ids()
+	},
 }
 
 static func ids() -> Array:
@@ -132,11 +153,15 @@ static func is_item_only(id: String) -> bool:
 	return str(EVENTS.get(id, {}).get("trigger", "")) == "item"
 
 # The ten to defeat for the capstone (everything that isn't the capstone itself).
+# The Hollow Sun stands OUTSIDE the hunt -- it is not one of the ten secrets, it
+# is the thing that comes when the sun goes out, and gating the Horn behind it
+# would put a capstone behind a 3%-a-day sky.
 static func hunt_ids() -> Array:
 	var out: Array = []
 	for id in EVENTS:
-		if not EVENTS[id].get("capstone", false):
-			out.append(id)
+		if EVENTS[id].get("capstone", false) or EVENTS[id].get("outside_hunt", false):
+			continue
+		out.append(id)
 	return out
 
 static func get_event(id: String) -> Dictionary:

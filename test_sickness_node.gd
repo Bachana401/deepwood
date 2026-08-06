@@ -38,6 +38,9 @@ func _ready() -> void:
 	var s_pos: Array = GameState.extra_cottage_positions.duplicate()
 	var s_stage: Dictionary = GameState.building_stage.duplicate(true)
 	var s_x: Dictionary = GameState.building_x.duplicate(true)
+	var s_plague: Dictionary = GameState.plague_ids.duplicate(true)
+	var s_depth: int = GameState.deepest_level_reached
+	var s_deaths: int = GameState.run_villager_deaths
 
 	GameState.sick = {}
 	GameState.villager_hp = {}
@@ -74,6 +77,13 @@ func _ready() -> void:
 	GameState.sick = {"s0": GameState.game_hours}
 	GameState._sick_accum = 0.0
 	for _d2 in range(4):
+		# HOLD PATIENT ZERO ILL. This test measures WHERE the sickness travels, not
+		# whether one villager happens to shake it off -- and at a 10%-a-day cure over
+		# four nights, s0 recovering before infecting anyone made this fail roughly
+		# one run in four. That flake had nothing to do with spread. Re-seeding the
+		# carrier each night isolates the property actually under test and drops the
+		# odds of a false red to about one in a thousand.
+		GameState.sick["s0"] = GameState.game_hours
 		GameState._sickness_day(false)
 	var packed := 0
 	var far := 0
@@ -91,33 +101,127 @@ func _ready() -> void:
 	GameState.building_x["Hospital"] = 6400.0        # right on top of the packed row
 	var v0: Dictionary = GameState.find_villager_by_id("s0")
 	check("a home in the ward's shadow is recognised", GameState.in_aura("Hospital", v0))
-	# under the ward, the same illness costs far less strength
+
+	# ================== TWO STRAINS (dev ruling 2026-08-06) ==================
+	# THE ORDINARY ILLNESS CANNOT KILL. The dev's reasoning: when this first appears
+	# the player has no staffed ward, no doctors and no leader to answer it with, so
+	# a plague that took people then would punish being early rather than pose a
+	# problem. Its entire cost is that a sick body stops mending and the town's mood
+	# drops. THE PLAGUE is the late-game strain, gated behind PLAGUE_MIN_DEPTH so it
+	# only ever arrives once the player holds the tools to fight it.
+	GameState.plague_ids = {}
 	GameState.sick = {"s0": GameState.game_hours}
+	GameState.villager_hp = {"s0": 100.0}
+	GameState.tick_sickness(48.0)
+	check("the ordinary illness costs no strength at all — two full days of it",
+		is_equal_approx(GameState.get_villager_hp("s0"), 100.0), "%.1f" % GameState.get_villager_hp("s0"))
+	# ...and it cannot kill even from the brink, which is the whole ruling
+	GameState.villager_hp = {"s0": 0.5}
+	GameState.sick = {"s0": GameState.game_hours}
+	var pop_before: int = GameState.rescued_villagers.size()
+	GameState.tick_sickness(240.0)
+	check("...and it can NEVER take anyone, even from the brink, even after ten days",
+		GameState.rescued_villagers.size() == pop_before,
+		"%d -> %d" % [pop_before, GameState.rescued_villagers.size()])
+
+	# but a sick body does not MEND either -- that is the cost, and it has to be real
+	GameState.sick = {}
+	GameState.plague_ids = {}
+	GameState.villager_hp = {"s0": 40.0}
+	GameState.tick_morale_effects(6.0)
+	var healed: float = GameState.get_villager_hp("s0")
+	GameState.sick = {"s0": GameState.game_hours}
+	GameState.villager_hp = {"s0": 40.0}
+	GameState.tick_morale_effects(6.0)
+	var not_healed: float = GameState.get_villager_hp("s0")
+	check("a WELL villager mends over six hours", healed > 40.0, "%.1f" % healed)
+	check("a SICK one does not — the illness freezes healing (this is the mechanic)",
+		is_equal_approx(not_healed, 40.0), "%.1f" % not_healed)
+
+	# and the town feels it: for the ordinary illness the MOOD is the entire cost,
+	# so if it did not land in morale the illness would cost the player nothing
+	# Read the TARGET, not village_morale_10(): the village figure averages each
+	# villager's STORED morale, which only drifts toward its target as the clock
+	# ticks, so a freshly-set outbreak would not show there for hours of game time.
+	# The target is where the penalty actually lives.
+	GameState.sick = {}
+	GameState.plague_ids = {}
+	var subject: Dictionary = GameState.find_villager_by_id("s0")
+	var mood_well: float = GameState.personal_morale_target(subject)
+	GameState.sick = {"s0": GameState.game_hours, "s1": GameState.game_hours,
+		"s2": GameState.game_hours, "s3": GameState.game_hours}
+	var mood_sick: float = GameState.personal_morale_target(subject)
+	check("a sick town is a low town", mood_sick < mood_well,
+		"well %.2f vs sick %.2f" % [mood_well, mood_sick])
+	check("...but never a morale wipe (a rough week must not rot the village)",
+		mood_well - mood_sick <= GameState.SICK_MORALE_CAP + 0.001,
+		"drop %.2f, cap %.2f" % [mood_well - mood_sick, GameState.SICK_MORALE_CAP])
+	# and the PLAGUE weighs heavier on the town than the ordinary illness does
+	GameState.plague_ids = {"s0": true, "s1": true, "s2": true, "s3": true}
+	var mood_plague: float = GameState.personal_morale_target(subject)
+	check("a plagued town is lower still than a merely sick one",
+		mood_plague < mood_sick, "sick %.2f vs plagued %.2f" % [mood_sick, mood_plague])
+	GameState.plague_ids = {}
+
+	# ---- THE PLAGUE: gated to the mid game, and it does have teeth ----
+	GameState.deepest_level_reached = GameState.PLAGUE_MIN_DEPTH - 1
+	check("below the gate the virulent strain does not exist", not GameState.plague_is_possible())
+	GameState.deepest_level_reached = GameState.PLAGUE_MIN_DEPTH
+	check("...and once you are deep enough, it can", GameState.plague_is_possible())
+
+	GameState.building_stage["Hospital"] = GameState.TOTAL_BUILD_STAGES
+	GameState.building_x["Hospital"] = 6400.0        # right on top of the packed row
+	GameState.sick = {"s0": GameState.game_hours}
+	GameState.plague_ids = {"s0": true}
 	GameState.villager_hp = {"s0": 100.0}
 	GameState.tick_sickness(10.0)
 	var hp_warded: float = GameState.get_villager_hp("s0")
 	GameState.building_x["Hospital"] = 90000.0       # move the ward far away
 	GameState.sick = {"s0": GameState.game_hours}
+	GameState.plague_ids = {"s0": true}
 	GameState.villager_hp = {"s0": 100.0}
 	GameState.tick_sickness(10.0)
 	var hp_bare: float = GameState.get_villager_hp("s0")
-	check("the ward's shadow costs the sick far less strength",
+	check("the plague DOES cost strength", hp_bare < 100.0, "%.1f" % hp_bare)
+	check("the ward's shadow costs the plagued far less",
 		hp_warded > hp_bare, "warded %.1f vs bare %.1f" % [hp_warded, hp_bare])
 	check("...but it still costs them something", hp_warded < 100.0, "%.1f" % hp_warded)
 
-	# ---- long neglect kills, and it is a real death ----
+	# ---- long neglect kills — but ONLY the plague ----
 	GameState.building_stage["Hospital"] = 0
 	GameState.rescued_villagers = [soul("doomed")]
 	for i3 in range(14):
 		GameState.rescued_villagers.append(soul("bystander%d" % i3))
 	GameState.sick = {"doomed": GameState.game_hours}
+	GameState.plague_ids = {"doomed": true}
 	GameState.villager_hp = {"doomed": 3.0}
 	var before: int = GameState.rescued_villagers.size()
+	# ZERO THE DAY-CLOCK FIRST. The cure roll now runs BEFORE the reaper (so nobody
+	# is buried without the recovery chance that same chunk owed them), which means
+	# a day boundary landing inside these six hours gives "doomed" a 10% escape and
+	# fails this check at random. This section is about the drain, not the dice.
+	GameState._sick_accum = 0.0
 	GameState.tick_sickness(6.0)
-	check("neglected long enough, the sickness takes them",
+	check("neglected long enough, the PLAGUE takes them",
 		GameState.rescued_villagers.size() < before,
 		"%d -> %d" % [before, GameState.rescued_villagers.size()])
 	check("...and they are no longer counted as ill", not GameState.villager_is_sick("doomed"))
+	check("...nor as carrying the strain", not GameState.villager_has_plague("doomed"))
+
+	# ONE funeral per body. remove_villager_by_id already registers the death; a
+	# second register_villager_deaths call here charged the town twice -- doubling
+	# the morale shock, double-logging it, and arming the Grief-Eater a body early.
+	GameState.rescued_villagers = [soul("only")]
+	for i4 in range(14):
+		GameState.rescued_villagers.append(soul("witness%d" % i4))
+	GameState.run_villager_deaths = 0
+	GameState._sick_accum = 0.0        # same reason: no cure roll inside this window
+	GameState.sick = {"only": GameState.game_hours}
+	GameState.plague_ids = {"only": true}
+	GameState.villager_hp = {"only": 0.5}
+	GameState.tick_sickness(6.0)
+	check("a plague death is one funeral, not two",
+		GameState.run_villager_deaths == 1, str(GameState.run_villager_deaths))
 
 	# ---- but never a legend ----
 	GameState.rescued_villagers = [{"id": "legend", "name": "Maera", "sex": "Female",
@@ -135,6 +239,9 @@ func _ready() -> void:
 	# ---- it is written down, and it is LOUD ----
 	var gs := FileAccess.open("res://game_state.gd", FileAccess.READ).get_as_text()
 	check("who is ill survives the save", gs.contains('"sick": sick'))
+	check("...and which of them carry the virulent strain", gs.contains('"plague_ids": plague_ids'))
+	check("the day-clock travels with them (else every Continue defers the cure roll)",
+		gs.contains('"sick_accum": _sick_accum') and gs.contains('"fire_accum": _fire_accum'))
 	check("an outbreak pierces the away-fog (you must be able to come home)",
 		gs.split("func _begin_outbreak(")[1].split("\nfunc ")[0].contains("notify_urgent"))
 	check("the glance panel shows the emergency",
@@ -152,6 +259,9 @@ func _ready() -> void:
 	GameState.extra_cottages = s_ids.size()
 	GameState.building_stage = s_stage
 	GameState.building_x = s_x
+	GameState.plague_ids = s_plague
+	GameState.deepest_level_reached = s_depth
+	GameState.run_villager_deaths = s_deaths
 
 	printerr("test_sickness : RESULT: ", "ALL PASS" if fails == 0 else "%d FAILURES" % fails)
 	get_tree().quit(1 if fails > 0 else 0)
