@@ -25,3 +25,6 @@ export_credentials.cfg
 # EYES walker logs + screenshots: local test output, never source
 eyes_out/
 
+
+# the suite runner writes one log per test here; artefacts, never source
+.suite_logs/
