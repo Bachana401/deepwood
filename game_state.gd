@@ -1548,9 +1548,41 @@ func adjacency_bonus(name: String) -> float:
 # ONE output term per building: its upgrade level, its NEIGHBOURS, and the QUARTER
 # it stands in. Every producer in the chain reads this, so a well-laid town
 # genuinely runs richer than a scattered one.
+# A BATTERED HALL WORKS BADLY (2026-08-06). Everything above is placement and
+# investment; this last term is CONDITION, and until now there wasn't one.
+#
+# is_building_operational reads the build STAGE and never the health, so a hall
+# beaten down to a fraction produced at full rate, taxed normally and counted for
+# the finale gate. Fire could gut a building and the Hollow Sun could stand on your
+# town smashing it, and the only cost was a cosmetic scar. A wound that neither
+# heals nor hurts is not a wound -- and now that the crew can mend one, it should.
+#
+# Scaled, never a cliff: a hall at 40% health does 40%-ish of its work and keeps
+# doing it, so this can never soft-lock a save, strand the finale gate behind a
+# building nobody can repair, or turn a bad fight into an unrecoverable one. The
+# floor keeps even a wreck contributing something.
+const CONDITION_FLOOR := 0.35        # a wreck still does better than a third
+
+func building_condition(name: String) -> float:
+	if not is_building_operational(name):
+		return 1.0                    # a ruin produces nothing anyway; not this term's job
+	var hp := float(building_health.get(name, BUILDING_MAX_HEALTH))
+	# A HALL THAT STANDS BUT RECORDS NO HEALTH IS WHOLE, NOT DEAD. Stage and health
+	# are two dictionaries and plenty of paths raise a building by writing only the
+	# stage -- restore paths, the build menu, older saves, every test that stands a
+	# hall up to check something else. building.gd's own _ready has always applied
+	# this same rule (`if health <= 0: health = MAX_HEALTH`); without matching it
+	# here, this term read those buildings as wrecks and quietly docked a third of
+	# the output of a town that had taken no damage at all.
+	if hp <= 0.0:
+		return 1.0
+	return clampf(CONDITION_FLOOR + (1.0 - CONDITION_FLOOR) * (hp / float(BUILDING_MAX_HEALTH)),
+		CONDITION_FLOOR, 1.0)
+
 func building_output_multiplier(name: String) -> float:
-	return 1.0 + (building_level(name) - 1) * BUILDING_OUTPUT_PER_LEVEL \
-		+ adjacency_bonus(name) + district_bonus(name) + plot_bonus(name)
+	return (1.0 + (building_level(name) - 1) * BUILDING_OUTPUT_PER_LEVEL \
+		+ adjacency_bonus(name) + district_bonus(name) + plot_bonus(name)) \
+		* building_condition(name)
 
 # --- DELETED BUILDINGS (dev 2026-07-22 building menu: "player can delete these
 # ruins... game always double checks"). A building the player razes for good is

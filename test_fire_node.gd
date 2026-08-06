@@ -125,6 +125,31 @@ func _ready() -> void:
 	check("the glance panel shows it, and whether anyone is fighting it",
 		FileAccess.open("res://morale_meter.gd", FileAccess.READ).get_as_text().contains("BURNING"))
 
+	# ======== A BATTERED HALL WORKS BADLY (2026-08-06) ========
+	# is_building_operational reads the build STAGE and never the health, so a hall
+	# beaten to a fraction produced at FULL rate, taxed normally and counted for the
+	# finale gate. Fire could gut a building and the cost was a cosmetic scar. Now
+	# that the crew can mend one, damage should also be worth mending.
+	GameState.building_stage["Farm"] = GameState.TOTAL_BUILD_STAGES
+	GameState.building_health["Farm"] = GameState.BUILDING_MAX_HEALTH
+	var whole: float = GameState.building_output_multiplier("Farm")
+	GameState.building_health["Farm"] = int(GameState.BUILDING_MAX_HEALTH * 0.25)
+	var battered: float = GameState.building_output_multiplier("Farm")
+	check("a burned-out hall produces less than a whole one", battered < whole,
+		"whole %.3f vs battered %.3f" % [whole, battered])
+	check("...but never nothing — a wreck still pulls its weight, so nothing soft-locks",
+		battered >= whole * GameState.CONDITION_FLOOR - 0.001 and battered > 0.0,
+		"%.3f, floor %.2f" % [battered, GameState.CONDITION_FLOOR])
+	# THE TRAP THIS ALMOST FELL INTO: stage and health are two separate dictionaries,
+	# and many paths raise a building by writing only the stage (restore paths, the
+	# build menu, old saves, every test standing a hall up to check something else).
+	# Reading those as wrecks docked a third of the output of an undamaged town.
+	GameState.building_health["Farm"] = 0
+	check("a hall that stands but records no health is WHOLE, not a wreck",
+		is_equal_approx(GameState.building_output_multiplier("Farm"), whole),
+		"%.3f vs %.3f" % [GameState.building_output_multiplier("Farm"), whole])
+	GameState.building_health["Farm"] = GameState.BUILDING_MAX_HEALTH
+
 	# ---- restore ----
 	GameState.building_stage = s_stage
 	GameState.building_health = s_health
