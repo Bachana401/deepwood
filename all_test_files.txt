@@ -52,6 +52,7 @@ test_ground_node
 test_harvest_node
 test_hazard_node
 test_hifix_node
+test_hollowsun_node
 test_hood_node
 test_icons_node
 test_items_node
