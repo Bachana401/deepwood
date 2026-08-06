@@ -27,6 +27,10 @@ func _ready() -> void:
 	add_child(shape)
 
 	build_visual()
+	# a home carries its wounds across a scene swap: cottage_health is saved, and a
+	# cottage rebuilt on load must not come back looking whole when it isn't
+	if GameState.cottage_is_broken(house_id):
+		on_damaged()
 
 	var label = Label.new()
 	label.text = house_name
@@ -51,6 +55,20 @@ func _ready() -> void:
 	prompt.position = Vector2(-width / 2.0, -height - 12.0)
 	prompt.size = Vector2(width, 16.0)
 	add_child(prompt)
+
+# A BROKEN ROOF HAS TO LOOK BROKEN (dev ruling 2026-08-06: the whole village is the
+# stake). Called by GameState.damage_cottage. Deliberately a TINT and a lean rather
+# than new geometry: the facade art is approved and must never be regenerated or
+# stretched, so this darkens and tilts what is already there. It reads at the game's
+# real zoom, which a few missing shingles would not.
+func on_damaged() -> void:
+	var frac: float = float(GameState.cottage_hp(house_id)) / float(GameState.COTTAGE_MAX_HEALTH)
+	var hurt: float = clampf(1.0 - frac, 0.0, 1.0)
+	modulate = Color(1.0, 1.0, 1.0, 1.0).lerp(Color(0.62, 0.55, 0.52, 1.0), hurt)
+	rotation = deg_to_rad(lerpf(0.0, 1.6, hurt))   # a lean, not a collapse
+
+func refresh_damage_visual() -> void:
+	on_damaged()
 
 func build_visual() -> void:
 	# PixelLab cottage facade replaces the flat polygon look when present

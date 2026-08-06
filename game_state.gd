@@ -4224,6 +4224,12 @@ func personal_morale_target(v: Dictionary) -> float:
 	if ten_freed("ten_ilo"):
 		t += 1.0
 	t -= morale_death_shock / 10.0                               # the town's grief weighs on everyone
+	# A HOLE IN YOUR OWN ROOF. Personal, not town-wide -- the neighbours are sorry
+	# for you, they are not sleeping in it. This is the whole cost of a broken home:
+	# it never evicts anyone, never breaks a pairing and never orphans a child, it
+	# just makes the people living there miserable until the builders come.
+	if villager_home_is_broken(vid):
+		t -= COTTAGE_BROKEN_MORALE
 	# A SICK TOWN IS A LOW TOWN (dev ruling 2026-08-06). For the ordinary illness
 	# this IS the mechanic -- it cannot kill and it does no damage, so if the mood
 	# did not land here it would cost the player literally nothing. Capped, because
@@ -6223,6 +6229,59 @@ func donate_to_stores(player: Node, item_id: String) -> int:
 # is "". Everything that reads it already copes: villager_home_id matches either
 # slot, and update_cottage_families skips any home whose second name comes back
 # "someone", so a lone occupant can never conceive with nobody.
+# ================== A HOME CAN BE BROKEN (dev ruling 2026-08-06) ==================
+# "homes should be damagable too, whole village is the stake."
+#
+# Cottages had no health at all -- house.gd is an Area2D with a drawn roof and no
+# damage surface anywhere, so the Hollow Sun could stand in the middle of the row
+# and the only things it could touch were the fifteen role halls. The player's homes,
+# which are the thing the whole settlement is FOR, were the one part of the village
+# that could not be harmed.
+#
+# Same rule as the halls: WOUND, NEVER DESTROY. A broken roof is floored, never
+# knocks anybody out of their bed, and never orphans a pairing or a child -- losing a
+# home would cascade through lodging, pairing and the birth loop, which is a far
+# bigger change than the dev asked for and a much worse feeling than the one they
+# want. What it costs is the people living under it.
+const COTTAGE_MAX_HEALTH := 200
+const COTTAGE_RUIN_FLOOR := 0.25            # a home is never worse than a quarter whole
+const COTTAGE_BROKEN_MORALE := 1.6          # what a hole in your own roof costs you
+var cottage_health: Dictionary = {}         # house_id -> hp; absent means whole
+
+func cottage_hp(hid: String) -> int:
+	return int(cottage_health.get(hid, COTTAGE_MAX_HEALTH))
+
+func cottage_is_broken(hid: String) -> bool:
+	return cottage_hp(hid) < COTTAGE_MAX_HEALTH
+
+# Hurt a home. Returns the damage actually dealt, so a caller can tell whether the
+# blow landed on anything (the floor means later blows do nothing).
+func damage_cottage(hid: String, amount: int) -> int:
+	if hid == "" or amount <= 0:
+		return 0
+	var floor_hp := int(COTTAGE_MAX_HEALTH * COTTAGE_RUIN_FLOOR)
+	var hp := cottage_hp(hid)
+	if hp <= floor_hp:
+		return 0
+	var dealt: int = mini(amount, hp - floor_hp)
+	cottage_health[hid] = hp - dealt
+	for node in get_tree().get_nodes_in_group("village_structure") if get_tree() != null else []:
+		if "house_id" in node and str(node.house_id) == hid and node.has_method("on_damaged"):
+			node.on_damaged()
+	return dealt
+
+# Whose morale a broken roof drags: the people who sleep under it, and nobody else.
+func villager_home_is_broken(vid: String) -> bool:
+	var hid := villager_home_id(vid)
+	return hid != "" and cottage_is_broken(hid)
+
+func broken_cottage_count() -> int:
+	var n := 0
+	for hid in cottage_health:
+		if cottage_is_broken(str(hid)):
+			n += 1
+	return n
+
 func cottage_occupant_ids(hid: String) -> Array:
 	var out := []
 	if not cottage_homes.has(hid):
@@ -6920,6 +6979,11 @@ func _auto_mend_one() -> void:
 			lowest = hp
 			hurt = bn
 	if hurt == "" or lowest >= BUILDING_MAX_HEALTH:
+		# NO HALL NEEDS THEM -- so see to the houses. Homes are mended AFTER the halls
+		# on purpose: a hall that is down drags the whole town's output, while a broken
+		# roof costs the family under it. The crew fixes what the town needs first and
+		# then goes back for the people, which is also the order they would choose.
+		_auto_mend_a_home()
 		return
 	# the Master Builder's crew scavenges its own materials, exactly as it does for
 	# a rebuild stage -- the same power, applied to the same job
@@ -6934,6 +6998,36 @@ func _auto_mend_one() -> void:
 		log_event("village", "The builders made the %s whole again — you would have to know where to look." % hurt)
 		SfxSynth.play_village(self, SfxSynth.SFX_MEND_DONE)
 	_resync_building_node(hurt)
+
+# Patch the worst-broken roof in the row. Same stores, same pace, same rule as the
+# halls -- the mark stays visible for days rather than vanishing on the next tick.
+func _auto_mend_a_home() -> void:
+	var worst := ""
+	var lowest := COTTAGE_MAX_HEALTH
+	for hid in cottage_health:
+		var hp := cottage_hp(str(hid))
+		if hp < lowest:
+			lowest = hp
+			worst = str(hid)
+	if worst == "" or lowest >= COTTAGE_MAX_HEALTH:
+		return
+	if not has_building_power("Builderhouse"):
+		if int(village_stockpile["wood"]) < MEND_WOOD or int(village_stockpile["stone"]) < MEND_STONE:
+			return
+		village_stockpile["wood"] = int(village_stockpile["wood"]) - MEND_WOOD
+		village_stockpile["stone"] = int(village_stockpile["stone"]) - MEND_STONE
+	var mended: int = mini(COTTAGE_MAX_HEALTH, lowest + MEND_PER_PASS)
+	cottage_health[worst] = mended
+	if mended >= COTTAGE_MAX_HEALTH:
+		cottage_health.erase(worst)        # whole again: carry no entry
+		log_event("village", "There is a new roof on one of the houses. Somebody slept properly tonight.")
+		SfxSynth.play_village(self, SfxSynth.SFX_MEND_DONE)
+	var t := get_tree()
+	if t == null:
+		return
+	for node in t.get_nodes_in_group("village_structure"):
+		if "house_id" in node and str(node.house_id) == worst and node.has_method("refresh_damage_visual"):
+			node.refresh_damage_visual()
 
 # The tail every repair path shares: bank the finished hall and refresh its body.
 func _finish_repair_stage(worst: String) -> void:
@@ -7750,6 +7844,7 @@ func reset_for_new_game() -> void:
 	sick = {}                         # a new town is a well town
 	plague_ids = {}                   # ...and has never met the virulent strain
 	plague_immune_until = {}          # ...and nobody has lived through one yet
+	cottage_health = {}               # ...and every roof is whole
 	burning = {}                      # ...and nothing is alight
 	eclipse_at_hours = -1.0           # the sky has not yet gone wrong this run
 	eclipses_seen = 0
@@ -8012,6 +8107,7 @@ func save_game(player: Node) -> void:
 		"sick": sick,
 		"plague_ids": plague_ids,
 		"plague_immune_until": plague_immune_until,
+		"cottage_health": cottage_health,
 		"burning": burning,
 		# THE DAY-CLOCKS MUST TRAVEL WITH THEM. sick/burning survived a save but their
 		# accumulators did not, so every Continue reset the countdown to the next daily
@@ -8303,6 +8399,11 @@ func load_game() -> Dictionary:
 		# it recorded predates the split and was, by definition, the harmless one)
 		# who has HAD it -- the thing that lets an outbreak burn out instead of
 		# re-rolling the same souls until it kills them
+		# a broken roof survives a save: the family under it is still miserable
+		cottage_health = {}
+		if parsed.has("cottage_health") and parsed["cottage_health"] is Dictionary:
+			for kc in parsed["cottage_health"].keys():
+				cottage_health[str(kc)] = int(parsed["cottage_health"][kc])
 		plague_immune_until = {}
 		if parsed.has("plague_immune_until") and parsed["plague_immune_until"] is Dictionary:
 			for ki in parsed["plague_immune_until"].keys():

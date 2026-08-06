@@ -543,6 +543,73 @@ func _ready() -> void:
 			int(vict.health) == plain_hp0, "%d -> %d" % [plain_hp0, int(vict.health)])
 		razer.queue_free()
 		plain.queue_free()
+	# ======== THE WHOLE VILLAGE IS THE STAKE (dev ruling 2026-08-06) ========
+	# Only the fifteen role halls were ever in the `building` group, so the Hollow Sun
+	# could stand in the middle of the row and the one part of the settlement the
+	# player builds this town FOR -- the homes -- was the one part nothing could
+	# touch. Dev: "homes should be damagable too, whole village is the stake."
+	var main_scene: Node = get_tree().current_scene
+	var cottage: Node = null
+	if main_scene != null and main_scene.has_method("spawn_cottage_node"):
+		var cx: float = 5200.0
+		var cid: String = GameState.register_cottage(cx)
+		main_scene.spawn_cottage_node(cid, cx)
+		await _frames(2)
+		for hnode in get_tree().get_nodes_in_group("village_structure"):
+			if "house_id" in hnode and str(hnode.house_id) == cid:
+				cottage = hnode
+	check("a cottage is standing to test against", cottage != null)
+	if cottage != null:
+		var chid: String = str(cottage.house_id)
+		check("a fresh home is whole", not GameState.cottage_is_broken(chid))
+		var razer2 = BS.new()
+		razer2.boss_id = "evt_hollowsun"
+		add_child(razer2)
+		razer2.global_position = cottage.global_position
+		await _frames(2)
+		razer2._raze_ground_at(cottage.global_position.x)
+		check("THE HOLLOW SUN BREAKS THE HOMES TOO, not only the halls",
+			GameState.cottage_is_broken(chid),
+			"%d/%d" % [GameState.cottage_hp(chid), GameState.COTTAGE_MAX_HEALTH])
+		# ...but a home is WOUNDED, never destroyed. Losing one would cascade through
+		# lodging, pairing and the birth loop, and evicting a family mid-fight is a
+		# much worse feeling than the one the ruling asks for.
+		for _h in range(80):
+			razer2._raze_ground_at(cottage.global_position.x)
+		var cfloor: int = int(GameState.COTTAGE_MAX_HEALTH * GameState.COTTAGE_RUIN_FLOOR)
+		check("...but never takes a roof away entirely -- nobody is put out of their bed",
+			GameState.cottage_hp(chid) >= cfloor,
+			"%d, floor %d" % [GameState.cottage_hp(chid), cfloor])
+		# THE COST IS THE FAMILY UNDER IT, and it must be personal rather than
+		# town-wide: the neighbours are sorry for you, they are not sleeping in it.
+		GameState.rescued_villagers.append({"id": "roofless", "name": "Hana", "sex": "Female",
+			"is_kid": false, "stat_name": "Farm", "stat_value": 3, "role_key": "", "role_title": ""})
+		GameState.cottage_homes[chid] = {"a": "roofless", "b": ""}
+		var sufferer: Dictionary = GameState.find_villager_by_id("roofless")
+		var mood_broken: float = GameState.personal_morale_target(sufferer)
+		var kept: int = GameState.cottage_hp(chid)
+		GameState.cottage_health.erase(chid)
+		var mood_whole: float = GameState.personal_morale_target(sufferer)
+		check("living under a broken roof costs the people who sleep there",
+			mood_broken < mood_whole, "%.2f broken vs %.2f whole" % [mood_broken, mood_whole])
+		# and the builders come back for it
+		GameState.cottage_health[chid] = kept
+		GameState.village_stockpile["wood"] = 999
+		GameState.village_stockpile["stone"] = 999
+		for _p in range(40):
+			GameState.auto_repair_one()
+		check("...and the crew puts a new roof on it, in its own time",
+			not GameState.cottage_is_broken(chid),
+			"%d/%d" % [GameState.cottage_hp(chid), GameState.COTTAGE_MAX_HEALTH])
+		razer2.queue_free()
+		# TAKE THE TEST SOUL BACK OUT. The roster count is asserted a few lines below
+		# ("not one villager was lost to it"), and a fixture that leaves someone behind
+		# fails that check for a reason that has nothing to do with the boss.
+		GameState.cottage_homes.erase(chid)
+		for ri in range(GameState.rescued_villagers.size() - 1, -1, -1):
+			if str(GameState.rescued_villagers[ri].get("id", "")) == "roofless":
+				GameState.rescued_villagers.remove_at(ri)
+
 	check("no building was ERASED by the fight",
 		GameState.count_ruined_buildings() == v_ruined,
 		"ruined %d -> %d" % [v_ruined, GameState.count_ruined_buildings()])

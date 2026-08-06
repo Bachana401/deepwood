@@ -4337,6 +4337,58 @@ func _raze_ground_at(x: float) -> void:
 			_razed_told[bname + "|floor"] = true
 			GameState.log_event("village", "The %s is down to its bones. It still opens in the morning, and it is not worth much when it does." % bname)
 			GameState.notify_urgent("☀ The %s is down to its bones — standing, and not much more than that." % bname)
+	_raze_homes_at(x)
+	_raze_wall_at(x)
+
+# THE HOMES (dev ruling 2026-08-06: "homes should be damagable too, whole village is
+# the stake"). Only the fifteen role halls were ever in the `building` group, so the
+# one part of the village the player actually builds this town FOR was the one part
+# nothing could touch.
+#
+# Floored like everything else: a home is wounded, never destroyed. Losing one would
+# cascade straight through lodging, pairing and the birth loop -- and evicting a
+# family mid-boss-fight is a much worse feeling than the one being asked for. What a
+# broken roof costs is the morale of the people sleeping under it.
+func _raze_homes_at(x: float) -> void:
+	for h in get_tree().get_nodes_in_group("village_structure"):
+		if not is_instance_valid(h) or not ("house_id" in h):
+			continue
+		if absf(h.global_position.x - x) > BOSS_RAZE_RADIUS:
+			continue
+		var hid: String = str(h.house_id)
+		if GameState.damage_cottage(hid, BOSS_RAZE_DAMAGE) <= 0:
+			continue                      # already at its floor: nothing left to take
+		SfxSynth.play_village_at(self, h.global_position, SfxSynth.SFX_RAZE_HIT)
+		# ONE line for the whole row, not one per cottage. A volley crossing the
+		# houses would otherwise bury the log, and "a home was hit" is the news --
+		# which home is not, because the player did not name them.
+		if not _razed_told.has("|homes"):
+			_razed_told["|homes"] = true
+			GameState.log_event("village", "It came down across the houses. People were still in them.")
+			GameState.notify_urgent("☀ It is standing in the homes now.")
+
+# THE WALL. It already had health and a take_damage that persists to wall_hp, so it
+# needed no new machinery -- only to be reached. Floored on the same principle: the
+# Hollow Sun can leave your rampart in pieces but never open the gate for whatever
+# comes the following night.
+const BOSS_WALL_FLOOR := 0.3
+
+func _raze_wall_at(x: float) -> void:
+	for w in get_tree().get_nodes_in_group("village_wall"):
+		if not is_instance_valid(w) or not w.has_method("take_damage") or not ("health" in w):
+			continue
+		if absf(w.global_position.x - x) > BOSS_RAZE_RADIUS:
+			continue
+		var wmax: int = int(w.max_health) if "max_health" in w else 350
+		var wfloor: int = int(float(wmax) * BOSS_WALL_FLOOR)
+		var whp: int = int(w.health)
+		if whp <= wfloor:
+			continue
+		w.take_damage(mini(BOSS_RAZE_DAMAGE, whp - wfloor))
+		SfxSynth.play_village_at(self, w.global_position, SfxSynth.SFX_RAZE_HIT)
+		if not _razed_told.has("|wall"):
+			_razed_told["|wall"] = true
+			GameState.log_event("village", "The rampart took a blow it was never built for. It will hold tonight. Barely.")
 
 func spawn_shockwave(radius: float, color: Color) -> void:
 	var ring = Polygon2D.new()
