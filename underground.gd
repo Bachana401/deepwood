@@ -1153,7 +1153,9 @@ func _load_chunk(c: Vector2i) -> void:
 			if lvl > 0 and open_cell:
 				var ab: int = int(_lv[cell + Vector2i(0, -1)]) if _lv.has(cell + Vector2i(0, -1)) \
 					else (WLEVELS if above == WATER else 0)
-				_watermap.set_cell(cell, 0, Vector2i(lvl - 1, 0 if ab > 0 else 1))
+				var wcoord := Vector2i(lvl - 1, 0 if ab > 0 else 1)
+				_watermap.set_cell(cell, 0, wcoord)
+				_waterfront.set_cell(cell, 0, wcoord)
 			elif lava_lvl > 0 and open_cell:
 				var lab: int = int(_ll[cell + Vector2i(0, -1)]) if _ll.has(cell + Vector2i(0, -1)) \
 					else (WLEVELS if above == LAVA else 0)
@@ -1177,6 +1179,7 @@ func _unload_chunk(c: Vector2i) -> void:
 			_map.erase_cell(cell)
 			_wallmap.erase_cell(cell)
 			_watermap.erase_cell(cell)
+			_waterfront.erase_cell(cell)
 			_lavamap.erase_cell(cell)
 			_lavaglow.erase_cell(cell)
 			_sparkmap.erase_cell(cell)
@@ -1399,6 +1402,7 @@ func _explode(centre: Vector2i, radius: int) -> void:
 			_map.erase_cell(cell)
 			_sparkmap.erase_cell(cell)
 			_watermap.erase_cell(cell)
+			_waterfront.erase_cell(cell)
 			_lavamap.erase_cell(cell)
 			_lavaglow.erase_cell(cell)
 			if not col_top.has(dx) or cell.y < int(col_top[dx]):
@@ -1795,9 +1799,13 @@ func _draw_water(cell: Vector2i) -> void:
 	var lv := _wlevel(cell)
 	if lv <= 0 or _solid_kind(cell):
 		_watermap.erase_cell(cell)
+		if _waterfront != null:
+			_waterfront.erase_cell(cell)
 		return
 	var surf := 0 if _wlevel(cell + Vector2i(0, -1)) > 0 else 1
 	_watermap.set_cell(cell, 0, Vector2i(lv - 1, surf))
+	if _waterfront != null:
+		_waterfront.set_cell(cell, 0, Vector2i(lv - 1, surf))
 
 func _draw_lava(cell: Vector2i) -> void:
 	if _lavamap == null:
@@ -4254,6 +4262,30 @@ func _build_sparkmap() -> void:
 # swimming. Two tiles: the body, and a bright surface for the waterline. The
 # shader gives it Terraria's slow swell plus drifting caustic glimmers.
 var _watermap: TileMapLayer
+var _waterfront: TileMapLayer   # the mirrored front veil -- see _build_watermap
+# The layer that rides OVER the swimmer: mostly transparent body (the back layer
+# already painted it), but its caustic ribbons and surface glints are BRIGHTER --
+# they are what sell "you are looking through moving water at the thing inside it".
+const WATER_FRONT_SHADER := """
+shader_type canvas_item;
+varying vec2 wpos;
+void vertex() { wpos = (MODEL_MATRIX * vec4(VERTEX, 0.0, 1.0)).xy; }
+void fragment() {
+	vec4 c = texture(TEXTURE, UV);
+	// thin the flat body right down -- the tint over the swimmer should be a veil
+	c.a *= 0.38;
+	// crossing swells, same frequencies as the back layer so they feel like one water
+	float swell = sin(wpos.x * 0.045 + TIME * 1.25) * 0.5 + sin(wpos.y * 0.07 - TIME * 0.8) * 0.5;
+	c.rgb += vec3(0.03, 0.07, 0.12) * swell;
+	// the shimmer that rolls across whatever is submerged
+	float ca = sin(wpos.x * 0.21 + TIME * 1.9) * sin(wpos.y * 0.13 - TIME * 1.3);
+	float band = smoothstep(0.78, 1.0, ca);
+	c.rgb += vec3(0.45, 0.70, 0.85) * band;
+	c.a = min(1.0, c.a + band * 0.35);
+	COLOR = c;
+}
+"""
+
 const WATER_SHADER := """
 shader_type canvas_item;
 varying vec2 wpos;
@@ -4309,6 +4341,29 @@ func _build_watermap() -> void:
 	smat.shader = sh
 	_watermap.material = smat
 	add_child(_watermap)
+	# THE FRONT OF THE WATER (dev, live play 2026-08-06: "WATER LOOKS LIKE A
+	# BACKGROUND, NOT ACTUAL WATER"). They were right about the mechanism, too: the
+	# whole body drew at z -1 -- BEHIND the player -- at 60% alpha over a dark cave,
+	# so a lake was literally a blue-tinted patch of backdrop, and wading into it
+	# changed nothing about how you looked. Water reads as water when things in it
+	# read as IN it.
+	#
+	# So the same cells are mirrored onto a second, fainter layer IN FRONT of the
+	# player (z 3: over player 0 and mobs, under torches at 6). The back layer keeps
+	# the body and the waterline; the front carries the animated caustic shimmer
+	# rolling OVER whatever swims. You stay visible underwater -- the original
+	# design decision -- but now you are visibly UNDER water.
+	_waterfront = TileMapLayer.new()
+	_waterfront.tile_set = _watermap.tile_set          # same art, same coords
+	_waterfront.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_waterfront.z_index = 3
+	_waterfront.self_modulate = Color(1.0, 1.0, 1.0, 0.55)
+	var fsh := Shader.new()
+	fsh.code = WATER_FRONT_SHADER
+	var fmat := ShaderMaterial.new()
+	fmat.shader = fsh
+	_waterfront.material = fmat
+	add_child(_waterfront)
 
 # ── LAVA'S LOOK ───────────────────────────────────────────────────────────────
 # Terraria's lava is OPAQUE -- molten rock, not orange water: a near-white-hot
@@ -4417,7 +4472,14 @@ const BIOME_AMBIENT := [
 # Terraria-dim (dev 2026-07-26): the caves are DARK now -- the biome tint is scaled well
 # down so you can't see far unaided. The player's carried torch and the placed wall torches
 # (_spawn_torch, ~30% of spots) light the rest back up in warm pools.
-const AMBIENT_DARK := 0.40
+#
+# DARKER STILL (dev, live play 2026-08-06: "REDUCE PLAYER VISION UNDERGROUND
+# (UNLESS THERE ARE TORCHES) BY 30%"). 0.40 -> 0.28 is exactly that cut, and the
+# torch exemption comes free from the existing model: ambient is what you see
+# UNAIDED, while every torch is a PointLight2D that ADDS its pool locally --
+# dimming the ambient deepens the dark stretches without touching the lit ones,
+# which makes placing and carrying torches matter 30% more rather than less.
+const AMBIENT_DARK := 0.28
 func _biome_ambient(b: int) -> Color:
 	var c: Color = BIOME_AMBIENT[clampi(b, 0, BIOME_AMBIENT.size() - 1)]
 	return Color(c.r * AMBIENT_DARK, c.g * AMBIENT_DARK, c.b * AMBIENT_DARK, 1.0)
@@ -4605,6 +4667,19 @@ func _notify(text: String) -> void:
 func _build_hud_extras() -> void:
 	add_child(preload("res://hotbar_ui.gd").new())
 	add_child(preload("res://admin_panel.gd").new())
+	# THE CAVE HAD NO BAG (dev, live play 2026-08-06: "I CAN'T OPEN TAB OR K OR
+	# ANYTHING IN DUNGEON"). The 2026-07-27 scan that gave this scene its pause menu
+	# and death screen stopped there -- the inventory, skill tree, equipment sheet,
+	# item tooltip and chest panel were never mounted, so every one of their keys was
+	# dead down here. Not a broken handler: the nodes simply did not exist. This is
+	# the mining scene -- the place the bag fills fastest -- and Tab did nothing.
+	#
+	# Two kinds of mount. skill_tree/equipment/tooltip are self-contained .tscn
+	# scenes: instantiate and done. InventoryUI and ChestUI are scripts whose $Panel
+	# and buttons are AUTHORED in the other scenes' .tscn files -- .new() alone would
+	# crash on $Panel, so their subtrees are rebuilt here with the same names,
+	# geometry and API the scripts expect (mirrored from dungeon_interior.tscn).
+	_mount_bag_and_windows()
 	# THIS SCENE HAD NO WAY OUT (scan 2026-07-27). underground.tscn is two nodes
 	# and carries neither of the overlays the other two playable scenes get from
 	# their .tscn, so down here ESC did nothing at all: no pause, no window sweep
@@ -4627,6 +4702,66 @@ func _build_hud_extras() -> void:
 	var wt := _WaterTick.new()
 	wt.ug = self
 	add_child(wt)
+
+func _mount_bag_and_windows() -> void:
+	# the three that ship as scenes
+	add_child(preload("res://skill_tree_ui.tscn").instantiate())
+	add_child(preload("res://equipment_ui.tscn").instantiate())
+	add_child(preload("res://item_tooltip.tscn").instantiate())
+	# the bag: CanvasLayer + Panel + labels, exactly as authored elsewhere
+	var inv := CanvasLayer.new()
+	inv.name = "InventoryUI"
+	var ip := Panel.new()
+	ip.name = "Panel"
+	ip.anchor_top = 0.5
+	ip.anchor_bottom = 0.5
+	ip.offset_left = 24.0
+	ip.offset_top = -115.0
+	ip.offset_right = 328.0
+	ip.offset_bottom = 115.0
+	inv.add_child(ip)
+	ip.add_child(_ui_label("TitleLabel", "Inventory", Vector2(16, 10), 18))
+	var hint := _ui_label("HintLabel", "Press Tab to close", Vector2(16, 208), 11)
+	hint.add_theme_color_override("font_color", Color(0.7, 0.7, 0.72))
+	ip.add_child(hint)
+	inv.set_script(preload("res://inventory_ui.gd"))
+	add_child(inv)
+	# the chest panel: same shape the script's $Panel/TakeButton lookups expect
+	var chest := CanvasLayer.new()
+	chest.name = "ChestUI"
+	var cp := Panel.new()
+	cp.name = "Panel"
+	cp.anchor_left = 1.0
+	cp.anchor_right = 1.0
+	cp.anchor_top = 0.5
+	cp.anchor_bottom = 0.5
+	cp.offset_left = -326.0
+	cp.offset_top = -145.0
+	cp.offset_right = -24.0
+	cp.offset_bottom = 145.0
+	chest.add_child(cp)
+	cp.add_child(_ui_label("TitleLabel", "Chest", Vector2(16, 10), 18))
+	cp.add_child(_ui_button("TakeButton", "Take All", Rect2(16, 246, 84, 32)))
+	cp.add_child(_ui_button("DepositButton", "Deposit All", Rect2(108, 246, 102, 32)))
+	cp.add_child(_ui_button("CloseButton", "Close", Rect2(218, 246, 68, 32)))
+	chest.set_script(preload("res://chest_ui.gd"))
+	add_child(chest)
+
+func _ui_label(nm: String, txt: String, at: Vector2, size: int) -> Label:
+	var l := Label.new()
+	l.name = nm
+	l.text = txt
+	l.position = at
+	l.add_theme_font_size_override("font_size", size)
+	return l
+
+func _ui_button(nm: String, txt: String, r: Rect2) -> Button:
+	var b := Button.new()
+	b.name = nm
+	b.text = txt
+	b.position = r.position
+	b.size = r.size
+	return b
 
 # HOW DEEP AM I. Terraria puts this on screen constantly, and it is most of what
 # makes a cave system feel like a place with a shape rather than an endless brown
