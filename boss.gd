@@ -4277,8 +4277,38 @@ const BOSS_RAZE_FLOOR = 0.15        # never below this share of a building's max
 # the news, and the moment it drops to its bones is the second and last.
 var _razed_told: Dictionary = {}
 
+# THE TOWN IS ONLY ON THE TABLE WHEN THE FIGHT IS STANDING IN THE TOWN.
+#
+# The `razes_buildings` flag was the entire gate, and "building" is a plain
+# group -- so a razer anywhere in the game swung at anything wearing that label.
+# Measured 2026-08-06 by staging an evt_hollowsun inside dungeon_interior.tscn:
+# it hit a planted group member for 34, and building.take_damage writes the wound
+# STRAIGHT INTO GameState.building_health -- the save file -- so the town could be
+# broken from the bottom of a dungeon. Nothing bleeds today only because the
+# village is the sole scene that puts nodes in that group; the one thing standing
+# between the deep and the save is that nobody has yet labelled a dungeon prop
+# "building". And the fight really can happen down there: the Hollow Sun is
+# item-summoned and its gate (GameState.is_true_eclipse) is a pure clock check
+# that never asks where the player is standing.
+#
+# The village is recognised the way arena_width() already recognises it -- it is
+# the scene that owns `village_right_edge`. No path literal, survives a rename.
+func _standing_in_the_village() -> bool:
+	if GameState.in_dungeon:
+		return false
+	var s: Node = get_tree().current_scene if get_tree() != null else null
+	return s != null and ("village_right_edge" in s)
+
 func _raze_ground_at(x: float) -> void:
 	if not bool(BOSSES.get(boss_id, {}).get("razes_buildings", false)):
+		return
+	# AN ECHO IS A FAKE, and a fake must not get its own share of the town's
+	# stake. Every copy carries its own fresh _razed_told, so N copies would
+	# re-announce every hall N times AND multiply the town's damage by N.
+	# Nothing in the game clones a razer today -- this keeps it that way.
+	if is_clone or is_false_copy:
+		return
+	if not _standing_in_the_village():
 		return
 	for node in get_tree().get_nodes_in_group("building"):
 		if not is_instance_valid(node) or not node.has_method("take_damage"):
