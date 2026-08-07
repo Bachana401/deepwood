@@ -72,7 +72,7 @@ color = Color(1, 1, 1, 1)
 script = ExtResource("14_day_night")
 
 [node name="SunIcon" type="Node2D" parent="."]
-z_index = -50
+z_index = -70
 
 [node name="GlowOuter" type="Polygon2D" parent="SunIcon"]
 
@@ -85,7 +85,7 @@ z_index = -50
 [node name="Highlight" type="Polygon2D" parent="SunIcon"]
 
 [node name="MoonIcon" type="Node2D" parent="."]
-z_index = -50
+z_index = -70
 
 [node name="SkyGlow1" type="Polygon2D" parent="MoonIcon"]
 z_index = -75
