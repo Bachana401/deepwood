@@ -2048,9 +2048,24 @@ func is_holding_torch() -> bool:
 # torch system + grid, so this stays out of it -- that reconcile is a later pass.
 func try_place_held_torch() -> void:
 	var stack = get_tree().get_first_node_in_group("notification_stack")
-	if get_tree().get_first_node_in_group("tile_world") != null:
-		return   # underground has its OWN torch system + grid; don't double-place
 	if inventory == null or inventory.get_count(TORCH_ITEM_ID) <= 0:
+		return
+	# IN THE MINABLE CAVE, the torch snaps to the tile grid instead of a ground ray:
+	# the underground is solid rock, not a platform world, so a downward ray from the
+	# cursor would find the nearest floor rather than the wall the player clicked. Hand
+	# the cursor to the tile world, which finds a valid cell (open, with a solid
+	# neighbour) exactly as its own G-key torch does -- but here it costs one crafted
+	# torch, not raw wood+resin. This was the piece deferred while the water worker
+	# held underground.gd; the cave now honours the bag torch like anywhere else.
+	var tile_world = get_tree().get_first_node_in_group("tile_world")
+	if tile_world != null:
+		var cursor: Vector2 = get_global_mouse_position()
+		if tile_world.has_method("place_torch_at_cursor") and tile_world.place_torch_at_cursor(cursor):
+			inventory.remove_item(TORCH_ITEM_ID, 1)
+			if stack:
+				stack.show_notification("Torch set into the rock.")
+		elif stack:
+			stack.show_notification("A torch needs a floor or a wall to sit against.")
 		return
 	var spot: Vector2 = torch_place_point()
 	inventory.remove_item(TORCH_ITEM_ID, 1)

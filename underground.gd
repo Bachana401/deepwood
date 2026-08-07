@@ -2845,6 +2845,36 @@ func _place_own_torches(c: Vector2i, nodes: Array) -> void:
 		if _chunk_of_cell(cell) == c:
 			nodes.append(_spawn_torch(cell))
 
+# THE BAG TORCH, PLACED AT THE CURSOR (dev 2026-08-07: torches are a craftable
+# item placed "like Terraria exactly"). The G-key path above snaps to the body and
+# spends raw wood+resin; this one snaps to the CURSOR cell and spends nothing --
+# the caller (player.try_place_held_torch) removes one already-crafted torch item.
+# Returns true if a torch was actually planted, so the caller only consumes on a
+# real placement. Searches a small ring around the cursor cell so the click need
+# not be pixel-perfect, and uses the exact same "open cell with something solid to
+# sit against" rule the G path uses, so a bag torch can never float in open air.
+func place_torch_at_cursor(world_pos: Vector2) -> bool:
+	if _map == null:
+		return false
+	var base := _cell_at(world_pos)
+	for off in [Vector2i(0, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0),
+			Vector2i(-1, 0), Vector2i(0, 2), Vector2i(1, 1), Vector2i(-1, 1)]:
+		var cell: Vector2i = base + off
+		if _cell_kind(cell) != AIR or _own_torches.has(cell):
+			continue
+		if not (_solid_kind(cell + Vector2i(0, 1)) or _solid_kind(cell + Vector2i(-1, 0)) \
+				or _solid_kind(cell + Vector2i(1, 0))):
+			continue
+		_own_torches[cell] = true
+		var t := _spawn_torch(cell)
+		var ch := _chunk_of_cell(cell)
+		if _content.has(ch):
+			_content[ch].append(t)
+		else:
+			_content[ch] = [t]
+		return true
+	return false
+
 func _try_place_own_torch() -> void:
 	if _player == null or not is_instance_valid(_player) or _map == null:
 		return
