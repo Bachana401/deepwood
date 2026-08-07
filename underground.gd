@@ -766,10 +766,28 @@ func _tick_hole_caps(delta: float) -> void:
 # would settle at two different levels). So the lakes are AUTHORED: each one
 # carves its own bowl, forces a rock shell around it that holds the water in,
 # and fills to a flat surface row. Deterministic, seam-free, and free to query.
-const LAKE_STEP_X := 54                # candidate grid: one roll per cell of it
-const LAKE_STEP_Y := 18
-const LAKE_CHANCE := 0.74              # "lots -- a wet underworld" (~20% of open space)
-const LAKE_BIG_CHANCE := 0.34          # big lakes carry most of the volume
+const LAKE_STEP_X := 68                # candidate grid: one roll per cell of it (was 54:
+const LAKE_STEP_Y := 24                # 18 -- coarser now, the dominant lever on COUNT.
+                                       # The per-candidate chance below barely moves the
+                                       # total: smaller pools pack tighter past the
+                                       # claimed-bucket test, so cutting the chance alone
+                                       # was offset. Fewer candidate SLOTS is what actually
+                                       # thins the fleet -- and reads as occasional pools.
+# COUNT (dev live-play: "too much water and too much lava -- reduce their count by
+# 40%"). Both liquids used to share one 0.74 chance per candidate; each is now
+# gated on its own at ~0.6x that. A candidate's liquid is fixed by its depth, so
+# water and lava can be tuned independently. Measured (seed 777): water 510601 ->
+# 305k cells, lava 345514 -> 208k cells -- about 40% off each (tool_water_probe).
+const LAKE_CHANCE_WATER := 0.33        # was 0.74 -> ~40% fewer water pools (with the grid)
+const LAKE_CHANCE_LAVA := 0.33         # was 0.74; matched to water -- lands lava ~35-40%
+                                       # down too (it varies a few % seed to seed)
+# SIZE (dev: "make some bigger make some smaller, all of them are mostly same
+# size"). The old binary big/small roll clustered ~58% of lakes into one medium
+# band. A cube-biased roll spreads the fleet continuously -- many small trickles,
+# a few large signature pools -- while holding the mean area near where it was, so
+# the count cut above lands as ~40% less liquid rather than more. Rolled afresh
+# (and on different ranges) per liquid, so the two fleets vary independently.
+const LAKE_SIZE_BIAS := 3.0            # pow(randf, 3): E[size] ~= 0.25 of the span
 const LAKE_SHELL := 3                  # tiles of rock that hold each bowl
 const FLOOD_CROSSINGS := 11            # road stretches you must swim
 const FLOOD_DEPTH := 5                 # tiles of water over the road bed (player is 4 tall)
@@ -786,13 +804,24 @@ func _build_lakes() -> void:
 	var claimed := {}                  # coarse buckets, so bowls never overlap and mix levels
 	for gy in range(1, int(float(DEPTH - 40) / LAKE_STEP_Y)):
 		for gx in range(1, int(float(WIDTH - 2 * ROAD_MARGIN) / LAKE_STEP_X)):
-			if rng.randf() > LAKE_CHANCE:
-				continue
-			var big := rng.randf() < LAKE_BIG_CHANCE
-			var hw := rng.randi_range(38, 90) if big else rng.randi_range(10, 28)
-			var d := rng.randi_range(14, 32) if big else rng.randi_range(5, 13)
 			var cx := ROAD_MARGIN + gx * LAKE_STEP_X + rng.randi_range(-30, 30)
 			var sy := 30 + gy * LAKE_STEP_Y + rng.randi_range(-8, 8)
+			var molten := _biome_of(sy) >= 3      # depth decides water vs lava
+			# reduced, independent counts (see LAKE_CHANCE_*)
+			if rng.randf() > (LAKE_CHANCE_LAVA if molten else LAKE_CHANCE_WATER):
+				continue
+			# varied size: cube-biased -> mostly small, a few large (see LAKE_SIZE_BIAS)
+			var shaped := pow(rng.randf(), LAKE_SIZE_BIAS)
+			var hw: int
+			var d: int
+			if molten:
+				# lava reads THICKER, so a shade smaller and shallower than water
+				hw = int(round(lerpf(6.0, 82.0, shaped)))
+				d = int(round(lerpf(4.0, 30.0, shaped)))
+			else:
+				hw = int(round(lerpf(6.0, 96.0, shaped)))
+				d = int(round(lerpf(4.0, 34.0, shaped)))
+			var big := hw >= 40                    # the "big" flag downstream code reads
 			if cx - hw < ROAD_MARGIN or cx + hw > WIDTH - ROAD_MARGIN:
 				continue
 			if sy + d > DEPTH - 20:
@@ -834,7 +863,7 @@ func _build_lakes() -> void:
 			for by in range(b0.y, b1.y + 1):
 				for bx in range(b0.x, b1.x + 1):
 					claimed[Vector2i(bx, by)] = true
-			var molten := _biome_of(sy) >= 3      # the deep pools LAVA, not water
+			# molten was decided up top (it gates the count); reuse it
 			_carve_lake(cx, sy, hw, d, molten)
 			_lakes.append({"c": Vector2i(cx, sy), "hw": hw, "d": d, "big": big, "lava": molten})
 	# ── stretches where the ROAD ITSELF goes under ──
@@ -1151,17 +1180,39 @@ func _load_chunk(c: Vector2i) -> void:
 			var lvl: int = int(_lv[cell]) if _lv.has(cell) else (WLEVELS if kind == WATER else 0)
 			var lava_lvl: int = int(_ll[cell]) if _ll.has(cell) else (WLEVELS if kind == LAVA else 0)
 			if lvl > 0 and open_cell:
-				var ab: int = int(_lv[cell + Vector2i(0, -1)]) if _lv.has(cell + Vector2i(0, -1)) \
-					else (WLEVELS if above == WATER else 0)
-				var wcoord := Vector2i(lvl - 1, 0 if ab > 0 else 1)
+				# DEPTH BAND: how far below the surface this cell sits (see _wband),
+				# so the atlas darkens it with depth. Band 0 (surface) carries the
+				# bright waterline; deeper bands never do (the old "stripes every
+				# 12px" bug).
+				var wcoord := Vector2i(lvl - 1, _wband(cell))
 				_watermap.set_cell(cell, 0, wcoord)
 				_waterfront.set_cell(cell, 0, wcoord)
+				# FLOW FIX (dev live-play: "water should go down when there's nothing
+				# underneath"). The automaton is an active SET -- it only moves cells
+				# something disturbs, and generation disturbs nothing. So water the
+				# generator drew hanging over open space just SAT there, the exact
+				# "static fill" the dev saw. Wake any water cell whose downstairs
+				# neighbour is open and holds less liquid, and it falls the instant its
+				# chunk streams in. Costs only precomputed lookups -- no _gen_kind.
+				var bk: int = kinds[ly + 2][lx + 1]
+				if bk == AIR or bk == WATER or bk == LAVA:
+					var blv: int = int(_lv[cell + Vector2i(0, 1)]) if _lv.has(cell + Vector2i(0, 1)) \
+						else (WLEVELS if bk == WATER else 0)
+					if blv < lvl:
+						_wake(cell)
 			elif lava_lvl > 0 and open_cell:
 				var lab: int = int(_ll[cell + Vector2i(0, -1)]) if _ll.has(cell + Vector2i(0, -1)) \
 					else (WLEVELS if above == LAVA else 0)
 				var lcoord := Vector2i(lava_lvl - 1, 0 if lab > 0 else 1)
 				_lavamap.set_cell(cell, 0, lcoord)
 				_lavaglow.set_cell(cell, 0, lcoord)
+				# ...and lava's twin: molten rock hanging over air crawls down too.
+				var lbk: int = kinds[ly + 2][lx + 1]
+				if lbk == AIR or lbk == WATER or lbk == LAVA:
+					var bll: int = int(_ll[cell + Vector2i(0, 1)]) if _ll.has(cell + Vector2i(0, 1)) \
+						else (WLEVELS if lbk == LAVA else 0)
+					if bll < lava_lvl:
+						_wake(cell)
 			elif not open_cell:
 				var left: int = kinds[ly + 1][lx]
 				var below_k: int = kinds[ly + 2][lx + 1]
@@ -1774,6 +1825,13 @@ func _decor_rubble(cell: Vector2i, base: Color, rng: RandomNumberGenerator) -> N
 # therefore drains progressively, which is also how it should look.
 const WLEVELS := 8                     # a full tile; the atlas draws each step
 const FLOW_BUDGET := 420               # cells settled per frame
+# DEPTH BANDS (dev live-play: "water quality by visual is very cheap"). A flat
+# uniform blue slab was the whole tell. The water atlas now carries WBANDS rows of
+# increasing DEPTH -- band 0 is the surface (bright waterline), bands 1..N darken
+# and deepen toward navy -- so a deep pool reads as a body of water with a lit top
+# and a dark floor instead of one even fill. The band a cell wears is how many
+# water cells sit above it, capped (see _wband).
+const WBANDS := 5
 
 var _lv := {}                          # Vector2i -> level, ONLY where it differs from generation
 var _wq := {}                          # active set membership
@@ -1783,6 +1841,17 @@ func _wlevel(cell: Vector2i) -> int:
 	if _lv.has(cell):
 		return int(_lv[cell])
 	return WLEVELS if _cell_kind(cell) == WATER else 0
+
+# How deep below the surface a water cell sits, capped at WBANDS-1. Band 0 = the
+# surface row (nothing wet overhead). A short bounded up-walk -- never more than
+# WBANDS-1 lookups -- so it stays cheap even on the bulk chunk draw.
+func _wband(cell: Vector2i) -> int:
+	var b := 0
+	var c := cell + Vector2i(0, -1)
+	while b < WBANDS - 1 and _wlevel(c) > 0:
+		b += 1
+		c.y -= 1
+	return b
 
 # lava's twin ledger (see LAVA)
 var _ll := {}
@@ -1802,10 +1871,10 @@ func _draw_water(cell: Vector2i) -> void:
 		if _waterfront != null:
 			_waterfront.erase_cell(cell)
 		return
-	var surf := 0 if _wlevel(cell + Vector2i(0, -1)) > 0 else 1
-	_watermap.set_cell(cell, 0, Vector2i(lv - 1, surf))
+	var band := _wband(cell)
+	_watermap.set_cell(cell, 0, Vector2i(lv - 1, band))
 	if _waterfront != null:
-		_waterfront.set_cell(cell, 0, Vector2i(lv - 1, surf))
+		_waterfront.set_cell(cell, 0, Vector2i(lv - 1, band))
 
 func _draw_lava(cell: Vector2i) -> void:
 	if _lavamap == null:
@@ -4273,15 +4342,17 @@ void vertex() { wpos = (MODEL_MATRIX * vec4(VERTEX, 0.0, 1.0)).xy; }
 void fragment() {
 	vec4 c = texture(TEXTURE, UV);
 	// thin the flat body right down -- the tint over the swimmer should be a veil
-	c.a *= 0.38;
-	// crossing swells, same frequencies as the back layer so they feel like one water
-	float swell = sin(wpos.x * 0.045 + TIME * 1.25) * 0.5 + sin(wpos.y * 0.07 - TIME * 0.8) * 0.5;
-	c.rgb += vec3(0.03, 0.07, 0.12) * swell;
-	// the shimmer that rolls across whatever is submerged
-	float ca = sin(wpos.x * 0.21 + TIME * 1.9) * sin(wpos.y * 0.13 - TIME * 1.3);
-	float band = smoothstep(0.78, 1.0, ca);
-	c.rgb += vec3(0.45, 0.70, 0.85) * band;
-	c.a = min(1.0, c.a + band * 0.35);
+	c.a *= 0.34;
+	// slow crossing swells, same frequencies as the back layer so they feel like one water
+	float sw = sin(wpos.x * 0.028 + TIME * 0.8) + sin(wpos.y * 0.041 - TIME * 0.55);
+	c.rgb += vec3(0.02, 0.05, 0.09) * sw;
+	// caustics: two DIAGONAL wave-fronts summed -> thin drifting ribbons of light,
+	// not the axis-aligned dot lattice that a PRODUCT of two sines used to make
+	float r1 = sin(wpos.x * 0.075 + wpos.y * 0.045 + TIME * 1.35);
+	float r2 = sin(wpos.x * 0.041 - wpos.y * 0.083 - TIME * 1.0);
+	float caust = smoothstep(1.2, 1.95, r1 + r2);
+	c.rgb += vec3(0.42, 0.66, 0.80) * caust;
+	c.a = min(1.0, c.a + caust * 0.30);
 	COLOR = c;
 }
 """
@@ -4293,44 +4364,58 @@ void vertex() { wpos = (MODEL_MATRIX * vec4(VERTEX, 0.0, 1.0)).xy; }
 void fragment() {
 	vec4 c = texture(TEXTURE, UV);
 	// the slow swell: two crossing waves, so it never reads as a repeating tile
-	float swell = sin(wpos.x * 0.045 + TIME * 1.25) * 0.5 + sin(wpos.y * 0.07 - TIME * 0.8) * 0.5;
-	c.rgb += vec3(0.02, 0.05, 0.10) * swell;
-	// caustics: bright ribbons drifting across the surface
-	float ca = sin(wpos.x * 0.19 + TIME * 1.7) * sin(wpos.y * 0.15 - TIME * 1.1);
-	c.rgb += vec3(0.20, 0.40, 0.52) * smoothstep(0.82, 1.0, ca) * 0.6;
+	float sw = sin(wpos.x * 0.028 + TIME * 0.8) + sin(wpos.y * 0.041 - TIME * 0.55);
+	c.rgb += vec3(0.012, 0.030, 0.055) * sw;
+	// caustics: two DIAGONAL wave-fronts summed into thin bright ribbons that drift
+	// across the body -- reads as light rippling through water, not a dotted grid
+	float r1 = sin(wpos.x * 0.075 + wpos.y * 0.045 + TIME * 1.3);
+	float r2 = sin(wpos.x * 0.041 - wpos.y * 0.083 - TIME * 0.95);
+	float caust = smoothstep(1.25, 1.95, r1 + r2);
+	c.rgb += vec3(0.26, 0.46, 0.55) * caust * 0.55;
 	COLOR = c;
 }
 """
 
 func _build_watermap() -> void:
-	# ONE TILE PER LEVEL. Terraria draws a partly-filled tile short, with the
-	# bright waterline at the top of the water rather than the top of the tile --
-	# that stepping is what a draining lake and a shallow puddle actually look
-	# like. Level L fills the bottom L/WLEVELS of the tile.
-	# TWO ROWS, exactly like the rock faces. Drawing the bright waterline on every
-	# tile turns a deep lake into horizontal stripes every 12px -- the same bug the
-	# block atlas had. Row 0 is submerged body (water above it), row 1 carries the
-	# waterline, and the renderer picks by what is overhead.
-	var img := Image.create(WLEVELS * TILE, 2 * TILE, false, Image.FORMAT_RGBA8)
-	var body := Color(0.11, 0.33, 0.76, 0.60)
-	for t in range(WLEVELS):
-		var fill := int(round(float(TILE) * float(t + 1) / float(WLEVELS)))
-		var top := TILE - fill                           # first row that holds water
-		for surf in range(2):
+	# ONE TILE PER LEVEL (x), ONE ROW PER DEPTH BAND (y). Terraria draws a partly-
+	# filled tile short, with the bright waterline at the top of the water rather
+	# than the top of the tile -- level L (the x coord) fills the bottom L/WLEVELS.
+	# The BAND (the y coord, see _wband) darkens the body with depth: band 0 is the
+	# surface and the only row that carries the bright waterline (drawing it on
+	# every tile turned a deep lake into 12px stripes -- the old bug); bands 1..N
+	# deepen toward navy, so a pool reads as a lit surface over a dark floor instead
+	# of one even slab of blue (dev: "water quality by visual is very cheap").
+	var img := Image.create(WLEVELS * TILE, WBANDS * TILE, false, Image.FORMAT_RGBA8)
+	var surf_body := Color(0.17, 0.44, 0.85, 0.55)       # bright, at the surface
+	var deep_body := Color(0.03, 0.10, 0.31, 0.88)       # dark + dense, at the floor
+	for band in range(WBANDS):
+		var tb := float(band) / float(WBANDS - 1)
+		var base := surf_body.lerp(deep_body, tb)
+		for t in range(WLEVELS):
+			var fill := int(round(float(TILE) * float(t + 1) / float(WLEVELS)))
+			var top := TILE - fill                       # first row that holds water
 			for x in range(TILE):
 				for y in range(TILE):
 					if y < top:
-						img.set_pixel(t * TILE + x, surf * TILE + y, Color(0, 0, 0, 0))
+						img.set_pixel(t * TILE + x, band * TILE + y, Color(0, 0, 0, 0))
 						continue
-					var col := body
-					var h := ((x * 7919) ^ (y * 104729)) & 0x7fffffff
-					if h % 23 == 0:
-						col = Color(0.20, 0.46, 0.88, 0.58)  # a little depth mottle
-					if surf == 1 and y <= top:
-						col = Color(0.62, 0.86, 1.00, 0.80)  # THE WATERLINE
-					elif surf == 1 and y <= top + 2:
-						col = Color(0.24, 0.55, 0.95, 0.66)
-					img.set_pixel(t * TILE + x, surf * TILE + y, col)
+					var col := base
+					# a gentle deepening toward the floor WITHIN the tile, so even a
+					# single band has some body to it
+					var gy := float(y - top) / float(maxi(1, TILE - top))
+					col = col.darkened(gy * 0.14)
+					# sparse, band-salted mottle so the body is never dead flat
+					var h := ((x * 7919) ^ ((y + band * 31) * 104729)) & 0x7fffffff
+					if h % 17 == 0:
+						col = col.lightened(0.10)
+					elif h % 29 == 0:
+						col = col.darkened(0.16)
+					# THE WATERLINE -- surface band only, at the very top of the fill
+					if band == 0 and y <= top:
+						col = Color(0.72, 0.92, 1.00, 0.90)
+					elif band == 0 and y <= top + 2:
+						col = Color(0.32, 0.63, 0.98, 0.70)
+					img.set_pixel(t * TILE + x, band * TILE + y, col)
 	_watermap = TileMapLayer.new()
 	_watermap.tile_set = _make_tileset(img, false)
 	_watermap.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
