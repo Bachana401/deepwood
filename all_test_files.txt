@@ -88,6 +88,7 @@ test_proving_node
 test_realclock_node
 test_realhits_node
 test_registry_node
+test_erupt_node
 test_risingwheel_node
 test_rubble_node
 test_save_node

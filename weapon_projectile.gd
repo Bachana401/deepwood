@@ -411,9 +411,20 @@ func _ready() -> void:
 			_build_drift_wheel()
 		# ---- T4 batch 3: the last ten ----
 		"night_bolt": _build_night_bolt()
-		"wisp_post": _build_wisp_post()
-		"candle_row": _build_candle_row()
-		"coven_ring": _build_coven_ring()
+		# NO AREA2D HIT (2026-08-07): these three are planted 120px ahead and deal
+		# their damage by hand over time (the same patient sender / standing zone as
+		# asphodel_post, which already does this). Left monitoring, a body on the
+		# plant point tripped body_entered, took one stray hit and freed the post
+		# before it ever sent -- the eruption family's premature-free, in the posts.
+		"wisp_post":
+			monitoring = false
+			_build_wisp_post()
+		"candle_row":
+			monitoring = false
+			_build_candle_row()
+		"coven_ring":
+			monitoring = false
+			_build_coven_ring()
 		"gloam_burst": _build_prism_bolt()
 		"howl_bolt": _build_night_bolt()
 		"debt_deep": _build_omen_sigil()
@@ -5783,7 +5794,11 @@ var _fork_t := 0.0
 var _fork_done := false
 
 func _build_fork_tree() -> void:
-	pass    # the branches draw themselves as they grow, in the tick
+	# NO AREA2D HIT: the branches grow from _tick_fork_tree and deal their own
+	# damage. With monitoring on, a body at the 34px spawn tripped body_entered,
+	# took one stray hit and freed the node before the tree grew (Stormsliver
+	# declares 2.2). See _build_colonnade.
+	monitoring = false
 
 func _tick_fork_tree(delta: float) -> void:
 	_fork_t += delta
@@ -7654,7 +7669,12 @@ func _toll_ring(fall: float) -> void:
 	tw.chain().tween_callback(ring.queue_free)
 
 func _build_anvil_toll() -> void:
-	pass   # the tolls draw themselves; the striker leaves nothing standing
+	# NO AREA2D HIT: the four tolls ring outward over time from _tick_toll, dealing
+	# their own radial damage. With monitoring on a body at the 82px strike point
+	# tripped body_entered, was paid one stray hit and freed the striker before the
+	# later, heavier tolls -- the World-Anvil (declared 2.7) reduced to one tap.
+	# See _build_colonnade.
+	monitoring = false
 
 # --- HORIZONRENDER: the crescent SPLITS, parts, and closes again ---------
 var _rend_t := 0.0
@@ -9673,6 +9693,11 @@ func _measure_fall() -> void:
 				_apply_status_to(e)
 
 func _build_sky_measure() -> void:
+	# NO AREA2D HIT: the six columns fall 0.5s+ later from _measure_fall and deal
+	# their own damage. With monitoring on, a body under the 120px cast point tripped
+	# body_entered, took one stray hit and freed the node before the columns landed.
+	# See _build_colonnade.
+	monitoring = false
 	var m := CanvasItemMaterial.new()
 	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	# the survey marks: a row of faint verticals that promise where it lands
@@ -9694,6 +9719,22 @@ var _col_t := 0.0
 var _col_fired := false
 const COL_COUNT := 5
 const COL_GAP := 88.0
+# THE FLOOR ERUPTS, IT DOES NOT FOLLOW THE MOUSE (2026-08-07). Two ways a pillar
+# missed a body it should have flattened, both reported from live play as "some
+# enemies are affected, some are not":
+#
+#   1. THE GAP. Each pillar only reached +/-30px and they stood COL_GAP=88 apart,
+#      so a body could stand in the 28px dead lane between two pillars and take
+#      nothing at all. The declaration says a body stands in ONE pillar (1.2) --
+#      it has to actually stand in one. COL_HALF now tiles the gap (46*2 = 92 > 88)
+#      so the five pillars form a continuous eruption down the hall, no dead lanes.
+#   2. THE LIFT. Pillars marched along `direction`, the full aim vector, so any
+#      upward or downward aim carried the whole colonnade off the floor -- the far
+#      pillars ended hundreds of pixels above a ground-standing enemy and the
+#      horizontal band never reached it. A colonnade "comes up out of the floor";
+#      it marches along the ground on the aim's HORIZONTAL, anchored to the
+#      caster's own footing, whatever the vertical aim.
+const COL_HALF := 46.0
 
 func _tick_colonnade(delta: float) -> void:
 	_col_t += delta
@@ -9711,8 +9752,21 @@ func _raise_colonnade() -> void:
 	var m := CanvasItemMaterial.new()
 	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	var pay: int = maxi(1, damage)
+	# March down the HALL, not down the aim: horizontal step only, planted on the
+	# caster's floor line so the eruption never lifts off the ground under a
+	# diagonal aim.
+	var march_x: float = signf(direction.x)
+	if absf(march_x) < 0.5:
+		march_x = 1.0
+		if is_instance_valid(source) and "facing_direction" in source:
+			var fd: float = float(source.facing_direction)
+			if fd != 0.0:
+				march_x = signf(fd)
+	var origin_y: float = global_position.y
+	if is_instance_valid(source):
+		origin_y = (source as Node2D).global_position.y
 	for i in range(COL_COUNT):
-		var at: Vector2 = global_position + direction * (COL_GAP * float(i))
+		var at: Vector2 = Vector2(global_position.x + march_x * (COL_GAP * float(i)), origin_y)
 		var pillar := Polygon2D.new()
 		pillar.polygon = PackedVector2Array([
 			Vector2(-19.0, 26.0), Vector2(-13.0, -150.0),
@@ -9736,7 +9790,7 @@ func _raise_colonnade() -> void:
 				if "is_dead" in e and e.is_dead:
 					continue
 				var rel: Vector2 = (e as Node2D).global_position - at
-				if absf(rel.x) > 30.0 or rel.y < -150.0 or rel.y > 34.0:
+				if absf(rel.x) > COL_HALF or rel.y < -150.0 or rel.y > 40.0:
 					continue
 				var landed = e.take_damage(pay)
 				if landed == null or landed:
@@ -9747,7 +9801,14 @@ func _raise_colonnade() -> void:
 					e.apply_knockback(1 if rel.x >= 0.0 else -1, 120.0)
 
 func _build_colonnade() -> void:
-	pass    # the pillars draw themselves the instant they come up
+	# NO AREA2D HIT (2026-08-07). The colonnade deals all its damage by hand in
+	# _raise_colonnade, 0.14s after it is cast. It also spawns 70px in front of the
+	# caster with monitoring on -- so any enemy standing there tripped body_entered,
+	# which paid ONE stray hit and then FREED the node (the non-pierce default arm)
+	# before the eruption ever ran. That is the dev's "some enemies are affected,
+	# some are not": a crowd at your feet ate the Monarch staff and the pillars
+	# never came up. The verb owns its damage; the collider must not consume it.
+	monitoring = false
 
 # --- A CHOIR OF ONE: one shaft that becomes FIVE in flight --------------
 var _harm_t := 0.0
@@ -9860,7 +9921,12 @@ func _pluck() -> void:
 				_apply_status_to(e)
 
 func _build_harp() -> void:
-	pass    # the strings appear on the pluck
+	# NO AREA2D HIT: the strings pluck 0.1s later and deal their own damage. With
+	# monitoring on, a body overlapping the 40px spawn tripped body_entered, took
+	# one stray hit and freed the node before the pluck -- the same premature-free
+	# that gutted the colonnade. (Throne of Strings declares 3.0 hits; a crowded
+	# cast was landing 1.) See _build_colonnade.
+	monitoring = false
 
 # --- THE WORLD'S GRIEF: twelve tears, and each one finds someone --------
 var _tear_prey: Node2D = null
@@ -9951,7 +10017,11 @@ func _strike_bolt(idx: int) -> void:
 	_nova_burst(at + Vector2(0, 30.0), Color(0.8, 0.9, 1.0))
 
 func _build_sky_charge() -> void:
-	pass    # the storm is the bolts; the caster node is invisible
+	# NO AREA2D HIT: the caster is invisible and strikes eight bolts over ~1.5s from
+	# _tick_skycharge, each dealing its own damage. With monitoring on a body at the
+	# 120px cast point tripped body_entered, took one stray hit and freed the caster
+	# before the storm built (declared 3.4, crowded reality 1). See _build_colonnade.
+	monitoring = false
 
 # --- A CUT ACROSS THE WORLD: one slash, the whole lane ------------------
 # Straight off the study's aura ladder: at the crown the swing aura is TRADED
