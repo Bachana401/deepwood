@@ -37,6 +37,7 @@ test_earlypressure_node
 test_eclipse_node
 test_economy_node
 test_emptyruins_node
+test_erupt_node
 test_eventboss_node
 test_eventstorm_node
 test_finale_node
@@ -88,7 +89,6 @@ test_proving_node
 test_realclock_node
 test_realhits_node
 test_registry_node
-test_erupt_node
 test_risingwheel_node
 test_rubble_node
 test_save_node
