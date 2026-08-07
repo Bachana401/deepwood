@@ -147,7 +147,45 @@ func _ready() -> void:
 	if old_sun:
 		old_sun.visible = false
 	add_to_group("day_night")   # so main can resync us after a Continue load
+	_build_night_ceiling()
 	sync_from_master()
+
+# THE DARK PRESSES DOWN FROM THE TOP AT NIGHT (dev request 2026-08-07: "night should
+# be more dark at the top for camera POV"). The world CanvasModulate darkens
+# everything uniformly; this adds a SCREEN-SPACE gradient that is heaviest at the top
+# edge and fades to nothing by mid-screen, so night reads as a weight overhead rather
+# than a flat wash. It is a screen overlay (its own CanvasLayer, follows the camera
+# for free) and never a light, so it costs nothing and cannot touch enemy visibility
+# on the ground -- the same discipline the moon glow keeps.
+const NIGHT_CEILING_ALPHA := 0.5      # heaviest darkness at the very top, at full night
+const NIGHT_CEILING_SPAN := 0.5       # fraction of screen height it reaches down
+var _night_ceiling: TextureRect = null
+
+func _build_night_ceiling() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = -1        # over the world, behind the HUD (which lives at higher layers)
+	layer.name = "NightCeiling"
+	add_child(layer)
+	# a vertical fade painted into a texture: near-black at the very top, clear at the
+	# bottom of the band. The whole thing's opacity is driven by the night factor in
+	# update_visuals, so it is invisible by day and heaviest at deep night.
+	var grad := Gradient.new()
+	grad.set_color(0, Color(0.02, 0.02, 0.05, 1.0))
+	grad.set_color(1, Color(0.02, 0.02, 0.05, 0.0))
+	var tex := GradientTexture2D.new()
+	tex.gradient = grad
+	tex.fill_from = Vector2(0.5, 0.0)
+	tex.fill_to = Vector2(0.5, 1.0)
+	tex.width = 8
+	tex.height = 128
+	_night_ceiling = TextureRect.new()
+	_night_ceiling.texture = tex
+	_night_ceiling.anchor_right = 1.0
+	_night_ceiling.anchor_bottom = NIGHT_CEILING_SPAN
+	_night_ceiling.stretch_mode = TextureRect.STRETCH_SCALE
+	_night_ceiling.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_night_ceiling.modulate = Color(1, 1, 1, 0.0)   # invisible until night lifts it
+	layer.add_child(_night_ceiling)
 
 # Sync the clock from the master BEFORE the first draw -- else the scene
 # renders one frame at the 8.0 default (bright day) before _process corrects
@@ -484,6 +522,9 @@ func arc_position(progress: float, anchor_x: float) -> Vector2:
 func update_visuals() -> void:
 	var t = get_darkness_factor()
 	var canvas_color = DAY_COLOR.lerp(NIGHT_COLOR, t)
+	# the dark pressing down from the top follows the same night factor as the tint
+	if _night_ceiling != null:
+		_night_ceiling.modulate.a = t * NIGHT_CEILING_ALPHA
 	# ================== THE ECLIPSE (dev design 2026-08-06) ==================
 	# The reference the dev gave is a RING, not a red filter: a world gone to black
 	# silhouette lit by one hot red source. So the global tint goes deep red-DARK
