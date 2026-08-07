@@ -992,8 +992,13 @@ const BLACK_TIDE_MIN_DEPTH := 15     # not until Orin is freed -- the start stay
 # The First Frost is a MEDIUM event whose only trigger is the hour of day; without a
 # depth floor it fired ~50 real seconds into a fresh save (the game opens at 22:00).
 # 8 = past the first boss at 5, into the frost sibling's territory at 10, so the
-# player is carrying gear when the coldest hour finally means something.
+# player is carrying gear when the coldest hour finally means something. Read against
+# highest_unlocked_level (per-save, resets on New Game), NOT deepest_level_reached
+# (lifetime, persists) -- see the first_frost branch in _event_condition_met.
 const FIRST_FROST_MIN_DEPTH := 8
+# The Tallyman comes for a hoard. The dev's number: 10,000 gold carried in the bag
+# (p.currency IS the coin_gold stack), outside the dungeon.
+const TALLYMAN_GOLD := 10000
 const BLACK_TIDE_TIER_MULT := 2.2
 const BLACK_TIDE_LEAD := 8.0
 var sieges_seen := 0
@@ -2426,19 +2431,23 @@ func tick_hidden_events() -> void:
 func _event_condition_met(id: String, p: Node) -> bool:
 	match id:
 		"tallyman":
-			return not in_dungeon and int(p.currency) >= 8000
+			return not in_dungeon and int(p.currency) >= TALLYMAN_GOLD
 		"first_frost":
-			# GATED behind real descent. This was the ONE ambient event with no
-			# progression gate at all -- every sibling needs 8000 gold, or 300 kills,
-			# or dungeon floor 60. First Frost only asked "are you outside at
-			# midnight", and the game opens at 22:00, so it fired ~50 real seconds
-			# into a fresh save on a player with no weapon and no way to win. A
-			# medium event boss (its ladder sibling is the floor-10 Frost Monarch)
-			# must not ambush minute one. Now it waits until you have been down far
-			# enough to be carrying gear -- then the coldest hour is a secret you
-			# have earned rather than a wall you cannot pass.
+			# GATED behind THIS SAVE'S descent. This was the ONE ambient event with no
+			# progression gate at all -- every sibling needs gold, or kills, or dungeon
+			# floor 60. First Frost only asked "are you outside at midnight", and the
+			# game opens at 22:00, so it fired ~50 real seconds into a fresh save on a
+			# player with no weapon and no way to win.
+			#
+			# The gate must read a PER-SAVE signal. My first fix used
+			# deepest_level_reached -- but that is a LIFETIME high-water mark that
+			# deliberately does NOT reset on new game, so a returning player (who has
+			# been deep in an EARLIER save) still triggered it at minute one. That is
+			# the "machine state leaks across games" trap. highest_unlocked_level is the
+			# right signal: it resets to 1 on New Game and climbs only as THIS run
+			# descends, so a fresh save cannot arm it no matter the player's history.
 			var h := hour_of_day()
-			return not in_dungeon and deepest_level_reached >= FIRST_FROST_MIN_DEPTH \
+			return not in_dungeon and highest_unlocked_level >= FIRST_FROST_MIN_DEPTH \
 				and h >= 0.0 and h <= 2.5
 		"glutton_root":
 			return run_trees >= 50
@@ -2684,7 +2693,7 @@ func _tick_event_omen(id: String, p: Node) -> void:
 # 0..1 fraction toward a countable milestone (‑1 = not omenable, e.g. pure time).
 func _event_omen_progress(id: String, p: Node) -> float:
 	match id:
-		"tallyman": return clampf(float(p.currency) / 8000.0, 0.0, 1.0) if not in_dungeon else 0.0
+		"tallyman": return clampf(float(p.currency) / float(TALLYMAN_GOLD), 0.0, 1.0) if not in_dungeon else 0.0
 		"glutton_root": return clampf(float(run_trees) / 50.0, 0.0, 1.0)
 		"drowned_chorus": return clampf(float(run_rocks) / 90.0, 0.0, 1.0)
 		"effigy_king": return clampf(float(run_gold_spent) / 15000.0, 0.0, 1.0)
