@@ -34,6 +34,13 @@ const ITEM_DEFS = {
 	"wood": {"name": "Wood", "category": "material", "max_stack": 99, "color": Color(0.52, 0.34, 0.18, 1.0), "is_construction": true},
 	"stone": {"name": "Stone", "category": "material", "max_stack": 99, "color": Color(0.6, 0.6, 0.63, 1.0), "is_construction": true},
 	"resin": {"name": "Resin", "category": "material", "max_stack": 99, "color": Color(0.88, 0.62, 0.22, 1.0), "is_construction": true},
+	# The standing TORCH, now a craftable, stackable PLACEABLE item (dev 2026-08-07:
+	# "a regular item which is craftable, put in inventory, and placed like in
+	# Terraria exactly"). Hold it from the hotbar and click to plant a lit brazier
+	# on the surface under the cursor (see player.gd try_place_held_torch). Crafts
+	# from the same 2 Wood + 1 Resin the old G-key path spent, so the economy is
+	# unchanged. NOT "is_material" -- its name reads plainly, it needs no research.
+	"torch": {"name": "Torch", "category": "material", "max_stack": 99, "color": Color(1.0, 0.7, 0.3, 1.0), "placeable": true, "desc": "Hold it and click to plant a lit torch on the ground, Terraria-style."},
 	# --- Armor (the "Leather" set; dungeon loot will add more later) ---
 	"helm_leather": {"name": "Leather Helm", "category": "armor", "slot": "helmet", "set": "leather", "max_stack": 1, "color": Color(0.55, 0.4, 0.25, 1.0), "equip_effect": {"max_health": 15.0}},
 	"armor_leather": {"name": "Leather Vest", "category": "armor", "slot": "chest", "set": "leather", "max_stack": 1, "color": Color(0.5, 0.36, 0.22, 1.0), "equip_effect": {"max_health": 25.0}},
@@ -1127,6 +1134,11 @@ const CRAFT_RECIPES = {
 	# was a dead end -- no drop table carries it either.
 	"hollow_signet": {"mat_unmade": 2, "mat_crownshard": 2, "mat_sableichor": 1,
 		"void_essence": 4, "ancient_relic": 3},
+	# The TORCH: exactly what the old G-key standing torch cost (player.gd
+	# STANDING_TORCH_COST = 2 Wood + 1 Resin), so making the torch a craftable item
+	# leaves the lighting economy where it was -- one torch planted still costs one
+	# torch's worth of materials. One craft = one placement.
+	"torch": {"wood": 2, "resin": 1},
 }
 
 static func get_grade(item_id: String) -> String:
@@ -1388,6 +1400,10 @@ static func build_tooltip_text(item_id: String) -> String:
 		# relics with a triggered power spell it out
 		if def.has("relic_desc"):
 			lines.append("Power: " + def.relic_desc)
+		# a plain flavour/how-to line (placeables like the torch use this to say how
+		# they are used); harmless for anything without one
+		if def.has("desc"):
+			lines.append(def.desc)
 
 	if set_id != "" and SET_DEFS.has(set_id):
 		var sd2 = SET_DEFS[set_id]
@@ -1778,6 +1794,7 @@ static func paint_icon(target: ColorRect, item_id: String) -> void:
 		"wood": _icon_wood(target, w, h)
 		"stone": _icon_stone(target, w, h)
 		"resin": _icon_resin(target, w, h)
+		"torch": _icon_torch(target, w, h)
 		"herb": _icon_leaf(target, w, h)
 		"raw_meat": _icon_meat(target, w, h)
 		"slime": _icon_blob(target, w, h, col)
@@ -2067,6 +2084,20 @@ static func _icon_resin(t: Control, w: float, h: float) -> void:
 		Vector2(w * 0.6, h * 0.7), Vector2(w * 0.5, h * 0.8),
 		Vector2(w * 0.4, h * 0.7), Vector2(w * 0.37, h * 0.5)]), Color(0.88, 0.62, 0.22))
 	_icircle(t, Vector2(w * 0.44, h * 0.46), w * 0.05, Color(1, 1, 1, 0.7))         # highlight
+
+# The placeable TORCH: a wrapped handle with a live flame, so it reads as a torch
+# in the bag AND in the hand (paint_icon draws both). No art asset -- procedural,
+# like every other material icon (art generation is frozen until 2026-08-14).
+static func _icon_torch(t: Control, w: float, h: float) -> void:
+	_irect(t, Vector2(w * 0.43, h * 0.42), Vector2(w * 0.14, h * 0.5), Color(0.42, 0.28, 0.15))  # handle
+	_irect(t, Vector2(w * 0.38, h * 0.38), Vector2(w * 0.24, h * 0.08), Color(0.30, 0.20, 0.11))  # bowl band
+	_icircle(t, Vector2(w * 0.5, h * 0.28), w * 0.22, Color(1.0, 0.55, 0.18, 0.26))               # fire glow
+	_ipoly(t, PackedVector2Array([                                                                 # outer flame
+		Vector2(w * 0.5, h * 0.05), Vector2(w * 0.64, h * 0.30),
+		Vector2(w * 0.5, h * 0.42), Vector2(w * 0.36, h * 0.30)]), Color(1.0, 0.60, 0.20))
+	_ipoly(t, PackedVector2Array([                                                                 # hot inner flame
+		Vector2(w * 0.5, h * 0.16), Vector2(w * 0.58, h * 0.31),
+		Vector2(w * 0.5, h * 0.39), Vector2(w * 0.42, h * 0.31)]), Color(1.0, 0.90, 0.52))
 
 static func _icon_potion(t: Control, w: float, h: float, col: Color) -> void:
 	_irect(t, Vector2(w * 0.42, h * 0.16), Vector2(w * 0.16, h * 0.14), Color(0.7, 0.66, 0.6))  # cork/neck

@@ -2025,6 +2025,70 @@ func try_place_torch() -> void:
 	if stack:
 		stack.show_notification("Standing torch planted (2 Wood, 1 Resin). It lights at dusk.")
 
+# --- The TORCH as a placeable ITEM (dev 2026-08-07: "a regular item which is
+# craftable, put in inventory, and placed like in Terraria exactly") ---
+# The torch is a craftable bag item (Inventory ITEM_DEFS/CRAFT_RECIPES). Selecting
+# it from the hotbar HOLDS it via the improvised-hand path (wield_improvised), so
+# it is drawn in hand like any held item -- but a CLICK must PLACE it, not swing
+# it. The physics loop routes the click here whenever is_holding_torch() (see the
+# attack block), so a torch never falls through to the improvised swing.
+const TORCH_ITEM_ID := "torch"
+const TORCH_PLACE_REACH := 460.0   # how far from the player a torch may be planted
+const TORCH_SNAP_UP := 40.0        # start the surface ray this far ABOVE the cursor
+const TORCH_SNAP_DOWN := 720.0     # ...and search this far below it for ground
+
+# True when the thing in hand is the torch item -- the one held item that places
+# on click instead of swinging.
+func is_holding_torch() -> bool:
+	return is_improvised and active_weapon_id == TORCH_ITEM_ID
+
+# Terraria-style placement: plant one lit standing torch on the surface under the
+# cursor and spend one torch from the stack. Works in the overworld AND dungeons
+# (both have a ground line, not a tile grid). The tile Underground owns its own
+# torch system + grid, so this stays out of it -- that reconcile is a later pass.
+func try_place_held_torch() -> void:
+	var stack = get_tree().get_first_node_in_group("notification_stack")
+	if get_tree().get_first_node_in_group("tile_world") != null:
+		return   # underground has its OWN torch system + grid; don't double-place
+	if inventory == null or inventory.get_count(TORCH_ITEM_ID) <= 0:
+		return
+	var spot: Vector2 = torch_place_point()
+	inventory.remove_item(TORCH_ITEM_ID, 1)
+	var torch = STANDING_TORCH_SCRIPT.new()
+	torch.position = spot   # parent is the scene root, so this is world-space
+	get_parent().add_child(torch)
+	# PERSIST ONLY IN THE OVERWORLD. GameState.placed_torches holds VILLAGE
+	# coordinates and is re-spawned into main.tscn alone (main.gd), so recording a
+	# dungeon-local point here would resurrect the torch mid-village on the next
+	# trip home. A torch dropped in a dungeon lights THIS run and is spent, exactly
+	# like the loot and the layout -- ephemeral, not saved.
+	if not GameState.in_dungeon:
+		GameState.placed_torches.append({"x": spot.x, "y": spot.y})
+	if stack:
+		stack.show_notification("Torch placed. It lights at dusk.")
+
+# The snapped placement point. Clamp the cursor to within reach of the player, then
+# cast a SHORT ray straight down to find the ground/platform surface and set the
+# torch's base there (standing_torch's stone base sits at y=0). Over open air with
+# no surface below, fall back to the player's own foot height so a torch never
+# floats in the void.
+func torch_place_point() -> Vector2:
+	var origin: Vector2 = global_position + Vector2(0.0, 24.0)   # the feet
+	var cursor: Vector2 = aim_world_point()
+	var to_cursor: Vector2 = cursor - origin
+	if to_cursor.length() > TORCH_PLACE_REACH:
+		cursor = origin + to_cursor.normalized() * TORCH_PLACE_REACH
+	var space := get_world_2d().direct_space_state
+	var from_pt: Vector2 = Vector2(cursor.x, cursor.y - TORCH_SNAP_UP)
+	var to_pt: Vector2 = Vector2(cursor.x, cursor.y + TORCH_SNAP_DOWN)
+	var q := PhysicsRayQueryParameters2D.create(from_pt, to_pt)
+	q.collision_mask = 1        # terrain/platforms are layer 1 (as the roof checks use)
+	q.exclude = [self]
+	var hit: Dictionary = space.intersect_ray(q)
+	if hit.is_empty():
+		return Vector2(cursor.x, origin.y)   # no surface: plant at the player's feet height
+	return hit.position
+
 # --- Bar morale ---
 # Stepping into the (built) Bar lifts the player's spirits: +10% move speed for
 # a few in-game hours. Granted by building.gd's Bar on entry; re-entering after
@@ -4053,7 +4117,17 @@ func _physics_process(delta: float) -> void:
 	# hand flares each shot. (The dedicated attack body pose -- the future
 	# two-hands-up frame -- isn't wired yet; these frames are now the aim pose.)
 	# Root still lets you swing; only stun/freeze (cc_hard) locks attacks out.
-	if Input.is_action_pressed("attack") and not cc_hard and not GameState.placing_building \
+	if is_holding_torch():
+		# THE TORCH PLACES, IT NEVER SWINGS (dev 2026-08-07). One torch per press --
+		# just_pressed, not pressed, so holding the button doesn't spew a line of
+		# them -- snapped to the surface under the cursor. Gated by the same guards
+		# as an attack (no CC, no build-placement, no open panel eating the click).
+		if Input.is_action_just_pressed("attack") and not cc_hard and not GameState.placing_building \
+				and not ui_blocks_world_input():
+			try_place_held_torch()
+		stop_beam()
+		stop_prism()
+	elif Input.is_action_pressed("attack") and not cc_hard and not GameState.placing_building \
 			and not ui_blocks_world_input():
 		# a channelling Sage pours a beam instead of firing bolts; everyone
 		# else falls through to the normal per-cooldown attack
