@@ -989,6 +989,11 @@ const SIEGE_MAX_CASUALTIES := 2
 # home and post your defenders.
 const BLACK_TIDE_EVERY := 6
 const BLACK_TIDE_MIN_DEPTH := 15     # not until Orin is freed -- the start stays gentle
+# The First Frost is a MEDIUM event whose only trigger is the hour of day; without a
+# depth floor it fired ~50 real seconds into a fresh save (the game opens at 22:00).
+# 8 = past the first boss at 5, into the frost sibling's territory at 10, so the
+# player is carrying gear when the coldest hour finally means something.
+const FIRST_FROST_MIN_DEPTH := 8
 const BLACK_TIDE_TIER_MULT := 2.2
 const BLACK_TIDE_LEAD := 8.0
 var sieges_seen := 0
@@ -2423,8 +2428,18 @@ func _event_condition_met(id: String, p: Node) -> bool:
 		"tallyman":
 			return not in_dungeon and int(p.currency) >= 8000
 		"first_frost":
+			# GATED behind real descent. This was the ONE ambient event with no
+			# progression gate at all -- every sibling needs 8000 gold, or 300 kills,
+			# or dungeon floor 60. First Frost only asked "are you outside at
+			# midnight", and the game opens at 22:00, so it fired ~50 real seconds
+			# into a fresh save on a player with no weapon and no way to win. A
+			# medium event boss (its ladder sibling is the floor-10 Frost Monarch)
+			# must not ambush minute one. Now it waits until you have been down far
+			# enough to be carrying gear -- then the coldest hour is a secret you
+			# have earned rather than a wall you cannot pass.
 			var h := hour_of_day()
-			return not in_dungeon and h >= 0.0 and h <= 2.5
+			return not in_dungeon and deepest_level_reached >= FIRST_FROST_MIN_DEPTH \
+				and h >= 0.0 and h <= 2.5
 		"glutton_root":
 			return run_trees >= 50
 		"drowned_chorus":

@@ -41,6 +41,7 @@ var _full_text := ""      # the whole current line
 var _shown := 0.0         # characters revealed so far (float for smooth typing)
 var _typing := false
 var _blink := 0.0
+var _real_last := 0.0      # wall-clock stamp so typing ignores Engine.time_scale
 var _pointer: SpeakerIndicator = null   # the chevron hovering over the live speaker
 # The scene whose beat this is, held BY INSTANCE ID (see _host_gone): a freed
 # object compares EQUAL to null in GDScript, so a plain `scene != null and not
@@ -314,6 +315,21 @@ func _host_gone() -> bool:
 	return host == null or not is_instance_valid(host)
 
 func _process(delta: float) -> void:
+	# TYPE IN WALL-CLOCK TIME, NEVER IN SCALED delta. The `delta` Godot hands this
+	# function is multiplied by Engine.time_scale -- and combat hit-stop drops that
+	# to 0.02 (player.gd hit_stop). The opening is a FIGHT, so a dialogue that opens
+	# while a hit-stop is still live typed at 42 * 0.02 = 0.84 chars/sec: one letter
+	# a second, thirty seconds for a short line. This box runs while the tree is
+	# PAUSED (PROCESS_MODE_ALWAYS), and while paused the player node cannot restore
+	# time_scale, so the slow-mo just sat there. Measuring real elapsed milliseconds
+	# makes the typewriter immune to it -- the same wall-clock trick hit_stop itself
+	# uses to un-freeze. Every dialogue in the game reads through here, so this is the
+	# one fix for all of them.
+	var real_now: float = Time.get_ticks_msec() / 1000.0
+	if _real_last <= 0.0:
+		_real_last = real_now
+	var real_delta: float = clampf(real_now - _real_last, 0.0, 0.1)
+	_real_last = real_now
 	# THE BEAT DIES WITH ITS SCENE. We are parented to root (survives scene
 	# swaps by design), so a Quit-to-Menu or dungeon exit mid-beat used to
 	# strand this box -- full-screen shade + panel eating input over the next
@@ -324,7 +340,7 @@ func _process(delta: float) -> void:
 		finish()
 		return
 	if _typing:
-		_shown += delta * TYPE_CPS
+		_shown += real_delta * TYPE_CPS
 		var n := int(_shown)
 		if n >= _full_text.length():
 			text_label.visible_characters = -1
@@ -333,7 +349,7 @@ func _process(delta: float) -> void:
 			text_label.visible_characters = n
 	else:
 		# blink the continue caret once the line is fully shown
-		_blink += delta
+		_blink += real_delta
 		caret.visible = fmod(_blink, 0.9) < 0.55
 
 func _unhandled_input(event: InputEvent) -> void:
