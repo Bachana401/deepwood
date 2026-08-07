@@ -122,6 +122,25 @@ const MOON_CRATER_COLORS = [
 ]
 const MOON_CRATER_ALPHA = 0.7
 
+# ============================ SKY ART (2026-08-07) ============================
+# The sun and moon were flat procedural polygons the dev disliked. They are now
+# pixel-art (PixelLab), carried on the SAME Polygon2D nodes as before: a TEXTURED
+# Polygon2D lets the moon's phase silhouette double as its own mask, so the art is
+# clipped exactly to the lit fraction with no second node and no alignment guess.
+# The eclipse machinery, the arc, the visible-window logic and the night
+# counter-colour are all untouched -- only the DRAW changed.
+const SUN_TEX: Texture2D = preload("res://art/sky/sun.png")
+const MOON_TEX: Texture2D = preload("res://art/sky/moon_full.png")
+const DISTANT_MOON_TEX: Texture2D = preload("res://art/sky/distant_moon.png")
+const PLANET_RINGED_TEX: Texture2D = preload("res://art/sky/planet_ringed.png")
+const PLANET_RED_TEX: Texture2D = preload("res://art/sky/planet_red.png")
+
+# measured opaque bounds of each disc within its PNG (centre + radius, in texture
+# pixels) so the art maps precisely onto the local circle regardless of any margin
+# the PNG carries -- scanned once at setup, see _disc_metrics.
+var _sun_disc: Dictionary = {}
+var _moon_disc: Dictionary = {}
+
 var time_of_day = 8.0
 var was_night = false
 var current_phase_index = 0
@@ -148,6 +167,7 @@ func _ready() -> void:
 		old_sun.visible = false
 	add_to_group("day_night")   # so main can resync us after a Continue load
 	_build_night_ceiling()
+	_build_distant_sky()
 	sync_from_master()
 
 # THE DARK PRESSES DOWN FROM THE TOP AT NIGHT (dev request 2026-08-07: "night should
@@ -217,20 +237,21 @@ func build_sun(sun_container: Node2D) -> void:
 	var outer = sun_container.get_node_or_null("GlowOuter")
 	var inner = sun_container.get_node_or_null("GlowInner")
 	var disc = sun_container.get_node_or_null("Disc")
-	var rays = sun_container.get_node_or_null("Rays")
-	var highlight = sun_container.get_node_or_null("Highlight")
 	if outer:
 		build_circle(outer, SUN_RADIUS * SUN_GLOW_OUTER_SCALE, Color(SUN_COLOR.r, SUN_COLOR.g, SUN_COLOR.b, SUN_GLOW_OUTER_ALPHA))
 		outer.material = make_additive_material()
 	if inner:
 		build_circle(inner, SUN_RADIUS * SUN_GLOW_INNER_SCALE, Color(SUN_COLOR.r, SUN_COLOR.g, SUN_COLOR.b, SUN_GLOW_INNER_ALPHA))
 		inner.material = make_additive_material()
-	if rays:
-		build_sun_rays(rays)
+	# The disc is now pixel art on the same Polygon2D (textured), not a flat fill.
+	# The old hard 12-ray spokes and procedural highlight are dropped: the generated
+	# sun carries its own corona rim and molten surface, and those spokes were exactly
+	# the "cheap icon" look the dev asked to be rid of. The additive glow halos above
+	# stay -- they genuinely brighten the sky behind the disc. (The Rays/Highlight
+	# nodes remain in the scene, empty; update_sun_eclipse still guards on them.)
 	if disc:
-		build_circle(disc, SUN_RADIUS, SUN_COLOR)
-	if highlight:
-		build_sun_highlight(highlight, SUN_HIGHLIGHT_RADIUS, SUN_HIGHLIGHT_COLOR)
+		_sun_disc = _disc_metrics(SUN_TEX)
+		build_textured_circle(disc, SUN_RADIUS, SUN_TEX, _sun_disc, Color.WHITE)
 
 func build_sun_highlight(poly: Polygon2D, radius: float, color: Color) -> void:
 	var points = PackedVector2Array()
@@ -389,6 +410,71 @@ func build_circle(poly: Polygon2D, radius: float, color: Color) -> void:
 	poly.polygon = points
 	poly.color = color
 
+# A full disc polygon that samples a sprite texture -- the sun's new art rides here.
+# UVs are set explicitly (texture pixels) so the disc art lands dead-centre no matter
+# what transparent margin the PNG carries; `color` still tints/counter-lights it, so
+# the eclipse path (which sets .color) keeps working unchanged.
+func build_textured_circle(poly: Polygon2D, radius: float, tex: Texture2D, disc: Dictionary, color: Color) -> void:
+	var pts := PackedVector2Array()
+	var uvs := PackedVector2Array()
+	var c: Vector2 = disc.get("center", Vector2(tex.get_width() / 2.0, tex.get_height() / 2.0))
+	var tr: float = disc.get("radius", minf(tex.get_width(), tex.get_height()) / 2.0)
+	var segments := 48
+	for i in range(segments):
+		var angle: float = i * TAU / float(segments)
+		var v: Vector2 = Vector2(cos(angle), sin(angle)) * radius
+		pts.append(v)
+		uvs.append(c + (v / radius) * tr)
+	poly.polygon = pts
+	poly.uv = uvs
+	poly.texture = tex
+	poly.color = color
+
+# The largest opaque bounding disc of a sprite texture (centre + radius in texture
+# pixels), so the art maps precisely onto the local circle. Scanned once; a 96x96
+# scan is ~9k pixels and costs nothing at setup.
+func _disc_metrics(tex: Texture2D) -> Dictionary:
+	if tex == null:
+		return {}
+	var img: Image = tex.get_image()
+	if img == null:
+		return {}
+	var w: int = img.get_width()
+	var h: int = img.get_height()
+	var minx: int = w
+	var miny: int = h
+	var maxx: int = -1
+	var maxy: int = -1
+	for y in range(h):
+		for x in range(w):
+			if img.get_pixel(x, y).a > 0.35:
+				minx = mini(minx, x)
+				maxx = maxi(maxx, x)
+				miny = mini(miny, y)
+				maxy = maxi(maxy, y)
+	if maxx < 0:
+		return {"center": Vector2(w / 2.0, h / 2.0), "radius": minf(w, h) / 2.0}
+	var cx: float = (minx + maxx + 1) / 2.0
+	var cy: float = (miny + maxy + 1) / 2.0
+	var r: float = maxi(maxx - minx + 1, maxy - miny + 1) / 2.0
+	return {"center": Vector2(cx, cy), "radius": r}
+
+# Map the moon art onto whatever lit-phase silhouette build_moon_phase just wrote:
+# each polygon vertex (local, radius = MOON_RADIUS) samples the matching point of the
+# moon disc, so the texture is clipped to the phase with no second mask node -- and
+# because real craters don't move, the same texture across every phase reads as one
+# consistent moon (the exact property the old procedural crater pass fought to keep).
+func _apply_moon_texture(body: Polygon2D, radius: float) -> void:
+	if _moon_disc.is_empty():
+		_moon_disc = _disc_metrics(MOON_TEX)
+	var c: Vector2 = _moon_disc.get("center", Vector2(MOON_TEX.get_width() / 2.0, MOON_TEX.get_height() / 2.0))
+	var tr: float = _moon_disc.get("radius", minf(MOON_TEX.get_width(), MOON_TEX.get_height()) / 2.0)
+	var uvs := PackedVector2Array()
+	for v in body.polygon:
+		uvs.append(c + (v / radius) * tr)
+	body.texture = MOON_TEX
+	body.uv = uvs
+
 func build_moon_phase(poly: Polygon2D, radius: float, k: float, color: Color) -> void:
 	var points = PackedVector2Array()
 	var segments = 28
@@ -422,10 +508,11 @@ func pick_new_moon_phase() -> void:
 	if moon:
 		var moon_body = moon.get_node_or_null("Body")
 		if moon_body:
-			build_moon_phase(moon_body, MOON_RADIUS, k, MOON_COLOR)
+			build_moon_phase(moon_body, MOON_RADIUS, k, Color.WHITE)
+			_apply_moon_texture(moon_body, MOON_RADIUS)
 		update_moon_glow_shape(moon, k)
-		generate_moon_craters(k)
-		update_moon_craters(moon, k)
+		# Craters are baked into the moon art now, and the texture clips to the phase
+		# silhouette, so the whole procedural crater pass (generate/update) is retired.
 
 func _process(_delta: float) -> void:
 	handle_debug_time_input()
@@ -519,6 +606,71 @@ func arc_position(progress: float, anchor_x: float) -> Vector2:
 	var y = lerp(SKY_HORIZON_Y, SKY_PEAK_Y, sin(progress * PI))
 	return Vector2(x, y)
 
+# ===================== THE FAR SKY (dev request 2026-08-07) =====================
+# "another moon, far away, other planets too, barely visible." These hang high and
+# faint BEHIND the main sun/moon, and the mountains (z -60) crop their lower edge --
+# that occlusion is what sells the distance, far more than size alone.
+#
+# They deliberately DO NOT use position-based parallax. The dev's standing ruling
+# (see get_parallax_anchor_x) is that any sky lag proportional to how far the town
+# has grown east marches the body off screen, without bound. So the far bodies are
+# camera-anchored like the rest of the sky and drift only slowly over TIME, which
+# reads as distant celestial motion and can never run away. They fade in with night
+# and never show by day (nor during the daytime eclipse).
+const DISTANT_Z := -72              # behind sun/moon (-70), in front of the sky glow (-75)
+var _distant_root: Node2D = null
+var _distant: Array = []            # [{spr, off, world_y, amp, spd, alpha, tint}]
+
+func _build_distant_sky() -> void:
+	if _distant_root != null:
+		return
+	_distant_root = Node2D.new()
+	_distant_root.name = "DistantSky"
+	# off = horizontal offset from the camera centre; world_y = fixed sky height (y is
+	# negative upward, so these sit high); scl = sprite scale; amp/spd = the slow time
+	# sway; a = base alpha (all faint); tint = a gentle colour bias.
+	var defs: Array = [
+		{"tex": DISTANT_MOON_TEX,  "off": -430.0, "y": -586.0, "scl": 0.72, "amp": 15.0, "spd": 0.11, "a": 0.80, "tint": Color(0.82, 0.86, 0.98)},
+		{"tex": PLANET_RINGED_TEX, "off":  330.0, "y": -598.0, "scl": 0.46, "amp": 12.0, "spd": 0.08, "a": 0.70, "tint": Color(0.97, 0.91, 0.80)},
+		{"tex": PLANET_RED_TEX,    "off":  150.0, "y": -608.0, "scl": 0.55, "amp": 10.0, "spd": 0.07, "a": 0.66, "tint": Color(0.99, 0.80, 0.72)},
+		{"tex": PLANET_RINGED_TEX, "off": -190.0, "y": -610.0, "scl": 0.24, "amp":  8.0, "spd": 0.05, "a": 0.58, "tint": Color(0.86, 0.89, 0.99)},
+	]
+	for d in defs:
+		var s := Sprite2D.new()
+		s.texture = d["tex"]
+		s.scale = Vector2(float(d["scl"]), float(d["scl"]))
+		s.z_index = DISTANT_Z
+		s.z_as_relative = false
+		_distant_root.add_child(s)
+		_distant.append({
+			"spr": s, "off": float(d["off"]), "world_y": float(d["y"]),
+			"amp": float(d["amp"]), "spd": float(d["spd"]),
+			"alpha": float(d["a"]), "tint": d["tint"] as Color})
+	# deferred: _ready runs while Main is still building its children, so a direct
+	# add_child is refused ("parent busy setting up children").
+	get_parent().add_child.call_deferred(_distant_root)
+
+func _update_distant_sky(anchor_x: float, night: float, ecl: float, canvas: Color) -> void:
+	if _distant_root == null:
+		return
+	# invisible by day and during the daytime eclipse; a faint presence at night
+	var vis: float = clampf(night, 0.0, 1.0) * (1.0 - clampf(ecl, 0.0, 1.0))
+	_distant_root.visible = vis > 0.01
+	if not _distant_root.visible:
+		return
+	for b in _distant:
+		var spr: Sprite2D = b["spr"]
+		var spd: float = float(b["spd"])
+		var amp: float = float(b["amp"])
+		var sway: float = sin(total_hours_elapsed * spd) * amp
+		var bob: float = cos(total_hours_elapsed * spd * 0.7) * amp * 0.4
+		spr.position = Vector2(anchor_x + float(b["off"]) + sway, float(b["world_y"]) + bob)
+		var tint: Color = b["tint"]
+		var a: float = float(b["alpha"]) * vis
+		# counter-colour so CanvasModulate cannot drown them entirely: they hold a
+		# controlled faint instead of blinking out, which is the "barely visible" asked.
+		spr.self_modulate = counter_color(Color(tint.r, tint.g, tint.b, a), canvas)
+
 func update_visuals() -> void:
 	var t = get_darkness_factor()
 	var canvas_color = DAY_COLOR.lerp(NIGHT_COLOR, t)
@@ -558,6 +710,7 @@ func update_visuals() -> void:
 			else:
 				moon.position = arc_position(moon_progress, anchor_x)
 			update_moon_true_colors(moon, canvas_color, ecl)
+	_update_distant_sky(anchor_x, t, ecl, canvas_color)
 	_update_eclipse_ring(ecl, sun_progress, anchor_x)
 	# KEEP THIS LAST. It was the tail of this function until the eclipse work appended
 	# _update_eclipse_ring and a new function directly below -- the clock call ended up
@@ -735,7 +888,12 @@ func update_sun_eclipse(sun_container: Node2D, ecl: float, canvas_color: Color) 
 	# NOTE the node is "Disc", not "Body" -- the moon uses Body, the sun does not.
 	var disc = sun_container.get_node_or_null("Disc")
 	if disc:
-		disc.color = counter_color(core, canvas_color) if ecl > 0.0 else SUN_COLOR
+		# textured sun: the art rides on .color = WHITE (dims naturally toward sunset as
+		# CanvasModulate cools); any counter-light goes in self_modulate, which -- unlike a
+		# textured poly's per-vertex .color -- is NOT clamped to 1.0 before CanvasModulate
+		# folds in (see the moon note in update_moon_true_colors).
+		disc.color = Color.WHITE
+		disc.self_modulate = counter_color(core, canvas_color) if ecl > 0.0 else Color.WHITE
 	var highlight = sun_container.get_node_or_null("Highlight")
 	if highlight:
 		highlight.color = counter_color(Color(halo.r, halo.g, halo.b, SUN_HIGHLIGHT_COLOR.a), canvas_color) \
@@ -783,7 +941,10 @@ func update_moon_true_colors(moon_container: Node2D, canvas_color: Color, ecl :=
 	# behind it be the only bright thing on screen.
 	if ecl > 0.0:
 		if body:
-			body.color = Color(0.05, 0.02, 0.03, 1.0).lerp(counter_color(MOON_COLOR, canvas_color), 1.0 - ecl)
+			# textured moon goes to the "hole": dark self_modulate (NOT .color -- a textured
+			# poly's vertex colour clamps to 1.0 and never delivers the counter-light).
+			body.color = Color.WHITE
+			body.self_modulate = Color(0.05, 0.02, 0.03, 1.0).lerp(counter_color(Color.WHITE, canvas_color), 1.0 - ecl)
 		for nm in ["GlowOuter", "GlowInner"]:
 			var g = moon_container.get_node_or_null(nm)
 			if g:
@@ -798,7 +959,13 @@ func update_moon_true_colors(moon_container: Node2D, canvas_color: Color, ecl :=
 				dot.color = Color(0.05, 0.02, 0.03, 1.0)
 		return
 	if body:
-		body.color = counter_color(MOON_COLOR, canvas_color)
+		# THE COUNTER-LIGHT MUST RIDE self_modulate, NOT .color. A textured Polygon2D clamps
+		# its per-vertex .color to 1.0 before CanvasModulate multiplies, so the >1 counter-
+		# colour that keeps an UNtextured moon bright (the old solid disc, and the glow rings
+		# below) comes out dim on the textured art. self_modulate is a CanvasItem uniform, is
+		# not clamped, and delivers the full counter-light so the moon stays bright at night.
+		body.color = Color.WHITE
+		body.self_modulate = counter_color(Color.WHITE, canvas_color)
 	if glow_outer:
 		glow_outer.color = counter_color(Color(MOON_COLOR.r, MOON_COLOR.g, MOON_COLOR.b, MOON_GLOW_OUTER_ALPHA), canvas_color)
 	if glow_inner:
